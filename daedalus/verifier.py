@@ -44,6 +44,29 @@ def _py_compile(repo_root: str, rel: str) -> tuple[bool, str]:
     return proc.returncode == 0, (proc.stderr.strip()[:300] or "ok")
 
 
+def _lint_py(repo_root: str, rel: str) -> tuple[bool, str]:
+    """Best-effort static lint of a changed .py file -- catches undefined names
+    and unused imports that py_compile (syntax-only) misses. Prefers ruff, falls
+    back to pyflakes; if NEITHER is installed it skips cleanly (never blocks a
+    write on a missing dev tool). Only a real lint error fails the gate."""
+    import shutil
+    target = str(Path(repo_root) / rel)
+    if shutil.which("ruff"):
+        cmd = ["ruff", "check", "--quiet", "--select", "E,F", target]
+    else:
+        try:
+            import pyflakes  # noqa: F401
+        except ImportError:
+            return True, "no linter (ruff/pyflakes) -- skipped"
+        cmd = [sys.executable, "-m", "pyflakes", target]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=repo_root)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return True, f"lint unavailable ({exc}) -- skipped"
+    lines = (proc.stdout + proc.stderr).strip().splitlines()
+    return proc.returncode == 0, (" | ".join(lines[-3:])[:300] or "clean")
+
+
 def _config_check(repo_root: str, rel: str) -> tuple[bool, str]:
     """Parse a written .json/.yaml file so a corrupted config is caught."""
     try:
@@ -123,6 +146,8 @@ def verify(
         if s.endswith(".py"):
             ok, detail = _py_compile(repo_root, s)
             checks.append({"name": f"syntax:{s}", "ok": ok, "detail": detail})
+            lok, ldetail = _lint_py(repo_root, s)
+            checks.append({"name": f"lint:{s}", "ok": lok, "detail": ldetail})
         elif s.endswith((".json", ".yaml", ".yml")):
             ok, detail = _config_check(repo_root, s)
             checks.append({"name": f"parse:{s}", "ok": ok, "detail": detail})
