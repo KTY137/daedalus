@@ -1,0 +1,70 @@
+{
+  "feature": "Add a health-check endpoint and document it",
+  "repo_root": "C:/Users/nukei/AppData/Local/Temp/claude/c--Users-nukei-Desktop-agent-env/7c5d6d36-caec-4325-bcbc-fd7aec4de6db/scratchpad/buildsmoke",
+  "project": null,
+  "slug": "add-a-health-check-endpoint-and-document-it",
+  "created": "20260705T231607Z",
+  "max_workers": 3,
+  "summary": {
+    "subtasks": 4,
+    "waves": 2,
+    "frontier": 4,
+    "local": 0
+  },
+  "waves": [
+    {
+      "index": 0,
+      "tasks": [
+        {
+          "objective": "Create a new health-check endpoint",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [],
+          "status": "planned"
+        },
+        {
+          "objective": "Implement the logic for the health-check endpoint",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [],
+          "status": "planned"
+        },
+        {
+          "objective": "Document the health-check endpoint in API documentation",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [],
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "tasks": [
+        {
+          "objective": "Test the health-check endpoint to ensure it works correctly",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [],
+          "status": "planned"
+        }
+      ]
+    }
+  ]
+}

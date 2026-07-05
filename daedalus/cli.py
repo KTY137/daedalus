@@ -3,6 +3,7 @@
     daedalus doctor                     is the bench ready? (Ollama/model/claude)
     daedalus offload "<objective>" ...  route ONE task; run on the bench (--live)
     daedalus spawn "<objective>" ...    decompose ONE objective; plan/dispatch bench
+    daedalus build "<feature>" --project X   plan a multi-wave, frontier-first build
     daedalus ikarus                     spawn plan for the demo tasks
     daedalus metrics                    offload metrics / silent-escalation alarm
     daedalus benchmark                  projected token/cost picture
@@ -49,6 +50,50 @@ def _spawn(argv: list[str]) -> None:
     ikarus = Ikarus(project=args.project)
     result = ikarus.spawn(args.objective, repo_root, dry_run=not args.live)
     print(json.dumps(result, indent=2, default=str))
+
+
+def _build(argv: list[str]) -> None:
+    """Plan a multi-wave build for one feature objective: decompose it, route
+    each subtask to its owner, assign a frontier builder (Claude) or the local
+    bench off the category lane, and group into bounded waves. Plan only for
+    now -- persists a session snapshot under runs/build/."""
+    import argparse
+    import json
+    from .build import plan_build
+    from .projects import resolve_repo_root
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus build",
+        description="Plan a multi-wave, frontier-first build for one feature (plan only).")
+    parser.add_argument("feature")
+    parser.add_argument("--repo-root")
+    parser.add_argument("--project")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    repo_root = resolve_repo_root(args.repo_root, args.project)
+    session = plan_build(args.feature, repo_root, project=args.project)
+
+    if args.json:
+        print(json.dumps(session.to_dict(), indent=2))
+        return
+
+    summary = session.summary()
+    print(f"BUILD PLAN  {session.feature!r}")
+    print(f"  {summary['subtasks']} subtask(s) across {summary['waves']} wave(s) "
+          f"(<= {session.max_workers}/wave); "
+          f"{summary['frontier']} frontier, {summary['local']} local bench.")
+    if session.snapshot_path:
+        print(f"  snapshot: {session.snapshot_path}")
+    for wave in session.waves:
+        print(f"\nwave {wave.index}")
+        print(f"  {'objective':<38}{'owner':<16}{'category':<16}{'builder':<10}{'lane/tier'}")
+        print("  " + "-" * 92)
+        for t in wave.tasks:
+            builder = f"{t.builder}{'*' if t.frontier else ''}"
+            print(f"  {t.objective[:37]:<38}{t.agent[:15]:<16}{t.category[:15]:<16}"
+                  f"{builder:<10}{t.lane}/{t.tier}")
+    print("\n(* = frontier builder lane)")
 
 
 def _init(argv: list[str]) -> None:
@@ -260,6 +305,8 @@ def main() -> None:
         from .offload import main as m; m()
     elif cmd == "spawn":
         _spawn(rest)
+    elif cmd == "build":
+        _build(rest)
     elif cmd == "ikarus":
         from .ikarus import main as m; m()
     elif cmd == "metrics":
