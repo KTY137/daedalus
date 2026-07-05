@@ -1,10 +1,10 @@
 # Research: Local-Model Edit Application, Tool Calling, and Verifier Design
 
-*Researched 2026-07-05 for agent_env. Context: qwen2.5-coder:7b never emits `write_file` tool
+*Researched 2026-07-05 for daedalus. Context: qwen2.5-coder:7b never emits `write_file` tool
 calls in the agentic loop (narrates edits, `files_changed=[]`), but returns correct full-file
 rewrites as forced-JSON `{"content": ...}` in ~50s.*
 
-## Executive summary — recommendations for agent_env
+## Executive summary — recommendations for daedalus
 
 1. **Standardize on full-file rewrite via structured JSON output** (`format=<schema>`, native
    `/api/chat`). This is the industry-validated path for weak models: aider routes its weakest
@@ -60,7 +60,7 @@ diff edits locally.
 aider-like diffs for files <400 lines" — [aider #625](https://github.com/Aider-AI/aider/issues/625)),
 made fast via speculative decoding ([Fireworks writeup](https://fireworks.ai/blog/cursor)).
 [Morph](https://www.morphllm.com/fast-apply-model) sells the same architecture. Plan-then-rewrite
-(big model sketches, apply model rewrites whole file) is exactly the agent_env shape, with Claude
+(big model sketches, apply model rewrites whole file) is exactly the daedalus shape, with Claude
 as planner and the local model as the apply stage.
 
 **Known failure modes of full-file rewrite + standard mitigations**:

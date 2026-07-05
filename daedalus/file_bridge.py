@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .claude_bridge import ask_claude
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
 
@@ -24,7 +23,8 @@ def _stamp() -> str:
 
 
 def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonnet",
-            lane: str = "auto") -> Path:
+            lane: str = "auto", project: str | None = None,
+            source: str = "unknown", strategy: str = "single") -> Path:
     OUTBOX.mkdir(parents=True, exist_ok=True)
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
     path = OUTBOX / f"{_stamp()}-{slug or 'task'}.json"
@@ -33,12 +33,20 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         "repo_root": repo_root,
         "paths": paths,
         "model": model,
+        "source": source,
+        # Ikarus strategy:
+        #   single -> route this one task through Ikarus
+        #   spawn  -> let Ikarus decompose the objective and dispatch the bench
+        "strategy": strategy,
         # Which lane the watcher may dispatch to:
-        #   auto  -> route; run on the free bench when eligible, else Claude
-        #   local -> same as auto (prefer the bench), else fall back to Claude
-        #   claude-> always the trusted Claude lane (original behaviour)
+        #   auto       -> route; run on the free bench when eligible, else Claude
+        #   local      -> same as auto (prefer the bench), else fall back to Claude
+        #   local_only -> local bench only; never fall back to Claude
+        #   claude     -> always the trusted Claude lane
         "lane": lane,
     }
+    if project:
+        payload["project"] = project
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
 
@@ -53,82 +61,10 @@ def _read_request(path: Path, default_repo_root: str | None) -> dict[str, Any]:
         payload["repo_root"] = default_repo_root
     payload.setdefault("paths", [])
     payload.setdefault("model", "sonnet")
-    payload.setdefault("lane", "auto")
+    payload.setdefault("lane", "local_only")  # fail-closed: an unlabeled file (hand-dropped/legacy) never spends unattended
+    payload.setdefault("source", "unknown")
+    payload.setdefault("strategy", "single")
     return payload
-
-
-def _availability_from_doctor() -> dict[str, bool]:
-    """Reachability snapshot in the shape provider_router/offload expect."""
-    from .doctor import check
-    ready = check()
-    return {
-        "claude_cli": bool(ready.get("claude_cli")),
-        "ollama": bool(ready.get("can_offload_local")),
-        "deepseek": bool(ready.get("deepseek_key")),
-    }
-
-
-def _try_offload(payload: dict[str, Any]) -> dict[str, Any] | None:
-    """For lane in ('auto','local'): route the task; if it lands on an available
-    FREE lane, run it through the verified offload cascade and return a bridge
-    report. Return ``None`` to fall through to the Claude lane (not eligible, the
-    bench is down, or routing failed) -- Claude stays the backstop."""
-    from .ikarus import FREE_LANES
-    from .provider_router import route_and_select
-    try:
-        availability = _availability_from_doctor()
-        _, decision = route_and_select(payload["objective"], payload["paths"], availability)
-    except Exception:
-        return None  # can't route -> let the Claude lane handle it
-    if decision.provider not in FREE_LANES or not availability.get(decision.provider, False):
-        return None
-
-    from .offload import offload
-    try:
-        result = offload(
-            payload["objective"], payload["repo_root"], payload["paths"],
-            live=True, availability=availability, project=payload.get("project"),
-        )
-    except Exception as exc:
-        return {
-            "request": payload,
-            "bridge_status": "failed",
-            "lane": "local",
-            "error": str(exc),
-        }
-    return {
-        "request": payload,
-        "bridge_status": "done",
-        "lane": "local",
-        "agent": result.get("owner"),
-        "result": result,
-    }
-
-
-def _ask_claude_report(payload: dict[str, Any]) -> dict[str, Any]:
-    """The original trusted-lane path: hand the task to Claude and wrap it."""
-    try:
-        result = ask_claude(
-            objective=payload["objective"],
-            repo_root=payload["repo_root"],
-            paths=payload["paths"],
-            model=payload["model"],
-            timeout_s=int(payload.get("timeout_s", 300)),
-        )
-        return {
-            "request": payload,
-            "bridge_status": "done",
-            "lane": "claude",
-            "agent": result["agent"],
-            "report": result["report"],
-        }
-    except Exception as exc:
-        return {
-            "request": payload,
-            "bridge_status": "failed",
-            "lane": "claude",
-            "error": str(exc),
-        }
 
 
 def process_request(path: Path, default_repo_root: str | None = None) -> Path:
@@ -137,12 +73,8 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
     payload = _read_request(path, default_repo_root)
     result_path = INBOX / f"{path.stem}.report.json"
 
-    lane = payload.get("lane", "auto")
-    report = None
-    if lane in ("auto", "local"):
-        report = _try_offload(payload)   # None -> not eligible, fall through
-    if report is None:
-        report = _ask_claude_report(payload)  # lane=="claude" or fell through
+    from .core import process_bridge_payload
+    report = process_bridge_payload(payload)
 
     result_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     record_from_bridge_report(report)
@@ -160,8 +92,21 @@ def watch(default_repo_root: str | None, interval_s: float) -> None:
     while True:
         for path in sorted(OUTBOX.glob("*.json")):
             print(f"Processing {path.name}", flush=True)
-            result = process_request(path, default_repo_root)
-            print(f"Wrote {result}", flush=True)
+            try:
+                result = process_request(path, default_repo_root)
+                print(f"Wrote {result}", flush=True)
+            except Exception as exc:
+                # A poison request must not kill the watcher (or crash-loop it
+                # on restart): report the failure and archive the request.
+                print(f"FAILED {path.name}: {exc}", flush=True)
+                try:
+                    report = {"request_file": path.name, "bridge_status": "failed",
+                              "error": str(exc)}
+                    (INBOX / f"{path.stem}.report.json").write_text(
+                        json.dumps(report, indent=2), encoding="utf-8")
+                    shutil.move(str(path), str(ARCHIVE / path.name))
+                except OSError:
+                    pass  # locked/half-written file: retry next poll
         time.sleep(interval_s)
 
 
@@ -180,8 +125,14 @@ def main() -> None:
     enqueue_p.add_argument("--project")
     enqueue_p.add_argument("--paths", nargs="*", default=[])
     enqueue_p.add_argument("--model", default="sonnet")
-    enqueue_p.add_argument("--lane", default="auto", choices=["auto", "claude", "local"],
-                           help="auto/local run on the free bench when eligible; claude forces the trusted lane")
+    enqueue_p.add_argument("--lane", default="auto",
+                           choices=["auto", "claude", "local", "local_only"],
+                           help="auto/local prefer the free bench; local_only never calls Claude; claude forces the trusted lane")
+    enqueue_p.add_argument("--source", default="unknown",
+                           choices=["unknown", "codex", "claude", "user", "ikarus"],
+                           help="who queued the request")
+    enqueue_p.add_argument("--strategy", default="single", choices=["single", "spawn"],
+                           help="single routes one task; spawn lets Ikarus decompose and fan out")
 
     once_p = sub.add_parser("once", help="Process current outbox requests once.")
     once_p.add_argument("--repo-root")
@@ -192,7 +143,8 @@ def main() -> None:
         watch(resolve_repo_root(args.repo_root, args.project), args.interval_s)
     elif args.command == "enqueue":
         print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
-                      args.paths, args.model, args.lane))
+                      args.paths, args.model, args.lane, args.project,
+                      args.source, args.strategy))
     elif args.command == "once":
         OUTBOX.mkdir(parents=True, exist_ok=True)
         repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None

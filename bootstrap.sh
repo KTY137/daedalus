@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# agent_env bootstrap (Linux/macOS) -- drop the repo on a machine and run this.
+# daedalus bootstrap (Linux/macOS) -- drop the repo on a machine and run this.
 #   ./bootstrap.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
-echo "== agent_env bootstrap =="
+echo "== daedalus bootstrap =="
 
 # 1. Python 3.10+
 command -v python3 >/dev/null 2>&1 || { echo "Python 3.10+ required (python3 not found)"; exit 1; }
@@ -39,6 +39,6 @@ ollama pull nomic-embed-text || true
 # 6. readiness check
 echo
 echo "== readiness =="
-agentenv doctor
+daedalus doctor
 echo
-echo "Done. To enable writes in a repo:  cd <repo> && agentenv init  (then edit .agentenv/agentenv.json)"
+echo "Done. To enable writes in a repo:  cd <repo> && daedalus init  (then edit .agentenv/agentenv.json)"

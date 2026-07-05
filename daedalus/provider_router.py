@@ -1,6 +1,6 @@
 """Second-stage routing: given the chosen agent + task, pick the *provider*.
 
-Stage 1 (:mod:`agent_env.router`) picks WHO (which specialist role).
+Stage 1 (:mod:`daedalus.router`) picks WHO (which specialist role).
 Stage 2 (here) picks WHERE that role runs, on two axes:
 
 * data sensitivity  -> may bytes leave the machine to an untrusted API?
@@ -104,8 +104,16 @@ def select_provider(
             reason, data.sensitive, risk,
         )
 
-    # 1. Roles that must never leave the trusted lane.
+    # 1. Roles that must never leave the trusted lane may still use the local
+    # on-machine bench for review-only advisory work. They never go to an
+    # external provider and they never write locally.
     if not external_ok:
+        if review_only and avail.get("ollama", False):
+            return ProviderDecision(
+                "ollama", "advisory", persona_for("ollama", name),
+                f"role '{name}' is trusted-only; local Ollama advisory review",
+                data.sensitive, risk,
+            )
         return decide("claude_cli", f"role '{name}' is not external-eligible")
 
     # 2. High-risk *write* stays senior -- covers sensitive+high too.
@@ -127,10 +135,11 @@ def route_and_select(
     paths: list[str] | None = None,
     availability: dict[str, bool] | None = None,
     policy: Policy | None = None,
+    active_agents: list[str] | None = None,
 ) -> tuple[dict, ProviderDecision]:
     """Convenience: pick both the role and the provider in one call."""
     from .router import route_task
 
-    agent = route_task(objective, paths or [])
+    agent = route_task(objective, paths or [], active_agents=active_agents)
     decision = select_provider(agent, objective, paths, availability, policy)
     return agent, decision

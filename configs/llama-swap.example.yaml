@@ -3,7 +3,7 @@
 # this. llama-swap (https://github.com/mostlygeek/llama-swap, MIT) proxies one
 # OpenAI-compatible endpoint and swaps the loaded model by requested name.
 #
-# Point agent_env at it:  $env:OLLAMA_HOST = "http://localhost:8080"
+# Point daedalus at it:  $env:OLLAMA_HOST = "http://localhost:8080"
 # (the OpenAI-compatible path is served at <host>/v1)
 
 models:

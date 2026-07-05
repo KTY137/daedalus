@@ -14,7 +14,7 @@ Claude and Codex are collaborators, not single points of failure.
 Codex continues with:
 
 1. current git status
-2. `agent_env/memory/todos.local.md`
+2. `daedalus/memory/todos.local.md`
 3. local tests
 4. concise recovery TODOs
 
@@ -44,4 +44,4 @@ Claude should write unresolved handoff notes back to:
 C:\Users\nukei\Desktop\agent_env\memory\events.local.jsonl
 ```
 
-or ask the user to tell Codex: "recover from agent_env memory".
+or ask the user to tell Codex: "recover from daedalus memory".

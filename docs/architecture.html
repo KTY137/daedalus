@@ -1,4 +1,4 @@
-<title>agent_env — offload architecture</title>
+<title>daedalus — offload architecture</title>
 <style>
   :root{
     --bg:#e9edf2; --panel:#ffffff; --panel-2:#f4f7fa;
@@ -171,7 +171,7 @@
 <div class="wrap">
 
   <header>
-    <div class="eyebrow">agent_env · routing schematic</div>
+    <div class="eyebrow">daedalus · routing schematic</div>
     <h1>Do the cheap work for free. Spend Claude only where it matters.</h1>
     <p class="lede">A router in front of the agent crew. Every task is sized on two axes — can its bytes leave the machine, and how much damage can a bad edit do — then sent down the cheapest lane that's still safe. A local model drafts; a verify gate guards; Claude applies only what's left.</p>
 
@@ -194,7 +194,7 @@
         <div class="sub">projected token-cost cut <b>vs all-Opus</b></div>
         <div style="height:14px"></div>
         <div class="bignum" style="font-size:clamp(24px,4vw,34px); color:var(--senior)">25%</div>
-        <div class="sub">cut <b>vs all-Sonnet</b> · <span class="mono">python -m agent_env.benchmark</span></div>
+        <div class="sub">cut <b>vs all-Sonnet</b> · <span class="mono">python -m daedalus.benchmark</span></div>
       </div>
     </div>
   </header>
@@ -394,7 +394,7 @@
   </section>
 
   <footer>
-    agent_env — standalone offload harness &nbsp;·&nbsp; 35 tests green &nbsp;·&nbsp; py3.10<br>
+    daedalus — standalone offload harness &nbsp;·&nbsp; 35 tests green &nbsp;·&nbsp; py3.10<br>
     <span class="foot-cmd">doctor → readiness &nbsp;|&nbsp; benchmark → projected $ &nbsp;|&nbsp; ikarus → spawn plan &nbsp;|&nbsp; offload --live → run one &nbsp;|&nbsp; metrics → fallback rate</span>
   </footer>
 

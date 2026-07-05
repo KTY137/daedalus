@@ -26,10 +26,14 @@ def _agent_dir_for(repo_root: str | None) -> Path:
     return AGENT_DIR
 
 
-def load_agents(repo_root: str | None = None) -> list[dict]:
+def load_agents(repo_root: str | None = None, active_agents: list[str] | None = None) -> list[dict]:
+    active = set(active_agents or [])
     agents: list[dict] = []
     for path in sorted(_agent_dir_for(repo_root).glob("*.json")):
-        agents.append(json.loads(path.read_text(encoding="utf-8")))
+        agent = json.loads(path.read_text(encoding="utf-8"))
+        if active and agent.get("name") not in active:
+            continue
+        agents.append(agent)
     return agents
 
 
@@ -38,12 +42,15 @@ def _norm(path: str) -> str:
 
 
 def route_task(objective: str, paths: list[str] | None = None,
-               repo_root: str | None = None) -> dict:
+               repo_root: str | None = None,
+               active_agents: list[str] | None = None) -> dict:
     paths = [_norm(p) for p in (paths or [])]
     objective_l = objective.lower()
     best: tuple[int, dict] | None = None
 
-    agents = load_agents(repo_root)
+    agents = load_agents(repo_root, active_agents)
+    if not agents:
+        raise RuntimeError("no active agents configured")
     for agent in agents:
         score = 0
         for owned in agent.get("owns", []):

@@ -18,9 +18,9 @@ REPO_CONFIG = ".agentenv/agentenv.json"
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 STARTER: dict = {
-    "_comment": "agent_env policy for THIS repo. Generic secret protections are "
+    "_comment": "daedalus policy for THIS repo. Generic secret protections are "
                 "always merged in; add your own denies. With no 'policy' block, "
-                "the bench is read/advise-only (fail-closed). Edit, then run `agentenv doctor`.",
+                "the bench is read/advise-only (fail-closed). Edit, then run `daedalus doctor`.",
     "policy": {
         "deny": ["secret", "credential", ".env", "id_rsa", ".pem"],
         "allow": ["docs/", "/tests/", "test_", ".md", "readme"],

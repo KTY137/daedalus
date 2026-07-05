@@ -1,4 +1,4 @@
-"""Readiness check -- can agent_env actually offload real work right now?
+"""Readiness check -- can daedalus actually offload real work right now?
 
 Answers the honest question: is the local bench able to execute, or does
 everything still fall back to Claude? Probes are read-only (a localhost HTTP
@@ -51,7 +51,7 @@ def _m(ok: bool) -> str:
 
 def main() -> None:
     r = check()
-    print("agent_env doctor -- can we offload real work?\n")
+    print("daedalus doctor -- can we offload real work?\n")
     print(f"[{_m(r['claude_cli'])}] claude CLI on PATH          (senior lane)")
     print(f"[{_m(r['ollama_up'])}] Ollama server reachable     {r['ollama_host']}")
     if r["ollama_up"]:

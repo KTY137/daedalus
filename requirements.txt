@@ -1,4 +1,4 @@
-# agent_env core has ZERO required Python dependencies (Python 3.10+ stdlib only).
+# daedalus core has ZERO required Python dependencies (Python 3.10+ stdlib only).
 #
 # The real "dependencies" are external tools -- installed for you by
 # bootstrap.ps1 (Windows) / bootstrap.sh (Linux/macOS):

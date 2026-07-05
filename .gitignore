@@ -5,8 +5,10 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+*.egg-info/
 runs/*.json
 runs/*.md
+runs/processed/
 memory/*.local.jsonl
 memory/*.local.md
 memory/*.status.json
@@ -15,6 +17,9 @@ outbox/*.json
 inbox/*.json
 .env
 .env.*
+!.env.example
 *.log
 .DS_Store
 Thumbs.db
+node_modules/
+vscode-agent-env/*.vsix

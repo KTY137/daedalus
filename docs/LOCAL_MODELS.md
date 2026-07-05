@@ -27,7 +27,7 @@ $env:OLLAMA_MODEL = "qwen3-coder"     # or "devstral", "qwen2.5-coder:14b"
 ```
 
 Re-benchmark tool-use reliability before trusting a new model on `write` mode;
-the verifier gate (`agent_env/verifier.py`) is your backstop either way.
+the verifier gate (`daedalus/verifier.py`) is your backstop either way.
 
 ## Running the bench
 
@@ -42,10 +42,10 @@ ollama pull qwen2.5-coder:7b     # coder (or your upgrade choice)
 ollama pull nomic-embed-text     # embeddings for semantic routing
 ```
 
-`agent_env` talks to it out of the box. Check readiness with:
+`daedalus` talks to it out of the box. Check readiness with:
 
 ```powershell
-python -m agent_env.doctor
+python -m daedalus.doctor
 ```
 
 ### Option B — llama-swap (only if you run raw llama.cpp, not Ollama)

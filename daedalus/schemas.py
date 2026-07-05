@@ -89,8 +89,8 @@ def validate_report(report: dict[str, Any]) -> list[str]:
         errors.append(f"extra keys: {', '.join(sorted(extra))}")
     if report.get("status") not in {"done", "blocked", "needs_review", "failed"}:
         errors.append("status must be one of: done, blocked, needs_review, failed")
-    if not isinstance(report.get("summary"), str) or len(report.get("summary", "")) > 600:
-        errors.append("summary must be a string no longer than 600 characters")
+    if not isinstance(report.get("summary"), str) or not report.get("summary", "").strip() or len(report.get("summary", "")) > 600:
+        errors.append("summary must be a non-empty string no longer than 600 characters")
     for key in ("files_changed", "tests_run", "risks", "todos"):
         if key in report and not isinstance(report[key], list):
             errors.append(f"{key} must be a list")

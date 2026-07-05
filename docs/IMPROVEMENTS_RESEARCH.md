@@ -1,4 +1,4 @@
-# Token-Saving & Architecture Research for `agent_env` Orchestration Harness
+# Token-Saving & Architecture Research for `daedalus` Orchestration Harness
 
 Date: 2026-07-05
 Researcher: Prometheus (researcher agent)

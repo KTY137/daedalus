@@ -1,19 +1,21 @@
 import unittest
+from unittest.mock import patch
 
-from agent_env.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
-from agent_env.file_bridge import _read_request
-from agent_env.fallback import fallback_decision
-from agent_env.memory import MemoryEvent
-from agent_env.orchestrate import _infer_paths
-from agent_env.projects import load_project, resolve_repo_root
-from agent_env.router import route_task
-from agent_env.status import _count_open_todos
-from agent_env.schemas import validate_report
-from agent_env.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
-from agent_env.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
+from daedalus.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
+from daedalus.file_bridge import _read_request
+from daedalus.fallback import fallback_decision
+from daedalus.memory import MemoryEvent
+from daedalus.orchestrate import _infer_paths
+from daedalus.ikarus import Ikarus
+from daedalus.projects import list_projects, load_project, resolve_repo_root
+from daedalus.router import route_task
+from daedalus.status import _count_open_todos
+from daedalus.schemas import validate_report
+from daedalus.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
+from daedalus.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
 
 
-class AgentEnvTests(unittest.TestCase):
+class DaedalusTests(unittest.TestCase):
     def test_routes_gui_paths_to_ui_agent(self):
         agent = route_task("Fix panel layout", ["C:/repo/TCT_app/gui/motor_panel.py"])
         self.assertEqual(agent["name"], "ui-ux-dev")
@@ -21,6 +23,18 @@ class AgentEnvTests(unittest.TestCase):
     def test_routes_driver_paths_to_hardware_agent(self):
         agent = route_task("Fix oscilloscope timeout", ["C:/repo/TCT_app/devices/oscilloscope.py"])
         self.assertEqual(agent["name"], "hardware-dev")
+
+    def test_active_agents_filter_routes_within_enabled_team(self):
+        agent = route_task(
+            "Fix panel layout",
+            ["C:/repo/TCT_app/gui/motor_panel.py"],
+            active_agents=["docs-dev", "qa-critic"],
+        )
+        self.assertEqual(agent["name"], "qa-critic")
+
+    def test_no_active_agents_raises(self):
+        with self.assertRaises(RuntimeError):
+            route_task("Fix panel layout", active_agents=["missing-agent"])
 
     def test_validates_report_schema(self):
         errors = validate_report(
@@ -39,6 +53,20 @@ class AgentEnvTests(unittest.TestCase):
     def test_rejects_chatty_report(self):
         errors = validate_report({"status": "done", "summary": "x" * 700})
         self.assertTrue(errors)
+
+    def test_rejects_empty_summary(self):
+        errors = validate_report(
+            {
+                "status": "needs_review",
+                "summary": "",
+                "files_changed": [],
+                "tests_run": [],
+                "risks": [],
+                "todos": [],
+                "handoff": {},
+            }
+        )
+        self.assertTrue(any("summary" in err for err in errors))
 
     def test_extracts_result_wrapped_json(self):
         report = _extract_json(
@@ -85,6 +113,20 @@ class AgentEnvTests(unittest.TestCase):
         project = load_project("project_tct")
         self.assertIn("project_tct", project["repo_root"])
         self.assertEqual(resolve_repo_root(project="project_tct"), project["repo_root"])
+
+    def test_project_registry_lists_projects(self):
+        self.assertIn("project_tct", list_projects())
+
+    def test_ikarus_loads_project_team_controls(self):
+        project_data = {
+            "repo_root": "C:/repo",
+            "team": {"max_workers": 5, "active_agents": ["docs-dev"]},
+            "policy": {},
+        }
+        with patch("daedalus.projects.load_project", return_value=project_data):
+            ikarus = Ikarus(project="demo")
+        self.assertEqual(ikarus.max_workers, 5)
+        self.assertEqual(ikarus.active_agents, ["docs-dev"])
 
     def test_done_events_close_matching_todos(self):
         events = [

@@ -52,10 +52,15 @@ def offload(
     from .sensitivity import load_policy
     pdata = resolve_project(repo_root, project)
     pol = load_policy(pdata) if (pdata and pdata.get("policy")) else None
+    active_agents = None
+    if pdata:
+        active = (pdata.get("team") or {}).get("active_agents")
+        if isinstance(active, list):
+            active_agents = [str(a) for a in active if str(a).strip()]
 
     # Intended lane (all up) vs actual lane (given availability) -- both policy-aware.
-    _, intended = route_and_select(objective, paths or [], _ALL, pol)
-    agent, decision = route_and_select(objective, paths or [], availability, pol)
+    _, intended = route_and_select(objective, paths or [], _ALL, pol, active_agents)
+    agent, decision = route_and_select(objective, paths or [], availability, pol, active_agents)
     eligible = intended.provider in FREE_LANES
 
     result = {
@@ -93,6 +98,10 @@ def offload(
                       agent=agent, policy=pol)
     if decision.provider == "ollama":
         run_kwargs["writable"] = (decision.mode == "write")   # advisory truly can't write
+        model_assignments = ((pdata or {}).get("team") or {}).get("model_assignments") or {}
+        preferred_model = model_assignments.get(agent["name"])
+        if preferred_model:
+            run_kwargs["model"] = str(preferred_model)
     out = worker.run(**run_kwargs)
     report = out["report"]
 

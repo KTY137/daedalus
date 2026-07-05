@@ -16,14 +16,14 @@ ollama pull nomic-embed-text     # embeddings for semantic stage-1 routing
 
 ```powershell
 cd C:\Users\nukei\Desktop\agent_env
-python -m agent_env.doctor          # must say READY
+python -m daedalus.doctor          # must say READY
 ```
 
 ## 3. Dry-run first (no writes) — sanity-check routing
 
 ```powershell
-python -m agent_env.ikarus          # spawn plan: who'd run where
-python -m agent_env.benchmark       # projected token/cost picture
+python -m daedalus.ikarus          # spawn plan: who'd run where
+python -m daedalus.benchmark       # projected token/cost picture
 ```
 
 ## 4. First LIVE task — on a safe, low-risk target
@@ -32,7 +32,7 @@ Start with something trivial and reversible (docstrings / a doc line), verified
 + auto-rolled-back if it fails the gate:
 
 ```powershell
-python -m agent_env.offload "Add a module docstring to the scan panel" `
+python -m daedalus.offload "Add a module docstring to the scan panel" `
   --repo-root C:\Users\nukei\Desktop\project_tct `
   --paths TCT_app/gui/scan_panel.py --live
 ```
@@ -44,13 +44,13 @@ Outcome is one of: `offloaded` (bench wrote it, verified, $0 Claude),
 ## 5. Watch for silent escalation
 
 ```powershell
-python -m agent_env.metrics          # fallback-rate; alarms if the bench isn't pulling its weight
+python -m daedalus.metrics          # fallback-rate; alarms if the bench isn't pulling its weight
 ```
 
 ## 6. Fan-out a batch (optional)
 
 ```python
-from agent_env.ikarus import Ikarus
+from daedalus.ikarus import Ikarus
 Ikarus(max_workers=3).dispatch(r"C:\Users\nukei\Desktop\project_tct", tasks, dry_run=False)
 ```
 

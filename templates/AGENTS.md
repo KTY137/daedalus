@@ -1,6 +1,6 @@
-# AGENTS.md -- agent_env harness rules for Codex in this repo
+# AGENTS.md -- daedalus harness rules for Codex in this repo
 
-This repo is wired into the `agent_env` multi-agent harness. Follow these
+This repo is wired into the `daedalus` multi-agent harness. Follow these
 rules whenever the user delegates work here.
 
 ## Route work through the harness
@@ -9,16 +9,17 @@ rules whenever the user delegates work here.
   queueing them on the file bridge instead of doing everything yourself:
 
   ```powershell
-  python -m agent_env.file_bridge enqueue "<task>" --repo-root <this repo> --lane auto
+  python -m daedalus.file_bridge enqueue "<task>" --repo-root <this repo> --lane auto
   ```
 
   `--lane auto` lets the router prefer the free local bench; use
-  `--lane claude` to force the senior lane for high-risk work (auth,
-  migrations, deletions, production config).
+  `--lane local_only` when Claude tokens must not be spent; use `--lane claude`
+  to force the senior lane for high-risk work (auth, migrations, deletions,
+  production config).
 
 - The watcher MUST be running for queued requests to be answered: start the
-  VS Code task **"Agent Bridge: watch"** (or
-  `python -m agent_env.file_bridge watch`). Reports land in
+  VS Code task **"Daedalus Bridge: watch"** (or
+  `python -m daedalus.file_bridge watch`). Reports land in
   `inbox/<request>.report.json`.
 
 ## Communication rules

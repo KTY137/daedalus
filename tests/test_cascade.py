@@ -3,10 +3,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_env import compaction, metrics, semantic_route, verifier
-from agent_env.offload import offload
-from agent_env.projects import load_project
-from agent_env.sensitivity import load_policy, path_write_blocked
+from daedalus import compaction, metrics, semantic_route, verifier
+from daedalus.offload import offload
+from daedalus.provider_router import route_and_select
+from daedalus.projects import load_project
+from daedalus.sensitivity import load_policy, path_write_blocked
 
 
 def _report(files_changed=None, status="done"):
@@ -86,6 +87,13 @@ class OffloadRoutingTests(unittest.TestCase):
         self.assertFalse(r["eligible"])
         self.assertEqual(r["provider"], "claude_cli")
 
+    def test_trusted_only_review_can_use_local_advisory(self):
+        avail = {"claude_cli": True, "ollama": True, "deepseek": False}
+        agent, decision = route_and_select("Review the current diff for regressions", [], avail)
+        self.assertEqual(agent["name"], "qa-critic")
+        self.assertEqual(decision.provider, "ollama")
+        self.assertEqual(decision.mode, "advisory")
+
 
 class SemanticFallbackTests(unittest.TestCase):
     def test_falls_back_to_keyword_when_embedder_down(self):
@@ -128,9 +136,8 @@ class WriteGuardTests(unittest.TestCase):
     def test_gui_allowed(self):
         self.assertFalse(path_write_blocked("TCT_app/gui/scan_panel.py", self.pol))
 
-    def test_default_policy_would_leave_devices_writable(self):
-        # This is the hole Mary found: under DEFAULT_POLICY the guard is off.
-        self.assertFalse(path_write_blocked("TCT_app/devices/motor_grbl.py"))
+    def test_default_policy_blocks_devices(self):
+        self.assertTrue(path_write_blocked("TCT_app/devices/motor_grbl.py"))
 
 
 class OffloadFailClosedTests(unittest.TestCase):

@@ -2,11 +2,11 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Agent Bridge: watch",
+      "label": "Daedalus Bridge: watch",
       "detail": "Background watcher: processes outbox/*.json into inbox/*.report.json (see docs/COMMS_PROTOCOL.md)",
       "type": "process",
       "command": "python",
-      "args": ["-m", "agent_env.file_bridge", "watch"],
+      "args": ["-m", "daedalus.file_bridge", "watch"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -33,51 +33,140 @@
       }
     },
     {
-      "label": "Agent Env: doctor",
+      "label": "Daedalus: doctor",
       "detail": "Is the bench ready? (Ollama / model / claude CLI)",
       "type": "process",
       "command": "python",
-      "args": ["-m", "agent_env.cli", "doctor"],
+      "args": ["-m", "daedalus.cli", "doctor"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
     },
     {
-      "label": "Agent Env: status",
-      "detail": "Local bridge status (outbox/inbox/memory)",
+      "label": "Daedalus: status",
+      "detail": "Local bridge status for a registered project",
       "type": "process",
       "command": "python",
-      "args": ["-m", "agent_env.cli", "status"],
+      "args": ["-m", "daedalus.cli", "status", "--project", "${input:project}"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
     },
     {
-      "label": "Agent Env: benchmark (dry)",
+      "label": "Daedalus: list projects",
+      "detail": "Show registered projects from projects/*.json",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "daedalus.cli", "projects"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Daedalus Bridge: watch project",
+      "detail": "Background watcher with a registered project as the default repo",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "daedalus.file_bridge", "watch", "--project", "${input:project}"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "agent-bridge-project",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": [
+          {
+            "regexp": "^(ERROR|Traceback)(.*)$",
+            "file": 1,
+            "message": 2
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^AGENT_BRIDGE_START$",
+          "endsPattern": "^AGENT_BRIDGE_READY$"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Daedalus Team: enqueue local-only",
+      "detail": "Queue a task for the local bench only; never calls Claude",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "-m",
+        "daedalus.file_bridge",
+        "enqueue",
+        "${input:objective}",
+        "--project",
+        "${input:project}",
+        "--lane",
+        "local_only"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Daedalus Team: enqueue auto",
+      "detail": "Queue a task for the router; may fall back to Claude",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "-m",
+        "daedalus.file_bridge",
+        "enqueue",
+        "${input:objective}",
+        "--project",
+        "${input:project}",
+        "--lane",
+        "auto"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Daedalus: benchmark (dry)",
       "detail": "Projected token/cost picture; no live calls",
       "type": "process",
       "command": "python",
-      "args": ["-m", "agent_env.cli", "benchmark"],
+      "args": ["-m", "daedalus.cli", "benchmark"],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
     },
     {
-      "label": "Agent Env: spawn (prompt for objective)",
+      "label": "Daedalus: spawn (prompt for objective)",
       "detail": "Decompose an objective and plan the local bench dispatch",
       "type": "process",
       "command": "python",
-      "args": ["-m", "agent_env.cli", "spawn", "${input:objective}"],
+      "args": [
+        "-m",
+        "daedalus.cli",
+        "spawn",
+        "${input:objective}",
+        "--project",
+        "${input:project}"
+      ],
       "options": {
         "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
     },
     {
-      "label": "Agent Env: run tests",
+      "label": "Daedalus: run tests",
       "detail": "python -m unittest discover tests",
       "type": "process",
       "command": "python",
@@ -97,6 +186,12 @@
       "id": "objective",
       "type": "promptString",
       "description": "Objective to decompose onto the local bench"
+    },
+    {
+      "id": "project",
+      "type": "promptString",
+      "description": "Registered project name from projects/*.json",
+      "default": "project_tct"
     }
   ]
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,14 @@ _ELISION_MARKERS = (
 )
 
 _READ_TOOLS: list[dict[str, Any]] = [
+    {"type": "function", "function": {
+        "name": "git_status",
+        "description": "Return `git status --short` for the repository.",
+        "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "git_diff",
+        "description": "Return `git diff -- <path>` for one repo-relative path, or the full tracked diff when path is empty.",
+        "parameters": {"type": "object", "properties": {"path": {"type": "string"}}}}},
     {"type": "function", "function": {
         "name": "list_dir",
         "description": "List entries of a repo-relative directory.",
@@ -111,6 +120,40 @@ class OllamaProvider(Provider):
         return target, target.relative_to(root).as_posix()
 
     def _dispatch(self, name, args, repo_root, policy, changed, writable) -> str:
+        if name == "git_status":
+            try:
+                completed = subprocess.run(
+                    ["git", "status", "--short"],
+                    cwd=repo_root,
+                    text=True,
+                    capture_output=True,
+                    timeout=20,
+                    check=False,
+                )
+                return (completed.stdout or completed.stderr)[:MAX_READ_CHARS]
+            except (OSError, subprocess.SubprocessError) as exc:
+                return f"ERROR: cannot run git status: {exc}"
+        if name == "git_diff":
+            raw_rel = str(args.get("path", ""))
+            cmd = ["git", "diff", "--"]
+            if raw_rel:
+                try:
+                    _, rel = self._resolve(repo_root, raw_rel)
+                except ValueError:
+                    return f"ERROR: '{raw_rel}' is outside the repository."
+                cmd.append(rel)
+            try:
+                completed = subprocess.run(
+                    cmd,
+                    cwd=repo_root,
+                    text=True,
+                    capture_output=True,
+                    timeout=20,
+                    check=False,
+                )
+                return (completed.stdout or completed.stderr or "NO TRACKED DIFF")[:MAX_READ_CHARS]
+            except (OSError, subprocess.SubprocessError) as exc:
+                return f"ERROR: cannot run git diff: {exc}"
         raw_rel = str(args.get("path", ""))
         try:
             target, rel = self._resolve(repo_root, raw_rel)  # rel = RESOLVED path
@@ -159,7 +202,7 @@ class OllamaProvider(Provider):
                   if writable else "you are ADVISORY: do NOT write; propose edits in your report")
         system = (
             build_prompt(agent, "", "")[0]
-            + f"\nYou have tools: list_dir, read_file"
+            + f"\nYou have tools: git_status, git_diff, list_dir, read_file"
             + (", write_file" if writable else "")
             + f". Read what you need, then {action}. "
             "When done, STOP calling tools and reply with ONLY the json report."

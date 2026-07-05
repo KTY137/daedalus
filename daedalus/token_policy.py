@@ -8,7 +8,7 @@ DEFAULT_MODEL = "sonnet"
 HIGH_RISK_MODEL = "opus"
 CHEAP_MODEL = "haiku"
 
-STATIC_PROMPT_PREFIX = """Agent Bridge Protocol v1.
+STATIC_PROMPT_PREFIX = """Daedalus Bridge Protocol v1.
 
 Minimize tokens:
 - Use the supplied paths instead of exploring the whole repo.

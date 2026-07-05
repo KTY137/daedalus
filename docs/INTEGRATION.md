@@ -8,7 +8,7 @@ bridge for offloadable tasks. Three options, cheapest-to-wire first.
 Everything routes through one call:
 
 ```python
-from agent_env.offload import offload
+from daedalus.offload import offload
 offload(objective, repo_root, paths=[...], live=True, run_tests=False, project="project_tct")
 ```
 
@@ -16,12 +16,12 @@ offload(objective, repo_root, paths=[...], live=True, run_tests=False, project="
 - Eligible + bench up + verify passes → `{"action": "offloaded", "report": {...}}` (done, $0 Claude).
 - Verify fails → write rolled back, `{"action": "escalated_after_verify_fail", ...}`.
 
-Every outcome is metered — watch it with `python -m agent_env.metrics`.
+Every outcome is metered — watch it with `python -m daedalus.metrics`.
 
 CLI form:
 
 ```powershell
-python -m agent_env.offload "Draft docstrings for the motor panel" `
+python -m daedalus.offload "Draft docstrings for the motor panel" `
   --repo-root C:\Users\nukei\Desktop\project_tct `
   --paths TCT_app/gui/motor_panel.py --live
 ```
@@ -46,6 +46,6 @@ python -m agent_env.offload "Draft docstrings for the motor panel" `
 
 ## Prerequisite (always)
 
-`python -m agent_env.doctor` must say **READY** — Ollama serving + the coder
+`python -m daedalus.doctor` must say **READY** — Ollama serving + the coder
 model pulled. Until then every offload honestly falls back to Claude, and the
 metrics fallback-rate alarm will tell you if that's happening silently.

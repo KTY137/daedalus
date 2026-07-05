@@ -17,7 +17,7 @@ Research date: 2026-07-05.
 - OpenAI structured outputs:
   https://developers.openai.com/api/docs/guides/structured-outputs
 
-## Rules For This Agent Env
+## Rules For This Daedalus
 
 1. Keep static prompt text at the beginning of prompts.
    OpenAI prompt caching depends on exact prefix matches; static instructions

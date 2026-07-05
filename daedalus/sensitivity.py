@@ -91,7 +91,7 @@ class Policy:
     deny_content: tuple[re.Pattern[str], ...] = field(default_factory=lambda: _compile(GENERIC_DENY_CONTENT))
     high_risk_terms: tuple[str, ...] = GENERIC_HIGH_RISK_TERMS
     mid_risk_terms: tuple[str, ...] = GENERIC_MID_RISK_TERMS
-    high_risk_path_substrings: tuple[str, ...] = ()
+    high_risk_path_substrings: tuple[str, ...] = GENERIC_HIGH_RISK_PATHS
     default_deny: bool = True
 
 
@@ -110,7 +110,10 @@ def load_policy(project_config: dict | None) -> Policy:
         deny_content=_compile(list(GENERIC_DENY_CONTENT) + list(p.get("deny_content", ()))),
         high_risk_terms=tuple(p.get("high_risk_terms", GENERIC_HIGH_RISK_TERMS)),
         mid_risk_terms=tuple(p.get("mid_risk_terms", GENERIC_MID_RISK_TERMS)),
-        high_risk_path_substrings=tuple(p.get("high_risk_paths", ())),
+        # ALWAYS unioned (like the secret denylist): a project can extend the
+        # high-blast-radius floor but never remove it.
+        high_risk_path_substrings=tuple(dict.fromkeys(
+            GENERIC_HIGH_RISK_PATHS + tuple(p.get("high_risk_paths", ())))),
         default_deny=bool(p.get("default_deny", True)),
     )
 
@@ -187,9 +190,15 @@ def path_write_blocked(path: str, policy: Policy | None = None) -> bool:
     hardware or safety-critical code. Simulated/base files stay writable."""
     policy = policy or DEFAULT_POLICY
     norm = _norm(path)
-    # For WRITES the only exemption is a simulated backend. *_base.py is NOT
-    # exempt: the real ISEG/motor drivers inherit it, so a bad write there breaks
-    # or alters real hardware behaviour. Deny/high-risk always wins otherwise.
+    # The generic secret floor wins over EVERYTHING -- even a *_simulated.py
+    # suffix (otherwise secrets/keys_simulated.py would be writable by the
+    # local model). Project deny entries may include real device trees for data
+    # egress; simulated backends still get the explicit write exemption below.
+    if any(d in norm for d in GENERIC_DENY_SUBSTRINGS):
+        return True
+    # For WRITES the only other exemption is a simulated backend. *_base.py is
+    # NOT exempt: the real ISEG/motor drivers inherit it, so a bad write there
+    # breaks or alters real hardware behaviour.
     if norm.endswith("_simulated.py"):
         return False
     if any(d in norm for d in policy.deny_substrings):

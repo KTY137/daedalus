@@ -51,6 +51,7 @@ class Ikarus:
     availability: dict | None = None
     policy: Policy | None = None
     project: str | None = None                 # loads the safety policy for live writes
+    active_agents: list[str] | None = None
     _bench: cycle = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -59,7 +60,17 @@ class Ikarus:
         if self.policy is None and self.project:
             from .projects import load_project
             from .sensitivity import load_policy
-            self.policy = load_policy(load_project(self.project))
+            project_data = load_project(self.project)
+            self.policy = load_policy(project_data)
+            team = project_data.get("team") or {}
+            try:
+                configured_workers = int(team.get("max_workers", self.max_workers))
+            except (TypeError, ValueError):
+                configured_workers = self.max_workers
+            self.max_workers = max(1, configured_workers)
+            active = team.get("active_agents")
+            if isinstance(active, list):
+                self.active_agents = [str(a) for a in active if str(a).strip()]
 
     def accept(self, tasks: list[dict]) -> list[Assignment]:
         """Clear each task. Only low-risk work that Adam would offload is taken;
@@ -69,7 +80,9 @@ class Ikarus:
         for t in tasks:
             objective = t["objective"]
             paths = t.get("paths", [])
-            agent, decision = route_and_select(objective, paths, avail, self.policy)
+            agent, decision = route_and_select(
+                objective, paths, avail, self.policy, self.active_agents
+            )
             if decision.provider not in FREE_LANES:
                 out.append(Assignment(objective, paths, agent["name"], decision.provider,
                                       "-", decision.mode, False,
@@ -98,11 +111,15 @@ class Ikarus:
         results: list[dict] = []
         for a in self.accept(tasks):
             if not a.accepted:
-                results.append({"worker": a.worker, "status": "bounced", "reason": a.reason})
+                results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                                "owner": a.owner, "objective": a.objective,
+                                "paths": a.paths, "status": "bounced",
+                                "reason": a.reason})
                 continue
             if dry_run:
                 results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
-                                "owner": a.owner, "objective": a.objective, "status": "planned"})
+                                "owner": a.owner, "objective": a.objective,
+                                "paths": a.paths, "status": "planned"})
                 continue
             # Live writes MUST go through the verify+rollback+fail-closed cascade
             # (Mary #2) -- never call the provider directly here.
@@ -110,6 +127,8 @@ class Ikarus:
             res = offload(a.objective, repo_root, a.paths, live=True,
                           availability=avail, project=self.project)
             results.append({"worker": a.worker, "lane": a.lane,
+                            "mode": a.mode, "owner": a.owner,
+                            "objective": a.objective, "paths": a.paths,
                             "status": res.get("action"), "result": res})
         return results
 
@@ -118,13 +137,31 @@ class Ikarus:
         (dry_run) or dispatch (live) them across the bounded local bench.
 
         This is the dynamic counterpart to the hardcoded ``_demo_tasks`` flow --
-        the subtasks come from :func:`agent_env.decompose.decompose` (local model
+        the subtasks come from :func:`daedalus.decompose.decompose` (local model
         with a deterministic per-path fallback), not a fixed list."""
         from .decompose import decompose
         subtasks = decompose(objective, repo_root)
         if dry_run:
             return self.plan(subtasks)
         return self.dispatch(repo_root, subtasks, dry_run=False)
+
+
+    def configure(self, spec: dict, repo_root: str | None = None, *, overwrite: bool = False) -> dict:
+        """Dynamic agent configurator: mint or reshape an agent-role definition
+        at runtime. Ikarus owns the crew roster, so creating/editing roles is
+        his job -- routing (``router.load_agents``) picks up the change with no
+        restart. Returns a summary; raises ValueError on an invalid spec."""
+        from . import agents_registry as reg
+        name = spec.get("name")
+        if name and reg.get_role(name, repo_root) is not None:
+            patch = {k: v for k, v in spec.items() if k != "name"}
+            path = reg.update_role(name, patch, repo_root)
+            action = "updated"
+        else:
+            path = reg.create_role(spec, repo_root, overwrite=overwrite)
+            action = "created"
+        return {"orchestrator": "ikarus", "action": action, "role": name,
+                "path": str(path), "config": reg.get_role(name, repo_root)}
 
 
 def _demo_tasks() -> list[dict]:

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from agent_env.providers.ollama import OllamaProvider
+from daedalus.providers.ollama import OllamaProvider
 
 
 def _repo(files: dict[str, str]) -> tempfile.TemporaryDirectory:
@@ -25,7 +25,7 @@ def _repo(files: dict[str, str]) -> tempfile.TemporaryDirectory:
 def _model_returns(content: str):
     """Patch the module-level chat_completion to return {'content': ...}."""
     return mock.patch(
-        "agent_env.providers.ollama.chat_completion",
+        "daedalus.providers.ollama.chat_completion",
         return_value=json.dumps({"content": content}),
     )
 
@@ -103,7 +103,7 @@ class RunRoutingTests(unittest.TestCase):
     def test_writable_scoped_task_uses_rewrite_not_tool_loop(self):
         agent = {"name": "docs-dev", "call_name": "Lucia"}
         with _repo({"src/calc.py": ORIGINAL}) as d, _model_returns(EDITED), mock.patch(
-            "agent_env.providers.ollama.chat_raw",
+            "daedalus.providers.ollama.chat_raw",
             side_effect=AssertionError("tool loop must not run for scoped writes"),
         ):
             out = OllamaProvider().run(objective="Add docstrings", repo_root=d,
@@ -115,10 +115,10 @@ class RunRoutingTests(unittest.TestCase):
         final = {"status": "needs_review", "summary": "reviewed", "files_changed": [],
                  "tests_run": [], "risks": [], "todos": [], "handoff": {}}
         with _repo({"src/calc.py": ORIGINAL}) as d, mock.patch(
-            "agent_env.providers.ollama.chat_raw",
+            "daedalus.providers.ollama.chat_raw",
             return_value={"content": json.dumps(final)},
         ) as chat_raw, mock.patch(
-            "agent_env.providers.ollama.chat_completion",
+            "daedalus.providers.ollama.chat_completion",
             side_effect=AssertionError("rewrite path must not run for advisory tasks"),
         ):
             out = OllamaProvider().run(objective="Review the calc helpers", repo_root=d,

@@ -6,7 +6,7 @@
   "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app",
   "claude_model": "sonnet",
   "policy": {
-    "_comment": "TCT-specific egress/risk rules. Merged on top of the generic secret defaults in agent_env/sensitivity.py. Never send real instrument-driver / vendor / lab IP to an untrusted external API.",
+    "_comment": "TCT-specific egress/risk rules. Merged on top of the generic secret defaults in daedalus/sensitivity.py. Never send real instrument-driver / vendor / lab IP to an untrusted external API.",
     "deny": [
       "tct_app/devices/",
       "/devices/",
@@ -23,7 +23,11 @@
       "docs/",
       ".md"
     ],
-    "allow_exceptions": ["_simulated.py", "_base.py", "/base.py"],
+    "allow_exceptions": [
+      "_simulated.py",
+      "_base.py",
+      "/base.py"
+    ],
     "deny_content": [
       "\\*idn\\?",
       ":meas[a-z:]*",
@@ -38,14 +42,80 @@
       "\\be4control\\b"
     ],
     "high_risk_terms": [
-      "hv", "high voltage", "ramp", "bias enable", "enable bias",
-      "motion", "move motor", "home", "homing", "start scan", "scan start",
-      "interlock", "state machine", "rewrite", "architecture", "migrate"
+      "hv",
+      "high voltage",
+      "ramp",
+      "bias enable",
+      "enable bias",
+      "motion",
+      "move motor",
+      "home",
+      "homing",
+      "start scan",
+      "scan start",
+      "interlock",
+      "state machine",
+      "rewrite",
+      "architecture",
+      "migrate"
     ],
     "high_risk_paths": [
       "tct_app/devices/",
       "tct_app/controller/",
       "/state_machine"
     ]
+  },
+  "team": {
+    "max_workers": 5,
+    "default_lane": "local_only",
+    "active_agents": [
+      "qa-critic",
+      "ui-ux-dev",
+      "hardware-dev",
+      "acquisition-dev",
+      "docs-dev",
+      "qa-critic",
+      "researcher",
+      "data-analysis-dev"
+    ],
+    "squads": {
+      "Core": [
+        "qa-critic",
+        "reviewer"
+      ],
+      "UI": [
+        "ui-ux-dev"
+      ],
+      "Hardware": [
+        "hardware-dev",
+        "acquisition-dev"
+      ],
+      "Docs": [
+        "docs-dev"
+      ],
+      "QA": [
+        "qa-critic",
+        "tests-dev"
+      ],
+      "Research": [
+        "researcher",
+        "data-analysis-dev"
+      ]
+    },
+    "model_assignments": {
+      "acquisition-dev": "qwen2.5-coder:7b",
+      "data-analysis-dev": "qwen2.5-coder:7b",
+      "docs-dev": "qwen2.5-coder:7b",
+      "hardware-dev": "qwen2.5-coder:7b",
+      "qa-critic": "qwen2.5-coder:7b",
+      "researcher": "qwen2.5-coder:7b",
+      "ui-ux-dev": "qwen2.5-coder:7b"
+    },
+    "semi_auto": {
+      "auto_review": true,
+      "auto_docs": true,
+      "auto_tests": false,
+      "never_auto_write": true
+    }
   }
 }

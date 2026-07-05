@@ -1,5 +1,5 @@
 {
-  "_comment": "agent_env policy for THIS repo. Generic secret protections are always merged in; add your own denies. With no 'policy' block, the bench is read/advise-only (fail-closed). Edit, then run `agentenv doctor`.",
+  "_comment": "daedalus policy for THIS repo. Generic secret protections are always merged in; add your own denies. With no 'policy' block, the bench is read/advise-only (fail-closed). Edit, then run `daedalus doctor`.",
   "policy": {
     "deny": [
       "secret",

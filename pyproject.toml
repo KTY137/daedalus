@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-env"
+name = "daedalus"
 version = "0.1.0"
 description = "Portable local+cloud multi-agent routing harness (Adam senior crew + Ikarus local bench)."
 readme = "README.md"
@@ -17,9 +17,9 @@ dependencies = []
 yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
 
 [project.scripts]
-agentenv = "agent_env.cli:main"
+daedalus = "daedalus.cli:main"
 
 [tool.setuptools]
 # Installed editable (`pip install -e .`) so agents/, projects/, and local
 # state stay next to the code and travel with the repo.
-packages = ["agent_env", "agent_env.providers"]
+packages = ["daedalus", "daedalus.providers"]

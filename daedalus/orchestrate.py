@@ -39,6 +39,8 @@ def prepare_task(
     paths: list[str] | None = None,
     ask_claude: bool = True,
     lane: str = "auto",
+    source: str = "codex",
+    strategy: str = "single",
 ) -> dict:
     root = resolve_repo_root(repo_root, project)
     project_data = load_project(project) if project else {}
@@ -72,6 +74,9 @@ def prepare_task(
                 paths=paths,
                 model=project_data.get("claude_model", "sonnet"),
                 lane=lane,
+                project=project,
+                source=source,
+                strategy=strategy,
             )
         )
 
@@ -93,8 +98,13 @@ def main() -> None:
     parser.add_argument("--project")
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--no-claude", action="store_true")
-    parser.add_argument("--lane", default="auto", choices=["auto", "claude", "local"],
+    parser.add_argument("--lane", default="auto", choices=["auto", "claude", "local", "local_only"],
                         help="how the watcher may execute the queued task")
+    parser.add_argument("--source", default="codex",
+                        choices=["unknown", "codex", "claude", "user", "ikarus"],
+                        help="who is preparing this task")
+    parser.add_argument("--strategy", default="single", choices=["single", "spawn"],
+                        help="single routes one task; spawn lets Ikarus decompose and fan out")
     args = parser.parse_args()
     result = prepare_task(
         message=args.message,
@@ -103,6 +113,8 @@ def main() -> None:
         paths=args.paths,
         ask_claude=not args.no_claude,
         lane=args.lane,
+        source=args.source,
+        strategy=args.strategy,
     )
     print(json.dumps(result, indent=2))
 

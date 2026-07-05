@@ -1,6 +1,6 @@
-# CLAUDE.md -- agent_env harness rules for this repo
+# CLAUDE.md -- daedalus harness rules for this repo
 
-This repo is wired into the `agent_env` multi-agent harness. Follow these
+This repo is wired into the `daedalus` multi-agent harness. Follow these
 rules whenever the user delegates work here.
 
 ## Route work through the harness
@@ -9,13 +9,19 @@ rules whenever the user delegates work here.
   of doing everything yourself:
 
   ```powershell
-  python -m agent_env.orchestrate "<task>" --repo-root <this repo>
+  python -m daedalus.orchestrate "<task>" --repo-root <this repo>
+  ```
+
+  If Claude tokens are exhausted, queue only local work:
+
+  ```powershell
+  python -m daedalus.orchestrate "<task>" --repo-root <this repo> --lane local_only
   ```
 
   For a bigger objective, decompose it onto the local bench:
 
   ```powershell
-  agentenv spawn "<objective>" --repo-root <this repo>
+  daedalus spawn "<objective>" --repo-root <this repo>
   ```
 
 - Keep high-risk work (auth, migrations, deletions, production config)

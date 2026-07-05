@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control — Design Mockup</title>
+<style>
+  /* ---------------------------------------------------------------------
+     TOKENS
+     --vscode-* vars are given sensible dark fallbacks here so this file
+     renders standalone in a plain browser. Inside an actual VS Code
+     webview, the host injects real --vscode-* values as an inline style
+     on <html>, which wins the cascade and overrides these automatically.
+     --------------------------------------------------------------------- */
+  :root {
+    color-scheme: dark;
+    --vscode-font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    --vscode-editor-background: #1e1e1e;
+    --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d;
+    --vscode-panel-border: #2b2b2b;
+    --vscode-sideBar-background: #252526;
+    --vscode-editorWidget-background: #252526;
+    --vscode-textCodeBlock-background: #0a0a0a;
+    --vscode-input-background: #3c3c3c;
+    --vscode-input-foreground: #cccccc;
+    --vscode-input-border: #3c3c3c;
+    --vscode-button-background: #0e639c;
+    --vscode-button-foreground: #ffffff;
+    --vscode-button-hoverBackground: #1177bb;
+    --vscode-button-secondaryBackground: #3a3d41;
+    --vscode-button-secondaryForeground: #cccccc;
+    --vscode-tab-activeBackground: #1e1e1e;
+    --vscode-tab-activeForeground: #ffffff;
+    --vscode-textLink-foreground: #3794ff;
+    --vscode-focusBorder: #007fd4;
+    --vscode-testing-iconPassed: #73c991;
+    --vscode-editorWarning-foreground: #cca700;
+    --vscode-testing-iconFailed: #f14c4c;
+    --vscode-charts-blue: #3794ff;
+    --vscode-charts-green: #89d185;
+    --vscode-charts-orange: #d18616;
+    --vscode-charts-purple: #b180d7;
+    --vscode-charts-yellow: #d7ba7d;
+    --vscode-charts-red: #f14c4c;
+
+    /* semantic layer */
+    --mc-surface: var(--vscode-editor-background);
+    --mc-surface-elevated: var(--vscode-sideBar-background);
+    --mc-surface-card: var(--vscode-editorWidget-background);
+    --mc-text: var(--vscode-foreground);
+    --mc-text-muted: var(--vscode-descriptionForeground);
+    --mc-border: var(--vscode-panel-border);
+    --mc-accent: var(--vscode-textLink-foreground);
+    --mc-focus: var(--vscode-focusBorder);
+    --mc-success: var(--vscode-testing-iconPassed);
+    --mc-warning: var(--vscode-editorWarning-foreground);
+    --mc-danger: var(--vscode-testing-iconFailed);
+
+    /* spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+
+    /* type scale */
+    --text-micro: 11px;
+    --text-small: 12px;
+    --text-base: 13px;
+    --text-medium: 13px;
+    --text-large: 15px;
+    --text-xl: 22px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --vscode-editor-background: #ffffff;
+      --vscode-foreground: #3b3b3b;
+      --vscode-descriptionForeground: #717171;
+      --vscode-panel-border: #e5e5e5;
+      --vscode-sideBar-background: #f3f3f3;
+      --vscode-editorWidget-background: #f3f3f3;
+      --vscode-textCodeBlock-background: #f0f0f0;
+      --vscode-input-background: #ffffff;
+      --vscode-input-foreground: #3b3b3b;
+      --vscode-input-border: #cecece;
+      --vscode-button-background: #005fb8;
+      --vscode-button-foreground: #ffffff;
+      --vscode-button-hoverBackground: #0258a8;
+      --vscode-button-secondaryBackground: #e5e5e5;
+      --vscode-button-secondaryForeground: #3b3b3b;
+      --vscode-tab-activeBackground: #ffffff;
+      --vscode-tab-activeForeground: #000000;
+      --vscode-textLink-foreground: #005fb8;
+      --vscode-focusBorder: #005fb8;
+      --vscode-testing-iconPassed: #388a34;
+      --vscode-editorWarning-foreground: #9f6a00;
+      --vscode-testing-iconFailed: #d1274b;
+      --vscode-charts-blue: #005fb8;
+      --vscode-charts-green: #388a34;
+      --vscode-charts-orange: #b5610a;
+      --vscode-charts-purple: #9137c0;
+      --vscode-charts-yellow: #9f6a00;
+      --vscode-charts-red: #d1274b;
+    }
+  }
+
+  /* ---------------------------------------------------------------------
+     RESET / BASE
+     --------------------------------------------------------------------- */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--text-base);
+    color: var(--mc-text);
+    background: var(--mc-surface);
+    line-height: 1.45;
+  }
+  h1, h2, h3, p, ul { margin: 0; }
+  ul { padding: 0; list-style: none; }
+  button, select { font-family: inherit; font-size: inherit; }
+  code, pre { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+  :focus-visible {
+    outline: 2px solid var(--mc-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ---------------------------------------------------------------------
+     APP SHELL
+     --------------------------------------------------------------------- */
+  .app { max-width: 1040px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-3); padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--mc-border);
+    background: var(--mc-surface-elevated);
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.topbar h1 { font-size: var(--text-large); font-weight: 600; }
+  header.topbar .sub { color: var(--mc-text-muted); font-size: var(--text-small); }
+  .project-select {
+    display: flex; align-items: center; gap: var(--space-2);
+  }
+  select.project {
+    color: var(--vscode-input-foreground); background: var(--vscode-input-background);
+    border: 1px solid var(--vscode-input-border); border-radius: 3px;
+    padding: 5px 8px; min-width: 140px;
+  }
+
+  nav.tabs {
+    display: flex; gap: 2px; padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--mc-border);
+    background: var(--mc-surface);
+    overflow-x: auto;
+  }
+  .tab {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    color: var(--mc-text-muted);
+    padding: var(--space-3) var(--space-3);
+    font-size: var(--text-base);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--mc-text); background: var(--mc-surface-elevated); }
+  .tab.active {
+    color: var(--vscode-tab-activeForeground);
+    background: var(--vscode-tab-activeBackground);
+    border-bottom-color: var(--mc-accent);
+    font-weight: 600;
+  }
+
+  main { flex: 1; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
+  .panel-view { display: none; flex-direction: column; gap: var(--space-5); }
+  .panel-view.active { display: flex; }
+
+  section.block { display: flex; flex-direction: column; gap: var(--space-3); }
+  section.block > h2 {
+    font-size: var(--text-large); font-weight: 600;
+  }
+  section.block > .desc { color: var(--mc-text-muted); font-size: var(--text-small); margin-top: calc(-1 * var(--space-2)); }
+
+  /* ---------------------------------------------------------------------
+     WARNING BANNER
+     --------------------------------------------------------------------- */
+  .banner {
+    display: flex; align-items: flex-start; gap: var(--space-2);
+    border-left: 3px solid var(--mc-warning);
+    background: var(--mc-surface-elevated);
+    padding: var(--space-2) var(--space-3);
+    border-radius: 3px; font-size: var(--text-small);
+  }
+  .banner .glyph { color: var(--mc-warning); flex: none; }
+  .banner.danger { border-left-color: var(--mc-danger); }
+  .banner.danger .glyph { color: var(--mc-danger); }
+
+  /* ---------------------------------------------------------------------
+     KPI TILES
+     --------------------------------------------------------------------- */
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); }
+  .tile {
+    background: var(--mc-surface-card); border: 1px solid var(--mc-border);
+    border-radius: 6px; padding: var(--space-3); cursor: pointer;
+    display: flex; flex-direction: column; gap: var(--space-1);
+  }
+  .tile:hover { border-color: color-mix(in srgb, var(--mc-accent) 60%, var(--mc-border)); }
+  .tile .tile-head { display: flex; align-items: center; gap: var(--space-1); color: var(--mc-text-muted); font-size: var(--text-small); }
+  .tile .tile-value { font-size: var(--text-xl); font-weight: 600; }
+  .tile .tile-sub { font-size: var(--text-small); color: var(--mc-text-muted); }
+  .tile.warn { border-left: 3px solid var(--mc-warning); }
+  .tile.err { border-left: 3px solid var(--mc-danger); }
+  .tile.disabled { opacity: .5; cursor: not-allowed; }
+  .tile .mini-list { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-small); margin-top: var(--space-1); }
+  .mini-status { display: inline-flex; align-items: center; gap: 5px; }
+  .mini-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--mc-success); }
+  .dot.warn { background: var(--mc-warning); }
+  .dot.bad { background: var(--mc-danger); }
+
+  /* ---------------------------------------------------------------------
+     STATE GALLERY (didactic strip showing every component state)
+     --------------------------------------------------------------------- */
+  .state-strip { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .state-swatch { display: flex; flex-direction: column; gap: 4px; }
+  .state-swatch .swatch-label { font-size: var(--text-micro); text-transform: uppercase; letter-spacing: .03em; color: var(--mc-text-muted); }
+
+  /* skeleton */
+  .skeleton { background: var(--mc-border); border-radius: 3px; opacity: .6; animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: .7; } }
+  .skeleton-line { height: 10px; margin: 4px 0; }
+
+  /* ---------------------------------------------------------------------
+     BADGES / PILLS
+     --------------------------------------------------------------------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 999px; padding: 2px 8px; font-size: var(--text-micro); font-weight: 600;
+    border: 1px solid var(--mc-border); white-space: nowrap;
+  }
+  .badge .glyph { line-height: 1; }
+  .badge.lane { color: var(--mc-text); }
+  .badge.lane .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .lane-local_only .dot { background: var(--vscode-charts-blue); }
+  .lane-local .dot { background: var(--vscode-charts-purple); }
+  .lane-auto .dot { background: var(--vscode-charts-yellow); }
+  .lane-claude .dot { background: var(--vscode-charts-orange); }
+
+  .badge.status-done { color: var(--mc-success); border-color: color-mix(in srgb, var(--mc-success) 40%, var(--mc-border)); }
+  .badge.status-blocked { color: var(--mc-warning); border-color: color-mix(in srgb, var(--mc-warning) 40%, var(--mc-border)); }
+  .badge.status-needs_review { color: var(--mc-accent); border-color: color-mix(in srgb, var(--mc-accent) 40%, var(--mc-border)); }
+  .badge.status-failed { color: var(--mc-danger); border-color: color-mix(in srgb, var(--mc-danger) 40%, var(--mc-border)); }
+
+  .tier-badge { background: var(--mc-surface-elevated); color: var(--mc-text-muted); border-radius: 3px; padding: 2px 6px; font-size: var(--text-micro); border: 1px solid var(--mc-border); }
+
+  /* ---------------------------------------------------------------------
+     QUEUE TIMELINE
+     --------------------------------------------------------------------- */
+  .queue-toolbar { display: flex; justify-content: flex-end; gap: var(--space-2); }
+  .queue-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .queue-row {
+    display: grid; grid-template-columns: auto auto 1fr auto; align-items: center;
+    gap: var(--space-3); padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--mc-border); cursor: pointer;
+  }
+  .queue-row:last-child { border-bottom: 0; }
+  .queue-row:hover { background: var(--mc-surface-elevated); }
+  .queue-row.failed { border-left: 3px solid var(--mc-danger); background: color-mix(in srgb, var(--mc-danger) 6%, var(--mc-surface)); }
+  .queue-row .qr-main { min-width: 0; }
+  .queue-row .qr-name { font-weight: 600; font-size: var(--text-medium); }
+  .queue-row .qr-summary { color: var(--mc-text-muted); font-size: var(--text-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queue-row .qr-kind { font-size: var(--text-micro); color: var(--mc-text-muted); text-transform: uppercase; }
+  .queue-detail { display: none; padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) + 3px); border-left: 2px solid var(--mc-accent); margin-left: var(--space-1); }
+  .queue-row.selected + .queue-detail { display: block; }
+  .queue-row.selected { background: var(--mc-surface-elevated); }
+  .queue-detail pre { background: var(--vscode-textCodeBlock-background); padding: var(--space-2); border-radius: 4px; font-size: var(--text-small); white-space: pre-wrap; overflow: auto; max-height: 160px; }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+    padding: var(--space-6) var(--space-4); color: var(--mc-text-muted); text-align: center;
+    border: 1px dashed var(--mc-border); border-radius: 6px;
+  }
+  .empty-state .glyph { font-size: 22px; opacity: .6; }
+
+  /* ---------------------------------------------------------------------
+     AGENT SQUADS
+     --------------------------------------------------------------------- */
+  .squad-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+  .squad-card {
+    background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px;
+    padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2);
+  }
+  .squad-card.selected { border-color: var(--mc-accent); }
+  .squad-card.empty { border-style: dashed; }
+  .squad-card h3 { font-size: var(--text-medium); display: flex; justify-content: space-between; align-items: baseline; }
+  .squad-card h3 .count { font-size: var(--text-micro); color: var(--mc-text-muted); font-weight: 400; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+  .chip {
+    display: flex; align-items: center; gap: var(--space-2);
+    border: 1px solid var(--mc-border); border-radius: 999px;
+    padding: 4px 6px 4px 10px; background: var(--mc-surface);
+  }
+  .chip:hover { border-color: color-mix(in srgb, var(--mc-accent) 60%, var(--mc-border)); cursor: pointer; }
+  .chip.error { border-color: color-mix(in srgb, var(--mc-danger) 60%, var(--mc-border)); }
+  .chip.disabled { opacity: .5; cursor: not-allowed; }
+  .chip .chip-name { font-size: var(--text-small); font-weight: 600; }
+  .chip .chip-error-text { font-size: var(--text-micro); color: var(--mc-danger); }
+  .chip .ext-glyph { font-size: var(--text-small); }
+  .toggle {
+    width: 26px; height: 15px; border-radius: 999px; border: 1px solid var(--mc-border);
+    background: var(--mc-surface-elevated); position: relative; flex: none;
+  }
+  .toggle::after {
+    content: ""; position: absolute; top: 1px; left: 1px; width: 11px; height: 11px;
+    border-radius: 50%; background: var(--mc-text-muted);
+  }
+  .toggle.on { background: color-mix(in srgb, var(--mc-accent) 35%, var(--mc-surface-elevated)); border-color: var(--mc-accent); }
+  .toggle.on::after { background: var(--mc-accent); left: 12px; }
+  .toggle.locked::after { content: "\1F512"; font-size: 8px; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--mc-text-muted); }
+
+  /* ---------------------------------------------------------------------
+     MODEL RESOURCES
+     --------------------------------------------------------------------- */
+  .model-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .model-row { display: grid; grid-template-columns: 1.3fr auto auto 1.4fr auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); }
+  .model-row:last-child { border-bottom: 0; }
+  .model-row:hover { background: var(--mc-surface-elevated); }
+  .model-row .m-name { font-weight: 600; font-size: var(--text-medium); }
+  .model-row .m-meta { font-size: var(--text-micro); color: var(--mc-text-muted); }
+  .size-bar-track { height: 8px; background: var(--mc-surface-elevated); border-radius: 4px; overflow: hidden; }
+  .size-bar-fill { height: 100%; background: var(--vscode-charts-blue); }
+  .m-gb { font-size: var(--text-small); text-align: right; color: var(--mc-text-muted); white-space: nowrap; }
+
+  .resource-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3); }
+  .gauge-card, .stat-card { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); }
+  .gauge-readout { display: flex; justify-content: space-between; font-size: var(--text-small); color: var(--mc-text-muted); margin-bottom: var(--space-2); }
+  .gauge-track { height: 14px; border-radius: 7px; overflow: hidden; display: flex; background: var(--mc-surface-elevated); }
+  .gauge-used { background: var(--vscode-charts-orange); height: 100%; }
+  .gauge-free { background: var(--vscode-charts-green); height: 100%; }
+  .gauge-note { margin-top: var(--space-2); font-size: var(--text-small); color: var(--mc-warning); }
+  .stat-card .tile-value { font-size: var(--text-xl); font-weight: 600; }
+
+  .pull-list { display: flex; flex-direction: column; gap: var(--space-2); }
+  .pull-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-2) var(--space-3); }
+  .pull-item code { background: var(--vscode-textCodeBlock-background); padding: 3px 8px; border-radius: 4px; font-size: var(--text-small); }
+  .pull-item .reason { font-size: var(--text-small); color: var(--mc-text-muted); }
+
+  /* ---------------------------------------------------------------------
+     BUTTONS
+     --------------------------------------------------------------------- */
+  button.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
+    border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: var(--text-small);
+  }
+  button.btn:hover { background: color-mix(in srgb, var(--mc-accent) 15%, var(--vscode-button-secondaryBackground)); }
+  button.btn.copied { color: var(--mc-success); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ---------------------------------------------------------------------
+     QUALITY GATES
+     --------------------------------------------------------------------- */
+  .gate-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .gate-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); font-size: var(--text-small); }
+  .gate-row:last-child { border-bottom: 0; }
+  .gate-row .glyph { width: 16px; text-align: center; flex: none; }
+  .gate-row.pass .glyph { color: var(--mc-success); }
+  .gate-row.fail .glyph { color: var(--mc-danger); }
+  .gate-row .g-name { font-weight: 600; flex: 1; }
+  .gate-row .g-reason { color: var(--mc-text-muted); }
+  .gate-row .g-result { font-weight: 600; }
+  .gate-row.pass .g-result { color: var(--mc-success); }
+  .gate-row.fail .g-result { color: var(--mc-danger); }
+
+  .meter-card { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); }
+  .meter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); font-size: var(--text-small); }
+  .alarm-tag { color: var(--mc-danger); font-weight: 700; font-size: var(--text-micro); border: 1px solid var(--mc-danger); border-radius: 999px; padding: 1px 8px; }
+  .meter-track { height: 12px; border-radius: 6px; background: var(--mc-surface-elevated); overflow: hidden; }
+  .meter-fill { height: 100%; background: var(--mc-danger); display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 9px; color: #fff; }
+
+  .callout { border-left: 3px solid var(--mc-accent); background: var(--mc-surface-elevated); border-radius: 4px; padding: var(--space-3); font-size: var(--text-small); display: flex; gap: var(--space-2); align-items: flex-start; }
+  .callout .glyph { color: var(--mc-accent); }
+
+  footer.foot { padding: var(--space-4); text-align: center; color: var(--mc-text-muted); font-size: var(--text-micro); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Mission Control</h1>
+      <div class="sub">daedalus harness cockpit — design mockup</div>
+    </div>
+    <div class="project-select">
+      <label class="sub" for="project" style="font-size:12px;color:var(--mc-text-muted);">project</label>
+      <select id="project" class="project">
+        <option>tct</option>
+        <option>agent_env</option>
+      </select>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Mission Control views">
+    <button class="tab active" data-tab="overview" role="tab" aria-selected="true">Overview</button>
+    <button class="tab" data-tab="queue" role="tab" aria-selected="false">Queue Timeline</button>
+    <button class="tab" data-tab="squads" role="tab" aria-selected="false">Agent Squads</button>
+    <button class="tab" data-tab="models" role="tab" aria-selected="false">Model Resources</button>
+    <button class="tab" data-tab="quality" role="tab" aria-selected="false">Quality Gates</button>
+  </nav>
+
+  <main>
+    <!-- ================= OVERVIEW ================= -->
+    <div class="panel-view active" id="panel-overview">
+      <section class="block">
+        <div class="banner">
+          <span class="glyph">&#9888;</span>
+          <span>Stale watcher process detected. Stop it before queueing more work.</span>
+        </div>
+        <div class="banner">
+          <span class="glyph">&#9888;</span>
+          <span>Harness enforcement is not active for this project.</span>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Status</h2>
+        <div class="kpi-row">
+          <div class="tile warn" tabindex="0">
+            <div class="tile-head">&#128225; Provider Health</div>
+            <div class="tile-value">2 / 3</div>
+            <div class="tile-sub">deepseek unavailable</div>
+            <div class="mini-list">
+              <span class="mini-status"><span class="dot ok"></span>ollama — ready</span>
+              <span class="mini-status"><span class="dot ok"></span>claude_cli — ready</span>
+              <span class="mini-status"><span class="dot bad"></span>deepseek — no key</span>
+            </div>
+          </div>
+
+          <div class="tile err" tabindex="0">
+            <div class="tile-head">&#128065; Watcher</div>
+            <div class="tile-value">Stale</div>
+            <div class="tile-sub">1 stale watcher — restart required</div>
+          </div>
+
+          <div class="tile" tabindex="0">
+            <div class="tile-head">&#8644; Routing Lane</div>
+            <div class="tile-value">local_only</div>
+            <div class="tile-sub">selected: auto &rarr; recommended: local_only (stale watcher detected)</div>
+          </div>
+
+          <div class="tile warn" tabindex="0">
+            <div class="tile-head">&#128274; Enforcement</div>
+            <div class="tile-value">2 / 3</div>
+            <div class="mini-list">
+              <span class="mini-status"><span class="dot ok"></span>AGENTS.md managed</span>
+              <span class="mini-status"><span class="dot ok"></span>CLAUDE.md managed</span>
+              <span class="mini-status"><span class="dot bad"></span>state file missing</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="desc">Tile state reference (not live data) — every KPI tile supports these states:</div>
+        <div class="state-strip">
+          <div class="state-swatch">
+            <span class="swatch-label">Loading</span>
+            <div class="tile" style="width:170px;">
+              <div class="skeleton skeleton-line" style="width:60%;"></div>
+              <div class="skeleton skeleton-line" style="width:40%;height:18px;"></div>
+              <div class="skeleton skeleton-line" style="width:80%;"></div>
+            </div>
+          </div>
+          <div class="state-swatch">
+            <span class="swatch-label">Empty</span>
+            <div class="tile" style="width:170px;">
+              <div class="tile-head">&#128225; Provider Health</div>
+              <div class="tile-value" style="color:var(--mc-text-muted);">&mdash;</div>
+              <div class="tile-sub">Select a project</div>
+            </div>
+          </div>
+          <div class="state-swatch">
+            <span class="swatch-label">Disabled</span>
+            <div class="tile disabled" style="width:170px;">
+              <div class="tile-head">&#8644; Routing Lane</div>
+              <div class="tile-value">n/a</div>
+              <div class="tile-sub">No repo_root configured</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= QUEUE TIMELINE ================= -->
+    <div class="panel-view" id="panel-queue">
+      <section class="block">
+        <h2>Queue Timeline</h2>
+        <div class="desc">Click a row to expand. Failed reports are emphasized with a red rail so they can't be scrolled past unnoticed.</div>
+        <div class="queue-toolbar">
+          <button class="btn" id="toggle-empty">Toggle empty state (demo)</button>
+        </div>
+
+        <div class="queue-list" id="queue-populated">
+          <div class="queue-row selected" data-row="1" tabindex="0">
+            <span class="badge lane lane-local"><span class="dot"></span>local</span>
+            <span class="badge status-done"><span class="glyph">&#10003;</span>done</span>
+            <div class="qr-main">
+              <div class="qr-name">2026-07-05T09-12-00.report.json</div>
+              <div class="qr-summary">Refactored offload queue drain to dedupe stale watcher entries.</div>
+            </div>
+            <span class="qr-kind">processed</span>
+          </div>
+          <div class="queue-detail">
+            <pre>agent: generalist-dev
+lane: local
+summary: Refactored offload queue drain to dedupe stale watcher entries.
+tests_run: pytest tests/test_agent_env.py -k queue
+risks: none noted</pre>
+          </div>
+
+          <div class="queue-row" data-row="2" tabindex="0">
+            <span class="badge lane lane-claude"><span class="dot"></span>claude</span>
+            <span class="badge status-needs_review"><span class="glyph">&#128065;</span>needs_review</span>
+            <div class="qr-main">
+              <div class="qr-name">2026-07-05T09-40-11.report.json</div>
+              <div class="qr-summary">Advisory diff review flagged a possible race in watcher restart.</div>
+            </div>
+            <span class="qr-kind">report</span>
+          </div>
+          <div class="queue-detail"></div>
+
+          <div class="queue-row failed" data-row="3" tabindex="0">
+            <span class="badge lane lane-local_only"><span class="dot"></span>local_only</span>
+            <span class="badge status-failed"><span class="glyph">&#10007;</span>failed</span>
+            <div class="qr-main">
+              <div class="qr-name">2026-07-05T10-02-45.report.json</div>
+              <div class="qr-summary">local_only requested, but the local bench did not return a verified offload.</div>
+            </div>
+            <span class="qr-kind">report</span>
+          </div>
+          <div class="queue-detail"></div>
+
+          <div class="queue-row" data-row="4" tabindex="0">
+            <span class="badge lane lane-auto"><span class="dot"></span>auto</span>
+            <span class="badge status-blocked"><span class="glyph">&#10074;&#10074;</span>blocked</span>
+            <div class="qr-main">
+              <div class="qr-name">2026-07-05T10-15-02.json</div>
+              <div class="qr-summary">Waiting on hardware-dev to confirm device manager contract.</div>
+            </div>
+            <span class="qr-kind">pending</span>
+          </div>
+          <div class="queue-detail"></div>
+        </div>
+
+        <div class="empty-state" id="queue-empty" style="display:none;">
+          <div class="glyph">&#128203;</div>
+          <div><strong>No queue activity yet.</strong></div>
+          <div>Tasks appear here once queued via <code>daedalus.file_bridge enqueue</code> or Ikarus dispatch.</div>
+        </div>
+
+        <div class="desc" style="margin-top:var(--space-2);">Loading state:</div>
+        <div class="queue-list">
+          <div class="queue-row"><div class="skeleton skeleton-line" style="width:60px;height:16px;border-radius:999px;"></div><div class="skeleton skeleton-line" style="width:70px;height:16px;border-radius:999px;"></div><div class="skeleton skeleton-line" style="width:70%;"></div><div class="skeleton skeleton-line" style="width:50px;"></div></div>
+          <div class="queue-row"><div class="skeleton skeleton-line" style="width:60px;height:16px;border-radius:999px;"></div><div class="skeleton skeleton-line" style="width:70px;height:16px;border-radius:999px;"></div><div class="skeleton skeleton-line" style="width:50%;"></div><div class="skeleton skeleton-line" style="width:50px;"></div></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= AGENT SQUADS ================= -->
+    <div class="panel-view" id="panel-squads">
+      <section class="block">
+        <h2>Agent Squads</h2>
+        <div class="desc">Chips pair every status with a label/icon (never color alone). Members without a resolved agent file (e.g. built-in defaults) render in an error state instead of silently blank.</div>
+
+        <div class="squad-grid">
+          <div class="squad-card selected">
+            <h3>Core <span class="count">3 agents</span></h3>
+            <div class="chip-row">
+              <div class="chip error" title="config error">
+                <span class="chip-name">generalist-dev</span>
+                <span class="chip-error-text">config error</span>
+              </div>
+              <div class="chip error" title="config error">
+                <span class="chip-name">reviewer</span>
+                <span class="chip-error-text">config error</span>
+              </div>
+              <div class="chip">
+                <span class="chip-name">Mary</span>
+                <span class="tier-badge">opus</span>
+                <span class="ext-glyph" title="local only">&#128274;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card">
+            <h3>UI <span class="count">1 agent</span></h3>
+            <div class="chip-row">
+              <div class="chip">
+                <span class="chip-name">Noah</span>
+                <span class="tier-badge">sonnet</span>
+                <span class="ext-glyph" title="external ok">&#128275;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card">
+            <h3>Hardware <span class="count">2 agents</span></h3>
+            <div class="chip-row">
+              <div class="chip">
+                <span class="chip-name">Paul</span>
+                <span class="tier-badge">opus</span>
+                <span class="ext-glyph" title="local only">&#128274;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+              <div class="chip disabled" title="not available for this provider tier">
+                <span class="chip-name">Abel</span>
+                <span class="tier-badge">opus</span>
+                <span class="ext-glyph" title="local only">&#128274;</span>
+                <span class="toggle locked" title="disabled"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card">
+            <h3>Docs <span class="count">1 agent</span></h3>
+            <div class="chip-row">
+              <div class="chip">
+                <span class="chip-name">Samantha</span>
+                <span class="tier-badge">sonnet</span>
+                <span class="ext-glyph" title="external ok">&#128275;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card">
+            <h3>QA <span class="count">3 agents</span></h3>
+            <div class="chip-row">
+              <div class="chip">
+                <span class="chip-name">Mary</span>
+                <span class="tier-badge">opus</span>
+                <span class="ext-glyph" title="local only">&#128274;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+              <div class="chip error" title="config error">
+                <span class="chip-name">reviewer</span>
+                <span class="chip-error-text">config error</span>
+              </div>
+              <div class="chip error" title="config error">
+                <span class="chip-name">tests-dev</span>
+                <span class="chip-error-text">config error</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card">
+            <h3>Research <span class="count">2 agents</span></h3>
+            <div class="chip-row">
+              <div class="chip">
+                <span class="chip-name">Prometheus</span>
+                <span class="tier-badge">opus</span>
+                <span class="ext-glyph" title="external ok">&#128275;</span>
+                <span class="toggle on" title="active"></span>
+              </div>
+              <div class="chip">
+                <span class="chip-name">Jonathan</span>
+                <span class="tier-badge">sonnet</span>
+                <span class="ext-glyph" title="external ok">&#128275;</span>
+                <span class="toggle" title="inactive"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="squad-card empty">
+            <h3>Embedded <span class="count">0 agents</span></h3>
+            <div class="desc" style="margin:0;">No agents assigned.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= MODEL RESOURCES ================= -->
+    <div class="panel-view" id="panel-models">
+      <section class="block">
+        <h2>Installed Models</h2>
+        <div class="model-list">
+          <div class="model-row">
+            <div>
+              <div class="m-name">qwen2.5-coder:7b</div>
+              <div class="m-meta">7.6B params &middot; Q4_K_M &middot; 32k ctx</div>
+            </div>
+            <span class="tier-badge">default worker</span>
+            <span></span>
+            <div class="size-bar-track"><div class="size-bar-fill" style="width:100%;"></div></div>
+            <span class="m-gb">4.7 GB</span>
+          </div>
+          <div class="model-row">
+            <div>
+              <div class="m-name">llama3.1:8b</div>
+              <div class="m-meta">8.0B params &middot; Q4_K_M &middot; 8k ctx</div>
+            </div>
+            <span class="tier-badge">general</span>
+            <span></span>
+            <div class="size-bar-track"><div class="size-bar-fill" style="width:96%;"></div></div>
+            <span class="m-gb">4.5 GB</span>
+          </div>
+          <div class="model-row">
+            <div>
+              <div class="m-name">nomic-embed-text</div>
+              <div class="m-meta">137M params &middot; F16 &middot; 2k ctx</div>
+            </div>
+            <span class="tier-badge">embeddings</span>
+            <span></span>
+            <div class="size-bar-track"><div class="size-bar-fill" style="width:6%;"></div></div>
+            <span class="m-gb">0.27 GB</span>
+          </div>
+          <div class="model-row">
+            <div class="skeleton skeleton-line" style="width:70%;"></div>
+            <span></span><span></span>
+            <div class="skeleton skeleton-line" style="width:100%;"></div>
+            <div class="skeleton skeleton-line" style="width:40px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="resource-grid">
+          <div class="gauge-card">
+            <h3 style="font-size:var(--text-medium);margin-bottom:var(--space-2);">Disk usage</h3>
+            <div class="gauge-readout"><span>612 GB free of 953 GB</span><span>64% free</span></div>
+            <div class="gauge-track">
+              <div class="gauge-used" style="width:36%;"></div>
+              <div class="gauge-free" style="width:64%;"></div>
+            </div>
+            <div class="gauge-note">Low headroom for pulling additional 7B+ models.</div>
+          </div>
+          <div class="stat-card">
+            <div class="tile-head" style="color:var(--mc-text-muted);font-size:var(--text-small);">Safe parallel workers</div>
+            <div class="tile-value">3</div>
+            <div class="tile-sub">estimated from free disk &divide; (2 &times; largest model)</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2>Suggested pulls</h2>
+        <div class="desc">Copy-only — Mission Control never runs <code>ollama pull</code> for you.</div>
+        <div class="pull-list">
+          <div class="pull-item">
+            <div>
+              <code>ollama pull qwen2.5-coder:7b</code>
+              <div class="reason">Current default local coding worker; good small-footprint baseline.</div>
+            </div>
+            <button class="btn copy-btn" data-cmd="ollama pull qwen2.5-coder:7b">&#128203; Copy</button>
+          </div>
+          <div class="pull-item">
+            <div>
+              <code>ollama pull nomic-embed-text</code>
+              <div class="reason">Useful for semantic routing and future memory search.</div>
+            </div>
+            <button class="btn copy-btn" data-cmd="ollama pull nomic-embed-text">&#128203; Copy</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= QUALITY GATES ================= -->
+    <div class="panel-view" id="panel-quality">
+      <section class="block">
+        <h2>Quality Gates</h2>
+        <div class="gate-list">
+          <div class="gate-row pass">
+            <span class="glyph">&#10003;</span>
+            <span class="g-name">schema_non_empty_summary</span>
+            <span class="g-result">Pass</span>
+          </div>
+          <div class="gate-row pass">
+            <span class="glyph">&#10003;</span>
+            <span class="g-name">local_only_never_claude</span>
+            <span class="g-result">Pass</span>
+          </div>
+          <div class="gate-row pass">
+            <span class="glyph">&#10003;</span>
+            <span class="g-name">empty_reports_fail</span>
+            <span class="g-result">Pass</span>
+          </div>
+          <div class="gate-row fail">
+            <span class="glyph">&#10007;</span>
+            <span class="g-name">stale_watchers == 0</span>
+            <span class="g-reason">1 stale watcher detected&nbsp;&mdash;&nbsp;</span>
+            <span class="g-result">Fail</span>
+          </div>
+          <div class="gate-row fail">
+            <span class="glyph">&#10007;</span>
+            <span class="g-name">fallback_alarm == false</span>
+            <span class="g-reason">alarm active&nbsp;&mdash;&nbsp;</span>
+            <span class="g-result">Fail</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="meter-card">
+          <div class="meter-head">
+            <span>Fallback rate</span>
+            <span class="alarm-tag">ALARM</span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill" style="width:34%;">34%</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="callout">
+          <span class="glyph">&#128161;</span>
+          <span>Use local_only until Claude quota recovers.</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot">Mission Control v1 — static design mockup, no live data connected.</footer>
+</div>
+
+<script>
+  (function () {
+    var tabs = document.querySelectorAll(".tab");
+    var panels = {
+      overview: document.getElementById("panel-overview"),
+      queue: document.getElementById("panel-queue"),
+      squads: document.getElementById("panel-squads"),
+      models: document.getElementById("panel-models"),
+      quality: document.getElementById("panel-quality")
+    };
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        tabs.forEach(function (t) { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
+        Object.keys(panels).forEach(function (k) { panels[k].classList.remove("active"); });
+        tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
+        panels[tab.getAttribute("data-tab")].classList.add("active");
+      });
+    });
+
+    // Queue row expand/collapse
+    document.querySelectorAll(".queue-row").forEach(function (row) {
+      row.addEventListener("click", function () {
+        var wasSelected = row.classList.contains("selected");
+        document.querySelectorAll(".queue-row.selected").forEach(function (r) { r.classList.remove("selected"); });
+        if (!wasSelected) row.classList.add("selected");
+      });
+    });
+
+    // Empty-state toggle demo
+    var toggleBtn = document.getElementById("toggle-empty");
+    var populated = document.getElementById("queue-populated");
+    var empty = document.getElementById("queue-empty");
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", function () {
+        var showingEmpty = empty.style.display !== "none";
+        empty.style.display = showingEmpty ? "none" : "flex";
+        populated.style.display = showingEmpty ? "flex" : "none";
+      });
+    }
+
+    // Copy-to-clipboard for suggested pull commands (copy only, never executes)
+    document.querySelectorAll(".copy-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var cmd = btn.getAttribute("data-cmd");
+        var done = function () {
+          var original = btn.innerHTML;
+          btn.innerHTML = "&#10003; Copied";
+          btn.classList.add("copied");
+          setTimeout(function () {
+            btn.innerHTML = original;
+            btn.classList.remove("copied");
+          }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(cmd).then(done).catch(done);
+        } else {
+          done();
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>

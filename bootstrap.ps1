@@ -1,9 +1,9 @@
-# agent_env bootstrap (Windows) -- drop the repo on a PC and run this.
+# daedalus bootstrap (Windows) -- drop the repo on a PC and run this.
 #   powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
 
-Write-Host "== agent_env bootstrap ==" -ForegroundColor Cyan
+Write-Host "== daedalus bootstrap ==" -ForegroundColor Cyan
 
 # 1. Python 3.10+
 $py = (Get-Command python -ErrorAction SilentlyContinue)
@@ -36,5 +36,5 @@ try {
 
 # 6. readiness check
 Write-Host "`n== readiness ==" -ForegroundColor Cyan
-agentenv doctor
-Write-Host "`nDone. To enable writes in a repo:  cd <repo>; agentenv init; then edit .agentenv\agentenv.json" -ForegroundColor Green
+daedalus doctor
+Write-Host "`nDone. To enable writes in a repo:  cd <repo>; daedalus init; then edit .agentenv\agentenv.json" -ForegroundColor Green

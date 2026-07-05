@@ -19,9 +19,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from agent_env import file_bridge, memory, metrics, verifier
-from agent_env.providers.base import Provider, ProviderCapabilities
-from agent_env.sensitivity import (
+from daedalus import file_bridge, memory, metrics, verifier
+from daedalus.providers.base import Provider, ProviderCapabilities
+from daedalus.sensitivity import (
     DEFAULT_POLICY,
     GENERIC_DENY_CONTENT,
     GENERIC_DENY_SUBSTRINGS,
@@ -30,8 +30,8 @@ from agent_env.sensitivity import (
     load_policy,
     path_write_blocked,
 )
-from agent_env.token_monitor import read_usage_samples, summarize_usage
-from agent_env.token_policy import MAX_PATHS_PER_REQUEST, trim_paths, trim_text
+from daedalus.token_monitor import read_usage_samples, summarize_usage
+from daedalus.token_policy import MAX_PATHS_PER_REQUEST, trim_paths, trim_text
 
 
 def _report(files_changed=None, status="done"):
@@ -59,17 +59,12 @@ class SensitivityPolicyTests(unittest.TestCase):
         self.assertTrue(classify_data(["docs/guide.txt"], policy=pol).sensitive)
         self.assertFalse(classify_data(["public/notes.txt"], policy=pol).sensitive)
 
-    def test_high_risk_paths_lack_generic_floor(self):
-        # BUG?: the comment on GENERIC_HIGH_RISK_PATHS says it is "ALWAYS
-        # unioned in" so any repo keeps a hardware/safety write floor, but
-        # load_policy never references it (grep: defined, never used) and the
-        # Policy default is (). A project policy that sets high_risk_paths gets
-        # ONLY its own entries, and an empty policy gets no floor at all.
+    def test_high_risk_paths_keep_generic_floor(self):
         pol = load_policy({"policy": {"high_risk_paths": ["/custom_hw/"]}})
-        self.assertEqual(pol.high_risk_path_substrings, ("/custom_hw/",))
-        self.assertNotIn("/devices/", pol.high_risk_path_substrings)
-        self.assertEqual(load_policy({}).high_risk_path_substrings, ())
-        self.assertFalse(path_write_blocked("repo/devices/motor.py", load_policy({})))
+        self.assertIn("/custom_hw/", pol.high_risk_path_substrings)
+        self.assertIn("/devices/", pol.high_risk_path_substrings)
+        self.assertIn("/devices/", load_policy({}).high_risk_path_substrings)
+        self.assertTrue(path_write_blocked("repo/devices/motor.py", load_policy({})))
 
     def test_custom_deny_content_merged_and_bad_patterns_skipped(self):
         pol = load_policy({"policy": {"deny_content": [
@@ -121,11 +116,7 @@ class SensitivityPolicyTests(unittest.TestCase):
     def test_simulated_suffix_bypasses_deny(self):
         pol = load_policy({"policy": {"high_risk_paths": ["/devices/"]}})
         self.assertFalse(path_write_blocked("TCT_app/devices/motor_grbl_simulated.py", pol))
-        # BUG?: the *_simulated.py exemption is checked BEFORE the deny list,
-        # although the comment says "Deny/high-risk always wins otherwise" -- a
-        # secret-bearing path stays writable if it happens to end in
-        # _simulated.py.
-        self.assertFalse(path_write_blocked("secrets/password_simulated.py", pol))
+        self.assertTrue(path_write_blocked("secrets/password_simulated.py", pol))
 
     def test_change_risk_high_term_and_path_floor(self):
         self.assertEqual(change_risk("deploy the new dashboard"), "high")
@@ -188,7 +179,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_wiring_success(self):
         fake = SimpleNamespace(returncode=0, stdout="2 passed", stderr="")
-        with patch("agent_env.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo",
                                   test_command="pytest -q tests", test_cwd="/elsewhere")
         run.assert_called_once()
@@ -202,7 +193,7 @@ class VerifierHardeningTests(unittest.TestCase):
 
     def test_test_command_failure_and_default_cwd(self):
         fake = SimpleNamespace(returncode=1, stdout="1 failed", stderr="boom")
-        with patch("agent_env.verifier.subprocess.run", return_value=fake) as run:
+        with patch("daedalus.verifier.subprocess.run", return_value=fake) as run:
             res = verifier.verify(_report(), "/repo", test_command="pytest -q")
         self.assertEqual(run.call_args.kwargs["cwd"], "/repo")  # falls back to repo_root
         self.assertFalse(res.ok)
@@ -249,7 +240,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("\n".join(lines) + "\n", encoding="utf-8")
-            with patch("agent_env.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
                 samples = read_usage_samples()
         self.assertEqual(len(samples), 2)
         self.assertEqual(samples[0].fresh_tokens, 16)  # 10 + 5 + 1, cache reads excluded
@@ -268,7 +259,7 @@ class TokenMonitorParsingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             log = Path(d) / "log.jsonl"
             log.write_text("[1, 2, 3]\n", encoding="utf-8")
-            with patch("agent_env.token_monitor._iter_project_logs", return_value=[log]):
+            with patch("daedalus.token_monitor._iter_project_logs", return_value=[log]):
                 with self.assertRaises(AttributeError):
                     read_usage_samples()
 
@@ -346,7 +337,7 @@ class FileBridgeRequestTests(unittest.TestCase):
         self.assertEqual(req["repo_root"], "/r")  # explicit root wins over default
         self.assertEqual(req["paths"], [])
         self.assertEqual(req["model"], "sonnet")
-        self.assertEqual(req["lane"], "auto")
+        self.assertEqual(req["lane"], "local_only")  # fail-closed: an unlabeled dropped file never spends unattended
 
     def test_read_request_missing_objective(self):
         with self.assertRaises(ValueError) as cm:
@@ -384,6 +375,14 @@ class FileBridgeRequestTests(unittest.TestCase):
         self.assertEqual(payload["paths"], ["a.py"])
         long_name, _ = self._enqueue("a" * 100)
         self.assertEqual(long_name, "20260705T000000Z-" + "a" * 48 + ".json")
+
+    def test_enqueue_preserves_project(self):
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(file_bridge, "OUTBOX", Path(d)), \
+                    patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"):
+                path = file_bridge.enqueue("review", "/r", [], project="project_tct")
+                payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(payload["project"], "project_tct")
 
 
 class _StubProvider(Provider):

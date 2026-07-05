@@ -1,0 +1,198 @@
+{
+  "name": "daedalus-vscode",
+  "displayName": "Daedalus",
+  "description": "VS Code cockpit for the daedalus Ikarus/Codex/Claude/Ollama team bus.",
+  "version": "0.1.0",
+  "publisher": "local",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": [
+    "extension.js",
+    "README.md",
+    "LICENSE",
+    "resources/daedalus.svg",
+    "package.json"
+  ],
+  "scripts": {
+    "check": "node --check extension.js",
+    "package": "vsce package --no-dependencies --allow-missing-repository"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onView:daedalusProjects",
+    "onView:daedalusQueue",
+    "onView:daedalusDashboardView",
+    "onCommand:daedalus.refresh",
+    "onCommand:daedalus.startWatcher",
+    "onCommand:daedalus.stopWatcher",
+    "onCommand:daedalus.status",
+    "onCommand:daedalus.enqueueLocalOnly",
+    "onCommand:daedalus.enqueueAuto",
+    "onCommand:daedalus.enqueueClaude",
+    "onCommand:daedalus.reviewDiff",
+    "onCommand:daedalus.spawn",
+    "onCommand:daedalus.openInbox",
+    "onCommand:daedalus.openOutbox",
+    "onCommand:daedalus.openMemory",
+    "onCommand:daedalus.openDashboard"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Daedalus",
+      "properties": {
+        "daedalus.root": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the daedalus harness root. Leave empty to auto-detect from the extension or workspace."
+        },
+        "daedalus.python": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable used to run daedalus commands."
+        },
+        "daedalus.defaultProject": {
+          "type": "string",
+          "default": "",
+          "description": "Default project name from projects/*.json."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "daedalus",
+          "title": "Daedalus",
+          "icon": "resources/daedalus.svg"
+        }
+      ]
+    },
+    "views": {
+      "daedalus": [
+        {
+          "id": "daedalusDashboardView",
+          "name": "Dashboard",
+          "type": "webview"
+        },
+        {
+          "id": "daedalusProjects",
+          "name": "Daedalus Projects"
+        },
+        {
+          "id": "daedalusQueue",
+          "name": "Daedalus Queue"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "daedalus.refresh",
+        "title": "Daedalus: Refresh"
+      },
+      {
+        "command": "daedalus.startWatcher",
+        "title": "Daedalus: Start Watcher"
+      },
+      {
+        "command": "daedalus.stopWatcher",
+        "title": "Daedalus: Stop Watcher"
+      },
+      {
+        "command": "daedalus.status",
+        "title": "Daedalus: Show Status"
+      },
+      {
+        "command": "daedalus.enqueueLocalOnly",
+        "title": "Daedalus: Enqueue Local Only"
+      },
+      {
+        "command": "daedalus.enqueueAuto",
+        "title": "Daedalus: Enqueue Auto"
+      },
+      {
+        "command": "daedalus.enqueueClaude",
+        "title": "Daedalus: Enqueue Claude"
+      },
+      {
+        "command": "daedalus.reviewDiff",
+        "title": "Daedalus: Local-Only Review Current Diff"
+      },
+      {
+        "command": "daedalus.spawn",
+        "title": "Daedalus: Ikarus Spawn"
+      },
+      {
+        "command": "daedalus.openInbox",
+        "title": "Daedalus: Open Inbox"
+      },
+      {
+        "command": "daedalus.openOutbox",
+        "title": "Daedalus: Open Outbox"
+      },
+      {
+        "command": "daedalus.openMemory",
+        "title": "Daedalus: Open Memory"
+      },
+      {
+        "command": "daedalus.openDashboard",
+        "title": "Daedalus: Open Dashboard",
+        "icon": "$(dashboard)"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "daedalusProjects",
+        "contents": "[Open Dashboard](command:daedalus.openDashboard)\n\nConfigure projects, active agents, Ikarus workers, and environment health."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "daedalus.openDashboard",
+          "when": "view == daedalusProjects || view == daedalusQueue",
+          "group": "navigation@0"
+        },
+        {
+          "command": "daedalus.refresh",
+          "when": "view == daedalusProjects || view == daedalusQueue",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "daedalus.status",
+          "when": "view == daedalusProjects && viewItem == daedalusProject",
+          "group": "inline"
+        },
+        {
+          "command": "daedalus.startWatcher",
+          "when": "view == daedalusProjects && viewItem == daedalusProject",
+          "group": "inline"
+        },
+        {
+          "command": "daedalus.openInbox",
+          "when": "view == daedalusQueue && viewItem == daedalusQueueGroup",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "daedalus.enqueueLocalOnly",
+          "group": "daedalus"
+        },
+        {
+          "command": "daedalus.enqueueAuto",
+          "group": "daedalus"
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.9.2"
+  }
+}
