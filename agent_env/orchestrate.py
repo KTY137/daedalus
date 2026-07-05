@@ -38,6 +38,7 @@ def prepare_task(
     project: str | None = None,
     paths: list[str] | None = None,
     ask_claude: bool = True,
+    lane: str = "auto",
 ) -> dict:
     root = resolve_repo_root(repo_root, project)
     project_data = load_project(project) if project else {}
@@ -70,6 +71,7 @@ def prepare_task(
                 repo_root=root,
                 paths=paths,
                 model=project_data.get("claude_model", "sonnet"),
+                lane=lane,
             )
         )
 
@@ -91,6 +93,8 @@ def main() -> None:
     parser.add_argument("--project")
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--no-claude", action="store_true")
+    parser.add_argument("--lane", default="auto", choices=["auto", "claude", "local"],
+                        help="how the watcher may execute the queued task")
     args = parser.parse_args()
     result = prepare_task(
         message=args.message,
@@ -98,6 +102,7 @@ def main() -> None:
         project=args.project,
         paths=args.paths,
         ask_claude=not args.no_claude,
+        lane=args.lane,
     )
     print(json.dumps(result, indent=2))
 
