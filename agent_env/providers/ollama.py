@@ -19,6 +19,18 @@ DEFAULT_HOST = "http://127.0.0.1:11434"  # not "localhost" -- avoids IPv6 (::1) 
 DEFAULT_MODEL = "qwen2.5-coder:7b"  # per docs/PROVIDERS_RESEARCH.md
 MAX_AGENT_STEPS = 6
 MAX_READ_CHARS = 16_000
+MAX_REWRITE_FILES = 3       # scoped writes only; bigger fan-outs go through Ikarus
+MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation
+
+# Elision markers (per docs/RESEARCH_LOCAL_EDITING.md): a rewrite containing one
+# of these almost certainly dropped code instead of returning the whole file.
+# Only rejected when the marker is NEW (absent from the original) to avoid
+# false positives on files that legitimately contain such text.
+_ELISION_MARKERS = (
+    "rest of the file", "rest of the code", "rest of code",
+    "remains unchanged", "remain unchanged", "existing code here",
+    "... existing code", "unchanged code omitted", "code omitted",
+)
 
 _READ_TOOLS: list[dict[str, Any]] = [
     {"type": "function", "function": {
@@ -184,6 +196,86 @@ class OllamaProvider(Provider):
         report["files_changed"] = list(dict.fromkeys(changed))  # actual writes are authoritative
         return report
 
+    # -- full-file-rewrite write path --------------------------------------
+
+    def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy):
+        """Apply a scoped write WITHOUT the tool loop. The live benchmark showed
+        7B-class models narrate edits but never emit write_file calls -- yet the
+        same model reliably returns the COMPLETE edited file as json. So: model
+        returns content, the harness writes it deterministically, the verifier
+        still gates it. Every skip reason is recorded so a no-op escalation is
+        explainable instead of silent."""
+        base = self.host.rstrip("/") + "/v1"
+        changed: list[str] = []
+        skipped: dict[str, str] = {}
+        for raw_rel in paths[:MAX_REWRITE_FILES]:
+            try:
+                target, rel = self._resolve(repo_root, raw_rel)
+            except ValueError:
+                skipped[raw_rel] = "outside repo"
+                continue
+            if not target.is_file():
+                skipped[raw_rel] = "not a file"
+                continue
+            if path_write_blocked(rel, policy):  # same guard as the tool loop
+                skipped[rel] = "protected path"
+                continue
+            try:
+                original = target.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                skipped[rel] = f"unreadable: {exc}"
+                continue
+            if len(original) > MAX_REWRITE_CHARS:
+                skipped[rel] = "too large for full rewrite"
+                continue
+            system = (
+                "You are a careful software engineer. Apply the requested change and "
+                'return ONLY a json object of the form {"content": "<ENTIRE edited file>"}. '
+                "The value must be the complete file text -- every line, no omissions, "
+                "no markdown fences, no commentary. Preserve the existing style."
+            )
+            user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+            try:
+                raw = chat_completion(base_url=base, model=model or self.model,
+                                      system=system, user=user, api_key=None,
+                                      timeout_s=timeout_s, force_json=True, temperature=0.0)
+                content = extract_json(raw).get("content")
+            except (ProviderHTTPError, ValueError) as exc:
+                skipped[rel] = f"model call failed: {exc}"
+                continue
+            if not isinstance(content, str) or not content.strip():
+                skipped[rel] = "no content returned"
+                continue
+            if content == original:
+                skipped[rel] = "no change produced"
+                continue
+            if len(content) < 0.5 * len(original):
+                # classic full-rewrite failure mode: silent truncation
+                skipped[rel] = "suspected truncation (under half the original size)"
+                continue
+            low_new, low_old = content.lower(), original.lower()
+            elided = next((m for m in _ELISION_MARKERS if m in low_new and m not in low_old), None)
+            if elided:
+                skipped[rel] = f"elision marker in output ('{elided}') -- file not fully rewritten"
+                continue
+            self._backups.setdefault(str(target), target.read_bytes())
+            target.write_text(content, encoding="utf-8")
+            changed.append(rel)
+
+        summary = (f"Applied full-file rewrite to: {', '.join(changed)}."
+                   if changed else "Rewrite produced no applicable change.")
+        if skipped:
+            summary += " Skipped: " + "; ".join(f"{k} ({v})" for k, v in skipped.items())
+        return {
+            "status": "done" if changed else "needs_review",
+            "summary": summary[:600],
+            "files_changed": changed,
+            "tests_run": [],
+            "risks": [],
+            "todos": [],
+            "handoff": {"skipped": skipped} if skipped else {},
+        }
+
     def run(
         self,
         *,
@@ -198,7 +290,12 @@ class OllamaProvider(Provider):
     ) -> dict[str, Any]:
         persona = persona_for(self.caps.name, agent.get("name"))
         try:
-            report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s, policy, writable)
+            if writable and paths and len(paths) <= MAX_REWRITE_FILES:
+                # Scoped write -> full-file rewrite (deterministic apply; the
+                # benchmark proved the tool loop never actually writes at 7B).
+                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s, policy)
+            else:
+                report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s, policy, writable)
         except (ProviderHTTPError, ValueError) as exc:
             # Fall back to a single-shot advisory read if the tool loop can't run.
             try:
