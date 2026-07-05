@@ -7,6 +7,10 @@ __pycache__/
 venv/
 runs/*.json
 runs/*.md
+memory/*.local.jsonl
+memory/*.local.md
+outbox/*.json
+inbox/*.json
 .env
 .env.*
 *.log

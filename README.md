@@ -22,6 +22,9 @@ Design goals:
 | `agents/` | Agent role registry as JSON |
 | `agent_env/` | Python router, schemas, and runbook CLI |
 | `runs/` | Local ignored run state |
+| `outbox/` | Local Claude task requests |
+| `inbox/` | Local Claude reports |
+| `memory/` | Local ignored append-only memory and TODO recovery snapshot |
 | `tests/` | Harness tests |
 
 ## Quickstart
@@ -36,6 +39,34 @@ Ask Claude for a structured second opinion:
 
 ```powershell
 python -m agent_env.claude_bridge "Review the motor panel icon fix" --repo-root C:\Users\nukei\Desktop\project_tct --paths C:\Users\nukei\Desktop\project_tct\TCT_app\gui\motor_panel.py
+```
+
+Start the VS Code/Codex/Claude file bridge:
+
+```powershell
+python -m agent_env.file_bridge watch --repo-root C:\Users\nukei\Desktop\project_tct
+```
+
+Queue a request for the watcher:
+
+```powershell
+python -m agent_env.file_bridge enqueue "Review current root-cleanup diff" --repo-root C:\Users\nukei\Desktop\project_tct --paths C:\Users\nukei\Desktop\project_tct\.claude\AGENT_PROTOCOL.md
+```
+
+The watcher reads `outbox/*.json`, calls Claude, writes `inbox/*.report.json`,
+and archives processed requests under `runs/processed/`.
+
+Record a TODO manually:
+
+```powershell
+python -m agent_env.memory add "Claude hit token/session limit during UI rewrite" --todo "Recover motor_panel TODOs before continuing" --repo-root C:\Users\nukei\Desktop\project_tct
+```
+
+Memory files:
+
+```text
+memory/events.local.jsonl   append-only local event log, ignored by Git
+memory/todos.local.md       generated human-readable recovery snapshot, ignored by Git
 ```
 
 ## Operating Model

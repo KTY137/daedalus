@@ -1,6 +1,8 @@
 import unittest
 
 from agent_env.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
+from agent_env.file_bridge import _read_request
+from agent_env.memory import MemoryEvent
 from agent_env.router import route_task
 from agent_env.schemas import validate_report
 
@@ -53,6 +55,23 @@ class AgentEnvTests(unittest.TestCase):
         self.assertIsNotNone(report)
         self.assertEqual(report["status"], "blocked")
         self.assertEqual(report["handoff"]["api_error_status"], 429)
+
+    def test_request_uses_default_repo_root(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "request.json"
+            path.write_text('{"objective":"review"}', encoding="utf-8")
+            request = _read_request(path, "C:/repo")
+        self.assertEqual(request["repo_root"], "C:/repo")
+        self.assertEqual(request["paths"], [])
+
+    def test_memory_event_record_shape(self):
+        record = MemoryEvent(kind="manual", summary="recover", todos=["fix todo"]).to_record()
+        self.assertEqual(record["kind"], "manual")
+        self.assertEqual(record["todos"], ["fix todo"])
+        self.assertIn("time", record)
 
 
 if __name__ == "__main__":
