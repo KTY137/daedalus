@@ -63,22 +63,27 @@ def load_events() -> list[dict[str, Any]]:
 def refresh_todo_snapshot() -> None:
     MEMORY_DIR.mkdir(parents=True, exist_ok=True)
     events = load_events()
-    open_items: list[dict[str, Any]] = []
+    open_items: dict[str, dict[str, Any]] = {}
     completed: list[dict[str, Any]] = []
 
     for event in events:
         status = event.get("status")
-        target = completed if status == "done" else open_items
         for todo in event.get("todos", []):
-            target.append(
-                {
-                    "time": event.get("time", ""),
-                    "source": event.get("source", ""),
-                    "summary": event.get("summary", ""),
-                    "todo": todo,
-                    "paths": event.get("paths", []),
-                }
-            )
+            key = todo.strip().lower()
+            if not key:
+                continue
+            item = {
+                "time": event.get("time", ""),
+                "source": event.get("source", ""),
+                "summary": event.get("summary", ""),
+                "todo": todo,
+                "paths": event.get("paths", []),
+            }
+            if status == "done":
+                completed.append(item)
+                open_items.pop(key, None)
+            else:
+                open_items[key] = item
 
     lines = [
         "# Local Agent Memory",
@@ -89,10 +94,11 @@ def refresh_todo_snapshot() -> None:
         "## Open TODOs",
         "",
     ]
-    if not open_items:
+    current_open = list(open_items.values())
+    if not current_open:
         lines.append("- None")
     else:
-        for item in open_items[-100:]:
+        for item in current_open[-100:]:
             path_text = ", ".join(item["paths"]) if item["paths"] else "no paths"
             lines.append(f"- [{item['source']}] {item['todo']} ({path_text})")
             lines.append(f"  - Context: {item['summary']}")
@@ -143,6 +149,12 @@ def main() -> None:
 
     sub.add_parser("snapshot", help="Regenerate the Markdown TODO snapshot.")
 
+    done_p = sub.add_parser("done", help="Mark a TODO string as done.")
+    done_p.add_argument("todo")
+    done_p.add_argument("--summary", default="Marked TODO done")
+    done_p.add_argument("--repo-root")
+    done_p.add_argument("--source", default="manual")
+
     args = parser.parse_args()
     if args.command == "add":
         record = append_event(
@@ -160,6 +172,18 @@ def main() -> None:
     elif args.command == "snapshot":
         refresh_todo_snapshot()
         print(TODO_PATH)
+    elif args.command == "done":
+        record = append_event(
+            MemoryEvent(
+                kind="manual",
+                source=args.source,
+                repo_root=args.repo_root,
+                status="done",
+                summary=args.summary,
+                todos=[args.todo],
+            )
+        )
+        print(json.dumps(record, indent=2))
     else:
         parser.print_help()
 

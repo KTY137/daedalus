@@ -3,7 +3,10 @@ import unittest
 from agent_env.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
 from agent_env.file_bridge import _read_request
 from agent_env.memory import MemoryEvent
+from agent_env.orchestrate import _infer_paths
+from agent_env.projects import load_project, resolve_repo_root
 from agent_env.router import route_task
+from agent_env.status import _count_open_todos
 from agent_env.schemas import validate_report
 
 
@@ -72,6 +75,23 @@ class AgentEnvTests(unittest.TestCase):
         self.assertEqual(record["kind"], "manual")
         self.assertEqual(record["todos"], ["fix todo"])
         self.assertIn("time", record)
+
+    def test_project_profile_resolves_repo_root(self):
+        project = load_project("project_tct")
+        self.assertIn("project_tct", project["repo_root"])
+        self.assertEqual(resolve_repo_root(project="project_tct"), project["repo_root"])
+
+    def test_done_events_close_matching_todos(self):
+        events = [
+            {"status": "open", "todos": ["Fix panel"]},
+            {"status": "done", "todos": ["fix panel"]},
+            {"status": "open", "todos": ["Review diff"]},
+        ]
+        self.assertEqual(_count_open_todos(events), 1)
+
+    def test_infers_existing_paths(self):
+        paths = _infer_paths("look at README.md", "C:/Users/nukei/Desktop/agent_env")
+        self.assertTrue(any(path.endswith("README.md") for path in paths))
 
 
 if __name__ == "__main__":

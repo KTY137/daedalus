@@ -10,6 +10,7 @@ from typing import Any
 
 from .claude_bridge import ask_claude
 from .memory import record_from_bridge_report
+from .projects import resolve_repo_root
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,26 +104,30 @@ def main() -> None:
 
     watch_p = sub.add_parser("watch", help="Watch outbox and process Claude requests.")
     watch_p.add_argument("--repo-root")
+    watch_p.add_argument("--project")
     watch_p.add_argument("--interval-s", type=float, default=2.0)
 
     enqueue_p = sub.add_parser("enqueue", help="Create a Claude request in outbox.")
     enqueue_p.add_argument("objective")
-    enqueue_p.add_argument("--repo-root", required=True)
+    enqueue_p.add_argument("--repo-root")
+    enqueue_p.add_argument("--project")
     enqueue_p.add_argument("--paths", nargs="*", default=[])
     enqueue_p.add_argument("--model", default="sonnet")
 
     once_p = sub.add_parser("once", help="Process current outbox requests once.")
     once_p.add_argument("--repo-root")
+    once_p.add_argument("--project")
 
     args = parser.parse_args()
     if args.command == "watch":
-        watch(args.repo_root, args.interval_s)
+        watch(resolve_repo_root(args.repo_root, args.project), args.interval_s)
     elif args.command == "enqueue":
-        print(enqueue(args.objective, args.repo_root, args.paths, args.model))
+        print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project), args.paths, args.model))
     elif args.command == "once":
         OUTBOX.mkdir(parents=True, exist_ok=True)
+        repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None
         for path in sorted(OUTBOX.glob("*.json")):
-            print(process_request(path, args.repo_root))
+            print(process_request(path, repo_root))
     else:
         parser.print_help()
 

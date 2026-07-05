@@ -1,0 +1,7 @@
+{
+  "name": "project_tct",
+  "repo_root": "C:\\Users\\nukei\\Desktop\\project_tct",
+  "default_branch": "root-cleanup",
+  "test_command": "python -m pytest tests -q",
+  "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app"
+}

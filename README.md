@@ -50,7 +50,7 @@ python -m agent_env.file_bridge watch --repo-root C:\Users\nukei\Desktop\project
 Queue a request for the watcher:
 
 ```powershell
-python -m agent_env.file_bridge enqueue "Review current root-cleanup diff" --repo-root C:\Users\nukei\Desktop\project_tct --paths C:\Users\nukei\Desktop\project_tct\.claude\AGENT_PROTOCOL.md
+python -m agent_env.file_bridge enqueue "Review current root-cleanup diff" --project project_tct --paths C:\Users\nukei\Desktop\project_tct\.claude\AGENT_PROTOCOL.md
 ```
 
 The watcher reads `outbox/*.json`, calls Claude, writes `inbox/*.report.json`,
@@ -61,6 +61,21 @@ Record a TODO manually:
 ```powershell
 python -m agent_env.memory add "Claude hit token/session limit during UI rewrite" --todo "Recover motor_panel TODOs before continuing" --repo-root C:\Users\nukei\Desktop\project_tct
 ```
+
+Check the whole local bridge:
+
+```powershell
+python -m agent_env.status --project project_tct
+```
+
+Prepare a normal chat request for the Codex/Claude workflow:
+
+```powershell
+python -m agent_env.orchestrate "Fix the motor panel icon helper" --project project_tct
+```
+
+This records durable memory, routes the task to the likely specialist, and queues
+a Claude second-opinion request for the watcher.
 
 Memory files:
 
