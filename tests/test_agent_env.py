@@ -10,6 +10,7 @@ from agent_env.router import route_task
 from agent_env.status import _count_open_todos
 from agent_env.schemas import validate_report
 from agent_env.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
+from agent_env.token_monitor import STATUS_PATH, UsageSample, checkpoint_if_needed, should_checkpoint, summarize_usage
 
 
 class AgentEnvTests(unittest.TestCase):
@@ -109,6 +110,46 @@ class AgentEnvTests(unittest.TestCase):
     def test_token_policy_trims_paths_and_text(self):
         self.assertEqual(trim_paths(["a", "a", "b"], limit=2), ["a", "b"])
         self.assertEqual(trim_text("abcdef", 5), "ab...")
+
+    def test_usage_summary_detects_rate_limit(self):
+        summary = summarize_usage(
+            [
+                UsageSample(
+                    path="x",
+                    timestamp="now",
+                    session_id="s",
+                    model="m",
+                    api_error_status=429,
+                    error="rate_limit",
+                    text="limit",
+                )
+            ]
+        )
+        triggered, reason = should_checkpoint(summary, 50000, 120000)
+        self.assertTrue(triggered)
+        self.assertIn("limit", reason.lower())
+
+    def test_usage_summary_detects_large_context(self):
+        summary = summarize_usage(
+            [
+                UsageSample(
+                    path="x",
+                    timestamp="now",
+                    session_id="s",
+                    model="m",
+                    cache_read_input_tokens=140000,
+                )
+            ]
+        )
+        triggered, _ = should_checkpoint(summary, 50000, 120000)
+        self.assertTrue(triggered)
+
+    def test_checkpoint_status_has_stable_trigger_key(self):
+        # Existing local Claude logs are environment-dependent; just verify the
+        # status writer uses a key when it runs.
+        status = checkpoint_if_needed("C:/definitely-not-a-real-repo", fresh_threshold=1, cached_threshold=1)
+        self.assertIn("trigger_key", status)
+        self.assertTrue(STATUS_PATH.exists())
 
 
 if __name__ == "__main__":

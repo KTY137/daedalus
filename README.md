@@ -68,6 +68,16 @@ Check the whole local bridge:
 python -m agent_env.status --project project_tct
 ```
 
+Check Claude token pressure without making a Claude request:
+
+```powershell
+python -m agent_env.token_monitor --project project_tct
+```
+
+The VS Code task can run this as a watcher. It reads local Claude JSONL logs,
+writes `memory/token_status.local.json`, and records a TODO checkpoint when it
+sees rate-limit events or high context pressure.
+
 Prepare a normal chat request for the Codex/Claude workflow:
 
 ```powershell

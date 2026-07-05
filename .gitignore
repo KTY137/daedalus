@@ -9,6 +9,8 @@ runs/*.json
 runs/*.md
 memory/*.local.jsonl
 memory/*.local.md
+memory/*.status.json
+memory/*status.local.json
 outbox/*.json
 inbox/*.json
 .env
