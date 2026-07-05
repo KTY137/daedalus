@@ -17,7 +17,9 @@ DEFAULT_POLICY's empty deny-list would leave hardware/safety code writable.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+from pathlib import Path
 
 from . import metrics
 from .ikarus import FREE_LANES
@@ -25,6 +27,19 @@ from .provider_router import route_and_select
 from .verifier import verify
 
 _ALL = {"claude_cli": True, "ollama": True, "deepseek": True}
+
+
+def _content_hash(repo_root: str, rel: str) -> str | None:
+    """SHA-256 of a target file's bytes on disk, or None if it doesn't exist.
+
+    Used to prove a REAL edit happened. A missing file hashes to None, so a
+    create (None -> hash) and an in-place edit (hashA -> hashB) both register as
+    a change, while a no-op (model narrated but never wrote) stays identical.
+    """
+    try:
+        return hashlib.sha256((Path(repo_root) / rel).read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def offload(
@@ -102,8 +117,21 @@ def offload(
         preferred_model = model_assignments.get(agent["name"])
         if preferred_model:
             run_kwargs["model"] = str(preferred_model)
+
+    # Snapshot the target files' content BEFORE the run so we can prove a real
+    # on-disk change afterward -- the write-mode gate must NOT trust the model's
+    # self-reported files_changed (a narrating model claims edits it never made).
+    before_hashes = {rel: _content_hash(repo_root, rel) for rel in (paths or [])}
+
     out = worker.run(**run_kwargs)
     report = out["report"]
+
+    # Which target paths ACTUALLY changed on disk (create, edit, or delete).
+    # This -- not report["files_changed"] -- is what the write-mode gate trusts.
+    disk_changed = None
+    if decision.mode == "write":
+        disk_changed = [rel for rel, before in before_hashes.items()
+                        if _content_hash(repo_root, rel) != before]
 
     # For live writes, run the project test suite in the gate when we have it.
     test_command = test_cwd = None
@@ -114,7 +142,7 @@ def offload(
     # that would fake acceptance (zero Claude tokens, zero work done). Advisory
     # work legitimately produces no writes (Claude applies the draft later).
     vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
-                require_changes=(decision.mode == "write"))
+                require_changes=(decision.mode == "write"), disk_changed=disk_changed)
     result["verify"] = vr.as_dict()
 
     if vr.ok:

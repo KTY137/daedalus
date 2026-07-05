@@ -30,7 +30,7 @@ STARTER: dict = {
                             "payment", "production", "deploy"],
         "deny_content": []
     },
-    "test_command": "python -m pytest -q",
+    "test_command": None,   # opt-in: a fresh repo has no suite -- don't gate writes on a nonexistent one
     "test_cwd": "."
 }
 

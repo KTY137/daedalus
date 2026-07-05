@@ -6,6 +6,7 @@ const cp = require("child_process");
 let projectProvider;
 let queueProvider;
 let dashboardProvider;
+let dashboardPanel;
 let watcherTerminal;
 let statusBar;
 
@@ -248,47 +249,185 @@ function dashboardHtml(n) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Daedalus Mission Control</title>
 <style>
-body { font-family: var(--vscode-font-family); color: var(--vscode-foreground); background: var(--vscode-editor-background); margin: 0; }
-header { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--vscode-panel-border); }
-h1 { font-size: 18px; margin: 0; font-weight: 650; letter-spacing: 0; }
-h2 { font-size: 13px; margin: 0 0 10px; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
-select, input { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 6px 8px; min-width: 120px; }
-button { color: var(--vscode-button-foreground); background: var(--vscode-button-background); border: 0; border-radius: 4px; padding: 7px 10px; cursor: pointer; }
-button.secondary { color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); }
-.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 8px 12px 0; border-bottom: 1px solid var(--vscode-panel-border); }
-.tab { background: transparent; color: var(--vscode-descriptionForeground); border-radius: 4px 4px 0 0; }
-.tab.active { background: var(--vscode-tab-activeBackground); color: var(--vscode-tab-activeForeground); }
-main { padding: 14px 16px 22px; }
-.page { display: none; }
-.page.active { display: block; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-.panel { border: 1px solid var(--vscode-panel-border); border-radius: 6px; padding: 12px; background: var(--vscode-sideBar-background); }
-.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--vscode-panel-border); }
-.row:last-child { border-bottom: 0; }
-.label { color: var(--vscode-descriptionForeground); font-size: 12px; }
-.value { font-weight: 600; text-align: right; }
-.pill { border: 1px solid var(--vscode-panel-border); border-radius: 999px; padding: 2px 7px; font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; }
-.ok { color: var(--vscode-testing-iconPassed); }
-.warn { color: var(--vscode-editorWarning-foreground); }
-.bad { color: var(--vscode-testing-iconFailed); }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.timeline { display: grid; gap: 8px; }
-.event { border-left: 3px solid var(--vscode-focusBorder); padding: 8px 10px; background: var(--vscode-textCodeBlock-background); border-radius: 4px; }
-.event .top { display: flex; justify-content: space-between; gap: 10px; }
-.squad { display: grid; grid-template-columns: 100px 1fr; gap: 10px; align-items: start; }
-.agents { display: flex; flex-wrap: wrap; gap: 6px; }
-.agent { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--vscode-panel-border); border-radius: 999px; padding: 4px 8px; }
-.gauge { height: 8px; border-radius: 4px; background: var(--vscode-input-background); border: 1px solid var(--vscode-panel-border); overflow: hidden; margin: 6px 0 10px; }
-.gauge > div { height: 100%; background: var(--vscode-progressBar-background, var(--vscode-focusBorder)); }
-pre { white-space: pre-wrap; background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; max-height: 240px; overflow: auto; }
-.muted { color: var(--vscode-descriptionForeground); font-size: 12px; line-height: 1.4; }
-@media (max-width: 720px) { header { align-items: stretch; flex-direction: column; } .squad { grid-template-columns: 1fr; } }
+  :root {
+    --mc-surface: var(--vscode-editor-background);
+    --mc-surface-elevated: var(--vscode-sideBar-background);
+    --mc-surface-card: var(--vscode-editorWidget-background);
+    --mc-text: var(--vscode-foreground);
+    --mc-text-muted: var(--vscode-descriptionForeground);
+    --mc-border: var(--vscode-panel-border);
+    --mc-accent: var(--vscode-textLink-foreground);
+    --mc-focus: var(--vscode-focusBorder);
+    --mc-success: var(--vscode-testing-iconPassed);
+    --mc-warning: var(--vscode-editorWarning-foreground);
+    --mc-danger: var(--vscode-testing-iconFailed);
+    --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+    --text-micro: 11px; --text-small: 12px; --text-base: 13px; --text-medium: 13px; --text-large: 15px; --text-xl: 18px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--vscode-font-family); font-size: var(--text-base); color: var(--mc-text); background: var(--mc-surface); line-height: 1.45; }
+  h1, h2, h3, p, ul { margin: 0; }
+  ul { padding: 0; list-style: none; }
+  button, select, input { font-family: inherit; font-size: inherit; }
+  code, pre { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  :focus-visible { outline: 2px solid var(--mc-focus); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  header.topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--mc-border); background: var(--mc-surface-elevated); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  header.topbar h1 { font-size: var(--text-large); font-weight: 600; }
+  header.topbar .sub { color: var(--mc-text-muted); font-size: var(--text-small); }
+  .header-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+  select.project, #lane, #workers { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 5px 8px; min-width: 100px; }
+
+  nav.tabs { display: flex; gap: 2px; padding: 0 var(--space-4); border-bottom: 1px solid var(--mc-border); background: var(--mc-surface); overflow-x: auto; }
+  .tab { appearance: none; border: 0; background: transparent; cursor: pointer; color: var(--mc-text-muted); padding: var(--space-3); font-size: var(--text-base); border-bottom: 2px solid transparent; white-space: nowrap; }
+  .tab:hover { color: var(--mc-text); background: var(--mc-surface-elevated); }
+  .tab.active { color: var(--vscode-tab-activeForeground); background: var(--vscode-tab-activeBackground); border-bottom-color: var(--mc-accent); font-weight: 600; }
+
+  main { flex: 1; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
+  .page { display: none; flex-direction: column; gap: var(--space-5); }
+  .page.active { display: flex; }
+
+  section.block { display: flex; flex-direction: column; gap: var(--space-3); }
+  section.block > h2 { font-size: var(--text-large); font-weight: 600; }
+  .desc, .muted { color: var(--mc-text-muted); font-size: var(--text-small); line-height: 1.4; }
+
+  .banner { display: flex; align-items: flex-start; gap: var(--space-2); border-left: 3px solid var(--mc-warning); background: var(--mc-surface-elevated); padding: var(--space-2) var(--space-3); border-radius: 3px; font-size: var(--text-small); }
+  .banner .glyph { color: var(--mc-warning); flex: none; }
+  .banner.danger { border-left-color: var(--mc-danger); }
+  .banner.danger .glyph { color: var(--mc-danger); }
+
+  .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-3); }
+  .tile { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+  .tile:hover { border-color: var(--mc-accent); }
+  .tile .tile-head { display: flex; align-items: center; gap: var(--space-1); color: var(--mc-text-muted); font-size: var(--text-small); }
+  .tile .tile-value { font-size: var(--text-xl); font-weight: 600; }
+  .tile .tile-sub { font-size: var(--text-small); color: var(--mc-text-muted); }
+  .tile.warn { border-left: 3px solid var(--mc-warning); }
+  .tile.err { border-left: 3px solid var(--mc-danger); }
+  .tile .mini-list { display: flex; flex-direction: column; gap: 2px; font-size: var(--text-small); margin-top: var(--space-1); }
+  .mini-status { display: inline-flex; align-items: center; gap: 5px; }
+  .mini-status .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot.ok { background: var(--mc-success); }
+  .dot.warn { background: var(--mc-warning); }
+  .dot.bad { background: var(--mc-danger); }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 8px; font-size: var(--text-micro); font-weight: 600; border: 1px solid var(--mc-border); white-space: nowrap; }
+  .badge .glyph { line-height: 1; }
+  .badge.lane { color: var(--mc-text); }
+  .badge.lane .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mc-text-muted); }
+  .lane-local_only .dot { background: var(--vscode-charts-blue, var(--mc-accent)); }
+  .lane-local .dot { background: var(--vscode-charts-purple, var(--mc-accent)); }
+  .lane-auto .dot { background: var(--vscode-charts-yellow, var(--mc-warning)); }
+  .lane-claude .dot { background: var(--vscode-charts-orange, var(--mc-warning)); }
+  .badge.status-done { color: var(--mc-success); border-color: var(--mc-success); }
+  .badge.status-blocked { color: var(--mc-warning); border-color: var(--mc-warning); }
+  .badge.status-needs_review { color: var(--mc-accent); border-color: var(--mc-accent); }
+  .badge.status-failed { color: var(--mc-danger); border-color: var(--mc-danger); }
+  .tier-badge { display: inline-block; background: var(--mc-surface-elevated); color: var(--mc-text-muted); border-radius: 3px; padding: 2px 6px; font-size: var(--text-micro); border: 1px solid var(--mc-border); }
+
+  .queue-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .queue-row { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); cursor: pointer; }
+  .queue-row:last-child { border-bottom: 0; }
+  .queue-row:hover { background: var(--mc-surface-elevated); }
+  .queue-row.failed { border-left: 3px solid var(--mc-danger); background: var(--mc-surface-elevated); }
+  .queue-row.selected { background: var(--mc-surface-elevated); }
+  .queue-row .qr-main { min-width: 0; }
+  .queue-row .qr-name { font-weight: 600; font-size: var(--text-medium); }
+  .queue-row .qr-summary { color: var(--mc-text-muted); font-size: var(--text-small); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .queue-row .qr-kind { font-size: var(--text-micro); color: var(--mc-text-muted); text-transform: uppercase; }
+  .queue-detail { display: none; padding: 0 var(--space-3) var(--space-3) calc(var(--space-3) + 3px); border-left: 2px solid var(--mc-accent); margin-left: var(--space-1); }
+  .queue-row.selected + .queue-detail { display: block; }
+  .queue-detail pre { margin: 0; max-height: 160px; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); padding: var(--space-6) var(--space-4); color: var(--mc-text-muted); text-align: center; border: 1px dashed var(--mc-border); border-radius: 6px; }
+  .empty-state .glyph { font-size: 22px; opacity: .6; }
+
+  .squad-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--space-3); }
+  .squad-card { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+  .squad-card.empty { border-style: dashed; }
+  .squad-card h3 { font-size: var(--text-medium); display: flex; justify-content: space-between; align-items: baseline; }
+  .squad-card h3 .count { font-size: var(--text-micro); color: var(--mc-text-muted); font-weight: 400; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .chip { display: flex; align-items: center; gap: var(--space-2); border: 1px solid var(--mc-border); border-radius: 999px; padding: 4px 6px 4px 10px; background: var(--mc-surface); }
+  .chip.error { border-color: var(--mc-danger); }
+  .chip .chip-name { font-size: var(--text-small); font-weight: 600; }
+  .chip .chip-error-text { font-size: var(--text-micro); color: var(--mc-danger); }
+  .chip .ext-glyph { font-size: var(--text-small); }
+  .toggle { width: 26px; height: 15px; border-radius: 999px; border: 1px solid var(--mc-border); background: var(--mc-surface-elevated); position: relative; flex: none; cursor: pointer; }
+  .toggle::after { content: ""; position: absolute; top: 1px; left: 1px; width: 11px; height: 11px; border-radius: 50%; background: var(--mc-text-muted); }
+  .toggle.on { background: var(--mc-surface-elevated); border-color: var(--mc-accent); }
+  .toggle.on::after { background: var(--mc-accent); left: 12px; }
+
+  .model-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .model-row { display: grid; grid-template-columns: 1.3fr auto auto 1.4fr auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); }
+  .model-row:last-child { border-bottom: 0; }
+  .model-row:hover { background: var(--mc-surface-elevated); }
+  .model-row .m-name { font-weight: 600; font-size: var(--text-medium); }
+  .model-row .m-meta { font-size: var(--text-micro); color: var(--mc-text-muted); }
+  .size-bar-track { height: 8px; background: var(--mc-surface-elevated); border-radius: 4px; overflow: hidden; }
+  .size-bar-fill { height: 100%; background: var(--vscode-charts-blue, var(--mc-accent)); }
+  .m-gb { font-size: var(--text-small); text-align: right; color: var(--mc-text-muted); white-space: nowrap; }
+
+  .resource-grid { display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3); }
+  .gauge-card, .stat-card, .panel { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); }
+  .gauge-readout { display: flex; justify-content: space-between; font-size: var(--text-small); color: var(--mc-text-muted); margin-bottom: var(--space-2); }
+  .gauge-track { height: 14px; border-radius: 7px; overflow: hidden; display: flex; background: var(--mc-surface-elevated); }
+  .gauge-used { background: var(--vscode-charts-orange, var(--mc-warning)); height: 100%; }
+  .gauge-free { background: var(--vscode-charts-green, var(--mc-success)); height: 100%; }
+  .gauge-note { margin-top: var(--space-2); font-size: var(--text-small); color: var(--mc-warning); }
+  .stat-card .tile-value, .panel .tile-value { font-size: var(--text-xl); font-weight: 600; }
+
+  .pull-list { display: flex; flex-direction: column; gap: var(--space-2); }
+  .pull-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-2) var(--space-3); }
+  .pull-item code { background: var(--vscode-textCodeBlock-background); padding: 3px 8px; border-radius: 4px; font-size: var(--text-small); }
+  .pull-item .reason { font-size: var(--text-small); color: var(--mc-text-muted); }
+
+  button.btn { display: inline-flex; align-items: center; gap: 6px; background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: var(--text-small); }
+  button.btn:hover { background: var(--vscode-button-hoverBackground); }
+  button.btn.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+  button.btn.copied { color: var(--mc-success); }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .gate-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
+  .gate-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); font-size: var(--text-small); }
+  .gate-row:last-child { border-bottom: 0; }
+  .gate-row .glyph { width: 16px; text-align: center; flex: none; }
+  .gate-row.pass .glyph { color: var(--mc-success); }
+  .gate-row.fail .glyph { color: var(--mc-danger); }
+  .gate-row .g-name { font-weight: 600; flex: 1; }
+  .gate-row .g-reason { color: var(--mc-text-muted); }
+  .gate-row .g-result { font-weight: 600; }
+  .gate-row.pass .g-result { color: var(--mc-success); }
+  .gate-row.fail .g-result { color: var(--mc-danger); }
+
+  .meter-card { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); }
+  .meter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); font-size: var(--text-small); }
+  .alarm-tag { color: var(--mc-danger); font-weight: 700; font-size: var(--text-micro); border: 1px solid var(--mc-danger); border-radius: 999px; padding: 1px 8px; }
+  .meter-track { height: 12px; border-radius: 6px; background: var(--mc-surface-elevated); overflow: hidden; }
+  .meter-fill { height: 100%; background: var(--mc-success); display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; font-size: 9px; color: #fff; white-space: nowrap; }
+  .meter-fill.warn { background: var(--mc-warning); }
+  .meter-fill.danger { background: var(--mc-danger); }
+
+  .callout { border-left: 3px solid var(--mc-accent); background: var(--mc-surface-elevated); border-radius: 4px; padding: var(--space-3); font-size: var(--text-small); display: flex; gap: var(--space-2); align-items: flex-start; }
+  .callout .glyph { color: var(--mc-accent); }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--mc-border); }
+  .row:last-child { border-bottom: 0; }
+  .label { color: var(--mc-text-muted); font-size: 12px; }
+  .value { font-weight: 600; text-align: right; }
+  .value.ok { color: var(--mc-success); }
+  .value.warn { color: var(--mc-warning); }
+  .value.bad { color: var(--mc-danger); }
+  pre { white-space: pre-wrap; background: var(--vscode-textCodeBlock-background); padding: 10px; border-radius: 4px; max-height: 240px; overflow: auto; font-size: var(--text-small); }
+  @media (max-width: 720px) { header.topbar { align-items: stretch; flex-direction: column; } }
 </style>
 </head>
 <body>
-<header>
-  <div><h1>Daedalus Mission Control</h1><div id="subtitle" class="muted"></div></div>
-  <div class="actions"><select id="project"></select><button id="refresh">Refresh</button><button id="enforce">Enforce Harness</button></div>
+<header class="topbar">
+  <div><h1>Daedalus Mission Control</h1><div id="subtitle" class="sub"></div></div>
+  <div class="header-actions"><select id="project" class="project"></select><button class="btn" id="refresh">Refresh</button><button class="btn" id="enforce">Enforce Harness</button></div>
 </header>
 <nav class="tabs">
   <button class="tab active" data-tab="overview">Overview</button>
@@ -299,12 +438,58 @@ pre { white-space: pre-wrap; background: var(--vscode-textCodeBlock-background);
   <button class="tab" data-tab="commands">Command Deck</button>
 </nav>
 <main>
-  <section id="overview" class="page active"><div id="warnings" class="timeline"></div><div class="grid" id="overviewGrid"></div><pre id="doctor"></pre></section>
-  <section id="queue" class="page"><div class="actions"><button data-action="reviewDiff">Rerun local_only diff review</button><button data-action="enqueueAuto">Queue auto task</button><button data-action="openLatest">Open latest report</button></div><div class="timeline" id="timeline"></div></section>
-  <section id="squads" class="page"><div class="panel"><h2>Ikarus Hierarchy</h2><div class="muted">Ikarus routes every task through the central file bus. Squads filter active agents and make ownership visible.</div></div><div class="grid" id="squadGrid"></div></section>
-  <section id="models" class="page"><div class="grid" id="modelGrid"></div></section>
-  <section id="quality" class="page"><div class="grid" id="qualityGrid"></div></section>
-  <section id="commands" class="page"><div class="grid"><section class="panel"><h2>Team Controls</h2><div class="row"><span class="label">Default lane</span><select id="lane"><option value="local_only">local_only</option><option value="auto">auto</option><option value="local">local</option><option value="claude">claude</option></select></div><div class="row"><span class="label">Max agents</span><input id="workers" type="number" min="1" max="32" step="1"></div><div class="muted">Toggle agents in Agent Squads, then save.</div><div class="actions"><button id="save">Save Team Settings</button></div></section><section class="panel"><h2>Run</h2><div class="actions"><button data-action="startWatcher">Start watcher</button><button data-action="stopWatcher">Stop watcher</button><button data-action="reviewDiff">Local-only review current diff</button><button data-action="ikarusPlan">Ikarus plan</button><button data-action="enqueueFile">Queue selected file/task</button><button data-action="openLatest">Open latest report</button></div><p class="muted">Claude use, live writes, and model installs stay confirmation-first.</p></section></div></section>
+  <section id="overview" class="page active">
+    <div id="warnings"></div>
+    <section class="block">
+      <h2>Status</h2>
+      <div class="kpi-row" id="overviewGrid"></div>
+    </section>
+    <section class="block">
+      <h2>Key Metrics</h2>
+      <div class="kpi-row" id="metricsGrid"></div>
+    </section>
+    <pre id="doctor"></pre>
+  </section>
+  <section id="queue" class="page">
+    <section class="block">
+      <h2>Queue Timeline</h2>
+      <div class="desc">Click a row to expand. Failed reports get a red rail so they can't be scrolled past unnoticed.</div>
+      <div class="header-actions"><button class="btn" data-action="reviewDiff">Rerun local_only diff review</button><button class="btn" data-action="enqueueAuto">Queue auto task</button><button class="btn" data-action="openLatest">Open latest report</button></div>
+      <div id="timeline"></div>
+    </section>
+  </section>
+  <section id="squads" class="page">
+    <section class="block">
+      <h2>Agent Squads</h2>
+      <div class="desc">Ikarus routes every task through the central file bus. Squads filter active agents and make ownership visible.</div>
+      <div id="squadGrid"></div>
+    </section>
+  </section>
+  <section id="models" class="page"><div id="modelGrid"></div></section>
+  <section id="quality" class="page"><div id="qualityGrid"></div></section>
+  <section id="commands" class="page">
+    <div class="kpi-row">
+      <section class="panel">
+        <h2 style="font-size:var(--text-large);margin-bottom:var(--space-2);">Team Controls</h2>
+        <div class="row"><span class="label">Default lane</span><select id="lane"><option value="local_only">local_only</option><option value="auto">auto</option><option value="local">local</option><option value="claude">claude</option></select></div>
+        <div class="row"><span class="label">Max agents</span><input id="workers" type="number" min="1" max="32" step="1"></div>
+        <div class="muted" style="margin-top:var(--space-2);">Toggle agents in Agent Squads, then save.</div>
+        <div class="header-actions" style="margin-top:var(--space-3);"><button class="btn primary" id="save">Save Team Settings</button></div>
+      </section>
+      <section class="panel">
+        <h2 style="font-size:var(--text-large);margin-bottom:var(--space-2);">Run</h2>
+        <div class="header-actions">
+          <button class="btn" data-action="startWatcher">Start watcher</button>
+          <button class="btn" data-action="stopWatcher">Stop watcher</button>
+          <button class="btn" data-action="reviewDiff">Local-only review current diff</button>
+          <button class="btn" data-action="ikarusPlan">Ikarus plan</button>
+          <button class="btn" data-action="enqueueFile">Queue selected file/task</button>
+          <button class="btn" data-action="openLatest">Open latest report</button>
+        </div>
+        <p class="muted" style="margin-top:var(--space-2);">Claude use, live writes, and model installs stay confirmation-first.</p>
+      </section>
+    </div>
+  </section>
 </main>
 <script nonce="${n}">
 const vscode = acquireVsCodeApi();
@@ -314,87 +499,188 @@ const laneEl = document.getElementById('lane');
 const workersEl = document.getElementById('workers');
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function row(label, value, cls) { return '<div class="row"><span class="label">' + esc(label) + '</span><span class="value ' + (cls || '') + '">' + esc(value) + '</span></div>'; }
+function tile(cls, head, value, sub, miniList) {
+  return '<div class="tile' + (cls ? ' ' + cls : '') + '" tabindex="0"><div class="tile-head">' + head + '</div><div class="tile-value">' + esc(value) + '</div>' +
+    (sub ? '<div class="tile-sub">' + esc(sub) + '</div>' : '') + (miniList ? '<div class="mini-list">' + miniList + '</div>' : '') + '</div>';
+}
+function miniStatus(dotCls, label) { return '<span class="mini-status"><span class="dot ' + dotCls + '"></span>' + esc(label) + '</span>'; }
+const STATUS_GLYPH = { done: '&#10003;', blocked: '&#10074;&#10074;', needs_review: '&#128065;', failed: '&#10007;' };
+function statusBadge(status) {
+  const s = status || 'queued';
+  const cls = STATUS_GLYPH[s] ? 'status-' + s : '';
+  const glyph = STATUS_GLYPH[s] || '';
+  return '<span class="badge ' + cls + '">' + (glyph ? '<span class="glyph">' + glyph + '</span>' : '') + esc(s) + '</span>';
+}
+function laneBadge(lane) {
+  const l = lane || 'n/a';
+  const cls = ['local_only', 'local', 'auto', 'claude'].indexOf(l) >= 0 ? 'lane-' + l : '';
+  return '<span class="badge lane ' + cls + '"><span class="dot"></span>' + esc(l) + '</span>';
+}
+function chip(agent) {
+  const unresolved = !agent.call_name && !agent.model_tier;
+  if (unresolved) {
+    return '<div class="chip error" title="config error"><span class="chip-name">' + esc(agent.name) + '</span><span class="chip-error-text">config error</span></div>';
+  }
+  const tierBadge = agent.model_tier ? '<span class="tier-badge">' + esc(agent.model_tier) + '</span>' : '';
+  const extGlyph = '<span class="ext-glyph" title="' + (agent.external_ok ? 'external ok' : 'local only') + '">' + (agent.external_ok ? '&#128275;' : '&#128274;') + '</span>';
+  const toggle = '<span class="toggle' + (agent.active ? ' on' : '') + '" data-agent="' + esc(agent.name) + '" role="switch" aria-checked="' + (agent.active ? 'true' : 'false') + '" tabindex="0" title="' + (agent.active ? 'active — click to disable' : 'inactive — click to enable') + '"></span>';
+  return '<div class="chip"><span class="chip-name">' + esc(agent.call_name || agent.name) + '</span>' + tierBadge + extGlyph + toggle + '</div>';
+}
 function renderProjects() {
   const names = (state.projects || []).map(p => p.name);
   projectEl.innerHTML = names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('');
   projectEl.value = state.selected_project || names[0] || '';
 }
 function renderOverview() {
-  const env = state.env || {}, exts = env.extensions || [], models = state.models || {}, watcher = state.watcher || {}, enf = state.enforcement || {}, q = state.quality || {}, sq = state.squads || {}, providers = ((state.provider_health || {}).providers || []);
-  const claude = exts.some(e => e.kind === 'claude'), codex = exts.some(e => e.kind === 'codex');
+  const env = state.env || {}, watcher = state.watcher || {}, enf = state.enforcement || {}, routing = state.routing || {}, metrics = state.metrics || {}, providers = ((state.provider_health || {}).providers || []);
   document.getElementById('subtitle').textContent = (state.project_config && state.project_config.repo_root) || '';
   const warnings = state.warnings || [];
-  document.getElementById('warnings').innerHTML = warnings.length ? warnings.map(w => '<div class="event bad">' + esc(w) + '</div>').join('') : '';
+  document.getElementById('warnings').innerHTML = warnings.map(w => '<div class="banner"><span class="glyph">&#9888;</span><span>' + esc(w) + '</span></div>').join('');
+
+  const providerOk = providers.filter(p => p.available).length;
+  const providerDown = providers.find(p => !p.available);
+  const providerCls = providers.length && providerOk < providers.length ? (providerOk === 0 ? 'err' : 'warn') : '';
+  const providerMini = providers.slice(0, 6).map(p => miniStatus(p.available ? 'ok' : (p.implemented ? 'bad' : 'warn'), (p.display_name || p.name) + ' — ' + (p.available ? 'ready' : (p.implemented ? 'unavailable' : 'planned')))).join('');
+
+  const watcherStale = Boolean(watcher.stale_count);
+  const watcherVal = watcherStale ? 'Stale' : (watcher.running ? 'Running' : 'Stopped');
+  const watcherCls = watcherStale ? 'err' : (watcher.running ? '' : 'warn');
+  const watcherSub = watcherStale ? watcher.stale_count + ' stale watcher(s) — restart required' : (watcher.running ? 'processing queued tasks' : 'not running');
+
+  const routingSub = 'selected: ' + (routing.selected_lane || 'n/a') + (routing.recommended_lane && routing.recommended_lane !== routing.selected_lane ? ' → recommended: ' + routing.recommended_lane : '') + (routing.reason ? ' (' + routing.reason + ')' : '');
+
+  const enfCount = [enf.agents_md, enf.claude_md, enf.state_file].filter(Boolean).length;
+  const enfMini = [
+    miniStatus(enf.agents_md ? 'ok' : 'bad', 'AGENTS.md ' + (enf.agents_md ? 'managed' : 'missing')),
+    miniStatus(enf.claude_md ? 'ok' : 'bad', 'CLAUDE.md ' + (enf.claude_md ? 'managed' : 'missing')),
+    miniStatus(enf.state_file ? 'ok' : 'bad', 'state file ' + (enf.state_file ? 'present' : 'missing'))
+  ].join('');
+
+  const exts = env.extensions || [];
+  const hasClaude = exts.some(e => e.kind === 'claude');
+  const hasCodex = exts.some(e => e.kind === 'codex');
+  const ollamaCli = Boolean((env.ollamaCli || {}).ok);
+  const envMini = [
+    miniStatus(hasClaude ? 'ok' : 'warn', 'Claude extension ' + (hasClaude ? 'installed' : 'not found')),
+    miniStatus(hasCodex ? 'ok' : 'warn', 'Codex/OpenAI extension ' + (hasCodex ? 'installed' : 'not found')),
+    miniStatus(ollamaCli ? 'ok' : 'warn', 'Ollama CLI ' + (ollamaCli ? 'on PATH' : 'not on PATH'))
+  ].join('');
+
   document.getElementById('overviewGrid').innerHTML =
-    '<section class="panel"><h2>Project Status</h2>' + row('Project', state.selected_project || 'none') + row('Default lane', sq.default_lane || 'local_only') + row('Max workers', sq.max_workers || 0) + '</section>' +
-    '<section class="panel"><h2>Harness</h2>' + row('Enforced', enf.enabled ? 'active' : 'not active', enf.enabled ? 'ok' : 'bad') + row('Watcher', watcher.running ? (watcher.stale_count ? 'stale watcher' : 'running') : 'stopped', watcher.stale_count ? 'bad' : '') + row('Fallback alarm', q.fallback_alarm ? 'active' : 'quiet', q.fallback_alarm ? 'bad' : 'ok') + '</section>' +
-    '<section class="panel"><h2>Extensions</h2>' + row('Claude extension', claude ? 'found' : 'missing', claude ? 'ok' : 'warn') + row('Codex/OpenAI extension', codex ? 'found' : 'missing', codex ? 'ok' : 'warn') + row('Harness control', 'instructions + file bus') + '</section>' +
-    '<section class="panel"><h2>Ollama</h2>' + row('Server', models.server_ready ? 'ready' : 'offline', models.server_ready ? 'ok' : 'bad') + row('CLI on PATH', models.ollama_cli_on_path ? 'yes' : 'no', models.ollama_cli_on_path ? 'ok' : 'warn') + row('Installed models', (models.models || []).length) + '</section>' +
-    '<section class="panel"><h2>Provider Health</h2>' + providers.slice(0, 6).map(p => row(p.display_name || p.name, p.available ? 'available' : (p.implemented ? 'unavailable' : 'planned'), p.available ? 'ok' : 'warn')).join('') + '</section>' +
-    '<section class="panel"><h2>Routing</h2>' + row('Selected lane', (state.routing || {}).selected_lane || 'n/a') + row('Recommended lane', (state.routing || {}).recommended_lane || 'n/a') + row('Reason', (state.routing || {}).reason || 'n/a') + '</section>' +
-    '<section class="panel"><h2>Key Metrics</h2>' + row('Offloadable tasks', (state.metrics || {}).offloadable || 0) + row('Ran on bench', (state.metrics || {}).offloaded || 0) + row('Fell back to Claude', (state.metrics || {}).fell_back_to_claude || 0) + row('Fallback rate', Math.round(((state.metrics || {}).fallback_rate || 0) * 100) + '%', (state.metrics || {}).alarm ? 'bad' : 'ok') + '</section>';
+    tile(providerCls, '&#128225; Provider Health', providerOk + ' / ' + providers.length, providerDown ? (providerDown.display_name || providerDown.name) + ' unavailable' : 'all providers ready', providerMini) +
+    tile(watcherCls, '&#128065; Watcher', watcherVal, watcherSub) +
+    tile('', '&#8644; Routing Lane', routing.selected_lane || 'n/a', routingSub) +
+    tile(enfCount < 3 ? 'warn' : '', '&#128274; Enforcement', enfCount + ' / 3', enf.enabled ? 'active' : 'not active', enfMini) +
+    tile('', '&#129520; Environment', (Number(hasClaude) + Number(hasCodex)) + ' AI tools', 'VS Code extensions detected', envMini);
+
+  document.getElementById('metricsGrid').innerHTML =
+    tile('', 'Offloadable tasks', metrics.offloadable || 0, 'tasks eligible for the local bench') +
+    tile('', 'Ran on bench', metrics.offloaded || 0, 'completed locally') +
+    tile(metrics.fell_back_to_claude ? 'warn' : '', 'Fell back to Claude', metrics.fell_back_to_claude || 0, 'local bench declined or failed') +
+    tile(metrics.alarm ? 'err' : '', 'Fallback rate', Math.round((metrics.fallback_rate || 0) * 100) + '%', metrics.alarm ? 'alarm threshold exceeded' : 'within normal range');
+
   document.getElementById('doctor').textContent = env.doctor || '';
 }
 function renderQueue() {
   const q = state.queue || {};
   const failedPath = (q.latest_failed || {}).path;
   const items = [].concat(q.pending || [], q.reports || [], q.processed || []).slice(0, 40);
-  const banner = q.latest_failed ? '<div class="event bad"><div class="top"><b>Latest failed: ' + esc(q.latest_failed.name) + '</b><span class="pill bad">failed</span></div><div class="muted">' + esc(q.latest_failed.error || q.latest_failed.summary || 'No details available.') + '</div></div>' : '';
-  const cards = items.map(i => {
-    const isFailed = Boolean(failedPath) && i.path === failedPath;
-    const statusCls = i.status === 'failed' || i.error ? 'bad' : (i.status === 'done' ? 'ok' : '');
-    return '<div class="event' + (isFailed ? ' bad' : '') + '"><div class="top"><b>' + esc(i.kind + ': ' + i.name) + '</b><span><span class="pill">' + esc(i.lane || 'lane n/a') + '</span> <span class="pill ' + statusCls + '">' + esc(i.status || 'queued') + '</span></span></div><div class="muted">' + esc(i.summary || i.error || i.mtime) + '</div></div>';
+  const banner = q.latest_failed ? '<div class="banner danger"><span class="glyph">&#10007;</span><span><strong>Latest failed: ' + esc(q.latest_failed.name) + '</strong> — ' + esc(q.latest_failed.error || q.latest_failed.summary || 'No details available.') + '</span></div>' : '';
+  if (!items.length) {
+    document.getElementById('timeline').innerHTML = banner + '<div class="empty-state"><div class="glyph">&#128203;</div><div><strong>No queue activity yet.</strong></div><div>Tasks appear here once queued via <code>daedalus.file_bridge enqueue</code> or Ikarus dispatch.</div></div>';
+    return;
+  }
+  const rows = items.map((i, idx) => {
+    const isFailed = (Boolean(failedPath) && i.path === failedPath) || i.status === 'failed' || Boolean(i.error);
+    const detail = esc(i.summary || i.error || i.mtime || 'No details available.');
+    return '<div class="queue-row' + (isFailed ? ' failed' : '') + '" data-row="' + idx + '" tabindex="0">' +
+      laneBadge(i.lane) + statusBadge(i.status) +
+      '<div class="qr-main"><div class="qr-name">' + esc((i.kind ? i.kind + ': ' : '') + (i.name || '')) + '</div><div class="qr-summary">' + detail + '</div></div>' +
+      '<span class="qr-kind">' + esc(i.kind || '') + '</span></div>' +
+      '<div class="queue-detail"><pre>' + esc(i.summary || i.error || i.mtime || 'No details available.') + '</pre></div>';
   }).join('');
-  document.getElementById('timeline').innerHTML = (banner + cards) || '<div class="panel muted">No queue activity yet.</div>';
+  document.getElementById('timeline').innerHTML = banner + '<div class="queue-list">' + rows + '</div>';
 }
 function renderSquads() {
   const s = state.squads || {}, semi = s.semi_auto || {};
-  const summary = '<section class="panel"><h2>Team Settings</h2>' +
+  const summary = '<section class="panel"><h2 style="font-size:var(--text-large);margin-bottom:var(--space-2);">Team Settings</h2>' +
     row('Max workers', s.max_workers || 0) + row('Default lane', s.default_lane || 'local_only') +
     row('Auto review', semi.auto_review ? 'on' : 'off', semi.auto_review ? 'ok' : '') +
     row('Auto docs', semi.auto_docs ? 'on' : 'off', semi.auto_docs ? 'ok' : '') +
     row('Auto tests', semi.auto_tests ? 'on' : 'off', semi.auto_tests ? 'ok' : 'warn') +
     row('Never auto-write', semi.never_auto_write ? 'enforced' : 'off', semi.never_auto_write ? 'ok' : 'bad') +
     '</section>';
-  const groups = (s.squads || []).map(group => '<section class="panel squad"><h2>' + esc(group.name) + '</h2><div class="agents">' + group.agents.map(a =>
-    '<span class="agent"><input type="checkbox" data-agent="' + esc(a.name) + '" ' + (a.active ? 'checked' : '') + '><b>' + esc(a.name) + '</b>' +
-    (a.call_name ? '<span class="pill">' + esc(a.call_name) + '</span>' : '') +
-    (a.model_tier ? '<span class="pill">' + esc(a.model_tier) + '</span>' : '') +
-    '<span class="pill">' + esc(a.external_ok ? 'external-ok' : 'trusted-only') + '</span></span>'
-  ).join('') + '</div></section>').join('');
+  const groups = (s.squads || []).map(group => {
+    const count = (group.agents || []).length;
+    return '<div class="squad-card' + (count === 0 ? ' empty' : '') + '"><h3>' + esc(group.name) + ' <span class="count">' + count + (count === 1 ? ' agent' : ' agents') + '</span></h3>' +
+      (count === 0 ? '<div class="desc">No agents assigned.</div>' : '<div class="chip-row">' + group.agents.map(chip).join('') + '</div>') + '</div>';
+  }).join('');
   const cc = (state.claude_crew || {}).agents || [];
-  const claudeCrew = '<section class="panel"><h2>Claude Crew <span class="pill">&#128269; .claude/agents</span></h2>' +
-    '<div class="muted">Claude Code subagents detected in this repo &mdash; distinct from the harness roles above; these build the app itself (Claude/Codex).</div>' +
-    (cc.length ? '<div class="agents">' + cc.map(a => '<span class="agent"><b>' + esc(a.name) + '</b><span class="pill">' + esc(a.model || 'inherit') + '</span></span>').join('') + '</div>'
-      : '<div class="muted">None found &mdash; add <code>.claude/agents/*.md</code> and they appear here.</div>') +
+  const claudeCrew = '<section class="panel"><h2 style="font-size:var(--text-large);margin-bottom:var(--space-2);">Claude Crew <span class="tier-badge">&#128269; .claude/agents</span></h2>' +
+    '<div class="desc">Claude Code subagents detected in this repo &mdash; distinct from the harness roles above; these build the app itself (Claude/Codex).</div>' +
+    (cc.length ? '<div class="chip-row" style="margin-top:var(--space-2);">' + cc.map(a => '<div class="chip"><span class="chip-name">' + esc(a.name) + '</span><span class="tier-badge">' + esc(a.model || 'inherit') + '</span></div>').join('') + '</div>'
+      : '<div class="desc" style="margin-top:var(--space-2);">None found &mdash; add <code>.claude/agents/*.md</code> and they appear here.</div>') +
     '</section>';
-  document.getElementById('squadGrid').innerHTML = summary + groups + claudeCrew;
+  document.getElementById('squadGrid').innerHTML = summary + '<div class="squad-grid" style="margin-top:var(--space-3);">' + groups + '</div>' + claudeCrew;
   laneEl.value = s.default_lane || 'local_only';
   workersEl.value = s.max_workers || 3;
 }
+function modelRow(x, maxSize) {
+  const pct = maxSize ? Math.max(2, Math.round((x.size_gb / maxSize) * 100)) : 0;
+  const meta = [x.parameter_size, x.quantization, x.context_length ? (x.context_length + ' ctx') : ''].filter(Boolean).join(' · ');
+  const caps = (x.capabilities || []).join(', ');
+  return '<div class="model-row"><div><div class="m-name">' + esc(x.name) + '</div><div class="m-meta">' + esc(meta || 'n/a') + '</div></div>' +
+    '<span class="tier-badge">' + esc(caps || 'n/a') + '</span><span></span>' +
+    '<div class="size-bar-track"><div class="size-bar-fill" style="width:' + pct + '%"></div></div>' +
+    '<span class="m-gb">' + esc(x.size_gb || 0) + ' GB</span></div>';
+}
 function renderModels() {
   const m = state.models || {}, disk = m.disk || {};
+  const models = m.models || [];
+  const maxSize = models.reduce((mx, x) => Math.max(mx, x.size_gb || 0), 0);
+  const capNote = m.capabilities_note ? '<div class="gauge-note">&#9888; ' + esc(m.capabilities_note) + '</div>' : '';
   const usedPct = disk.total_gb ? Math.min(100, Math.round((disk.used_gb / disk.total_gb) * 100)) : 0;
-  const capNote = m.capabilities_note ? '<div class="muted">⚠ ' + esc(m.capabilities_note) + '</div>' : '';
-  const installed = (m.models || []).map(x => '<section class="panel"><h2>' + esc(x.name) + '</h2>' + row('Size', x.size_gb + ' GB') + row('Params', x.parameter_size || 'n/a') + row('Quant', x.quantization || 'n/a') + row('Capabilities', (x.capabilities || []).join(', ') || 'n/a') + capNote + '</section>').join('');
-  const recs = (m.suggested || []).map(x => '<div class="row"><span><b>' + esc(x.name) + '</b><br><span class="muted">' + esc(x.reason) + '</span></span><button class="secondary" data-copy="' + esc(x.command) + '">Copy pull</button></div>').join('');
+  const freePct = 100 - usedPct;
+  const lowHeadroom = maxSize > 0 && (disk.free_gb || 0) < maxSize * 2;
+  const installedList = models.length
+    ? '<div class="model-list">' + models.map(x => modelRow(x, maxSize)).join('') + '</div>' + capNote
+    : '<div class="empty-state"><div class="glyph">&#128230;</div><div><strong>No local models installed.</strong></div><div>See suggested pulls below.</div></div>';
+  const recs = (m.suggested || []).map(x => '<div class="pull-item"><div><code>' + esc(x.command) + '</code><div class="reason">' + esc(x.reason) + '</div></div><button class="btn copy-btn" data-copy="' + esc(x.command) + '">&#128203; Copy</button></div>').join('');
   document.getElementById('modelGrid').innerHTML =
-    '<section class="panel"><h2>Disk Budget</h2>' +
-    '<div class="gauge"><div style="width:' + usedPct + '%"></div></div>' +
-    '<div class="muted">' + usedPct + '% used (' + (disk.used_gb || 0) + ' GB of ' + (disk.total_gb || 0) + ' GB)</div>' +
-    row('Free disk', (disk.free_gb || 0) + ' GB') + row('Installed total', (m.total_size_gb || 0) + ' GB') + row('Safe parallel workers', m.safe_parallel_workers_estimate || 1) +
-    (m.safe_parallel_workers_note ? '<div class="muted">⚠ ' + esc(m.safe_parallel_workers_note) + '</div>' : '') + '</section>' +
-    installed + '<section class="panel"><h2>Suggested Pulls</h2><div class="muted">Commands are copied to your clipboard, never run automatically.</div>' + recs + '</section>';
+    '<section class="block"><h2>Installed Models</h2>' + installedList + '</section>' +
+    '<section class="block"><div class="resource-grid">' +
+      '<div class="gauge-card"><h3 style="font-size:var(--text-medium);margin-bottom:var(--space-2);">Disk usage</h3>' +
+      '<div class="gauge-readout"><span>' + (disk.free_gb || 0) + ' GB free of ' + (disk.total_gb || 0) + ' GB</span><span>' + freePct + '% free</span></div>' +
+      '<div class="gauge-track"><div class="gauge-used" style="width:' + usedPct + '%"></div><div class="gauge-free" style="width:' + freePct + '%;' + (lowHeadroom ? 'background:var(--mc-warning);' : '') + '"></div></div>' +
+      (lowHeadroom ? '<div class="gauge-note">Low headroom for pulling additional models.</div>' : '') + '</div>' +
+      '<div class="stat-card"><div class="tile-head" style="color:var(--mc-text-muted);font-size:var(--text-small);">Safe parallel workers</div><div class="tile-value">' + (m.safe_parallel_workers_estimate || 1) + '</div><div class="tile-sub">estimated from free disk &divide; (2 &times; largest model)</div>' +
+      (m.safe_parallel_workers_note ? '<div class="tile-sub" style="color:var(--mc-warning);">&#9888; ' + esc(m.safe_parallel_workers_note) + '</div>' : '') + '</div>' +
+    '</div></section>' +
+    '<section class="block"><h2>Suggested Pulls</h2><div class="desc">Commands are copied to your clipboard, never run automatically.</div><div class="pull-list">' + (recs || '<div class="desc">No suggestions right now.</div>') + '</div></section>';
 }
 function renderQuality() {
   const q = state.quality || {};
+  const gates = [
+    { name: 'schema_non_empty_summary', pass: Boolean(q.schema_non_empty_summary), reason: 'Empty-summary reports are not accepted.' },
+    { name: 'local_only_never_claude', pass: Boolean(q.local_only_never_claude), reason: 'local_only lane must never reach the Claude provider.' },
+    { name: 'empty_reports_fail', pass: Boolean(q.empty_reports_fail), reason: 'Reports with no content must fail, not silently pass.' },
+    { name: 'stale_watchers == 0', pass: !q.stale_watchers, reason: (q.stale_watchers || 0) + ' stale watcher(s) detected.' },
+    { name: 'fallback_alarm == false', pass: !q.fallback_alarm, reason: 'Fallback alarm is active.' }
+  ];
+  const rows = gates.map(g => '<div class="gate-row ' + (g.pass ? 'pass' : 'fail') + '"><span class="glyph">' + (g.pass ? '&#10003;' : '&#10007;') + '</span><span class="g-name">' + esc(g.name) + '</span>' +
+    (g.pass ? '' : '<span class="g-reason">' + esc(g.reason) + '</span>') + '<span class="g-result">' + (g.pass ? 'Pass' : 'Fail') + '</span></div>').join('');
+  const ratePct = Math.round((q.fallback_rate || 0) * 100);
+  const meterCls = q.fallback_alarm ? 'danger' : (ratePct >= 20 ? 'warn' : '');
+  const meter = '<div class="meter-card"><div class="meter-head"><span>Fallback rate</span>' + (q.fallback_alarm ? '<span class="alarm-tag">ALARM</span>' : '') + '</div><div class="meter-track"><div class="meter-fill' + (meterCls ? ' ' + meterCls : '') + '" style="width:' + Math.max(ratePct, 4) + '%">' + ratePct + '%</div></div></div>';
+  const callout = q.recommendation ? '<div class="callout"><span class="glyph">&#128161;</span><span>' + esc(q.recommendation) + '</span></div>' : '';
   document.getElementById('qualityGrid').innerHTML =
-    '<section class="panel"><h2>Sentinels</h2>' + row('local_only never calls Claude', q.local_only_never_claude ? 'armed' : 'broken', q.local_only_never_claude ? 'ok' : 'bad') + row('Empty summaries fail', q.schema_non_empty_summary ? 'armed' : 'missing', q.schema_non_empty_summary ? 'ok' : 'bad') + row('Empty reports fail', q.empty_reports_fail ? 'armed' : 'missing', q.empty_reports_fail ? 'ok' : 'bad') + '</section>' +
-    '<section class="panel"><h2>Runtime Warnings</h2>' + row('Stale watchers', q.stale_watchers || 0, q.stale_watchers ? 'bad' : 'ok') + row('Fallback rate', q.fallback_rate || 0, q.fallback_alarm ? 'bad' : 'ok') + row('Recommendation', q.recommendation || 'normal operation') + '</section>';
+    '<section class="block"><h2>Quality Gates</h2><div class="gate-list">' + rows + '</div></section>' +
+    '<section class="block">' + meter + '</section>' +
+    (callout ? '<section class="block">' + callout + '</section>' : '');
 }
 function renderAll() { renderProjects(); renderOverview(); renderQueue(); renderSquads(); renderModels(); renderQuality(); }
 function save() {
-  const activeAgents = Array.from(document.querySelectorAll('[data-agent]:checked')).map(el => el.dataset.agent);
+  const activeAgents = Array.from(document.querySelectorAll('.toggle.on[data-agent]')).map(el => el.dataset.agent);
   vscode.postMessage({ type: 'saveTeam', project: projectEl.value, maxWorkers: workersEl.value, defaultLane: laneEl.value, activeAgents });
 }
 window.addEventListener('message', event => { if (event.data.type === 'state') { state = event.data.state; renderAll(); } });
@@ -403,6 +689,26 @@ projectEl.addEventListener('change', () => vscode.postMessage({ type: 'refresh',
 document.getElementById('save').addEventListener('click', save);
 document.getElementById('refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh', project: projectEl.value }));
 document.getElementById('enforce').addEventListener('click', () => vscode.postMessage({ type: 'enforce', project: projectEl.value }));
+document.getElementById('timeline').addEventListener('click', ev => {
+  const rowEl = ev.target.closest('.queue-row');
+  if (!rowEl) return;
+  const wasSelected = rowEl.classList.contains('selected');
+  document.querySelectorAll('#timeline .queue-row.selected').forEach(r => r.classList.remove('selected'));
+  if (!wasSelected) rowEl.classList.add('selected');
+});
+document.getElementById('squadGrid').addEventListener('click', ev => {
+  const t = ev.target.closest('.toggle[data-agent]');
+  if (!t) return;
+  t.classList.toggle('on');
+  t.setAttribute('aria-checked', t.classList.contains('on') ? 'true' : 'false');
+});
+document.getElementById('squadGrid').addEventListener('keydown', ev => {
+  const t = ev.target && ev.target.closest && ev.target.closest('.toggle[data-agent]');
+  if (!t || (ev.key !== 'Enter' && ev.key !== ' ')) return;
+  ev.preventDefault();
+  t.classList.toggle('on');
+  t.setAttribute('aria-checked', t.classList.contains('on') ? 'true' : 'false');
+});
 document.body.addEventListener('click', ev => {
   const action = ev.target && ev.target.dataset && ev.target.dataset.action;
   const copy = ev.target && ev.target.dataset && ev.target.dataset.copy;
@@ -471,8 +777,19 @@ function bindDashboardWebview(context, webview) {
   });
 }
 
-async function openDashboard() {
-  await vscode.commands.executeCommand("daedalusDashboardView.focus");
+async function openDashboard(context) {
+  if (dashboardPanel) {
+    dashboardPanel.reveal(vscode.ViewColumn.Active);
+    return;
+  }
+  dashboardPanel = vscode.window.createWebviewPanel(
+    "daedalusDashboard",
+    "Daedalus Mission Control",
+    vscode.ViewColumn.Active,
+    { enableScripts: true, retainContextWhenHidden: true }
+  );
+  bindDashboardWebview(context, dashboardPanel.webview);
+  dashboardPanel.onDidDispose(() => { dashboardPanel = undefined; });
 }
 
 class DashboardProvider {

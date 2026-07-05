@@ -1,0 +1,121 @@
+"""Regression: the 'fake offload' fail-open hole.
+
+A narrating local model returns a report claiming ``files_changed:["x"]`` while
+writing NOTHING to disk. The write-mode ``require_changes`` gate used to trust
+that self-report and ACCEPT the no-op (action:"offloaded", verify.ok:true) --
+fake savings, zero work. The gate must instead verify a REAL on-disk change.
+
+These tests mock the provider so nothing touches live Ollama.
+"""
+
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from daedalus import metrics
+from daedalus.offload import offload
+from daedalus.verifier import verify
+
+_OBJECTIVE = "Add a docstring to the scan panel"
+_TARGET = "TCT_app/gui/scan_panel.py"          # gui path -> writable, routes to ollama write
+_AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
+
+
+def _report(files_changed=None, status="done"):
+    return {"status": status, "summary": "s", "files_changed": files_changed or [],
+            "tests_run": [], "risks": [], "todos": [], "handoff": {}}
+
+
+class _NarratingWorker:
+    """Self-reports an edit it never made -- the exact fake-offload repro."""
+
+    def run(self, **kwargs):
+        return {"report": _report(files_changed=[_TARGET])}
+
+    def rollback(self):
+        return []
+
+
+class _RealWritingWorker:
+    """Actually writes the target file on disk (the legitimate allow case)."""
+
+    def __init__(self, repo_root: str):
+        self._repo_root = repo_root
+
+    def run(self, **kwargs):
+        p = Path(self._repo_root) / _TARGET
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text('"""scan panel."""\nx = 1\n', encoding="utf-8")
+        return {"report": _report(files_changed=[_TARGET])}
+
+    def rollback(self):
+        return []
+
+
+def _make_repo(tmp: str) -> str:
+    """A repo whose .agentenv config carries a (non-empty) policy so pol loads."""
+    cfg_dir = Path(tmp) / ".agentenv"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "agentenv.json").write_text(
+        '{"policy": {"default_deny": true, "allow": ["TCT_app/"]}}', encoding="utf-8")
+    return tmp
+
+
+class VerifierDiskChangeUnitTests(unittest.TestCase):
+    """The gate must not fall back to the untrusted self-report."""
+
+    _DOC = "notes.md"   # the real repro path; not a .py/.json so no extra checks
+
+    def test_disk_evidence_overrides_a_lying_self_report(self):
+        # The report CLAIMS an edit, but the caller's disk snapshot proves
+        # nothing changed -> the self-report is ignored and the gate fails.
+        vr = verify(_report(files_changed=[self._DOC]), ".",
+                    require_changes=True, disk_changed=[])
+        self.assertFalse(vr.ok)
+        self.assertIn("did_work", vr.failed)
+
+    def test_real_disk_change_passes(self):
+        vr = verify(_report(files_changed=[self._DOC]), ".",
+                    require_changes=True, disk_changed=[self._DOC])
+        self.assertTrue(vr.ok)
+
+
+class FakeOffloadTests(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._orig = metrics.LOG
+        metrics.LOG = Path(self._tmp.name) / "m.jsonl"
+        self.repo = _make_repo(self._tmp.name)
+
+    def tearDown(self):
+        metrics.LOG = self._orig
+        self._tmp.cleanup()
+
+    def test_fake_offload_narrated_but_no_disk_write_escalates(self):
+        with mock.patch("daedalus.providers.get_provider",
+                        return_value=_NarratingWorker()):
+            r = offload(_OBJECTIVE, self.repo, paths=[_TARGET],
+                        live=True, availability=_AVAIL)
+        # Must NOT accept a no-op that only claimed to edit.
+        self.assertEqual(r["mode"], "write")
+        self.assertNotEqual(r["action"], "offloaded")
+        self.assertEqual(r["action"], "escalated_after_verify_fail")
+        self.assertFalse(r["verify"]["ok"])
+        self.assertIn("did_work", r["verify"]["failed"])
+        # And the file genuinely was never written.
+        self.assertFalse((Path(self.repo) / _TARGET).exists())
+
+    def test_real_disk_write_is_accepted(self):
+        worker = _RealWritingWorker(self.repo)
+        with mock.patch("daedalus.providers.get_provider", return_value=worker):
+            r = offload(_OBJECTIVE, self.repo, paths=[_TARGET],
+                        live=True, availability=_AVAIL)
+        self.assertEqual(r["mode"], "write")
+        self.assertEqual(r["action"], "offloaded")
+        self.assertTrue(r["verify"]["ok"])
+        self.assertTrue((Path(self.repo) / _TARGET).exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

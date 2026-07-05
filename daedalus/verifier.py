@@ -86,6 +86,7 @@ def verify(
     test_cwd: str | None = None,
     timeout_s: int = 120,
     require_changes: bool = False,
+    disk_changed: list[str] | None = None,
 ) -> VerifyResult:
     checks: list[dict] = []
 
@@ -96,14 +97,26 @@ def verify(
     # changes is a no-op (small models often narrate "I edited X" without ever
     # calling the write tool). Accepting it fakes 100% savings while nothing got
     # done -- so the work would silently be lost. Fail it -> escalate to Claude.
+    #
+    # CRITICAL: ``report["files_changed"]`` is the model's SELF-REPORT and a
+    # narrating model claims edits it never wrote (the exact fake-offload repro).
+    # When the caller has real evidence -- content-hash diffs of the target paths
+    # taken before/after the run, passed as ``disk_changed`` -- that verified list
+    # is the ONLY thing that may satisfy the gate; the self-report is ignored.
+    # ``disk_changed is None`` means the caller supplied no evidence (e.g. a
+    # direct/unit call); we fall back to the self-report there, but the live
+    # offload seam ALWAYS supplies ``disk_changed`` so production never trusts it.
     if require_changes:
-        did_write = bool(report.get("files_changed"))
-        checks.append({
-            "name": "did_work",
-            "ok": did_write,
-            "detail": "wrote files" if did_write else
-                      "write task produced NO file changes (model narrated instead of editing)",
-        })
+        if disk_changed is not None:
+            did_write = bool(disk_changed)
+            detail = (f"verified on disk: {', '.join(disk_changed)}" if did_write else
+                      "write task changed NO files on disk -- model narrated an edit "
+                      "without writing (self-reported files_changed is not trusted)")
+        else:
+            did_write = bool(report.get("files_changed"))
+            detail = ("wrote files (self-report; no disk evidence supplied)" if did_write else
+                      "write task produced NO file changes (model narrated instead of editing)")
+        checks.append({"name": "did_work", "ok": did_write, "detail": detail})
 
     for rel in report.get("files_changed", []):
         s = str(rel)
@@ -115,7 +128,10 @@ def verify(
             checks.append({"name": f"parse:{s}", "ok": ok, "detail": detail})
 
     if test_command:
-        ok, detail = _run_tests(test_command, test_cwd or repo_root, timeout_s)
+        import os
+        # test_cwd is relative to the TARGET repo, not the offload process cwd.
+        cwd = repo_root if test_cwd in (None, "", ".") else os.path.join(repo_root, test_cwd)
+        ok, detail = _run_tests(test_command, cwd, timeout_s)
         checks.append({"name": "tests", "ok": ok, "detail": detail})
 
     return VerifyResult(ok=all(c["ok"] for c in checks), checks=checks)
