@@ -413,6 +413,42 @@ function dashboardHtml(n) {
   .callout { border-left: 3px solid var(--mc-accent); background: var(--mc-surface-elevated); border-radius: 4px; padding: var(--space-3); font-size: var(--text-small); display: flex; gap: var(--space-2); align-items: flex-start; }
   .callout .glyph { color: var(--mc-accent); }
 
+  .wheel-wrap { display: flex; gap: var(--space-5); flex-wrap: wrap; align-items: flex-start; }
+  .wheel-stage { position: relative; width: min(92vw, 460px); aspect-ratio: 1 / 1; flex: none; margin: 0 auto; }
+  .wheel-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .wheel-svg line { stroke: var(--mc-border); stroke-width: 1; transition: stroke .12s ease, stroke-width .12s ease; }
+  .wheel-svg line.selected { stroke-width: 2; }
+  .wheel-hub { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 26%; aspect-ratio: 1 / 1; border-radius: 50%; background: var(--mc-surface-card); border: 1px solid var(--mc-border); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; padding: var(--space-1); box-shadow: 0 0 0 6px var(--mc-surface); }
+  .wheel-hub .hub-icon { font-size: 20px; }
+  .wheel-hub .hub-label { font-size: var(--text-small); font-weight: 700; }
+  .wheel-hub .hub-sub { font-size: 9px; color: var(--mc-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .wheel-node { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; width: 84px; text-align: center; }
+  .node-btn { appearance: none; cursor: pointer; position: relative; width: 46px; height: 46px; border-radius: 50%; background: var(--mc-surface-card); border: 2px solid var(--mc-border); display: flex; align-items: center; justify-content: center; font-size: 18px; padding: 0; transition: border-color .12s ease, box-shadow .12s ease, background .12s ease; }
+  .node-btn:hover { border-color: color-mix(in srgb, var(--node-color, var(--mc-accent)) 60%, var(--mc-border)); }
+  .node-btn[aria-pressed="true"] { border-color: var(--mc-accent); background: var(--mc-surface-elevated); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-accent) 35%, transparent); }
+  .node-btn.is-empty { border-style: dashed; }
+  .node-dot { position: absolute; right: -2px; bottom: -2px; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--mc-surface); background: var(--node-color, var(--mc-text-muted)); }
+  .wheel-node .node-label { font-size: var(--text-small); font-weight: 600; line-height: 1.2; }
+  .wheel-node .node-count { font-size: var(--text-micro); color: var(--mc-text-muted); }
+  .wheel-node.is-empty .node-label, .wheel-node.is-empty .node-count { color: var(--mc-text-muted); }
+  .wheel-legend { font-size: var(--text-micro); color: var(--mc-text-muted); text-align: center; margin-top: var(--space-2); }
+  .wheel-detail { flex: 1 1 280px; min-width: 260px; background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+  .wheel-detail .detail-head { display: flex; align-items: center; gap: var(--space-2); }
+  .wheel-detail .detail-swatch { width: 28px; height: 28px; border-radius: 50%; flex: none; background: var(--node-color, var(--mc-text-muted)); border: 1px solid var(--mc-border); display: flex; align-items: center; justify-content: center; font-size: 15px; }
+  .wheel-detail h3 { font-size: var(--text-large); font-weight: 600; }
+  .wheel-detail .detail-count { font-size: var(--text-small); color: var(--mc-text-muted); }
+  .detail-row-label { font-size: var(--text-micro); text-transform: uppercase; letter-spacing: .03em; color: var(--mc-text-muted); margin-bottom: var(--space-1); }
+  .swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .swatch-btn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--mc-border); cursor: pointer; padding: 0; transition: border-color .12s ease, box-shadow .12s ease; }
+  .swatch-btn:hover { border-color: var(--mc-text); }
+  .swatch-btn[aria-pressed="true"] { border-color: var(--mc-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mc-accent) 35%, transparent); }
+  .emoji-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .emoji-btn { width: 30px; height: 30px; border-radius: 4px; border: 1px solid var(--mc-border); background: var(--mc-surface); cursor: pointer; font-size: 15px; padding: 0; display: flex; align-items: center; justify-content: center; transition: border-color .12s ease, background .12s ease; }
+  .emoji-btn:hover { border-color: color-mix(in srgb, var(--mc-accent) 60%, var(--mc-border)); }
+  .emoji-btn[aria-pressed="true"] { border-color: var(--mc-accent); background: var(--mc-surface-elevated); }
+  .customize-readout { font-size: var(--text-micro); color: var(--mc-text-muted); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
   .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--mc-border); }
   .row:last-child { border-bottom: 0; }
   .label { color: var(--mc-text-muted); font-size: 12px; }
@@ -435,6 +471,7 @@ function dashboardHtml(n) {
   <button class="tab" data-tab="squads">Agent Squads</button>
   <button class="tab" data-tab="models">Model Resources</button>
   <button class="tab" data-tab="quality">Quality Gates</button>
+  <button class="tab" data-tab="wheel">Role Wheel</button>
   <button class="tab" data-tab="commands">Command Deck</button>
 </nav>
 <main>
@@ -467,6 +504,23 @@ function dashboardHtml(n) {
   </section>
   <section id="models" class="page"><div id="modelGrid"></div></section>
   <section id="quality" class="page"><div id="qualityGrid"></div></section>
+  <section id="wheel" class="page">
+    <section class="block">
+      <h2>Role Wheel</h2>
+      <div class="desc">Radial browser for the role-category taxonomy. Ikarus sits at the hub; each spoke is a role category. Click a node (or arrow-key between nodes, then Enter/Space) to inspect its agents and routing preset, and to recolor / re-icon it.</div>
+      <div class="wheel-wrap">
+        <div>
+          <div class="wheel-stage" id="wheel-stage" role="group" aria-label="Role categories">
+            <svg class="wheel-svg" id="wheel-svg" viewBox="0 0 100 100" aria-hidden="true"></svg>
+            <div class="wheel-hub"><div class="hub-icon">&#9992;&#65039;</div><div class="hub-label">Ikarus</div><div class="hub-sub">hub</div></div>
+          </div>
+          <div class="wheel-legend" id="wheel-legend"></div>
+        </div>
+        <div class="wheel-detail" id="wheel-detail"></div>
+      </div>
+      <div class="sr-only" role="status" aria-live="polite" id="wheel-status"></div>
+    </section>
+  </section>
   <section id="commands" class="page">
     <div class="kpi-row">
       <section class="panel">
@@ -678,7 +732,129 @@ function renderQuality() {
     '<section class="block">' + meter + '</section>' +
     (callout ? '<section class="block">' + callout + '</section>' : '');
 }
-function renderAll() { renderProjects(); renderOverview(); renderQueue(); renderSquads(); renderModels(); renderQuality(); }
+const WHEEL_COLOR_CHOICES = ['#3794ff', '#b180d7', '#e07b53', '#d7ba7d', '#73c991', '#f14c4c', '#4fc1c1', '#d97ad9', '#6b8afd', '#a3a3a3'];
+const WHEEL_ICON_CHOICES = ['🛠️', '🔍', '🎨', '📚', '🧪', '🔭', '⚙️', '🗄️', '🚀', '🧩', '🔐', '📊', '🖥️', '🧬'];
+let selectedCategoryId = null;
+function wheelAnnounce(msg) { const el = document.getElementById('wheel-status'); if (el) el.textContent = msg; }
+function wheelCatById(id) { return (state.categories || []).find(c => c.id === id) || null; }
+function wheelAgentChip(a) {
+  const tierBadge = a.model_tier ? '<span class="tier-badge">' + esc(a.model_tier) + '</span>' : '';
+  const extGlyph = '<span class="ext-glyph" title="' + (a.external_ok ? 'external ok' : 'local only') + '">' + (a.external_ok ? '&#128275;' : '&#128274;') + '</span>';
+  return '<div class="chip"><span class="chip-name">' + esc(a.call_name || a.name) + '</span>' + tierBadge + extGlyph + '</div>';
+}
+function renderWheelStage() {
+  const stage = document.getElementById('wheel-stage');
+  const svg = document.getElementById('wheel-svg');
+  const legend = document.getElementById('wheel-legend');
+  if (!stage || !svg) return;
+  stage.querySelectorAll('.wheel-node').forEach(node => node.remove());
+  svg.innerHTML = '';
+  const cats = state.categories || [];
+  const n = cats.length;
+  if (legend) legend.textContent = n + ' role categor' + (n === 1 ? 'y' : 'ies') + ' · click a node to inspect & customize';
+  if (!n) return;
+  const radius = 37;
+  cats.forEach((cat, i) => {
+    const angleDeg = -90 + (i * 360 / n);
+    const angleRad = angleDeg * Math.PI / 180;
+    const cx = 50 + radius * Math.cos(angleRad);
+    const cy = 50 + radius * Math.sin(angleRad);
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', '50');
+    line.setAttribute('y1', '50');
+    line.setAttribute('x2', String(cx));
+    line.setAttribute('y2', String(cy));
+    line.setAttribute('data-cat', cat.id);
+    if (cat.id === selectedCategoryId) { line.classList.add('selected'); line.setAttribute('stroke', cat.color); }
+    svg.appendChild(line);
+
+    const isEmpty = !cat.count;
+    const isSelected = cat.id === selectedCategoryId;
+    const node = document.createElement('div');
+    node.className = 'wheel-node' + (isEmpty ? ' is-empty' : '');
+    node.style.left = cx + '%';
+    node.style.top = cy + '%';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'node-btn' + (isEmpty ? ' is-empty' : '');
+    btn.style.setProperty('--node-color', cat.color);
+    btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+    btn.setAttribute('data-cat', cat.id);
+    btn.setAttribute('aria-label', cat.name + ' category, ' + cat.count + ' agent' + (cat.count === 1 ? '' : 's'));
+    btn.innerHTML = esc(cat.icon) + '<span class="node-dot" style="--node-color:' + esc(cat.color) + '"></span>';
+    btn.addEventListener('click', () => selectWheelCategory(cat.id, true));
+    btn.addEventListener('keydown', ev => {
+      const idx = cats.findIndex(c => c.id === cat.id);
+      let next = null;
+      if (ev.key === 'ArrowRight' || ev.key === 'ArrowDown') next = cats[(idx + 1) % n];
+      else if (ev.key === 'ArrowLeft' || ev.key === 'ArrowUp') next = cats[(idx - 1 + n) % n];
+      if (next) {
+        ev.preventDefault();
+        selectWheelCategory(next.id, true);
+        const nextBtn = stage.querySelector('.node-btn[data-cat="' + next.id + '"]');
+        if (nextBtn) nextBtn.focus();
+      }
+    });
+
+    const label = document.createElement('div');
+    label.className = 'node-label';
+    label.textContent = cat.name;
+    const count = document.createElement('div');
+    count.className = 'node-count';
+    count.textContent = cat.count + ' agent' + (cat.count === 1 ? '' : 's');
+
+    node.appendChild(btn);
+    node.appendChild(label);
+    node.appendChild(count);
+    stage.appendChild(node);
+  });
+}
+function renderWheelDetail() {
+  const detail = document.getElementById('wheel-detail');
+  if (!detail) return;
+  const cat = wheelCatById(selectedCategoryId);
+  if (!cat) {
+    detail.innerHTML = '<div class="empty-state"><div class="glyph">&#127920;</div><div><strong>No role categories configured.</strong></div></div>';
+    return;
+  }
+  let html = '';
+  html += '<div class="detail-head"><div class="detail-swatch" style="--node-color:' + esc(cat.color) + '">' + esc(cat.icon) + '</div><div><h3>' + esc(cat.name) + '</h3><div class="detail-count">' + cat.count + ' agent' + (cat.count === 1 ? '' : 's') + '</div></div></div>';
+  html += '<div><div class="detail-row-label">Routing preset</div><div class="chip-row">' + laneBadge(cat.lane) + '<span class="tier-badge">' + esc(cat.tier) + '</span></div></div>';
+  html += '<div><div class="detail-row-label">Agents</div>';
+  if (!cat.agents || !cat.agents.length) {
+    html += '<div class="empty-state"><div class="glyph">&#128101;</div><div><strong>No agents assigned to this category yet.</strong></div><div>Configure with <code>daedalus categories set ' + esc(cat.id) + ' --agents ...</code></div></div>';
+  } else {
+    html += '<div class="chip-row">' + cat.agents.map(wheelAgentChip).join('') + '</div>';
+  }
+  html += '</div>';
+  html += '<div><div class="detail-row-label">Customize &mdash; color</div><div class="swatch-row" role="group" aria-label="Recolor ' + esc(cat.name) + '">' +
+    WHEEL_COLOR_CHOICES.map(hex => '<button type="button" class="swatch-btn" style="background:' + hex + '" data-hex="' + hex + '" aria-pressed="' + (hex.toLowerCase() === String(cat.color).toLowerCase()) + '" aria-label="Set color ' + hex + '"></button>').join('') +
+    '</div><div class="customize-readout">Color: ' + esc(cat.color) + '</div></div>';
+  html += '<div><div class="detail-row-label">Customize &mdash; icon</div><div class="emoji-row" role="group" aria-label="Re-icon ' + esc(cat.name) + '">' +
+    WHEEL_ICON_CHOICES.map(icon => '<button type="button" class="emoji-btn" data-icon="' + icon + '" aria-pressed="' + (icon === cat.icon) + '" aria-label="Set icon">' + icon + '</button>').join('') +
+    '</div><div class="customize-readout">Icon: ' + esc(cat.icon) + '</div></div>';
+  detail.innerHTML = html;
+}
+function selectWheelCategory(id, userInitiated) {
+  selectedCategoryId = id;
+  renderWheelStage();
+  renderWheelDetail();
+  if (userInitiated) {
+    const cat = wheelCatById(id);
+    if (cat) wheelAnnounce('Selected ' + cat.name + ' — ' + cat.count + ' agent' + (cat.count === 1 ? '' : 's') + '.');
+  }
+}
+function renderRoleWheel() {
+  const cats = state.categories || [];
+  if (!selectedCategoryId || !cats.some(c => c.id === selectedCategoryId)) {
+    selectedCategoryId = cats.length ? cats[0].id : null;
+  }
+  renderWheelStage();
+  renderWheelDetail();
+}
+function renderAll() { renderProjects(); renderOverview(); renderQueue(); renderSquads(); renderModels(); renderQuality(); renderRoleWheel(); }
 function save() {
   const activeAgents = Array.from(document.querySelectorAll('.toggle.on[data-agent]')).map(el => el.dataset.agent);
   vscode.postMessage({ type: 'saveTeam', project: projectEl.value, maxWorkers: workersEl.value, defaultLane: laneEl.value, activeAgents });
@@ -714,6 +890,16 @@ document.body.addEventListener('click', ev => {
   const copy = ev.target && ev.target.dataset && ev.target.dataset.copy;
   if (action) vscode.postMessage({ type: action, project: projectEl.value });
   if (copy) vscode.postMessage({ type: 'copy', text: copy });
+});
+document.getElementById('wheel-detail').addEventListener('click', ev => {
+  const swatch = ev.target.closest('.swatch-btn[data-hex]');
+  const emoji = ev.target.closest('.emoji-btn[data-icon]');
+  if (!swatch && !emoji) return;
+  const cat = wheelCatById(selectedCategoryId);
+  if (!cat) return;
+  const payload = { type: 'setCategory', project: projectEl.value, id: cat.id };
+  if (swatch) payload.color = swatch.dataset.hex; else payload.icon = emoji.dataset.icon;
+  vscode.postMessage(payload);
 });
 vscode.postMessage({ type: 'ready' });
 </script>
@@ -767,6 +953,14 @@ function bindDashboardWebview(context, webview) {
         await postState(message.project);
       } else if (message.type === "openLatest") {
         await openLatestReport(context, lastState);
+      } else if (message.type === "setCategory") {
+        const args = ["-m", "daedalus.cli", "categories", "set", message.id];
+        if (message.color) args.push("--color", message.color);
+        if (message.icon) args.push("--icon", message.icon);
+        if (message.project) args.push("--project", message.project);
+        await runPython(context, args);
+        await postState(message.project);
+        vscode.window.showInformationMessage(`Updated category '${message.id}'${message.project ? ` for ${message.project}` : ""}`);
       } else if (message.type === "copy") {
         await vscode.env.clipboard.writeText(message.text || "");
         vscode.window.showInformationMessage(`Copied: ${message.text}`);

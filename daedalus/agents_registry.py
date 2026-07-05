@@ -55,6 +55,8 @@ def validate_role(role: dict[str, Any]) -> list[str]:
         errors.append("output_schema must be a non-empty string")
     if not isinstance(role.get("call_name", ""), str):
         errors.append("call_name must be a string")
+    if not isinstance(role.get("category", ""), str):
+        errors.append("category must be a string")
     return errors
 
 
@@ -69,6 +71,7 @@ def normalize_role(role: dict[str, Any]) -> dict[str, Any]:
         "triggers": list(role.get("triggers", [])),
         "must_read": list(role.get("must_read", [])),
         "output_schema": role.get("output_schema", "agent_report_v1"),
+        "category": role.get("category", ""),
     }
 
 

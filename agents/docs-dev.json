@@ -6,5 +6,6 @@
   "owns": ["README.md", "docs", "TCT_app/README.md", "TCT_app/SCAN_DATA_FORMAT.md"],
   "triggers": ["docs", "readme", "setup", "architecture", "operating instructions", "troubleshooting"],
   "must_read": ["docs/ARCHITECTURE.md"],
-  "output_schema": "agent_report_v1"
+  "output_schema": "agent_report_v1",
+  "category": "docs"
 }

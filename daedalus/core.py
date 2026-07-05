@@ -475,8 +475,22 @@ def get_dashboard(project: str | None = None) -> dict[str, Any]:
         routing=routing_summary(selected, watcher, models, quality),
         enforcement=enf,
         claude_crew=detect_claude_crew(repo_root),
+        categories=get_categories(selected).get("categories", []),
         warnings=list(dict.fromkeys(warnings)),
     )
+
+
+def get_categories(project: str | None = None) -> dict[str, Any]:
+    from . import categories as cats
+
+    pdata, load_warning = _safe_load_project(project)
+    repo_root = pdata.get("repo_root") if pdata else None
+    try:
+        rows = cats.get_categories_joined(repo_root)
+    except (OSError, ValueError, json.JSONDecodeError):
+        rows = []
+    warnings = [load_warning] if load_warning else []
+    return envelope(project, categories=rows, warnings=warnings)
 
 
 def queue_task(
@@ -488,10 +502,21 @@ def queue_task(
     paths: list[str] | None = None,
 ) -> dict[str, Any]:
     from .file_bridge import enqueue
+    from .router import route_task
 
     repo_root = resolve_repo_root(None, project)
-    path = enqueue(objective, repo_root, paths or [], lane=lane, project=project, source=source, strategy=strategy)
-    return envelope(project, queued=str(path), lane=lane, source=source, strategy=strategy)
+    # Best-effort: tag the payload with the routed/owning agent's category so
+    # the bus/reports carry it. This is metadata only -- it never changes
+    # `lane`, which the caller/policy already decided.
+    category = ""
+    try:
+        owner = route_task(objective, paths or [], repo_root=repo_root)
+        category = owner.get("category", "") or ""
+    except Exception:
+        category = ""
+    path = enqueue(objective, repo_root, paths or [], lane=lane, project=project,
+                    source=source, strategy=strategy, category=category)
+    return envelope(project, queued=str(path), lane=lane, source=source, strategy=strategy, category=category)
 
 
 def review_diff(project: str, lane: str = "local_only") -> dict[str, Any]:

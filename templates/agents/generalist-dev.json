@@ -6,5 +6,6 @@
   "owns": ["src/", "lib/", "app/"],
   "triggers": ["implement", "feature", "bug", "fix", "refactor", "function", "module", "api", "endpoint"],
   "must_read": ["README.md"],
-  "output_schema": "agent_report_v1"
+  "output_schema": "agent_report_v1",
+  "category": "implementation"
 }

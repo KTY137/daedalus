@@ -26,10 +26,17 @@ def _agent_dir_for(repo_root: str | None) -> Path:
     return AGENT_DIR
 
 
+# Non-role files that may share an agent-role directory (e.g. the
+# role-category taxonomy's global seed lives at agents/categories.json).
+_NON_ROLE_FILES = {"categories.json"}
+
+
 def load_agents(repo_root: str | None = None, active_agents: list[str] | None = None) -> list[dict]:
     active = set(active_agents or [])
     agents: list[dict] = []
     for path in sorted(_agent_dir_for(repo_root).glob("*.json")):
+        if path.name in _NON_ROLE_FILES:
+            continue
         agent = json.loads(path.read_text(encoding="utf-8"))
         if active and agent.get("name") not in active:
             continue

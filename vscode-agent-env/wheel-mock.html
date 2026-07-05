@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mission Control — Role Wheel Mockup</title>
+<style>
+  /* ---------------------------------------------------------------------
+     TOKENS — copied 1:1 from mockup.html so this stays in the same
+     design system. --vscode-* vars get dark fallbacks for standalone
+     rendering; a real webview overrides these automatically.
+     Additionally exposes explicit [data-theme] overrides (on top of the
+     prefers-color-scheme media query) so this mock can be flipped
+     light/dark without touching OS settings — see the "Theme (demo)"
+     button in the topbar. The [data-theme] attribute is a mock-only
+     convenience; the real extension never needs it because VS Code
+     injects the right --vscode-* values itself.
+     --------------------------------------------------------------------- */
+  :root {
+    color-scheme: dark;
+    --vscode-font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    --vscode-editor-background: #1e1e1e;
+    --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d;
+    --vscode-panel-border: #2b2b2b;
+    --vscode-sideBar-background: #252526;
+    --vscode-editorWidget-background: #252526;
+    --vscode-textCodeBlock-background: #0a0a0a;
+    --vscode-input-background: #3c3c3c;
+    --vscode-input-foreground: #cccccc;
+    --vscode-input-border: #3c3c3c;
+    --vscode-button-background: #0e639c;
+    --vscode-button-foreground: #ffffff;
+    --vscode-button-hoverBackground: #1177bb;
+    --vscode-button-secondaryBackground: #3a3d41;
+    --vscode-button-secondaryForeground: #cccccc;
+    --vscode-tab-activeBackground: #1e1e1e;
+    --vscode-tab-activeForeground: #ffffff;
+    --vscode-textLink-foreground: #3794ff;
+    --vscode-focusBorder: #007fd4;
+    --vscode-testing-iconPassed: #73c991;
+    --vscode-editorWarning-foreground: #cca700;
+    --vscode-testing-iconFailed: #f14c4c;
+    --vscode-charts-blue: #3794ff;
+    --vscode-charts-green: #89d185;
+    --vscode-charts-orange: #d18616;
+    --vscode-charts-purple: #b180d7;
+    --vscode-charts-yellow: #d7ba7d;
+    --vscode-charts-red: #f14c4c;
+
+    /* semantic layer */
+    --mc-surface: var(--vscode-editor-background);
+    --mc-surface-elevated: var(--vscode-sideBar-background);
+    --mc-surface-card: var(--vscode-editorWidget-background);
+    --mc-text: var(--vscode-foreground);
+    --mc-text-muted: var(--vscode-descriptionForeground);
+    --mc-border: var(--vscode-panel-border);
+    --mc-accent: var(--vscode-textLink-foreground);
+    --mc-focus: var(--vscode-focusBorder);
+    --mc-success: var(--vscode-testing-iconPassed);
+    --mc-warning: var(--vscode-editorWarning-foreground);
+    --mc-danger: var(--vscode-testing-iconFailed);
+
+    /* spacing scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    --space-6: 32px;
+
+    /* type scale */
+    --text-micro: 11px;
+    --text-small: 12px;
+    --text-base: 13px;
+    --text-medium: 13px;
+    --text-large: 15px;
+    --text-xl: 18px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --vscode-editor-background: #ffffff;
+      --vscode-foreground: #3b3b3b;
+      --vscode-descriptionForeground: #717171;
+      --vscode-panel-border: #e5e5e5;
+      --vscode-sideBar-background: #f3f3f3;
+      --vscode-editorWidget-background: #f3f3f3;
+      --vscode-textCodeBlock-background: #f0f0f0;
+      --vscode-input-background: #ffffff;
+      --vscode-input-foreground: #3b3b3b;
+      --vscode-input-border: #cecece;
+      --vscode-button-background: #005fb8;
+      --vscode-button-foreground: #ffffff;
+      --vscode-button-hoverBackground: #0258a8;
+      --vscode-button-secondaryBackground: #e5e5e5;
+      --vscode-button-secondaryForeground: #3b3b3b;
+      --vscode-tab-activeBackground: #ffffff;
+      --vscode-tab-activeForeground: #000000;
+      --vscode-textLink-foreground: #005fb8;
+      --vscode-focusBorder: #005fb8;
+      --vscode-testing-iconPassed: #388a34;
+      --vscode-editorWarning-foreground: #9f6a00;
+      --vscode-testing-iconFailed: #d1274b;
+      --vscode-charts-blue: #005fb8;
+      --vscode-charts-green: #388a34;
+      --vscode-charts-orange: #b5610a;
+      --vscode-charts-purple: #9137c0;
+      --vscode-charts-yellow: #9f6a00;
+      --vscode-charts-red: #d1274b;
+    }
+  }
+
+  /* explicit overrides — win over prefers-color-scheme via specificity,
+     regardless of source order (attribute selector = 0,2,0 > :root = 0,1,0) */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --vscode-editor-background: #1e1e1e;
+    --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d;
+    --vscode-panel-border: #2b2b2b;
+    --vscode-sideBar-background: #252526;
+    --vscode-editorWidget-background: #252526;
+    --vscode-textCodeBlock-background: #0a0a0a;
+    --vscode-input-background: #3c3c3c;
+    --vscode-input-foreground: #cccccc;
+    --vscode-input-border: #3c3c3c;
+    --vscode-button-secondaryBackground: #3a3d41;
+    --vscode-button-secondaryForeground: #cccccc;
+    --vscode-tab-activeBackground: #1e1e1e;
+    --vscode-tab-activeForeground: #ffffff;
+    --vscode-textLink-foreground: #3794ff;
+    --vscode-focusBorder: #007fd4;
+    --vscode-testing-iconPassed: #73c991;
+    --vscode-editorWarning-foreground: #cca700;
+    --vscode-testing-iconFailed: #f14c4c;
+    --vscode-charts-blue: #3794ff;
+    --vscode-charts-green: #89d185;
+    --vscode-charts-orange: #d18616;
+    --vscode-charts-purple: #b180d7;
+    --vscode-charts-yellow: #d7ba7d;
+    --vscode-charts-red: #f14c4c;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --vscode-editor-background: #ffffff;
+    --vscode-foreground: #3b3b3b;
+    --vscode-descriptionForeground: #717171;
+    --vscode-panel-border: #e5e5e5;
+    --vscode-sideBar-background: #f3f3f3;
+    --vscode-editorWidget-background: #f3f3f3;
+    --vscode-textCodeBlock-background: #f0f0f0;
+    --vscode-input-background: #ffffff;
+    --vscode-input-foreground: #3b3b3b;
+    --vscode-input-border: #cecece;
+    --vscode-button-secondaryBackground: #e5e5e5;
+    --vscode-button-secondaryForeground: #3b3b3b;
+    --vscode-tab-activeBackground: #ffffff;
+    --vscode-tab-activeForeground: #000000;
+    --vscode-textLink-foreground: #005fb8;
+    --vscode-focusBorder: #005fb8;
+    --vscode-testing-iconPassed: #388a34;
+    --vscode-editorWarning-foreground: #9f6a00;
+    --vscode-testing-iconFailed: #d1274b;
+    --vscode-charts-blue: #005fb8;
+    --vscode-charts-green: #388a34;
+    --vscode-charts-orange: #b5610a;
+    --vscode-charts-purple: #9137c0;
+    --vscode-charts-yellow: #9f6a00;
+    --vscode-charts-red: #d1274b;
+  }
+
+  /* ---------------------------------------------------------------------
+     RESET / BASE
+     --------------------------------------------------------------------- */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: var(--vscode-font-family);
+    font-size: var(--text-base);
+    color: var(--mc-text);
+    background: var(--mc-surface);
+    line-height: 1.45;
+  }
+  h1, h2, h3, p, ul { margin: 0; }
+  ul { padding: 0; list-style: none; }
+  button, select { font-family: inherit; font-size: inherit; }
+  code, pre { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+
+  :focus-visible {
+    outline: 2px solid var(--mc-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ---------------------------------------------------------------------
+     APP SHELL (same shape as mockup.html so this ports 1:1 as a 6th tab)
+     --------------------------------------------------------------------- */
+  .app { max-width: 1040px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  header.topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--space-3); padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--mc-border);
+    background: var(--mc-surface-elevated);
+    position: sticky; top: 0; z-index: 5;
+  }
+  header.topbar h1 { font-size: var(--text-large); font-weight: 600; }
+  header.topbar .sub { color: var(--mc-text-muted); font-size: var(--text-small); }
+
+  nav.tabs {
+    display: flex; gap: 2px; padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--mc-border);
+    background: var(--mc-surface);
+    overflow-x: auto;
+  }
+  .tab {
+    appearance: none; border: 0; background: transparent; cursor: pointer;
+    color: var(--mc-text-muted);
+    padding: var(--space-3) var(--space-3);
+    font-size: var(--text-base);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--mc-text); background: var(--mc-surface-elevated); }
+  .tab.active {
+    color: var(--vscode-tab-activeForeground);
+    background: var(--vscode-tab-activeBackground);
+    border-bottom-color: var(--mc-accent);
+    font-weight: 600;
+  }
+  .tab.decorative { cursor: default; opacity: .55; }
+
+  main { flex: 1; padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-5); }
+
+  section.block { display: flex; flex-direction: column; gap: var(--space-3); }
+  section.block > h2 { font-size: var(--text-large); font-weight: 600; }
+  section.block > .desc { color: var(--mc-text-muted); font-size: var(--text-small); margin-top: calc(-1 * var(--space-2)); }
+
+  .demo-toolbar { display: flex; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+  button.btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);
+    border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; font-size: var(--text-small);
+  }
+  button.btn:hover { background: color-mix(in srgb, var(--mc-accent) 15%, var(--vscode-button-secondaryBackground)); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 999px; padding: 2px 8px; font-size: var(--text-micro); font-weight: 600;
+    border: 1px solid var(--mc-border); white-space: nowrap;
+  }
+  .badge .glyph { line-height: 1; }
+  .badge.lane { color: var(--mc-text); }
+  .badge.lane .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .lane-local_only .dot { background: var(--vscode-charts-blue); }
+  .lane-local .dot { background: var(--vscode-charts-purple); }
+  .lane-auto .dot { background: var(--vscode-charts-yellow); }
+  .lane-claude .dot { background: var(--vscode-charts-orange); }
+  .tier-badge { background: var(--mc-surface-elevated); color: var(--mc-text-muted); border-radius: 3px; padding: 2px 6px; font-size: var(--text-micro); border: 1px solid var(--mc-border); }
+
+  .chip {
+    display: flex; align-items: center; gap: var(--space-2);
+    border: 1px solid var(--mc-border); border-radius: 999px;
+    padding: 4px 6px 4px 10px; background: var(--mc-surface);
+  }
+  .chip .chip-name { font-size: var(--text-small); font-weight: 600; }
+  .chip .ext-glyph { font-size: var(--text-small); }
+  .chip-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+    padding: var(--space-5) var(--space-4); color: var(--mc-text-muted); text-align: center;
+    border: 1px dashed var(--mc-border); border-radius: 6px;
+  }
+  .empty-state .glyph { font-size: 20px; opacity: .6; }
+
+  /* ---------------------------------------------------------------------
+     ROLE WHEEL
+     --------------------------------------------------------------------- */
+  .wheel-wrap { display: flex; gap: var(--space-5); flex-wrap: wrap; align-items: flex-start; }
+
+  .wheel-stage {
+    position: relative;
+    width: min(92vw, 460px);
+    aspect-ratio: 1 / 1;
+    flex: none;
+    margin: 0 auto;
+  }
+  .wheel-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .wheel-svg line {
+    stroke: var(--mc-border); stroke-width: 1;
+    transition: stroke .12s ease, stroke-width .12s ease;
+  }
+  .wheel-svg line.selected { stroke-width: 2; }
+
+  .wheel-hub {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 26%; aspect-ratio: 1 / 1; border-radius: 50%;
+    background: var(--mc-surface-card); border: 1px solid var(--mc-border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; gap: 2px; padding: var(--space-1);
+    box-shadow: 0 0 0 6px var(--mc-surface);
+  }
+  .wheel-hub .hub-icon { font-size: 20px; }
+  .wheel-hub .hub-label { font-size: var(--text-small); font-weight: 700; }
+  .wheel-hub .hub-sub { font-size: 9px; color: var(--mc-text-muted); text-transform: uppercase; letter-spacing: .04em; }
+
+  .wheel-node {
+    position: absolute; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    width: 84px; text-align: center;
+  }
+  .node-btn {
+    appearance: none; cursor: pointer; position: relative;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--mc-surface-card); border: 2px solid var(--mc-border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; padding: 0;
+    transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .node-btn:hover { border-color: color-mix(in srgb, var(--node-color, var(--mc-accent)) 60%, var(--mc-border)); }
+  .node-btn[aria-pressed="true"] {
+    border-color: var(--mc-accent);
+    background: var(--mc-surface-elevated);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mc-accent) 35%, transparent);
+  }
+  .node-btn.is-empty { border-style: dashed; }
+  .node-dot {
+    position: absolute; right: -2px; bottom: -2px; width: 13px; height: 13px;
+    border-radius: 50%; border: 2px solid var(--mc-surface); background: var(--node-color, var(--mc-text-muted));
+  }
+  .wheel-node .node-label { font-size: var(--text-small); font-weight: 600; line-height: 1.2; }
+  .wheel-node .node-count { font-size: var(--text-micro); color: var(--mc-text-muted); }
+  .wheel-node.is-empty .node-label,
+  .wheel-node.is-empty .node-count { color: var(--mc-text-muted); }
+
+  .wheel-legend { font-size: var(--text-micro); color: var(--mc-text-muted); text-align: center; margin-top: var(--space-2); }
+
+  /* ------ detail panel ------ */
+  .wheel-detail {
+    flex: 1 1 280px; min-width: 260px;
+    background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px;
+    padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3);
+  }
+  .wheel-detail .detail-head { display: flex; align-items: center; gap: var(--space-2); }
+  .wheel-detail .detail-swatch {
+    width: 28px; height: 28px; border-radius: 50%; flex: none;
+    background: var(--node-color, var(--mc-text-muted)); border: 1px solid var(--mc-border);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .wheel-detail h3 { font-size: var(--text-large); font-weight: 600; }
+  .wheel-detail .detail-count { font-size: var(--text-small); color: var(--mc-text-muted); }
+
+  .detail-row-label { font-size: var(--text-micro); text-transform: uppercase; letter-spacing: .03em; color: var(--mc-text-muted); margin-bottom: var(--space-1); }
+
+  .swatch-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .swatch-btn {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--mc-border);
+    cursor: pointer; padding: 0; transition: border-color .12s ease, box-shadow .12s ease;
+  }
+  .swatch-btn:hover { border-color: var(--mc-text); }
+  .swatch-btn[aria-pressed="true"] { border-color: var(--mc-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mc-accent) 35%, transparent); }
+
+  .emoji-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+  .emoji-btn {
+    width: 30px; height: 30px; border-radius: 4px; border: 1px solid var(--mc-border);
+    background: var(--mc-surface); cursor: pointer; font-size: 15px; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color .12s ease, background .12s ease;
+  }
+  .emoji-btn:hover { border-color: color-mix(in srgb, var(--mc-accent) 60%, var(--mc-border)); }
+  .emoji-btn[aria-pressed="true"] { border-color: var(--mc-accent); background: var(--mc-surface-elevated); }
+
+  .customize-readout { font-size: var(--text-micro); color: var(--mc-text-muted); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+  }
+
+  /* ------ didactic state gallery ------ */
+  .state-strip { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: flex-start; }
+  .state-swatch { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .state-swatch .swatch-label { font-size: var(--text-micro); text-transform: uppercase; letter-spacing: .03em; color: var(--mc-text-muted); }
+
+  footer.foot { padding: var(--space-4); text-align: center; color: var(--mc-text-muted); font-size: var(--text-micro); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Mission Control</h1>
+      <div class="sub">Role Wheel — static design mock, port 1:1 as 6th tab</div>
+    </div>
+    <div class="demo-toolbar">
+      <button class="btn" id="theme-toggle">Theme: system (demo)</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Mission Control views">
+    <button class="tab decorative" role="tab" aria-selected="false" tabindex="-1" title="Not part of this mock">Overview</button>
+    <button class="tab decorative" role="tab" aria-selected="false" tabindex="-1" title="Not part of this mock">Queue Timeline</button>
+    <button class="tab decorative" role="tab" aria-selected="false" tabindex="-1" title="Not part of this mock">Agent Squads</button>
+    <button class="tab decorative" role="tab" aria-selected="false" tabindex="-1" title="Not part of this mock">Model Resources</button>
+    <button class="tab decorative" role="tab" aria-selected="false" tabindex="-1" title="Not part of this mock">Quality Gates</button>
+    <button class="tab active" role="tab" aria-selected="true">Role Wheel</button>
+  </nav>
+
+  <main>
+    <section class="block">
+      <h2>Role Wheel</h2>
+      <div class="desc">
+        Radial browser for the role-category taxonomy. Ikarus sits at the hub; each spoke is a
+        role category. Click a node (or arrow-key between nodes, then Enter/Space) to inspect its
+        agents and routing preset, and to recolor / re-icon it.
+      </div>
+
+      <div class="wheel-wrap">
+        <div>
+          <div class="wheel-stage" id="wheel-stage" role="group" aria-label="Role categories">
+            <svg class="wheel-svg" id="wheel-svg" viewBox="0 0 100 100" aria-hidden="true"></svg>
+            <div class="wheel-hub">
+              <div class="hub-icon">&#9992;&#65039;</div>
+              <div class="hub-label">Ikarus</div>
+              <div class="hub-sub">hub</div>
+            </div>
+            <!-- nodes injected by JS -->
+          </div>
+          <div class="wheel-legend">8 role categories &middot; click a node to inspect &amp; customize</div>
+        </div>
+
+        <div class="wheel-detail" id="wheel-detail">
+          <!-- populated by JS -->
+        </div>
+      </div>
+      <div class="sr-only" role="status" aria-live="polite" id="wheel-status"></div>
+    </section>
+
+    <section class="block">
+      <div class="desc">Node state reference (not live data) — every wheel node supports these states:</div>
+      <div class="state-strip">
+        <div class="state-swatch">
+          <span class="swatch-label">Default</span>
+          <div class="node-btn" style="--node-color:#3794ff;">&#128736;&#65039;<span class="node-dot"></span></div>
+        </div>
+        <div class="state-swatch">
+          <span class="swatch-label">Hover</span>
+          <div class="node-btn" style="--node-color:#b180d7;border-color:color-mix(in srgb, #b180d7 60%, var(--mc-border));">&#128269;<span class="node-dot"></span></div>
+        </div>
+        <div class="state-swatch">
+          <span class="swatch-label">Selected</span>
+          <div class="node-btn" aria-pressed="true" style="--node-color:#e07b53;">&#127912;<span class="node-dot"></span></div>
+        </div>
+        <div class="state-swatch">
+          <span class="swatch-label">Focus-visible</span>
+          <div class="node-btn" style="--node-color:#73c991;outline:2px solid var(--mc-focus);outline-offset:2px;">&#129514;<span class="node-dot"></span></div>
+        </div>
+        <div class="state-swatch">
+          <span class="swatch-label">Empty (0 agents)</span>
+          <div class="node-btn is-empty" style="--node-color:#d97ad9;">&#128451;&#65039;<span class="node-dot"></span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">Role Wheel — static design mock, no live daedalus data connected.</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // FAKE DATA — shape matches the real contract exactly:
+  // { id, name, icon(emoji), color(hex), lane, tier, agents: [{name, call_name, model_tier, external_ok}], count }
+  // ---------------------------------------------------------------------
+  var categories = [
+    {
+      id: "implementation", name: "Implementation", icon: "🛠️", color: "#3794ff",
+      lane: "local", tier: "default worker",
+      agents: [
+        { name: "generalist-dev", call_name: "generalist-dev", model_tier: "local-7b", external_ok: false },
+        { name: "Noah", call_name: "Noah", model_tier: "sonnet", external_ok: true }
+      ]
+    },
+    {
+      id: "review", name: "Review", icon: "🔍", color: "#b180d7",
+      lane: "claude", tier: "opus",
+      agents: [
+        { name: "reviewer", call_name: "reviewer", model_tier: "opus", external_ok: false },
+        { name: "Mary", call_name: "Mary", model_tier: "opus", external_ok: false }
+      ]
+    },
+    {
+      id: "design", name: "Design", icon: "🎨", color: "#e07b53",
+      lane: "auto", tier: "sonnet",
+      agents: [
+        { name: "Vera", call_name: "Vera", model_tier: "sonnet", external_ok: true }
+      ]
+    },
+    {
+      id: "docs", name: "Docs", icon: "📚", color: "#d7ba7d",
+      lane: "local_only", tier: "local-7b",
+      agents: [
+        { name: "Samantha", call_name: "Samantha", model_tier: "sonnet", external_ok: true },
+        { name: "docs-bot", call_name: "docs-bot", model_tier: "local-7b", external_ok: false }
+      ]
+    },
+    {
+      id: "tests", name: "Tests", icon: "🧪", color: "#73c991",
+      lane: "local", tier: "local-7b",
+      agents: [
+        { name: "tests-dev", call_name: "tests-dev", model_tier: "local-7b", external_ok: false },
+        { name: "Talos", call_name: "Talos", model_tier: "opus", external_ok: false }
+      ]
+    },
+    {
+      id: "research", name: "Research", icon: "🔭", color: "#f14c4c",
+      lane: "claude", tier: "opus",
+      agents: [
+        { name: "Prometheus", call_name: "Prometheus", model_tier: "opus", external_ok: true },
+        { name: "Jonathan", call_name: "Jonathan", model_tier: "sonnet", external_ok: true }
+      ]
+    },
+    {
+      id: "hardware", name: "Hardware", icon: "⚙️", color: "#4fc1c1",
+      lane: "local_only", tier: "opus",
+      agents: [
+        { name: "Paul", call_name: "Paul", model_tier: "opus", external_ok: false },
+        { name: "Abel", call_name: "Abel", model_tier: "opus", external_ok: false }
+      ]
+    },
+    {
+      id: "data", name: "Data", icon: "🗄️", color: "#d97ad9",
+      lane: "auto", tier: "local-7b",
+      agents: []
+    }
+  ];
+  categories.forEach(function (c) { c.count = c.agents.length; });
+
+  var COLOR_CHOICES = ["#3794ff", "#b180d7", "#e07b53", "#d7ba7d", "#73c991", "#f14c4c", "#4fc1c1", "#d97ad9", "#6b8afd", "#a3a3a3"];
+  var ICON_CHOICES = ["🛠️", "🔍", "🎨", "📚", "🧪", "🔭", "⚙️", "🗄️", "🚀", "🧩", "🔐", "📊", "🖥️", "🧬"];
+
+  var LANE_LABEL = { local_only: "local_only", local: "local", auto: "auto", claude: "claude" };
+
+  var stage = document.getElementById("wheel-stage");
+  var svg = document.getElementById("wheel-svg");
+  var detail = document.getElementById("wheel-detail");
+  var status = document.getElementById("wheel-status");
+
+  var selectedId = categories[0].id;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function catById(id) {
+    for (var i = 0; i < categories.length; i++) if (categories[i].id === id) return categories[i];
+    return null;
+  }
+
+  function renderWheel() {
+    // clear previous nodes/lines (keep hub + svg element itself)
+    stage.querySelectorAll(".wheel-node").forEach(function (n) { n.remove(); });
+    svg.innerHTML = "";
+
+    var n = categories.length;
+    var radius = 37; // percent of stage, from center
+    categories.forEach(function (cat, i) {
+      var angleDeg = -90 + (i * 360 / n);
+      var angleRad = angleDeg * Math.PI / 180;
+      var cx = 50 + radius * Math.cos(angleRad);
+      var cy = 50 + radius * Math.sin(angleRad);
+
+      var line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", "50");
+      line.setAttribute("y1", "50");
+      line.setAttribute("x2", String(cx));
+      line.setAttribute("y2", String(cy));
+      line.setAttribute("data-cat", cat.id);
+      if (cat.id === selectedId) {
+        line.classList.add("selected");
+        line.setAttribute("stroke", cat.color);
+      }
+      svg.appendChild(line);
+
+      var isEmpty = cat.count === 0;
+      var isSelected = cat.id === selectedId;
+
+      var node = document.createElement("div");
+      node.className = "wheel-node" + (isEmpty ? " is-empty" : "");
+      node.style.left = cx + "%";
+      node.style.top = cy + "%";
+
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "node-btn" + (isEmpty ? " is-empty" : "");
+      btn.style.setProperty("--node-color", cat.color);
+      btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      btn.setAttribute("data-cat", cat.id);
+      btn.setAttribute("aria-label", cat.name + " category, " + cat.count + " agent" + (cat.count === 1 ? "" : "s"));
+      btn.innerHTML = cat.icon + '<span class="node-dot" style="--node-color:' + cat.color + '"></span>';
+      btn.addEventListener("click", function () { selectCategory(cat.id, true); });
+      btn.addEventListener("keydown", function (ev) {
+        var idx = categories.findIndex(function (c) { return c.id === cat.id; });
+        var next = null;
+        if (ev.key === "ArrowRight" || ev.key === "ArrowDown") next = categories[(idx + 1) % n];
+        else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") next = categories[(idx - 1 + n) % n];
+        if (next) {
+          ev.preventDefault();
+          selectCategory(next.id, true);
+          var nextBtn = stage.querySelector('.node-btn[data-cat="' + next.id + '"]');
+          if (nextBtn) nextBtn.focus();
+        }
+      });
+
+      var label = document.createElement("div");
+      label.className = "node-label";
+      label.textContent = cat.name;
+
+      var count = document.createElement("div");
+      count.className = "node-count";
+      count.textContent = cat.count + " agent" + (cat.count === 1 ? "" : "s");
+
+      node.appendChild(btn);
+      node.appendChild(label);
+      node.appendChild(count);
+      stage.appendChild(node);
+    });
+  }
+
+  function renderDetail() {
+    var cat = catById(selectedId);
+    if (!cat) { detail.innerHTML = ""; return; }
+
+    var html = "";
+    html += '<div class="detail-head">';
+    html += '  <div class="detail-swatch" style="--node-color:' + cat.color + '">' + cat.icon + '</div>';
+    html += '  <div>';
+    html += '    <h3>' + escapeHtml(cat.name) + '</h3>';
+    html += '    <div class="detail-count">' + cat.count + ' agent' + (cat.count === 1 ? "" : "s") + '</div>';
+    html += '  </div>';
+    html += '</div>';
+
+    html += '<div>';
+    html += '  <div class="detail-row-label">Routing preset</div>';
+    html += '  <div class="chip-row">';
+    html += '    <span class="badge lane lane-' + cat.lane + '"><span class="dot"></span>' + LANE_LABEL[cat.lane] + '</span>';
+    html += '    <span class="tier-badge">' + escapeHtml(cat.tier) + '</span>';
+    html += '  </div>';
+    html += '</div>';
+
+    html += '<div>';
+    html += '  <div class="detail-row-label">Agents</div>';
+    if (cat.agents.length === 0) {
+      html += '  <div class="empty-state">';
+      html += '    <div class="glyph">&#128101;</div>';
+      html += '    <div><strong>No agents assigned to this category yet.</strong></div>';
+      html += '    <div>Configure with <code>daedalus categories set ' + escapeHtml(cat.id) + ' --agents ...</code></div>';
+      html += '  </div>';
+    } else {
+      html += '  <div class="chip-row">';
+      cat.agents.forEach(function (a) {
+        html += '<div class="chip">';
+        html += '  <span class="chip-name">' + escapeHtml(a.call_name || a.name) + '</span>';
+        html += '  <span class="tier-badge">' + escapeHtml(a.model_tier) + '</span>';
+        html += '  <span class="ext-glyph" title="' + (a.external_ok ? "external ok" : "local only") + '">' + (a.external_ok ? "&#128275;" : "&#128274;") + '</span>';
+        html += '</div>';
+      });
+      html += '  </div>';
+    }
+    html += '</div>';
+
+    html += '<div>';
+    html += '  <div class="detail-row-label">Customize &mdash; color</div>';
+    html += '  <div class="swatch-row" role="group" aria-label="Recolor ' + escapeHtml(cat.name) + '">';
+    COLOR_CHOICES.forEach(function (hex) {
+      var pressed = hex.toLowerCase() === cat.color.toLowerCase();
+      html += '<button type="button" class="swatch-btn" style="background:' + hex + '" data-hex="' + hex + '" aria-pressed="' + pressed + '" aria-label="Set color ' + hex + '"></button>';
+    });
+    html += '  </div>';
+    html += '  <div class="customize-readout">Color: ' + cat.color + '</div>';
+    html += '</div>';
+
+    html += '<div>';
+    html += '  <div class="detail-row-label">Customize &mdash; icon</div>';
+    html += '  <div class="emoji-row" role="group" aria-label="Re-icon ' + escapeHtml(cat.name) + '">';
+    ICON_CHOICES.forEach(function (icon) {
+      var pressed = icon === cat.icon;
+      html += '<button type="button" class="emoji-btn" data-icon="' + icon + '" aria-pressed="' + pressed + '" aria-label="Set icon">' + icon + '</button>';
+    });
+    html += '  </div>';
+    html += '  <div class="customize-readout">Icon: ' + cat.icon + '</div>';
+    html += '</div>';
+
+    detail.innerHTML = html;
+
+    detail.querySelectorAll(".swatch-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        cat.color = btn.getAttribute("data-hex");
+        renderWheel();
+        renderDetail();
+        announce(cat.name + " recolored to " + cat.color + ".");
+      });
+    });
+    detail.querySelectorAll(".emoji-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        cat.icon = btn.getAttribute("data-icon");
+        renderWheel();
+        renderDetail();
+        announce(cat.name + " icon updated.");
+      });
+    });
+  }
+
+  function announce(msg) {
+    status.textContent = msg;
+  }
+
+  function selectCategory(id, userInitiated) {
+    selectedId = id;
+    renderWheel();
+    renderDetail();
+    if (userInitiated) {
+      var cat = catById(id);
+      announce("Selected " + cat.name + " — " + cat.count + " agent" + (cat.count === 1 ? "" : "s") + ".");
+    }
+  }
+
+  renderWheel();
+  renderDetail();
+
+  // ---- theme toggle (demo-only control; real webview never needs this) ----
+  var themeBtn = document.getElementById("theme-toggle");
+  var themeStates = [null, "dark", "light"];
+  var themeIdx = 0;
+  themeBtn.addEventListener("click", function () {
+    themeIdx = (themeIdx + 1) % themeStates.length;
+    var mode = themeStates[themeIdx];
+    if (mode) document.documentElement.setAttribute("data-theme", mode);
+    else document.documentElement.removeAttribute("data-theme");
+    themeBtn.textContent = "Theme: " + (mode || "system") + " (demo)";
+  });
+})();
+</script>
+</body>
+</html>

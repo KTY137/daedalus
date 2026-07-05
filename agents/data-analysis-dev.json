@@ -6,5 +6,6 @@
   "owns": ["TCT_app/data", "TCT_app/analysis", "TCT_app/SCAN_DATA_FORMAT.md"],
   "triggers": ["hdf5", "waveform", "analysis", "calibration", "charge", "plot", "data format"],
   "must_read": ["TCT_app/SCAN_DATA_FORMAT.md", "docs/ARCHITECTURE.md"],
-  "output_schema": "agent_report_v1"
+  "output_schema": "agent_report_v1",
+  "category": "data"
 }

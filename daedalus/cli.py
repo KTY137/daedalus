@@ -14,6 +14,7 @@
     daedalus review-diff --project NAME --lane local_only
     daedalus projects                   list registered projects
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
+    daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -156,6 +157,63 @@ def _agents(argv: list[str]) -> None:
         print(f"removed {args.name}" if ok else f"no writable role '{args.name}' to remove")
 
 
+def _categories(argv: list[str]) -> None:
+    """List / show / recolor role categories -- the icon/color/lane/tier
+    presets that group agent roles for the UI. With --repo-root/--project,
+    `set` writes a per-repo override under .agentenv/categories.json;
+    otherwise the built-in global agents/categories.json."""
+    import argparse
+    import json
+    from . import categories as cats
+    from .projects import resolve_repo_root
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus categories",
+        description="Manage role-category presets (icon/color/lane/tier).")
+    sub = parser.add_subparsers(dest="action", required=True)
+
+    def common(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--repo-root")
+        p.add_argument("--project")
+
+    lp = sub.add_parser("list"); common(lp); lp.add_argument("--json", action="store_true")
+    sp = sub.add_parser("show"); sp.add_argument("id"); common(sp)
+
+    stp = sub.add_parser("set"); stp.add_argument("id"); common(stp)
+    stp.add_argument("--icon")
+    stp.add_argument("--color")
+    stp.add_argument("--lane", choices=list(cats.LANES))
+    stp.add_argument("--tier", choices=list(cats.MODEL_TIERS))
+
+    args = parser.parse_args(argv)
+    repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None
+
+    if args.action == "list":
+        rows = cats.load(repo_root)
+        if args.json:
+            print(json.dumps(rows, indent=2))
+        else:
+            try:
+                sys.stdout.reconfigure(encoding="utf-8")  # emoji icons on cp1252 consoles
+            except (AttributeError, OSError):
+                pass
+            for c in rows:
+                print(f"{c.get('icon')} {c.get('id')}\t{c.get('name')}\t{c.get('lane')}\t{c.get('tier')}")
+    elif args.action == "show":
+        cat = cats.get(args.id, repo_root)
+        print(json.dumps(cat, indent=2) if cat else f"unknown category '{args.id}'")
+    elif args.action == "set":
+        patch: dict = {}
+        if args.icon is not None: patch["icon"] = args.icon
+        if args.color is not None: patch["color"] = args.color
+        if args.lane is not None: patch["lane"] = args.lane
+        if args.tier is not None: patch["tier"] = args.tier
+        try:
+            print(f"wrote {cats.update(args.id, patch, repo_root)}")
+        except (ValueError, KeyError) as exc:
+            print(f"error: {exc}")
+
+
 def _claude_crew(argv: list[str]) -> None:
     """List Claude Code subagents detected in a repo's .claude/agents/ -- the
     frontier crew, distinct from the harness roles Ikarus routes to."""
@@ -220,6 +278,8 @@ def main() -> None:
         _projects(rest)
     elif cmd == "agents":
         _agents(rest)
+    elif cmd == "categories":
+        _categories(rest)
     elif cmd == "claude-crew":
         _claude_crew(rest)
     elif cmd == "enforce":

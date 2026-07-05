@@ -6,5 +6,6 @@
   "owns": ["tests/", "test/", "spec/"],
   "triggers": ["test", "tests", "unit test", "coverage", "fixture", "regression", "pytest", "assert"],
   "must_read": ["README.md"],
-  "output_schema": "agent_report_v1"
+  "output_schema": "agent_report_v1",
+  "category": "tests"
 }

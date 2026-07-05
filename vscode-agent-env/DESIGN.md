@@ -17,6 +17,12 @@ top tabs and `--vscode-*` variables — this spec extends that convention rather
 - Tabs read left-to-right in priority order: **Overview** (the "is everything OK" glance) →
   **Queue Timeline** → **Agent Squads** → **Model Resources** → **Quality Gates** (deepest/least
   frequently checked, rightmost).
+- **Role Wheel** adds a 6th tab, rightmost of all: a radial browser for the role-category
+  taxonomy (browse categories, inspect routing presets, recolor/re-icon). It's checked even less
+  often than Quality Gates once initial squad setup is done, and its content is a single self-
+  contained widget rather than a stack of sections, so it sits past the deepest existing tab. See
+  `wheel-mock.html` for the standalone static mock — port its markup/CSS into the same
+  `.tabs` / `.panel-view` shell `extension.js` already uses for the other five tabs.
 
 Structure per tab: sticky header (title + optional warning banner) → scrollable content area.
 Content area uses a single-column stack on narrow widths; components that are naturally
@@ -188,6 +194,72 @@ surface) surfacing `recommendation` text from the API, e.g. "Use local_only unti
 recovers." Empty state: callout is simply omitted (no "no recommendation" noise) when the string
 is blank.
 
+### Role Wheel
+
+Radial view of the role-category taxonomy, rendered from the data contract:
+`categories: [{id, name, icon(emoji), color(hex), lane, tier, agents:[{name, call_name, model_tier,
+external_ok}], count}]`. Full standalone mock: `wheel-mock.html`.
+
+**Layout / node positioning** — a square `.wheel-stage` (`aspect-ratio: 1/1`, `width: min(92vw,
+460px)`) holds a centered **hub** (Ikarus, fixed at 50%/50%) and one **node** per category placed
+on a circle around it. Position is computed once in JS, not laid out with flex/grid, because it's
+genuinely radial: `angle = -90 + i * 360/n` (first node at 12 o'clock, clockwise from there),
+converted to stage-relative percentages `left = 50 + R·cos(angle)`, `top = 50 + R·sin(angle)` with
+`R = 37` (percent of stage size). Because the stage is a true square, percentage math alone keeps
+the circle a circle at any width — no resize listener needed, it reflows for free as the flex
+container shrinks (sidebar width) or grows (editor-tab width). Spokes are a single absolutely-
+positioned SVG (`viewBox="0 0 100 100"`) with one `<line>` per category from `(50,50)` to the
+node's `(cx, cy)`, drawn in the same percentage space so they stay pinned to the nodes without
+separate positioning math. The detail panel lives beside the wheel in a `flex-wrap` row (`.wheel-
+wrap`) and drops below it on narrow widths, per the standard single-column-stack rule.
+
+**Node** — 46px circle button, category `icon` centered, a small dot in the bottom-right corner
+carrying `color` (`--node-color` custom property, set inline per node so the CSS stays static),
+category `name` and `count` always rendered as text beneath the button. Color is never the only
+signal: icon + name + count are present regardless of theme or color-vision, satisfying "never
+color-only" the same way lane/status badges do elsewhere in this doc.
+- Default: `--mc-border` ring.
+- Hover: ring brightens toward the node's own `color` (`color-mix` against `--mc-border`), cursor
+  pointer.
+- Selected: `aria-pressed="true"`, ring switches to `--mc-accent`, `--mc-surface-elevated` fill, a
+  3px accent glow (`box-shadow`), and the spoke line to that node switches from `--mc-border` to
+  the category's own color at 2px. Only one node selected at a time; arrow keys move the selection
+  (and focus) around the ring, Enter/Space activate — a plain radial layout is otherwise a poor
+  keyboard experience, so this widget gets that affordance instead of relying on Tab order alone.
+- Focus-visible: standard 2px `--mc-focus` outline, offset 2px (native `<button>`, no custom focus
+  handling needed).
+- Empty (category has 0 agents): node ring is dashed instead of solid; label/count render in
+  `--mc-text-muted`; the button's `aria-label` still states "N agents" (0) rather than omitting
+  count. Selecting an empty node is fully supported — it opens the same detail panel, just with
+  the empty-agents state instead of a disabled node.
+
+**Detail panel** — opens for whichever node is selected (one always is; first category selected by
+default, mirroring "no empty initial state"). Header: color swatch (circle, `--node-color`) + icon
++ name + agent count. Body, top to bottom:
+- **Routing preset**: the category's `lane` badge and `tier` badge, reusing the exact `.badge.lane`
+  / `.tier-badge` markup and classes from Agent Squads / Queue Timeline — a category is really just
+  a named routing preset, so it should look like one.
+- **Agents**: a `.chip-row` of agent chips (`call_name` primary text, `model_tier` badge,
+  `external_ok` glyph+label, 🔓/🔒 — never a bare dot), reusing the Agent Squads chip pattern.
+  Empty state: the standard dashed `.empty-state` block ("No agents assigned to this category
+  yet.") plus the CLI hint for how to fix it, not a silently blank panel.
+- **Customize — color**: a row of preset hex swatches (`.swatch-btn`, 22px circles); the swatch
+  matching the category's current color shows `aria-pressed="true"` with an accent ring. Clicking
+  a swatch updates the category's `color` live — node ring, node dot, spoke line, and detail-panel
+  swatch all re-render from the same in-memory object. A text readout ("Color: #3794ff") sits below
+  the row so the change is never color-only either.
+- **Customize — icon**: a row of emoji buttons (`.emoji-btn`) with the same live-update /
+  `aria-pressed` / text-readout treatment for the category's `icon`.
+- In the real extension these two actions call `daedalus categories set <id> --color/--icon`; the
+  mock only mutates the in-memory `categories` array and re-renders, which is exactly the diff
+  Icarus-Jr needs to replace with the real command call.
+
+**Accessibility specifics**: the wheel stage is `role="group"` with an `aria-label`; each node is a
+real `<button>` (native keyboard activation, focus ring, `aria-pressed`, `aria-label` stating name
++ count) rather than a styled `<div>`; a visually-hidden `aria-live="polite"` status region
+announces selection and customization changes for screen-reader users, since the radial layout
+otherwise gives no linear reading order cue for "what changed."
+
 ## 4. Accessibility
 
 - **Contrast**: all text/background combinations rely on VS Code theme tokens, which are
@@ -198,7 +270,8 @@ is blank.
   `outline: none` without a replacement, anywhere.
 - **Never color-only**: every status/lane/gate/toggle pairs color with a text label and/or icon
   glyph (see component specs above). Verified case-by-case: lane badges, status badges,
-  external_ok, active toggle, size bar, disk gauge, fallback meter, pass/fail checklist.
+  external_ok, active toggle, size bar, disk gauge, fallback meter, pass/fail checklist, Role Wheel
+  node ring/dot (always paired with icon, category name, and agent count text).
 - **Motion**: skeleton loading states use a static/opacity-only pulse, not sliding shimmer, to
   stay comfortable under `prefers-reduced-motion` (mockup honors that media query by disabling
   the pulse animation entirely).

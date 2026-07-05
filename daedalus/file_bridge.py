@@ -24,7 +24,8 @@ def _stamp() -> str:
 
 def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonnet",
             lane: str = "auto", project: str | None = None,
-            source: str = "unknown", strategy: str = "single") -> Path:
+            source: str = "unknown", strategy: str = "single",
+            category: str | None = None) -> Path:
     OUTBOX.mkdir(parents=True, exist_ok=True)
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
     path = OUTBOX / f"{_stamp()}-{slug or 'task'}.json"
@@ -47,6 +48,11 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
     }
     if project:
         payload["project"] = project
+    if category:
+        # Additive metadata only -- the role-category tag of the routed/owning
+        # agent, carried through for the UI/bus/reports. Never consulted by
+        # the lane gate in core.process_bridge_payload.
+        payload["category"] = category
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
 

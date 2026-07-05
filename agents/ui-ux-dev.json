@@ -6,5 +6,6 @@
   "owns": ["TCT_app/gui", "gui", "TCT_app/tct_gui.py", "main.py"],
   "triggers": ["gui", "ui", "ux", "pyside", "qt", "panel", "theme", "layout", "plot"],
   "must_read": ["docs/ARCHITECTURE.md", "TCT_app/gui/style.py"],
-  "output_schema": "agent_report_v1"
+  "output_schema": "agent_report_v1",
+  "category": "design"
 }

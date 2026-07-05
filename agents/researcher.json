@@ -6,5 +6,6 @@
   "owns": ["docs/research"],
   "triggers": ["manual", "datasheet", "protocol", "external reference", "source", "spec", "research"],
   "must_read": ["docs/research/README.md"],
-  "output_schema": "research_report_v1"
+  "output_schema": "research_report_v1",
+  "category": "research"
 }
