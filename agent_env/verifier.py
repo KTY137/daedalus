@@ -85,11 +85,25 @@ def verify(
     test_command: str | None = None,
     test_cwd: str | None = None,
     timeout_s: int = 120,
+    require_changes: bool = False,
 ) -> VerifyResult:
     checks: list[dict] = []
 
     errs = validate_report(report)
     checks.append({"name": "schema", "ok": not errs, "detail": "; ".join(errs) or "valid"})
+
+    # Close the silent-ACCEPTANCE hole: a write-mode task that produced no file
+    # changes is a no-op (small models often narrate "I edited X" without ever
+    # calling the write tool). Accepting it fakes 100% savings while nothing got
+    # done -- so the work would silently be lost. Fail it -> escalate to Claude.
+    if require_changes:
+        did_write = bool(report.get("files_changed"))
+        checks.append({
+            "name": "did_work",
+            "ok": did_write,
+            "detail": "wrote files" if did_write else
+                      "write task produced NO file changes (model narrated instead of editing)",
+        })
 
     for rel in report.get("files_changed", []):
         s = str(rel)

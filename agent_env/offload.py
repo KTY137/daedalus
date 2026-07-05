@@ -101,7 +101,11 @@ def offload(
     if pdata and (run_tests or report.get("files_changed")):
         test_command, test_cwd = pdata.get("test_command"), pdata.get("test_cwd")
 
-    vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd)
+    # Write-mode work MUST actually change files -- otherwise it's a silent no-op
+    # that would fake acceptance (zero Claude tokens, zero work done). Advisory
+    # work legitimately produces no writes (Claude applies the draft later).
+    vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
+                require_changes=(decision.mode == "write"))
     result["verify"] = vr.as_dict()
 
     if vr.ok:

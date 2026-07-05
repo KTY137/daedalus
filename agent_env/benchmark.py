@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from dataclasses import dataclass
 
 from .provider_router import select_provider
@@ -148,11 +149,115 @@ def _print_table(rows: list[dict], summary: dict) -> None:
     print("\n(dry estimate; token sizes representative, prices per PRICES dict -- re-verify.)")
 
 
+# --------------------------------------------------------------------------
+# LIVE benchmark: actually run each task through the offload cascade and measure
+# the REAL accept/escalate mix. This is the honest number the dry run can't give:
+# the dry run assumes every eligible task succeeds; here we find out how often the
+# local model clears the verifier gate (accept = zero Claude tokens) vs falls back
+# to Claude (we paid local time AND still owe Claude the full task).
+# --------------------------------------------------------------------------
+
+def _routed_cost_live(task: "Task", res: dict, ckey: str) -> float:
+    """Actual $ this task cost given what really happened on the bench."""
+    action = res.get("action", "")
+    mode = res.get("mode", "")
+    if action == "offloaded":
+        if mode == "advisory":
+            # local drafted for free; Claude still reviews + applies a small diff
+            return _cost("claude_sonnet", APPLY_IN, APPLY_OUT)
+        return 0.0  # ran + wrote locally, verified -> no Claude tokens at all
+    # escalate_to_claude / escalated_after_verify_fail / senior -> Claude does the whole task
+    return _cost(ckey, task.ctx_tokens, task.out_tokens)
+
+
+def run_live(repo_root: str, project: str | None = None, limit: int | None = None,
+             run_tests: bool = False, json_out: bool = False) -> dict:
+    from . import metrics
+    from .offload import offload
+
+    tasks = TASKS[:limit] if limit else TASKS
+    rows = []
+    routed_total = base_opus = base_sonnet = 0.0
+    t_start = time.time()
+    for task in tasks:
+        agent = route_task(task.objective, task.paths)
+        ckey = _claude_key(agent)
+        t0 = time.time()
+        res = offload(task.objective, repo_root, task.paths, live=True,
+                      run_tests=run_tests, project=project)
+        dt = time.time() - t0
+
+        routed = _routed_cost_live(task, res, ckey)
+        opus = _cost("claude_opus", task.ctx_tokens, task.out_tokens)
+        sonnet = _cost("claude_sonnet", task.ctx_tokens, task.out_tokens)
+        routed_total += routed
+        base_opus += opus
+        base_sonnet += sonnet
+
+        rows.append({
+            "task": task.name, "agent": agent["name"],
+            "provider": res.get("provider"), "mode": res.get("mode"),
+            "action": res.get("action"), "risk": res.get("risk"),
+            "seconds": round(dt, 1), "routed_usd": round(routed, 6),
+            "all_opus_usd": round(opus, 6),
+            "verify": (res.get("verify") or {}).get("ok"),
+            "note": res.get("note", ""),
+        })
+
+    wall = round(time.time() - t_start, 1)
+    m = metrics.summary()
+    summary = {
+        "tasks_run": len(rows),
+        "wall_seconds": wall,
+        "routed_total_usd": round(routed_total, 4),
+        "all_opus_usd": round(base_opus, 4),
+        "all_sonnet_usd": round(base_sonnet, 4),
+        "measured_savings_vs_opus_pct": round(100 * (1 - routed_total / base_opus), 1) if base_opus else 0,
+        "measured_savings_vs_sonnet_pct": round(100 * (1 - routed_total / base_sonnet), 1) if base_sonnet else 0,
+        "metrics": m,
+    }
+    result = {"rows": rows, "summary": summary}
+    if json_out:
+        return result
+    _print_live(rows, summary)
+    return result
+
+
+def _print_live(rows: list[dict], summary: dict) -> None:
+    print(f"{'task':<21}{'provider':<12}{'mode':<10}{'action':<28}{'sec':>6}{'routed$':>10}")
+    print("-" * 96)
+    for r in rows:
+        print(f"{r['task']:<21}{str(r['provider']):<12}{str(r['mode']):<10}"
+              f"{str(r['action']):<28}{r['seconds']:>6.0f}{r['routed_usd']:>10.5f}")
+    print("-" * 96)
+    s = summary
+    print(f"tasks: {s['tasks_run']}   wall: {s['wall_seconds']}s")
+    print(f"routed total:      ${s['routed_total_usd']:.4f}")
+    print(f"all-Opus baseline: ${s['all_opus_usd']:.4f}   -> MEASURED saves {s['measured_savings_vs_opus_pct']}%")
+    print(f"all-Sonnet base:   ${s['all_sonnet_usd']:.4f}   -> MEASURED saves {s['measured_savings_vs_sonnet_pct']}%")
+    mm = s["metrics"]
+    print(f"\nreal fallback rate: {mm['fallback_rate']:.0%}  "
+          f"(offloaded {mm['offloaded']}/{mm['offloadable']}; alarm={mm['alarm']})")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Provider-routing token/cost benchmark.")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--live", action="store_true",
+                        help="actually run each task through the offload cascade + measure")
+    parser.add_argument("--repo-root", help="target repo (required with --live)")
+    parser.add_argument("--project", help="project name -> loads safety policy (enables live writes)")
+    parser.add_argument("--limit", type=int, help="only run the first N tasks (live)")
+    parser.add_argument("--run-tests", action="store_true", help="force the project test suite in the gate")
     args = parser.parse_args()
-    result = run(json_out=args.json)
+
+    if args.live:
+        if not args.repo_root:
+            parser.error("--live requires --repo-root")
+        result = run_live(args.repo_root, project=args.project, limit=args.limit,
+                          run_tests=args.run_tests, json_out=args.json)
+    else:
+        result = run(json_out=args.json)
     if args.json:
         print(json.dumps(result, indent=2))
 

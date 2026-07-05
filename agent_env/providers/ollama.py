@@ -140,7 +140,10 @@ class OllamaProvider(Provider):
     def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy, writable):
         changed: list[str] = []
         tools = _READ_TOOLS + ([_WRITE_TOOL] if writable else [])
-        action = ("make low-risk edits with write_file (protected paths are refused -- expected)"
+        action = ("APPLY every change by calling the write_file tool with the FULL new file "
+                  "contents. Do NOT describe edits in prose -- a change you do not write via "
+                  "write_file does not count and will be REJECTED. Read the file, then write it "
+                  "back edited. (Protected paths are refused -- that is expected.)"
                   if writable else "you are ADVISORY: do NOT write; propose edits in your report")
         system = (
             build_prompt(agent, "", "")[0]
