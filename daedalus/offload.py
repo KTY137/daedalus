@@ -42,6 +42,37 @@ def _content_hash(repo_root: str, rel: str) -> str | None:
         return None
 
 
+_SNAPSHOT_SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv",
+                  ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+_SNAPSHOT_MAX = 400_000  # per-file byte cap: skip large/binary blobs
+
+
+def _repo_snapshot(repo_root: str) -> dict[str, str]:
+    """Content-hash every smallish text file under the repo, path-agnostic.
+
+    The write-mode gate diffs a before/after snapshot to find what ACTUALLY
+    changed on disk -- so a genuine write is detected even when the caller
+    passed no --paths, or the worker wrote a file it wasn't explicitly told to
+    (the local write tool isn't restricted to the hint list). Junk dirs and
+    oversized blobs are skipped so this stays cheap.
+    """
+    root = Path(repo_root)
+    snap: dict[str, str] = {}
+    if not root.is_dir():
+        return snap
+    for p in root.rglob("*"):
+        try:
+            if not p.is_file() or p.stat().st_size > _SNAPSHOT_MAX:
+                continue
+            rel = p.relative_to(root)
+            if any(part in _SNAPSHOT_SKIP for part in rel.parts):
+                continue
+            snap[str(rel)] = hashlib.sha256(p.read_bytes()).hexdigest()
+        except OSError:
+            continue
+    return snap
+
+
 def offload(
     objective: str,
     repo_root: str,
@@ -118,20 +149,23 @@ def offload(
         if preferred_model:
             run_kwargs["model"] = str(preferred_model)
 
-    # Snapshot the target files' content BEFORE the run so we can prove a real
-    # on-disk change afterward -- the write-mode gate must NOT trust the model's
-    # self-reported files_changed (a narrating model claims edits it never made).
-    before_hashes = {rel: _content_hash(repo_root, rel) for rel in (paths or [])}
+    # Snapshot the repo BEFORE the run so we can prove a real on-disk change
+    # afterward -- the write-mode gate must NOT trust the model's self-reported
+    # files_changed (a narrating model claims edits it never made). Path-agnostic
+    # so a genuine write is caught even with no --paths.
+    before_snap = _repo_snapshot(repo_root) if decision.mode == "write" else {}
 
     out = worker.run(**run_kwargs)
     report = out["report"]
 
-    # Which target paths ACTUALLY changed on disk (create, edit, or delete).
-    # This -- not report["files_changed"] -- is what the write-mode gate trusts.
+    # Which files ACTUALLY changed on disk (create, edit, or delete) -- this,
+    # not report["files_changed"], is what the write-mode gate trusts. Diffing
+    # a whole-repo snapshot catches genuine writes with or without --paths.
     disk_changed = None
     if decision.mode == "write":
-        disk_changed = [rel for rel, before in before_hashes.items()
-                        if _content_hash(repo_root, rel) != before]
+        after_snap = _repo_snapshot(repo_root)
+        disk_changed = sorted(rel for rel in (set(before_snap) | set(after_snap))
+                              if before_snap.get(rel) != after_snap.get(rel))
 
     # For live writes, run the project test suite in the gate when we have it.
     test_command = test_cwd = None

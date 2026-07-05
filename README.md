@@ -53,6 +53,16 @@ python -m daedalus.runbook "Describe the change you want" --paths <your-repo>\pa
 python -m unittest discover tests
 ```
 
+## Local write path
+
+When `--live` is passed and a target repo's policy is loaded, Ollama writes real
+files via full-file rewrite (`daedalus/providers/ollama.py::_run_rewrite`). Before
+accepting the result, the verifier gate snapshots file content-hashes before and
+after the run — it trusts ONLY real on-disk changes (`disk_changed`), not the
+model's self-report. A write-mode task that produced no file changes fails the
+gate and escalates to Claude. Post-write syntax checks (`.py`, `.json`, `.yaml`)
+and optional project tests are then run before final acceptance.
+
 ## Use in any project
 
 `daedalus` is template-driven -- point it at any repo without editing the

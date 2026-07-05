@@ -54,8 +54,25 @@ from daedalus.ikarus import Ikarus
 Ikarus(max_workers=3).dispatch(r"C:\Users\nukei\Desktop\project_tct", tasks, dry_run=False)
 ```
 
-## Before trusting `write` mode broadly
+## Write-mode verification gate
 
-Mary (qa-critic) is reviewing the egress + write guards + rollback for holes.
-Fold in any critical fixes she flags **before** running live writes against real
-project source. Until then, keep live runs to throwaway/scratch targets.
+Local write-mode is now verified end-to-end. The pipeline:
+
+1. **Policy guard**: Ollama never writes without a loaded policy (`--project` or
+   `.agentenv/agentenv.json`). Device/vendor/secret/high-risk paths are blocked
+   even when the policy is loaded.
+
+2. **Disk-change verification**: Before accepting the result, `offload.py`
+   snapshots content-hashes of target files before the run and compares them
+   after. The write-mode gate trusts ONLY real on-disk changes (via `disk_changed`),
+   not the model's self-report. A model that narrates an edit without writing fails
+   the gate and escalates to Claude.
+
+3. **Post-write checks**: Python syntax (`py_compile`), JSON/YAML config parsing,
+   and optional project tests (if `test_command` is set) gate acceptance.
+
+4. **Rollback on fail**: If any check fails, the worker rolls back the writes
+   before escalating to Claude.
+
+Safe to run against real project source with `--live` when the target repo has a
+proper `.agentenv/agentenv.json` or is registered as a `--project`.
