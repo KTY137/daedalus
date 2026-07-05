@@ -2,6 +2,7 @@
   "name": "researcher",
   "call_name": "Prometheus",
   "model_tier": "opus",
+  "external_ok": true,
   "owns": ["docs/research"],
   "triggers": ["manual", "datasheet", "protocol", "external reference", "source", "spec", "research"],
   "must_read": ["docs/research/README.md"],

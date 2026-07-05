@@ -2,6 +2,7 @@
   "name": "qa-critic",
   "call_name": "Mary",
   "model_tier": "opus",
+  "external_ok": false,
   "owns": [],
   "triggers": ["review", "qa", "safety", "risk", "race", "regression"],
   "must_read": ["docs/ARCHITECTURE.md"],

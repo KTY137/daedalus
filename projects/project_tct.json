@@ -3,5 +3,49 @@
   "repo_root": "C:\\Users\\nukei\\Desktop\\project_tct",
   "default_branch": "root-cleanup",
   "test_command": "python -m pytest tests -q",
-  "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app"
+  "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app",
+  "claude_model": "sonnet",
+  "policy": {
+    "_comment": "TCT-specific egress/risk rules. Merged on top of the generic secret defaults in agent_env/sensitivity.py. Never send real instrument-driver / vendor / lab IP to an untrusted external API.",
+    "deny": [
+      "tct_app/devices/",
+      "/devices/",
+      "configs/devices.yaml",
+      "reference/",
+      "lab_assets/",
+      "e4control"
+    ],
+    "allow": [
+      "tct_app/gui/",
+      "tct_app/tests/",
+      "tct_app/analysis/",
+      "/gui/",
+      "docs/",
+      ".md"
+    ],
+    "allow_exceptions": ["_simulated.py", "_base.py", "/base.py"],
+    "deny_content": [
+      "\\*idn\\?",
+      ":meas[a-z:]*",
+      "\\bsyst:[a-z]",
+      "\\bsour:[a-z]",
+      "\\bvset\\b",
+      "\\biset\\b",
+      "\\$h\\b",
+      "\\bg0\\b|\\bg1\\b|\\bg28\\b",
+      "\\biseg\\b",
+      "\\bkeithley\\b",
+      "\\be4control\\b"
+    ],
+    "high_risk_terms": [
+      "hv", "high voltage", "ramp", "bias enable", "enable bias",
+      "motion", "move motor", "home", "homing", "start scan", "scan start",
+      "interlock", "state machine", "rewrite", "architecture", "migrate"
+    ],
+    "high_risk_paths": [
+      "tct_app/devices/",
+      "tct_app/controller/",
+      "/state_machine"
+    ]
+  }
 }

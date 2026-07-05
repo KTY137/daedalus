@@ -1,0 +1,34 @@
+{
+  "_comment": "Persona names for the free-model lanes. Each Claude specialist has a shadow worker per provider: Chinese names on DeepSeek (external), Mexican/Italian names on local Ollama. by_role maps the Claude agent 'name' to its shadow's call-name. Ollama also carries a 'pool' of extra local workers -- while DeepSeek is dormant, the local bench does all the offloaded work, so it is staffed deeper.",
+  "deepseek": {
+    "culture": "Chinese",
+    "default": "Wei",
+    "by_role": {
+      "ui-ux-dev": "Wei",
+      "data-analysis-dev": "Ling",
+      "docs-dev": "Mei",
+      "researcher": "Feng",
+      "acquisition-dev": "Jun",
+      "hardware-dev": "Hao",
+      "qa-critic": "Yan"
+    }
+  },
+  "ollama": {
+    "culture": "Mexican/Italian",
+    "default": "Mateo",
+    "by_role": {
+      "ui-ux-dev": "Diego",
+      "data-analysis-dev": "Sofia",
+      "docs-dev": "Lucia",
+      "researcher": "Marco",
+      "acquisition-dev": "Mateo",
+      "hardware-dev": "Giovanni",
+      "qa-critic": "Rosa"
+    },
+    "pool": [
+      "Valentina", "Santiago", "Giulia", "Emilio",
+      "Camila", "Lorenzo", "Isabella", "Mateo",
+      "Alejandro", "Chiara", "Rafael", "Bianca"
+    ]
+  }
+}

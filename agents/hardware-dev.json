@@ -2,6 +2,7 @@
   "name": "hardware-dev",
   "call_name": "Paul",
   "model_tier": "opus",
+  "external_ok": false,
   "owns": ["TCT_app/devices", "devices"],
   "triggers": ["hardware", "driver", "scpi", "visa", "serial", "motor", "stage", "hv", "bias", "oscilloscope", "camera"],
   "must_read": ["docs/ARCHITECTURE.md", "TCT_app/devices/base.py"],

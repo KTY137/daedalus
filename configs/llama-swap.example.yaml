@@ -1,0 +1,29 @@
+# Example llama-swap config -- ONLY needed if you run raw llama.cpp instead of
+# Ollama. Ollama already hot-loads models on demand, so most users don't need
+# this. llama-swap (https://github.com/mostlygeek/llama-swap, MIT) proxies one
+# OpenAI-compatible endpoint and swaps the loaded model by requested name.
+#
+# Point agent_env at it:  $env:OLLAMA_HOST = "http://localhost:8080"
+# (the OpenAI-compatible path is served at <host>/v1)
+
+models:
+  # The coder the Ikarus bench reads/writes with (OLLAMA_MODEL).
+  "qwen2.5-coder:7b":
+    cmd: >
+      llama-server --model /models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+      --port ${PORT} --ctx-size 16384
+    ttl: 300
+
+  # The embedding model for stage-1 semantic routing (OLLAMA_EMBED_MODEL).
+  "nomic-embed-text":
+    cmd: >
+      llama-server --model /models/nomic-embed-text-v1.5.gguf
+      --port ${PORT} --embeddings
+    ttl: 300
+
+# "groups" make models mutually exclusive so a small box never loads two large
+# models at once; the coder and the tiny embedder can safely coexist though.
+groups:
+  local-bench:
+    swap: false          # allow coder + embedder loaded together
+    members: ["qwen2.5-coder:7b", "nomic-embed-text"]

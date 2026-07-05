@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-env"
+version = "0.1.0"
+description = "Portable local+cloud multi-agent routing harness (Adam senior crew + Ikarus local bench)."
+readme = "README.md"
+requires-python = ">=3.10"
+# Core is ZERO runtime dependencies -- Python stdlib only. The real
+# dependencies are external tools (Ollama, the claude CLI), installed by
+# bootstrap.ps1 / bootstrap.sh.
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
+
+[project.scripts]
+agentenv = "agent_env.cli:main"
+
+[tool.setuptools]
+# Installed editable (`pip install -e .`) so agents/, projects/, and local
+# state stay next to the code and travel with the repo.
+packages = ["agent_env", "agent_env.providers"]
