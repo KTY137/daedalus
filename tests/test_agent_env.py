@@ -9,6 +9,7 @@ from agent_env.projects import load_project, resolve_repo_root
 from agent_env.router import route_task
 from agent_env.status import _count_open_todos
 from agent_env.schemas import validate_report
+from agent_env.token_policy import STATIC_PROMPT_PREFIX, trim_paths, trim_text
 
 
 class AgentEnvTests(unittest.TestCase):
@@ -49,6 +50,7 @@ class AgentEnvTests(unittest.TestCase):
     def test_prompt_contains_pruned_context(self):
         agent = route_task("Fix panel layout", ["C:/repo/TCT_app/gui/motor_panel.py"])
         prompt = build_prompt("Fix panel layout", "C:/repo", ["C:/repo/TCT_app/gui/motor_panel.py"], agent)
+        self.assertTrue(prompt.startswith(STATIC_PROMPT_PREFIX))
         self.assertIn("Do not use full chat history", prompt)
         self.assertIn("Relevant paths", prompt)
 
@@ -103,6 +105,10 @@ class AgentEnvTests(unittest.TestCase):
     def test_fallback_can_block_when_user_requires_claude(self):
         decision = fallback_decision("blocked", user_requires_claude=True)
         self.assertFalse(decision["continue"])
+
+    def test_token_policy_trims_paths_and_text(self):
+        self.assertEqual(trim_paths(["a", "a", "b"], limit=2), ["a", "b"])
+        self.assertEqual(trim_text("abcdef", 5), "ab...")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from .memory import MemoryEvent, append_event
 from .projects import load_project, resolve_repo_root
 from .router import route_task
 from .status import collect_status
+from .token_policy import MAX_TODO_CHARS, trim_paths, trim_text
 
 
 def _infer_paths(text: str, repo_root: str) -> list[str]:
@@ -40,7 +41,7 @@ def prepare_task(
 ) -> dict:
     root = resolve_repo_root(repo_root, project)
     project_data = load_project(project) if project else {}
-    paths = paths or _infer_paths(message, root)
+    paths = trim_paths(paths or _infer_paths(message, root))
     agent = route_task(message, paths)
     status = collect_status(root)
 
@@ -50,8 +51,8 @@ def prepare_task(
             source="codex",
             repo_root=root,
             status="open",
-            summary=message[:600],
-            todos=[f"Handle user task: {message[:180]}"],
+            summary=trim_text(message, 600),
+            todos=[f"Handle user task: {trim_text(message, MAX_TODO_CHARS)}"],
             paths=paths,
             payload={
                 "agent": agent["name"],

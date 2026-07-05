@@ -6,9 +6,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .fallback import fallback_decision
 from .router import route_task
 from .schemas import REPORT_KEYS, validate_report
-from .fallback import fallback_decision
+from .token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX, trim_paths
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,7 @@ REPORT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
         "status": {"type": "string", "enum": ["done", "blocked", "needs_review", "failed"]},
-        "summary": {"type": "string", "maxLength": 600},
+        "summary": {"type": "string", "maxLength": MAX_SUMMARY_CHARS},
         "files_changed": {"type": "array", "items": {"type": "string"}},
         "tests_run": {"type": "array", "items": {"type": "string"}},
         "risks": {"type": "array", "items": {"type": "string"}},
@@ -31,7 +32,10 @@ REPORT_SCHEMA: dict[str, Any] = {
 
 
 def build_prompt(objective: str, repo_root: str, paths: list[str], agent: dict[str, Any]) -> str:
-    return f"""You are acting as {agent["call_name"]} / {agent["name"]}.
+    paths = trim_paths(paths)
+    return f"""{STATIC_PROMPT_PREFIX}
+
+You are acting as {agent["call_name"]} / {agent["name"]}.
 
 Work as a stateless specialist. Do not ask another agent. Do not use full chat history.
 
@@ -51,6 +55,7 @@ Constraints:
 - Read only the files needed for this task.
 - Prefer review/analysis unless the objective explicitly asks for edits.
 - Do not run code that can touch real hardware.
+- Keep summary under {MAX_SUMMARY_CHARS} characters.
 - Return only the structured report required by the schema.
 """
 
@@ -104,6 +109,7 @@ def ask_claude(
     timeout_s: int = 300,
 ) -> dict[str, Any]:
     agent = route_task(objective, paths)
+    paths = trim_paths(paths)
     prompt = build_prompt(objective, repo_root, paths, agent)
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     prompt_path = RUN_DIR / "last_claude_prompt.md"
