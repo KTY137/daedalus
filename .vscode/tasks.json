@@ -1,0 +1,102 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Agent Bridge: watch",
+      "detail": "Background watcher: processes outbox/*.json into inbox/*.report.json (see docs/COMMS_PROTOCOL.md)",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "agent_env.file_bridge", "watch"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "agent-bridge",
+        "fileLocation": ["relative", "${workspaceFolder}"],
+        "pattern": [
+          {
+            "regexp": "^(ERROR|Traceback)(.*)$",
+            "file": 1,
+            "message": 2
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^AGENT_BRIDGE_START$",
+          "endsPattern": "^AGENT_BRIDGE_READY$"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Agent Env: doctor",
+      "detail": "Is the bench ready? (Ollama / model / claude CLI)",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "agent_env.cli", "doctor"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent Env: status",
+      "detail": "Local bridge status (outbox/inbox/memory)",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "agent_env.cli", "status"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent Env: benchmark (dry)",
+      "detail": "Projected token/cost picture; no live calls",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "agent_env.cli", "benchmark"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent Env: spawn (prompt for objective)",
+      "detail": "Decompose an objective and plan the local bench dispatch",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "agent_env.cli", "spawn", "${input:objective}"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Agent Env: run tests",
+      "detail": "python -m unittest discover tests",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "unittest", "discover", "tests"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "objective",
+      "type": "promptString",
+      "description": "Objective to decompose onto the local bench"
+    }
+  ]
+}

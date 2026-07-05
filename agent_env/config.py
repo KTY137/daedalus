@@ -68,6 +68,26 @@ def _copy_template_agents(agentenv_dir: Path) -> None:
             target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
 
 
+TOOL_INSTRUCTION_TEMPLATES = ("CLAUDE.md", "AGENTS.md")
+
+
+def _copy_tool_instructions(repo_root: Path) -> None:
+    """Drop per-tool instruction files into the target repo root.
+
+    `templates/CLAUDE.md` (for Claude Code) and `templates/AGENTS.md` (for
+    Codex) tell each tool to route delegable work through the harness. Only
+    templates that exist are copied, and existing target files are never
+    overwritten, so per-repo customizations survive a re-run of `init_repo`.
+    """
+    for name in TOOL_INSTRUCTION_TEMPLATES:
+        src = TEMPLATE_DIR / name
+        if not src.exists():
+            continue
+        target = repo_root / name
+        if not target.exists():
+            target.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def init_repo(repo_root: str) -> str:
     """Scaffold `.agentenv/agentenv.json` in a repo. Returns the path written."""
     d = Path(repo_root) / ".agentenv"
@@ -76,4 +96,5 @@ def init_repo(repo_root: str) -> str:
     if not f.exists():
         f.write_text(json.dumps(STARTER, indent=2), encoding="utf-8")
     _copy_template_agents(d)
+    _copy_tool_instructions(Path(repo_root))
     return str(f)
