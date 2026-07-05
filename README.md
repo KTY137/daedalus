@@ -32,6 +32,12 @@ python -m agent_env.runbook "Improve the motor panel icons" --paths C:\Users\nuk
 python -m unittest discover tests
 ```
 
+Ask Claude for a structured second opinion:
+
+```powershell
+python -m agent_env.claude_bridge "Review the motor panel icon fix" --repo-root C:\Users\nukei\Desktop\project_tct --paths C:\Users\nukei\Desktop\project_tct\TCT_app\gui\motor_panel.py
+```
+
 ## Operating Model
 
 ```text

@@ -1,5 +1,6 @@
 import unittest
 
+from agent_env.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
 from agent_env.router import route_task
 from agent_env.schemas import validate_report
 
@@ -30,6 +31,28 @@ class AgentEnvTests(unittest.TestCase):
     def test_rejects_chatty_report(self):
         errors = validate_report({"status": "done", "summary": "x" * 700})
         self.assertTrue(errors)
+
+    def test_extracts_result_wrapped_json(self):
+        report = _extract_json(
+            '{"result":"{\\"status\\":\\"done\\",\\"summary\\":\\"ok\\",'
+            '\\"files_changed\\":[],\\"tests_run\\":[],\\"risks\\":[],'
+            '\\"todos\\":[],\\"handoff\\":{}}"}'
+        )
+        self.assertEqual(report["status"], "done")
+
+    def test_prompt_contains_pruned_context(self):
+        agent = route_task("Fix panel layout", ["C:/repo/TCT_app/gui/motor_panel.py"])
+        prompt = build_prompt("Fix panel layout", "C:/repo", ["C:/repo/TCT_app/gui/motor_panel.py"], agent)
+        self.assertIn("Do not use full chat history", prompt)
+        self.assertIn("Relevant paths", prompt)
+
+    def test_converts_claude_limit_to_blocked_report(self):
+        report = _blocked_report_from_wrapper(
+            '{"is_error":true,"api_error_status":429,"result":"session limit","session_id":"abc"}'
+        )
+        self.assertIsNotNone(report)
+        self.assertEqual(report["status"], "blocked")
+        self.assertEqual(report["handoff"]["api_error_status"], 429)
 
 
 if __name__ == "__main__":
