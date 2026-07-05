@@ -1,0 +1,9 @@
+{
+  "name": "hardware-dev",
+  "call_name": "Paul",
+  "model_tier": "opus",
+  "owns": ["TCT_app/devices", "devices"],
+  "triggers": ["hardware", "driver", "scpi", "visa", "serial", "motor", "stage", "hv", "bias", "oscilloscope", "camera"],
+  "must_read": ["docs/ARCHITECTURE.md", "TCT_app/devices/base.py"],
+  "output_schema": "agent_report_v1"
+}

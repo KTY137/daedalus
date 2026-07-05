@@ -1,0 +1,9 @@
+{
+  "name": "qa-critic",
+  "call_name": "Mary",
+  "model_tier": "opus",
+  "owns": [],
+  "triggers": ["review", "qa", "safety", "risk", "race", "regression"],
+  "must_read": ["docs/ARCHITECTURE.md"],
+  "output_schema": "review_report_v1"
+}

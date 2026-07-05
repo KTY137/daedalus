@@ -1,0 +1,9 @@
+{
+  "name": "acquisition-dev",
+  "call_name": "Abel",
+  "model_tier": "opus",
+  "owns": ["TCT_app/controller", "tct_gui.py"],
+  "triggers": ["scan", "run control", "state machine", "device manager", "pause", "abort", "metadata"],
+  "must_read": ["docs/ARCHITECTURE.md", "TCT_app/controller/state_machine.py"],
+  "output_schema": "agent_report_v1"
+}
