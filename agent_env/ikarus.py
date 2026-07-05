@@ -113,6 +113,19 @@ class Ikarus:
                             "status": res.get("action"), "result": res})
         return results
 
+    def spawn(self, objective: str, repo_root: str, dry_run: bool = True) -> dict:
+        """One-shot entry: decompose a single objective into subtasks, then plan
+        (dry_run) or dispatch (live) them across the bounded local bench.
+
+        This is the dynamic counterpart to the hardcoded ``_demo_tasks`` flow --
+        the subtasks come from :func:`agent_env.decompose.decompose` (local model
+        with a deterministic per-path fallback), not a fixed list."""
+        from .decompose import decompose
+        subtasks = decompose(objective, repo_root)
+        if dry_run:
+            return self.plan(subtasks)
+        return self.dispatch(repo_root, subtasks, dry_run=False)
+
 
 def _demo_tasks() -> list[dict]:
     from .benchmark import TASKS

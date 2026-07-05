@@ -2,6 +2,7 @@
 
     agentenv doctor                     is the bench ready? (Ollama/model/claude)
     agentenv offload "<objective>" ...  route ONE task; run on the bench (--live)
+    agentenv spawn "<objective>" ...    decompose ONE objective; plan/dispatch bench
     agentenv ikarus                     spawn plan for the demo tasks
     agentenv metrics                    offload metrics / silent-escalation alarm
     agentenv benchmark                  projected token/cost picture
@@ -14,6 +15,30 @@ from __future__ import annotations
 import sys
 
 _USAGE = __doc__
+
+
+def _spawn(argv: list[str]) -> None:
+    """Decompose one objective into subtasks and plan (default) or dispatch
+    (--live) them across the local bench via Ikarus."""
+    import argparse
+    import json
+    from .ikarus import Ikarus
+    from .projects import resolve_repo_root
+
+    parser = argparse.ArgumentParser(
+        prog="agentenv spawn",
+        description="Decompose an objective and spawn the local bench (plan, or --live).")
+    parser.add_argument("objective")
+    parser.add_argument("--repo-root")
+    parser.add_argument("--project")
+    parser.add_argument("--live", action="store_true",
+                        help="actually dispatch the accepted subtasks (default: plan only)")
+    args = parser.parse_args(argv)
+
+    repo_root = resolve_repo_root(args.repo_root, args.project)
+    ikarus = Ikarus(project=args.project)
+    result = ikarus.spawn(args.objective, repo_root, dry_run=not args.live)
+    print(json.dumps(result, indent=2, default=str))
 
 
 def _init(argv: list[str]) -> None:
@@ -38,6 +63,8 @@ def main() -> None:
         from .doctor import main as m; m()
     elif cmd == "offload":
         from .offload import main as m; m()
+    elif cmd == "spawn":
+        _spawn(rest)
     elif cmd == "ikarus":
         from .ikarus import main as m; m()
     elif cmd == "metrics":
