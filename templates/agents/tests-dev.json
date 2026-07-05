@@ -1,0 +1,10 @@
+{
+  "name": "tests-dev",
+  "call_name": "Test",
+  "model_tier": "sonnet",
+  "external_ok": true,
+  "owns": ["tests/", "test/", "spec/"],
+  "triggers": ["test", "tests", "unit test", "coverage", "fixture", "regression", "pytest", "assert"],
+  "must_read": ["README.md"],
+  "output_schema": "agent_report_v1"
+}

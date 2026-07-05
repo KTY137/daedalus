@@ -20,6 +20,7 @@ Design goals:
 | Path | Purpose |
 |---|---|
 | `agents/` | Agent role registry as JSON |
+| `templates/` | Generic, project-neutral defaults copied into any repo (`agents/`, `agentenv.json`, `project.example.json`) |
 | `agent_env/` | Python router, schemas, and runbook CLI |
 | `runs/` | Local ignored run state |
 | `outbox/` | Local Claude task requests |
@@ -31,9 +32,46 @@ Design goals:
 
 ```powershell
 cd C:\Users\nukei\Desktop\agent_env
-python -m agent_env.runbook "Improve the motor panel icons" --paths C:\Users\nukei\Desktop\project_tct\TCT_app\gui\motor_panel.py
+python -m agent_env.runbook "Describe the change you want" --paths <your-repo>\path\to\file.py
 python -m unittest discover tests
 ```
+
+## Use in any project
+
+`agent_env` is template-driven -- point it at any repo without editing the
+harness. The generic, project-neutral defaults live in `templates/`:
+
+| Template | Purpose |
+|---|---|
+| `templates/agents/*.json` | Neutral agent roles: `generalist-dev`, `docs-dev`, `tests-dev`, `reviewer`, `qa-critic` |
+| `templates/agentenv.json` | Starter per-repo policy (identical to what `agentenv init` writes) |
+| `templates/project.example.json` | Documented example entry for `projects/<name>.json` |
+
+Onboard a new repo in three steps:
+
+```powershell
+# 1. scaffold <your-repo>\.agentenv\agentenv.json and copy the generic agent
+#    roles into <your-repo>\.agentenv\agents\ (existing files are never overwritten)
+agentenv init <your-repo>
+
+# 2. check the local bench is ready (Ollama / model / claude CLI on PATH)
+agentenv doctor
+
+# 3. route + run a task against your repo
+python -m agent_env.runbook "Describe the change you want" --paths <your-repo>\path\to\file.py
+```
+
+Each repo can then tune its own `.agentenv/agents/*.json` roles and
+`.agentenv/agentenv.json` write policy. When a `repo_root` is supplied, the
+router prefers that repo's `.agentenv/agents/`, then the generic
+`templates/agents/`, then the built-in `agents/`. To register a repo as a named
+project, copy `templates/project.example.json` to `projects/<name>.json`, edit
+it, and pass `--project <name>`.
+
+## Example: project_tct
+
+The commands below are the concrete `project_tct` setup. Swap the paths and the
+`--project` name for your own repo.
 
 Ask Claude for a structured second opinion:
 

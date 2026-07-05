@@ -6,11 +6,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_DIR = ROOT / "agents"
+TEMPLATE_AGENT_DIR = ROOT / "templates" / "agents"
 
 
-def load_agents() -> list[dict]:
+def _agent_dir_for(repo_root: str | None) -> Path:
+    """Resolve which directory of agent-role JSON files to load.
+
+    Back-compat: ``repo_root=None`` -> the built-in ``agents/`` dir (current
+    behavior). With a ``repo_root``: prefer that repo's own
+    ``<repo_root>/.agentenv/agents/`` overrides if present, else the generic
+    ``templates/agents/`` defaults, else fall back to the built-in ``agents/``.
+    """
+    if repo_root is not None:
+        repo_agents = Path(repo_root) / ".agentenv" / "agents"
+        if repo_agents.is_dir() and any(repo_agents.glob("*.json")):
+            return repo_agents
+        if TEMPLATE_AGENT_DIR.is_dir() and any(TEMPLATE_AGENT_DIR.glob("*.json")):
+            return TEMPLATE_AGENT_DIR
+    return AGENT_DIR
+
+
+def load_agents(repo_root: str | None = None) -> list[dict]:
     agents: list[dict] = []
-    for path in sorted(AGENT_DIR.glob("*.json")):
+    for path in sorted(_agent_dir_for(repo_root).glob("*.json")):
         agents.append(json.loads(path.read_text(encoding="utf-8")))
     return agents
 
@@ -19,12 +37,14 @@ def _norm(path: str) -> str:
     return path.replace("\\", "/")
 
 
-def route_task(objective: str, paths: list[str] | None = None) -> dict:
+def route_task(objective: str, paths: list[str] | None = None,
+               repo_root: str | None = None) -> dict:
     paths = [_norm(p) for p in (paths or [])]
     objective_l = objective.lower()
     best: tuple[int, dict] | None = None
 
-    for agent in load_agents():
+    agents = load_agents(repo_root)
+    for agent in agents:
         score = 0
         for owned in agent.get("owns", []):
             owned_l = owned.lower()
@@ -39,5 +59,5 @@ def route_task(objective: str, paths: list[str] | None = None) -> dict:
     if best is None:
         raise RuntimeError("no agents configured")
     if best[0] == 0:
-        return next(agent for agent in load_agents() if agent["name"] == "qa-critic")
+        return next((agent for agent in agents if agent["name"] == "qa-critic"), best[1])
     return best[1]

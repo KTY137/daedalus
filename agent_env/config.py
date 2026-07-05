@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 REPO_CONFIG = ".agentenv/agentenv.json"
+TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 STARTER: dict = {
     "_comment": "agent_env policy for THIS repo. Generic secret protections are "
@@ -50,6 +51,23 @@ def resolve_project(repo_root: str, project: str | None = None) -> dict | None:
     return None
 
 
+def _copy_template_agents(agentenv_dir: Path) -> None:
+    """Seed `<repo>/.agentenv/agents/` with the generic template roles.
+
+    Copies `templates/agents/*.json` into the repo. Existing files are never
+    overwritten, so per-repo customizations survive a re-run of `init_repo`.
+    """
+    src = TEMPLATE_DIR / "agents"
+    if not src.is_dir():
+        return
+    dst = agentenv_dir / "agents"
+    dst.mkdir(exist_ok=True)
+    for path in sorted(src.glob("*.json")):
+        target = dst / path.name
+        if not target.exists():
+            target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+
+
 def init_repo(repo_root: str) -> str:
     """Scaffold `.agentenv/agentenv.json` in a repo. Returns the path written."""
     d = Path(repo_root) / ".agentenv"
@@ -57,4 +75,5 @@ def init_repo(repo_root: str) -> str:
     f = d / "agentenv.json"
     if not f.exists():
         f.write_text(json.dumps(STARTER, indent=2), encoding="utf-8")
+    _copy_template_agents(d)
     return str(f)
