@@ -1,0 +1,401 @@
+<title>agent_env — offload architecture</title>
+<style>
+  :root{
+    --bg:#e9edf2; --panel:#ffffff; --panel-2:#f4f7fa;
+    --ink:#18222e; --muted:#586675; --faint:#8595a3;
+    --line:#cdd6df; --line-strong:#aab6c2;
+    --bench:#0d8f86;   /* free local lane (Ollama) */
+    --senior:#b06a1f;  /* senior trusted lane (Claude / Adam) */
+    --ext:#6b5bd0;     /* external cheap lane (DeepSeek) */
+    --danger:#c14434;  /* escalate / guard / stop */
+    --ok:#2f8f4e;
+    --grid: rgba(24,34,46,.05);
+    --shadow: 0 1px 2px rgba(20,30,45,.06), 0 8px 24px rgba(20,30,45,.05);
+    --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    --sans: system-ui, "Segoe UI", Roboto, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0e141b; --panel:#151d26; --panel-2:#1a232e;
+      --ink:#e7edf3; --muted:#98a7b6; --faint:#6a7887;
+      --line:#28323d; --line-strong:#3a4756;
+      --bench:#2fd0c3; --senior:#e2a34c; --ext:#9c8ef0; --danger:#e5695a; --ok:#57c47e;
+      --grid: rgba(255,255,255,.04);
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#e9edf2; --panel:#ffffff; --panel-2:#f4f7fa;
+    --ink:#18222e; --muted:#586675; --faint:#8595a3;
+    --line:#cdd6df; --line-strong:#aab6c2;
+    --bench:#0d8f86; --senior:#b06a1f; --ext:#6b5bd0; --danger:#c14434; --ok:#2f8f4e;
+    --grid: rgba(24,34,46,.05);
+    --shadow: 0 1px 2px rgba(20,30,45,.06), 0 8px 24px rgba(20,30,45,.05);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e141b; --panel:#151d26; --panel-2:#1a232e;
+    --ink:#e7edf3; --muted:#98a7b6; --faint:#6a7887;
+    --line:#28323d; --line-strong:#3a4756;
+    --bench:#2fd0c3; --senior:#e2a34c; --ext:#9c8ef0; --danger:#e5695a; --ok:#57c47e;
+    --grid: rgba(255,255,255,.04);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans); line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:28px 28px;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:40px 24px 88px}
+
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--bench); font-weight:600;
+  }
+  h1{
+    font-size:clamp(28px,4.6vw,46px); line-height:1.03; margin:.28em 0 .18em;
+    letter-spacing:-.02em; text-wrap:balance; font-weight:700;
+  }
+  .lede{color:var(--muted); font-size:clamp(15px,1.7vw,18px); max-width:64ch; margin:0}
+  h2{font-size:13px; font-family:var(--mono); text-transform:uppercase; letter-spacing:.12em;
+     color:var(--faint); margin:0 0 2px; font-weight:600;}
+  .sec-title{font-size:clamp(19px,2.4vw,25px); letter-spacing:-.01em; margin:.1em 0 .5em; font-weight:650; text-wrap:balance}
+  p.note{color:var(--muted); margin:.3em 0 0; max-width:70ch}
+  code, .mono{font-family:var(--mono); font-size:.92em}
+  a{color:var(--bench)}
+
+  /* schematic panel */
+  .panel{
+    position:relative; background:var(--panel); border:1px solid var(--line);
+    border-radius:3px; box-shadow:var(--shadow); padding:22px 22px 24px;
+  }
+  section{margin-top:34px}
+  .corner{ position:absolute; font-family:var(--mono); font-size:10px; color:var(--faint);
+           letter-spacing:.1em; top:8px; right:12px; }
+
+  /* header stat row */
+  .hero{display:grid; grid-template-columns:1.5fr 1fr; gap:22px; align-items:stretch}
+  .statcard{display:flex; flex-direction:column; justify-content:center; gap:2px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+    border-radius:3px; padding:18px 20px; box-shadow:var(--shadow)}
+  .bignum{font-family:var(--mono); font-size:clamp(34px,6vw,54px); font-weight:700; color:var(--bench);
+    letter-spacing:-.02em; line-height:1; font-variant-numeric:tabular-nums}
+  .statcard .sub{color:var(--muted); font-size:13px}
+  .statcard .sub b{color:var(--ink); font-weight:600}
+  @media(max-width:720px){ .hero{grid-template-columns:1fr} }
+
+  /* legend */
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:14px; font-size:13px; color:var(--muted)}
+  .lane-key{display:inline-flex; align-items:center; gap:7px}
+  .dot{width:11px; height:11px; border-radius:2px; flex:none; box-shadow:0 0 0 1px rgba(0,0,0,.06) inset}
+  .dot.b{background:var(--bench)} .dot.s{background:var(--senior)} .dot.e{background:var(--ext)} .dot.d{background:var(--danger)}
+
+  /* two-stage flow */
+  .flow{display:flex; align-items:stretch; gap:0; flex-wrap:wrap}
+  .stage{flex:1 1 200px; min-width:200px; border:1px solid var(--line); border-radius:3px; padding:15px 16px; background:var(--panel-2)}
+  .stage .k{font-family:var(--mono); font-size:11px; letter-spacing:.1em; color:var(--faint); text-transform:uppercase}
+  .stage .q{font-size:19px; font-weight:650; margin:2px 0 6px; letter-spacing:-.01em}
+  .stage ul{margin:6px 0 0; padding-left:16px; color:var(--muted); font-size:13.5px}
+  .stage li{margin:2px 0}
+  .arrow{display:flex; align-items:center; justify-content:center; padding:0 6px; color:var(--line-strong); font-size:22px; flex:none}
+  @media(max-width:720px){ .arrow{transform:rotate(90deg); padding:6px 0} }
+
+  /* decision matrix */
+  .tablewrap{overflow-x:auto; margin-top:6px}
+  table{border-collapse:collapse; width:100%; font-size:13.5px; min-width:560px}
+  caption{caption-side:top; text-align:left; color:var(--muted); font-size:13px; margin-bottom:8px}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top}
+  thead th{font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:600; border-bottom:1px solid var(--line-strong)}
+  tbody tr:last-child td{border-bottom:none}
+  td.mono, th.mono{font-family:var(--mono)}
+  .pill{display:inline-block; padding:2px 8px; border-radius:20px; font-family:var(--mono); font-size:11.5px; font-weight:600; letter-spacing:.02em; white-space:nowrap}
+  .pill.bench{color:var(--bench); background:color-mix(in srgb, var(--bench) 14%, transparent); border:1px solid color-mix(in srgb, var(--bench) 35%, transparent)}
+  .pill.senior{color:var(--senior); background:color-mix(in srgb, var(--senior) 14%, transparent); border:1px solid color-mix(in srgb, var(--senior) 35%, transparent)}
+  .pill.ext{color:var(--ext); background:color-mix(in srgb, var(--ext) 14%, transparent); border:1px solid color-mix(in srgb, var(--ext) 35%, transparent)}
+  .pill.danger{color:var(--danger); background:color-mix(in srgb, var(--danger) 14%, transparent); border:1px solid color-mix(in srgb, var(--danger) 35%, transparent)}
+  .tag{font-family:var(--mono); font-size:11.5px; color:var(--muted)}
+  .w{font-weight:600; color:var(--ink)}
+
+  /* cascade pipeline */
+  .pipe{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:4px}
+  .node{flex:1 1 130px; min-width:120px; text-align:center; border:1px solid var(--line); border-radius:3px; padding:12px 10px; background:var(--panel-2)}
+  .node .t{font-weight:650; font-size:14px}
+  .node .d{font-size:11.5px; color:var(--muted); margin-top:2px; font-family:var(--mono)}
+  .node.gate{border-color:var(--senior); background:color-mix(in srgb, var(--senior) 8%, var(--panel))}
+  .conn{color:var(--line-strong); font-size:18px; flex:none}
+  .branch{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px}
+  .outcome{border:1px solid var(--line); border-left-width:3px; border-radius:3px; padding:12px 14px; background:var(--panel)}
+  .outcome.pass{border-left-color:var(--ok)}
+  .outcome.fail{border-left-color:var(--danger)}
+  .outcome .h{font-weight:650; display:flex; align-items:center; gap:8px; font-size:14.5px}
+  .outcome .h .badge{font-family:var(--mono); font-size:11px; padding:1px 7px; border-radius:3px}
+  .outcome.pass .badge{color:var(--ok); background:color-mix(in srgb,var(--ok) 15%, transparent)}
+  .outcome.fail .badge{color:var(--danger); background:color-mix(in srgb,var(--danger) 15%, transparent)}
+  .outcome p{margin:6px 0 0; font-size:13px; color:var(--muted)}
+  @media(max-width:620px){ .branch{grid-template-columns:1fr} }
+
+  /* adam wiring: split columns */
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  @media(max-width:720px){ .cols{grid-template-columns:1fr} }
+  .role{border:1px solid var(--line); border-radius:3px; padding:16px 18px; background:var(--panel)}
+  .role h3{margin:0 0 2px; font-size:16px; display:flex; align-items:center; gap:9px}
+  .role .who{font-family:var(--mono); font-size:11px; color:var(--faint); text-transform:uppercase; letter-spacing:.08em}
+  .role ul{margin:10px 0 0; padding-left:17px; color:var(--muted); font-size:13.5px}
+  .role li{margin:5px 0}
+  .role li b{color:var(--ink); font-weight:600}
+  .lane-bar{height:4px; border-radius:2px; margin:12px 0 0}
+
+  /* spends list */
+  .spend{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px}
+  @media(max-width:620px){ .spend{grid-template-columns:1fr} }
+  .spend .item{font-size:13px; color:var(--muted); border:1px dashed var(--line-strong); border-radius:3px; padding:10px 12px}
+  .spend .item b{color:var(--senior)}
+
+  /* guards */
+  .guards{display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:4px}
+  @media(max-width:620px){ .guards{grid-template-columns:1fr} }
+  .guard{border:1px solid var(--line); border-radius:3px; padding:13px 15px; background:var(--panel-2)}
+  .guard .g{font-weight:650; font-size:14px; display:flex; gap:8px; align-items:baseline}
+  .guard .g .n{font-family:var(--mono); font-size:11px; color:var(--danger)}
+  .guard p{margin:5px 0 0; font-size:13px; color:var(--muted)}
+
+  footer{margin-top:40px; color:var(--faint); font-size:12.5px; font-family:var(--mono); border-top:1px solid var(--line); padding-top:16px}
+  .foot-cmd{color:var(--muted)}
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">agent_env · routing schematic</div>
+    <h1>Do the cheap work for free. Spend Claude only where it matters.</h1>
+    <p class="lede">A router in front of the agent crew. Every task is sized on two axes — can its bytes leave the machine, and how much damage can a bad edit do — then sent down the cheapest lane that's still safe. A local model drafts; a verify gate guards; Claude applies only what's left.</p>
+
+    <div class="hero" style="margin-top:22px">
+      <div class="panel">
+        <span class="corner">FIG.00 / POSTURE</span>
+        <h2>Default posture</h2>
+        <div class="sec-title" style="margin-bottom:10px">Local bench on, external lane dormant</div>
+        <p class="note" style="margin-top:0">The steady state you actually run: work routes to the free local model where it's allowed, and falls back to Claude honestly when the bench can't do it safely. Numbers below are the projected split across a representative crew workload.</p>
+        <div class="legend">
+          <span class="lane-key"><span class="dot s"></span> Claude — senior, trusted, writes</span>
+          <span class="lane-key"><span class="dot b"></span> Ollama — local, free, on-machine</span>
+          <span class="lane-key"><span class="dot e"></span> DeepSeek — external, cheap, advisory</span>
+          <span class="lane-key"><span class="dot d"></span> escalate / guard / stop</span>
+        </div>
+      </div>
+      <div class="statcard">
+        <span class="corner" style="color:var(--faint)">Δ vs baseline</span>
+        <div class="bignum">55%</div>
+        <div class="sub">projected token-cost cut <b>vs all-Opus</b></div>
+        <div style="height:14px"></div>
+        <div class="bignum" style="font-size:clamp(24px,4vw,34px); color:var(--senior)">25%</div>
+        <div class="sub">cut <b>vs all-Sonnet</b> · <span class="mono">python -m agent_env.benchmark</span></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- STAGE ROUTING -->
+  <section>
+    <div class="panel">
+      <span class="corner">FIG.01 / ROUTE</span>
+      <h2>Two-stage router</h2>
+      <div class="sec-title">First pick <em>who</em>, then pick <em>where</em></div>
+      <div class="flow">
+        <div class="stage">
+          <div class="k">stage 1 · router.py</div>
+          <div class="q">WHO owns it</div>
+          <div class="tag">route_task()</div>
+          <ul>
+            <li>Maps the task to one specialist role — Paul (hardware), Noah (GUI), Abel (acquisition), Jonathan (data), Mary (review), Samantha (docs), Prometheus (research).</li>
+            <li>Each role carries an <code>external_ok</code> flag: may this domain ever leave the trusted lane?</li>
+          </ul>
+        </div>
+        <div class="arrow">→</div>
+        <div class="stage">
+          <div class="k">stage 2 · provider_router.py</div>
+          <div class="q">WHERE it runs</div>
+          <div class="tag">select_provider()</div>
+          <ul>
+            <li><b>Data sensitivity</b> — may these bytes reach an <em>untrusted</em> API? Reading a file sends its contents off-machine.</li>
+            <li><b>Change risk</b> — <span class="tag">low / mid / high</span> blast radius from a bad edit.</li>
+          </ul>
+        </div>
+        <div class="arrow">→</div>
+        <div class="stage" style="background:color-mix(in srgb,var(--bench) 7%, var(--panel-2))">
+          <div class="k">result</div>
+          <div class="q">lane + rights</div>
+          <div class="tag">ProviderDecision</div>
+          <ul>
+            <li><span class="pill senior">claude_cli</span> <span class="pill bench">ollama</span> <span class="pill ext">deepseek</span></li>
+            <li style="margin-top:6px"><b>write</b> = may apply the edit · <b>advisory</b> = read-only proposal Claude merges.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DECISION MATRIX -->
+  <section>
+    <div class="panel">
+      <span class="corner">FIG.02 / DECIDE</span>
+      <h2>Decision matrix</h2>
+      <div class="sec-title">The whole policy, in five rules</div>
+      <p class="note">Evaluated top-to-bottom; first match wins. This is <code>select_provider()</code> verbatim, not a summary. A free model can <em>propose</em>; it never merges a change on its own.</p>
+      <div class="tablewrap">
+        <table>
+          <caption>Free lanes are read-only proposers. Only a trusted, write-capable lane applies a diff.</caption>
+          <thead>
+            <tr><th style="width:34px">#</th><th>Condition</th><th>Lane</th><th>Rights</th><th>Why</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono">1</td>
+              <td>Role is <span class="tag">not external_ok</span></td>
+              <td><span class="pill senior">claude_cli</span></td>
+              <td class="w">write</td>
+              <td>Hardware / safety domains never leave the trusted lane.</td>
+            </tr>
+            <tr>
+              <td class="mono">2</td>
+              <td><span class="tag">high</span> change-risk <b>write</b></td>
+              <td><span class="pill senior">claude_cli</span></td>
+              <td class="w">write</td>
+              <td>Irreversible / high-blast edits stay senior. (Review-only high-risk may still go free.)</td>
+            </tr>
+            <tr>
+              <td class="mono">3</td>
+              <td><b>Sensitive</b> data</td>
+              <td><span class="pill bench">ollama</span> <span class="tag">only</span></td>
+              <td>low → <span class="w">write</span><br>mid → advisory</td>
+              <td>Bytes stay on the machine. <b>Never</b> DeepSeek. Claude applies mid-risk.</td>
+            </tr>
+            <tr>
+              <td class="mono">4</td>
+              <td>Non-sensitive, key present</td>
+              <td><span class="pill ext">deepseek</span></td>
+              <td>advisory</td>
+              <td>Cheapest external draft; Claude reviews + applies. Dormant without a key.</td>
+            </tr>
+            <tr>
+              <td class="mono">5</td>
+              <td>Non-sensitive, no key</td>
+              <td><span class="pill bench">ollama</span></td>
+              <td>low → <span class="w">write</span><br>mid → advisory</td>
+              <td>Local bench does it free; low-risk it writes directly ($0 Claude).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note" style="margin-top:12px"><b>Degrade rule:</b> any chosen lane that's unreachable silently falls back to <span class="pill senior">claude_cli</span> — the run never fails for lack of a bench, it just costs tokens, and <code>metrics</code> raises the fallback-rate alarm if that happens too often.</p>
+    </div>
+  </section>
+
+  <!-- CASCADE -->
+  <section>
+    <div class="panel">
+      <span class="corner">FIG.03 / EXECUTE</span>
+      <h2>The live cascade</h2>
+      <div class="sec-title">Route → guarded draft → verify gate → accept or roll back</div>
+      <p class="note">One seam: <code>offload(objective, repo_root, paths, live=True, project=…)</code>. This is the FrugalGPT cascade — the free lane attempts it, and nothing it produces is trusted until the gate passes.</p>
+      <div class="pipe" style="margin-top:14px">
+        <div class="node"><div class="t">Route</div><div class="d">policy-aware</div></div>
+        <div class="conn">→</div>
+        <div class="node"><div class="t">Local worker</div><div class="d">write-guarded</div></div>
+        <div class="conn">→</div>
+        <div class="node gate"><div class="t">Verify gate</div><div class="d">report + tests</div></div>
+        <div class="conn">→</div>
+        <div class="node"><div class="t">Decide</div><div class="d">accept · rollback</div></div>
+      </div>
+      <div class="branch">
+        <div class="outcome pass">
+          <div class="h"><span class="badge">offloaded</span> gate passes</div>
+          <p>The bench's edit is kept. Report attached. <b>Zero Claude tokens spent.</b></p>
+        </div>
+        <div class="outcome fail">
+          <div class="h"><span class="badge">escalated_after_verify_fail</span> gate fails</div>
+          <p>The write is <b>rolled back</b> to a clean tree, and the task is handed to Claude. Anything that couldn't be reverted is surfaced as <code>dirty_unreverted</code> — never left silent.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW ADAM WIRES IN -->
+  <section>
+    <div class="panel">
+      <span class="corner">FIG.04 / WIRE-IN</span>
+      <h2>Where Claude sits</h2>
+      <div class="sec-title">Adam owns trust. Ikarus runs the bench. Claude is the lane of last resort — and the one that merges.</div>
+      <div class="cols" style="margin-top:14px">
+        <div class="role">
+          <div class="who">senior lane · reviewer · router</div>
+          <h3><span class="dot s" style="width:13px;height:13px"></span> Adam / Claude</h3>
+          <p class="note" style="margin-top:2px">The captain, not a worker. Decides trust and safety, then does the smallest amount of hands-on work.</p>
+          <ul>
+            <li><b>Applies</b> every advisory diff a free model proposes — the free lane drafts, Claude merges.</li>
+            <li><b>Owns</b> all high-risk writes, sensitive-mid applies, and not-external-eligible roles.</li>
+            <li><b>Catches</b> everything the gate rejects or Ikarus bounces back.</li>
+          </ul>
+          <div class="lane-bar" style="background:var(--senior)"></div>
+        </div>
+        <div class="role">
+          <div class="who">foreman · bounded local pool</div>
+          <h3><span class="dot b" style="width:13px;height:13px"></span> Ikarus</h3>
+          <p class="note" style="margin-top:2px">Foreman of the contractor bench. Takes only work Adam has already cleared as low-risk; flies no higher.</p>
+          <ul>
+            <li><b>Spawns</b> local workers from a bounded pool (<code>max_workers</code>) in waves.</li>
+            <li><b>Enforces</b> reduced rights — the write-guard refuses device / vendor / secret / high-risk paths.</li>
+            <li><b>Bounces</b> anything that routes back to Claude — defense in depth, re-checks its own routing.</li>
+          </ul>
+          <div class="lane-bar" style="background:var(--bench)"></div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:22px">The only four things Claude pays for</h2>
+      <div class="spend">
+        <div class="item"><b>Escalations</b> — the bench was down or ineligible.</div>
+        <div class="item"><b>High-risk writes</b> — HV, motion, state machine, architecture.</div>
+        <div class="item"><b>Sensitive applies</b> — merging a mid-risk on-machine draft.</div>
+        <div class="item"><b>Verify-fail recovery</b> — the rolled-back task lands here.</div>
+      </div>
+      <p class="note" style="margin-top:14px"><b>How it's driven:</b> manual / Codex call today; an Ikarus batch for fan-out; and the durable path — a Claude Code <code>PreToolUse</code> hook that offloads eligible edits before Claude ever spends a token. See <code>docs/INTEGRATION.md</code>.</p>
+    </div>
+  </section>
+
+  <!-- GUARDS -->
+  <section>
+    <div class="panel">
+      <span class="corner">FIG.05 / GUARDS</span>
+      <h2>Why it's safe to let a 7B model touch the repo</h2>
+      <div class="sec-title">Four guards, all fail-closed</div>
+      <div class="guards" style="margin-top:12px">
+        <div class="guard">
+          <div class="g"><span class="n">G1</span> Default-deny egress</div>
+          <p>Anything not explicitly allow-listed is treated as sensitive. Untrusted external APIs only ever see allow-listed bytes; the local lane and Claude are trusted and bypass it.</p>
+        </div>
+        <div class="guard">
+          <div class="g"><span class="n">G2</span> Write-guard on paths</div>
+          <p>A baseline high-blast path floor (devices, controllers, state machines, secrets) is <em>always</em> unioned in. A project can extend it, never weaken it. Simulated backends stay writable; the real drivers don't.</p>
+        </div>
+        <div class="guard">
+          <div class="g"><span class="n">G3</span> No policy → no write</div>
+          <p>A live write with no project policy loaded is refused outright and sent to Claude — otherwise the guards would run under an empty deny-list and safety code would be writable.</p>
+        </div>
+        <div class="guard">
+          <div class="g"><span class="n">G4</span> Verify + rollback</div>
+          <p>Every bench write passes the report check and the project's own test suite before it's kept. Fail → the tree is reverted; unreverted remnants are reported, not swallowed.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    agent_env — standalone offload harness &nbsp;·&nbsp; 35 tests green &nbsp;·&nbsp; py3.10<br>
+    <span class="foot-cmd">doctor → readiness &nbsp;|&nbsp; benchmark → projected $ &nbsp;|&nbsp; ikarus → spawn plan &nbsp;|&nbsp; offload --live → run one &nbsp;|&nbsp; metrics → fallback rate</span>
+  </footer>
+
+</div>
