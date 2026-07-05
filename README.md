@@ -68,6 +68,24 @@ router prefers that repo's `.agentenv/agents/`, then the generic
 project, copy `templates/project.example.json` to `projects/<name>.json`, edit
 it, and pass `--project <name>`.
 
+## VS Code integration
+
+Claude Code and Codex in VS Code always talk through the harness, never to
+each other. The definitive request/report contract (JSON shapes, lane
+semantics, directory flow) is [`docs/COMMS_PROTOCOL.md`](docs/COMMS_PROTOCOL.md).
+
+`.vscode/tasks.json` ships ready-made tasks (Terminal -> Run Task):
+
+- **Agent Bridge: watch** -- background watcher; must be running for queued requests to be answered
+- **Agent Env: doctor / status / benchmark (dry)** -- bench health, bridge state, projected costs
+- **Agent Env: spawn (prompt for objective)** -- decompose an objective onto the local bench
+- **Agent Env: run tests** -- `python -m unittest discover tests`
+
+`agentenv init <repo>` also drops `CLAUDE.md` and `AGENTS.md` (from
+`templates/`) into the target repo root -- the standing instructions that make
+each tool route delegable work through the harness (existing files are never
+overwritten).
+
 ## Example: project_tct
 
 The commands below are the concrete `project_tct` setup. Swap the paths and the
