@@ -8,6 +8,7 @@ from typing import Any
 
 from .router import route_task
 from .schemas import REPORT_KEYS, validate_report
+from .fallback import fallback_decision
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -79,16 +80,18 @@ def _blocked_report_from_wrapper(output: str) -> dict[str, Any] | None:
     if not isinstance(payload, dict) or not payload.get("is_error"):
         return None
     message = str(payload.get("result") or payload.get("error") or "Claude call failed")
+    decision = fallback_decision("blocked")
     return {
         "status": "blocked",
         "summary": message[:600],
         "files_changed": [],
         "tests_run": [],
         "risks": ["Claude CLI returned an error before producing a specialist report."],
-        "todos": ["Retry the Claude bridge after the reported limit/reset condition clears."],
+        "todos": [decision["todo"] or "Retry Claude bridge later."],
         "handoff": {
             "api_error_status": payload.get("api_error_status"),
             "session_id": payload.get("session_id"),
+            "fallback": decision,
         },
     }
 

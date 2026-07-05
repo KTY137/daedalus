@@ -2,6 +2,7 @@ import unittest
 
 from agent_env.claude_bridge import _blocked_report_from_wrapper, _extract_json, build_prompt
 from agent_env.file_bridge import _read_request
+from agent_env.fallback import fallback_decision
 from agent_env.memory import MemoryEvent
 from agent_env.orchestrate import _infer_paths
 from agent_env.projects import load_project, resolve_repo_root
@@ -58,6 +59,7 @@ class AgentEnvTests(unittest.TestCase):
         self.assertIsNotNone(report)
         self.assertEqual(report["status"], "blocked")
         self.assertEqual(report["handoff"]["api_error_status"], 429)
+        self.assertTrue(report["handoff"]["fallback"]["continue"])
 
     def test_request_uses_default_repo_root(self):
         import tempfile
@@ -92,6 +94,15 @@ class AgentEnvTests(unittest.TestCase):
     def test_infers_existing_paths(self):
         paths = _infer_paths("look at README.md", "C:/Users/nukei/Desktop/agent_env")
         self.assertTrue(any(path.endswith("README.md") for path in paths))
+
+    def test_fallback_allows_codex_when_claude_blocked(self):
+        decision = fallback_decision("blocked", risk_level="normal")
+        self.assertTrue(decision["continue"])
+        self.assertEqual(decision["mode"], "codex_solo")
+
+    def test_fallback_can_block_when_user_requires_claude(self):
+        decision = fallback_decision("blocked", user_requires_claude=True)
+        self.assertFalse(decision["continue"])
 
 
 if __name__ == "__main__":

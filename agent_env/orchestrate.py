@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .file_bridge import enqueue
+from .fallback import DEFAULT_POLICY
 from .memory import MemoryEvent, append_event
 from .projects import load_project, resolve_repo_root
 from .router import route_task
@@ -52,7 +53,11 @@ def prepare_task(
             summary=message[:600],
             todos=[f"Handle user task: {message[:180]}"],
             paths=paths,
-            payload={"agent": agent["name"], "git_status": status["git_status"]},
+            payload={
+                "agent": agent["name"],
+                "git_status": status["git_status"],
+                "fallback_policy": DEFAULT_POLICY,
+            },
         )
     )
 
@@ -74,6 +79,7 @@ def prepare_task(
         "queued_claude_request": queued_path,
         "memory_event": memory_record,
         "status": status,
+        "fallback_policy": DEFAULT_POLICY,
     }
 
 

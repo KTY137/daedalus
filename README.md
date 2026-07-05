@@ -102,3 +102,5 @@ Rules:
 - Every agent is stateless across invocations.
 - Every report must be short and structured.
 - Reviewer and test gates run before commit or PR.
+- Claude/Codex fallback policy is documented in `docs/FALLBACK.md`; either side
+  can continue with memory and tests when the other is unavailable.
