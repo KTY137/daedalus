@@ -1,0 +1,35 @@
+{
+  "_comment": "agent_env policy for THIS repo. Generic secret protections are always merged in; add your own denies. With no 'policy' block, the bench is read/advise-only (fail-closed). Edit, then run `agentenv doctor`.",
+  "policy": {
+    "deny": [
+      "secret",
+      "credential",
+      ".env",
+      "id_rsa",
+      ".pem"
+    ],
+    "allow": [
+      "docs/",
+      "/tests/",
+      "test_",
+      ".md",
+      "readme"
+    ],
+    "allow_exceptions": [
+      "_simulated.py"
+    ],
+    "high_risk_paths": [],
+    "high_risk_terms": [
+      "delete",
+      "drop table",
+      "migration",
+      "auth",
+      "payment",
+      "production",
+      "deploy"
+    ],
+    "deny_content": []
+  },
+  "test_command": "python -m pytest -q",
+  "test_cwd": "."
+}

@@ -1,0 +1,10 @@
+{
+  "name": "reviewer",
+  "call_name": "Rev",
+  "model_tier": "sonnet",
+  "external_ok": true,
+  "owns": [],
+  "triggers": ["review", "code review", "pull request", "pr", "diff", "lint", "style"],
+  "must_read": ["README.md"],
+  "output_schema": "review_report_v1"
+}
