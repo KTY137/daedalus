@@ -23,6 +23,10 @@ from .router import AGENT_DIR, load_agents
 
 MODEL_TIERS = ("opus", "sonnet", "haiku")
 _NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
+# Names that collide with non-role config files in an agent dir (see
+# router._NON_ROLE_FILES): a role so named would be silently skipped by
+# load_agents, so reject it at creation instead of losing it without a trace.
+_RESERVED_ROLE_NAMES = {"categories"}
 _LIST_FIELDS = ("owns", "triggers", "must_read")
 
 
@@ -43,6 +47,8 @@ def validate_role(role: dict[str, Any]) -> list[str]:
     name = role.get("name")
     if not isinstance(name, str) or not _NAME_RE.match(name or ""):
         errors.append("name must be a lowercase slug (a-z, 0-9, '-'), 2-41 chars")
+    elif name in _RESERVED_ROLE_NAMES:
+        errors.append(f"'{name}' is a reserved name (collides with a non-role config file)")
     if role.get("model_tier", "sonnet") not in MODEL_TIERS:
         errors.append(f"model_tier must be one of {', '.join(MODEL_TIERS)}")
     if not isinstance(role.get("external_ok", False), bool):

@@ -510,7 +510,8 @@ def queue_task(
     # `lane`, which the caller/policy already decided.
     category = ""
     try:
-        owner = route_task(objective, paths or [], repo_root=repo_root)
+        active = team_config(project).get("active_agents") or None
+        owner = route_task(objective, paths or [], repo_root=repo_root, active_agents=active)
         category = owner.get("category", "") or ""
     except Exception:
         category = ""

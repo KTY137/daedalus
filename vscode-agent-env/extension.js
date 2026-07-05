@@ -166,10 +166,10 @@ function currentFilePath() {
   return editor && editor.document && editor.document.uri.scheme === "file" ? editor.document.uri.fsPath : "";
 }
 
-async function enqueue(context, lane, source, strategy, item) {
+async function enqueue(context, lane, source, strategy, item, presetObjective) {
   const project = await pickProject(context, item);
   if (!project) return;
-  const objective = await vscode.window.showInputBox({ prompt: `Task for ${project} (${lane}, ${strategy})`, ignoreFocusOut: true });
+  const objective = presetObjective || await vscode.window.showInputBox({ prompt: `Task for ${project} (${lane}, ${strategy})`, ignoreFocusOut: true });
   if (!objective) return;
   if (lane !== "local_only") {
     const ok = await confirmAction(`Send task to '${lane}' lane?`, `Project: ${project}\nLane: ${lane}\nObjective: ${objective}`);
@@ -390,6 +390,16 @@ function dashboardHtml(n) {
   button.btn.copied { color: var(--mc-success); }
   button.btn:disabled { opacity: .5; cursor: not-allowed; }
 
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: var(--text-small); color: var(--mc-text-muted); }
+  .field input, .field select, .field textarea { color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius: 3px; padding: 5px 8px; font-family: inherit; font-size: inherit; width: 100%; }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+  .field-check { display: flex; align-items: center; gap: 6px; font-size: var(--text-small); }
+  .field-check label { color: var(--mc-text); }
+  .status-text { font-size: var(--text-small); color: var(--mc-warning); }
+  .live-dot { font-size: 10px; }
+
   .gate-list { display: flex; flex-direction: column; border: 1px solid var(--mc-border); border-radius: 6px; overflow: hidden; }
   .gate-row { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--mc-border); font-size: var(--text-small); }
   .gate-row:last-child { border-bottom: 0; }
@@ -489,7 +499,22 @@ function dashboardHtml(n) {
   </section>
   <section id="queue" class="page">
     <section class="block">
-      <h2>Queue Timeline</h2>
+      <h2>Assign Task</h2>
+      <div class="desc">Queues a task straight onto the file bus. Non-local lanes still require confirmation before dispatch.</div>
+      <div class="panel">
+        <div class="field"><label for="taskObjective">Objective</label><textarea id="taskObjective" rows="3" placeholder="Describe the task..."></textarea></div>
+        <div class="field-row" style="margin-top:var(--space-2);">
+          <div class="field"><label for="taskLane">Lane</label><select id="taskLane"><option value="local_only">local_only</option><option value="local">local</option><option value="auto">auto</option><option value="claude">claude</option></select></div>
+          <div class="field"><label for="taskAgent">Agent hint (optional)</label><input id="taskAgent" type="text" placeholder="e.g. core-dev"></div>
+        </div>
+        <div class="header-actions" style="margin-top:var(--space-3);"><button class="btn primary" id="queueTaskBtn">Queue task</button><span class="status-text" id="taskStatus"></span></div>
+      </div>
+    </section>
+    <section class="block">
+      <div class="header-actions" style="justify-content:space-between;">
+        <h2>Queue Timeline</h2>
+        <div class="header-actions"><span class="badge" id="liveIndicator"><span class="live-dot value ok" id="liveDot">&#9679;</span><span id="liveText">Live</span></span><button class="btn" id="livePause">Pause</button></div>
+      </div>
       <div class="desc">Click a row to expand. Failed reports get a red rail so they can't be scrolled past unnoticed.</div>
       <div class="header-actions"><button class="btn" data-action="reviewDiff">Rerun local_only diff review</button><button class="btn" data-action="enqueueAuto">Queue auto task</button><button class="btn" data-action="openLatest">Open latest report</button></div>
       <div id="timeline"></div>
@@ -500,6 +525,23 @@ function dashboardHtml(n) {
       <h2>Agent Squads</h2>
       <div class="desc">Ikarus routes every task through the central file bus. Squads filter active agents and make ownership visible.</div>
       <div id="squadGrid"></div>
+    </section>
+    <section class="block">
+      <h2>New Agent</h2>
+      <div class="desc">Registers a new agent role via <code>daedalus.cli agents add</code>. Agents are local-only by default; enable "external ok" only for roles cleared to reach hosted providers.</div>
+      <div class="panel">
+        <div class="field-row">
+          <div class="field"><label for="naName">Name</label><input id="naName" type="text" placeholder="e.g. scribe"></div>
+          <div class="field"><label for="naCallName">Call name</label><input id="naCallName" type="text" placeholder="e.g. Scribe"></div>
+          <div class="field"><label for="naModelTier">Model tier</label><select id="naModelTier"><option value="opus">opus</option><option value="sonnet" selected>sonnet</option><option value="haiku">haiku</option></select></div>
+          <div class="field"><label for="naCategory">Category</label><select id="naCategory"><option value="">(none)</option></select></div>
+        </div>
+        <div class="field-row" style="margin-top:var(--space-2);">
+          <div class="field" style="grid-column: span 2;"><label for="naTriggers">Triggers (comma-separated)</label><input id="naTriggers" type="text" placeholder="e.g. docs, readme, changelog"></div>
+          <div class="field-check"><input id="naExternalOk" type="checkbox"><label for="naExternalOk">External ok (may reach hosted providers)</label></div>
+        </div>
+        <div class="header-actions" style="margin-top:var(--space-3);"><button class="btn primary" id="addAgentBtn">Create agent</button><span class="status-text" id="naStatus"></span></div>
+      </div>
     </section>
   </section>
   <section id="models" class="page"><div id="modelGrid"></div></section>
@@ -678,6 +720,13 @@ function renderSquads() {
   document.getElementById('squadGrid').innerHTML = summary + '<div class="squad-grid" style="margin-top:var(--space-3);">' + groups + '</div>' + claudeCrew;
   laneEl.value = s.default_lane || 'local_only';
   workersEl.value = s.max_workers || 3;
+  const naCategory = document.getElementById('naCategory');
+  if (naCategory) {
+    const cats = state.categories || [];
+    const prevVal = naCategory.value;
+    naCategory.innerHTML = '<option value="">(none)</option>' + cats.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
+    if (cats.some(c => c.id === prevVal)) naCategory.value = prevVal;
+  }
 }
 function modelRow(x, maxSize) {
   const pct = maxSize ? Math.max(2, Math.round((x.size_gb / maxSize) * 100)) : 0;
@@ -860,7 +909,8 @@ function save() {
   vscode.postMessage({ type: 'saveTeam', project: projectEl.value, maxWorkers: workersEl.value, defaultLane: laneEl.value, activeAgents });
 }
 window.addEventListener('message', event => { if (event.data.type === 'state') { state = event.data.state; renderAll(); } });
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.tab,.page').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById(b.dataset.tab).classList.add('active'); }));
+let activeTab = 'overview';
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { document.querySelectorAll('.tab,.page').forEach(x => x.classList.remove('active')); b.classList.add('active'); document.getElementById(b.dataset.tab).classList.add('active'); activeTab = b.dataset.tab; }));
 projectEl.addEventListener('change', () => vscode.postMessage({ type: 'refresh', project: projectEl.value }));
 document.getElementById('save').addEventListener('click', save);
 document.getElementById('refresh').addEventListener('click', () => vscode.postMessage({ type: 'refresh', project: projectEl.value }));
@@ -901,6 +951,52 @@ document.getElementById('wheel-detail').addEventListener('click', ev => {
   if (swatch) payload.color = swatch.dataset.hex; else payload.icon = emoji.dataset.icon;
   vscode.postMessage(payload);
 });
+document.getElementById('addAgentBtn').addEventListener('click', () => {
+  const naStatus = document.getElementById('naStatus');
+  const name = document.getElementById('naName').value.trim();
+  if (!name) { naStatus.textContent = 'Name is required.'; return; }
+  naStatus.textContent = '';
+  vscode.postMessage({
+    type: 'addAgent',
+    name,
+    callName: document.getElementById('naCallName').value.trim(),
+    modelTier: document.getElementById('naModelTier').value,
+    externalOk: document.getElementById('naExternalOk').checked,
+    triggers: document.getElementById('naTriggers').value.trim(),
+    category: document.getElementById('naCategory').value,
+    project: projectEl.value
+  });
+});
+document.getElementById('queueTaskBtn').addEventListener('click', () => {
+  const taskStatus = document.getElementById('taskStatus');
+  const objective = document.getElementById('taskObjective').value.trim();
+  if (!objective) { taskStatus.textContent = 'Objective is required.'; return; }
+  taskStatus.textContent = '';
+  vscode.postMessage({
+    type: 'assignTask',
+    objective,
+    lane: document.getElementById('taskLane').value,
+    agentHint: document.getElementById('taskAgent').value.trim(),
+    project: projectEl.value
+  });
+  document.getElementById('taskObjective').value = '';
+  document.getElementById('taskAgent').value = '';
+});
+let liveEnabled = true;
+function updateLiveIndicator() {
+  const dot = document.getElementById('liveDot');
+  const text = document.getElementById('liveText');
+  const btn = document.getElementById('livePause');
+  if (!dot || !text || !btn) return;
+  const onQueueTab = activeTab === 'queue';
+  dot.className = 'live-dot value ' + (liveEnabled && onQueueTab ? 'ok' : 'warn');
+  text.textContent = liveEnabled ? (onQueueTab ? 'Live' : 'Live (idle off-tab)') : 'Paused';
+  btn.textContent = liveEnabled ? 'Pause' : 'Resume';
+}
+document.getElementById('livePause').addEventListener('click', () => { liveEnabled = !liveEnabled; updateLiveIndicator(); });
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', updateLiveIndicator));
+updateLiveIndicator();
+setInterval(() => { if (liveEnabled && activeTab === 'queue') vscode.postMessage({ type: 'refresh', project: projectEl.value }); }, 5000);
 vscode.postMessage({ type: 'ready' });
 </script>
 </body>
@@ -964,6 +1060,23 @@ function bindDashboardWebview(context, webview) {
       } else if (message.type === "copy") {
         await vscode.env.clipboard.writeText(message.text || "");
         vscode.window.showInformationMessage(`Copied: ${message.text}`);
+      } else if (message.type === "addAgent") {
+        const name = String(message.name || "").trim();
+        if (!name) throw new Error("Agent name is required.");
+        const args = ["-m", "daedalus.cli", "agents", "add", name, "--call-name", message.callName || "", "--model-tier", message.modelTier || "sonnet"];
+        if (message.externalOk) args.push("--external-ok");
+        if (message.triggers) args.push("--triggers", message.triggers);
+        if (message.project) args.push("--project", message.project);
+        if (message.category) args.push("--category", message.category);
+        const out = await runPython(context, args);
+        await postState(message.project);
+        vscode.window.showInformationMessage(`Created agent '${name}': ${out}`);
+      } else if (message.type === "assignTask") {
+        const objective = String(message.objective || "").trim();
+        if (!objective) throw new Error("Objective is required.");
+        const hinted = message.agentHint ? `[agent hint: ${message.agentHint}] ${objective}` : objective;
+        await enqueue(context, message.lane || "local_only", "dashboard", "single", { project: { name: message.project } }, hinted);
+        await postState(message.project);
       }
     } catch (err) {
       vscode.window.showErrorMessage(String(err.message || err));

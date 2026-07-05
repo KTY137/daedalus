@@ -39,6 +39,13 @@ class AgentsRegistryTests(unittest.TestCase):
         reg.create_role(self._spec(model_tier="sonnet"), self.repo, overwrite=True)
         self.assertEqual(reg.get_role("security-reviewer", self.repo)["model_tier"], "sonnet")
 
+    def test_reserved_name_categories_rejected(self):
+        # A role named 'categories' collides with the taxonomy file and would
+        # vanish from load_agents -- reject it at creation, not silently.
+        with self.assertRaises(ValueError):
+            reg.create_role({"name": "categories", "model_tier": "sonnet"}, self.repo)
+        self.assertTrue(any("reserved" in e for e in reg.validate_role({"name": "categories"})))
+
     def test_update_and_delete(self):
         reg.create_role(self._spec(), self.repo)
         reg.update_role("security-reviewer", {"model_tier": "sonnet", "triggers": ["auth"]}, self.repo)

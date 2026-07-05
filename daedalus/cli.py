@@ -100,6 +100,7 @@ def _agents(argv: list[str]) -> None:
     ap.add_argument("--triggers", default="")
     ap.add_argument("--must-read", default="")
     ap.add_argument("--output-schema", default="agent_report_v1")
+    ap.add_argument("--category", default="")
     ap.add_argument("--overwrite", action="store_true")
 
     ep = sub.add_parser("edit"); ep.add_argument("name"); common(ep)
@@ -111,6 +112,7 @@ def _agents(argv: list[str]) -> None:
     ep.add_argument("--triggers")
     ep.add_argument("--must-read")
     ep.add_argument("--output-schema")
+    ep.add_argument("--category")
 
     rp = sub.add_parser("rm"); rp.add_argument("name"); common(rp)
 
@@ -134,6 +136,7 @@ def _agents(argv: list[str]) -> None:
             "name": args.name, "call_name": args.call_name, "model_tier": args.model_tier,
             "external_ok": args.external_ok, "owns": split(args.owns), "triggers": split(args.triggers),
             "must_read": split(args.must_read), "output_schema": args.output_schema,
+            "category": args.category,
         }
         try:
             print(f"wrote {reg.create_role(spec, repo_root, overwrite=args.overwrite)}")
@@ -148,6 +151,7 @@ def _agents(argv: list[str]) -> None:
         if args.triggers is not None: patch["triggers"] = split(args.triggers)
         if args.must_read is not None: patch["must_read"] = split(args.must_read)
         if args.output_schema is not None: patch["output_schema"] = args.output_schema
+        if args.category is not None: patch["category"] = args.category
         try:
             print(f"wrote {reg.update_role(args.name, patch, repo_root)}")
         except (ValueError, KeyError) as exc:
