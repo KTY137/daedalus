@@ -19,6 +19,7 @@
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
     daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
+    daedalus bookkeeper update          refresh docs/architecture.html (+ history snapshot)
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -391,6 +392,8 @@ def main() -> None:
         _drafts(rest)
     elif cmd == "selftest":
         from .selftest import main as m; m(rest)
+    elif cmd == "bookkeeper":
+        from .bookkeeper import main as m; m(rest)
     elif cmd == "web":
         from .web_api import main as m; m(rest)
     elif cmd == "enforce":
