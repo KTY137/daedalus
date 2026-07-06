@@ -360,3 +360,25 @@ p { color: var(--muted); font-size: 12px; line-height: 1.45; }
   .map-panel { min-height: 560px; }
   .runtime-row { grid-template-columns: 1fr; }
 }
+
+/* --- Draft Inbox (Era 3 #1) --- */
+.nav-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent, #4f8cff);
+  color: #04101f;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.draft-row { align-items: center; gap: 10px; }
+.draft-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.draft-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft-main small { color: var(--muted, #7f93ad); }
+.draft-actions { display: flex; gap: 6px; flex: none; }
+.draft-actions button { display: inline-flex; align-items: center; gap: 5px; }

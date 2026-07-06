@@ -8,6 +8,7 @@ import {
   Cpu,
   FileText,
   GitBranch,
+  Inbox,
   KeyRound,
   MessageSquare,
   Network,
@@ -17,19 +18,24 @@ import {
   ShieldCheck,
   Sparkles,
   Terminal,
+  Trash2,
   Users
 } from 'lucide-react';
 import {
+  applyDraft,
   chatIkarus,
+  dismissDraft,
   getControlPlane,
   getDashboard,
   getClaudeBootstrap,
+  getDrafts,
   getHierarchy,
   getProjects,
   getRuntimeStatus,
   queueTask,
   testRuntime,
-  updateAutonomy
+  updateAutonomy,
+  type DraftRow
 } from './api';
 import type { AgentProfile, BootstrapPayload, ControlPlanePayload, DashboardPayload, HierarchyNode, HierarchyPayload, IkarusChatPayload, NodeKind, ProjectRow, RuntimeRow, RuntimeTestPayload } from './types';
 
@@ -253,6 +259,58 @@ function IkarusPanel({ project, onApplied }: { project: string; onApplied: () =>
   );
 }
 
+function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => void }) {
+  const [busy, setBusy] = useState('');
+  const [applied, setApplied] = useState<Record<string, unknown> | undefined>();
+  const pending = drafts.filter((d) => d.status === 'pending');
+
+  async function act(id: string, verb: 'apply' | 'dismiss') {
+    setBusy(id);
+    try {
+      if (verb === 'apply') {
+        const res = await applyDraft(id);
+        setApplied(res.applied);
+      } else {
+        await dismissDraft(id);
+      }
+      onChange();
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <section className="panel feature-panel">
+      <div className="panel-head"><Inbox size={18} /><div>
+        <h2>Draft Inbox</h2>
+        <p>Advisory proposals from the free bench. A free model may propose — never merge. Applying hands a review packet to the trusted (Claude) lane.</p>
+      </div></div>
+      {pending.length === 0 && <div className="feed-row"><span>No pending drafts. Advisory offloads land here.</span></div>}
+      <div className="feed-list">
+        {pending.map((d) => (
+          <div className="feed-row draft-row" key={d.id}>
+            <div className="draft-main">
+              <b>{d.agent || 'bench'}</b>
+              <span>{d.objective}</span>
+              <small>{(d.paths || []).join(', ') || 'no paths'} · {d.created}</small>
+            </div>
+            <div className="draft-actions">
+              <button className="primary" disabled={busy === d.id} onClick={() => act(d.id, 'apply')}><Check size={13} /> Apply</button>
+              <button disabled={busy === d.id} onClick={() => act(d.id, 'dismiss')}><Trash2 size={13} /> Dismiss</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {applied && (
+        <div className="bootstrap-box">
+          <div className="panel-head compact"><MessageSquare size={16} /><div><h2>Review packet</h2><p>Hand this to the Claude lane to actually apply the change.</p></div></div>
+          <pre>{JSON.stringify(applied, null, 2)}</pre>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function RuntimeCenter({ runtimes }: { runtimes: RuntimeRow[] }) {
   const [tests, setTests] = useState<Record<string, RuntimeTestPayload['test']>>({});
   const [busy, setBusy] = useState('');
@@ -309,7 +367,8 @@ export default function App() {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | undefined>();
   const [selectedName, setSelectedName] = useState('');
-  const [view, setView] = useState<'network' | 'claude' | 'codex' | 'providers' | 'queue'>('network');
+  const [view, setView] = useState<'network' | 'claude' | 'codex' | 'providers' | 'queue' | 'inbox'>('network');
+  const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [objective, setObjective] = useState('');
   const [lane, setLane] = useState('local_only');
   const [error, setError] = useState('');
@@ -329,18 +388,20 @@ export default function App() {
       const chosen = nextProject || queryProject || projectPayload.projects[0]?.name || '';
       if (!chosen) return;
       setProject(chosen);
-      const [dash, graph, plane, runtimePayload, bootstrapPayload] = await Promise.all([
+      const [dash, graph, plane, runtimePayload, bootstrapPayload, draftPayload] = await Promise.all([
         getDashboard(chosen),
         getHierarchy(chosen),
         getControlPlane(chosen),
         getRuntimeStatus(),
-        getClaudeBootstrap(chosen)
+        getClaudeBootstrap(chosen),
+        getDrafts().catch(() => ({ drafts: [] as DraftRow[], pending_count: 0 }))
       ]);
       setDashboard(dash);
       setHierarchy(graph);
       setControl(plane);
       setRuntimes(runtimePayload.runtimes);
       setBootstrap(bootstrapPayload);
+      setDrafts(draftPayload.drafts || []);
       setNodes(graphNodes(graph.nodes, plane.profiles));
       setEdges(graphEdges(graph.edges));
       if (!selectedName && plane.profiles[0]) setSelectedName(plane.profiles[0].name);
@@ -368,6 +429,7 @@ export default function App() {
   }
 
   const queue = dashboard?.queue as any;
+  const draftPending = drafts.filter((d) => d.status === 'pending').length;
 
   return (
     <main className="studio-shell">
@@ -383,6 +445,10 @@ export default function App() {
           <button className={view === 'codex' ? 'active' : ''} onClick={() => setView('codex')}><Terminal size={15} /> Codex</button>
           <button className={view === 'providers' ? 'active' : ''} onClick={() => setView('providers')}><KeyRound size={15} /> Providers</button>
           <button className={view === 'queue' ? 'active' : ''} onClick={() => setView('queue')}><GitBranch size={15} /> Mission Feed</button>
+          <button className={view === 'inbox' ? 'active' : ''} onClick={() => setView('inbox')}>
+            <Inbox size={15} /> Draft Inbox
+            {draftPending > 0 && <span className="nav-badge">{draftPending}</span>}
+          </button>
         </nav>
         <div className="runtime-list">
           {(control?.runtimes || []).map((runtime) => <RuntimeCard key={String(runtime.id)} runtime={runtime} />)}
@@ -392,7 +458,7 @@ export default function App() {
       <section className="main-stage">
         <header className="studio-header">
           <div>
-            <h1>{view === 'network' ? 'Agent Network' : view === 'claude' ? 'Claude Code Control' : view === 'codex' ? 'Codex Runtime' : view === 'providers' ? 'Provider Center' : 'Mission Feed'}</h1>
+            <h1>{view === 'network' ? 'Agent Network' : view === 'claude' ? 'Claude Code Control' : view === 'codex' ? 'Codex Runtime' : view === 'providers' ? 'Provider Center' : view === 'inbox' ? 'Draft Inbox' : 'Mission Feed'}</h1>
             <p>{selectedProject?.repo_root || 'No project selected'}</p>
           </div>
           <button onClick={() => refresh(project)}><RefreshCw size={15} /> Refresh</button>
@@ -470,6 +536,8 @@ export default function App() {
         )}
 
         {view === 'providers' && <RuntimeCenter runtimes={runtimes} />}
+
+        {view === 'inbox' && <InboxTray drafts={drafts} onChange={() => refresh(project)} />}
 
         {view === 'queue' && (
           <section className="panel feature-panel">

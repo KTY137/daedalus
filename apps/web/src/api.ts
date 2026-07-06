@@ -85,3 +85,25 @@ export function testRuntime(runtimeId: string) {
 export function getClaudeBootstrap(project: string) {
   return request<BootstrapPayload>(`/api/projects/${encodeURIComponent(project)}/bootstrap/claude`);
 }
+
+export interface DraftRow {
+  id: string;
+  created: string;
+  agent: string;
+  objective: string;
+  paths: string[];
+  status: 'pending' | 'applied' | 'dismissed';
+}
+
+export function getDrafts() {
+  return request<ApiEnvelope & { drafts: DraftRow[]; pending_count: number }>('/api/drafts');
+}
+
+export function applyDraft(id: string) {
+  return request<ApiEnvelope & { applied: Record<string, unknown> }>(
+    `/api/drafts/${encodeURIComponent(id)}/apply`, { method: 'POST', body: '{}' });
+}
+
+export function dismissDraft(id: string) {
+  return request(`/api/drafts/${encodeURIComponent(id)}/dismiss`, { method: 'POST', body: '{}' });
+}
