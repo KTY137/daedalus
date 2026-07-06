@@ -136,10 +136,17 @@ def route_and_select(
     availability: dict[str, bool] | None = None,
     policy: Policy | None = None,
     active_agents: list[str] | None = None,
+    repo_root: str | None = None,
 ) -> tuple[dict, ProviderDecision]:
-    """Convenience: pick both the role and the provider in one call."""
+    """Convenience: pick both the role and the provider in one call.
+
+    ``repo_root`` threads through to :func:`router.route_task` so per-repo
+    agent rosters (``<repo>/.agentenv/agents/``) are visible to routing --
+    without it, only the global registry is consulted and a repo whose crew
+    lives entirely in its own ``.agentenv`` cannot route at all."""
     from .router import route_task
 
-    agent = route_task(objective, paths or [], active_agents=active_agents)
+    agent = route_task(objective, paths or [], repo_root=repo_root,
+                       active_agents=active_agents)
     decision = select_provider(agent, objective, paths, availability, policy)
     return agent, decision

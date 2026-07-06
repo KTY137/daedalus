@@ -17,6 +17,10 @@
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
+    daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
+    daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
+    daedalus bookkeeper update          refresh docs/architecture.html (+ history snapshot)
+    daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
 """
@@ -263,6 +267,57 @@ def _categories(argv: list[str]) -> None:
             print(f"error: {exc}")
 
 
+def _drafts(argv: list[str]) -> None:
+    """List / show / remove persisted advisory drafts (runs/drafts/). Drafts
+    are free-lane PROPOSALS awaiting review -- applying one stays a human /
+    Claude action by design (a free model may propose, never merge)."""
+    import argparse
+    import json
+    from . import drafts as dr
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus drafts",
+        description="Manage persisted advisory drafts (free-lane proposals).")
+    sub = parser.add_subparsers(dest="action", required=True)
+    lp = sub.add_parser("list"); lp.add_argument("--json", action="store_true")
+    sp = sub.add_parser("show"); sp.add_argument("id")
+    rp = sub.add_parser("rm"); rp.add_argument("id")
+    apf = sub.add_parser("apply", help="mark handled + print the review packet for the Claude lane")
+    apf.add_argument("id"); apf.add_argument("--json", action="store_true")
+    dsf = sub.add_parser("dismiss"); dsf.add_argument("id")
+
+    args = parser.parse_args(argv)
+    if args.action == "list":
+        rows = dr.list_drafts()
+        if args.json:
+            print(json.dumps(rows, indent=2))
+        elif not rows:
+            print("no drafts (advisory offloads store their proposals here)")
+        else:
+            for d in rows:
+                print(f"{d['id']}\t{d['agent']}\t{d['status']}\t{d['objective']}")
+    elif args.action == "show":
+        d = dr.get_draft(args.id)
+        print(json.dumps(d, indent=2) if d else f"unknown draft '{args.id}'")
+    elif args.action == "rm":
+        print("removed" if dr.delete_draft(args.id) else f"unknown draft '{args.id}'")
+    elif args.action == "apply":
+        packet = dr.apply_payload(args.id)
+        if packet is None:
+            print(f"unknown draft '{args.id}'")
+        elif args.json:
+            print(json.dumps(packet, indent=2))
+        else:
+            print(f"# review packet for {packet['id']} (marked applied)")
+            print(f"objective: {packet['objective']}")
+            print(f"paths    : {', '.join(packet['paths']) or '-'}")
+            print(f"proposal : {packet['proposal']}")
+            print(f"\n{packet['handoff']}")
+    elif args.action == "dismiss":
+        d = dr.set_status(args.id, "dismissed")
+        print("dismissed" if d else f"unknown draft '{args.id}'")
+
+
 def _claude_crew(argv: list[str]) -> None:
     """List Claude Code subagents detected in a repo's .claude/agents/ -- the
     frontier crew, distinct from the harness roles Ikarus routes to."""
@@ -333,6 +388,14 @@ def main() -> None:
         _categories(rest)
     elif cmd == "claude-crew":
         _claude_crew(rest)
+    elif cmd == "drafts":
+        _drafts(rest)
+    elif cmd == "selftest":
+        from .selftest import main as m; m(rest)
+    elif cmd == "bookkeeper":
+        from .bookkeeper import main as m; m(rest)
+    elif cmd == "web":
+        from .web_api import main as m; m(rest)
     elif cmd == "enforce":
         from .enforce import main as m; m()
     elif cmd == "init":

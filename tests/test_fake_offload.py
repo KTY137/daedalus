@@ -54,11 +54,19 @@ class _RealWritingWorker:
 
 
 def _make_repo(tmp: str) -> str:
-    """A repo whose .agentenv config carries a (non-empty) policy so pol loads."""
+    """A repo whose .agentenv config carries a (non-empty) policy so pol loads,
+    plus a repo-local agent so routing is HERMETIC (independent of the global
+    registry -- repo_root now threads into routing, and a repo without its own
+    agents would fall back to the generic templates crew)."""
     cfg_dir = Path(tmp) / ".agentenv"
-    cfg_dir.mkdir(parents=True, exist_ok=True)
+    (cfg_dir / "agents").mkdir(parents=True, exist_ok=True)
     (cfg_dir / "agentenv.json").write_text(
         '{"policy": {"default_deny": true, "allow": ["TCT_app/"]}}', encoding="utf-8")
+    (cfg_dir / "agents" / "gui-dev.json").write_text(
+        '{"name": "gui-dev", "call_name": "Pix", "model_tier": "sonnet",'
+        ' "external_ok": true, "owns": ["TCT_app/gui"], "triggers": ["docstring", "panel"],'
+        ' "must_read": [], "output_schema": "agent_report_v1", "category": "implementation"}',
+        encoding="utf-8")
     return tmp
 
 

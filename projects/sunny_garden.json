@@ -1,0 +1,26 @@
+{
+  "name": "sunny_garden",
+  "repo_root": "C:\\Users\\nukei\\Desktop\\sunny_garden",
+  "default_branch": "master",
+  "test_command": "python -m unittest discover tests",
+  "test_cwd": ".",
+  "claude_model": "haiku",
+  "_comment": "Friendly demo/validation project -- a tiny plant-care tracker. Policy lives in the repo's own .agentenv/agentenv.json; the crew in .agentenv/agents/. Used by the Era-2 validation run (docs/VALIDATION_RUN.md).",
+  "policy": {
+    "default_deny": true,
+    "allow": ["garden/", "docs/", "tests/", ".md"],
+    "deny": [".agentenv/"],
+    "high_risk_terms": ["architecture", "rewrite", "state machine"],
+    "high_risk_paths": []
+  },
+  "team": {
+    "max_workers": 6,
+    "default_lane": "local",
+    "active_agents": ["flora", "rune", "quill", "chronicle", "tippy", "probe"],
+    "squads": {
+      "Green": ["flora", "rune"],
+      "Docs": ["quill", "chronicle", "tippy"],
+      "QA": ["probe"]
+    }
+  }
+}

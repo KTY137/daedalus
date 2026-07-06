@@ -33,6 +33,22 @@ FREE_LANES = ("ollama", "deepseek")
 DEFAULT_AVAILABILITY = {"claude_cli": True, "ollama": True, "deepseek": False}
 
 
+def _paths_overlap(assignments: list) -> bool:
+    """True if any two write-mode assignments declare a shared path -- then they
+    cannot run concurrently (real edit conflict). Advisory tasks write nothing,
+    so they never conflict."""
+    seen: set[str] = set()
+    for a in assignments:
+        if getattr(a, "mode", "") != "write":
+            continue
+        for p in (a.paths or []):
+            key = str(p).replace("\\", "/")
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
+
+
 @dataclass
 class Assignment:
     objective: str
@@ -72,16 +88,20 @@ class Ikarus:
             if isinstance(active, list):
                 self.active_agents = [str(a) for a in active if str(a).strip()]
 
-    def accept(self, tasks: list[dict]) -> list[Assignment]:
+    def accept(self, tasks: list[dict], repo_root: str | None = None) -> list[Assignment]:
         """Clear each task. Only low-risk work that Adam would offload is taken;
-        anything that routes back to Claude is bounced to Adam."""
+        anything that routes back to Claude is bounced to Adam.
+
+        ``repo_root`` makes the target repo's own ``.agentenv/agents/`` roster
+        visible to routing (without it only global agents route)."""
         avail = self.availability or DEFAULT_AVAILABILITY
         out: list[Assignment] = []
         for t in tasks:
             objective = t["objective"]
             paths = t.get("paths", [])
             agent, decision = route_and_select(
-                objective, paths, avail, self.policy, self.active_agents
+                objective, paths, avail, self.policy, self.active_agents,
+                repo_root=repo_root,
             )
             if decision.provider not in FREE_LANES:
                 out.append(Assignment(objective, paths, agent["name"], decision.provider,
@@ -92,9 +112,9 @@ class Ikarus:
                                   decision.persona, decision.mode, True, decision.reason))
         return out
 
-    def plan(self, tasks: list[dict]) -> dict:
+    def plan(self, tasks: list[dict], repo_root: str | None = None) -> dict:
         """Dry run: who gets spawned, in how many bounded waves."""
-        acc = self.accept(tasks)
+        acc = self.accept(tasks, repo_root=repo_root)
         taken = [a for a in acc if a.accepted]
         waves = (len(taken) + self.max_workers - 1) // self.max_workers if taken else 0
         return {
@@ -104,32 +124,79 @@ class Ikarus:
             "waves": waves,
         }
 
-    def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True) -> list[dict]:
+    def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True,
+                 parallel: bool = False) -> list[dict]:
         """Run the accepted work. dry_run stops at the spawn plan; live actually
-        invokes each bench worker through the provider seam."""
+        invokes each bench worker through the provider seam.
+
+        Sequential by default (``parallel=False``): each live write is verified
+        by diffing a WHOLE-repo content-hash snapshot around that one run
+        (offload._repo_snapshot), which catches even writes outside --paths --
+        but two such runs on one repo concurrently would cross-attribute
+        disk_changed. So real concurrency requires per-task isolation.
+
+        ``parallel=True`` enables it SAFELY: it runs accepted tasks in a bounded
+        thread pool (``max_workers``) with ``isolate_paths=True`` so each task
+        attributes only its OWN declared paths -- and it first REFUSES to
+        parallelize any batch whose write-tasks share a path (a real conflict:
+        two agents editing one file). Overlapping batches fall back to
+        sequential with a note. Ollama on one GPU serializes generation anyway,
+        so the win is overlapped verify/test, not 6x model throughput."""
         avail = self.availability or DEFAULT_AVAILABILITY
+        accepted = self.accept(tasks, repo_root=repo_root)
         results: list[dict] = []
-        for a in self.accept(tasks):
+
+        def _bounced_or_planned(a: "Assignment") -> dict | None:
             if not a.accepted:
-                results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
-                                "owner": a.owner, "objective": a.objective,
-                                "paths": a.paths, "status": "bounced",
-                                "reason": a.reason})
-                continue
+                return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                        "owner": a.owner, "objective": a.objective,
+                        "paths": a.paths, "status": "bounced", "reason": a.reason}
             if dry_run:
-                results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
-                                "owner": a.owner, "objective": a.objective,
-                                "paths": a.paths, "status": "planned"})
-                continue
-            # Live writes MUST go through the verify+rollback+fail-closed cascade
-            # (Mary #2) -- never call the provider directly here.
+                return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                        "owner": a.owner, "objective": a.objective,
+                        "paths": a.paths, "status": "planned"}
+            return None
+
+        def _run_one(a: "Assignment", isolate: bool) -> dict:
             from .offload import offload
             res = offload(a.objective, repo_root, a.paths, live=True,
-                          availability=avail, project=self.project)
-            results.append({"worker": a.worker, "lane": a.lane,
-                            "mode": a.mode, "owner": a.owner,
-                            "objective": a.objective, "paths": a.paths,
-                            "status": res.get("action"), "result": res})
+                          availability=avail, project=self.project,
+                          isolate_paths=isolate)
+            return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                    "owner": a.owner, "objective": a.objective, "paths": a.paths,
+                    "status": res.get("action"),
+                    # ground truth: files REALLY changed on disk ([] for advisory
+                    # drafts) -- render write claims from this, never from action.
+                    "wrote": res.get("wrote", []), "result": res}
+
+        live_tasks = [a for a in accepted if a.accepted and not dry_run]
+        # Parallel only when safe: write-tasks must have pairwise-disjoint paths.
+        can_parallel = parallel and not _paths_overlap(live_tasks)
+
+        if parallel and not can_parallel and live_tasks:
+            # honest: we were asked for parallel but a path conflict forces order
+            results.append({"status": "note", "objective": "parallel disabled",
+                            "reason": "accepted write-tasks share a path -> ran sequentially to avoid clobber"})
+
+        if can_parallel and len(live_tasks) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            done: dict[int, dict] = {}
+            pending = [a for a in accepted if (_bounced_or_planned(a) is None)]
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                futs = {pool.submit(_run_one, a, True): i for i, a in enumerate(pending)}
+                for f in futs:
+                    done[futs[f]] = f.result()
+            # preserve input order in the output
+            live_iter = iter(done[i] for i in range(len(pending)))
+            for a in accepted:
+                bp = _bounced_or_planned(a)
+                results.append(bp if bp is not None else next(live_iter))
+            return results
+
+        # sequential (default, or forced by a path conflict)
+        for a in accepted:
+            bp = _bounced_or_planned(a)
+            results.append(bp if bp is not None else _run_one(a, isolate=parallel))
         return results
 
     def spawn(self, objective: str, repo_root: str, dry_run: bool = True) -> dict:
@@ -142,7 +209,7 @@ class Ikarus:
         from .decompose import decompose
         subtasks = decompose(objective, repo_root)
         if dry_run:
-            return self.plan(subtasks)
+            return self.plan(subtasks, repo_root=repo_root)
         return self.dispatch(repo_root, subtasks, dry_run=False)
 
 

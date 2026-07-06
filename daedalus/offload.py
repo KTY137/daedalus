@@ -67,9 +67,23 @@ def _repo_snapshot(repo_root: str) -> dict[str, str]:
             rel = p.relative_to(root)
             if any(part in _SNAPSHOT_SKIP for part in rel.parts):
                 continue
-            snap[str(rel)] = hashlib.sha256(p.read_bytes()).hexdigest()
+            snap[rel.as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
         except OSError:
             continue
+    return snap
+
+
+def _scoped_snapshot(repo_root: str, rels: list[str]) -> dict[str, str]:
+    """Content-hash ONLY the given repo-relative paths (present ones). Used for
+    per-task change attribution when tasks run concurrently on one repo -- a
+    whole-repo diff would cross-attribute another task's writes. Safe because
+    the scoped-write lane writes exactly its declared paths."""
+    snap: dict[str, str] = {}
+    root = Path(repo_root)
+    for rel in rels:
+        h = _content_hash(repo_root, rel)
+        if h is not None:
+            snap[Path(rel).as_posix()] = h
     return snap
 
 
@@ -81,6 +95,7 @@ def offload(
     availability: dict | None = None,
     run_tests: bool = False,
     project: str | None = None,
+    isolate_paths: bool = False,
 ) -> dict:
     if availability is None:
         from .doctor import check
@@ -105,8 +120,11 @@ def offload(
             active_agents = [str(a) for a in active if str(a).strip()]
 
     # Intended lane (all up) vs actual lane (given availability) -- both policy-aware.
-    _, intended = route_and_select(objective, paths or [], _ALL, pol, active_agents)
-    agent, decision = route_and_select(objective, paths or [], availability, pol, active_agents)
+    # repo_root threads through so the target repo's own .agentenv agents route.
+    _, intended = route_and_select(objective, paths or [], _ALL, pol, active_agents,
+                                   repo_root=repo_root)
+    agent, decision = route_and_select(objective, paths or [], availability, pol,
+                                       active_agents, repo_root=repo_root)
     eligible = intended.provider in FREE_LANES
 
     result = {
@@ -153,19 +171,31 @@ def offload(
     # afterward -- the write-mode gate must NOT trust the model's self-reported
     # files_changed (a narrating model claims edits it never made). Path-agnostic
     # so a genuine write is caught even with no --paths.
-    before_snap = _repo_snapshot(repo_root) if decision.mode == "write" else {}
+    # isolate_paths (parallel dispatch): attribute changes by hashing ONLY this
+    # task's declared paths, so a sibling task writing concurrently to the same
+    # repo can't leak into this task's diff. Default stays the whole-repo snapshot
+    # (catches sneaky writes outside --paths; correct for sequential runs).
+    def _snap() -> dict[str, str]:
+        return _scoped_snapshot(repo_root, paths or []) if isolate_paths else _repo_snapshot(repo_root)
+
+    before_snap = _snap() if decision.mode == "write" else {}
 
     out = worker.run(**run_kwargs)
     report = out["report"]
 
     # Which files ACTUALLY changed on disk (create, edit, or delete) -- this,
-    # not report["files_changed"], is what the write-mode gate trusts. Diffing
-    # a whole-repo snapshot catches genuine writes with or without --paths.
+    # not report["files_changed"], is what the write-mode gate trusts.
     disk_changed = None
     if decision.mode == "write":
-        after_snap = _repo_snapshot(repo_root)
+        after_snap = _snap()
         disk_changed = sorted(rel for rel in (set(before_snap) | set(after_snap))
                               if before_snap.get(rel) != after_snap.get(rel))
+    # GROUND TRUTH for callers: which files this task really changed on disk.
+    # Advisory tasks legitimately write nothing (they produce a draft) -- []
+    # here plus mode=="advisory" is a draft, NOT a no-op. Callers must render
+    # "wrote" from THIS field, never from action=="offloaded"/verify.ok alone
+    # (the op-test harness once printed 'wrote yes' for pure drafts that way).
+    result["wrote"] = list(disk_changed or [])
 
     # For live writes, run the project test suite in the gate when we have it.
     test_command = test_cwd = None
@@ -182,6 +212,16 @@ def offload(
     if vr.ok:
         result["action"] = "offloaded"
         result["report"] = report
+        # Advisory proposals used to evaporate with the result dict. Persist
+        # them so `daedalus drafts` can list/review/apply later (Era 3 #1).
+        if decision.mode == "advisory":
+            try:
+                from .drafts import save_draft
+                result["draft"] = save_draft(
+                    objective, paths or [], agent["name"], decision.provider,
+                    decision.persona, report, repo_root=repo_root).stem
+            except OSError:
+                result["draft"] = None   # persistence is best-effort, never fatal
         metrics.record(provider=decision.provider, action="offloaded",
                        owner=agent["name"], risk=decision.risk, eligible=True)
     else:
@@ -189,6 +229,18 @@ def offload(
         dirty = getattr(worker, "rollback_failures", [])
         result["action"] = "escalated_after_verify_fail"
         result["rolled_back"] = rolled
+        # After rollback the disk is (mostly) restored -- only paths that could
+        # NOT be reverted remain truly changed. Keep "wrote" ground-truthful.
+        # (rollback_failures holds ABSOLUTE paths; normalize to repo-relative.)
+        if rolled or dirty:
+            root = Path(repo_root).resolve()
+            still_dirty = []
+            for ap in dirty:
+                try:
+                    still_dirty.append(Path(ap).resolve().relative_to(root).as_posix())
+                except ValueError:
+                    still_dirty.append(ap)
+            result["wrote"] = still_dirty
         if dirty:
             result["dirty_unreverted"] = dirty   # could not be reverted -- needs manual attention
         result["report"] = report

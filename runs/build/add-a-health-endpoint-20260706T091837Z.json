@@ -1,0 +1,79 @@
+{
+  "feature": "Add a health endpoint",
+  "repo_root": "C:\\Users\\nukei\\AppData\\Local\\Temp\\tmp4phcf6x7",
+  "project": null,
+  "slug": "add-a-health-endpoint",
+  "created": "20260706T091837Z",
+  "max_workers": 3,
+  "summary": {
+    "subtasks": 4,
+    "waves": 2,
+    "frontier": 4,
+    "local": 0
+  },
+  "waves": [
+    {
+      "index": 0,
+      "tasks": [
+        {
+          "objective": "Create a new Java class for the health check",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [
+            "src/main/java/com/example/health/HealthCheck.java"
+          ],
+          "status": "planned"
+        },
+        {
+          "objective": "Implement the health check logic in the Java class",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [
+            "src/main/java/com/example/health/HealthCheck.java"
+          ],
+          "status": "planned"
+        },
+        {
+          "objective": "Add a new endpoint to the Spring Boot application",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [
+            "src/main/java/com/example/demo/DemoApplication.java",
+            "src/main/resources/application.properties"
+          ],
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "tasks": [
+        {
+          "objective": "Configure the health check endpoint in the Spring Boot configuration",
+          "agent": "generalist-dev",
+          "category": "implementation",
+          "lane": "auto",
+          "tier": "opus",
+          "builder": "claude",
+          "frontier": true,
+          "paths": [
+            "src/main/resources/application.properties"
+          ],
+          "status": "planned"
+        }
+      ]
+    }
+  ]
+}

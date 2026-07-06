@@ -257,17 +257,25 @@ class OllamaProvider(Provider):
             except ValueError:
                 skipped[raw_rel] = "outside repo"
                 continue
-            if not target.is_file():
+            # Greenfield CREATE: a path that doesn't exist yet is a creation
+            # request, not an error -- the same guard gates it, the backup is
+            # None (rollback deletes it), and the quality checks that compare
+            # against the original are skipped because there is no original.
+            creating = not target.exists()
+            if target.exists() and not target.is_file():
                 skipped[raw_rel] = "not a file"
                 continue
             if path_write_blocked(rel, policy):  # same guard as the tool loop
                 skipped[rel] = "protected path"
                 continue
-            try:
-                original = target.read_text(encoding="utf-8", errors="replace")
-            except OSError as exc:
-                skipped[rel] = f"unreadable: {exc}"
-                continue
+            if creating:
+                original = ""
+            else:
+                try:
+                    original = target.read_text(encoding="utf-8", errors="replace")
+                except OSError as exc:
+                    skipped[rel] = f"unreadable: {exc}"
+                    continue
             if len(original) > MAX_REWRITE_CHARS:
                 skipped[rel] = "too large for full rewrite"
                 continue
@@ -277,7 +285,11 @@ class OllamaProvider(Provider):
                 "The value must be the complete file text -- every line, no omissions, "
                 "no markdown fences, no commentary. Preserve the existing style."
             )
-            user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+            if creating:
+                user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
+                        "Create it: return the complete initial contents of this new file.")
+            else:
+                user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
             try:
                 raw = chat_completion(base_url=base, model=model or self.model,
                                       system=system, user=user, api_key=None,
@@ -301,7 +313,16 @@ class OllamaProvider(Provider):
             if elided:
                 skipped[rel] = f"elision marker in output ('{elided}') -- file not fully rewritten"
                 continue
-            self._backups.setdefault(str(target), target.read_bytes())
+            # Backup None = created file (rollback deletes it). Track any parent
+            # dirs we create so rollback can prune them too (mirrors the tool loop).
+            self._backups.setdefault(str(target), target.read_bytes() if target.exists() else None)
+            root = Path(repo_root).resolve()
+            for parent in [target.parent, *target.parent.parents]:
+                if parent == root:
+                    break
+                if root in parent.parents and not parent.exists():
+                    self._created_dirs.append(str(parent))
+            target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
             changed.append(rel)
 

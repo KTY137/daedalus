@@ -2,6 +2,7 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
+const http = require("http");
 
 let projectProvider;
 let queueProvider;
@@ -9,6 +10,9 @@ let dashboardProvider;
 let dashboardPanel;
 let watcherTerminal;
 let statusBar;
+let webServerProcess;
+const WEB_HOST = "127.0.0.1";
+const WEB_PORT = 8765;
 
 function cfg() {
   return vscode.workspace.getConfiguration("daedalus");
@@ -63,6 +67,68 @@ function terminal(context, name, args) {
   term.sendText(`${python()} ${escaped}`);
   term.show();
   return term;
+}
+
+function webUrl(project) {
+  const params = new URLSearchParams({ vscode: "1" });
+  if (project) params.set("project", project);
+  return `http://${WEB_HOST}:${WEB_PORT}/?${params.toString()}`;
+}
+
+function probeWebServer() {
+  return new Promise((resolve) => {
+    const req = http.get(`http://${WEB_HOST}:${WEB_PORT}/api/projects`, { timeout: 1200 }, (res) => {
+      res.resume();
+      resolve(res.statusCode >= 200 && res.statusCode < 500);
+    });
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+    req.on("error", () => resolve(false));
+  });
+}
+
+async function ensureWebServer(context) {
+  if (await probeWebServer()) return;
+  const root = harnessRoot(context);
+  if (!root) throw new Error("Cannot find daedalus root. Set daedalus.root in VS Code settings.");
+  webServerProcess = cp.spawn(
+    python(),
+    ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
+    { cwd: root, windowsHide: true, detached: false, stdio: "ignore" }
+  );
+  context.subscriptions.push({ dispose: () => { if (webServerProcess) webServerProcess.kill(); } });
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (await probeWebServer()) return;
+  }
+  throw new Error("Daedalus Agent OS web server did not become ready on http://127.0.0.1:8765");
+}
+
+function agentOsHtml(project) {
+  const url = webUrl(project);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    html, body { padding: 0; margin: 0; width: 100%; height: 100%; overflow: hidden; background: #070b12; }
+    .bar {
+      height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      padding: 0 10px; color: #d7e4f5; background: #0b111c; border-bottom: 1px solid rgba(151,171,210,.18);
+      font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .bar a { color: #44d7e8; text-decoration: none; }
+    iframe { width: 100%; height: calc(100% - 34px); border: 0; display: block; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <span>Daedalus Agent OS${project ? ` · ${project}` : ""}</span>
+    <a href="${url}">Open in browser</a>
+  </div>
+  <iframe src="${url}" title="Daedalus Agent OS"></iframe>
+</body>
+</html>`;
 }
 
 function projects(context) {
@@ -873,7 +939,7 @@ function renderWheelDetail() {
   html += '<div><div class="detail-row-label">Routing preset</div><div class="chip-row">' + laneBadge(cat.lane) + '<span class="tier-badge">' + esc(cat.tier) + '</span></div></div>';
   html += '<div><div class="detail-row-label">Agents</div>';
   if (!cat.agents || !cat.agents.length) {
-    html += '<div class="empty-state"><div class="glyph">&#128101;</div><div><strong>No agents assigned to this category yet.</strong></div><div>Configure with <code>daedalus categories set ' + esc(cat.id) + ' --agents ...</code></div></div>';
+    html += '<div class="empty-state"><div class="glyph">&#128101;</div><div><strong>No agents assigned to this category yet.</strong></div><div>Assign one via the New Agent form (category dropdown) or <code>daedalus agents edit &lt;name&gt; --category ' + esc(cat.id) + '</code></div></div>';
   } else {
     html += '<div class="chip-row">' + cat.agents.map(wheelAgentChip).join('') + '</div>';
   }
@@ -1003,85 +1069,11 @@ vscode.postMessage({ type: 'ready' });
 </html>`;
 }
 
-function bindDashboardWebview(context, webview) {
+async function bindDashboardWebview(context, webview, projectName) {
   webview.options = { enableScripts: true };
-  webview.html = dashboardHtml(nonce());
-  let lastState = {};
-  async function postState(project) {
-    lastState = await dashboardState(context, project);
-    webview.postMessage({ type: "state", state: lastState });
-  }
-  webview.onDidReceiveMessage(async (message) => {
-    try {
-      if (message.type === "ready" || message.type === "refresh") {
-        await postState(message.project);
-      } else if (message.type === "saveTeam") {
-        saveProjectTeam(context, message);
-        projectProvider.refresh();
-        await postState(message.project);
-        vscode.window.showInformationMessage(`Saved Daedalus team settings for ${message.project}`);
-      } else if (message.type === "enforce") {
-        const result = await enforceProject(context, message.project);
-        if (result !== null) {
-          projectProvider.refresh();
-          queueProvider.refresh();
-          await postState(message.project);
-          vscode.window.showInformationMessage(`Harness enforced for ${message.project}`);
-        }
-      } else if (message.type === "reviewDiff") {
-        await reviewDiff(context, message.project);
-        await postState(message.project);
-      } else if (message.type === "enqueueAuto") {
-        await enqueue(context, "auto", "codex", "single", { project: { name: message.project } });
-        await postState(message.project);
-      } else if (message.type === "enqueueFile") {
-        await enqueue(context, "local_only", "codex", "single", { project: { name: message.project } });
-        await postState(message.project);
-      } else if (message.type === "ikarusPlan") {
-        await spawnIkarus(context, { project: { name: message.project } });
-      } else if (message.type === "startWatcher") {
-        const ok = await confirmAction("Start bridge watcher?", `Project: ${message.project}\nThe watcher autonomously processes queued auto/claude tasks and may incur Claude spend with no further prompt per task. Local-only tasks stay local.`);
-        if (!ok) return;
-        watcherTerminal = terminal(context, `Daedalus Bridge: ${message.project}`, ["-m", "daedalus.file_bridge", "watch", "--project", message.project]);
-      } else if (message.type === "stopWatcher") {
-        if (watcherTerminal) watcherTerminal.dispose();
-        watcherTerminal = undefined;
-        await postState(message.project);
-      } else if (message.type === "openLatest") {
-        await openLatestReport(context, lastState);
-      } else if (message.type === "setCategory") {
-        const args = ["-m", "daedalus.cli", "categories", "set", message.id];
-        if (message.color) args.push("--color", message.color);
-        if (message.icon) args.push("--icon", message.icon);
-        if (message.project) args.push("--project", message.project);
-        await runPython(context, args);
-        await postState(message.project);
-        vscode.window.showInformationMessage(`Updated category '${message.id}'${message.project ? ` for ${message.project}` : ""}`);
-      } else if (message.type === "copy") {
-        await vscode.env.clipboard.writeText(message.text || "");
-        vscode.window.showInformationMessage(`Copied: ${message.text}`);
-      } else if (message.type === "addAgent") {
-        const name = String(message.name || "").trim();
-        if (!name) throw new Error("Agent name is required.");
-        const args = ["-m", "daedalus.cli", "agents", "add", name, "--call-name", message.callName || "", "--model-tier", message.modelTier || "sonnet"];
-        if (message.externalOk) args.push("--external-ok");
-        if (message.triggers) args.push("--triggers", message.triggers);
-        if (message.project) args.push("--project", message.project);
-        if (message.category) args.push("--category", message.category);
-        const out = await runPython(context, args);
-        await postState(message.project);
-        vscode.window.showInformationMessage(`Created agent '${name}': ${out}`);
-      } else if (message.type === "assignTask") {
-        const objective = String(message.objective || "").trim();
-        if (!objective) throw new Error("Objective is required.");
-        const hinted = message.agentHint ? `[agent hint: ${message.agentHint}] ${objective}` : objective;
-        await enqueue(context, message.lane || "local_only", "dashboard", "single", { project: { name: message.project } }, hinted);
-        await postState(message.project);
-      }
-    } catch (err) {
-      vscode.window.showErrorMessage(String(err.message || err));
-    }
-  });
+  const project = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name) || "";
+  await ensureWebServer(context);
+  webview.html = agentOsHtml(project);
 }
 
 async function openDashboard(context) {
@@ -1089,19 +1081,20 @@ async function openDashboard(context) {
     dashboardPanel.reveal(vscode.ViewColumn.Active);
     return;
   }
+  const project = await pickProject(context);
   dashboardPanel = vscode.window.createWebviewPanel(
-    "daedalusDashboard",
-    "Daedalus Mission Control",
+    "daedalusAgentOs",
+    "Daedalus Agent OS",
     vscode.ViewColumn.Active,
     { enableScripts: true, retainContextWhenHidden: true }
   );
-  bindDashboardWebview(context, dashboardPanel.webview);
+  await bindDashboardWebview(context, dashboardPanel.webview, project);
   dashboardPanel.onDidDispose(() => { dashboardPanel = undefined; });
 }
 
 class DashboardProvider {
   constructor(context) { this.context = context; }
-  resolveWebviewView(webviewView) { bindDashboardWebview(this.context, webviewView.webview); }
+  async resolveWebviewView(webviewView) { await bindDashboardWebview(this.context, webviewView.webview); }
 }
 
 class ProjectItem extends vscode.TreeItem {
@@ -1202,6 +1195,7 @@ function activate(context) {
 
 function deactivate() {
   if (watcherTerminal) watcherTerminal.dispose();
+  if (webServerProcess) webServerProcess.kill();
 }
 
 module.exports = { activate, deactivate };

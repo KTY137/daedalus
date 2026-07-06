@@ -172,13 +172,24 @@ class BuildSession:
             snapshot_path=d.get("snapshot_path"),
         )
 
-    def save(self, runs_dir: str | Path | None = None) -> Path:
-        """Persist a session snapshot under ``runs/build/<slug>-<ts>.json``."""
+    def save(self, runs_dir: str | Path | None = None, *, update_architecture: bool = True) -> Path:
+        """Persist a session snapshot under ``runs/build/<slug>-<ts>.json``.
+
+        After a build session lands, the bookkeeper refreshes the living
+        ``docs/architecture.html`` artifact (+ a history snapshot if the
+        architecture changed). Best-effort: a bookkeeping hiccup never fails a
+        build. Pass ``update_architecture=False`` to skip (e.g. in unit tests)."""
         directory = Path(runs_dir) if runs_dir is not None else RUN_DIR
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / f"{self.slug}-{_stamp()}.json"
         path.write_text(json.dumps(self.to_dict(), indent=2), encoding="utf-8")
         self.snapshot_path = str(path)
+        if update_architecture:
+            try:
+                from .bookkeeper import update as _bk_update
+                _bk_update(note=f"after build: {self.feature[:60]}")
+            except Exception:
+                pass  # never let bookkeeping break a build session
         return path
 
 

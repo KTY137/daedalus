@@ -66,10 +66,17 @@ class DashboardContractTest(MissionControlContractTest):
             "ok", "generated_at", "selected_project", "projects", "watcher",
             "models", "provider_health", "squads", "queue", "quality",
             "routing", "enforcement", "metrics", "warnings",
+            "claude_crew", "categories",   # webview contract: Squads + Role Wheel tabs
         }
         self.assertIsInstance(dashboard, dict)
         missing = expected_keys - dashboard.keys()
         self.assertEqual(missing, set(), f"dashboard missing keys: {missing}")
+        # The Role Wheel renders from state.categories -- pin the joined shape.
+        cats = dashboard["categories"]
+        self.assertIsInstance(cats, list)
+        if cats:
+            for key in ("id", "name", "icon", "color", "lane", "tier", "agents", "count"):
+                self.assertIn(key, cats[0], f"category missing '{key}'")
 
     def test_field_types(self) -> None:
         dashboard = core.get_dashboard(None)

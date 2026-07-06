@@ -67,6 +67,44 @@ def _lint_py(repo_root: str, rel: str) -> tuple[bool, str]:
     return proc.returncode == 0, (" | ".join(lines[-3:])[:300] or "clean")
 
 
+def _js_check(repo_root: str, rel: str) -> tuple[bool, str]:
+    """Syntax-check a written .js file via `node --check` when node is on PATH;
+    skip cleanly otherwise (never block a write on a missing dev tool)."""
+    import shutil
+    node = shutil.which("node")
+    if not node:
+        return True, "node not on PATH -- skipped"
+    try:
+        proc = subprocess.run([node, "--check", str(Path(repo_root) / rel)],
+                              capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return True, f"node check unavailable ({exc}) -- skipped"
+    tail = (proc.stdout + proc.stderr).strip().splitlines()[-2:]
+    return proc.returncode == 0, (" | ".join(tail)[:300] or "ok")
+
+
+def _html_check(repo_root: str, rel: str) -> tuple[bool, str]:
+    """Cheap structural gate for a written .html file. The dominant local-model
+    failure is TRUNCATION (file cut off mid-tag), which shows up as unbalanced
+    <script>/<style> containers or an empty file -- both break rendering hard.
+    This is a truncation tripwire, not a full validator."""
+    import re
+    try:
+        text = (Path(repo_root) / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return False, f"cannot read: {exc}"[:200]
+    if not text.strip():
+        return False, "empty html file"
+    for tag in ("script", "style"):
+        opens = len(re.findall(rf"<{tag}\b[^>]*>", text, re.I))
+        closes = len(re.findall(rf"</{tag}\s*>", text, re.I))
+        if opens != closes:
+            return False, f"unbalanced <{tag}> tags ({opens} open / {closes} close) -- truncated output?"
+    if text.rstrip().endswith(("<", "</")):
+        return False, "file ends mid-tag -- truncated output"
+    return True, "non-empty, script/style balanced"
+
+
 def _config_check(repo_root: str, rel: str) -> tuple[bool, str]:
     """Parse a written .json/.yaml file so a corrupted config is caught."""
     try:
@@ -151,6 +189,12 @@ def verify(
         elif s.endswith((".json", ".yaml", ".yml")):
             ok, detail = _config_check(repo_root, s)
             checks.append({"name": f"parse:{s}", "ok": ok, "detail": detail})
+        elif s.endswith((".js", ".mjs", ".cjs")):
+            ok, detail = _js_check(repo_root, s)
+            checks.append({"name": f"jscheck:{s}", "ok": ok, "detail": detail})
+        elif s.endswith((".html", ".htm")):
+            ok, detail = _html_check(repo_root, s)
+            checks.append({"name": f"htmlcheck:{s}", "ok": ok, "detail": detail})
 
     if test_command:
         import os
