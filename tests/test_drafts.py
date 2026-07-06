@@ -54,6 +54,26 @@ class DraftStoreTests(unittest.TestCase):
         self.assertNotEqual(a, b)
         self.assertEqual(len(drafts.list_drafts()), 2)
 
+    def test_apply_marks_handled_and_returns_review_packet(self):
+        drafts.save_draft("Tidy the readme", ["README.md"], "quill", "ollama",
+                           "Lucia", _report(summary="reword the intro"), repo_root="/r")
+        did = drafts.list_drafts()[0]["id"]
+        packet = drafts.apply_payload(did)
+        self.assertEqual(packet["objective"], "Tidy the readme")
+        self.assertEqual(packet["paths"], ["README.md"])
+        self.assertEqual(packet["proposal"], "reword the intro")
+        self.assertIn("never merges", packet["handoff"])
+        # apply is a status transition, NOT a write -> draft now marked applied
+        self.assertEqual(drafts.get_draft(did)["status"], "applied")
+
+    def test_dismiss_and_invalid_status(self):
+        drafts.save_draft("x", [], "a", "ollama", "P", _report())
+        did = drafts.list_drafts()[0]["id"]
+        self.assertEqual(drafts.set_status(did, "dismissed")["status"], "dismissed")
+        self.assertIsNone(drafts.set_status("nope", "applied"))
+        with self.assertRaises(ValueError):
+            drafts.set_status(did, "merged")
+
 
 class _AdvisoryDraftWorker:
     def run(self, **kwargs):

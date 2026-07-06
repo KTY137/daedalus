@@ -108,18 +108,63 @@ class WroteFieldTests(unittest.TestCase):
 
     def test_rolled_back_escalation_reports_wrote_empty(self):
         builder = {"name": "builder", "call_name": "Brick", "model_tier": "haiku",
-                   "external_ok": True, "owns": ["src/"], "triggers": ["helper", "parsing"],
+                   "external_ok": True, "owns": ["src/"], "triggers": ["helper", "greeting", "string"],
                    "must_read": [], "output_schema": "agent_report_v1", "category": "implementation"}
         repo = _make_repo(self._tmp.name, agents=[builder])
         worker = _BadWriteWorker(repo)
         with mock.patch("daedalus.providers.get_provider", return_value=worker):
-            r = offload("Add a new src helper module for parsing", repo,
+            r = offload("Fix the greeting string in the helper", repo,
                         ["src/broken.py"], live=True, availability=_AVAIL)
         if r["mode"] != "write":       # routing changed -> this test is moot
             self.skipTest(f"routed {r['mode']}, need write")
         self.assertEqual(r["action"], "escalated_after_verify_fail")
         self.assertEqual(r["wrote"], [])             # rollback restored the disk
         self.assertFalse((Path(repo) / "src" / "broken.py").exists())
+
+
+class _DirtyRollbackWorker:
+    """Writes a broken file and then FAILS to roll it back -- the never-before-
+    exercised dirty_unreverted path (Coffee-retro trust gap)."""
+    def __init__(self, repo_root):
+        self._abs = Path(repo_root) / "src" / "broken.py"
+        self.rollback_failures = []
+    def run(self, **kwargs):
+        self._abs.parent.mkdir(parents=True, exist_ok=True)
+        self._abs.write_text("def broken(:\n", encoding="utf-8")  # syntax error -> gate fails
+        return {"report": _report(files_changed=["src/broken.py"])}
+    def rollback(self):
+        self.rollback_failures = [str(self._abs)]   # pretend revert failed
+        return []
+
+
+class DirtyRollbackTests(unittest.TestCase):
+    """When rollback can't revert a bad write, the leftover must be surfaced
+    (dirty_unreverted) and reflected honestly in 'wrote' -- not silently lost."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self._orig = metrics.LOG
+        metrics.LOG = Path(self._tmp.name) / "m.jsonl"
+
+    def tearDown(self):
+        metrics.LOG = self._orig
+        self._tmp.cleanup()
+
+    def test_unrevertable_bad_write_is_surfaced(self):
+        builder = {"name": "builder", "call_name": "Brick", "model_tier": "haiku",
+                   "external_ok": True, "owns": ["src/"], "triggers": ["helper", "greeting", "string"],
+                   "must_read": [], "output_schema": "agent_report_v1", "category": "implementation"}
+        repo = _make_repo(self._tmp.name, agents=[builder])
+        worker = _DirtyRollbackWorker(repo)
+        with mock.patch("daedalus.providers.get_provider", return_value=worker):
+            r = offload("Fix the greeting string in the helper", repo,
+                        ["src/broken.py"], live=True, availability=_AVAIL)
+        if r["mode"] != "write":
+            self.skipTest(f"routed {r['mode']}, need write")
+        self.assertEqual(r["action"], "escalated_after_verify_fail")
+        self.assertIn("dirty_unreverted", r)                 # leftover surfaced
+        self.assertEqual(r["wrote"], ["src/broken.py"])      # honest: still on disk
+        self.assertTrue((Path(repo) / "src" / "broken.py").exists())
 
 
 class RewriteCreateTests(unittest.TestCase):

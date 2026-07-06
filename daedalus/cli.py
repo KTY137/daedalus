@@ -280,6 +280,9 @@ def _drafts(argv: list[str]) -> None:
     lp = sub.add_parser("list"); lp.add_argument("--json", action="store_true")
     sp = sub.add_parser("show"); sp.add_argument("id")
     rp = sub.add_parser("rm"); rp.add_argument("id")
+    apf = sub.add_parser("apply", help="mark handled + print the review packet for the Claude lane")
+    apf.add_argument("id"); apf.add_argument("--json", action="store_true")
+    dsf = sub.add_parser("dismiss"); dsf.add_argument("id")
 
     args = parser.parse_args(argv)
     if args.action == "list":
@@ -296,6 +299,21 @@ def _drafts(argv: list[str]) -> None:
         print(json.dumps(d, indent=2) if d else f"unknown draft '{args.id}'")
     elif args.action == "rm":
         print("removed" if dr.delete_draft(args.id) else f"unknown draft '{args.id}'")
+    elif args.action == "apply":
+        packet = dr.apply_payload(args.id)
+        if packet is None:
+            print(f"unknown draft '{args.id}'")
+        elif args.json:
+            print(json.dumps(packet, indent=2))
+        else:
+            print(f"# review packet for {packet['id']} (marked applied)")
+            print(f"objective: {packet['objective']}")
+            print(f"paths    : {', '.join(packet['paths']) or '-'}")
+            print(f"proposal : {packet['proposal']}")
+            print(f"\n{packet['handoff']}")
+    elif args.action == "dismiss":
+        d = dr.set_status(args.id, "dismissed")
+        print("dismissed" if d else f"unknown draft '{args.id}'")
 
 
 def _claude_crew(argv: list[str]) -> None:

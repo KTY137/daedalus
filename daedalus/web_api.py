@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import agents_registry, categories, control_plane, core, hierarchy, ikarus_chat, runtime_registry
+from . import agents_registry, categories, control_plane, core, drafts, hierarchy, ikarus_chat, runtime_registry
 from .bootstrap_prompt import claude_bootstrap_prompt
 from .env import env_status, load_env
 from .projects import list_projects, resolve_repo_root
@@ -134,6 +134,15 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._send_json(core.envelope(None, env=env_status()))
         elif path == "/api/capabilities":
             self._send_json(hierarchy.capabilities())
+        elif path == "/api/drafts":
+            rows = drafts.list_drafts()
+            pending = [d for d in rows if d.get("status") == "pending"]
+            self._send_json(core.envelope(None, drafts=rows, pending_count=len(pending)))
+        elif path.startswith("/api/drafts/"):
+            draft_id = unquote(path.split("/", 3)[3])
+            d = drafts.get_draft(draft_id)
+            self._send_json(core.envelope(None, draft=d) if d else
+                            {"ok": False, "error": f"unknown draft {draft_id}"}, status=200 if d else 404)
         elif path.startswith("/api/"):
             self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
         else:
@@ -184,6 +193,20 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": "project and message are required"}, status=400)
                 return
             self._send_json(ikarus_chat.chat(project, message, apply=bool(body.get("apply"))))
+            return
+        if path.startswith("/api/drafts/") and (path.endswith("/apply") or path.endswith("/dismiss")):
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            draft_id, verb = parts[2], parts[3]
+            if verb == "apply":
+                packet = drafts.apply_payload(draft_id)
+                self._send_json(core.envelope(None, applied=packet) if packet else
+                                {"ok": False, "error": f"unknown draft {draft_id}"},
+                                status=200 if packet else 404)
+            else:
+                d = drafts.set_status(draft_id, "dismissed")
+                self._send_json(core.envelope(None, draft=d) if d else
+                                {"ok": False, "error": f"unknown draft {draft_id}"},
+                                status=200 if d else 404)
             return
         if path.startswith("/api/runtimes/") and path.endswith("/test"):
             parts = [unquote(p) for p in path.strip("/").split("/")]
