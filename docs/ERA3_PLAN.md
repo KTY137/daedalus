@@ -10,12 +10,14 @@ Drafts from advisory-mode tasks used to die inside the result report. Now:
 - ✅ `daedalus drafts apply|dismiss` — apply returns a review packet for the Claude
   lane and marks the draft handled; never auto-writes (a5b4b0d: path-traversal-guarded).
 - ✅ API: `GET /api/drafts` (+pending_count), `GET/POST /api/drafts/<id>[/apply|dismiss]`.
-- ⬜ REMAINING: the webapp **inbox tray** UI (React) that renders pending_count and
-  lets you review/apply a draft with one click. Backend is ready.
+- ✅ DONE: the webapp **inbox tray** UI (React) — `InboxTray` in `apps/web/src/App.tsx`
+  with sidebar pending badge, apply/dismiss, review-packet display (3ee70a5; verified
+  present in the built `dist/` bundle 2026-07-06).
 
 ## 4. One UI contract — ✅ DONE (a5b4b0d)
 `tests/test_ui_contract.py` pins webview↔webapp parity (shared `core.get_dashboard`,
-identical keys + Role Wheel taxonomy). VSIX repackage still ⬜.
+identical keys + Role Wheel taxonomy). VSIX repackage ✅ (`daedalus-vscode-0.3.0.vsix`,
+2026-07-06).
 
 ## 2. Multi-file waves (build loop, phase C payoff)
 - Lift MAX_REWRITE_FILES=3 per task into a wave plan: Ikarus splits a >3-file
@@ -33,8 +35,13 @@ identical keys + Role Wheel taxonomy). VSIX repackage still ⬜.
   with project context; document the one-command start (`python -m daedalus.web_api`).
 
 ## 4. Hardening backlog (rolling)
-- `ui-ux-dev` sonnet->opus tier bump from 1da0c0d: user decision on merge to main.
-- Merge `feat/api-webapp-agent-os` -> main after user review.
+- ✅ Model tiers decided by user 2026-07-06: `core-dev` + `picasso` -> opus,
+  `qa-critic` (Nemesis) -> fable; delegates `argus`/`hermes` stay haiku.
+- ✅ Merged `feat/api-webapp-agent-os` -> main (94583a0); merged local branches deleted.
+  Leftover UNMERGED branch `worktree-agent-a6f4b9af…` (a357049, docs-only) kept for review.
+- NEW (2026-07-06): crew delegation protocol — every Claude crew agent may fan out up to
+  two haiku delegates via the Agent tool (`.claude/agents/argus.md` scout /
+  `.claude/agents/hermes.md` scribe). Claude-side only; NOT harness/Ollama personas.
 - Advisory lane content-egress audit for the future DeepSeek lane (deny_content
   already enforced locally; re-verify before enabling any external key).
 - Watcher service: run `daedalus watch` as a background task in VS Code, so
