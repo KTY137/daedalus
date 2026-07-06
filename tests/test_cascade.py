@@ -153,9 +153,19 @@ class OffloadFailClosedTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_live_write_without_policy_is_refused(self):
+        # Hermetic repo: a repo-local agent forces write-mode routing, but NO
+        # policy block exists -> the live write must be refused (fail-closed).
         avail = {"claude_cli": True, "ollama": True, "deepseek": False}
-        r = offload("Add a docstring to the scan panel", ".",
+        agents = Path(self._tmp.name) / ".agentenv" / "agents"
+        agents.mkdir(parents=True)
+        (agents / "gui-dev.json").write_text(
+            '{"name": "gui-dev", "call_name": "Pix", "model_tier": "sonnet",'
+            ' "external_ok": true, "owns": ["TCT_app/gui"], "triggers": ["docstring"],'
+            ' "must_read": [], "output_schema": "agent_report_v1"}',
+            encoding="utf-8")
+        r = offload("Add a docstring to the scan panel", self._tmp.name,
                     paths=["TCT_app/gui/scan_panel.py"], live=True, availability=avail, project=None)
+        self.assertEqual(r["mode"], "write")
         self.assertEqual(r["action"], "escalate_to_claude")
         self.assertIn("policy", r.get("note", ""))
 

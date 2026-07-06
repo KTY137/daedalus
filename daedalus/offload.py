@@ -105,8 +105,11 @@ def offload(
             active_agents = [str(a) for a in active if str(a).strip()]
 
     # Intended lane (all up) vs actual lane (given availability) -- both policy-aware.
-    _, intended = route_and_select(objective, paths or [], _ALL, pol, active_agents)
-    agent, decision = route_and_select(objective, paths or [], availability, pol, active_agents)
+    # repo_root threads through so the target repo's own .agentenv agents route.
+    _, intended = route_and_select(objective, paths or [], _ALL, pol, active_agents,
+                                   repo_root=repo_root)
+    agent, decision = route_and_select(objective, paths or [], availability, pol,
+                                       active_agents, repo_root=repo_root)
     eligible = intended.provider in FREE_LANES
 
     result = {
@@ -166,6 +169,12 @@ def offload(
         after_snap = _repo_snapshot(repo_root)
         disk_changed = sorted(rel for rel in (set(before_snap) | set(after_snap))
                               if before_snap.get(rel) != after_snap.get(rel))
+    # GROUND TRUTH for callers: which files this task really changed on disk.
+    # Advisory tasks legitimately write nothing (they produce a draft) -- []
+    # here plus mode=="advisory" is a draft, NOT a no-op. Callers must render
+    # "wrote" from THIS field, never from action=="offloaded"/verify.ok alone
+    # (the op-test harness once printed 'wrote yes' for pure drafts that way).
+    result["wrote"] = list(disk_changed or [])
 
     # For live writes, run the project test suite in the gate when we have it.
     test_command = test_cwd = None
@@ -189,6 +198,18 @@ def offload(
         dirty = getattr(worker, "rollback_failures", [])
         result["action"] = "escalated_after_verify_fail"
         result["rolled_back"] = rolled
+        # After rollback the disk is (mostly) restored -- only paths that could
+        # NOT be reverted remain truly changed. Keep "wrote" ground-truthful.
+        # (rollback_failures holds ABSOLUTE paths; normalize to repo-relative.)
+        if rolled or dirty:
+            root = Path(repo_root).resolve()
+            still_dirty = []
+            for ap in dirty:
+                try:
+                    still_dirty.append(Path(ap).resolve().relative_to(root).as_posix())
+                except ValueError:
+                    still_dirty.append(ap)
+            result["wrote"] = still_dirty
         if dirty:
             result["dirty_unreverted"] = dirty   # could not be reverted -- needs manual attention
         result["report"] = report

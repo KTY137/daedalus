@@ -72,16 +72,20 @@ class Ikarus:
             if isinstance(active, list):
                 self.active_agents = [str(a) for a in active if str(a).strip()]
 
-    def accept(self, tasks: list[dict]) -> list[Assignment]:
+    def accept(self, tasks: list[dict], repo_root: str | None = None) -> list[Assignment]:
         """Clear each task. Only low-risk work that Adam would offload is taken;
-        anything that routes back to Claude is bounced to Adam."""
+        anything that routes back to Claude is bounced to Adam.
+
+        ``repo_root`` makes the target repo's own ``.agentenv/agents/`` roster
+        visible to routing (without it only global agents route)."""
         avail = self.availability or DEFAULT_AVAILABILITY
         out: list[Assignment] = []
         for t in tasks:
             objective = t["objective"]
             paths = t.get("paths", [])
             agent, decision = route_and_select(
-                objective, paths, avail, self.policy, self.active_agents
+                objective, paths, avail, self.policy, self.active_agents,
+                repo_root=repo_root,
             )
             if decision.provider not in FREE_LANES:
                 out.append(Assignment(objective, paths, agent["name"], decision.provider,
@@ -92,9 +96,9 @@ class Ikarus:
                                   decision.persona, decision.mode, True, decision.reason))
         return out
 
-    def plan(self, tasks: list[dict]) -> dict:
+    def plan(self, tasks: list[dict], repo_root: str | None = None) -> dict:
         """Dry run: who gets spawned, in how many bounded waves."""
-        acc = self.accept(tasks)
+        acc = self.accept(tasks, repo_root=repo_root)
         taken = [a for a in acc if a.accepted]
         waves = (len(taken) + self.max_workers - 1) // self.max_workers if taken else 0
         return {
@@ -109,7 +113,7 @@ class Ikarus:
         invokes each bench worker through the provider seam."""
         avail = self.availability or DEFAULT_AVAILABILITY
         results: list[dict] = []
-        for a in self.accept(tasks):
+        for a in self.accept(tasks, repo_root=repo_root):
             if not a.accepted:
                 results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
                                 "owner": a.owner, "objective": a.objective,
@@ -129,7 +133,11 @@ class Ikarus:
             results.append({"worker": a.worker, "lane": a.lane,
                             "mode": a.mode, "owner": a.owner,
                             "objective": a.objective, "paths": a.paths,
-                            "status": res.get("action"), "result": res})
+                            "status": res.get("action"),
+                            # ground truth: files REALLY changed on disk ([] for
+                            # advisory drafts) -- render write claims from this.
+                            "wrote": res.get("wrote", []),
+                            "result": res})
         return results
 
     def spawn(self, objective: str, repo_root: str, dry_run: bool = True) -> dict:
@@ -142,7 +150,7 @@ class Ikarus:
         from .decompose import decompose
         subtasks = decompose(objective, repo_root)
         if dry_run:
-            return self.plan(subtasks)
+            return self.plan(subtasks, repo_root=repo_root)
         return self.dispatch(repo_root, subtasks, dry_run=False)
 
 
