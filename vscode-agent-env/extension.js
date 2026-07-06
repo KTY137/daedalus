@@ -939,7 +939,7 @@ function renderWheelDetail() {
   html += '<div><div class="detail-row-label">Routing preset</div><div class="chip-row">' + laneBadge(cat.lane) + '<span class="tier-badge">' + esc(cat.tier) + '</span></div></div>';
   html += '<div><div class="detail-row-label">Agents</div>';
   if (!cat.agents || !cat.agents.length) {
-    html += '<div class="empty-state"><div class="glyph">&#128101;</div><div><strong>No agents assigned to this category yet.</strong></div><div>Configure with <code>daedalus categories set ' + esc(cat.id) + ' --agents ...</code></div></div>';
+    html += '<div class="empty-state"><div class="glyph">&#128101;</div><div><strong>No agents assigned to this category yet.</strong></div><div>Assign one via the New Agent form (category dropdown) or <code>daedalus agents edit &lt;name&gt; --category ' + esc(cat.id) + '</code></div></div>';
   } else {
     html += '<div class="chip-row">' + cat.agents.map(wheelAgentChip).join('') + '</div>';
   }
