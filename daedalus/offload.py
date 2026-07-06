@@ -67,7 +67,7 @@ def _repo_snapshot(repo_root: str) -> dict[str, str]:
             rel = p.relative_to(root)
             if any(part in _SNAPSHOT_SKIP for part in rel.parts):
                 continue
-            snap[str(rel)] = hashlib.sha256(p.read_bytes()).hexdigest()
+            snap[rel.as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
         except OSError:
             continue
     return snap
