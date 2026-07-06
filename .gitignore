@@ -23,3 +23,4 @@ inbox/*.json
 Thumbs.db
 node_modules/
 vscode-agent-env/*.vsix
+runs/drafts/

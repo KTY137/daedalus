@@ -191,6 +191,16 @@ def offload(
     if vr.ok:
         result["action"] = "offloaded"
         result["report"] = report
+        # Advisory proposals used to evaporate with the result dict. Persist
+        # them so `daedalus drafts` can list/review/apply later (Era 3 #1).
+        if decision.mode == "advisory":
+            try:
+                from .drafts import save_draft
+                result["draft"] = save_draft(
+                    objective, paths or [], agent["name"], decision.provider,
+                    decision.persona, report, repo_root=repo_root).stem
+            except OSError:
+                result["draft"] = None   # persistence is best-effort, never fatal
         metrics.record(provider=decision.provider, action="offloaded",
                        owner=agent["name"], risk=decision.risk, eligible=True)
     else:

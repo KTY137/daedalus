@@ -1,7 +1,7 @@
 # Era 3 — Plan (proposed)
 
 Status after Era 1+2 (2026-07-06): local write pipeline validated end-to-end
-(docs/VALIDATION_RUN.md), API-first webapp secured and serving, 214 tests green.
+(docs/VALIDATION_RUN.md), API-first webapp secured and serving, 212 tests green.
 Era 3 is about turning validated plumbing into daily-driver workflows.
 
 ## 1. Advisory-apply loop (highest value)

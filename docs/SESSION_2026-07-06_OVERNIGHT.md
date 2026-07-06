@@ -1,6 +1,6 @@
 # Session Summary — Overnight Autonomous Run (2026-07-06)
 
-**Branch:** `feat/api-webapp-agent-os` (pushed to KTY137/daedalus) · **Tests:** 214 green
+**Branch:** `feat/api-webapp-agent-os` (pushed to KTY137/daedalus) · **Tests:** 212 green (+1 env-dependent skip)
 **Mandate:** "push, solve the write bug, plan + run two eras: Creative Expansion + Validation
 (with a friendly example project); 4 hours; keep generating tasks."
 
@@ -63,8 +63,16 @@ Full evidence: `docs/VALIDATION_RUN.md`.
    polish → multi-file waves → hardening backlog).
 4. VS Code: Developer → Reload Window for the latest webview; `/config` reasoning high.
 
+## Bonus: Era-3 #1 part 1 shipped the same night
+
+Advisory drafts no longer evaporate: accepted advisory offloads persist to
+`runs/drafts/` (`daedalus drafts list|show|rm`; result carries the draft id;
+`wrote: []` stays honest). Proven live: a real qwen review of the garden's
+watering-tips guide landed as draft `20260706T012736Z-review-…` with a usable
+summary. Apply stays a human/Claude action by design. **Final suite: 215 green.**
+
 ## Honest limits
 
 - Bench writes remain single-file-scoped (≤3 files/task, ≤24k chars); multi-file = Era 3.
-- Advisory drafts still evaporate (no apply loop yet) — top of the Era-3 plan.
+- Drafts persist but the apply/queue-view wiring is still Era-3 work.
 - VSIX wrapper not yet repackaged for the webapp (works via browser today).
