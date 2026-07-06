@@ -33,6 +33,36 @@
       }
     },
     {
+      "label": "Daedalus: Agent OS server",
+      "detail": "Local web API + Agent OS webapp on http://127.0.0.1:8765 (secrets stay server-side)",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "daedalus.cli", "web", "--host", "127.0.0.1", "--port", "8765"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "agent-os-web",
+        "pattern": [
+          {
+            "regexp": "^(ERROR|Traceback)(.*)$",
+            "file": 1,
+            "message": 2
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "listening on"
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "Daedalus: doctor",
       "detail": "Is the bench ready? (Ollama / model / claude CLI)",
       "type": "process",

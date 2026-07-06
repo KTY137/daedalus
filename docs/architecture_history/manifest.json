@@ -5,5 +5,12 @@
     "git": "e66ebf5",
     "hash": "28a024dc90bd0a78",
     "note": "Era-3 baseline \u2014 bookkeeper + living artifact"
+  },
+  {
+    "file": "architecture-20260706T094333Z.html",
+    "stamp": "2026-07-06 09:43 UTC",
+    "git": "94583a0",
+    "hash": "28a024dc90bd0a78",
+    "note": "phase 0: merged v0.3-era3, VSIX 0.3.0, watcher drain proven, README onboarding"
   }
 ]

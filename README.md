@@ -45,13 +45,35 @@ VS Code / CLI / future chat
 The file bus remains the compatibility backbone. Existing `outbox/*.json` and
 `inbox/*.report.json` contracts are preserved.
 
-## Quickstart
+## Quickstart — zero to first verified offload
+
+Walkthrough validated end-to-end against the `sunny_garden` demo project.
 
 ```powershell
 cd C:\Users\nukei\Desktop\agent_env
-python -m daedalus.runbook "Describe the change you want" --paths <your-repo>\path\to\file.py
+
+# 0. is the bench ready? (Ollama server + qwen2.5-coder model + claude CLI)
+python -m daedalus.cli doctor
+
+# 1. scaffold your repo (.agentenv policy + generic agent roles; never overwrites)
+python -m daedalus.cli init <your-repo>
+
+# 2. one REAL round-trip proof: routes, writes, verifies on disk, cleans up
+python -m daedalus.cli selftest
+
+# 3. first offload against your repo (plan only; add --live to actually write)
+python -m daedalus.cli offload "Add a docstring to <some function>" `
+  --repo-root <your-repo> --paths path\to\file.py
+
+# 4. the cockpit: local web API + Agent OS webapp (browser or VS Code webview)
+python -m daedalus.cli web        # -> http://127.0.0.1:8765
+
+# sanity: the whole suite
 python -m unittest discover tests
 ```
+
+Key CLI surfaces after that: `dashboard --json`, `drafts list|apply`, `build`,
+`benchmark [--live]`, `bookkeeper update`, `agents|categories|projects`.
 
 ## Local write path
 

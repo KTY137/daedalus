@@ -2,7 +2,7 @@
   "name": "daedalus-vscode",
   "displayName": "Daedalus",
   "description": "VS Code cockpit for the daedalus Ikarus/Codex/Claude/Ollama team bus.",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
