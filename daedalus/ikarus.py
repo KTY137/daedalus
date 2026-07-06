@@ -110,7 +110,17 @@ class Ikarus:
 
     def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True) -> list[dict]:
         """Run the accepted work. dry_run stops at the spawn plan; live actually
-        invokes each bench worker through the provider seam."""
+        invokes each bench worker through the provider seam.
+
+        INTENTIONALLY SEQUENTIAL (Coffee-retro honesty, Theseus' napkin): each
+        live write is verified by diffing a whole-repo content-hash snapshot
+        taken *around* that one run (offload._repo_snapshot). Running tasks on
+        the SAME repo concurrently would let one task's writes leak into
+        another's before/after diff -- cross-attributing disk_changed, the exact
+        class of bug this project is paranoid about. ``max_workers`` therefore
+        bounds WAVE size for planning, not real threads. Genuine parallelism
+        needs per-task isolation (a git worktree / temp copy per runtime) -- a
+        designed Era-3 item, not a silent thread pool bolted on here."""
         avail = self.availability or DEFAULT_AVAILABILITY
         results: list[dict] = []
         for a in self.accept(tasks, repo_root=repo_root):

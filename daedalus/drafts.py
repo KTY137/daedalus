@@ -23,10 +23,29 @@ ROOT = Path(__file__).resolve().parents[1]
 DRAFT_DIR = ROOT / "runs" / "drafts"
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+# A draft id is our own timestamp-slug stem. It arrives from the CLI and from
+# URL path segments (/api/drafts/<id>/apply), so it MUST NOT be trusted into a
+# filesystem path -- reject anything that isn't a plain stem (no separators, no
+# traversal). Closes the path-traversal gap Minos would have flagged.
+_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,120}$")
 
 
 def _slug(text: str, max_len: int = 48) -> str:
     return _SLUG_RE.sub("-", text.lower()).strip("-")[:max_len] or "draft"
+
+
+def _safe_path(draft_id: str) -> Path | None:
+    """Resolve a draft id to its file ONLY if the id is a plain stem that stays
+    inside DRAFT_DIR. Returns None for anything suspicious (``..``, separators,
+    absolute paths, symlink escapes)."""
+    if not isinstance(draft_id, str) or not _ID_RE.match(draft_id):
+        return None
+    p = (DRAFT_DIR / f"{draft_id}.json")
+    try:
+        p.resolve().relative_to(DRAFT_DIR.resolve())
+    except (ValueError, OSError):
+        return None
+    return p
 
 
 def save_draft(objective: str, paths: list[str], agent: str, provider: str,
@@ -77,8 +96,8 @@ def list_drafts() -> list[dict]:
 
 
 def get_draft(draft_id: str) -> dict | None:
-    p = DRAFT_DIR / f"{draft_id}.json"
-    if not p.is_file():
+    p = _safe_path(draft_id)
+    if p is None or not p.is_file():
         return None
     try:
         return json.loads(p.read_text(encoding="utf-8"))
@@ -87,8 +106,8 @@ def get_draft(draft_id: str) -> dict | None:
 
 
 def delete_draft(draft_id: str) -> bool:
-    p = DRAFT_DIR / f"{draft_id}.json"
-    if p.is_file():
+    p = _safe_path(draft_id)
+    if p is not None and p.is_file():
         p.unlink()
         return True
     return False
@@ -105,8 +124,8 @@ def set_status(draft_id: str, status: str) -> dict | None:
     Claude action). Idempotent."""
     if status not in _STATUSES:
         raise ValueError(f"status must be one of {_STATUSES}, got {status!r}")
-    p = DRAFT_DIR / f"{draft_id}.json"
-    if not p.is_file():
+    p = _safe_path(draft_id)
+    if p is None or not p.is_file():
         return None
     try:
         d = json.loads(p.read_text(encoding="utf-8"))

@@ -74,6 +74,16 @@ class DraftStoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             drafts.set_status(did, "merged")
 
+    def test_path_traversal_ids_are_refused(self):
+        # draft_id arrives from CLI args and URL segments -> must never index a
+        # path outside DRAFT_DIR. Every accessor fails closed on a hostile id.
+        for evil in ["../../secret", "..\\..\\secret", "/etc/passwd",
+                     "a/b", "with space", "x" * 200, ""]:
+            self.assertIsNone(drafts.get_draft(evil), evil)
+            self.assertFalse(drafts.delete_draft(evil), evil)
+            self.assertIsNone(drafts.set_status(evil, "applied"), evil)
+            self.assertIsNone(drafts.apply_payload(evil), evil)
+
 
 class _AdvisoryDraftWorker:
     def run(self, **kwargs):
