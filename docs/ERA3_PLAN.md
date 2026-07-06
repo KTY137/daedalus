@@ -4,15 +4,18 @@ Status after Era 1+2 (2026-07-06): local write pipeline validated end-to-end
 (docs/VALIDATION_RUN.md), API-first webapp secured and serving, 212 tests green.
 Era 3 is about turning validated plumbing into daily-driver workflows.
 
-## 1. Advisory-apply loop (highest value)
-Drafts from advisory-mode tasks currently die inside the result report. Build the
-missing half of the FrugalGPT loop:
-- Persist advisory drafts to `runs/drafts/<ts>-<task>.json` (objective, paths, draft, agent).
-- `daedalus drafts list|show|apply` — apply = hand the draft to the Claude lane
-  (or the user) as a reviewed patch; never auto-write.
-- Surface drafts in the webapp queue view ("N drafts waiting for review").
-Why: the "free agents constantly doing stuff" vision produces mostly drafts;
-today they evaporate.
+## 1. Advisory-apply loop (highest value) — ✅ MOSTLY DONE (ce5cb91, abf29f9)
+Drafts from advisory-mode tasks used to die inside the result report. Now:
+- ✅ Persist advisory drafts to `runs/drafts/<ts>-<slug>.json` (`daedalus drafts list|show|rm`).
+- ✅ `daedalus drafts apply|dismiss` — apply returns a review packet for the Claude
+  lane and marks the draft handled; never auto-writes (a5b4b0d: path-traversal-guarded).
+- ✅ API: `GET /api/drafts` (+pending_count), `GET/POST /api/drafts/<id>[/apply|dismiss]`.
+- ⬜ REMAINING: the webapp **inbox tray** UI (React) that renders pending_count and
+  lets you review/apply a draft with one click. Backend is ready.
+
+## 4. One UI contract — ✅ DONE (a5b4b0d)
+`tests/test_ui_contract.py` pins webview↔webapp parity (shared `core.get_dashboard`,
+identical keys + Role Wheel taxonomy). VSIX repackage still ⬜.
 
 ## 2. Multi-file waves (build loop, phase C payoff)
 - Lift MAX_REWRITE_FILES=3 per task into a wave plan: Ikarus splits a >3-file
