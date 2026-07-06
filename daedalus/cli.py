@@ -17,7 +17,8 @@
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
-    daedalus drafts list|show|rm        persisted advisory drafts (free-lane proposals)
+    daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
+    daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -388,6 +389,8 @@ def main() -> None:
         _claude_crew(rest)
     elif cmd == "drafts":
         _drafts(rest)
+    elif cmd == "selftest":
+        from .selftest import main as m; m(rest)
     elif cmd == "web":
         from .web_api import main as m; m(rest)
     elif cmd == "enforce":
