@@ -73,6 +73,20 @@ def _repo_snapshot(repo_root: str) -> dict[str, str]:
     return snap
 
 
+def _scoped_snapshot(repo_root: str, rels: list[str]) -> dict[str, str]:
+    """Content-hash ONLY the given repo-relative paths (present ones). Used for
+    per-task change attribution when tasks run concurrently on one repo -- a
+    whole-repo diff would cross-attribute another task's writes. Safe because
+    the scoped-write lane writes exactly its declared paths."""
+    snap: dict[str, str] = {}
+    root = Path(repo_root)
+    for rel in rels:
+        h = _content_hash(repo_root, rel)
+        if h is not None:
+            snap[Path(rel).as_posix()] = h
+    return snap
+
+
 def offload(
     objective: str,
     repo_root: str,
@@ -81,6 +95,7 @@ def offload(
     availability: dict | None = None,
     run_tests: bool = False,
     project: str | None = None,
+    isolate_paths: bool = False,
 ) -> dict:
     if availability is None:
         from .doctor import check
@@ -156,17 +171,23 @@ def offload(
     # afterward -- the write-mode gate must NOT trust the model's self-reported
     # files_changed (a narrating model claims edits it never made). Path-agnostic
     # so a genuine write is caught even with no --paths.
-    before_snap = _repo_snapshot(repo_root) if decision.mode == "write" else {}
+    # isolate_paths (parallel dispatch): attribute changes by hashing ONLY this
+    # task's declared paths, so a sibling task writing concurrently to the same
+    # repo can't leak into this task's diff. Default stays the whole-repo snapshot
+    # (catches sneaky writes outside --paths; correct for sequential runs).
+    def _snap() -> dict[str, str]:
+        return _scoped_snapshot(repo_root, paths or []) if isolate_paths else _repo_snapshot(repo_root)
+
+    before_snap = _snap() if decision.mode == "write" else {}
 
     out = worker.run(**run_kwargs)
     report = out["report"]
 
     # Which files ACTUALLY changed on disk (create, edit, or delete) -- this,
-    # not report["files_changed"], is what the write-mode gate trusts. Diffing
-    # a whole-repo snapshot catches genuine writes with or without --paths.
+    # not report["files_changed"], is what the write-mode gate trusts.
     disk_changed = None
     if decision.mode == "write":
-        after_snap = _repo_snapshot(repo_root)
+        after_snap = _snap()
         disk_changed = sorted(rel for rel in (set(before_snap) | set(after_snap))
                               if before_snap.get(rel) != after_snap.get(rel))
     # GROUND TRUTH for callers: which files this task really changed on disk.

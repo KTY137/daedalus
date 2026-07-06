@@ -33,6 +33,22 @@ FREE_LANES = ("ollama", "deepseek")
 DEFAULT_AVAILABILITY = {"claude_cli": True, "ollama": True, "deepseek": False}
 
 
+def _paths_overlap(assignments: list) -> bool:
+    """True if any two write-mode assignments declare a shared path -- then they
+    cannot run concurrently (real edit conflict). Advisory tasks write nothing,
+    so they never conflict."""
+    seen: set[str] = set()
+    for a in assignments:
+        if getattr(a, "mode", "") != "write":
+            continue
+        for p in (a.paths or []):
+            key = str(p).replace("\\", "/")
+            if key in seen:
+                return True
+            seen.add(key)
+    return False
+
+
 @dataclass
 class Assignment:
     objective: str
@@ -108,46 +124,79 @@ class Ikarus:
             "waves": waves,
         }
 
-    def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True) -> list[dict]:
+    def dispatch(self, repo_root: str, tasks: list[dict], dry_run: bool = True,
+                 parallel: bool = False) -> list[dict]:
         """Run the accepted work. dry_run stops at the spawn plan; live actually
         invokes each bench worker through the provider seam.
 
-        INTENTIONALLY SEQUENTIAL (Coffee-retro honesty, Theseus' napkin): each
-        live write is verified by diffing a whole-repo content-hash snapshot
-        taken *around* that one run (offload._repo_snapshot). Running tasks on
-        the SAME repo concurrently would let one task's writes leak into
-        another's before/after diff -- cross-attributing disk_changed, the exact
-        class of bug this project is paranoid about. ``max_workers`` therefore
-        bounds WAVE size for planning, not real threads. Genuine parallelism
-        needs per-task isolation (a git worktree / temp copy per runtime) -- a
-        designed Era-3 item, not a silent thread pool bolted on here."""
+        Sequential by default (``parallel=False``): each live write is verified
+        by diffing a WHOLE-repo content-hash snapshot around that one run
+        (offload._repo_snapshot), which catches even writes outside --paths --
+        but two such runs on one repo concurrently would cross-attribute
+        disk_changed. So real concurrency requires per-task isolation.
+
+        ``parallel=True`` enables it SAFELY: it runs accepted tasks in a bounded
+        thread pool (``max_workers``) with ``isolate_paths=True`` so each task
+        attributes only its OWN declared paths -- and it first REFUSES to
+        parallelize any batch whose write-tasks share a path (a real conflict:
+        two agents editing one file). Overlapping batches fall back to
+        sequential with a note. Ollama on one GPU serializes generation anyway,
+        so the win is overlapped verify/test, not 6x model throughput."""
         avail = self.availability or DEFAULT_AVAILABILITY
+        accepted = self.accept(tasks, repo_root=repo_root)
         results: list[dict] = []
-        for a in self.accept(tasks, repo_root=repo_root):
+
+        def _bounced_or_planned(a: "Assignment") -> dict | None:
             if not a.accepted:
-                results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
-                                "owner": a.owner, "objective": a.objective,
-                                "paths": a.paths, "status": "bounced",
-                                "reason": a.reason})
-                continue
+                return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                        "owner": a.owner, "objective": a.objective,
+                        "paths": a.paths, "status": "bounced", "reason": a.reason}
             if dry_run:
-                results.append({"worker": a.worker, "lane": a.lane, "mode": a.mode,
-                                "owner": a.owner, "objective": a.objective,
-                                "paths": a.paths, "status": "planned"})
-                continue
-            # Live writes MUST go through the verify+rollback+fail-closed cascade
-            # (Mary #2) -- never call the provider directly here.
+                return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                        "owner": a.owner, "objective": a.objective,
+                        "paths": a.paths, "status": "planned"}
+            return None
+
+        def _run_one(a: "Assignment", isolate: bool) -> dict:
             from .offload import offload
             res = offload(a.objective, repo_root, a.paths, live=True,
-                          availability=avail, project=self.project)
-            results.append({"worker": a.worker, "lane": a.lane,
-                            "mode": a.mode, "owner": a.owner,
-                            "objective": a.objective, "paths": a.paths,
-                            "status": res.get("action"),
-                            # ground truth: files REALLY changed on disk ([] for
-                            # advisory drafts) -- render write claims from this.
-                            "wrote": res.get("wrote", []),
-                            "result": res})
+                          availability=avail, project=self.project,
+                          isolate_paths=isolate)
+            return {"worker": a.worker, "lane": a.lane, "mode": a.mode,
+                    "owner": a.owner, "objective": a.objective, "paths": a.paths,
+                    "status": res.get("action"),
+                    # ground truth: files REALLY changed on disk ([] for advisory
+                    # drafts) -- render write claims from this, never from action.
+                    "wrote": res.get("wrote", []), "result": res}
+
+        live_tasks = [a for a in accepted if a.accepted and not dry_run]
+        # Parallel only when safe: write-tasks must have pairwise-disjoint paths.
+        can_parallel = parallel and not _paths_overlap(live_tasks)
+
+        if parallel and not can_parallel and live_tasks:
+            # honest: we were asked for parallel but a path conflict forces order
+            results.append({"status": "note", "objective": "parallel disabled",
+                            "reason": "accepted write-tasks share a path -> ran sequentially to avoid clobber"})
+
+        if can_parallel and len(live_tasks) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            done: dict[int, dict] = {}
+            pending = [a for a in accepted if (_bounced_or_planned(a) is None)]
+            with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+                futs = {pool.submit(_run_one, a, True): i for i, a in enumerate(pending)}
+                for f in futs:
+                    done[futs[f]] = f.result()
+            # preserve input order in the output
+            live_iter = iter(done[i] for i in range(len(pending)))
+            for a in accepted:
+                bp = _bounced_or_planned(a)
+                results.append(bp if bp is not None else next(live_iter))
+            return results
+
+        # sequential (default, or forced by a path conflict)
+        for a in accepted:
+            bp = _bounced_or_planned(a)
+            results.append(bp if bp is not None else _run_one(a, isolate=parallel))
         return results
 
     def spawn(self, objective: str, repo_root: str, dry_run: bool = True) -> dict:

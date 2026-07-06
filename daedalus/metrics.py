@@ -13,8 +13,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Serializes the append below so parallel dispatch can't interleave two rows
+# into one corrupt line (Windows append is not guaranteed atomic).
+_WRITE_LOCK = threading.Lock()
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = ROOT / "memory" / "offload_metrics.local.jsonl"
@@ -32,7 +37,7 @@ def record(*, provider: str, action: str, owner: str = "", risk: str = "",
         "provider": provider, "action": action, "owner": owner,
         "risk": risk, "eligible": eligible, "note": note[:200],
     }
-    with LOG.open("a", encoding="utf-8") as fh:
+    with _WRITE_LOCK, LOG.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(row) + "\n")
 
 
