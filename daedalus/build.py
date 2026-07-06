@@ -218,6 +218,7 @@ def plan_build(
     *,
     persist: bool = True,
     runs_dir: str | Path | None = None,
+    update_architecture: bool = True,
 ) -> BuildSession:
     """Plan a multi-wave build for ``feature``.
 
@@ -266,5 +267,5 @@ def plan_build(
         max_workers=max_workers,
     )
     if persist:
-        session.save(runs_dir)
+        session.save(runs_dir, update_architecture=update_architecture)
     return session

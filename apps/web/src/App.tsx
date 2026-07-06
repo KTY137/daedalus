@@ -412,6 +412,16 @@ export default function App() {
 
   useEffect(() => { refresh(); }, []);
 
+  // Live queue (Era-3 #3): poll the dashboard while the Mission Feed is open so
+  // queued tasks and fresh reports appear without a manual refresh.
+  useEffect(() => {
+    if (view !== 'queue' || !project) return;
+    const timer = setInterval(() => {
+      getDashboard(project).then(setDashboard).catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [view, project]);
+
   const selectedProject = projects.find((p) => p.name === project);
 
   async function submitTask() {
@@ -430,6 +440,7 @@ export default function App() {
 
   const queue = dashboard?.queue as any;
   const draftPending = drafts.filter((d) => d.status === 'pending').length;
+  const queuePending = ((queue?.pending || []) as unknown[]).length;
 
   return (
     <main className="studio-shell">
@@ -444,7 +455,10 @@ export default function App() {
           <button className={view === 'claude' ? 'active' : ''} onClick={() => setView('claude')}><BrainCircuit size={15} /> Claude Code</button>
           <button className={view === 'codex' ? 'active' : ''} onClick={() => setView('codex')}><Terminal size={15} /> Codex</button>
           <button className={view === 'providers' ? 'active' : ''} onClick={() => setView('providers')}><KeyRound size={15} /> Providers</button>
-          <button className={view === 'queue' ? 'active' : ''} onClick={() => setView('queue')}><GitBranch size={15} /> Mission Feed</button>
+          <button className={view === 'queue' ? 'active' : ''} onClick={() => setView('queue')}>
+            <GitBranch size={15} /> Mission Feed
+            {queuePending > 0 && <span className="nav-badge">{queuePending}</span>}
+          </button>
           <button className={view === 'inbox' ? 'active' : ''} onClick={() => setView('inbox')}>
             <Inbox size={15} /> Draft Inbox
             {draftPending > 0 && <span className="nav-badge">{draftPending}</span>}

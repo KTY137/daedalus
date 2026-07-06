@@ -38,7 +38,9 @@ identical keys + Role Wheel taxonomy). VSIX repackage ✅ (`daedalus-vscode-0.3.
 - ✅ Model tiers decided by user 2026-07-06: `core-dev` + `picasso` -> opus,
   `qa-critic` (Nemesis) -> fable; delegates `argus`/`hermes` stay haiku.
 - ✅ Merged `feat/api-webapp-agent-os` -> main (94583a0); merged local branches deleted.
-  Leftover UNMERGED branch `worktree-agent-a6f4b9af…` (a357049, docs-only) kept for review.
+  Unmerged branch `worktree-agent-a6f4b9af…` (a357049, docs-only) REVIEWED 2026-07-06 and
+  deleted: it documented the pre-rename `agentenv`/`agent_env` CLI (module no longer
+  imports); main's docs were already rewritten for `daedalus`. Recoverable via reflog.
 - NEW (2026-07-06): crew delegation protocol — every Claude crew agent may fan out up to
   two haiku delegates via the Agent tool (`.claude/agents/argus.md` scout /
   `.claude/agents/hermes.md` scribe). Claude-side only; NOT harness/Ollama personas.

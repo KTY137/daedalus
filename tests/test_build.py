@@ -60,10 +60,13 @@ def _fake_preset(agent, repo_root=None):
 
 @contextmanager
 def _patched(subtasks=_SUBTASKS):
+    # bookkeeper.update is patched so no build test can regenerate the REAL
+    # docs/architecture.html (+ history snapshot) as a side effect of save().
     with patch.object(build, "decompose", return_value=list(subtasks)), \
             patch.object(build, "route_task", side_effect=_fake_route), \
-            patch.object(build, "preset_for", side_effect=_fake_preset):
-        yield
+            patch.object(build, "preset_for", side_effect=_fake_preset), \
+            patch("daedalus.bookkeeper.update", return_value=None) as bk:
+        yield bk
 
 
 class AssignBuilderTests(unittest.TestCase):
@@ -160,6 +163,22 @@ class SingleSubtaskTests(unittest.TestCase):
         self.assertEqual(len(session.waves), 1)
         self.assertEqual(len(session.waves[0].tasks), 1)
         self.assertTrue(session.waves[0].tasks[0].frontier)
+
+
+class BookkeeperIsolationTests(unittest.TestCase):
+    """plan_build's persist path must not touch the real architecture artifact
+    unless asked to (regression: the suite used to rewrite docs/architecture.html)."""
+
+    def test_update_architecture_false_skips_bookkeeper(self):
+        with tempfile.TemporaryDirectory() as d, _patched() as bk:
+            plan_build("Add a config parser", "/repo", runs_dir=d,
+                       update_architecture=False)
+            bk.assert_not_called()
+
+    def test_persist_default_forwards_to_bookkeeper(self):
+        with tempfile.TemporaryDirectory() as d, _patched() as bk:
+            plan_build("Add a config parser", "/repo", runs_dir=d)
+            bk.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -117,6 +117,49 @@ class RuntimeRegistryTest(unittest.TestCase):
         self.assertNotIn("sk-secret-test", encoded)
 
 
+class InspectorEditRoundTripTest(unittest.TestCase):
+    """The webapp inspector's PUT endpoints persist for real (coffee-retro
+    trust gap 'inspector edit round-trip'): a patch through the same functions
+    web_api routes to (agents_registry.update_role / categories.update) lands
+    in the per-repo override, is visible on the next load, and never mutates
+    the shipped template/global file."""
+
+    def test_agent_role_patch_persists_per_repo_and_spares_template(self) -> None:
+        from daedalus import agents_registry
+
+        template = Path("templates/agents/generalist-dev.json")
+        before = template.read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            current = agents_registry.get_role("generalist-dev", tmp)
+            self.assertIsNotNone(current)
+            new_tier = "haiku" if current.get("model_tier") != "haiku" else "sonnet"
+
+            path = agents_registry.update_role("generalist-dev", {"model_tier": new_tier}, tmp)
+            self.assertTrue(str(path).startswith(str(Path(tmp).resolve())) or str(path).startswith(tmp),
+                            f"override must live under the repo, got {path}")
+
+            reloaded = agents_registry.get_role("generalist-dev", tmp)
+            self.assertEqual(reloaded["model_tier"], new_tier)
+        self.assertEqual(template.read_bytes(), before, "template must never be mutated")
+
+    def test_category_patch_persists_per_repo_and_spares_global(self) -> None:
+        from daedalus import categories
+
+        global_file = Path("agents/categories.json")
+        before = global_file.read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            cat_id = categories.load()[0]["id"]
+
+            path = categories.update(cat_id, {"name": "Round Trip Check"}, tmp)
+            self.assertEqual(path, Path(tmp) / ".agentenv" / "categories.json")
+
+            reloaded = categories.get(cat_id, tmp)
+            self.assertEqual(reloaded["name"], "Round Trip Check")
+            # without the repo_root the patch must NOT be visible
+            self.assertNotEqual(categories.get(cat_id)["name"], "Round Trip Check")
+        self.assertEqual(global_file.read_bytes(), before, "global file must never be mutated")
+
+
 class BootstrapPromptTest(unittest.TestCase):
     def test_claude_bootstrap_prompt_mentions_harness_and_project(self) -> None:
         payload = claude_bootstrap_prompt("project_tct")
