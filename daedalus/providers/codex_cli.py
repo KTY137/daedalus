@@ -184,6 +184,12 @@ class CodexCLIProvider(Provider):
             try:
                 completed = subprocess.run(
                     cmd, cwd=repo_root, text=True, capture_output=True,
+                    # stdin MUST be closed: with a prompt arg, `codex exec`
+                    # still appends piped/inherited stdin as a <stdin> block
+                    # and blocks until EOF. Under the file-bridge watcher the
+                    # inherited stdin never closes -> codex hangs at ~0 CPU
+                    # (live-fired 2026-07-11, task C1).
+                    stdin=subprocess.DEVNULL,
                     timeout=timeout_s, check=False,
                 )
             except subprocess.TimeoutExpired:
