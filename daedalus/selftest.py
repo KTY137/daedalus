@@ -76,7 +76,7 @@ def run() -> dict:
         after = target.read_text(encoding="utf-8")
 
         checks = [
-            ("routed to a free lane", res.get("provider") in ("ollama", "deepseek")),
+            ("routed to a free lane", res.get("provider") in ("ollama", "deepseek", "codex_cli")),
             ("mode is write", res.get("mode") == "write"),
             ("accepted (offloaded)", res.get("action") == "offloaded"),
             ("verifier passed", bool((res.get("verify") or {}).get("ok"))),

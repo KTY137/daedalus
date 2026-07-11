@@ -13,6 +13,19 @@
       "qa-critic": "Yan"
     }
   },
+  "codex_cli": {
+    "culture": "American",
+    "default": "Cody",
+    "by_role": {
+      "ui-ux-dev": "Riley",
+      "data-analysis-dev": "Harper",
+      "docs-dev": "Quinn",
+      "researcher": "Avery",
+      "acquisition-dev": "Jordan",
+      "hardware-dev": "Casey",
+      "qa-critic": "Morgan"
+    }
+  },
   "ollama": {
     "culture": "Mexican/Italian",
     "default": "Mateo",

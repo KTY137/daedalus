@@ -58,11 +58,11 @@ Fields handled by `_read_request` / `process_request`:
 | `repo_root` | yes* | watcher's `--repo-root`/`--project` | Target repository. *May be omitted only if the watcher was started with a default; otherwise the request is rejected. |
 | `paths` | no | `[]` | Relevant file paths (pruned by the token policy before prompting). |
 | `model` | no | `"sonnet"` | Claude model used on the claude lane. |
-| `lane` | no | `"auto"` | `"auto"` \| `"local"` \| `"local_only"` \| `"claude"` -- see lane semantics below. |
+| `lane` | no | `"auto"` | `"auto"` \| `"local"` \| `"local_only"` \| `"claude"` \| `"codex"` -- see lane semantics below. |
 | `source` | no | `"unknown"` | Who queued the request: `"codex"` \| `"claude"` \| `"user"` \| `"ikarus"` \| `"unknown"`. |
 | `strategy` | no | `"single"` | `"single"` routes one scoped task through Ikarus; `"spawn"` lets Ikarus decompose the objective and dispatch the local bench. |
 | `project` | no | absent | Project name; honored on the local lane, where it is forwarded to `offload()` for policy resolution. |
-| `timeout_s` | no | `300` | Subprocess timeout for the Claude CLI call (claude lane only). |
+| `timeout_s` | no | `300` | Subprocess timeout for the CLI call (claude and codex lanes). |
 
 Example:
 
@@ -101,6 +101,16 @@ The `lane` field controls which executor the watcher may dispatch to:
 - **`claude`** -- skip offload entirely; always run on the trusted senior lane
   (`ask_claude`, the original behaviour). Use this for high-risk or
   judgment-heavy work.
+- **`codex`** -- force the OpenAI Codex CLI (`codex exec`), an EXTERNAL,
+  egress-gated lane. The per-project deny policy is enforced BEFORE dispatch:
+  a request whose paths/objective are policy-sensitive is refused with
+  `bridge_status: "failed"` and the CLI is never spawned. With no loaded
+  project policy (or a high change-risk objective) codex runs in its
+  read-only sandbox (advisory). Like `claude`, a forced lane has NO fallback:
+  failures are reported, never re-billed to another lane. Inside `auto`,
+  codex is also the fallback slot between the local bench and the Claude
+  lane (non-sensitive low/mid work only, when DeepSeek and Ollama are
+  unavailable).
 
 ## Report JSON (`inbox/*.report.json`)
 
@@ -110,7 +120,7 @@ Every report is an envelope:
 |---|---|---|
 | `request` | yes | Echo of the (normalized) request payload. |
 | `bridge_status` | yes | `"done"` or `"failed"`. |
-| `lane` | yes | The lane that actually executed: `"local"` or `"claude"` (may differ from the requested lane after fallback). |
+| `lane` | yes | The lane that actually executed: `"local"`, `"claude"`, or `"codex"` (may differ from the requested lane after fallback). |
 | `agent` | on success | Local lane: the bench `owner` that ran the task. Claude lane: the routed specialist role name. |
 | `orchestrator` | local success | `"ikarus"` when the local bench handled the request. |
 | `result` | local success | The raw dict returned by `offload()` (owner, verification, etc.). |

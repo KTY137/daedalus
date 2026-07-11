@@ -6,6 +6,7 @@ differ in capability, not interface:
 * ``claude_cli``  — agentic, write-capable, trusted with proprietary IP (primary).
 * ``deepseek``    — read-only, external, may only see non-sensitive content.
 * ``ollama``      — read-only, local (no egress), trusted with IP.
+* ``codex_cli``   — agentic, write-capable, EXTERNAL: egress-gated like deepseek.
 
 Selection is done by :mod:`daedalus.provider_router`.
 """
@@ -96,11 +97,12 @@ _PROVIDERS: dict[str, ProviderMetadata] = {
         name="codex_cli",
         display_name="Codex CLI",
         local=False,
-        trusted_with_ip=True,
+        # External API: bytes leave the machine to OpenAI, so the per-project
+        # egress policy gates it exactly like deepseek (never sensitive content).
+        trusted_with_ip=False,
         can_write=True,
         agentic=True,
-        requires_key=False,
-        implemented=False,
+        requires_key=False,  # auth via `codex login`, not an env key
     ),
 }
 
@@ -118,6 +120,10 @@ def get_provider(name: str) -> Provider:
         from .ollama import OllamaProvider
 
         return OllamaProvider()
+    if name == "codex_cli":
+        from .codex_cli import CodexCLIProvider
+
+        return CodexCLIProvider()
     raise ValueError(f"unknown provider '{name}'")
 
 

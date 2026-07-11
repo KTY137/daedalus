@@ -26,7 +26,7 @@ from .ikarus import FREE_LANES
 from .provider_router import route_and_select
 from .verifier import verify
 
-_ALL = {"claude_cli": True, "ollama": True, "deepseek": True}
+_ALL = {"claude_cli": True, "ollama": True, "deepseek": True, "codex_cli": True}
 
 
 def _content_hash(repo_root: str, rel: str) -> str | None:
@@ -104,6 +104,7 @@ def offload(
             "claude_cli": ready["claude_cli"],
             "ollama": ready["can_offload_local"],
             "deepseek": ready["deepseek_key"],
+            "codex_cli": ready.get("codex_cli", False),
         }
 
     # The policy is what makes the guards real. Resolve it from the registry or
@@ -166,6 +167,10 @@ def offload(
         preferred_model = model_assignments.get(agent["name"])
         if preferred_model:
             run_kwargs["model"] = str(preferred_model)
+    elif decision.provider == "codex_cli":
+        # Same reduced-rights grant as ollama: advisory runs in codex's
+        # read-only sandbox and structurally cannot write.
+        run_kwargs["writable"] = (decision.mode == "write")
 
     # Snapshot the repo BEFORE the run so we can prove a real on-disk change
     # afterward -- the write-mode gate must NOT trust the model's self-reported

@@ -98,7 +98,7 @@ def main() -> None:
     parser.add_argument("--project")
     parser.add_argument("--paths", nargs="*", default=[])
     parser.add_argument("--no-claude", action="store_true")
-    parser.add_argument("--lane", default="auto", choices=["auto", "claude", "local", "local_only"],
+    parser.add_argument("--lane", default="auto", choices=["auto", "claude", "local", "local_only", "codex"],
                         help="how the watcher may execute the queued task")
     parser.add_argument("--source", default="codex",
                         choices=["unknown", "codex", "claude", "user", "ikarus"],

@@ -27,10 +27,15 @@ from .providers import get_provider
 from .providers.personas import roster
 from .sensitivity import Policy
 
-FREE_LANES = ("ollama", "deepseek")
+# Lanes Ikarus may dispatch (everything that is not the senior Claude lane).
+# "Free" means free of CLAUDE tokens: ollama is truly free/local; deepseek and
+# codex_cli are external and spend their own (cheap/subscription) budget.
+FREE_LANES = ("ollama", "deepseek", "codex_cli")
 
-# Default posture: local bench on, external bench dormant (no DeepSeek key).
-DEFAULT_AVAILABILITY = {"claude_cli": True, "ollama": True, "deepseek": False}
+# Default posture: local bench on, external benches dormant (no DeepSeek key,
+# Codex only when the CLI is detected by doctor at dispatch time).
+DEFAULT_AVAILABILITY = {"claude_cli": True, "ollama": True, "deepseek": False,
+                        "codex_cli": False}
 
 
 def _paths_overlap(assignments: list) -> bool:
@@ -54,7 +59,7 @@ class Assignment:
     objective: str
     paths: list[str]
     owner: str            # senior specialist who owns/reviews the domain
-    lane: str             # ollama | deepseek | claude_cli (if bounced)
+    lane: str             # ollama | deepseek | codex_cli | claude_cli (if bounced)
     worker: str           # bench persona doing the work ("-" if bounced)
     mode: str             # write | advisory
     accepted: bool

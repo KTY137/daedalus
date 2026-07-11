@@ -23,7 +23,7 @@ from .agents_registry import MODEL_TIERS
 from .router import ROOT, load_agents
 
 CATEGORIES_PATH = ROOT / "agents" / "categories.json"
-LANES = ("local_only", "local", "auto", "claude")
+LANES = ("local_only", "local", "auto", "claude", "codex")
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,40}$")
 _COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 

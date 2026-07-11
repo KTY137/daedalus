@@ -44,6 +44,7 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         #   local      -> same as auto (prefer the bench), else fall back to Claude
         #   local_only -> local bench only; never fall back to Claude
         #   claude     -> always the trusted Claude lane
+        #   codex      -> always the Codex CLI (external, egress-gated; no fallback)
         "lane": lane,
     }
     if project:
@@ -132,8 +133,10 @@ def main() -> None:
     enqueue_p.add_argument("--paths", nargs="*", default=[])
     enqueue_p.add_argument("--model", default="sonnet")
     enqueue_p.add_argument("--lane", default="auto",
-                           choices=["auto", "claude", "local", "local_only"],
-                           help="auto/local prefer the free bench; local_only never calls Claude; claude forces the trusted lane")
+                           choices=["auto", "claude", "local", "local_only", "codex"],
+                           help="auto/local prefer the free bench; local_only never calls Claude; "
+                                "claude forces the trusted lane; codex forces the external "
+                                "Codex CLI (egress-gated, no fallback)")
     enqueue_p.add_argument("--source", default="unknown",
                            choices=["unknown", "codex", "claude", "user", "ikarus"],
                            help="who queued the request")

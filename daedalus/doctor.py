@@ -10,10 +10,38 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import urllib.error
 import urllib.request
 
 from .providers.ollama import DEFAULT_HOST, DEFAULT_MODEL
+
+
+def codex_status() -> dict:
+    """Presence/version/auth of the OpenAI Codex CLI. All probes are cheap and
+    non-interactive: PATH lookup, ``codex --version``, and ``codex login status``
+    (documented subcommand; exit 0 = logged in). Nothing here ever triggers a
+    login flow or a model call."""
+    # Use the resolved path: npm ships `codex` as a .CMD shim on Windows and
+    # subprocess cannot spawn it by bare name (WinError 2).
+    codex = shutil.which("codex")
+    version: str | None = None
+    logged_in: bool | None = None
+    if codex:
+        try:
+            v = subprocess.run([codex, "--version"], capture_output=True,
+                               text=True, timeout=10, check=False)
+            if v.returncode == 0:
+                version = v.stdout.strip() or None
+        except (OSError, subprocess.SubprocessError):
+            version = None
+        try:
+            s = subprocess.run([codex, "login", "status"], capture_output=True,
+                               text=True, timeout=10, check=False)
+            logged_in = s.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            logged_in = None
+    return {"present": codex is not None, "version": version, "logged_in": logged_in}
 
 
 def _ollama_models(host: str) -> list[str] | None:
@@ -35,6 +63,9 @@ def check() -> dict:
     model_ok = up and any(stem in (m or "") for m in models)
     return {
         "claude_cli": shutil.which("claude") is not None,
+        # PATH-presence only (cheap: check() runs on every bridge dispatch);
+        # version/auth details live in codex_status() for the human doctor.
+        "codex_cli": shutil.which("codex") is not None,
         "ollama_up": up,
         "ollama_host": host,
         "ollama_model_wanted": want,
@@ -63,6 +94,17 @@ def main() -> None:
     else:
         print(f"     -> start it:  ollama serve   then  ollama pull {r['ollama_model_wanted']}")
     print(f"[{_m(r['deepseek_key'])}] DEEPSEEK_API_KEY set        (optional external lane)")
+    cx = codex_status()
+    detail = cx["version"] or "on PATH"
+    print(f"[{_m(cx['present'])}] codex CLI                   "
+          f"({detail}; external lane, egress-gated)")
+    if cx["present"]:
+        if cx["logged_in"] is True:
+            print("     auth: logged in (codex login status)")
+        elif cx["logged_in"] is False:
+            print("     -> not logged in: run  codex login")
+        else:
+            print("     auth: unknown (codex login status did not answer)")
     print()
     if r["can_offload_local"]:
         print("READY: the local bench can execute. offload/ikarus with --live will run for real.")

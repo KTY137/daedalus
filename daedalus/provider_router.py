@@ -9,9 +9,13 @@ Stage 2 (here) picks WHERE that role runs, on two axes:
 Policy (confirmed with the user):
   - Not external-eligible role            -> Claude (trusted, write).
   - Sensitive data                        -> local Ollama (read-only); Claude
-                                             applies any change. NEVER DeepSeek.
+                                             applies any change. NEVER DeepSeek,
+                                             NEVER Codex (both external).
   - Non-sensitive, high-risk *write*      -> Claude writes.
-  - Non-sensitive, low-risk / review-only -> DeepSeek (cheap) else Ollama else Claude.
+  - Non-sensitive, low-risk / review-only -> DeepSeek (cheap) else Ollama else
+                                             Codex CLI else Claude. Codex sits
+                                             between the local bench and the
+                                             Claude lane in the auto fallback.
 
 Free providers are read-only: their ``advisory`` output is reviewed and applied
 by a write-capable, trusted provider. A free model can propose; never merge.
@@ -41,10 +45,13 @@ def _mode(provider: str, review_only: bool, risk: str) -> str:
       - Claude: always write.
       - Ollama: writes only LOW-risk (reduced rights); MID-risk it may only
         read + advise; review-only is advisory.
+      - Codex: same reduced rights as Ollama -- LOW-risk may edit in place
+        (read-only sandbox otherwise); routing already keeps sensitive and
+        high-risk work away from it.
       - DeepSeek: always advisory (external, read-only)."""
     if provider == "deepseek":
         return "advisory"
-    if provider == "ollama":
+    if provider in ("ollama", "codex_cli"):
         # LOW-risk always writes directly (zero Claude tokens); MID only advises.
         # review_only tasks just won't touch files, so "write" is harmless there.
         return "write" if risk == "low" else "advisory"
@@ -53,7 +60,7 @@ def _mode(provider: str, review_only: bool, risk: str) -> str:
 
 @dataclass
 class ProviderDecision:
-    provider: str          # claude_cli | deepseek | ollama
+    provider: str          # claude_cli | deepseek | ollama | codex_cli
     mode: str              # "write" (may apply) | "advisory" (read-only proposal)
     persona: str           # shadow persona name for this (provider, role)
     reason: str
@@ -120,14 +127,19 @@ def select_provider(
     if risk == "high" and not review_only:
         return decide("claude_cli", "high change-risk write stays on Claude")
 
-    # 3. Sensitive data: local Ollama only (low->write, mid->advise), never DeepSeek.
+    # 3. Sensitive data: local Ollama only (low->write, mid->advise). NEVER an
+    # external lane (DeepSeek/Codex) -- if the bench is down this degrades to
+    # Claude via decide(), still never external.
     if data.sensitive:
         return decide("ollama", "sensitive content -> local bench (stays on machine)")
 
-    # 4. Non-sensitive low/mid (or review): cheapest eligible worker.
+    # 4. Non-sensitive low/mid (or review): cheapest eligible worker. Codex is
+    # the external fallback BETWEEN the local bench and the Claude lane.
     if avail.get("deepseek", False):
         return decide("deepseek", "non-sensitive low/mid -> DeepSeek (read-only)")
-    return decide("ollama", "non-sensitive low/mid -> local bench")
+    if avail.get("ollama", False):
+        return decide("ollama", "non-sensitive low/mid -> local bench")
+    return decide("codex_cli", "non-sensitive low/mid -> Codex CLI (bench down)")
 
 
 def route_and_select(

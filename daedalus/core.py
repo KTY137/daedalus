@@ -553,6 +553,7 @@ def _availability_from_doctor() -> dict[str, bool]:
         "claude_cli": bool(ready.get("claude_cli")),
         "ollama": bool(ready.get("can_offload_local")),
         "deepseek": bool(ready.get("deepseek_key")),
+        "codex_cli": bool(ready.get("codex_cli")),
     }
 
 
@@ -619,7 +620,56 @@ def local_only_failure_report(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-KNOWN_LANES = ("auto", "local", "local_only", "claude")
+KNOWN_LANES = ("auto", "local", "local_only", "claude", "codex")
+
+
+def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
+    """Forced ``codex`` lane: dispatch straight to the Codex CLI provider.
+
+    Like the forced ``claude`` lane there is NO fallback -- a failure is
+    reported, not silently re-billed to another lane. Unlike Claude, codex is
+    an EXTERNAL UNTRUSTED lane, so the egress policy is enforced twice:
+    here, BEFORE dispatch (a denied path never reaches the provider), and
+    again inside the provider itself (defense in depth). Fail-closed grants:
+    with no project policy loaded, or a high change-risk task, codex runs in
+    its read-only sandbox (advisory) -- mirroring offload's refusal to let the
+    bench write unguarded."""
+    from .config import resolve_project
+    from .providers import get_provider
+    from .router import route_task
+    from .sensitivity import change_risk, classify_data, load_policy
+
+    try:
+        pdata = resolve_project(payload.get("repo_root") or "", payload.get("project"))
+        pol = load_policy(pdata) if (pdata and pdata.get("policy")) else None
+        paths = payload.get("paths") or []
+        verdict = classify_data(paths, extra_text=payload["objective"], policy=pol)
+        if verdict.sensitive:
+            return {
+                "request": payload, "bridge_status": "failed", "lane": "codex",
+                "error": ("egress policy refused codex dispatch: "
+                          + "; ".join(verdict.reasons)[:300]),
+            }
+        provider = get_provider("codex_cli")
+        if not provider.available():
+            return {"request": payload, "bridge_status": "failed", "lane": "codex",
+                    "error": "codex CLI is not on PATH (run `codex --version`)"}
+        agent = route_task(payload["objective"], paths,
+                           repo_root=payload.get("repo_root") or None)
+        writable = pol is not None and change_risk(payload["objective"], paths, pol) != "high"
+        out = provider.run(
+            objective=payload["objective"], repo_root=payload["repo_root"],
+            paths=paths, agent=agent, timeout_s=int(payload.get("timeout_s", 300)),
+            policy=pol, writable=writable,
+        )
+        return {
+            "request": payload, "bridge_status": "done", "lane": "codex",
+            "agent": out.get("agent"), "persona": out.get("persona"),
+            "report": out["report"],
+        }
+    except Exception as exc:
+        return {"request": payload, "bridge_status": "failed", "lane": "codex",
+                "error": str(exc)}
 
 
 def _configure_report(payload: dict[str, Any]) -> dict[str, Any]:
@@ -647,6 +697,9 @@ def process_bridge_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if lane not in KNOWN_LANES:
         lane = "local_only"
     payload = {**payload, "lane": lane}
+    if lane == "codex":
+        # Forced external lane: egress-gated in _codex_report, no Claude fallback.
+        return _codex_report(payload)
     report = None
     if lane in ("auto", "local", "local_only"):
         report = _try_ikarus(payload)

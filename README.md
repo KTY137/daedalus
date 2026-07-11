@@ -39,11 +39,32 @@ VS Code / CLI / future chat
   -> daedalus.core       dashboard, queue, providers, squads, quality, actions
   -> file_bridge          outbox/inbox transport and watcher loop
   -> Ikarus/offload       routing, local bench dispatch, verifier gates
-  -> providers            Ollama, Claude CLI, DeepSeek, future API providers
+  -> providers            Ollama, Claude CLI, DeepSeek, Codex CLI, future API providers
 ```
 
 The file bus remains the compatibility backbone. Existing `outbox/*.json` and
 `inbox/*.report.json` contracts are preserved.
+
+## Providers
+
+| Provider | Runs | Writes | Trusted with IP | Notes |
+|---|---|---|---|---|
+| `claude_cli` | external (Claude CLI) | yes | yes | Senior lane; always the backstop for `auto`/`local`. |
+| `ollama` | local (no egress) | low-risk only | yes | The free bench; full-file rewrite + verifier gate. |
+| `deepseek` | external API | no (advisory) | **no** | Non-sensitive content only; needs `DEEPSEEK_API_KEY`. |
+| `codex_cli` | external (OpenAI Codex CLI) | low-risk only | **no** | `codex exec` edits files in place; egress-gated like DeepSeek. Auth via `codex login` (no env key). In `auto` it sits between the local bench and the Claude lane. |
+
+Codex quickstart: install the CLI (`npm i -g @openai/codex`), run `codex login`
+once, confirm with `python -m daedalus.cli doctor` (presence + auth line), then
+either let `auto` fall through to it when the bench is down or force it:
+
+```powershell
+python -m daedalus.file_bridge enqueue "<task>" --project <name> --lane codex
+```
+
+The per-project egress policy (`projects/<name>.json` -> `policy.deny`) gates
+every codex dispatch: a denied path is refused before the CLI is spawned, and
+without a loaded policy codex runs advisory-only (read-only sandbox).
 
 ## Quickstart — zero to first verified offload
 
