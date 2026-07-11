@@ -64,7 +64,18 @@ REPORT_SCHEMA: dict[str, Any] = {
         "tests_run": {"type": "array", "items": {"type": "string"}},
         "risks": {"type": "array", "items": {"type": "string"}},
         "todos": {"type": "array", "items": {"type": "string"}},
-        "handoff": {"type": "object"},
+        # OpenAI structured-output strict mode (which backs codex
+        # --output-schema) rejects any object without additionalProperties:
+        # false and with non-required properties (400 invalid_json_schema,
+        # live-fired 2026-07-11 task C2). A free-form object is therefore not
+        # expressible; carry free-form handoff content in a single notes
+        # string instead.
+        "handoff": {
+            "type": "object",
+            "properties": {"notes": {"type": "string"}},
+            "required": ["notes"],
+            "additionalProperties": False,
+        },
     },
     "required": sorted(REPORT_KEYS),
     "additionalProperties": False,
