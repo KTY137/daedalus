@@ -142,7 +142,10 @@ class CodexCLIProvider(Provider):
         paths: list[str],
         agent: dict[str, Any],
         model: str | None = None,
-        timeout_s: int = 300,
+        # Measured live 2026-07-11: real repo tasks (C1/C2) take 8-20 min in
+        # codex exec; 300s killed C2's wrapper while codex kept working and
+        # the report went out as blocked despite good disk changes.
+        timeout_s: int = 1500,
         policy: Any | None = None,
         writable: bool = False,  # fail-closed: caller must grant write explicitly
     ) -> dict[str, Any]:
