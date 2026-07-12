@@ -198,6 +198,13 @@ class CodexCLIProvider(Provider):
             try:
                 completed = subprocess.run(
                     cmd, cwd=repo_root, text=True, capture_output=True,
+                    # codex emits UTF-8 (em-dashes, box-drawing chars); WITHOUT
+                    # an explicit encoding, text=True decodes with the Windows
+                    # locale (cp1252) and the capture reader-thread dies on
+                    # bytes like 0x9d -> corrupted/empty output, watcher thread
+                    # crash (live-fired 2026-07-12, tasks C2/C3). Force UTF-8
+                    # and never let a stray byte kill the reader.
+                    encoding="utf-8", errors="replace",
                     # stdin MUST be closed: with a prompt arg, `codex exec`
                     # still appends piped/inherited stdin as a <stdin> block
                     # and blocks until EOF. Under the file-bridge watcher the

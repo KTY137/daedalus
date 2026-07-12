@@ -39,7 +39,8 @@ def _py_compile(repo_root: str, rel: str) -> tuple[bool, str]:
     target = Path(repo_root) / rel
     proc = subprocess.run(
         [sys.executable, "-m", "py_compile", str(target)],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=30,
     )
     return proc.returncode == 0, (proc.stderr.strip()[:300] or "ok")
 
@@ -60,7 +61,9 @@ def _lint_py(repo_root: str, rel: str) -> tuple[bool, str]:
             return True, "no linter (ruff/pyflakes) -- skipped"
         cmd = [sys.executable, "-m", "pyflakes", target]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=repo_root)
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace",
+                              timeout=30, cwd=repo_root)
     except (OSError, subprocess.SubprocessError) as exc:
         return True, f"lint unavailable ({exc}) -- skipped"
     lines = (proc.stdout + proc.stderr).strip().splitlines()
@@ -76,7 +79,8 @@ def _js_check(repo_root: str, rel: str) -> tuple[bool, str]:
         return True, "node not on PATH -- skipped"
     try:
         proc = subprocess.run([node, "--check", str(Path(repo_root) / rel)],
-                              capture_output=True, text=True, timeout=30)
+                              capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=30)
     except (OSError, subprocess.SubprocessError) as exc:
         return True, f"node check unavailable ({exc}) -- skipped"
     tail = (proc.stdout + proc.stderr).strip().splitlines()[-2:]
@@ -131,7 +135,8 @@ def _config_check(repo_root: str, rel: str) -> tuple[bool, str]:
 def _run_tests(test_command: str, cwd: str, timeout_s: int) -> tuple[bool, str]:
     try:
         proc = subprocess.run(
-            shlex.split(test_command), cwd=cwd, capture_output=True, text=True, timeout=timeout_s
+            shlex.split(test_command), cwd=cwd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout_s
         )
     except (subprocess.TimeoutExpired, OSError) as exc:
         return False, f"could not run tests: {exc}"[:300]

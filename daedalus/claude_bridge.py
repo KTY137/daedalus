@@ -134,6 +134,8 @@ def ask_claude(
         cmd,
         cwd=repo_root,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         timeout=timeout_s,
         check=False,
