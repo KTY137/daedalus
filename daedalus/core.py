@@ -659,7 +659,10 @@ def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
         writable = pol is not None and change_risk(payload["objective"], paths, pol) != "high"
         out = provider.run(
             objective=payload["objective"], repo_root=payload["repo_root"],
-            paths=paths, agent=agent, timeout_s=int(payload.get("timeout_s", 300)),
+            # 1500s to match the provider's own default (codex real-task budget
+            # is 8-20 min; an explicit 300 here silently overrode that and
+            # killed D2/D3 wrappers while codex was still finishing on disk).
+            paths=paths, agent=agent, timeout_s=int(payload.get("timeout_s", 1500)),
             policy=pol, writable=writable,
         )
         return {
