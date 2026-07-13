@@ -242,6 +242,25 @@ python -m daedalus.file_bridge enqueue "Review current root-cleanup diff" --proj
 The watcher reads `outbox/*.json`, calls Claude, writes `inbox/*.report.json`,
 and archives processed requests under `runs/processed/`.
 
+Notice finished reports without polling (queue depth, in-flight task, watcher
+liveness, UNREAD reports; acknowledge with `mark-read`):
+
+```powershell
+python -m daedalus.file_bridge status --project project_tct
+python -m daedalus.file_bridge mark-read --all
+```
+
+The watcher also appends one line per finished report to `inbox/LATEST.log`
+(a single well-known path a file-watch can trigger on) and writes a heartbeat
+to `runs/bridge_heartbeat.json` every loop; `python -m daedalus.cli doctor`
+warns with the exact restart one-liner when the heartbeat is stale (> 2 min
+idle) or a task has been in flight longer than the codex budget.
+
+Codex-lane protocol: put full task briefs in `docs/CODEX_QUEUE.md` inside the
+target repo and enqueue a short pointer ("Execute task C9 from
+docs/CODEX_QUEUE.md") -- long inline objectives on `--lane codex` bounce;
+`enqueue` warns when an objective smells like an inline brief.
+
 Record a TODO manually:
 
 ```powershell
