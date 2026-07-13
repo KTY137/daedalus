@@ -80,6 +80,36 @@ def _m(ok: bool) -> str:
     return "OK" if ok else "--"
 
 
+def _print_watcher_heartbeat() -> None:
+    """WARN when the file-bridge watcher heartbeat is stale/missing -- the
+    watcher dies with the orchestrator session and nothing else notices."""
+    from .file_bridge import STALE_AFTER_S, heartbeat_status
+
+    hb = heartbeat_status()
+    state = hb["state"]
+    if state == "alive":
+        who = f"pid {hb.get('pid')}, project {hb.get('project') or '?'}"
+        print(f"[OK] bridge watcher heartbeat   ({hb['age_s']}s ago; {who})")
+    elif state == "busy":
+        cur = (hb.get("current") or {}).get("file", "?")
+        print(f"[OK] bridge watcher busy        (on {cur} for {hb.get('busy_for_s')}s)")
+    elif state == "wedged":
+        cur = (hb.get("current") or {}).get("file", "?")
+        print(f"[!!] bridge watcher WEDGED?     (on {cur} for {hb.get('busy_for_s')}s "
+              "> task budget)")
+        print(f"     -> investigate the task, then restart:  {hb['restart']}")
+    elif state == "stale":
+        print(f"[!!] bridge watcher heartbeat STALE ({hb['age_s']}s ago > "
+              f"{STALE_AFTER_S:.0f}s) -- the watcher is dead; queued tasks will sit.")
+        print(f"     -> restart it:  {hb['restart']}")
+    else:  # none
+        print("[--] bridge watcher heartbeat   none recorded (watcher not running, "
+              "or started before heartbeats landed)")
+        print(f"     -> if it should be running:  {hb['restart']}")
+        print("     (cross-check running processes:  python -m daedalus.cli "
+              "watcher status --project <project>)")
+
+
 def main() -> None:
     r = check()
     print("daedalus doctor -- can we offload real work?\n")
@@ -105,6 +135,7 @@ def main() -> None:
             print("     -> not logged in: run  codex login")
         else:
             print("     auth: unknown (codex login status did not answer)")
+    _print_watcher_heartbeat()
     print()
     if r["can_offload_local"]:
         print("READY: the local bench can execute. offload/ikarus with --live will run for real.")
