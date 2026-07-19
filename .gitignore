@@ -24,3 +24,10 @@ Thumbs.db
 node_modules/
 vscode-agent-env/*.vsix
 runs/drafts/
+
+# Rust build output (structcore-rs) -- ~0.6 GB of compiled artifacts
+target/
+
+# Headless-browser screenshot captures and throwaway browser profiles
+.captures/
+.edge-capture/

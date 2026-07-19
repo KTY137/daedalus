@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Daedalus Agent OS</title>
+    <script>
+      // Set the theme before first paint (no flash). Persisted choice wins;
+      // otherwise follow the OS. Toggled at runtime by the ThemeToggle.
+      (function () {
+        try {
+          var saved = localStorage.getItem('daedalus-theme');
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

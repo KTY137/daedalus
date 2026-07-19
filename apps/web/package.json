@@ -12,9 +12,12 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@xyflow/react": "^12.3.6",
     "framer-motion": "^11.15.0",
+    "graphology": "^0.26.0",
+    "graphology-layout-forceatlas2": "^0.10.1",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "sigma": "^3.0.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

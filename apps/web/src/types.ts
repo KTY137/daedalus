@@ -82,6 +82,61 @@ export interface IkarusChatPayload extends ApiEnvelope {
   control_plane?: ControlPlanePayload;
 }
 
+export interface IkarusAskAction {
+  kind: 'queue_task';
+  args: { project: string; objective: string; lane: string };
+  requires_confirmation: boolean;
+}
+
+/** Reasoning effort for a freeform Ikarus chat turn. Cheap-by-default = 'low'. */
+export type EffortLevel = 'low' | 'medium' | 'high';
+
+export interface IkarusAskPayload {
+  ok: boolean;
+  project: string;
+  intent: 'status' | 'distill' | 'enqueue' | 'design' | 'chat' | 'error';
+  assistant: string;              // the reply text — always present
+  provider_used: string;          // e.g. 'ollama_http' | 'claude_code_cli' | 'deterministic'
+  model_used?: string;            // present when a real provider ran with a resolved model
+  action?: IkarusAskAction;       // present when intent==='enqueue'
+  distill?: unknown;              // present for some distill answers (stats; no slice_text)
+  structure?: unknown;           // present for some distill answers
+  status?: unknown;              // present for status
+  draft?: unknown;               // present for design (same shape as chatIkarus draft)
+  warnings?: string[];
+}
+
+/* ---- Live event stream (SSE): GET /api/events?project=<name> ---- */
+
+/** Initial snapshot pushed once on connect. */
+export interface LiveHello {
+  queue_depth: number;
+  in_flight: number;
+  unread_count: number;
+  watcher_state: string;
+  latest_report?: unknown;
+}
+
+/** A task finished. */
+export interface LiveReport {
+  name: string;
+  status: string;
+  lane: string;
+}
+
+/** Watcher liveness tick. */
+export interface LiveHeartbeat {
+  watcher_state: string;
+  in_flight: number;
+}
+
+/** Queue depth changed. */
+export interface LiveQueue {
+  queue_depth: number;
+}
+
+export type LiveEventName = 'hello' | 'report' | 'heartbeat' | 'queue';
+
 export interface RuntimeRow {
   id: string;
   label: string;
@@ -113,4 +168,120 @@ export interface RuntimeTestPayload extends ApiEnvelope {
 
 export interface BootstrapPayload extends ApiEnvelope {
   prompt: string;
+}
+
+/* ---- Structure (code-health / distillation) sheet ---- */
+
+export interface StructureHotspot {
+  module: string;
+  score: number;
+  loc: number;
+  long_functions: number;
+  guard_count: number;
+  cc_max: number | null;
+}
+
+export interface StructureCloneSite {
+  module: string;
+  line: number;
+}
+
+export interface StructureClone {
+  name: string;
+  language: string;
+  count: number;
+  loc: number;
+  sites: StructureCloneSite[];
+  safety: string | null;
+}
+
+export interface StructureWindowClone {
+  files: string[];
+  shared_runs: number;
+  safety: string | null;
+}
+
+/* ---- Dependency graph (Movement II — the living code map) ---- */
+
+/**
+ * One module in the code map. `module` is the node id and is a **rel path for
+ * every language** (Python included) — the backend deliberately builds this
+ * from `import_edges` rather than the Python-dotted `dependencies` map so the
+ * id namespace is consistent and joinable across languages.
+ */
+export interface StructureGraphNode {
+  module: string;
+  language: string;
+  loc: number;
+  /** churn x complexity heat — higher = hotter (the rot signal). */
+  score: number;
+  churn: number;
+  fan_in: number;
+}
+
+/** A module -> module import edge. Both endpoints are guaranteed to exist in `nodes`. */
+export interface StructureGraphEdge {
+  source: string;
+  target: string;
+}
+
+export interface StructureGraph {
+  nodes: StructureGraphNode[];
+  edges: StructureGraphEdge[];
+  /** Total modules the backend ranked, before the node cap. */
+  n_nodes_total: number;
+  /** Total edges found, before the edge cap. */
+  n_edges_total: number;
+  /**
+   * True when `nodes`/`edges` are a bounded slice of the whole graph (the
+   * backend keeps the highest-heat nodes). The UI MUST surface this — this
+   * project has a hard no-silent-caps rule.
+   */
+  truncated: boolean;
+}
+
+export interface StructurePayload {
+  ok: boolean;
+  project: string;
+  structure: {
+    backend: { tree_sitter: boolean; lizard: boolean };
+    repo_root: string;
+    n_files: number;
+    languages: Record<string, { files: number; loc: number }>;
+    totals: { unit_clusters: number; window_clusters: number; safety_fenced: number };
+    hotspots: StructureHotspot[];
+    clones: StructureClone[];
+    window_clones: StructureWindowClone[];
+    fan_in: { module: string; count: number }[];
+    /**
+     * Module dependency graph for the code map. Optional so the UI degrades
+     * gracefully against an older backend / a cached payload without it.
+     */
+    graph?: StructureGraph;
+  };
+  warnings?: string[];
+}
+
+export interface DistillIncluded {
+  file: string;
+  role: string;
+  mode: string;
+  tokens: number;
+}
+
+export interface DistillPayload {
+  ok: boolean;
+  project: string;
+  distill: {
+    target: string;
+    focus_file: string;
+    focus_symbol: string | null;
+    included: DistillIncluded[];
+    slice_tokens: number;
+    whole_repo_tokens: number;
+    reduction_pct: number;
+    backend: { tree_sitter: boolean; lizard: boolean };
+    slice_text: string;
+  };
+  warnings?: string[];
 }

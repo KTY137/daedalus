@@ -347,6 +347,27 @@ def bridge_status(project: str | None = None) -> dict[str, Any]:
     }
 
 
+def stream_state(project: str | None = None) -> dict[str, Any]:
+    """Compact, CHEAP snapshot for the SSE live stream. Reads ONLY the file bus
+    (outbox/inbox/heartbeat) — no git, PowerShell or Ollama — so it can be polled
+    once a second to drive the cockpit's live badges without the heavy dashboard.
+    """
+    st = bridge_status(project)
+    newest = None
+    if INBOX.exists():
+        reports = sorted(INBOX.glob("*.report.json"), key=lambda p: p.stat().st_mtime)
+        if reports:
+            newest = _report_brief(reports[-1])
+    return {
+        "queue_depth": st["queue_depth"],
+        "in_flight": bool(st["in_flight"]),
+        "unread_count": st["unread_count"],
+        "watcher_state": (st["watcher"] or {}).get("state"),
+        "reports_total": st["reports_total"],
+        "latest_report": newest,
+    }
+
+
 def _print_status(status: dict[str, Any]) -> None:
     hb = status["watcher"]
     state = hb["state"]

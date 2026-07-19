@@ -104,6 +104,75 @@ def chat_completion(
         raise ProviderHTTPError(f"unexpected response shape: {payload}") from exc
 
 
+def chat_stream(
+    *,
+    base_url: str,
+    model: str,
+    system: str,
+    user: str,
+    api_key: str | None = None,
+    timeout_s: int = 300,
+    temperature: float = 0.2,
+    extra: dict[str, Any] | None = None,
+):
+    """Yield assistant text deltas from an OpenAI-compatible ``/chat/completions``
+    with ``stream: true``.
+
+    Additive sibling of :func:`chat_completion` — that function keeps its exact
+    signature and blocking behavior because several callers (decompose,
+    compaction, eval, deepseek, the ollama provider) depend on it. This one is
+    a generator: it yields text fragments as they arrive so a UI can render
+    tokens instead of waiting for the whole reply.
+
+    Note: ``keep_alive`` is NOT accepted here — Ollama's OpenAI-compat shim
+    silently drops it (measured). Pin residency with
+    ``providers.ollama.warm_model`` against the native API instead.
+    """
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": temperature,
+        "stream": True,
+    }
+    if extra:
+        body.update(extra)
+
+    url = base_url.rstrip("/") + "/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(
+        url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_s) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", errors="replace").strip()
+                if not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if not payload or payload == "[DONE]":
+                    if payload == "[DONE]":
+                        break
+                    continue
+                try:
+                    obj = json.loads(payload)
+                except json.JSONDecodeError:
+                    continue  # tolerate keep-alive / partial frames
+                for choice in obj.get("choices") or []:
+                    piece = (choice.get("delta") or {}).get("content")
+                    if piece:
+                        yield piece
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+
+
 def server_reachable(base_url: str, timeout_s: float = 2.0, path: str = "") -> bool:
     """Cheap liveness probe (used by the local Ollama provider)."""
     url = base_url.rstrip("/") + path

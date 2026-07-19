@@ -104,7 +104,13 @@ def _run_version(command: str) -> tuple[bool, str, str]:
         return False, "", f"{command} not found on PATH"
     try:
         completed = subprocess.run(
-            [command, "--version"],
+            # Spawn the RESOLVED path, not the bare name: npm ships `codex` as a
+            # .CMD shim on Windows and CreateProcess cannot launch it by name
+            # (WinError 2), so this probe reported codex as unavailable even
+            # with the CLI installed and logged in. `claude`/`ollama` are real
+            # .EXEs, which is why only codex was affected. Same lesson is
+            # already encoded in providers/codex_cli.py and doctor.py.
+            [path, "--version"],
             text=True,
             capture_output=True,
             timeout=5,
