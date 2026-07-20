@@ -197,6 +197,34 @@ function StructureBody({
         </div>
       </div>
 
+      {/* ---- scope banner ----
+          Load-bearing, not decorative. When a project declares a `center` or
+          ignore rules, `n_files` above is the CORE count -- so the panel shows a
+          much smaller number and a much shorter duplication report. Unexplained,
+          that is indistinguishable from a codebase that simply got cleaner.
+          Shell files are still parsed and still resolve as import targets; only
+          the metrics withhold them, and the wording has to say so. */}
+      {!!s.ignored?.count && (
+        <div className="struct-scope" title={
+          (s.ignored.sample || []).slice(0, 12).join('\n') +
+          (s.ignored.truncated ? '\n…' : '')
+        }>
+          <span className="struct-chip">
+            scoped: <b>{num(s.ignored.count)}</b> of {num(s.ignored.n_files_scanned)} files withheld from metrics
+          </span>
+          {s.ignored.center.length > 0 && (
+            <span className="struct-chip muted">center {s.ignored.center.join(', ')}</span>
+          )}
+          {s.ignored.ignore_patterns.length > 0 && (
+            <span className="struct-chip muted">
+              ignore {s.ignored.ignore_patterns.slice(0, 4).join(' ')}
+              {s.ignored.ignore_patterns.length > 4 ? ' …' : ''}
+            </span>
+          )}
+          <span className="struct-chip muted">still resolvable as import targets</span>
+        </div>
+      )}
+
       {/* ---- hotspots ---- */}
       <div className="struct-section">
         <div className="section-title struct-section-title"><Flame size={14} /> Hotspots</div>

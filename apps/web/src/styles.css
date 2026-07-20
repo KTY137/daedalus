@@ -1227,6 +1227,17 @@ p { color: var(--muted); font-size: 12px; line-height: 1.5; }
   border-bottom: 1px solid var(--edge-soft);
 }
 .struct-chips, .struct-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+/* Scope banner: only rendered when a project actually withholds files, so it
+   must read as a statement of fact rather than a warning state. flex-wrap keeps
+   it from forcing horizontal page scroll on a narrow rail. */
+.struct-scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--edge-soft);
+}
 .struct-chip {
   display: inline-flex;
   align-items: center;

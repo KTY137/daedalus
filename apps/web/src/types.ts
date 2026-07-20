@@ -247,6 +247,23 @@ export interface StructurePayload {
     backend: { tree_sitter: boolean; lizard: boolean };
     repo_root: string;
     n_files: number;
+    /**
+     * Scope withholding (center / .daedalusignore). Optional so the panel
+     * degrades against an older backend or a cached payload without it.
+     *
+     * Rendering this is not cosmetic: `n_files` is the CORE count, so a scoped
+     * project shows a much smaller number, and a duplication report that
+     * quietly shrank is indistinguishable from a codebase that got cleaner.
+     */
+    ignored?: {
+      count: number;
+      n_files_scanned: number;
+      center: string[];
+      ignore_patterns: string[];
+      source: string;
+      sample: string[];
+      truncated: boolean;
+    };
     languages: Record<string, { files: number; loc: number }>;
     totals: { unit_clusters: number; window_clusters: number; safety_fenced: number };
     hotspots: StructureHotspot[];
