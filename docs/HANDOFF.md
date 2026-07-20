@@ -131,24 +131,57 @@ prompt across module/focus/symbol paths. Cerberus CLEARED the egress path.
 
 ---
 
-## 4b. NEXT TASK: pick from two unblocked paths
+## 4b. NEXT TASK: the "Code Evolution" foundation sprint
 
-**Path A: General-product egress-consent surface + hardening (HIGH-non-blocking for
-arbitrary JS/TS repo distillation).** The slice gate now guards Daedalus-on-Daedalus
-(CLEARED), but third-party repo distillation needs three fixes: (1) the broadened `\w*`
-sub-token match over-blocks npm names `js-tokens`/`jsonwebtoken` in lockfiles (not
-import-graph nodes; needs value-entropy or whole-keyword anchoring); (2) the R2-residual
-gaps (above) are narrow but need disclosure when distilling source the user hasn't audited;
-(3) add a one-time "Claude will see your distilled project source" consent surface before
-first Ikarus chat with a file-named turn. Fold in the two Cerberus invariants above.
-Honest budget: ~3–5 days [A].
+**Full plan (written, approved direction):**
+`C:\Users\nukei\.claude\plans\remember-what-we-want-humble-lightning.md`.
 
-**Path B: Movement III (orchestration loop, newly unblocked).** The plan's own rule says it
-must not precede the above — it consumes the import graph (just made honest in this session)
-and edits+ships code (gate just cleared). Wire the orchestration loop that reads the
-import-dependency frontier and suggests next steps. Honest budget: ~1 week [A]. This is the
-capstone for "Daedalus understands Daedalus code"; after this, shift to hardening
-third-party distillation + the Ikarus UX layer.
+**Direction (agreed with Kaya 2026-07-20):** Daedalus becomes an **evolutionary engine for
+code** — a *genome* (certified context artifact), a *trustworthy fitness function*
+(decontaminated eval), and *safe selection* (a graph-gated edit loop). Two READ-ONLY audits
+this session — a 22-agent subsystem map + an 18-agent novelty tournament — independently
+converged on the same reframe, each finding cross-checked against the code by me:
+
+**Three verified findings that set the priority:**
+
+1. **The moat is unwired from the mutate path [M].** `daedalus/offload.py` imports *zero*
+   `structcore`; `semantic_slice` feeds chat (the bootstrap) but never the edit loop.
+2. **The eval headline is partly self-graded [M].** `daedalus/eval/tasks.py` docstring: labels
+   were "verified reachable by running `semantic_slice`" — so "100% recall" is partly a
+   tautology. Fix = independent-oracle labels (git co-change + gate-verified diff-touched symbols).
+3. **VERIFIED LIVE SAFETY GAP [M].** `sensitivity.change_risk()` (sensitivity.py:350) and
+   `path_write_blocked()` (:366) substring-match only the LITERAL edited path against the fence —
+   neither asks the import graph. A leaf `utils/clamp.py` transitively imported by
+   `controller/hv_interlock.py` gets risk=`low` → the free Ollama lane may write it. *The graph
+   knows; the fence doesn't ask.*
+
+**The sprint = Phase 0/1 of the plan — prove + connect the foundation BEFORE building the loop on it:**
+
+1. **`.dctx` certified context artifact** (new `daedalus/dctx.py`): content-addressed receipt
+   `{commit, manifest, per-symbol hashes, egress verdict, recall, label_provenance}`, deterministic
+   SHA, offline verify predicate. Additive/fail-closed. **NON-NEGOTIABLE:** `label_provenance` must
+   distinguish independent-oracle labels from the assembly walk, else recall is tautological.
+2. **Honest decontaminated eval oracle + flywheel:** `eval/harness.py` A/B/C (distilled vs concat
+   with a *real* tokenizer vs BM25/embedding-RAG) on a held-out set; new `eval/mint.py` minting
+   labels from landed diffs (`offload.py:196` disk_changed seam) + git co-change into a QUARANTINE
+   tier; a counterfactual-regression ratchet. Start the decontaminated-label long pole day one.
+   **GUARDRAIL:** an unvalidated metric NEVER gates autonomy — advisory first.
+3. **Safety-Class Reachability Router (~1 day):** BFS `import_edges_reverse` ∩
+   `high_risk_path_substrings` in `structcore/graph.py`; pre-check in
+   `provider_router.select_provider` BEFORE `change_risk`; graded, over-escalate-never-under,
+   dominance fallback. Closes finding #3.
+4. **Cheap footgun wires:** BYOK badge (`getEnvStatus`), provider-status picker gating +
+   `codex_cli`/`deepseek` branches in `ikarus_os._llm` (:360) (kill the silent brain degrade),
+   `getDraft(id)` review-before-apply panel.
+
+**Horizon (Phase 2–4, only after the foundation holds):** wire `semantic_slice → offload`
+(Movement III MVP, now correctly sequenced AFTER the oracle proves the slice); **Panel of Rivals**
+(cross-vendor candidates, the *gate* judges not a model); **Repo Physician** (hotspot → gated draft);
+**Clone-Propagated-Fix**; **Context-as-a-Service MCP** (Cursor/Claude-Code/Copilot become *consumers*
+of verifiable context); **Cockpit-as-Proof-Surface** (distillation x-ray + collapse + health morph).
+
+*The old "two paths" are absorbed: the js-tokens over-block + a distillation consent surface stay in
+the backlog (§5); Movement III becomes Phase 2, resequenced after the eval oracle.*
 
 ## 5. Backlog (recommended order)
 
