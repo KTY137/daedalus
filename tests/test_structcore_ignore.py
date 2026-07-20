@@ -250,6 +250,53 @@ class IgnoreIndexTests(unittest.TestCase):
         self.assertNotIn("reference/vendored.py", files,
                          "slice expanded through the shell boundary")
 
+    def test_tests_preset_excludes_test_files_from_metrics(self):
+        """'ignore tests for our struc map' -- tests are code, but not targets."""
+        _write(self.root, "TCT_app/gui/style.py", "x = 1\n")
+        _write(self.root, "TCT_app/tests/test_planner_panel.py", "def test_a():\n    pass\n")
+        _write(self.root, "TCT_app/tests/conftest.py", "import pytest\n")
+        _write(self.root, "TCT_app/analysis/laser_test.py", "y = 2\n")
+
+        idx = build_index(self.root, center=["TCT_app"], ignore=["@tests"])
+        self.assertIn("TCT_app/gui/style.py", idx["modules"])
+        self.assertNotIn("TCT_app/tests/test_planner_panel.py", idx["modules"])
+        self.assertNotIn("TCT_app/tests/conftest.py", idx["modules"])
+        # '*_test.py' must match, and it is a real source file otherwise
+        self.assertNotIn("TCT_app/analysis/laser_test.py", idx["modules"])
+
+    def test_tests_preset_does_not_hide_non_test_code(self):
+        """A preset that over-matches would silently delete real signal."""
+        _write(self.root, "app/testing_utils.py", "x = 1\n")   # not a test file
+        _write(self.root, "app/latest.py", "y = 2\n")          # contains 'test'
+        _write(self.root, "app/contest.py", "z = 3\n")
+        idx = build_index(self.root, ignore=["@tests"])
+        for keep in ("app/testing_utils.py", "app/latest.py", "app/contest.py"):
+            self.assertIn(keep, idx["modules"], f"{keep} was wrongly ignored")
+
+    def test_unknown_preset_passes_through_not_silently_dropped(self):
+        from daedalus.structcore.ignore import expand_presets
+        self.assertEqual(expand_presets(["@nope"]), ["@nope"])
+        self.assertIn("tests/", expand_presets(["@tests"]))
+
+    def test_project_config_ignore_reaches_the_index(self):
+        """The web path: projects/<name>.json 'ignore' must actually apply."""
+        from daedalus import web_api
+
+        _write(self.root, "app/main.py")
+        _write(self.root, "app/tests/test_x.py")
+        idx = build_index(self.root, ignore=web_api._project_ignore(None) or ["@tests"])
+        self.assertIn("app/main.py", idx["modules"])
+        self.assertNotIn("app/tests/test_x.py", idx["modules"])
+
+    def test_cache_key_tracks_ignore_argument_change(self):
+        _write(self.root, "app/main.py")
+        _write(self.root, "app/tests/test_x.py")
+        wide = cached_index(self.root)
+        self.assertIn("app/tests/test_x.py", wide["modules"])
+        narrow = cached_index(self.root, ignore=["@tests"])
+        self.assertNotIn("app/tests/test_x.py", narrow["modules"],
+                         "stale index returned after ignore patterns changed")
+
     def test_determinism_ignored_set_is_stable(self):
         for i in range(6):
             _write(self.root, f"reference/m{i}.py", f"v = {i}\n")

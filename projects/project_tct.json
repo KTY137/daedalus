@@ -5,6 +5,10 @@
   "center": [
     "TCT_app"
   ],
+  "_ignore_comment": "Carved out WITHIN the center. '@tests' is the built-in test-file preset: tests are real code but not distillation targets, and they crowd out real signal -- two of TCT_app's top six hotspots were test files.",
+  "ignore": [
+    "@tests"
+  ],
   "default_branch": "root-cleanup",
   "test_command": "python -m pytest tests -q",
   "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app",

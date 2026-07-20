@@ -90,9 +90,13 @@ def main(argv: list[str] | None = None) -> int:
                     help="repo-relative source root that IS the project (repeatable). "
                          "Everything outside it is shell: still resolvable as an import "
                          "target, but withheld from metrics. Default: the whole repo.")
+    ap.add_argument("--ignore", action="append", default=None, metavar="PATTERN",
+                    help="extra ignore pattern (repeatable). Composes on top of "
+                         ".daedalusignore. '@tests' expands to the test-file preset.")
     args = ap.parse_args(argv)
 
-    idx = build_index(args.repo, max_files=args.max_files, center=args.center)
+    idx = build_index(args.repo, max_files=args.max_files, center=args.center,
+                      ignore=args.ignore)
     if args.json:
         Path(args.json).write_text(json.dumps(idx, indent=1), encoding="utf-8")
         print(f"wrote {args.json}")

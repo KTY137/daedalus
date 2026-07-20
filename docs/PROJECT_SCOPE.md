@@ -69,9 +69,42 @@ same question by declaration — *this* is the project — in one line that stay
 ```json
 {
   "repo_root": "C:\\Users\\nukei\\Desktop\\project_tct",
-  "center": ["TCT_app"]
+  "center": ["TCT_app"],
+  "ignore": ["@tests"]
 }
 ```
+
+`center` declares the tree; `ignore` carves exceptions *within* it. Both live in the project
+config so a project can be scoped without adding files to a repo it may not own.
+
+### The `@tests` preset
+
+Tests are real, first-class code — but they are not **distillation targets**, and they dominate
+the rankings they pollute. Measured on `TCT_app`:
+
+| | tests in | tests out |
+| --- | --- | --- |
+| core files | 385 | **187** |
+| wall | 29.9s | **18.5s** |
+| exact clone clusters | 196 | 118 |
+| clusters touching tests | **392** | 6 |
+| test files in top-15 hotspots | **4** | 0 |
+
+Tests were **half of the application** by file count, and **386 clusters were test-on-test
+duplication** — test boilerplate is massively self-similar and completely unactionable as a
+refactor target. Removing it surfaced real code that had been crowded out of the ranking
+(`devices/oscilloscope.py`, `gui/analysis_viewmodel.py`).
+
+`@tests` expands to:
+
+```gitignore
+tests/  test/  test_*.py  *_test.py  *_test.go  conftest.py
+__tests__/  *.test.ts  *.test.tsx  *.test.js  *.spec.ts  *.spec.js
+```
+
+Deliberately narrow: it must not swallow `testing_utils.py`, `latest.py` or `contest.py`, all
+of which are covered by a regression test. An unknown `@name` is passed through as a literal
+pattern rather than dropped — a silent no-op would look exactly like a preset that did nothing.
 
 **CLI:**
 

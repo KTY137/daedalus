@@ -46,11 +46,33 @@ def _project_center(project: str | None) -> list[str]:
     return [str(x) for x in raw if str(x).strip()]
 
 
+def _project_ignore(project: str | None) -> list[str]:
+    """The project's ignore patterns, from ``projects/<name>.json``.
+
+    Symmetry with ``center``: a project already declares its source root here,
+    so it must be able to carve exceptions here too rather than being forced to
+    add a ``.daedalusignore`` to a repo it may not own. Supports the ``@tests``
+    preset -- see ``ignore.IGNORE_PRESETS``.
+    """
+    if not project:
+        return []
+    try:
+        from .projects import load_project
+
+        raw = load_project(project).get("ignore") or []
+    except (ValueError, OSError):
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(x) for x in raw if str(x).strip()]
+
+
 def _structure_index(project: str, refresh: bool = False) -> dict:
     """Shared structural index for a project (cached process-wide by repo root
     AND scope -- see ``cached_index``)."""
     return cached_index(resolve_repo_root(None, project), refresh=refresh,
-                        center=_project_center(project))
+                        center=_project_center(project),
+                        ignore=_project_ignore(project))
 
 
 def _json_safe(payload: Any) -> bytes:

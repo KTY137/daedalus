@@ -162,7 +162,7 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
             out[i] = analyze_file(rel, text, spec, ts_on)
 
 
-def build_index(root, max_files: int = 20000, center=None) -> dict:
+def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     root = Path(root).resolve()
     collected = _collect(root, max_files)
 
@@ -184,7 +184,7 @@ def build_index(root, max_files: int = 20000, center=None) -> dict:
     # resolves to a true edge instead of silently degrading to "external". What
     # they are withheld from is every METRIC -- see the aggregation loop. Doing
     # it this way costs ~2% (the per-file parse) and saves ~96% (clone passes).
-    scope = project_scope(root, center)
+    scope = project_scope(root, center, ignore)
     ignored: frozenset[str] = frozenset(
         rel for rel, _, _ in records if scope.is_shell(rel))
 
@@ -342,7 +342,7 @@ def _build_lock(key: str) -> threading.Lock:
 
 
 def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
-                 center=None) -> dict:
+                 center=None, ignore=None) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -362,7 +362,7 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # the worst kind of bug to chase.) An unscoped repo keeps its bare path key,
     # so nothing changes for repos that never configure this.
     resolved = Path(repo_root).resolve()
-    scope = project_scope(resolved, center)
+    scope = project_scope(resolved, center, ignore)
     unscoped = not scope.center and not scope.ignore
     key = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
     if not refresh and key in _INDEX_CACHE:
@@ -373,7 +373,8 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
         # Re-check under the lock: whoever we queued behind may have just built
         # it, and then this call is a cache hit rather than a second scan.
         if key not in _INDEX_CACHE:
-            _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files, center=center)
+            _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files,
+                                           center=center, ignore=ignore)
         return _INDEX_CACHE[key]
 
 

@@ -212,15 +212,59 @@ def env_center() -> tuple[str, ...]:
     return _norm_center(raw.split(os.pathsep))
 
 
-def project_scope(root, center=None) -> ProjectScope:
+# Tests are real, first-class code -- but they are not DISTILLATION TARGETS, and
+# they dominate the rankings they pollute: on project_tct's TCT_app, two of the
+# top six hotspots were test files. "What should I refactor?" should not answer
+# with the test suite. Offered as a named preset so a project says
+# ``"ignore": ["@tests"]`` instead of re-deriving five patterns by hand.
+IGNORE_PRESETS: dict[str, tuple[str, ...]] = {
+    "@tests": ("tests/", "test/", "test_*.py", "*_test.py", "*_test.go",
+               "conftest.py", "__tests__/", "*.test.ts", "*.test.tsx",
+               "*.test.js", "*.spec.ts", "*.spec.js"),
+}
+
+
+def expand_presets(patterns) -> list[str]:
+    """Replace ``@name`` entries with their preset patterns, order preserved.
+
+    An unknown ``@name`` is passed through untouched rather than dropped: a
+    silent no-op would look exactly like a preset that did nothing.
+    """
+    out: list[str] = []
+    for p in patterns or ():
+        s = str(p).strip()
+        if s in IGNORE_PRESETS:
+            out.extend(IGNORE_PRESETS[s])
+        elif s:
+            out.append(s)
+    return out
+
+
+def project_scope(root, center=None, extra_ignore=None) -> ProjectScope:
     """Resolve the scope for ``root``.
 
     ``center`` precedence: explicit argument (project config / CLI flag) over
-    ``DAEDALUS_CENTER``. Ignore patterns always compose on top -- center says
-    which tree is yours, ignore carves exceptions *within* it.
+    ``DAEDALUS_CENTER``. Ignore rules compose in a fixed order -- center says
+    which tree is yours, ignore carves exceptions *within* it:
+
+        .daedalusignore  ->  DAEDALUS_IGNORE  ->  extra_ignore (project config)
+
+    Later wins, because ``matches()`` is last-match-wins. That ordering lets a
+    project config re-include something the repo file excluded (``!path``),
+    which is the only way a shared repo file and a per-project override can
+    coexist.
     """
     chosen = _norm_center(center) if center else env_center()
-    return ProjectScope(center=chosen, ignore=effective_rules(root))
+    rules = effective_rules(root)
+    extra = expand_presets(extra_ignore)
+    if extra:
+        parsed = [r for r in (_parse_line(p) for p in extra) if r is not None]
+        rules = IgnoreRules(
+            rules=rules.rules + parsed,
+            source=", ".join(filter(None, [rules.source, "project config"])),
+            fingerprint=_fingerprint(rules.fingerprint + "|" + "|".join(extra)),
+        )
+    return ProjectScope(center=chosen, ignore=rules)
 
 
 def effective_rules(root) -> IgnoreRules:
