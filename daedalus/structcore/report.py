@@ -38,6 +38,21 @@ def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
     fan-in is recomputed from it for the same reason.
 
     Truncation keeps the highest-heat nodes and is reported, never silent.
+
+    THREE EDGE COUNTS, NOT TWO — and the middle one is the point.
+    ``n_edges_total`` counts every edge in the index, most of which were never
+    candidates for this map: on project_tct it read "42 of 8558" while 8516 of
+    that 8558 (99.5%) were shell->shell pairs with NEITHER endpoint among the
+    displayed nodes. Deriving ``truncated`` from that denominator made it
+    structurally always True, so it carried no information at all -- the exact
+    misleading-truncation defect this codebase treats as a standing bug class.
+
+    So we report shown / ELIGIBLE / total, where eligible = both endpoints are
+    displayed nodes, and derive ``truncated`` from ELIGIBLE only. That makes it
+    mean what a reader assumes: "edges that belong on this map were withheld".
+    Edges dropped because an endpoint is off-map are counted separately in
+    ``n_edges_offmap`` rather than folded into the same number -- collapsing
+    them into one pair would reintroduce the same lie one level down.
     """
     heat = idx.get("module_heat") or []
     modules = idx.get("modules") or {}
@@ -60,15 +75,23 @@ def _graph(idx: dict, max_nodes: int, max_edges: int) -> dict:
         "fan_in": graph_fan_in.get(h["module"], 0),
     } for h in heat[:max_nodes]]
 
-    visible = [(s, t) for s, t in all_edges if s in kept and t in kept]
-    edges = [{"source": s, "target": t} for s, t in visible[:max_edges]]
+    eligible = [(s, t) for s, t in all_edges if s in kept and t in kept]
+    edges = [{"source": s, "target": t} for s, t in eligible[:max_edges]]
 
     return {
         "nodes": nodes,
         "edges": edges,
         "n_nodes_total": len(heat),
+        # Unchanged meaning, kept for back-compat: every edge in the index.
         "n_edges_total": len(all_edges),
-        "truncated": len(nodes) < len(heat) or len(edges) < len(all_edges),
+        # Both endpoints are displayed nodes -- the honest denominator for
+        # "how empty does this map look, and is that display or resolution?"
+        "n_edges_eligible": len(eligible),
+        "n_edges_shown": len(edges),
+        # Never eligible in the first place (an endpoint is not a displayed
+        # node). Named and counted so its absence is stated, not implied.
+        "n_edges_offmap": len(all_edges) - len(eligible),
+        "truncated": len(nodes) < len(heat) or len(edges) < len(eligible),
     }
 
 

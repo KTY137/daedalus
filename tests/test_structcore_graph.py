@@ -128,6 +128,44 @@ class GraphInvariantsTest(unittest.TestCase):
             self.assertIn(e["target"], node_ids)
         self.assertEqual(g["edges"], [{"source": "pkg/c.py", "target": "pkg/d.py"}])
 
+    def test_truncated_reflects_ELIGIBLE_edges_not_the_whole_index(self):
+        """``truncated`` must mean "edges that belong on this map were
+        withheld" -- not "the index contains edges this map never wanted".
+
+        Deriving it from ``n_edges_total`` made it structurally always True on
+        any repo with off-map traffic (project_tct: 42 shown of 8558, of which
+        8516 had NEITHER endpoint on the map), so the flag carried no signal.
+        Here node truncation makes 2 of 3 edges off-map; the one eligible edge
+        IS shown, so nothing was withheld and the flag must stay False even
+        though shown (1) is far below n_edges_total (3).
+        """
+        g = structure_summary(self.idx, max_graph_nodes=2,
+                              max_graph_edges=8000)["graph"]
+        self.assertEqual(g["n_edges_total"], 3)      # whole index
+        self.assertEqual(g["n_edges_eligible"], 1)   # both ends displayed
+        self.assertEqual(g["n_edges_shown"], 1)
+        self.assertEqual(g["n_edges_offmap"], 2)     # stated, not implied
+        # Nodes WERE truncated (2 of 5), so the flag is True for that reason --
+        # but it must not be True on the edge axis.
+        self.assertEqual(len(g["edges"]), g["n_edges_eligible"])
+
+    def test_no_truncation_when_every_eligible_edge_is_shown(self):
+        """The full map: eligible == shown == total, flag False."""
+        g = structure_summary(self.idx)["graph"]
+        self.assertEqual(g["n_edges_eligible"], 3)
+        self.assertEqual(g["n_edges_shown"], 3)
+        self.assertEqual(g["n_edges_offmap"], 0)
+        self.assertFalse(g["truncated"])
+
+    def test_edge_cap_below_eligible_is_reported_as_truncated(self):
+        """The one case ``truncated`` is actually for: eligible edges withheld
+        by the display cap."""
+        g = structure_summary(self.idx, max_graph_nodes=2000,
+                              max_graph_edges=1)["graph"]
+        self.assertEqual(g["n_edges_eligible"], 3)
+        self.assertEqual(g["n_edges_shown"], 1)
+        self.assertTrue(g["truncated"])
+
     def test_edge_truncation_is_reported_and_stays_non_dangling(self):
         # All 5 nodes kept, but only 1 of 3 edges survives the edge cap.
         summary = structure_summary(self.idx, max_graph_nodes=2000, max_graph_edges=1)
