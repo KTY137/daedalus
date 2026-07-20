@@ -22,4 +22,15 @@ daedalus = "daedalus.cli:main"
 [tool.setuptools]
 # Installed editable (`pip install -e .`) so agents/, projects/, and local
 # state stay next to the code and travel with the repo.
-packages = ["daedalus", "daedalus.providers"]
+#
+# This list is EXPLICIT, which disables auto-discovery -- so any package
+# missing here is simply absent from a built wheel. `structcore` (the whole
+# structural engine) and `eval` were both missing, meaning a non-editable
+# `pip install .` shipped a package with no engine. The bug was invisible
+# locally because every install here is editable.
+packages = [
+    "daedalus",
+    "daedalus.providers",
+    "daedalus.structcore",
+    "daedalus.eval",
+]

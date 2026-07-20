@@ -239,26 +239,47 @@ def unit_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
 # --------------------------------------------------------------------------- #
 # Window-level clusters (universal, no parser)                                 #
 # --------------------------------------------------------------------------- #
-def window_clusters(files: list[tuple[str, str, LanguageSpec | None]],
-                    run_len: int = 6, min_line_len: int = 3, root=None) -> list[dict]:
-    """``files`` = [(rel_path, text, spec)]. Cross-file identical normalized runs,
-    grouped by the set of files that share them (A,B share N runs)."""
+def window_runs(text: str, spec: LanguageSpec | None,
+                run_len: int = 6, min_line_len: int = 3) -> list[str]:
+    """Distinct normalized ``run_len``-line run hashes for ONE file, in
+    first-encounter order.
+
+    Split out of ``window_clusters`` so it can run in a worker process: this is
+    the per-file, embarrassingly-parallel half. The ORDER of the returned list
+    is load-bearing — the caller replays it into ``run_owners``, whose insertion
+    order decides the tie-break order of the final (stable-sorted) cluster list.
+    Returning a set here would make the output nondeterministic.
+    """
+    markers = spec.line_comment if spec else ("//", "#")
+    norm = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if any(line.startswith(m) for m in markers):
+            continue
+        if len(line) > min_line_len:
+            norm.append(line)
+    seen_here: set[str] = set()
+    out: list[str] = []
+    for i in range(max(0, len(norm) - run_len)):
+        h = hashlib.sha1("\n".join(norm[i: i + run_len]).encode("utf-8")).hexdigest()[:12]
+        if h not in seen_here:
+            seen_here.add(h)
+            out.append(h)
+    return out
+
+
+def window_clusters_from_runs(runs_by_file: list[tuple[str, list[str]]],
+                              run_len: int = 6, root=None) -> list[dict]:
+    """Cross-file half of the window pass, over precomputed per-file run hashes.
+
+    ``runs_by_file`` must be in the original file order and each run list in
+    first-encounter order (see ``window_runs``) — that reproduces exactly the
+    insertion sequence the single-pass implementation produced.
+    """
     run_owners: dict[str, set[str]] = defaultdict(set)
-    for rel, text, spec in files:
-        markers = spec.line_comment if spec else ("//", "#")
-        norm = []
-        for raw in text.splitlines():
-            line = raw.strip()
-            if any(line.startswith(m) for m in markers):
-                continue
-            if len(line) > min_line_len:
-                norm.append(line)
-        seen_here: set[str] = set()
-        for i in range(max(0, len(norm) - run_len)):
-            h = hashlib.sha1("\n".join(norm[i: i + run_len]).encode("utf-8")).hexdigest()[:12]
-            if h not in seen_here:
-                run_owners[h].add(rel)
-                seen_here.add(h)
+    for rel, runs in runs_by_file:
+        for h in runs:
+            run_owners[h].add(rel)
 
     by_fileset: dict[frozenset, int] = defaultdict(int)
     for fs in run_owners.values():
@@ -274,6 +295,19 @@ def window_clusters(files: list[tuple[str, str, LanguageSpec | None]],
         })
     clusters.sort(key=lambda c: (c["shared_runs"], len(c["files"])), reverse=True)
     return clusters
+
+
+def window_clusters(files: list[tuple[str, str, LanguageSpec | None]],
+                    run_len: int = 6, min_line_len: int = 3, root=None) -> list[dict]:
+    """``files`` = [(rel_path, text, spec)]. Cross-file identical normalized runs,
+    grouped by the set of files that share them (A,B share N runs).
+
+    Now a composition of the per-file (``window_runs``) and cross-file
+    (``window_clusters_from_runs``) halves; behaviour is unchanged.
+    """
+    return window_clusters_from_runs(
+        [(rel, window_runs(text, spec, run_len, min_line_len)) for rel, text, spec in files],
+        run_len=run_len, root=root)
 
 
 # --------------------------------------------------------------------------- #

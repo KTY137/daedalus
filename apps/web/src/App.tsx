@@ -85,11 +85,20 @@ function FeatureFallback({ label }: { label: string }) {
   );
 }
 
+/** Fast mode is OPT-IN, not the default.
+ *
+ * The glass surface is the product's identity, not decoration, so new users
+ * should see it. Blur was also never the deep cost: the surfaces are already
+ * unnested (one frost layer per structural surface, `backdrop-filter: none` on
+ * everything repeated), and a static blurred surface rasterizes once and stays
+ * cached. The real costs were the 580kB startup bundle and the >20s dashboard
+ * request, both addressed directly. Users on weak GPUs can still opt in via the
+ * bolt in the topbar, and the choice persists. */
 function loadPerformanceMode() {
   try {
-    return localStorage.getItem('daedalus-performance') !== 'quality';
+    return localStorage.getItem('daedalus-performance') === 'fast';
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -605,6 +614,7 @@ export default function App() {
   const [hierarchyError, setHierarchyError] = useState('');
   const hierarchyFetchedFor = useRef('');
   const refreshSerial = useRef(0);
+  const initialRefreshStarted = useRef(false);
   const { theme, toggle: toggleTheme } = useTheme();
 
   const selectedProfile = useMemo(
@@ -664,7 +674,13 @@ export default function App() {
     }
   }, [project, queryProject]);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    // React StrictMode intentionally replays effects in development. Guard the
+    // expensive bootstrap so local UI work does not launch every API scan twice.
+    if (initialRefreshStarted.current) return;
+    initialRefreshStarted.current = true;
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     document.documentElement.dataset.performance = fastMode ? 'fast' : 'quality';
@@ -795,8 +811,8 @@ export default function App() {
   const queuePending = ((queue?.pending || []) as unknown[]).length;
   const reportCount = ((queue?.reports || []) as unknown[]).length;
   // Prefer instant SSE counters; fall back to the last dashboard snapshot.
-  const inFlight = live.inFlight ?? queuePending;
-  const queueDepth = live.queueDepth ?? queuePending;
+  const inFlight = typeof live.inFlight === 'number' && Number.isFinite(live.inFlight) ? live.inFlight : queuePending;
+  const queueDepth = typeof live.queueDepth === 'number' && Number.isFinite(live.queueDepth) ? live.queueDepth : queuePending;
   const streamLive = liveStatus === 'live';
 
   function openSheet(next: SheetView) {

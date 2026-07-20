@@ -111,7 +111,12 @@ TASKS: list[dict] = [
         "id": "index_build_index",
         "repo": "agent_env",
         "target": "daedalus/structcore/index.py::build_index",
-        "must_include": ["extract_units", "file_metrics", "python_imports", "unit_clusters"],
+        # Updated when the per-file pass was extracted into perfile.py and
+        # parallelized: build_index no longer calls extract_units/file_metrics/
+        # python_imports directly -- they moved behind _per_file_pass. These are
+        # its real current dependencies, verified against the call graph. The
+        # slicer was NOT the thing that changed; the labels were stale.
+        "must_include": ["_per_file_pass", "resolve_python_imports", "unit_clusters"],
         "question": "What does build_index use to detect duplicate code units?",
         "answer_contains": ["unit_clusters"],
     },

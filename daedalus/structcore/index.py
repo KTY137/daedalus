@@ -21,9 +21,12 @@ from collections import defaultdict
 from pathlib import Path
 
 from .languages import LanguageSpec, spec_for
-from .parse import CodeUnit, extract_units, python_imports, tree_sitter_available
-from .metrics import file_metrics, lizard_available
-from .clones import unit_clusters, window_clusters, renamed_clusters, near_clusters
+from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
+from .metrics import lizard_available
+from .clones import (unit_clusters, window_clusters_from_runs, renamed_clusters,
+                     near_clusters)
+from .perfile import FileAnalysis, analyze_chunk, analyze_file
+from .cache import FileCache, file_key
 from . import imports as imports_mod
 from . import graph
 from .churn import git_churn
@@ -60,6 +63,104 @@ def _py_dotted(rel: str) -> str:
     return stem.replace("/", ".")
 
 
+# Below this many cache-missing files a process pool stops paying for itself:
+# Windows SPAWNS workers (no fork), so each one re-imports tree-sitter, lizard
+# and the whole package before doing any useful work.
+#
+# Measured break-even on this 8-core box (cache off, so only the pool varies):
+#     72 files -> 1.01x   141 -> 1.14x   467 -> 1.49x   6799 -> 2.75x
+# i.e. it is already neutral around 70 files, so 100 is a safe floor that still
+# captures the mid-size repos.
+_PARALLEL_MIN_FILES = 100
+_CHUNK_SIZE = 40
+
+
+def _worker_count() -> int:
+    env = os.environ.get("DAEDALUS_SCAN_WORKERS", "").strip()
+    if env.isdigit():
+        return max(0, int(env))
+    return min(8, os.cpu_count() or 1)
+
+
+def _parallel_min() -> int:
+    """Overridable so tests can force the parallel path on a small fixture --
+    otherwise the pool would only ever be exercised on huge repos."""
+    env = os.environ.get("DAEDALUS_SCAN_MIN_PARALLEL", "").strip()
+    return int(env) if env.isdigit() else _PARALLEL_MIN_FILES
+
+
+def _per_file_pass(root: Path, records: list[tuple[str, LanguageSpec, str]],
+                   ts_on: bool) -> list[FileAnalysis]:
+    """Analyze every record, returning results in EXACTLY the input order.
+
+    Two levers, composed: a content-keyed disk cache absorbs unchanged files,
+    and whatever is left is spread over a process pool (the work is CPU-bound,
+    so threads would do nothing under the GIL).
+
+    ORDER IS LOAD-BEARING and is the whole reason results are index-tagged:
+    ``all_units`` is consumed positionally by the clone passes, so cluster
+    membership and ordering depend on it. Pool completion order is arbitrary, so
+    every result carries its original index and is written back into a
+    preallocated slot -- never appended in completion order.
+    """
+    keys = [file_key(rel, spec.name, text) for rel, spec, text in records]
+    out: list[FileAnalysis | None] = [None] * len(records)
+
+    cache = FileCache(root)
+    try:
+        hits = cache.get_many(keys)
+        pending: list[tuple[int, str, str, LanguageSpec]] = []
+        for i, (rel, spec, text) in enumerate(records):
+            got = hits.get(keys[i])
+            if got is not None:
+                out[i] = got
+            else:
+                pending.append((i, rel, text, spec))
+
+        _compute(pending, ts_on, out)
+
+        fresh = [(keys[i], out[i]) for i, _, _, _ in pending if out[i] is not None]
+        cache.put_many(fresh)
+        cache.prune(set(keys))
+    finally:
+        cache.close()
+
+    # Any None here means a worker silently dropped a file -- recompute inline
+    # rather than shipping a short/misaligned list to the clone passes.
+    for i, (rel, spec, text) in enumerate(records):
+        if out[i] is None:
+            out[i] = analyze_file(rel, text, spec, ts_on)
+    return out  # type: ignore[return-value]
+
+
+def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
+             out: list) -> None:
+    """Fill ``out[i]`` for every pending record, in parallel when it pays."""
+    if not pending:
+        return
+
+    workers = _worker_count()
+    if len(pending) < _parallel_min() or workers < 2:
+        for i, rel, text, spec in pending:
+            out[i] = analyze_file(rel, text, spec, ts_on)
+        return
+
+    chunks = [(ts_on, pending[i:i + _CHUNK_SIZE])
+              for i in range(0, len(pending), _CHUNK_SIZE)]
+    try:
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=workers) as ex:
+            for batch in ex.map(analyze_chunk, chunks):
+                for i, analysis in batch:
+                    out[i] = analysis
+    except Exception:
+        # No usable pool (sandbox, spawn failure, unpicklable payload): the
+        # serial path is always correct, just slower.
+        for i, rel, text, spec in pending:
+            out[i] = analyze_file(rel, text, spec, ts_on)
+
+
 def build_index(root, max_files: int = 20000) -> dict:
     root = Path(root).resolve()
     collected = _collect(root, max_files)
@@ -80,7 +181,13 @@ def build_index(root, max_files: int = 20000) -> dict:
     known_files = {rel for rel, _, _ in records}
     by_basename: dict[str, list[str]] = defaultdict(list)
     by_dir_tail: dict[str, list[str]] = defaultdict(list)
-    for rel in known_files:
+    # SORTED, not raw set order. ``resolve_internal`` takes the FIRST match in
+    # these lists, so their order decides which file an ambiguous import binds
+    # to -- and iterating the set directly made that depend on PYTHONHASHSEED.
+    # On repos with repeated basenames (Marlin ships HAL/AVR/fastio.h,
+    # HAL/DUE/fastio.h, ...) the same source resolved to a different header on
+    # every process, silently changing dependencies/import_edges/fan_in.
+    for rel in sorted(known_files):
         by_basename[rel.rsplit("/", 1)[-1]].append(rel)
         parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
         tail = parent.rsplit("/", 1)[-1] if parent else ""
@@ -88,9 +195,11 @@ def build_index(root, max_files: int = 20000) -> dict:
             by_dir_tail[tail].append(rel)
 
     ts_on = tree_sitter_available()
+    analyses = _per_file_pass(root, records, ts_on)
+
     modules: dict[str, dict] = {}
     all_units: list[CodeUnit] = []
-    window_inputs: list[tuple[str, str, LanguageSpec | None]] = []
+    runs_by_file: list[tuple[str, list[str]]] = []
     spec_by_lang: dict[str, LanguageSpec] = {}
     lang_summary: dict[str, dict] = defaultdict(lambda: {"files": 0, "loc": 0})
     dep_edges: dict[str, set[str]] = defaultdict(set)
@@ -99,20 +208,21 @@ def build_index(root, max_files: int = 20000) -> dict:
     import_targets_by_rel: dict[str, set[str]] = defaultdict(set)
     total_chars = 0
 
-    for rel, spec, text in records:
+    # Import RESOLUTION stays here in the parent: it needs the whole file set
+    # (``known``/``known_files``), which no single-file worker can know. Only
+    # the per-file EXTRACTION was moved out.
+    for (rel, spec, _text), a in zip(records, analyses):
         spec_by_lang[spec.name] = spec
-        total_chars += len(text)
-        units = extract_units(rel, text, spec)
-        all_units.extend(units)
-        m = file_metrics(rel, text, spec, units)
-        modules[rel] = m
-        window_inputs.append((rel, text, spec))
+        total_chars += a.n_chars
+        all_units.extend(a.units)
+        modules[rel] = a.metrics
+        runs_by_file.append((rel, a.runs))
         lang_summary[spec.name]["files"] += 1
-        lang_summary[spec.name]["loc"] += m["loc"]
+        lang_summary[spec.name]["loc"] += a.loc
         if spec.name == "python":
             # Python resolution stays exactly as-is (precise, relative-aware).
             src_mod = _py_dotted(rel)
-            for tgt in python_imports(text, internal_tops, known, src_mod):
+            for tgt in resolve_python_imports(a.py_imports, internal_tops, known, src_mod):
                 if tgt != src_mod:
                     dep_edges[src_mod].add(tgt)
                     tgt_rel = rel_by_dotted.get(tgt)
@@ -120,7 +230,7 @@ def build_index(root, max_files: int = 20000) -> dict:
                         import_targets_by_rel[rel].add(tgt_rel)
         else:
             # All other languages: best-effort, keyed by rel path (no dotted id).
-            for raw, kind in imports_mod.extract_imports(rel, text, spec, ts_on):
+            for raw, kind in a.raw_imports:
                 if kind != "internal":
                     continue
                 tgt_rel = imports_mod.resolve_internal(
@@ -137,7 +247,7 @@ def build_index(root, max_files: int = 20000) -> dict:
     unit_cl = unit_clusters(all_units, spec_by_lang, root)
     renamed_cl = renamed_clusters(all_units, spec_by_lang, root)
     near_cl = near_clusters(all_units, spec_by_lang, root)
-    window_cl = window_clusters(window_inputs, root=root)
+    window_cl = window_clusters_from_runs(runs_by_file, root=root)
 
     # Stash the derived symbol resolver so consumers (slice.py) can sharpen call
     # edges without rebuilding; CodeUnits are not JSON-serializable so it lives
@@ -160,7 +270,11 @@ def build_index(root, max_files: int = 20000) -> dict:
         # rest), so it cannot be joined against ``modules``/``hotspots``. The
         # code map needs one consistent node id, and this is it.
         "import_edges": {m: sorted(t) for m, t in sorted(import_targets_by_rel.items())},
-        "fan_in": dict(sorted(fan_in.items(), key=lambda kv: kv[1], reverse=True)),
+        # Tie-break on the module name. ``fan_in`` is populated by iterating
+        # dep_edges' SETS, so its insertion order varies with PYTHONHASHSEED;
+        # since sorted() is stable, equal-count entries used to come out in a
+        # different order on every process. Same counts, now a total order.
+        "fan_in": dict(sorted(fan_in.items(), key=lambda kv: (-kv[1], kv[0]))),
         "duplication": {
             "unit_clusters": unit_cl,        # exact (Type-1) — key kept for back-compat
             "renamed_clusters": renamed_cl,  # Type-2 (renamed)

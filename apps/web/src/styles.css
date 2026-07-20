@@ -1053,7 +1053,15 @@ p { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .conn .sub { color: var(--dim); font-size: 11px; }
 .conn .cdot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .heart { display: flex; align-items: center; gap: 10px; }
-.rail .inspector { max-height: none; }
+/* flex-shrink:0 mirrors .railcard and is required for the SAME reason -- but it
+   is also a direct consequence of that fix. Once the railcards stopped
+   shrinking, the Inspector became the ONLY shrinkable child of the scrolling
+   .rail column, so it absorbed 100% of the negative space. It has
+   `overflow:auto`, so its automatic minimum size resolves to 0 (unlike the
+   cards, whose overflow:visible gives them a content floor) -- it collapsed to
+   a hairline and could not be scrolled to. Never leave a scroll container as
+   the only shrinkable item in a flex column. */
+.rail .inspector { max-height: none; flex-shrink: 0; }
 
 /* ---- sheets ---- */
 .scrim { position: fixed; inset: 0; background: rgba(6, 10, 20, .28); opacity: 0; pointer-events: none; transition: opacity var(--dur) var(--ease); z-index: 20; }
