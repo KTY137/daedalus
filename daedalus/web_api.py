@@ -24,9 +24,33 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB_DIST = ROOT / "apps" / "web" / "dist"
 
 
+def _project_center(project: str | None) -> list[str]:
+    """The project's declared source roots, from ``projects/<name>.json``.
+
+    ``center`` says which subtree actually IS the project; everything else in
+    the repo is shell (vendored trees, spec copies) -- indexed and resolvable
+    as an import target, but withheld from metrics and not expanded through by
+    the slicer. Absent/malformed -> empty, i.e. the whole repo is the center,
+    which is the historical behaviour.
+    """
+    if not project:
+        return []
+    try:
+        from .projects import load_project
+
+        raw = load_project(project).get("center") or []
+    except (ValueError, OSError):
+        return []
+    if isinstance(raw, str):
+        raw = [raw]
+    return [str(x) for x in raw if str(x).strip()]
+
+
 def _structure_index(project: str, refresh: bool = False) -> dict:
-    """Shared structural index for a project (cached process-wide by repo root)."""
-    return cached_index(resolve_repo_root(None, project), refresh=refresh)
+    """Shared structural index for a project (cached process-wide by repo root
+    AND scope -- see ``cached_index``)."""
+    return cached_index(resolve_repo_root(None, project), refresh=refresh,
+                        center=_project_center(project))
 
 
 def _json_safe(payload: Any) -> bytes:

@@ -1,6 +1,10 @@
 {
   "name": "project_tct",
   "repo_root": "C:\\Users\\nukei\\Desktop\\project_tct",
+  "_center_comment": "Which subtree IS the project. Everything else in the repo (reference/, sources/, artifacts_*/, lab_assets/, scratchpad/) is SHELL: still indexed and resolvable as an import target, but withheld from metrics and not expanded through by the slicer. Measured: 6798 -> 385 core files, 171.0s -> 22.3s, and 93% of duplication clusters were noise containing no TCT_app file at all.",
+  "center": [
+    "TCT_app"
+  ],
   "default_branch": "root-cleanup",
   "test_command": "python -m pytest tests -q",
   "test_cwd": "C:\\Users\\nukei\\Desktop\\project_tct\\TCT_app",
@@ -116,6 +120,11 @@
       "auto_docs": true,
       "auto_tests": false,
       "never_auto_write": true
+    },
+    "autonomy": {
+      "agents": {
+        "acquisition-dev": "semi_auto"
+      }
     }
   }
 }

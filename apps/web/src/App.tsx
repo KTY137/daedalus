@@ -50,6 +50,7 @@ import {
 import {
   applyDraft,
   askIkarus,
+  streamIkarus,
   chatIkarus,
   dismissDraft,
   getControlPlane,
@@ -258,6 +259,50 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
     setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
   }, []);
 
+  /**
+   * Render a completed turn. Shared by the streaming and blocking paths.
+   *
+   * `liveId` is the bubble that already streamed text into view, or null if
+   * nothing streamed (deterministic intents emit no deltas). When it exists we
+   * PATCH it rather than pushing a second bubble — otherwise the user sees the
+   * answer twice.
+   */
+  const renderResult = useCallback((
+    result: IkarusAskPayload, sourceMessage: string, liveId: number | null
+  ) => {
+    const brain = result.provider_used;
+    if (!result.ok || result.intent === 'error') {
+      const text = result.assistant || 'Ikarus could not answer that.';
+      if (liveId !== null) updateMsg(liveId, { system: true, brain, text });
+      else push({ role: 'ik', system: true, brain, text });
+      return;
+    }
+    if (result.intent === 'enqueue' && result.action?.requires_confirmation) {
+      push({
+        role: 'ik',
+        brain,
+        text: result.assistant || 'Queue this task?',
+        enqueue: { objective: result.action.args.objective, lane: result.action.args.lane },
+        enqueueState: 'pending'
+      });
+    } else if (result.intent === 'design' && result.draft) {
+      push({
+        role: 'ik',
+        brain,
+        text: result.assistant || 'Drafted an agent network.',
+        design: { message: sourceMessage, ...draftCounts(result.draft) }
+      });
+    } else if (liveId !== null) {
+      // Streamed. Deltas are the authoritative text; only fall back to the
+      // final envelope's copy if nothing actually streamed through.
+      const patch: Partial<ChatMsg> = { brain, model: result.model_used, stat: statLine(result) };
+      if (result.assistant) patch.text = result.assistant;
+      updateMsg(liveId, patch);
+    } else {
+      push({ role: 'ik', brain, model: result.model_used, text: result.assistant || '…', stat: statLine(result) });
+    }
+  }, [push, updateMsg]);
+
   async function send(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
@@ -266,31 +311,62 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
     setBusy(true);
     // Show the thinking bubble immediately with the brain we expect to use.
     setThinking({ brain: provider === 'deterministic' ? 'deterministic' : `via ${brainLabel(provider, runtimes)}` });
+
+    // STREAM FIRST. The endpoint routes identically to /api/ikarus/ask and
+    // returns the same `final` envelope, so this is purely a latency win: the
+    // Claude CLI has a ~4s startup floor that no amount of backend work removes,
+    // and streaming turns that from a blank wait into text appearing.
+    // Falls back to the blocking call if the stream never produced anything.
+    const streamed = await new Promise<boolean>((resolve) => {
+      if (typeof EventSource === 'undefined') { resolve(false); return; }
+
+      let liveId: number | null = null;
+      let acc = '';
+
+      const openBubble = () => {
+        // Allocate the id OURSELVES rather than via push(): push() increments
+        // idRef inside the setMessages updater, which React StrictMode may run
+        // twice, and we need a stable handle to patch on every delta.
+        const id = idRef.current++;
+        setMessages((prev) => [...prev, { id, role: 'ik', text: '' }]);
+        setThinking(null);          // first token replaces the thinking bubble
+        return id;
+      };
+
+      let settled = false;
+      const finish = (ok: boolean) => { if (!settled) { settled = true; resolve(ok); } };
+
+      streamIkarus(project, trimmed, provider, model, effort, {
+        onDelta: (chunk) => {
+          acc += chunk;
+          if (liveId === null) liveId = openBubble();
+          updateMsg(liveId, { text: acc });
+        },
+        onFinal: (result) => {
+          renderResult(result, trimmed, liveId);
+          finish(true);
+        },
+        onError: () => {
+          // Partial text with no `final` is worse than useless — it looks like a
+          // complete answer. Drop the bubble and let the blocking path retry.
+          if (liveId !== null) {
+            const id = liveId;
+            setMessages((prev) => prev.filter((m) => m.id !== id));
+          }
+          finish(false);
+        }
+      });
+    });
+
+    if (streamed) {
+      setThinking(null);
+      setBusy(false);
+      return;
+    }
+
     try {
       const result = await askIkarus(project, trimmed, provider, model, effort);
-      const brain = result.provider_used;
-      if (!result.ok || result.intent === 'error') {
-        push({ role: 'ik', system: true, brain, text: result.assistant || 'Ikarus could not answer that.' });
-        return;
-      }
-      if (result.intent === 'enqueue' && result.action?.requires_confirmation) {
-        push({
-          role: 'ik',
-          brain,
-          text: result.assistant || 'Queue this task?',
-          enqueue: { objective: result.action.args.objective, lane: result.action.args.lane },
-          enqueueState: 'pending'
-        });
-      } else if (result.intent === 'design' && result.draft) {
-        push({
-          role: 'ik',
-          brain,
-          text: result.assistant || 'Drafted an agent network.',
-          design: { message: trimmed, ...draftCounts(result.draft) }
-        });
-      } else {
-        push({ role: 'ik', brain, model: result.model_used, text: result.assistant || '…', stat: statLine(result) });
-      }
+      renderResult(result, trimmed, null);
     } catch (err) {
       push({ role: 'ik', system: true, text: err instanceof Error ? err.message : String(err) });
     } finally {

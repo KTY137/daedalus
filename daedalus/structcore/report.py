@@ -100,6 +100,10 @@ def structure_summary(idx: dict, *, top_hotspots: int = 25, top_clones: int = 40
         "backend": idx.get("backend", {}),
         "repo_root": idx.get("root", ""),
         "n_files": idx.get("n_files", 0),
+        # Surfaced so the UI can say "6799 scanned, 3430 ignored" rather than
+        # just showing a smaller number. A duplication report that quietly
+        # shrank is indistinguishable from a codebase that got cleaner.
+        "ignored": idx.get("ignored", {"count": 0, "patterns": []}),
         "languages": idx.get("languages", {}),
         "totals": {
             "unit_clusters": len(units),

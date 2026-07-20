@@ -21,7 +21,9 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time as _time
+from pathlib import Path
 
 from . import core
 from .projects import resolve_repo_root
@@ -228,6 +230,33 @@ def _ollama(message: str, model: str, effort: str | None) -> str | None:
         return None
 
 
+def _neutral_cwd() -> str:
+    """An empty directory to run the Claude CLI from.
+
+    WHY: ``subprocess.run`` inherits the SERVER's cwd, and the Claude CLI walks
+    up from wherever it starts to load CLAUDE.md, memory and skills. Running it
+    inside this repo meant every chat message -- including "hi" -- re-sent
+    agent_env's whole project context: measured at 25,666 cache-creation tokens
+    and $0.28 per message.
+
+    Measured effect of this fix, same prompt, only cwd differing:
+        repo cwd  5.3s / 5.9s      neutral cwd  3.8s / 4.1s     (~30% faster)
+
+    Latency is the smaller half of the win; the token cost is the point. Note
+    ~4s is the CLI's own startup floor, so this does NOT make chat feel instant
+    -- streaming (``ask_stream``) is what fixes perceived speed.
+
+    Deliberately NOT tempfile.mkdtemp(): a stable path keeps the CLI's own
+    caches warm across messages instead of looking new every time.
+    """
+    d = Path(tempfile.gettempdir()) / "daedalus_neutral_cwd"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return tempfile.gettempdir()
+    return str(d)
+
+
 def _claude(message: str, effort: str | None = None, model: str | None = None) -> str | None:
     path = shutil.which("claude")
     if not path:
@@ -241,6 +270,7 @@ def _claude(message: str, effort: str | None = None, model: str | None = None) -
         proc = subprocess.run(
             args, input=prompt, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=150,
+            cwd=_neutral_cwd(),
         )
         return (proc.stdout or "").strip() or None
     except (OSError, subprocess.SubprocessError):
@@ -369,6 +399,11 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
             args, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
             errors="replace", bufsize=1,
+            # Same neutral cwd as the blocking path -- see _neutral_cwd(). This
+            # one matters MORE: it is the path that fixes perceived latency, so
+            # leaving it to reload the repo's CLAUDE.md on every turn would pay
+            # the whole context cost precisely where it is most visible.
+            cwd=_neutral_cwd(),
         )
         proc.stdin.write(prompt)
         proc.stdin.close()

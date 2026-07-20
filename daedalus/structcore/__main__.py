@@ -19,6 +19,19 @@ def print_summary(idx: dict) -> None:
     print(f"\n=== STRUCTCORE -- {idx['n_files']} files across {len(langs)} languages ===")
     print(f"backend: tree-sitter={'on' if b['tree_sitter'] else 'OFF (stdlib+window only)'} "
           f"| lizard={'on' if b['lizard'] else 'off'}")
+
+    # State the exclusion out loud. A smaller report with no explanation looks
+    # like a cleaner codebase, which is the failure mode worth avoiding.
+    ign = idx.get("ignored") or {}
+    if ign.get("count"):
+        why = []
+        if ign.get("center"):
+            why.append("center=" + ",".join(ign["center"][:4]))
+        if ign.get("ignore_patterns"):
+            why.append("ignore=" + ",".join(ign["ignore_patterns"][:4]))
+        print(f"scope:   {ign['count']} of {ign['n_files_scanned']} files are SHELL, withheld "
+              f"from metrics [{' '.join(why)}]")
+        print("         (shell stays resolvable as an import target; it is not expanded through)")
     print("\nLANGUAGES (by loc):")
     for lang, s in langs.items():
         print(f"  {s['loc']:7}  {s['files']:4} files  {lang}")
@@ -73,9 +86,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("repo", nargs="?", default=".", help="repo root to index")
     ap.add_argument("--json", type=str, default=None, help="write full index to this JSON path")
     ap.add_argument("--max-files", type=int, default=20000)
+    ap.add_argument("--center", action="append", default=None, metavar="PATH",
+                    help="repo-relative source root that IS the project (repeatable). "
+                         "Everything outside it is shell: still resolvable as an import "
+                         "target, but withheld from metrics. Default: the whole repo.")
     args = ap.parse_args(argv)
 
-    idx = build_index(args.repo, max_files=args.max_files)
+    idx = build_index(args.repo, max_files=args.max_files, center=args.center)
     if args.json:
         Path(args.json).write_text(json.dumps(idx, indent=1), encoding="utf-8")
         print(f"wrote {args.json}")

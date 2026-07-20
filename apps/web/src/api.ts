@@ -129,6 +129,82 @@ export function openEventStream(
   return es;
 }
 
+/**
+ * Streaming twin of `askIkarus` — renders text as it is produced instead of
+ * blocking on the whole reply. Same routing and the same `final` envelope, so
+ * callers can reuse their existing result handling verbatim.
+ *
+ * ⚠️ LIFECYCLE IS LOAD-BEARING. `EventSource` AUTO-RECONNECTS whenever the
+ * server closes the socket, and this endpoint is a ONE-SHOT stream that closes
+ * after `final`. Without an explicit `close()` the browser silently reopens it
+ * and **re-runs the entire chat turn — re-spending tokens and money, forever**.
+ * So every terminal path here closes exactly once, via `settle()`.
+ *
+ * Falls back to nothing on its own: if the stream dies before `final`, the
+ * caller is told via `onError` and should retry with the blocking `askIkarus`.
+ */
+export function streamIkarus(
+  project: string,
+  message: string,
+  provider: string | undefined,
+  model: string | undefined,
+  effort: EffortLevel | undefined,
+  handlers: {
+    onStart?: (data: { intent?: string; provider_used?: string }) => void;
+    onDelta: (text: string) => void;
+    onFinal: (payload: IkarusAskPayload) => void;
+    onError: (err: Error) => void;
+  }
+): { close: () => void } {
+  const qs = new URLSearchParams({ project, message });
+  if (provider) qs.set('provider', provider);
+  if (model && model.trim()) qs.set('model', model.trim());
+  if (effort) qs.set('effort', effort);
+
+  const es = new EventSource(`/api/ikarus/stream?${qs.toString()}`);
+
+  // One-shot guard: `final` and `error` can both fire, and a closed EventSource
+  // must not be closed (or reported) twice.
+  let done = false;
+  const settle = (fn?: () => void) => {
+    if (done) return;
+    done = true;
+    es.close();
+    fn?.();
+  };
+
+  es.addEventListener('start', (event) => {
+    try {
+      handlers.onStart?.(JSON.parse((event as MessageEvent).data));
+    } catch { /* a malformed start frame is not worth failing the turn over */ }
+  });
+
+  es.addEventListener('delta', (event) => {
+    try {
+      const { text } = JSON.parse((event as MessageEvent).data);
+      if (typeof text === 'string' && text) handlers.onDelta(text);
+    } catch { /* skip an unparseable delta rather than kill the stream */ }
+  });
+
+  es.addEventListener('final', (event) => {
+    let payload: IkarusAskPayload | undefined;
+    try {
+      payload = JSON.parse((event as MessageEvent).data);
+    } catch {
+      settle(() => handlers.onError(new Error('malformed final frame')));
+      return;
+    }
+    settle(() => handlers.onFinal(payload as IkarusAskPayload));
+  });
+
+  // Fires on network failure AND on the normal server-side close. If `final`
+  // already arrived we are settled and this is the expected teardown, so the
+  // guard makes it a no-op rather than a spurious error.
+  es.onerror = () => settle(() => handlers.onError(new Error('ikarus stream interrupted')));
+
+  return { close: () => settle() };
+}
+
 export function updateAutonomy(project: string, patch: Record<string, unknown>) {
   return request<ControlPlanePayload>(`/api/projects/${encodeURIComponent(project)}/autonomy`, {
     method: 'PUT',

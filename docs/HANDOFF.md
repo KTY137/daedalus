@@ -14,6 +14,20 @@ priority and is the next task.** See §4.
 
 ---
 
+### Session 2 addendum (same day)
+
+- **§4 is CONFIRMED and sharpened** — measured across a full 216s scan, not inferred. It is *not* a spin-loop,
+  and the culprit is specifically the **clone passes**; the per-file phase already runs out-of-process and
+  starves nothing. See §4. *A first measurement sampled only the first 20s of a cold scan and looked like a
+  disproof — sample the whole scan or you measure the wrong phase.*
+- **Project scope shipped** (`center` + `.daedalusignore`) — see §4b. On project_tct: **171.0s → 22.3s
+  (7.68×)**, and **93% of the duplication report was noise**; hotspots had been ranking vendored Printrun,
+  wxPython and Cython files instead of the app. **7.68× from ~40 lines of Python vs 2.1× for the entire Rust
+  engine — scoping the input beats optimizing the kernel.**
+- **Suite: 415 passing** (390 + 25 new scope tests).
+
+---
+
 ## 1. Git state (READ THIS FIRST)
 - Branch **`checkpoint/2026-07-20-session`**, checkpoint commit **`a98e2b1`**. `main` is untouched.
 - The checkpoint was taken mid-session as a recovery point while two agents wrote `apps/web` concurrently.
@@ -140,31 +154,75 @@ Downstream, all one bug:
 thread — the GIL is the whole problem); progress pushed over the existing `/api/events` SSE channel;
 `GET /api/structure` returns a cached result or `{status: "scanning", progress}` instead of blocking.
 
-**Not yet confirmed:** that the spinning thread *is* the scan rather than something looping. The starvation is
-proven; the culprit is inferred from resident size + CPU profile. Confirm before restructuring — a spin-loop
-would be a different bug.
+**CONFIRMED 2026-07-20 (session 2), and sharpened.** Measured against a live server (PID sampled over a full
+216s scan, `Get-Process().TotalProcessorTime` deltas + latency probes):
+
+| state | server CPU | RSS | `/api/runtimes/status` |
+|---|---|---|---|
+| idle, never scanned | 0% | 76 MB | 0.51s |
+| **during clone passes** | **91–116% of one core** | **768–791 MB** | **20.4s / 12s / 16.2s / 17.9s** |
+| after scan returns | 0% | 452 MB | 0.51s |
+
+- **Not a spin-loop.** CPU drops to 0% the moment the scan returns, so the "96% while nominally idle"
+  reading was a scan in progress, not a runaway loop. The §4 restructure is the right fix.
+- **The culprit is specifically the CLONE PASSES, not `build_index` as a whole.** The per-file phase already
+  runs in a `ProcessPoolExecutor` (`index.py:153`), so it does *not* starve anything — a first measurement
+  that sampled only the first 20s of a *cold* scan saw 5% CPU and 0.45s latency and looked like a
+  disproof. **Sample the whole scan, or you will measure the wrong phase.**
+- Practical consequence: whatever moves out of process only needs to cover the clone passes to fix the
+  freeze, though moving all of `build_index` is simpler and no worse.
+
+## 4b. PROJECT SCOPE — shipped session 2, and it changes the perf story
+
+`center` + `.daedalusignore` (`daedalus/structcore/ignore.py`, docs/PROJECT_SCOPE.md). Declare which subtree
+IS the project; everything else in the repo is **shell** — still indexed and still resolvable as an import
+target, but withheld from metrics and not expanded through by the slicer.
+
+`project_tct` with `center: ["TCT_app"]` (now set in `projects/project_tct.json`):
+
+| | whole repo | center=TCT_app |
+|---|---|---|
+| wall | 171.0s | **22.3s (7.68×)** |
+| core files | 6,798 | 385 |
+| exact clone clusters | 2,794 | 196 |
+| `import_edges` | 8,558 | **8,558 — unchanged** |
+
+- **93% of the duplication report (11,001 of 11,859 clusters) contained no `TCT_app` file at all.**
+- **Hotspots were pointing at the wrong codebase entirely** — top 4 were Printrun, wxPython `.pyi` stubs,
+  Cython's `ExprNodes.py`, and Marlin firmware. The product's headline question ("what should I distill?")
+  was answering about vendored dependencies.
+- **7.68× from ~40 lines of Python, versus 2.1× for the whole Rust engine.** Scoping the input beats
+  optimizing the kernel. Re-check this ordering before spending on either.
+- Slice fan-out is fixed as a side effect: `slice._py_maps` reads from `modules`, and shell files are not in
+  `modules`, so the slicer cannot expand through the boundary.
+- ⚠️ **Rust does not know about any of this.** `structcore-rs/src/index.rs` has its own `const IGNORE`
+  hand-mirroring `_IGNORE_DIRS`; the two engines will now disagree about the same repo. Scope must become a
+  shared contract before the Rust engine is user-facing.
 
 ## 5. Backlog, in recommended order
 
 1. **Scan job / subprocess** — §4. Makes the app stop freezing. Also delivers the "index in the background"
-   request directly.
-2. **S1 + S2 (~23 lines, unblocks all C/C++)** — see §7. Highest value-per-line in the codebase.
-3. **Clone passes are now 96% of a warm scan** (near 38.3s + renamed 37.8s + unit 17.8s + window 4.6s of 102s).
-   Per-file optimization is spent; this is the only remaining speed lever. 102s is still not interactive.
-4. **`resolve_internal` accuracy** — now deterministic but prefers the lexicographically-first candidate, which
+   request directly. Now confirmed to be the clone passes specifically.
+2. **Set `center` on every project** — §4b. Cheapest large win available; `sunny_garden` still unscoped.
+   Consider warning in the UI when a repo has no center and >2k files.
+3. **S1 + S2 (~23 lines, unblocks all C/C++)** — see §7. Highest value-per-line in the codebase.
+4. **Clone passes are now 96% of a warm scan** (near 38.3s + renamed 37.8s + unit 17.8s + window 4.6s of 102s).
+   Per-file optimization is spent; this is the only remaining speed lever *within* the engine — but §4b shows
+   scoping the input is worth more than optimizing the kernel, so do that first.
+5. **`resolve_internal` accuracy** — now deterministic but prefers the lexicographically-first candidate, which
    is frequently wrong (`TEENSY40_41/HAL.cpp` binds `AVR/timers.h`). Prefer a same-directory sibling. Changes
    output, so it needs its own task + eval.
-5. **Wire the streaming UI** — `/api/ikarus/stream` exists and is unused by the frontend. Remember `es.close()`.
-6. **Ikarus chat cost**: `_claude()` inherits the server cwd, so every message loads the repo's CLAUDE.md +
+6. **Wire the streaming UI** — `/api/ikarus/stream` exists and is unused by the frontend. Remember `es.close()`.
+7. **Ikarus chat cost**: `_claude()` inherits the server cwd, so every message loads the repo's CLAUDE.md +
    memory + skills — measured **25,666 cache-creation tokens, $0.28 for "say hi"**. Agreed fix: run from a
    neutral cwd and inject a *distilled slice* when the question needs project knowledge. Dogfoods the product.
-7. **Codex as an Ikarus chat brain** — the picker offers it; `_llm()` returns `None` for it and silently drops to
+8. **Codex as an Ikarus chat brain** — the picker offers it; `_llm()` returns `None` for it and silently drops to
    the deterministic layer. `providers/codex_cli.py` exists but is task/report-shaped (timeout 1500s), not chat-
    shaped. Needs a chat path **plus** an egress-gate decision: Codex sends code to OpenAI.
-8. **Remaining layout audit findings**: `.draft-row` inherits `.feed-row`'s 92px grid track (its `flex:1` is
+9. **Remaining layout audit findings**: `.draft-row` inherits `.feed-row`'s 92px grid track (its `flex:1` is
    inert — the parent is a grid), squeezing drafts to ~6 visible chars; topbar `.iconbtn` lacks `flex:none` and
    deforms into ovals under ~700px.
-9. Eval Tier-2 (LLM A-vs-B), Movement III (orchestration loop), Movement V (Tauri).
+10. Eval Tier-2 (LLM A-vs-B), Movement III (orchestration loop), Movement V (Tauri).
 
 ---
 

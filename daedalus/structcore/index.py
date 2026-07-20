@@ -30,6 +30,7 @@ from .cache import FileCache, file_key
 from . import imports as imports_mod
 from . import graph
 from .churn import git_churn
+from .ignore import project_scope
 
 _IGNORE_DIRS = {
     ".git", ".hg", ".svn", "node_modules", ".venv", "venv", "env", "__pycache__",
@@ -161,7 +162,7 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
             out[i] = analyze_file(rel, text, spec, ts_on)
 
 
-def build_index(root, max_files: int = 20000) -> dict:
+def build_index(root, max_files: int = 20000, center=None) -> dict:
     root = Path(root).resolve()
     collected = _collect(root, max_files)
 
@@ -172,6 +173,20 @@ def build_index(root, max_files: int = 20000) -> dict:
         except OSError:
             continue
         records.append((rel, spec, text))
+
+    # SCOPE: the declared center (what this project IS) plus .daedalusignore
+    # (exceptions carved within it). Everything else in the repo is SHELL --
+    # real source, but not this project's code: vendored trees, spec copies,
+    # generated skeletons.
+    #
+    # Shell files are deliberately still collected and still parsed: they stay
+    # in the file-set indexes below, so a real file importing INTO the shell
+    # resolves to a true edge instead of silently degrading to "external". What
+    # they are withheld from is every METRIC -- see the aggregation loop. Doing
+    # it this way costs ~2% (the per-file parse) and saves ~96% (clone passes).
+    scope = project_scope(root, center)
+    ignored: frozenset[str] = frozenset(
+        rel for rel, _, _ in records if scope.is_shell(rel))
 
     known = {_py_dotted(rel) for rel, spec, _ in records if spec.name == "python"}
     internal_tops = {d.split(".")[0] for d in known}
@@ -213,12 +228,17 @@ def build_index(root, max_files: int = 20000) -> dict:
     # the per-file EXTRACTION was moved out.
     for (rel, spec, _text), a in zip(records, analyses):
         spec_by_lang[spec.name] = spec
-        total_chars += a.n_chars
-        all_units.extend(a.units)
-        modules[rel] = a.metrics
-        runs_by_file.append((rel, a.runs))
-        lang_summary[spec.name]["files"] += 1
-        lang_summary[spec.name]["loc"] += a.loc
+        # METRIC WITHHOLDING for .daedalusignore files. Everything in this block
+        # feeds a metric: units -> all three clone passes AND the symbol
+        # resolver, runs -> window clusters, modules -> hotspots/module_heat.
+        # Import resolution below is intentionally OUTSIDE the guard.
+        if rel not in ignored:
+            total_chars += a.n_chars
+            all_units.extend(a.units)
+            modules[rel] = a.metrics
+            runs_by_file.append((rel, a.runs))
+            lang_summary[spec.name]["files"] += 1
+            lang_summary[spec.name]["loc"] += a.loc
         if spec.name == "python":
             # Python resolution stays exactly as-is (precise, relative-aware).
             src_mod = _py_dotted(rel)
@@ -260,7 +280,19 @@ def build_index(root, max_files: int = 20000) -> dict:
     return {
         "root": str(root),
         "backend": backend_status(),
-        "n_files": len(records),
+        "n_files": len(records) - len(ignored),
+        # NEVER let exclusion be silent -- a shrunken duplication report that
+        # does not say what it dropped reads exactly like a clean bill of health
+        # (the same trap as report.truncated / S6's max_files ceiling).
+        "ignored": {
+            "count": len(ignored),
+            "n_files_scanned": len(records),
+            **scope.describe(),
+            # Bounded sample, sorted for determinism -- the full list can be
+            # tens of thousands of paths on a vendored tree.
+            "sample": sorted(ignored)[:25],
+            "truncated": len(ignored) > 25,
+        },
         "languages": {k: v for k, v in sorted(lang_summary.items(),
                                               key=lambda kv: kv[1]["loc"], reverse=True)},
         "modules": modules,
@@ -309,7 +341,8 @@ def _build_lock(key: str) -> threading.Lock:
         return _BUILD_LOCKS.setdefault(key, threading.Lock())
 
 
-def cached_index(repo_root, refresh: bool = False, max_files: int = 20000) -> dict:
+def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
+                 center=None) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -322,7 +355,16 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000) -> di
     parsers, which exhausted memory and took the page down. Concurrent callers
     now block on the in-flight build and share its result.
     """
-    key = str(Path(repo_root).resolve())
+    # The scope fingerprint is PART OF THE KEY: the cached index is a function
+    # of the center and the ignore rules as well as the root, so changing either
+    # must not hand back the index built under the old scope. (It would present
+    # as the feature silently not working, and only until the next restart --
+    # the worst kind of bug to chase.) An unscoped repo keeps its bare path key,
+    # so nothing changes for repos that never configure this.
+    resolved = Path(repo_root).resolve()
+    scope = project_scope(resolved, center)
+    unscoped = not scope.center and not scope.ignore
+    key = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
     with _build_lock(key):
@@ -331,7 +373,7 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000) -> di
         # Re-check under the lock: whoever we queued behind may have just built
         # it, and then this call is a cache hit rather than a second scan.
         if key not in _INDEX_CACHE:
-            _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files)
+            _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files, center=center)
         return _INDEX_CACHE[key]
 
 
