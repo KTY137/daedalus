@@ -169,6 +169,7 @@ type ChatMsg = {
   design?: { message: string; roles: number; subs: number };  // design intent → existing chatIkarus apply path
   enqueue?: { objective: string; lane: string };              // enqueue intent → existing queueTask
   enqueueState?: 'pending' | 'queued' | 'cancelled';
+  streaming?: boolean;                                         // live bubble mid-turn; never persisted (see saveTranscript)
 };
 
 const CHAT_CHIPS = ["What's running?", 'Build me an agent network', 'Route this to Claude', 'Show the mission feed'];
@@ -189,6 +190,56 @@ function loadModel(): string {
   try {
     return localStorage.getItem(LS_MODEL) || '';
   } catch { return ''; }
+}
+
+/**
+ * Transcript persistence.
+ *
+ * The transcript survives dock-sheet switching on its own (IkarusPanel is a
+ * stable sibling of the sheet and never remounts — measured, 0 remounts across
+ * all nine dock views). What it did NOT survive was a page load of any kind:
+ * F5, a Tauri webview reload, or Chrome discarding a backgrounded tab under
+ * memory pressure all dropped it back to the bare greeting, irrecoverably.
+ *
+ * sessionStorage rather than localStorage — deliberately. A reload and a
+ * discard/restore both keep sessionStorage, which is exactly the loss we are
+ * closing, while a NEW tab correctly starts a fresh conversation instead of
+ * resurrecting a stale one and growing without bound. `effort`/`model` above
+ * are genuine cross-session preferences, so those stay in localStorage.
+ */
+const SS_TRANSCRIPT = 'daedalus-ikarus-transcript';
+/** Only the most recent turns are persisted; the in-memory transcript is never trimmed. */
+const TRANSCRIPT_CAP = 200;
+
+const GREETING: ChatMsg = {
+  id: 0,
+  role: 'ik',
+  text:
+    'Ikarus here — your Agent OS spine. Ask me to draft an agent network, route a task to a lane, or open any panel from the dock on the left. I propose; you confirm before anything writes. Pick my brain from the selector up top — Deterministic needs no model; a connected runtime gives me a real LLM.'
+};
+
+function loadTranscript(): ChatMsg[] {
+  try {
+    const raw = sessionStorage.getItem(SS_TRANSCRIPT);
+    if (!raw) return [GREETING];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return [GREETING];
+    // Defensive: a bubble should never reach storage mid-stream, but if one ever
+    // does, label it rather than let partial text pose as a finished answer.
+    return (parsed as ChatMsg[]).map((m) =>
+      m.streaming ? { ...m, streaming: false, system: true, text: `${m.text}\n\n(turn interrupted — not completed)` } : m
+    );
+  } catch { return [GREETING]; }
+}
+
+function saveTranscript(messages: ChatMsg[]): void {
+  // Never write mid-stream: the effect fires on every delta, so persisting here
+  // would rewrite the whole transcript once per token, and a half-arrived answer
+  // is worse than no answer (same reason the stream's onError drops the bubble).
+  if (messages.some((m) => m.streaming)) return;
+  try {
+    sessionStorage.setItem(SS_TRANSCRIPT, JSON.stringify(messages.slice(-TRANSCRIPT_CAP)));
+  } catch { /* storage disabled or over quota — the live transcript is unaffected */ }
 }
 
 /** Friendly label for a `provider_used` id: runtime label if known, else prettified. */
@@ -224,14 +275,7 @@ function statLine(payload: IkarusAskPayload): string | undefined {
  * is reused for the `design` intent's Apply affordance.
  */
 function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtimes: RuntimeRow[]; onApplied: () => void }) {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      id: 0,
-      role: 'ik',
-      text:
-        'Ikarus here — your Agent OS spine. Ask me to draft an agent network, route a task to a lane, or open any panel from the dock on the left. I propose; you confirm before anything writes. Pick my brain from the selector up top — Deterministic needs no model; a connected runtime gives me a real LLM.'
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMsg[]>(loadTranscript);
   const [input, setInput] = useState('Build a clean app-project agent network with Claude, Codex, Ikarus, QA, UI, API and memory roles.');
   const [provider, setProvider] = useState('deterministic');
   const [effort, setEffort] = useState<EffortLevel>(loadEffort);
@@ -239,7 +283,10 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
   const [busy, setBusy] = useState(false);
   // Non-null while an `askIkarus` call is in flight — drives the thinking bubble.
   const [thinking, setThinking] = useState<{ brain: string } | null>(null);
-  const idRef = useRef(1);
+  // Resume ids ABOVE anything restored from storage — a fresh bubble reusing a
+  // restored id would give React two rows with the same key. Only the first
+  // render's value is kept, so the scan costs nothing after mount.
+  const idRef = useRef(messages.reduce((max, m) => Math.max(max, m.id), 0) + 1);
   const transcriptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -250,9 +297,15 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
   // Persist the cheap-by-default controls so they survive reloads.
   useEffect(() => { try { localStorage.setItem(LS_EFFORT, effort); } catch { /* noop */ } }, [effort]);
   useEffect(() => { try { localStorage.setItem(LS_MODEL, model); } catch { /* noop */ } }, [model]);
+  // …and the transcript itself, so a reload/discard no longer destroys the chat.
+  useEffect(() => { saveTranscript(messages); }, [messages]);
 
   const push = useCallback((msg: Omit<ChatMsg, 'id'>) => {
-    setMessages((prev) => [...prev, { ...msg, id: idRef.current++ }]);
+    // Allocate outside the updater for the same reason openBubble does: React
+    // StrictMode may invoke the updater twice, and the id must not depend on
+    // how many times it ran.
+    const id = idRef.current++;
+    setMessages((prev) => [...prev, { ...msg, id }]);
   }, []);
 
   const updateMsg = useCallback((id: number, patch: Partial<ChatMsg>) => {
@@ -271,6 +324,10 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
     result: IkarusAskPayload, sourceMessage: string, liveId: number | null
   ) => {
     const brain = result.provider_used;
+    // The turn is over however it renders below — clear the streaming flag in one
+    // place so no branch can leave a bubble marked live and block persistence.
+    // (The enqueue/design branches push a NEW bubble and leave `liveId` in place.)
+    if (liveId !== null) updateMsg(liveId, { streaming: false });
     if (!result.ok || result.intent === 'error') {
       const text = result.assistant || 'Ikarus could not answer that.';
       if (liveId !== null) updateMsg(liveId, { system: true, brain, text });
@@ -328,7 +385,7 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
         // idRef inside the setMessages updater, which React StrictMode may run
         // twice, and we need a stable handle to patch on every delta.
         const id = idRef.current++;
-        setMessages((prev) => [...prev, { id, role: 'ik', text: '' }]);
+        setMessages((prev) => [...prev, { id, role: 'ik', text: '', streaming: true }]);
         setThinking(null);          // first token replaces the thinking bubble
         return id;
       };

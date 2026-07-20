@@ -1,0 +1,32 @@
+{
+  "name": "agent_env",
+  "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env",
+  "_center_comment": "Daedalus distilling ITSELF. The center is the shipping product: the Python package plus the cockpit source. Everything else in the repo is shell -- runs/, inbox/, outbox/, memory/ are runtime state; templates/ and agents/ are data; daedalus.egg-info/ is build metadata; structcore-rs/ is the second engine and has its own toolchain. Shell stays resolvable as an import target, so edges from daedalus/ into it remain true.",
+  "center": [
+    "daedalus",
+    "apps/web/src"
+  ],
+  "_ignore_comment": "@tests is the built-in test-file preset. Tests are real code but not distillation targets, and on the sibling project they were half the files and 392 of the duplication clusters. eval/fixtures are corpora, not source.",
+  "ignore": [
+    "@tests",
+    "daedalus/eval/fixtures/"
+  ],
+  "default_branch": "main",
+  "test_command": "python -m pytest -q",
+  "policy": {
+    "_comment": "agent_env holds no lab IP, but it DOES hold the harness's own secrets handling. Deny the things that would leak a key or a device path if a slice of this repo were ever sent out.",
+    "deny": [
+      ".env",
+      "configs/secrets",
+      "runs/",
+      "inbox/",
+      "outbox/"
+    ],
+    "allow": [
+      "daedalus/",
+      "apps/web/src/",
+      "docs/",
+      ".md"
+    ]
+  }
+}

@@ -764,6 +764,14 @@ p { color: var(--muted); font-size: 12px; line-height: 1.5; }
   align-items: center;
   gap: 6px;
   padding: 12px 0;
+  /* Lift the dock above the sheet scrim (z-index 20) and the sheet itself (21).
+     The scrim is position:fixed;inset:0, so it used to cover the dock: clicking
+     another dock view while a sheet was open hit the scrim, whose onClick closes
+     the sheet, so the requested tab never opened and every switch bounced you
+     back through the chat. The dock occupies its own 64px grid column and the
+     sheet starts at left:88px, so raising it overlaps nothing. */
+  position: relative;
+  z-index: 22;
 }
 /* Explicit centring rather than relying on the group's shrink-to-fit width, so
    a scrollbar or border-box change can't pull the column off-centre. (The
