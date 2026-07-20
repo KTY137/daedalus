@@ -23,6 +23,12 @@ class LanguageSpec:
     extensions: tuple[str, ...]
     line_comment: tuple[str, ...] = ()
     block_comment: tuple[tuple[str, str], ...] = ()
+    # Quote characters that open a string/char literal. Load-bearing for comment
+    # stripping: a "//" or "/*" INSIDE a string is not a comment, and treating it
+    # as one silently deletes real code (see clones._strip_comments_generic).
+    # Default covers the C family; override where ' is not a string opener --
+    # Rust lifetimes ('a) and Swift, where consuming to the next ' would eat code.
+    string_delims: tuple[str, ...] = ('"', "'")
     # tree-sitter-language-pack grammar name (optional precision backend)
     ts_grammar: str = ""
     # node types that count as an editable/clone-able unit
@@ -88,6 +94,7 @@ _SPECS: tuple[LanguageSpec, ...] = (
     ),
     LanguageSpec(
         name="rust",
+        string_delims=('"',),   # 'a is a lifetime, not a string
         extensions=(".rs",),
         line_comment=("//",),
         block_comment=(("/*", "*/"),),
@@ -100,6 +107,7 @@ _SPECS: tuple[LanguageSpec, ...] = (
     ),
     LanguageSpec(
         name="go",
+        string_delims=('"', "'", "`"),   # ` opens a raw string
         extensions=(".go",),
         line_comment=("//",),
         block_comment=(("/*", "*/"),),
@@ -111,6 +119,7 @@ _SPECS: tuple[LanguageSpec, ...] = (
     ),
     LanguageSpec(
         name="javascript",
+        string_delims=('"', "'", "`"),
         extensions=(".js", ".jsx", ".mjs", ".cjs"),
         line_comment=("//",),
         block_comment=(("/*", "*/"),),
@@ -122,6 +131,7 @@ _SPECS: tuple[LanguageSpec, ...] = (
     ),
     LanguageSpec(
         name="typescript",
+        string_delims=('"', "'", "`"),
         extensions=(".ts", ".tsx", ".mts", ".cts"),
         line_comment=("//",),
         block_comment=(("/*", "*/"),),
@@ -191,6 +201,7 @@ _SPECS: tuple[LanguageSpec, ...] = (
     ),
     LanguageSpec(
         name="swift",
+        string_delims=('"',),
         extensions=(".swift",),
         line_comment=("//",),
         block_comment=(("/*", "*/"),),

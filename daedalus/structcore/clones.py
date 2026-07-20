@@ -61,22 +61,97 @@ def _normalize_python(source: str) -> str:
 def _strip_comments_generic(source: str, spec: LanguageSpec | None) -> str:
     """Comment-stripped source, one significant line per line (no whitespace
     collapse) — the shared substrate for both the lexical normalizer and the
-    abstract tokenizer, so they see identical, comment-free text."""
-    text = source
-    for open_, close_ in (spec.block_comment if spec else ()):
-        text = re.sub(re.escape(open_) + r".*?" + re.escape(close_), " ", text, flags=re.S)
-    lines = []
-    markers = spec.line_comment if spec else ("//", "#")
-    for raw in text.splitlines():
-        line = raw
+    abstract tokenizer, so they see identical, comment-free text.
+
+    STRING-LITERAL AWARE, and that is load-bearing rather than a nicety. The
+    previous implementation searched raw text for comment markers, so a marker
+    appearing INSIDE a string literal silently deleted real code and made
+    different functions hash identically — i.e. it FABRICATED exact clones,
+    which is this engine's worst failure mode. Two confirmed cases:
+
+        send("SOUR:VOLT // 500");   ->   send("SOUR:VOLT
+        send("SOUR:VOLT // 50");    ->   send("SOUR:VOLT     (identical!)
+
+    two different bias voltages reported as the same code; and a ``/*`` inside a
+    string, where the old block regex ran with ``re.S`` and swallowed everything
+    up to the next ``*/`` — deleting whole function bodies and merging unrelated
+    functions into one cluster.
+
+    Single left-to-right pass, because the three states are mutually exclusive:
+    inside a string, comment markers are text; outside one, a quote opens a
+    string. Which quotes open a string is per-language (``spec.string_delims``):
+    Rust's ``'a`` is a lifetime, not a literal, and consuming to the next ``'``
+    would eat the code the old version was already eating.
+
+    Unterminated literals stop at end-of-line rather than running to EOF, so a
+    stray quote degrades one line instead of the rest of the file.
+    """
+    blocks = tuple(spec.block_comment) if spec else ()
+    markers = tuple(spec.line_comment) if spec else ("//", "#")
+    quotes = tuple(spec.string_delims) if spec else ('"', "'")
+
+    out: list[str] = []
+    line: list[str] = []
+    i, n = 0, len(source)
+
+    while i < n:
+        ch = source[i]
+
+        if ch in quotes:
+            # Copy the literal through verbatim: its contents are code, and the
+            # abstract tokenizer maps it to STR later anyway.
+            line.append(ch)
+            i += 1
+            while i < n:
+                c = source[i]
+                if c == "\\" and i + 1 < n:      # \" does not close the literal
+                    line.append(c)
+                    line.append(source[i + 1])
+                    i += 2
+                    continue
+                if c == "\n":                    # unterminated: bail at EOL
+                    break
+                line.append(c)
+                i += 1
+                if c == ch:
+                    break
+            continue
+
+        hit = False
+        for open_, close_ in blocks:
+            if source.startswith(open_, i):
+                end = source.find(close_, i + len(open_))
+                i = n if end == -1 else end + len(close_)
+                line.append(" ")                 # keep tokens either side apart
+                hit = True
+                break
+        if hit:
+            continue
+
         for m in markers:
-            idx = line.find(m)
-            if idx != -1:
-                line = line[:idx]
-        line = line.strip()
-        if line:
-            lines.append(line)
-    return "\n".join(lines)
+            if source.startswith(m, i):
+                nl = source.find("\n", i)
+                i = n if nl == -1 else nl
+                hit = True
+                break
+        if hit:
+            continue
+
+        if ch == "\n":
+            s = "".join(line).strip()
+            if s:
+                out.append(s)
+            line = []
+            i += 1
+            continue
+
+        line.append(ch)
+        i += 1
+
+    s = "".join(line).strip()
+    if s:
+        out.append(s)
+    return "\n".join(out)
 
 
 def _normalize_generic(source: str, spec: LanguageSpec | None) -> str:
