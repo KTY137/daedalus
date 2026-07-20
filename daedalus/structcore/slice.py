@@ -87,12 +87,60 @@ def _reverse_edges(idx: dict) -> dict:
     return out
 
 
+def _assemble_slice(focus_block: str, neighbors: list[dict],
+                    withheld_lines: list[str], trimmed_marker: str | None) -> str:
+    """Join FOCUS + kept neighbour units (each under its section header, in
+    emission order) + the WITHHELD block + an optional TRIMMED marker.
+
+    A section header is emitted once, and only for a section that still has a
+    kept unit -- so dropping every unit of a section drops its header too. With
+    the full neighbour list and no marker this reproduces the old flat join
+    byte-for-byte (the un-budgeted path is unchanged)."""
+    out = [focus_block]
+    last_section = None
+    for n in neighbors:
+        if n["section"] != last_section:
+            out.append(n["section"])
+            last_section = n["section"]
+        out.append(n["text"])
+    out.extend(withheld_lines)
+    if trimmed_marker:
+        out.append(trimmed_marker)
+    return "\n".join(out)
+
+
+def _fit_budget(focus_block: str, neighbors: list[dict],
+                withheld_lines: list[str], budget: int) -> tuple[list[dict], int]:
+    """Degrade an over-budget slice by dropping WHOLE neighbour units -- never
+    string-truncating -- until it fits ``budget`` tokens. FOCUS and the WITHHELD
+    block are always kept (a tail truncation would silently delete the
+    anti-hallucination breadcrumb, the exact failure the gate prevents).
+
+    Lowest keep-priority goes first (callers/signatures before dependency and
+    callee bodies); within a tier the later-emitted unit goes first, so the
+    earliest / most-relevant neighbour survives longest. The TRIMMED marker's own
+    cost is counted each pass so the kept set fits WITH the marker present.
+    Returns (kept_in_emission_order, dropped_count)."""
+    kept = list(neighbors)
+    dropped = 0
+    while kept:
+        marker = (f"\n# ===== CONTEXT TRIMMED: dropped {dropped} of "
+                  f"{len(neighbors)} neighbors to fit budget =====") if dropped else None
+        if estimate_tokens(_assemble_slice(focus_block, kept, withheld_lines, marker)) <= budget:
+            break
+        victim = min(range(len(kept)), key=lambda i: (kept[i]["keep"], -i))
+        kept.pop(victim)
+        dropped += 1
+    return kept, dropped
+
+
 def semantic_slice(
     root,
     target: str,
     idx: dict | None = None,
     lane: str = "trusted",
     policy=None,
+    max_tokens: int | None = None,
 ) -> dict:
     """Assemble a semantic slice of ``target``.
 
@@ -112,6 +160,12 @@ def semantic_slice(
     breadcrumb in ``slice_text`` so the consuming model sees the gap rather than
     hallucinating the missing callee. If the FOCUS file itself is denied the
     slice fails closed -- no neighbour slice is returned in its place.
+
+    ``max_tokens`` (default ``None`` -> no cap, byte-identical to before) caps the
+    assembled ``slice_text``. When exceeded the slice degrades by dropping WHOLE
+    neighbour units (never truncating text), always keeping the FOCUS and the
+    WITHHELD block and appending a visible ``# ===== CONTEXT TRIMMED ... =====``
+    marker; ``trimmed_count`` reports how many neighbours were dropped.
     """
     from ..sensitivity import slice_egress_rule
 
@@ -169,8 +223,13 @@ def semantic_slice(
     else:
         focus_src = text
 
-    included = [{"file": rel, "role": "focus", "mode": "full", "tokens": estimate_tokens(focus_src)}]
-    parts = [f"# ===== FOCUS: {target} =====\n{focus_src}"]
+    focus_inc = {"file": rel, "role": "focus", "mode": "full", "tokens": estimate_tokens(focus_src)}
+    focus_block = f"# ===== FOCUS: {target} =====\n{focus_src}"
+    # Neighbour units, collected in emission order and kept SEPARATE from the
+    # FOCUS so an optional token budget can degrade by dropping whole units (see
+    # _fit_budget). ``keep`` is the drop priority: dependency/callee bodies (2)
+    # outrank caller signatures (1), so callers are shed first.
+    neighbors: list[dict] = []
 
     # NEIGHBORHOOD EXPANSION, keyed rel->rel for EVERY language.
     #
@@ -286,29 +345,31 @@ def semantic_slice(
         # if its file trips the gate, even when it reached here via the resolver.
         callee_hits = [u for u in callee_hits if _emit_ok(u.module, "callee")]
         caller_hits = [u for u in caller_hits if _emit_ok(u.module, "caller")]
-        if callee_hits:
-            parts.append("\n# ===== CALLEES (symbol-level, approximate) =====")
-            for cu in callee_hits:
-                block = f"# {cu.module}:{cu.line}\n{cu.source}"
-                parts.append(block)
-                included.append({"file": cu.module, "role": "callee", "mode": "full", "tokens": estimate_tokens(block)})
-        if caller_hits:
-            parts.append("\n# ===== CALLERS (symbol-level, approximate) =====")
-            for cu in caller_hits:
-                first = next((ln.strip() for ln in cu.source.splitlines() if ln.strip()), cu.name)
-                line = f"    {first[:120]}   # {cu.module}:{cu.line}"
-                parts.append(line)
-                included.append({"file": cu.module, "role": "caller", "mode": "signature", "tokens": estimate_tokens(line)})
+        callee_section = "\n# ===== CALLEES (symbol-level, approximate) ====="
+        for cu in callee_hits:
+            block = f"# {cu.module}:{cu.line}\n{cu.source}"
+            inc = {"file": cu.module, "role": "callee", "mode": "full", "tokens": estimate_tokens(block)}
+            neighbors.append({"section": callee_section, "text": block,
+                              "tokens": inc["tokens"], "keep": 2, "inc": inc})
+        caller_section = "\n# ===== CALLERS (symbol-level, approximate) ====="
+        for cu in caller_hits:
+            first = next((ln.strip() for ln in cu.source.splitlines() if ln.strip()), cu.name)
+            line = f"    {first[:120]}   # {cu.module}:{cu.line}"
+            inc = {"file": cu.module, "role": "caller", "mode": "signature", "tokens": estimate_tokens(line)}
+            neighbors.append({"section": caller_section, "text": line,
+                              "tokens": inc["tokens"], "keep": 1, "inc": inc})
     else:
         for role, rels in (("dependency", sorted(dep_rels)), ("caller", sorted(caller_rels))):
             kept = [r for r in rels if _emit_ok(r, role)]
             if not kept:
                 continue
-            parts.append(f"\n# ===== {role.upper()}S (skeleton) =====")
+            section = f"\n# ===== {role.upper()}S (skeleton) ====="
+            keep_rank = 2 if role == "dependency" else 1
             for r in kept:
                 sk = _skeleton(root, r)
-                parts.append(sk)
-                included.append({"file": r, "role": role, "mode": "skeleton", "tokens": estimate_tokens(sk)})
+                inc = {"file": r, "role": role, "mode": "skeleton", "tokens": estimate_tokens(sk)}
+                neighbors.append({"section": section, "text": sk,
+                                  "tokens": inc["tokens"], "keep": keep_rank, "inc": inc})
 
     # sorted() for determinism: the withheld block and its breadcrumbs are order-
     # independent of dict insertion / set iteration.
@@ -320,13 +381,28 @@ def semantic_slice(
     # Fail-loud breadcrumb IN the slice text (matching the spirit of
     # shell_boundary_stops, but inline so the model sees it): a withheld
     # neighbour leaves a marked gap, never an unmarked one it might hallucinate
-    # across. ``withheld`` is already sorted() for determinism.
+    # across. ``withheld`` is already sorted() for determinism. This block is kept
+    # LAST and is NEVER dropped by the budget -- degrade sheds neighbours, not the
+    # gate's own report.
+    withheld_lines: list[str] = []
     if withheld:
-        parts.append("\n# ===== WITHHELD (egress gate) =====")
+        withheld_lines.append("\n# ===== WITHHELD (egress gate) =====")
         for w in withheld:
-            parts.append(f"# {w['file']}  ({w['rule']})  [{w['role']}]")
+            withheld_lines.append(f"# {w['file']}  ({w['rule']})  [{w['role']}]")
 
-    slice_text = "\n".join(parts)
+    # Assemble. With max_tokens=None this is byte-identical to the old flat join;
+    # over budget it drops WHOLE neighbour units (never truncates) and appends a
+    # visible TRIMMED marker, keeping FOCUS + WITHHELD.
+    kept = neighbors
+    trimmed_count = 0
+    slice_text = _assemble_slice(focus_block, kept, withheld_lines, None)
+    if max_tokens is not None and neighbors and estimate_tokens(slice_text) > max_tokens:
+        kept, trimmed_count = _fit_budget(focus_block, neighbors, withheld_lines, max_tokens)
+        marker = (f"\n# ===== CONTEXT TRIMMED: dropped {trimmed_count} of "
+                  f"{len(neighbors)} neighbors to fit budget =====")
+        slice_text = _assemble_slice(focus_block, kept, withheld_lines, marker)
+
+    included = [focus_inc] + [n["inc"] for n in kept]
     slice_tokens = estimate_tokens(slice_text)
     whole = max(1, idx.get("total_chars", 0) // 4)
     return {
@@ -335,6 +411,7 @@ def semantic_slice(
         "focus_symbol": symbol,
         "included": included,
         "n_included": len(included),
+        "trimmed_count": trimmed_count,
         # Edges that pointed OUT of the declared center and were therefore not
         # expanded through. Reported rather than dropped in silence: a slice
         # that stops at the shell boundary and a slice with no neighbors at all

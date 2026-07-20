@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import tempfile
 import time as _time
+from collections import namedtuple
 from pathlib import Path
 
 from . import core
@@ -42,6 +43,40 @@ SYSTEM = (
 # appear in the picker but fall back to the deterministic layer until wired.
 _LOCAL = {"ollama", "ollama_http", "ollama_cli"}
 _CLAUDE = {"claude", "claude_cli", "claude_code_cli"}
+
+# --------------------------------------------------------------------------- #
+# Project-aware brain context (GATED distilled slice)                          #
+# --------------------------------------------------------------------------- #
+# A distilled slice of the file the user referenced, injected as brain context.
+# It REPLACES in-repo context (Claude still runs from _neutral_cwd()), so it is
+# capped: a focus file larger than the budget stays whole (never truncated), but
+# its neighbour skeletons are shed by semantic_slice(max_tokens=) so a big file
+# can't blow the chat prompt.
+#
+# Sizing (measured on agent_env, uncontended [M]): focus files of the core
+# modules run 5.4k-8.2k tokens EACH, and a focus is never truncated -- so the cap
+# only governs how many NEIGHBOURS ride along, and any cap below the focus size
+# just evicts the whole neighbourhood while still paying for the big focus (the
+# worst of both). Full focus+neighbourhood slices measure 817-15,773 tok,
+# clustered ~10k for core files -- all under the 25,666-tok whole-repo baseline
+# that in-repo cwd used to pay every message. 12k keeps the FULL neighbourhood
+# for essentially every core file (only the 23-neighbour index.py outlier trims),
+# stays < half the whole-repo cost, and the honest "capability for +slice_tokens
+# per message" trade holds. The degrade path is exercised by a tiny-cap unit test
+# regardless of this value.
+_CONTEXT_MAX_TOKENS = 12000
+
+# Framing so the model knows the injected block is a distilled slice, not the
+# whole file — anti-hallucination: it should treat withheld/trimmed gaps as gaps.
+_CONTEXT_FRAMING = "# Project context (distilled slice of the file you referenced):"
+
+# Metadata carried up to the chat envelope so the USER sees their context was
+# gated / trimmed / incomplete — not just the model. text="" means "no context
+# injected" (no file token, ambiguous filename, or a build hiccup) and the prompt
+# stays byte-identical to the pre-BOOTSTRAP neutral prompt.
+_Ctx = namedtuple(
+    "_Ctx", "text withheld_count focus_file included_count trimmed_count ambiguous")
+_EMPTY_CTX = _Ctx("", 0, None, 0, 0, False)
 
 
 # --------------------------------------------------------------------------- #
@@ -149,6 +184,34 @@ def _extract_target(message: str, idx: dict) -> str | None:
     return None
 
 
+def _resolve_target(message: str, idx: dict) -> tuple[str | None, bool]:
+    """Ambiguity-aware target resolution, used ONLY on the brain-context path.
+
+    ``_extract_target`` silently returns ``hits[0]`` when a bare filename matches
+    several modules — harmless for the local distill *report*, but here that pick
+    decides which SOURCE FILE leaves the machine as injected context. So we (a)
+    match on a PATH-SEGMENT boundary (``m == tok`` or ``.../tok``) rather than the
+    looser ``endswith(tok)`` — "slice.py" then resolves to ``.../slice.py`` and
+    does NOT also snag ``test_..._slice.py`` — and (b) when a token still matches
+    >1 module (a real same-basename collision) we REFUSE to guess: return
+    ``(None, True)`` so the caller injects no slice and the model answers
+    context-free rather than egressing a guessed file.
+
+    Returns ``(target, ambiguous)``. ``_extract_target`` / ``_distill`` are left
+    untouched (their pick never egresses source)."""
+    modules = idx.get("modules", {})
+    for tok in re.findall(r"[\w./\\-]+\.\w+", message):
+        tok = tok.replace("\\", "/")
+        if tok in modules:
+            return tok, False  # exact path — unambiguous
+        hits = [m for m in modules if m == tok or m.endswith("/" + tok)]
+        if len(hits) == 1:
+            return hits[0], False
+        if len(hits) > 1:
+            return None, True  # same-basename collision — do not guess what to egress
+    return None, False
+
+
 def _enqueue(project: str, message: str) -> dict:
     objective = message.strip()
     action = {
@@ -176,12 +239,91 @@ def _design(project: str, message: str) -> dict:
 # --------------------------------------------------------------------------- #
 # Freeform 'brain' — selectable connected runtime, text-only                   #
 # --------------------------------------------------------------------------- #
+def _project_context(project: str, message: str, lane: str = "trusted") -> _Ctx:
+    """Build a GATED distilled slice of the file ``message`` references, for
+    injection as brain context. The ONLY content source is the already-gated
+    ``semantic_slice`` (its SECRET FLOOR runs on every lane) — we NEVER read the
+    target file ourselves, which would bypass the egress gate.
+
+    Returns ``_EMPTY_CTX`` (text="") — reproducing today's neutral, context-free
+    behaviour — when there is no file token, when the filename is ambiguous (we
+    won't guess which file to egress), or on any build hiccup. Both Claude and
+    local Ollama are TRUSTED lanes, so ``lane="trusted"``: floor on, default-deny
+    off (recall preserved). ``untrusted`` is reserved for a real external
+    untrusted provider and is intentionally never passed here."""
+    # Cheap guard: no path/file-shaped token -> no context, WITHOUT indexing the
+    # repo. Keeps every non-file chat turn as fast and inert as before BOOTSTRAP.
+    if not re.search(r"[\w./\\-]+\.\w+", message):
+        return _EMPTY_CTX
+    try:
+        from .structcore.index import cached_index
+        from .structcore.slice import semantic_slice
+
+        repo_root = resolve_repo_root(None, project)
+        idx = cached_index(repo_root)
+        target, ambiguous = _resolve_target(message, idx)
+        if ambiguous:
+            return _Ctx("", 0, None, 0, 0, True)
+        if not target:
+            return _EMPTY_CTX
+        res = semantic_slice(repo_root, target, idx=idx, lane=lane,
+                             max_tokens=_CONTEXT_MAX_TOKENS)
+        slice_text = (res.get("slice_text") or "").strip()
+        if not slice_text:
+            return _EMPTY_CTX
+        return _Ctx(
+            text=f"{_CONTEXT_FRAMING}\n{slice_text}",
+            withheld_count=int(res.get("withheld_count", 0)),
+            focus_file=res.get("focus_file"),
+            included_count=int(res.get("n_included", 0)),
+            trimmed_count=int(res.get("trimmed_count", 0)),
+            ambiguous=False,
+        )
+    except Exception:
+        # Never break the chat on a context-build hiccup: degrade to no context.
+        return _EMPTY_CTX
+
+
+def _ctx_envelope_block(ctx: _Ctx) -> dict | None:
+    """The context metadata carried to the USER in the chat envelope, or None
+    when there is nothing to report (no file referenced) — so a plain chat turn's
+    envelope is unchanged."""
+    if not (ctx.focus_file or ctx.ambiguous):
+        return None
+    return {
+        "focus_file": ctx.focus_file,
+        "included": ctx.included_count,
+        "withheld_count": ctx.withheld_count,
+        "trimmed": ctx.trimmed_count,
+        "ambiguous": ctx.ambiguous,
+    }
+
+
+def _with_context(message: str, context: str) -> str:
+    """Prepend gated project context to the user turn (empty context -> the
+    message unchanged). Used for the Ollama system/user split."""
+    return f"{context}\n\n{message}" if context else message
+
+
+def _claude_prompt(message: str, effort: str | None, context: str = "") -> str:
+    """Assemble the single-string Claude CLI prompt. With no context this is
+    byte-identical to the pre-BOOTSTRAP prompt; with context the distilled slice
+    is injected between the system framing and the user turn."""
+    concise = "\nBe concise." if (effort or "low").lower() == "low" else ""
+    if context:
+        return f"{SYSTEM}{concise}\n\n{context}\n\nUser: {message}"
+    return f"{SYSTEM}{concise}\n\nUser: {message}"
+
+
 def _chat(project: str, message: str, provider: str | None,
           model: str | None = None, effort: str | None = None) -> dict:
-    reply, model_used = _llm(provider, message, model, effort)
+    reply, model_used, ctx = _llm(provider, message, model, effort, project)
     if reply:
+        block = _ctx_envelope_block(ctx)
+        extra = {"context": block} if block else {}
         return core.envelope(project, intent="chat", assistant=reply,
-                             provider_used=(provider or "").lower(), model_used=model_used)
+                             provider_used=(provider or "").lower(),
+                             model_used=model_used, **extra)
     return core.envelope(project, intent="chat", assistant=_help_text(),
                          provider_used="deterministic", model_used=None)
 
@@ -195,22 +337,31 @@ def _effort_cap(effort: str | None) -> int:
 
 
 def _llm(provider: str | None, message: str, model: str | None = None,
-         effort: str | None = None) -> tuple[str | None, str | None]:
-    """Return (reply_text, model_used); (None, None) -> caller falls back to help."""
+         effort: str | None = None,
+         project: str | None = None) -> tuple[str | None, str | None, _Ctx]:
+    """Return (reply_text, model_used, ctx). (None, None, _EMPTY_CTX) -> caller
+    falls back to help. ``ctx`` carries the gated-slice metadata for the envelope.
+
+    Context is built HERE (where the chosen lane is known) so its metadata reaches
+    the envelope, then passed as TEXT into the runtime functions — keeping their
+    signatures clean and never re-reading source outside the gate."""
     p = (provider or "").lower()
     if p in ("", "auto", "none", "deterministic"):
-        return None, None
+        return None, None, _EMPTY_CTX
     if p in _LOCAL:
         from .providers.ollama import DEFAULT_MODEL
 
         mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        return _ollama(message, mdl, effort), mdl
+        ctx = _project_context(project, message, lane="trusted")
+        return _ollama(message, mdl, effort, ctx.text), mdl, ctx
     if p in _CLAUDE:
-        return _claude(message, effort, model), (model or "claude")
-    return None, None  # codex / gemini / api slots: picker-visible, not wired yet
+        ctx = _project_context(project, message, lane="trusted")
+        return _claude(message, effort, model, ctx.text), (model or "claude"), ctx
+    return None, None, _EMPTY_CTX  # codex / gemini / api slots: not wired yet
 
 
-def _ollama(message: str, model: str, effort: str | None) -> str | None:
+def _ollama(message: str, model: str, effort: str | None,
+            context: str = "") -> str | None:
     from .providers.ollama import DEFAULT_HOST, warm_model_async
 
     host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
@@ -222,7 +373,8 @@ def _ollama(message: str, model: str, effort: str | None) -> str | None:
     try:
         txt = chat_completion(
             base_url=host.rstrip("/") + "/v1", model=model,
-            system=system, user=message, force_json=False, temperature=0.3,
+            system=system, user=_with_context(message, context),
+            force_json=False, temperature=0.3,
             timeout_s=120, extra={"max_tokens": _effort_cap(effort)},
         )
         return (txt or "").strip() or None
@@ -257,12 +409,12 @@ def _neutral_cwd() -> str:
     return str(d)
 
 
-def _claude(message: str, effort: str | None = None, model: str | None = None) -> str | None:
+def _claude(message: str, effort: str | None = None, model: str | None = None,
+            context: str = "") -> str | None:
     path = shutil.which("claude")
     if not path:
         return None
-    concise = "\nBe concise." if (effort or "low").lower() == "low" else ""
-    prompt = f"{SYSTEM}{concise}\n\nUser: {message}"
+    prompt = _claude_prompt(message, effort, context)
     args = [path, "-p"]
     if model:
         args += ["--model", model]
@@ -316,14 +468,17 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     p = (provider or "").lower()
     streamer = None
     model_used = None
+    ctx = _EMPTY_CTX
     if p in _LOCAL:
         from .providers.ollama import DEFAULT_MODEL
 
         model_used = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        streamer = _ollama_stream(message, model_used, effort)
+        ctx = _project_context(project, message, lane="trusted")
+        streamer = _ollama_stream(message, model_used, effort, ctx.text)
     elif p in _CLAUDE:
         model_used = model or "claude"
-        streamer = _claude_stream(message, effort, model)
+        ctx = _project_context(project, message, lane="trusted")
+        streamer = _claude_stream(message, effort, model, ctx.text)
 
     yield "start", {"intent": "chat",
                     "provider_used": p or "deterministic",
@@ -351,11 +506,13 @@ def ask_stream(project: str, message: str, provider: str | None = None,
         yield "final", ask(project, message, provider, model, effort)
         return
 
+    block = _ctx_envelope_block(ctx)
+    extra = {"context": block} if block else {}
     yield "final", core.envelope(project, intent="chat", assistant=text,
-                                 provider_used=p, model_used=model_used)
+                                 provider_used=p, model_used=model_used, **extra)
 
 
-def _ollama_stream(message: str, model: str, effort: str | None):
+def _ollama_stream(message: str, model: str, effort: str | None, context: str = ""):
     """Yield text deltas from the local Ollama runtime, and refresh the VRAM
     residency TTL in the background so the NEXT turn skips the ~44s reload."""
     from .providers._openai_compat import chat_stream
@@ -366,7 +523,7 @@ def _ollama_stream(message: str, model: str, effort: str | None):
     warm_model_async(host, model)  # non-blocking: never delays this reply
     yield from chat_stream(
         base_url=host.rstrip("/") + "/v1", model=model,
-        system=system, user=message, temperature=0.3,
+        system=system, user=_with_context(message, context), temperature=0.3,
         timeout_s=120, extra={"max_tokens": _effort_cap(effort)},
     )
 
@@ -374,7 +531,8 @@ def _ollama_stream(message: str, model: str, effort: str | None):
 # Claude CLI stream-json frames we care about (verified against 2.1.201):
 #   {"type":"stream_event","event":{"type":"content_block_delta",
 #    "delta":{"type":"text_delta","text":"..."}}}
-def _claude_stream(message: str, effort: str | None = None, model: str | None = None):
+def _claude_stream(message: str, effort: str | None = None, model: str | None = None,
+                   context: str = ""):
     """Yield text deltas from `claude -p --output-format stream-json
     --include-partial-messages`.
 
@@ -386,8 +544,7 @@ def _claude_stream(message: str, effort: str | None = None, model: str | None = 
     path = shutil.which("claude")
     if not path:
         return
-    concise = "\nBe concise." if (effort or "low").lower() == "low" else ""
-    prompt = f"{SYSTEM}{concise}\n\nUser: {message}"
+    prompt = _claude_prompt(message, effort, context)
     args = [path, "-p", "--output-format", "stream-json",
             "--include-partial-messages", "--verbose"]
     if model:
