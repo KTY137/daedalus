@@ -12,11 +12,11 @@ crews and from what actually failed in this repo.
 **Odin (NorthStar)** contributes the *gate structure*: three cost tiers, an always-on cheap
 tier, and adversarial review as a structural requirement rather than a courtesy — design
 critique on paper, an attack on the running result, a security veto that blocks, and a
-testability owner. "Loki tells you why the idea is tired; Fenrir proves the break with a
+testability owner. "Momus tells you why the idea is tired; Nemesis proves the break with a
 real exploit and a failing test."
 
 **Adam (project_tct)** contributes the *ownership model*: one router, no agent-to-agent
-chat, named owners per area, and Niwashi's rule that **every proposal carries a named
+chat, named owners per area, and Aristaeus's rule that **every proposal carries a named
 test-thermometer** — a specific runnable measurement with a before reading and an expected
 after.
 
@@ -50,21 +50,21 @@ is the point.
 | **argus** | scout — "where is X?", sweeps, find-usages, verification reads. Use instead of an inline grep sweep. |
 | **hermes** | scribe — mechanical, precisely-specified writes: boilerplate, repeated edits, renames, fixtures. |
 | **mnemosyne** | chronicler — updates HANDOFF/docs/status in the *same beat* as a structural change, and stamps provenance on every number. |
-| **vigil** | sentinel — pre-runs the full gate suite before any review or commit and reports raw output. Refuses to time anything under load. |
+| **metron** | sentinel — pre-runs the full gate suite before any review or commit and reports raw output. Refuses to time anything under load. |
 
 ### Tier 1 — implementation (sonnet)
 
-`core-dev` (Daedalus, harness core) · `extension-dev` (Icarus-Jr, VS Code surface) ·
-`test-dev` (Talos, the suite) · `docs-dev` (Ovid) · `provider-researcher` (Oracle)
+`core-dev` (Daedalus, harness core) · `extension-dev` (Icarus, VS Code surface) ·
+`test-dev` (Talos, the suite) · `docs-dev` (Clio) · `provider-researcher` (Pythia)
 
 ### Tier 2 — judgment (opus)
 
-`safety-dev` (Minos — **owns** the fail-closed core) · `heimdall` (**reviews** it; CRITICAL
-blocks) · `loki` (design critique on paper) · `qa-critic` (Fenrir, the Nemesis — attacks the
-running result) · `niwashi` (read-only structure distiller) · `orchestration-dev` (Theseus) ·
-`picasso` (UI/UX)
+`safety-dev` (Minos — **owns** the fail-closed core) · `cerberus` (**reviews** it; CRITICAL
+blocks) · `momus` (design critique on paper) · `qa-critic` (Nemesis — attacks the
+running result) · `aristaeus` (read-only structure distiller) · `orchestration-dev` (Theseus) ·
+`iris` (UI/UX)
 
-Minos writes the fence and Heimdall vetoes breaches of it. That separation is deliberate:
+Minos writes the fence and Cerberus vetoes breaches of it. That separation is deliberate:
 an owner reviewing their own work is the anti-pattern this crew exists to avoid.
 
 ---
@@ -75,14 +75,14 @@ an owner reviewing their own work is the anti-pattern this crew exists to avoid.
 the shape of a published output — passes these. Order matters: two are cheap and happen
 before code exists.
 
-1. **Loki — on paper, before implementation.** Why is this idea tired? What is the failure
+1. **Momus — on paper, before implementation.** Why is this idea tired? What is the failure
    mode nobody costed? A blocking objection stops the work until answered.
 2. **Týr (`test-dev`) — testability.** How will we know it worked? Named thermometer.
-3. **Fenrir (`qa-critic`) — attacks the running result.** Not a read-through: *run it*.
-4. **Heimdall — security and egress.** A **CRITICAL blocks. No override.**
-5. **Vigil — the gate suite**, with raw output, before any commit.
+3. **Nemesis (`qa-critic`) — attacks the running result.** Not a read-through: *run it*.
+4. **Cerberus — security and egress.** A **CRITICAL blocks. No override.**
+5. **Metron — the gate suite**, with raw output, before any commit.
 
-**Dissent is documented, never averaged away.** If Loki objected and was overruled, the
+**Dissent is documented, never averaged away.** If Momus objected and was overruled, the
 objection goes in the commit message, not into a consensus mush.
 
 ### The test-thermometer rule (from Adam's crew)
@@ -115,7 +115,7 @@ reported as fact:
 | 171.0s full scan | **86.5s** | same, contended |
 | 499 files corrupted | **66** | measured a code path Python does not take |
 
-A benchmark whose validity was not checked is not evidence. `vigil` re-runs any number that
+A benchmark whose validity was not checked is not evidence. `metron` re-runs any number that
 is going to be reported.
 
 ### 2. Provenance: MEASURED / INHERITED / ASSUMED
@@ -139,7 +139,7 @@ writing.** Use `git worktree add` (or the Agent tool's `isolation: "worktree"`).
 
 The failure: a stash of `clones.py` during an active round left the tree transiently
 un-importable — `clones.py` reverted while `index.py` still imported its symbols — and a
-Fenrir agent independently reported it as a defect. It cost a reconstruction and a
+Nemesis agent independently reported it as a defect. It cost a reconstruction and a
 confusing verification run.
 
 ---

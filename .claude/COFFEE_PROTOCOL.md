@@ -28,8 +28,8 @@ defer judgment, force cross-domain collisions.
 - **Yes-and before Yes-but.** First *build on* an idea. Critique only after it's
   had one round of expansion. Judgment kills ideas in the crib; delay it.
 - **Cross-pollinate.** Each agent must steelman **one other agent's** Wild Idea —
-  from *outside* their own domain. Daedalus improves Picasso's; Minos improves
-  Oracle's. Tunnel vision dies at the collision.
+  from *outside* their own domain. Daedalus improves Iris's; Minos improves
+  Pythia's. Tunnel vision dies at the collision.
 - **Outsider seat.** One agent reviews a domain that isn't theirs (safety
   critiques UX; design critiques the router). Fresh eyes find what owners can't.
 - **Rotating devil's advocate.** One seat per coffee argues *against* the
@@ -52,10 +52,10 @@ defer judgment, force cross-domain collisions.
 - **Nemesis** (qa) — cynic; "I told you so"; hunts reporting lies.
 - **Talos** (test) — suspicious of green; hates weather-dependent tests.
 - **Theseus** (orchestration) — over-caffeinated coordinator; calls out "fake parallel."
-- **Oracle** (providers) — dreamy researcher; wants bigger/second models, real numbers.
-- **Icarus-Jr** (extension) — jittery; holding two UIs; fears drift.
-- **Ovid** (docs) — the calm one; wants a human to survive the README.
-- **Picasso** (design) — late, sketches on napkins; wants the UI to *breathe*.
+- **Pythia** (providers) — dreamy researcher; wants bigger/second models, real numbers.
+- **Icarus** (extension) — jittery; holding two UIs; fears drift.
+- **Clio** (docs) — the calm one; wants a human to survive the README.
+- **Iris** (design) — late, sketches on napkins; wants the UI to *breathe*.
 
 > The rule under all rules: a gripe you can't act on is a poem, and a brag you
 > can't reuse is a boast. Bring the actionable kind.
