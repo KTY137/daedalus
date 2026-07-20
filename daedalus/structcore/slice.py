@@ -87,7 +87,34 @@ def _reverse_edges(idx: dict) -> dict:
     return out
 
 
-def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
+def semantic_slice(
+    root,
+    target: str,
+    idx: dict | None = None,
+    lane: str = "trusted",
+    policy=None,
+) -> dict:
+    """Assemble a semantic slice of ``target``.
+
+    ``lane`` selects the egress gate applied to every file that contributes text
+    to ``slice_text`` (see ``sensitivity.slice_egress_rule``):
+
+      * ``"trusted"`` (default) -- Claude, local Ollama, the eval harness, the
+        local web distill view. The unconditional SECRET FLOOR still runs (a
+        private key never enters a slice, even locally); the default-deny
+        allow-list does NOT, so ordinary source is never withheld here. This is
+        what keeps eval recall at 100%.
+      * ``"untrusted"`` -- a genuinely untrusted external provider (DeepSeek).
+        Floor + the existing default-deny allow-list both apply.
+
+    Withholding is REPORTED, never silent: the result gains a sorted ``withheld``
+    block (path, role, rule) AND an inline ``# ===== WITHHELD ... =====``
+    breadcrumb in ``slice_text`` so the consuming model sees the gap rather than
+    hallucinating the missing callee. If the FOCUS file itself is denied the
+    slice fails closed -- no neighbour slice is returned in its place.
+    """
+    from ..sensitivity import slice_egress_rule
+
     root = Path(root).resolve()
     idx = idx or build_index(root)
     modules = idx["modules"]
@@ -103,6 +130,36 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         rel = cands[0]
 
     text = _read(root, rel)
+
+    # FOCUS GATE -- fail closed. The floor scans the FULL focus file (not just
+    # the requested symbol): a file that carries a secret anywhere is refused as
+    # a distill target rather than returning a slice of its neighbours dressed
+    # up as the requested slice.
+    focus_rule = slice_egress_rule(rel, text, lane=lane, policy=policy)
+    if focus_rule:
+        breadcrumb = (
+            f"# ===== WITHHELD: {rel} ({focus_rule}) =====\n"
+            f"# focus file withheld by the egress gate (lane={lane}); "
+            f"slice refused (fail-closed)."
+        )
+        whole = max(1, idx.get("total_chars", 0) // 4)
+        slice_tokens = estimate_tokens(breadcrumb)
+        return {
+            "target": target,
+            "focus_file": rel,
+            "focus_symbol": symbol,
+            "included": [],
+            "n_included": 0,
+            "shell_boundary_stops": 0,
+            "withheld": [{"file": rel, "role": "focus", "rule": focus_rule}],
+            "withheld_count": 1,
+            "slice_tokens": slice_tokens,
+            "whole_repo_tokens": whole,
+            "reduction_pct": round(100 * (1 - slice_tokens / whole), 1),
+            "backend": idx["backend"],
+            "slice_text": breadcrumb,
+        }
+
     spec = spec_for(rel)
     focus_unit = None
     if symbol:
@@ -157,6 +214,35 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         else:
             shell_stops += 1
 
+    # NEIGHBOUR EGRESS GATE. Applied at the EMISSION point of every file whose
+    # text would enter slice_text -- skeletons on the module path, and the actual
+    # callee/caller UNITS on the symbol path. It must be the emission point, not
+    # just the rel sets: the symbol resolver reads the index-wide ``defs_by_file``
+    # directly (same mechanism the shell-boundary re-assertion below guards), so a
+    # secret-bearing callee body can arrive from the resolver even after its rel
+    # was dropped from ``dep_rels``. Gating each emitted unit's module closes that.
+    #
+    # Floor (secret-only) applies in every lane; the default-deny allow-list only
+    # in an untrusted lane. Per file, so the deny_content first-match-break cannot
+    # poison a whole slice and every hit is attributable to one path. Reported,
+    # never silent: withheld -> a sorted block + an inline breadcrumb.
+    _gate_cache: dict[str, str | None] = {}
+    withheld_map: dict[str, tuple[str, str]] = {}  # rel -> (role, rule)
+
+    def _rule_for(rel: str) -> str | None:
+        if rel not in _gate_cache:
+            _gate_cache[rel] = slice_egress_rule(
+                rel, _read(root, rel), lane=lane, policy=policy)
+        return _gate_cache[rel]
+
+    def _emit_ok(rel: str, role: str) -> bool:
+        rule = _rule_for(rel)
+        if rule:
+            # First role to withhold a rel names it; identical file+rule either way.
+            withheld_map.setdefault(rel, (role, rule))
+            return False
+        return True
+
     if symbol and focus_unit is not None:
         # symbol-level: include exactly the callees (full) + callers (signature)
         # of THIS symbol, from the module neighborhood — sharper than whole files.
@@ -196,6 +282,10 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         callee_hits, n_callee_shell = _in_center(callee_hits)
         caller_hits, n_caller_shell = _in_center(caller_hits)
         shell_stops += n_callee_shell + n_caller_shell
+        # EGRESS GATE at emission: a callee body / caller signature is withheld
+        # if its file trips the gate, even when it reached here via the resolver.
+        callee_hits = [u for u in callee_hits if _emit_ok(u.module, "callee")]
+        caller_hits = [u for u in caller_hits if _emit_ok(u.module, "caller")]
         if callee_hits:
             parts.append("\n# ===== CALLEES (symbol-level, approximate) =====")
             for cu in callee_hits:
@@ -211,13 +301,30 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
                 included.append({"file": cu.module, "role": "caller", "mode": "signature", "tokens": estimate_tokens(line)})
     else:
         for role, rels in (("dependency", sorted(dep_rels)), ("caller", sorted(caller_rels))):
-            if not rels:
+            kept = [r for r in rels if _emit_ok(r, role)]
+            if not kept:
                 continue
             parts.append(f"\n# ===== {role.upper()}S (skeleton) =====")
-            for r in rels:
+            for r in kept:
                 sk = _skeleton(root, r)
                 parts.append(sk)
                 included.append({"file": r, "role": role, "mode": "skeleton", "tokens": estimate_tokens(sk)})
+
+    # sorted() for determinism: the withheld block and its breadcrumbs are order-
+    # independent of dict insertion / set iteration.
+    withheld = sorted(
+        ({"file": rel, "role": role, "rule": rule}
+         for rel, (role, rule) in withheld_map.items()),
+        key=lambda w: (w["file"], w["role"]),
+    )
+    # Fail-loud breadcrumb IN the slice text (matching the spirit of
+    # shell_boundary_stops, but inline so the model sees it): a withheld
+    # neighbour leaves a marked gap, never an unmarked one it might hallucinate
+    # across. ``withheld`` is already sorted() for determinism.
+    if withheld:
+        parts.append("\n# ===== WITHHELD (egress gate) =====")
+        for w in withheld:
+            parts.append(f"# {w['file']}  ({w['rule']})  [{w['role']}]")
 
     slice_text = "\n".join(parts)
     slice_tokens = estimate_tokens(slice_text)
@@ -233,6 +340,11 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         # that stops at the shell boundary and a slice with no neighbors at all
         # look identical from the outside, and only one of them is complete.
         "shell_boundary_stops": shell_stops,
+        # Files that carried secret markers / non-allow-listed egress and were
+        # therefore withheld from the slice. sorted(); each entry names the rule
+        # that fired. Empty list on a clean slice.
+        "withheld": withheld,
+        "withheld_count": len(withheld),
         "slice_tokens": slice_tokens,
         "whole_repo_tokens": whole,
         "reduction_pct": round(100 * (1 - slice_tokens / whole), 1),
