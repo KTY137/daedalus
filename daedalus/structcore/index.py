@@ -19,6 +19,7 @@ import os
 import threading
 from collections import defaultdict
 from pathlib import Path
+from typing import NamedTuple
 
 from .languages import LanguageSpec, spec_for
 from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
@@ -62,6 +63,196 @@ def _collect(root: Path, max_files: int) -> list[tuple[Path, str, LanguageSpec]]
 def _py_dotted(rel: str) -> str:
     stem = rel[:-3] if rel.endswith(".py") else rel.rsplit(".", 1)[0]
     return stem.replace("/", ".")
+
+
+# A ``.pyi`` is a type stub DECLARING the module its ``.py`` sibling defines --
+# not a second module. Both strip to one dotted name, which is why the naming
+# table has to say which file that name binds to.
+_STUB_SUFFIXES = (".pyi",)
+
+
+def _disambiguate(rels: list[str]) -> str | None:
+    """Which file a dotted name binds to, or None when that cannot be known.
+
+    Order-independent by construction: the answer is a function of the SET of
+    candidates, never of the order they were walked in. The previous
+    ``{_py_dotted(rel): rel for ...}`` dict comprehension was a last-writer-wins
+    race decided by ``os.walk`` -- measured at 141 live collisions on
+    project_tct, every one a .py/.pyi pair, and it bound the name to the STUB.
+
+    Two rules, in order:
+      1. A stub is not a rival. If exactly one candidate is real source, the
+         name is that module and the stub is its declaration. This is a
+         precedence rule about what a ``.pyi`` MEANS, not a tie-break.
+      2. Otherwise refuse. Two genuine modules claiming one dotted name is a
+         real ambiguity, and a wrong edge lies about what depends on what --
+         strictly worse than a missing one. Callers report the refusal with
+         counts rather than binding to whichever file sorted first.
+    """
+    if len(rels) == 1:
+        return rels[0]
+    real = [r for r in rels if not r.endswith(_STUB_SUFFIXES)]
+    if len(real) == 1:
+        return real[0]
+    return None
+
+
+class _View(NamedTuple):
+    """One importer's-eye view of the Python dotted namespace.
+
+    ``canon`` maps an accepted ALTERNATE spelling to the file's single
+    canonical dotted name, so a target resolved via an alias still lands on one
+    identity in ``dep_edges``/``fan_in``.
+    """
+
+    tops: set[str]                  # eligibility gate (parse.py membership test)
+    known: set[str]                 # every name resolvable from here
+    rel_by_dotted: dict[str, str]   # canonical name -> file, when unambiguous
+    canon: dict[str, str]           # alias spelling -> canonical name
+
+
+class _PyNaming:
+    """Python dotted-name tables, resolved from the IMPORTER's point of view.
+
+    A declared ``center`` means "this subtree IS the project", so it is also the
+    PACKAGE ROOT: ``TCT_app/controller/danger_gate.py`` is run with ``TCT_app``
+    on ``sys.path`` and its siblings therefore write ``from controller.
+    danger_gate import ...``. Naming it ``TCT_app.controller.danger_gate`` (the
+    repo-root form) matched nothing, and ``resolve_python_imports`` dropped the
+    edge before it ever reached the ``known`` lookup. 87% of project_tct's map
+    was isolated for this one reason.
+
+    WHY VIEWS, AND NOT ONE WIDER GLOBAL TABLE
+    -----------------------------------------
+    The obvious fix -- strip the prefix and let ``internal_tops`` grow -- is
+    unsafe, and the danger is on the *other* side of the membership test.
+    ``internal_tops`` is the eligibility gate, and two of its three uses in
+    ``parse.py`` (the plain ``import x`` branch, and the fallback) admit a name
+    with NO ``known`` check at all. Stripping ``TCT_app/`` globally would inject
+    ``controller``, ``devices``, ``gui``, ``data`` -- generic names that collide
+    with real PyPI and vendored packages -- into a table consulted by every file
+    in the repo. project_tct carries 8516 shell import records today that are
+    inert only because no shell file's top segment can equal ``TCT_app``; widen
+    the global table and any vendored file writing ``import data`` becomes
+    eligible to bind onto a center file. That would manufacture false edges,
+    which is the one outcome worse than the missing ones we are fixing.
+
+    So the table is selected by the importer:
+
+      * a file under center C sees C's files by their PACKAGE-RELATIVE name,
+        and everything else in the repo by its repo-root name;
+      * a file under no center sees the repo-root table, unchanged, which is
+        byte-for-byte what every file saw before this change.
+
+    Shell eligibility therefore cannot move, and a repo with no center declared
+    gets exactly one view that is identical to the old global one.
+
+    A view strips only its OWN center, which dissolves the multi-center
+    collision case rather than having to arbitrate it: with ``center=["a","b"]``
+    both containing ``controller/``, inside a's view ``controller.x`` is a's
+    file and b's is still ``b.controller.x`` -- which is exactly what the
+    runtime does, since ``a`` runs with ``a`` on sys.path and not ``b``. The
+    collision that stripping DOES create is against the shell: a center file
+    whose stripped name matches a repo-root module (``a/controller/x.py`` vs
+    ``controller/x.py``). That one is a genuine ambiguity and is refused, not
+    guessed -- see ``_disambiguate``.
+
+    ONE IDENTITY, TWO SPELLINGS
+    ---------------------------
+    A center can sit at either of two places in a real layout, and the config
+    cannot tell us which:
+
+      * the center IS the sys.path root (project_tct: ``TCT_app`` is the cwd,
+        so its files write ``from controller.danger_gate import ...``);
+      * the center is a PACKAGE on the parent path (the repo root is on
+        sys.path, so its files write ``from TCT_app import core``).
+
+    Both spellings name the same file, so accepting both is not a guess and
+    costs no precision. What we refuse is two IDENTITIES for one file: the
+    repo-root spelling is registered as an ALIAS in this view's lookup tables,
+    and every resolved target is canonicalised back to the package-relative
+    name before it reaches ``dep_edges``. So ``fan_in`` -- accumulated over
+    ``dep_edges`` keys -- still counts each file exactly once, and the top
+    fan-in table cannot shift for a bookkeeping reason.
+
+    The alias lives ONLY in its own center's view, and it is that center's own
+    path prefix, so it cannot widen what a shell file is eligible to bind. An
+    alias also never displaces a real module: if some file genuinely owns that
+    spelling in this view, the alias is dropped.
+    """
+
+    def __init__(self, py_rels: list[str], scope):
+        self._rels = sorted(py_rels)
+        # Ownership decides naming; ``center_of`` returns None when no center is
+        # declared, so an unconfigured repo takes the repo-root path everywhere
+        # by construction rather than by luck. Longest-prefix wins there.
+        self._owner = {rel: scope.center_of(rel) for rel in self._rels}
+        self._name = {}
+        for rel in self._rels:
+            c = self._owner[rel]
+            self._name[rel] = _py_dotted(rel[len(c) + 1:] if c else rel)
+
+        # EAGER, over a sorted key list. Building views lazily on first use
+        # would make ``ambiguous`` depend on which files happened to be visited,
+        # so the reported ambiguity set -- and therefore the index -- would vary
+        # with walk order. There are at most len(center)+1 views.
+        self._ambiguous: dict[str, list[str]] = {}
+        self._views: dict[str | None, tuple] = {}
+        for key in [None, *sorted(scope.center)]:
+            self._views[key] = self._build(key)
+
+    def _build(self, key: str | None) -> "_View":
+        by_name: dict[str, list[str]] = defaultdict(list)
+        aliases: list[tuple[str, str]] = []
+        for rel in self._rels:  # already sorted -> candidate lists are sorted
+            stripped = key is not None and self._owner[rel] == key
+            canon = self._name[rel] if stripped else _py_dotted(rel)
+            by_name[canon].append(rel)
+            if stripped and _py_dotted(rel) != canon:
+                aliases.append((_py_dotted(rel), canon))
+
+        rel_by_dotted: dict[str, str] = {}
+        for name in sorted(by_name):
+            pick = _disambiguate(by_name[name])
+            if pick is not None:
+                rel_by_dotted[name] = pick
+            else:
+                # The NAME-level edge stays true and is kept in ``known``: the
+                # importer really does depend on that module. Only the
+                # FILE-level binding is withheld, because which file it is is
+                # exactly what we cannot honestly say.
+                self._ambiguous.setdefault(name, list(by_name[name]))
+
+        # Sorted, and never over a name a real module already owns in this view.
+        canon: dict[str, str] = {}
+        for spelling, target in sorted(aliases):
+            if spelling not in by_name:
+                canon[spelling] = target
+
+        known = set(by_name) | set(canon)
+        return _View(tops={n.split(".")[0] for n in known}, known=known,
+                     rel_by_dotted=rel_by_dotted, canon=canon)
+
+    def name(self, rel: str) -> str:
+        """The dotted module name THIS file is published under."""
+        return self._name[rel]
+
+    def tables_for(self, rel: str) -> _View:
+        """The dotted namespace as THIS importer sees it."""
+        return self._views[self._owner[rel]]
+
+    def describe(self) -> dict:
+        """Ambiguity report. Never silent: a name we refused to bind is a
+        dependency the map is NOT showing, and an unreported one is
+        indistinguishable from a file that genuinely has no dependents."""
+        names = sorted(self._ambiguous)
+        return {
+            "ambiguous_count": len(names),
+            "ambiguous_sample": [
+                {"dotted": n, "candidates": self._ambiguous[n][:4]} for n in names[:25]
+            ],
+            "truncated": len(names) > 25,
+        }
 
 
 # Below this many cache-missing files a process pool stops paying for itself:
@@ -188,9 +379,11 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     ignored: frozenset[str] = frozenset(
         rel for rel, _, _ in records if scope.is_shell(rel))
 
-    known = {_py_dotted(rel) for rel, spec, _ in records if spec.name == "python"}
-    internal_tops = {d.split(".")[0] for d in known}
-    rel_by_dotted = {_py_dotted(rel): rel for rel, spec, _ in records if spec.name == "python"}
+    # Python dotted-name tables, per importer. A center root is also a PACKAGE
+    # root, so files under it are named relative to it; everything else keeps
+    # repo-root naming. See ``_PyNaming`` for why this is not one global table.
+    py_naming = _PyNaming(
+        [rel for rel, spec, _ in records if spec.name == "python"], scope)
 
     # File-set indexes for best-effort non-Python import resolution (Move 2).
     known_files = {rel for rel, _, _ in records}
@@ -240,12 +433,20 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
             lang_summary[spec.name]["files"] += 1
             lang_summary[spec.name]["loc"] += a.loc
         if spec.name == "python":
-            # Python resolution stays exactly as-is (precise, relative-aware).
-            src_mod = _py_dotted(rel)
-            for tgt in resolve_python_imports(a.py_imports, internal_tops, known, src_mod):
+            # Python resolution: precise, relative-aware, and resolved against
+            # the tables THIS file's own package root implies -- a center file
+            # against its center-relative view, a shell file against the
+            # unchanged repo-root view.
+            src_mod = py_naming.name(rel)
+            view = py_naming.tables_for(rel)
+            for raw_tgt in resolve_python_imports(
+                    a.py_imports, view.tops, view.known, src_mod):
+                # Fold an alias spelling onto the file's ONE canonical name
+                # before it becomes an edge, so fan_in never counts a file twice.
+                tgt = view.canon.get(raw_tgt, raw_tgt)
                 if tgt != src_mod:
                     dep_edges[src_mod].add(tgt)
-                    tgt_rel = rel_by_dotted.get(tgt)
+                    tgt_rel = view.rel_by_dotted.get(tgt)
                     if tgt_rel and tgt_rel != rel:
                         import_targets_by_rel[rel].add(tgt_rel)
         else:
@@ -303,7 +504,24 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     churn = git_churn(root)
     scored = score_modules(modules, churn)
 
+    # ADDITIVE AND GATED. An unconfigured repo with nothing to report must
+    # produce a byte-identical index to before this change, so the key is
+    # present only when there is something to say: a center is declared (naming
+    # is center-relative and a reader deserves to know), or a name was refused a
+    # binding (a withheld dependency, which must never be silent). A no-center
+    # repo with no collisions -- the case every unconfigured repo is in -- gets
+    # the dict it always got.
+    naming_report = py_naming.describe()
+    extra: dict = {}
+    if scope.center or naming_report["ambiguous_count"]:
+        extra["python_naming"] = {
+            "mode": "center-relative" if scope.center else "repo-root",
+            "package_roots": list(scope.center),
+            **naming_report,
+        }
+
     return {
+        **extra,
         "root": str(root),
         "backend": backend_status(),
         "n_files": len(records) - len(ignored),

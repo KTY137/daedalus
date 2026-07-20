@@ -39,6 +39,19 @@ from pathlib import Path
 
 IGNORE_FILENAME = ".daedalusignore"
 
+# BUMP THIS whenever the scope changes what an index CONTAINS rather than which
+# files it covers. The scope fingerprint is the index cache key, and it is built
+# only from the center list and the ignore patterns -- so a change to the
+# *interpretation* of an unchanged center (v2: Python dotted names became
+# package-relative for files under a center root) leaves the key identical and
+# every warm cache, in-process and on disk, keeps serving the OLD graph. That
+# presents as "the fix did nothing", survives until the next restart, and is
+# exactly the kind of bug that costs an afternoon.
+#
+# Unscoped repos are unaffected: ``index._scope_key`` gives them a bare path key
+# that never consults this fingerprint, so their cache is not invalidated.
+SCOPE_ALGO_SALT = "pynames=center-relative/v2"
+
 
 @dataclass(frozen=True)
 class _Rule:
@@ -180,12 +193,38 @@ class ProjectScope:
 
     @property
     def fingerprint(self) -> str:
-        return _fingerprint("|".join(self.center) + "#" + self.ignore.fingerprint)
+        return _fingerprint(
+            SCOPE_ALGO_SALT + "#" + "|".join(self.center) + "#" + self.ignore.fingerprint)
 
     def in_center(self, rel: str) -> bool:
         if not self.center:
             return True
         return any(rel == c or rel.startswith(c + "/") for c in self.center)
+
+    def center_of(self, rel: str) -> str | None:
+        """Which center root OWNS ``rel``, or None when no center claims it.
+
+        NOT expressible as ``in_center``: that returns True for every path when
+        no center is declared (the whole repo is the core), which is right for
+        metric decisions and actively wrong for naming ones. A caller written as
+        ``if scope.in_center(rel): strip_prefix(rel)`` would read as "strip
+        everything" on an unconfigured repo and only no-op by accident. This
+        returns None there, so "no center -> no package root -> no stripping"
+        falls out structurally instead of coincidentally.
+
+        LONGEST MATCH WINS, not first-sorted. With ``center=["a", "a/b"]`` the
+        file ``a/b/c.py`` lives in the *inner* package root, so its package-
+        relative name is ``c`` and not ``b.c``. Ties are impossible: two centers
+        that both match and have equal length are the same string, and
+        ``_norm_center`` already de-duplicated. Sorted before the length sort so
+        the iteration order is total and never depends on config ordering.
+        """
+        best: str | None = None
+        for c in sorted(self.center):
+            if rel == c or rel.startswith(c + "/"):
+                if best is None or len(c) > len(best):
+                    best = c
+        return best
 
     def is_shell(self, rel: str) -> bool:
         """True when ``rel`` is indexed-but-peripheral: outside the declared
