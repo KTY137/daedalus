@@ -23,7 +23,7 @@ from pathlib import Path
 from .languages import LanguageSpec, spec_for
 from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
 from .metrics import lizard_available
-from .clones import (TYPE3_EXCLUDED_LANGUAGES, unit_clusters,
+from .clones import (TYPE3_EXCLUDED_LANGUAGES, CloneMemo, unit_clusters,
                      window_clusters_from_runs, renamed_clusters, near_clusters)
 from .perfile import FileAnalysis, analyze_chunk, analyze_file
 from .cache import FileCache, file_key
@@ -274,9 +274,17 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         for t in targets:
             fan_in[t] += 1
 
-    unit_cl = unit_clusters(all_units, spec_by_lang, root)
-    renamed_cl = renamed_clusters(all_units, spec_by_lang, root)
-    near_cl = near_clusters(all_units, spec_by_lang, root)
+    # ONE memo shared by all three passes. They are independent functions over
+    # the SAME unit list and each re-derived what a previous one had already
+    # computed: unit_clusters computes the exact fingerprint, renamed_clusters
+    # computed it again plus the abstract one, and near_clusters derived the
+    # abstract one a third time. Normalization and abstraction are the two most
+    # expensive operations in the scan. Scoped to this call and dropped with it
+    # -- a module-level cache would leak across scans.
+    memo = CloneMemo(spec_by_lang)
+    unit_cl = unit_clusters(all_units, spec_by_lang, root, memo=memo)
+    renamed_cl = renamed_clusters(all_units, spec_by_lang, root, memo=memo)
+    near_cl = near_clusters(all_units, spec_by_lang, root, memo=memo)
     window_cl = window_clusters_from_runs(runs_by_file, root=root)
 
     # Stash the derived symbol resolver so consumers (slice.py) can sharpen call

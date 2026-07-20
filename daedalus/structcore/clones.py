@@ -268,8 +268,21 @@ def abstract_normalize(source: str, spec: LanguageSpec | None) -> str:
     return " ".join(_abstract_tokens(source, spec))
 
 
+def _fingerprint_of_tokens(tokens: list[str]) -> str:
+    """The Type-2 fingerprint, computed from an ALREADY-abstracted token list.
+
+    Exists so a caller that needs both the token bag and the fingerprint for the
+    same unit can abstract once and derive both, instead of tokenizing the same
+    string twice (see ``near_clusters``). ``abstract_fingerprint`` delegates here
+    so there is exactly ONE definition of the fingerprint -- deriving it in two
+    places would let the near-miss pass and the renamed pass silently disagree
+    about what a Type-2 match is.
+    """
+    return hashlib.sha1(" ".join(tokens).encode("utf-8")).hexdigest()[:12]
+
+
 def abstract_fingerprint(source: str, spec: LanguageSpec | None) -> str:
-    return hashlib.sha1(abstract_normalize(source, spec).encode("utf-8")).hexdigest()[:12]
+    return _fingerprint_of_tokens(_abstract_tokens(source, spec))
 
 
 def token_bag(source: str, spec: LanguageSpec | None) -> Counter:
@@ -279,17 +292,80 @@ def token_bag(source: str, spec: LanguageSpec | None) -> Counter:
     return Counter(_abstract_tokens(source, spec))
 
 
+class CloneMemo:
+    """Per-unit derived fingerprints, computed once and shared by all three
+    clone passes.
+
+    WHY: the passes are independent functions over the SAME unit list, and each
+    re-derived what a previous one had already computed. ``unit_clusters``
+    computes the exact fingerprint; ``renamed_clusters`` computed that exact
+    fingerprint AGAIN (it needs it to exclude pure Type-1 clusters) plus the
+    abstract one; ``near_clusters`` then derived the abstract one a third time.
+    Normalization and abstraction are the two most expensive operations in the
+    scan, so this was the dominant redundancy.
+
+    ONLY the two 12-char fingerprints are cached, never the token lists. The
+    lists are the memory-heavy part -- ``all_units`` already retains full source
+    text at ~22.5x source bytes -- and they are needed only *within*
+    ``near_clusters``, which derives its bag and its fingerprint from a single
+    tokenization.
+
+    Each entry holds a reference to its unit alongside the value, so an ``id()``
+    key can never be recycled onto a different object while the memo is alive.
+    Scope one memo to one ``build_index`` call and drop it after: a module-level
+    cache would leak across scans.
+    """
+
+    __slots__ = ("_spec_by_lang", "_exact", "_abstract")
+
+    def __init__(self, spec_by_lang: dict):
+        self._spec_by_lang = spec_by_lang
+        self._exact: dict[int, tuple] = {}
+        self._abstract: dict[int, tuple] = {}
+
+    def _spec(self, u: CodeUnit) -> LanguageSpec | None:
+        return self._spec_by_lang.get(u.language)
+
+    def exact_fp(self, u: CodeUnit) -> str:
+        hit = self._exact.get(id(u))
+        if hit is None:
+            hit = (u, fingerprint(u.source, self._spec(u)))
+            self._exact[id(u)] = hit
+        return hit[1]
+
+    def abstract_fp(self, u: CodeUnit) -> str:
+        hit = self._abstract.get(id(u))
+        if hit is None:
+            hit = (u, abstract_fingerprint(u.source, self._spec(u)))
+            self._abstract[id(u)] = hit
+        return hit[1]
+
+    def put_abstract_fp(self, u: CodeUnit, fp: str) -> None:
+        """Donate a fingerprint derived from tokens the caller already had.
+
+        ``near_clusters`` must tokenize anyway to build its bag, so it gets the
+        abstract fingerprint for free and hands it back rather than leaving a
+        later pass to re-abstract the same source.
+        """
+        if id(u) not in self._abstract:
+            self._abstract[id(u)] = (u, fp)
+
+
+
 # --------------------------------------------------------------------------- #
 # Unit-level clusters (precise)                                                 #
 # --------------------------------------------------------------------------- #
 def unit_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
-                  min_loc: int = 4) -> list[dict]:
+                  min_loc: int = 4, memo: "CloneMemo | None" = None) -> list[dict]:
+    # memo=None keeps every standalone caller (tests, the CLI, a single pass
+    # called on its own) working exactly as before -- it just gets a private
+    # memo instead of a shared one.
+    memo = memo or CloneMemo(spec_by_lang)
     by_print: dict[str, list[CodeUnit]] = defaultdict(list)
     for u in units:
         if u.loc < min_loc:
             continue
-        fp = fingerprint(u.source, spec_by_lang.get(u.language))
-        by_print[fp].append(u)
+        by_print[memo.exact_fp(u)].append(u)
 
     clusters = []
     for fp, group in by_print.items():
@@ -389,20 +465,22 @@ def window_clusters(files: list[tuple[str, str, LanguageSpec | None]],
 # Renamed clusters (Type-2, precise) — same structure, different names          #
 # --------------------------------------------------------------------------- #
 def renamed_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
-                     min_loc: int = 4) -> list[dict]:
+                     min_loc: int = 4, memo: "CloneMemo | None" = None) -> list[dict]:
     """Clusters of units that share an ABSTRACT fingerprint (identical up to
     renamed identifiers/literals) but are NOT already byte-identical exact
     clones. We exclude clusters explained entirely by exact cloning (all members
     share one exact fingerprint) so this reports *renamed-but-not-identical*
     only — the genuine Type-2 signal, additive to ``unit_clusters``."""
+    memo = memo or CloneMemo(spec_by_lang)
     by_abstract: dict[str, list[CodeUnit]] = defaultdict(list)
     exact_of: dict[int, str] = {}
     for u in units:
         if u.loc < min_loc:
             continue
-        spec = spec_by_lang.get(u.language)
-        by_abstract[abstract_fingerprint(u.source, spec)].append(u)
-        exact_of[id(u)] = fingerprint(u.source, spec)
+        by_abstract[memo.abstract_fp(u)].append(u)
+        # This recomputed the exact fingerprint that unit_clusters had ALREADY
+        # computed for the same unit -- one full normalize per unit, wasted.
+        exact_of[id(u)] = memo.exact_fp(u)
 
     clusters = []
     for afp, group in by_abstract.items():
@@ -486,7 +564,8 @@ def _candidate_pairs(rare: list[set], n: int, per_unit_cap: int,
 def near_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
                   min_loc: int = 6, threshold: float = 0.8,
                   min_shared_rare: int = 4, max_cluster: int = 30,
-                  per_unit_cap: int = 200, pair_cap: int = 400_000) -> list[dict]:
+                  per_unit_cap: int = 200, pair_cap: int = 400_000,
+                  memo: "CloneMemo | None" = None) -> list[dict]:
     """Advisory Type-3 (near-miss) clusters: units whose abstracted token bags
     overlap >= ``threshold`` but are NOT identical (exact/renamed cover those).
 
@@ -504,6 +583,7 @@ def near_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
     single-token matches don't chain); (3) a cluster stops growing past
     ``max_cluster`` members. All three are bounds, not correctness — a Rust port
     must mirror them to reproduce the output."""
+    memo = memo or CloneMemo(spec_by_lang)
     pool = [u for u in units if u.loc >= min_loc and u.name != _ANON
             and u.language not in TYPE3_EXCLUDED_LANGUAGES]
     bags: list[Counter] = []
@@ -511,12 +591,23 @@ def near_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
     keep: list[CodeUnit] = []
     for u in pool:
         spec = spec_by_lang.get(u.language)
-        bag = token_bag(u.source, spec)
+        # Abstract ONCE and derive both. token_bag() and abstract_fingerprint()
+        # each call _abstract_tokens() internally, so calling both here tokenized
+        # the same source twice per unit -- the single largest piece of redundant
+        # work in the clone passes. Output is unchanged by construction: the bag
+        # is the same Counter and the fingerprint comes from the same helper.
+        tokens = _abstract_tokens(u.source, spec)
+        bag = Counter(tokens)
         if sum(bag.values()) < _MIN_BAG:  # too few tokens to judge similarity
             continue
         keep.append(u)
         bags.append(bag)
-        afps.append(abstract_fingerprint(u.source, spec))
+        afp = _fingerprint_of_tokens(tokens)
+        afps.append(afp)
+        # We tokenized for the bag anyway, so the abstract fingerprint was free
+        # here -- donate it so renamed_clusters need not re-abstract the same
+        # source. Whichever pass runs first pays; the other rides along.
+        memo.put_abstract_fp(u, afp)
     n = len(keep)
     if n < 2:
         return []
