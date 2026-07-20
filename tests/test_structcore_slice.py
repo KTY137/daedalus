@@ -81,5 +81,119 @@ class SliceTest(unittest.TestCase):
         self.assertEqual(res["focus_file"], "proj/core.py")
 
 
+C_UTIL_H = "int util_add(int a, int b);\nint util_sub(int a, int b);\n"
+C_UTIL_C = '#include "util.h"\n\nint util_add(int a, int b) { return a + b; }\n' \
+           "int util_sub(int a, int b) { return a - b; }\n"
+C_MAIN_C = '#include "util.h"\n\nint main(void) { return util_add(1, 2); }\n'
+C_HELPER_C = '#include "util.h"\n\nint helper(void) { return util_sub(9, 4); }\n'
+
+
+class NonPythonSliceTest(unittest.TestCase):
+    """S2: the neighborhood used to be computed from the python-only dotted
+    module map, so a C/C++/QML/TS target expanded to NOTHING and the slice
+    silently degraded to the focus file -- while ``import_edges`` held the
+    correct rel->rel edges for every language the whole time."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(self.root, "src/util.h", C_UTIL_H)
+        _write(self.root, "src/util.c", C_UTIL_C)
+        _write(self.root, "src/main.c", C_MAIN_C)
+        _write(self.root, "src/helper.c", C_HELPER_C)
+        self.idx = build_index(self.root)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_c_neighborhood_expands_callers(self):
+        res = semantic_slice(self.root, "src/util.h", idx=self.idx)
+        callers = {i["file"] for i in res["included"] if i["role"] == "caller"}
+        self.assertEqual(callers, {"src/util.c", "src/main.c", "src/helper.c"})
+        self.assertEqual(res["n_included"], 4)
+
+    def test_c_neighborhood_expands_dependencies(self):
+        res = semantic_slice(self.root, "src/main.c", idx=self.idx)
+        deps = {i["file"] for i in res["included"] if i["role"] == "dependency"}
+        self.assertEqual(deps, {"src/util.h"})
+
+    def test_no_shell_stops_when_no_shell(self):
+        res = semantic_slice(self.root, "src/util.h", idx=self.idx)
+        self.assertEqual(res["shell_boundary_stops"], 0)
+
+    def test_slice_is_byte_identical_across_hashseed(self):
+        """The caller set is a set; if any iteration reaching output skipped
+        sorted(), PYTHONHASHSEED would reorder the slice text."""
+        import json
+        import os
+        import subprocess
+        import sys
+
+        prog = (
+            "import json,sys\n"
+            "from daedalus.structcore.slice import semantic_slice\n"
+            "out = {}\n"
+            "for t in ('src/util.h', 'src/main.c'):\n"
+            "    r = semantic_slice(sys.argv[1], t)\n"
+            "    out[t] = {'t': r['slice_text'],\n"
+            "              'f': [i['file'] for i in r['included']]}\n"
+            "print(json.dumps(out))\n"
+        )
+        outs = []
+        for seed in ("0", "1", "12345", "99991"):
+            env = dict(os.environ, PYTHONHASHSEED=seed)
+            p = subprocess.run([sys.executable, "-c", prog, str(self.root)],
+                               capture_output=True, text=True, env=env,
+                               cwd=str(Path(__file__).resolve().parent.parent))
+            self.assertEqual(p.returncode, 0, p.stderr)
+            outs.append(json.loads(p.stdout.strip().splitlines()[-1]))
+        for other in outs[1:]:
+            self.assertEqual(outs[0], other, "slice output varies with PYTHONHASHSEED")
+
+
+class SliceDeterminismTest(unittest.TestCase):
+    """graph.callees iterates ``identifiers()``, which is a SET, and that order
+    reaches the CALLEES block of slice_text. Iterating it raw made symbol-level
+    slices differ run-to-run. Pre-existing; caught while diffing S2."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(self.root, "pkg/__init__.py", "")
+        _write(self.root, "pkg/core.py", "def helper(x):\n    return x * 2\n")
+        _write(self.root, "pkg/util.py", "def fmt(v):\n    return str(v)\n")
+        _write(self.root, "pkg/app.py",
+               "from pkg import core\nfrom pkg.util import fmt\n\n\n"
+               "def main():\n    return fmt(core.helper(21))\n")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_symbol_slice_callee_order_stable_across_hashseed(self):
+        import json
+        import os
+        import subprocess
+        import sys
+
+        prog = (
+            "import json,sys\n"
+            "from daedalus.structcore.slice import semantic_slice\n"
+            "r = semantic_slice(sys.argv[1], 'pkg/app.py::main')\n"
+            "print(json.dumps([i['file'] for i in r['included']]))\n"
+        )
+        seen = []
+        for seed in ("0", "1", "12345", "99991"):
+            env = dict(os.environ, PYTHONHASHSEED=seed)
+            p = subprocess.run([sys.executable, "-c", prog, str(self.root)],
+                               capture_output=True, text=True, env=env,
+                               cwd=str(Path(__file__).resolve().parent.parent))
+            self.assertEqual(p.returncode, 0, p.stderr)
+            seen.append(json.loads(p.stdout.strip().splitlines()[-1]))
+        # both callees must be present -- order fixed, nothing dropped
+        self.assertEqual(set(seen[0]), {"pkg/app.py", "pkg/core.py", "pkg/util.py"})
+        for other in seen[1:]:
+            self.assertEqual(seen[0], other, "callee order varies with PYTHONHASHSEED")
+
+
 if __name__ == "__main__":
     unittest.main()

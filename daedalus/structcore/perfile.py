@@ -29,7 +29,7 @@ from . import imports as imports_mod
 # unit extraction, changed window hashing). It is part of the disk-cache key, so
 # bumping it invalidates every cached entry. A stale cache reporting wrong code
 # health is far worse than a slow scan -- when in doubt, bump.
-ANALYSIS_VERSION = "1"
+ANALYSIS_VERSION = "2"
 
 
 @dataclass

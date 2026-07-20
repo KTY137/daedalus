@@ -249,6 +249,32 @@ class IgnoreIndexTests(unittest.TestCase):
         files = {inc["file"] for inc in sl["included"]}
         self.assertNotIn("reference/vendored.py", files,
                          "slice expanded through the shell boundary")
+        # The drop is now REPORTED, not accidental. Before S2 the boundary held
+        # only as a side effect of the lookup being built from ``modules``;
+        # routing expansion through the (shell-inclusive) import_edges makes it
+        # a deliberate test, so it has to say when it fired.
+        self.assertEqual(sl["shell_boundary_stops"], 1)
+
+    def test_slice_does_not_fan_out_into_shell_non_python(self):
+        """Same boundary, C target. S2 opened neighborhood expansion to every
+        language; the shell test must hold there too, not just for Python."""
+        from daedalus.structcore.slice import semantic_slice
+
+        _write(self.root, "TCT_app/app.c", '#include "lib.h"\n\nint go(void) { return 1; }\n')
+        _write(self.root, "reference/lib.h", "int lib_call(int x);\n")
+
+        idx = build_index(self.root, center=["TCT_app"])
+        # The trap, stated as an assertion: the edge IS retained in import_edges
+        # (resolution runs outside the metric guard) while the target is NOT in
+        # modules. Expansion must read the second fact, not the first.
+        self.assertEqual(idx["import_edges"]["TCT_app/app.c"], ["reference/lib.h"])
+        self.assertNotIn("reference/lib.h", idx["modules"])
+
+        sl = semantic_slice(self.root, "TCT_app/app.c", idx=idx)
+        files = {inc["file"] for inc in sl["included"]}
+        self.assertNotIn("reference/lib.h", files,
+                         "C slice expanded through the shell boundary")
+        self.assertEqual(sl["shell_boundary_stops"], 1)
 
     def test_tests_preset_excludes_test_files_from_metrics(self):
         """'ignore tests for our struc map' -- tests are code, but not targets."""

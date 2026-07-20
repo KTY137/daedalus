@@ -67,7 +67,21 @@ class SymbolResolver:
       precise via ``python_imports``; other languages best-effort via Move 2).
     """
     defs_by_file: dict[str, dict[str, CodeUnit]] = field(default_factory=dict)
-    imports_by_file: dict[str, set[str]] = field(default_factory=dict)
+    imports_by_file: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # SORTED TUPLES, not sets. ``resolve`` returns the FIRST import that
+        # defines a name, so when two imported modules both define it, WHICH
+        # unit is returned is decided by iteration order -- and over a set of
+        # rel-path strings that order is a function of PYTHONHASHSEED. The
+        # chosen unit reaches the CALLEES block of ``slice_text``, so the
+        # distilled slice was not byte-identical across processes (measured:
+        # 3 distinct slice hashes over 5 seeds on a 6-module fixture).
+        # Normalising HERE rather than in ``build_resolver`` means every
+        # construction path is deterministic, including hand-built resolvers.
+        # Same candidates, now a total order; ties break on rel path.
+        self.imports_by_file = {
+            k: tuple(sorted(v)) for k, v in self.imports_by_file.items()}
 
     def resolve(self, name: str, from_file: str) -> CodeUnit | None:
         """Best unit for ``name`` referenced from ``from_file``: same-file def,
@@ -91,8 +105,9 @@ def build_resolver(units: list[CodeUnit],
     for u in units:
         bucket = defs_by_file.setdefault(u.module, {})
         bucket.setdefault(u.name, u)  # first definition wins
+    # ``SymbolResolver.__post_init__`` normalises these to sorted tuples.
     return SymbolResolver(defs_by_file=defs_by_file,
-                          imports_by_file={k: set(v) for k, v in imports_by_file.items()})
+                          imports_by_file=dict(imports_by_file))
 
 
 def _dedup(units: list[CodeUnit]) -> list[CodeUnit]:
@@ -126,7 +141,12 @@ def callees(focus: CodeUnit, candidates: list[CodeUnit],
         by_name.setdefault(u.name, []).append(u)
 
     hits: list[CodeUnit] = []
-    for name in used:
+    # SORTED, not raw set order. ``identifiers`` returns a set, and this loop's
+    # order survives into ``hits`` -> the CALLEES block of slice_text and the
+    # ``included`` list, so iterating it directly made the distilled slice
+    # depend on PYTHONHASHSEED: the same target emitted the same callees in a
+    # different order on every process. Same hits, now a total order.
+    for name in sorted(used):
         if name == focus.name:
             continue
         resolved = resolver.resolve(name, focus.module)

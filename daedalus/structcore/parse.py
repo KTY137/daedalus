@@ -136,14 +136,86 @@ def _tree_sitter_units(module: str, text: str, spec: LanguageSpec) -> list[CodeU
     return units
 
 
+_ANON = "<anonymous>"
+
+# C/C++ hide the function name where no other grammar puts it. There is no
+# ``name`` field on ``function_definition``; the name sits at the bottom of a
+# ``declarator`` chain:
+#
+#     int add(int a, int b) {}   fn_def -declarator-> function_declarator
+#                                       -declarator-> identifier "add"
+#
+# and the chain can be arbitrarily long, because pointer/reference/array
+# returns each interpose a wrapper (``void *bar()`` adds pointer_declarator).
+# Meanwhile the RETURN TYPE is a plain ``type_identifier`` sitting as a direct
+# child of the same node -- which is why the generic direct-children scan below
+# used to return "MyType" for "MyType foo(void)". That is worse than no name:
+# every function returning MyType collides on one identifier, and unlike
+# "<anonymous>" a fabricated name is NOT filtered out of the clone passes.
+# Hence: once a ``declarator`` field exists, its chain is authoritative and we
+# never fall through to the scan.
+_DECL_WRAPPERS = ("function_declarator", "pointer_declarator",
+                  "reference_declarator", "array_declarator")
+_DECL_NAME_TYPES = ("identifier", "field_identifier", "qualified_identifier",
+                    "destructor_name", "operator_name", "template_function")
+
+
+def _decl_text(node, data: bytes) -> str:
+    """Name text for one resolved declarator node.
+
+    ``operator bool()`` is the one shape whose name node spans more than the
+    name: the grammar's ``operator_cast`` covers the parameter list and cv
+    qualifiers too, so slicing it whole yields "operator bool() const". Cut at
+    the end of its ``type`` field instead -> "operator bool" (and, when it is
+    wrapped in a qualified_identifier, "Foo::operator bool").
+    """
+    cast = node if node.type == "operator_cast" else node.child_by_field_name("name")
+    if cast is not None and cast.type == "operator_cast":
+        ty = cast.child_by_field_name("type")
+        if ty is not None:
+            return data[node.start_byte:ty.end_byte].decode("utf-8", errors="replace")
+    return data[node.start_byte:node.end_byte].decode("utf-8", errors="replace")
+
+
+def _declarator_name(node, data: bytes) -> str:
+    """Walk a C/C++ declarator chain down to the name, or give up honestly.
+
+    The depth bound is a guard against a malformed/adversarial tree, not an
+    expected limit -- real declarator chains are two or three links.
+    """
+    for _ in range(16):
+        if node is None:
+            return _ANON
+        if node.type == "operator_cast" or node.type in _DECL_NAME_TYPES:
+            return _decl_text(node, data)
+        # A function returning a function pointer -- "int (*get_handler(int))(void)"
+        # -- nests a SECOND function_declarator inside parentheses, and which of
+        # the two is "the function being defined" is genuinely ambiguous. Guessing
+        # here would fabricate a name, so under-report instead.
+        if node.type == "parenthesized_declarator":
+            return _ANON
+        if node.type not in _DECL_WRAPPERS:
+            return _ANON
+        nxt = node.child_by_field_name("declarator")
+        if nxt is None:
+            # reference_declarator ("std::string& Cfg::name()") carries its inner
+            # declarator as an unnamed child rather than a labelled field.
+            nxt = next((c for c in node.children if c.is_named), None)
+        node = nxt
+    return _ANON
+
+
 def _ts_name(node, data: bytes) -> str:
     field = node.child_by_field_name("name")
     if field is not None:
         return data[field.start_byte:field.end_byte].decode("utf-8", errors="replace")
+    decl = node.child_by_field_name("declarator")
+    if decl is not None:
+        return _declarator_name(decl, data)
     for child in node.children:
         if child.type in ("identifier", "field_identifier", "type_identifier"):
             return data[child.start_byte:child.end_byte].decode("utf-8", errors="replace")
-    return "<anonymous>"
+    return _ANON
 
 
 # --------------------------------------------------------------------------- #

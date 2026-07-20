@@ -102,7 +102,12 @@ TASKS: list[dict] = [
         "id": "slice_semantic_slice",
         "repo": "agent_env",
         "target": "daedalus/structcore/slice.py::semantic_slice",
-        "must_include": ["_py_maps", "extract_units", "estimate_tokens"],
+        # Updated when neighborhood expansion moved off the python-only dotted
+        # module map onto idx["import_edges"] (S2): ``_py_maps`` no longer
+        # exists, and its role -- supplying the lookup semantic_slice expands
+        # through -- is now ``_reverse_edges``. Ground truth follows the code;
+        # the symbol is still a real callee, verified against the call graph.
+        "must_include": ["_reverse_edges", "extract_units", "estimate_tokens"],
         "question": "How does semantic_slice compute the whole-repo token count "
                     "it reports the reduction against?",
         "answer_contains": ["total_chars"],

@@ -168,9 +168,16 @@ Shell files are still collected and still parsed. That keeps the dependency grap
 
 ### It also stops slice fan-out
 
-This falls out of the same change rather than needing its own mechanism. `slice._py_maps` builds its lookup
-from `modules`, and shell files are not in `modules`, so they can never become `dep_rels` — the slicer cannot
-expand through the boundary. Covered by `test_slice_does_not_fan_out_into_shell`.
+The slicer tests `modules` membership before expanding an edge, and shell files are not in `modules`, so they
+can never become `dep_rels` — the slicer cannot expand through the boundary.
+
+This used to be *accidental*: neighborhood expansion was built from a python-only dotted-module lookup keyed
+off `modules`, so the boundary held as a side effect of how that lookup was populated. Once expansion moved
+onto `idx["import_edges"]` (which is deliberately shell-**inclusive**, so an edge pointing into vendored code
+still resolves to a real file instead of reading as "external"), the side effect was gone and the test became
+an explicit one. Edges that stop at the boundary are counted and reported as `shell_boundary_stops` on the
+slice result — a slice that stopped at the shell and a slice with no neighbors at all otherwise look
+identical. Covered by `test_slice_does_not_fan_out_into_shell` and its non-Python twin.
 
 ## Exclusion is never silent
 

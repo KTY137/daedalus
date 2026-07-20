@@ -23,8 +23,8 @@ from pathlib import Path
 from .languages import LanguageSpec, spec_for
 from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
 from .metrics import lizard_available
-from .clones import (unit_clusters, window_clusters_from_runs, renamed_clusters,
-                     near_clusters)
+from .clones import (TYPE3_EXCLUDED_LANGUAGES, unit_clusters,
+                     window_clusters_from_runs, renamed_clusters, near_clusters)
 from .perfile import FileAnalysis, analyze_chunk, analyze_file
 from .cache import FileCache, file_key
 from . import imports as imports_mod
@@ -259,6 +259,16 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
                     dep_edges[rel].add(tgt_rel)
                     import_targets_by_rel[rel].add(tgt_rel)
 
+    # Reverse of ``import_targets_by_rel``: who imports ME. Built ONCE here
+    # because it is index-invariant, and ``semantic_slice`` is called in a loop
+    # against a single shared index (eval harness, web API) -- inverting the
+    # forward map inside the slicer would redo the same O(E) scan on every
+    # target. Sorted at both levels below, same as the forward map.
+    import_sources_by_rel: dict[str, set[str]] = defaultdict(set)
+    for src, tgts in import_targets_by_rel.items():
+        for tgt in tgts:
+            import_sources_by_rel[tgt].add(src)
+
     fan_in: dict[str, int] = defaultdict(int)
     for targets in dep_edges.values():
         for t in targets:
@@ -272,7 +282,15 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     # Stash the derived symbol resolver so consumers (slice.py) can sharpen call
     # edges without rebuilding; CodeUnits are not JSON-serializable so it lives
     # in a side cache, never in the returned (serializable) index dict.
-    _RESOLVER_CACHE[str(root)] = graph.build_resolver(all_units, import_targets_by_rel)
+    # Keyed by root + SCOPE, exactly like ``_INDEX_CACHE``. Keying it by root
+    # alone made the two caches disagree: an unscoped build of the same root
+    # overwrote the scoped resolver, and a later scoped slice hit _INDEX_CACHE
+    # (so no rebuild repaired it) and resolved callees against a defs_by_file
+    # that still contained SHELL units -- pulling a vendored body into a slice
+    # the center was supposed to exclude. Reachable from /api/distill, where two
+    # projects can share a repo_root under different centers.
+    _RESOLVER_CACHE[_scope_key(root, scope)] = graph.build_resolver(
+        all_units, import_targets_by_rel)
 
     churn = git_churn(root)
     scored = score_modules(modules, churn)
@@ -302,6 +320,10 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         # rest), so it cannot be joined against ``modules``/``hotspots``. The
         # code map needs one consistent node id, and this is it.
         "import_edges": {m: sorted(t) for m, t in sorted(import_targets_by_rel.items())},
+        # The same edges inverted (rel -> rels that import it). Additive; the
+        # slicer needs caller identities and ``fan_in`` only carries COUNTS.
+        "import_edges_reverse": {
+            m: sorted(s) for m, s in sorted(import_sources_by_rel.items())},
         # Tie-break on the module name. ``fan_in`` is populated by iterating
         # dep_edges' SETS, so its insertion order varies with PYTHONHASHSEED;
         # since sorted() is stable, equal-count entries used to come out in a
@@ -312,7 +334,17 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
             "renamed_clusters": renamed_cl,  # Type-2 (renamed)
             "near_clusters": near_cl,        # Type-3 (near-miss, advisory)
             "window_clusters": window_cl,    # universal, parser-free
+            # Type-3 does not cover every language it parsed. Saying so is not
+            # optional: a caller who sees C files scanned and zero near-clusters
+            # would otherwise read "no near-duplication in C" when the truth is
+            # "C was never asked". Sorted for byte-identical output across runs.
+            "near_excluded_languages": sorted(
+                l for l in TYPE3_EXCLUDED_LANGUAGES if l in lang_summary),
         },
+        # The (root, scope) identity of THIS index. Additive. Lets a consumer
+        # holding only the index dict ask for the resolver built alongside it
+        # (``resolution_context``) instead of guessing at the bare-root key.
+        "scope_key": _scope_key(root, scope),
         "hotspots": scored[:15],
         # Full ranking (same pass as ``hotspots``) so the map can heat-shade
         # every node, not just the top 15.
@@ -324,10 +356,31 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
 _RESOLVER_CACHE: dict[str, "graph.SymbolResolver"] = {}
 
 
-def resolution_context(repo_root) -> "graph.SymbolResolver | None":
-    """The symbol resolver derived for a root by the last ``build_index`` call,
-    or None if that root has not been indexed this process. Lets ``slice.py``
-    reuse Move-4 resolution without recomputing the whole index."""
+def _scope_key(resolved: Path, scope) -> str:
+    """Cache identity of an index: its root, plus the scope when one is declared.
+
+    SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``.
+    They are two views of one build and MUST agree; when they were keyed by
+    different expressions they drifted apart and a scoped index was served with
+    an unscoped resolver. An unscoped repo keeps its bare path key, so nothing
+    changes for repos that never configure this.
+    """
+    unscoped = not scope.center and not scope.ignore
+    return str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
+
+
+def resolution_context(repo_root, key: str | None = None) -> "graph.SymbolResolver | None":
+    """The symbol resolver derived alongside a built index, or None if that
+    index has not been built this process. Lets ``slice.py`` reuse Move-4
+    resolution without recomputing the whole index.
+
+    ``key`` is an index's ``scope_key``; pass it whenever you hold the index
+    dict, so a SCOPED index gets the resolver built under that same scope
+    rather than whichever build last touched the bare root. Omitting it keeps
+    the historical bare-root lookup for unscoped callers.
+    """
+    if key is not None:
+        return _RESOLVER_CACHE.get(key)
     return _RESOLVER_CACHE.get(str(Path(repo_root).resolve()))
 
 
@@ -363,8 +416,7 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # so nothing changes for repos that never configure this.
     resolved = Path(repo_root).resolve()
     scope = project_scope(resolved, center, ignore)
-    unscoped = not scope.center and not scope.ignore
-    key = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
+    key = _scope_key(resolved, scope)
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
     with _build_lock(key):

@@ -22,6 +22,7 @@ import json
 import os
 import sqlite3
 import zlib
+from functools import lru_cache
 from pathlib import Path
 
 from .parse import CodeUnit
@@ -46,12 +47,33 @@ def enabled() -> bool:
     return os.environ.get("DAEDALUS_NO_CACHE", "").strip() not in ("1", "true", "TRUE")
 
 
+@lru_cache(maxsize=1)
+def _parser_version() -> str:
+    """Digest of the extractor's own source, folded into every key.
+
+    ``ANALYSIS_VERSION`` is hand-maintained, so it only invalidates the cache if
+    someone remembers to bump it. Changing how a unit is NAMED without bumping
+    produces the worst available outcome: ``slice`` re-parses off disk and sees
+    the new names while the index is served from cache with the old ones, so the
+    resolver silently matches nothing and slices quietly degrade -- a silent
+    failure introduced BY a fix. Hashing parse.py makes that unrepresentable.
+    Unreadable source degrades to the manual constant alone (never break the
+    build for an optimization).
+    """
+    try:
+        return hashlib.sha256(Path(__file__).with_name("parse.py").read_bytes()).hexdigest()
+    except Exception:
+        return ""
+
+
 def file_key(rel: str, spec_name: str, text: str) -> str:
     """Content-addressed key. ``rel`` is included because analysis embeds the
     module path (CodeUnit.module), so the same bytes at two paths are two
     different results."""
     h = hashlib.sha256()
     h.update(ANALYSIS_VERSION.encode())
+    h.update(b"\0")
+    h.update(_parser_version().encode())
     h.update(b"\0")
     h.update(rel.encode("utf-8", "replace"))
     h.update(b"\0")

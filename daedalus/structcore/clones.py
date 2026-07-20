@@ -368,6 +368,20 @@ def _overlap(a: Counter, b: Counter) -> float:
 _MIN_BAG = 12          # units with fewer abstract tokens are too generic to judge
 _ANON = "<anonymous>"  # inline lambdas/arrows: not meaningful refactor targets
 
+# Languages withheld from the Type-3 (near-miss) pass.
+#
+# C/C++ were excluded by ACCIDENT until _ts_name learned to read `declarator`:
+# every C unit was named "<anonymous>" and the _ANON filter below dropped it.
+# Naming them removes the accident, so the exclusion has to become deliberate or
+# it silently becomes an admission. It is not safe yet: _GENERIC_KEYWORDS has no
+# C type system (int/char/unsigned/sizeof/typedef/struct/volatile/template/...),
+# so C's abstracted alphabet collapses to ~16-22 symbols and unrelated functions
+# score 0.72-0.90 pairwise -- above the 0.8 threshold. Admitting C requires
+# extending _GENERIC_KEYWORDS plus a green false-positive suite; until then,
+# fabricating clusters is the worse error, so C/C++ stay out and index.py
+# REPORTS the exclusion rather than returning a silent zero.
+TYPE3_EXCLUDED_LANGUAGES = {"c", "cpp"}
+
 
 def _candidate_pairs(rare: list[set], n: int, per_unit_cap: int,
                      pair_cap: int) -> set:
@@ -415,7 +429,8 @@ def near_clusters(units: list[CodeUnit], spec_by_lang: dict, root=None,
     single-token matches don't chain); (3) a cluster stops growing past
     ``max_cluster`` members. All three are bounds, not correctness — a Rust port
     must mirror them to reproduce the output."""
-    pool = [u for u in units if u.loc >= min_loc and u.name != _ANON]
+    pool = [u for u in units if u.loc >= min_loc and u.name != _ANON
+            and u.language not in TYPE3_EXCLUDED_LANGUAGES]
     bags: list[Counter] = []
     afps: list[str] = []
     keep: list[CodeUnit] = []

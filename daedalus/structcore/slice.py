@@ -65,21 +65,32 @@ def _skeleton(root: Path, rel: str) -> str:
     return "\n".join(out)
 
 
-def _py_maps(modules: dict) -> tuple[dict, dict]:
-    dotted, rel_by_dotted = {}, {}
-    for rel, m in modules.items():
-        if m.get("language") == "python":
-            d = (rel[:-3] if rel.endswith(".py") else rel.rsplit(".", 1)[0]).replace("/", ".")
-            dotted[rel] = d
-            rel_by_dotted[d] = rel
-    return dotted, rel_by_dotted
+def _reverse_edges(idx: dict) -> dict:
+    """Callers map: rel -> the rels that import it.
+
+    ``build_index`` ships this precomputed as ``import_edges_reverse`` because
+    it is index-invariant and this function is on the per-target path: the eval
+    harness and the web API both call ``semantic_slice`` in a loop against ONE
+    shared index, so inverting the forward map here would repeat the same O(E)
+    work per call. The fallback below exists only for an index dict that
+    predates the key (an older JSON dump); it iterates ``sorted()`` so the
+    appended caller lists come out in the same order as the precomputed ones.
+    """
+    rev = idx.get("import_edges_reverse")
+    if rev is not None:
+        return rev
+    edges = idx.get("import_edges") or {}
+    out: dict[str, list[str]] = {}
+    for src in sorted(edges):
+        for tgt in edges[src]:
+            out.setdefault(tgt, []).append(src)
+    return out
 
 
 def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
     root = Path(root).resolve()
     idx = idx or build_index(root)
     modules = idx["modules"]
-    deps = idx["dependencies"]
 
     symbol = None
     rel = target.replace("\\", "/")
@@ -101,23 +112,50 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
     else:
         focus_src = text
 
-    dotted, rel_by_dotted = _py_maps(modules)
     included = [{"file": rel, "role": "focus", "mode": "full", "tokens": estimate_tokens(focus_src)}]
     parts = [f"# ===== FOCUS: {target} =====\n{focus_src}"]
 
-    tgt_dotted = dotted.get(rel)
+    # NEIGHBORHOOD EXPANSION, keyed rel->rel for EVERY language.
+    #
+    # This used to run off ``dependencies``, whose Python keys are DOTTED module
+    # names while every other language keys by rel path. The lookup was built
+    # python-only, so for a .c/.cpp/.qml/.ts target it produced nothing and the
+    # slice silently degraded to the focus file alone -- a distiller that did
+    # not distil outside Python, while ``import_edges`` held the correct edges
+    # the whole time. ``import_edges`` carries the identical Python edges
+    # (verified: zero diff in dep_rels/caller_rels over this repo's 113 python
+    # files) plus the ones that were being dropped.
+    #
+    # ``r in modules`` IS THE SCOPE BOUNDARY, and it is load-bearing.
+    # ``import_edges`` is deliberately shell-INCLUSIVE: index.py resolves
+    # imports OUTSIDE the metric guard so that an edge pointing into vendored
+    # code still resolves to a real file instead of reading as "external".
+    # ``modules[rel]``, by contrast, is assigned only INSIDE that guard -- so
+    # membership in ``modules`` is exactly "is in the declared center". Walking
+    # these edges without this test would expand the slice straight into
+    # vendored trees, which is the fan-out the center feature exists to stop.
+    # This also keeps every downstream ``_units_of``/``_skeleton`` call scoped:
+    # they re-read off disk and know nothing of the index, so the filtering has
+    # to happen here, before a rel reaches them.
+    edges = idx.get("import_edges") or {}
+    rev_edges = _reverse_edges(idx)
     dep_rels: set[str] = set()
     caller_rels: set[str] = set()
-    if tgt_dotted:
-        for d in deps.get(tgt_dotted, []):
-            r = rel_by_dotted.get(d)
-            if r and r != rel:
-                dep_rels.add(r)
-        for src, tgts in deps.items():
-            if tgt_dotted in tgts:
-                r = rel_by_dotted.get(src)
-                if r and r != rel:
-                    caller_rels.add(r)
+    shell_stops = 0
+    for r in edges.get(rel, ()):
+        if r == rel:
+            continue
+        if r in modules:
+            dep_rels.add(r)
+        else:
+            shell_stops += 1  # named as an edge, not expanded through
+    for src in rev_edges.get(rel, ()):
+        if src == rel:
+            continue
+        if src in modules:
+            caller_rels.add(src)
+        else:
+            shell_stops += 1
 
     if symbol and focus_unit is not None:
         # symbol-level: include exactly the callees (full) + callers (signature)
@@ -132,9 +170,32 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         # Move-4: import/scope-aware resolution (from the derived index) drops
         # false edges to same-named units in unrelated modules; None -> the pure
         # name-match fallback, so this is safe when the root wasn't indexed here.
-        resolver = resolution_context(root)
+        resolver = resolution_context(root, key=idx.get("scope_key"))
         callee_hits = graph.callees(focus_unit, dep_units, resolver)
         caller_hits = graph.callers(focus_unit, caller_units, resolver)
+
+        # THE SCOPE BOUNDARY, RE-ASSERTED ON THE SYMBOL PATH.
+        #
+        # ``dep_rels``/``caller_rels`` above are gated on ``r in modules``, but
+        # the resolver does not go through them: ``SymbolResolver.resolve``
+        # reads ``defs_by_file`` directly, so a name that binds to a SHELL unit
+        # returns that unit and its full body lands in the CALLEES block --
+        # straight past the gate that exists to stop exactly this. Keying the
+        # resolver cache by scope fixes the cause; this fixes the CLASS, so no
+        # future resolver provenance (a stale cache, a hand-built resolver, a
+        # caller that omits scope_key) can reopen it. Cheap and total.
+        #
+        # Rejections are COUNTED into the same shell_boundary_stops the module
+        # path reports -- a body withheld here is a real edge stopping at the
+        # boundary, and dropping it silently would leave the slice looking as
+        # though the neighborhood simply ended.
+        def _in_center(hits):
+            kept = [u for u in hits if u.module in modules]
+            return kept, len(hits) - len(kept)
+
+        callee_hits, n_callee_shell = _in_center(callee_hits)
+        caller_hits, n_caller_shell = _in_center(caller_hits)
+        shell_stops += n_callee_shell + n_caller_shell
         if callee_hits:
             parts.append("\n# ===== CALLEES (symbol-level, approximate) =====")
             for cu in callee_hits:
@@ -167,6 +228,11 @@ def semantic_slice(root, target: str, idx: dict | None = None) -> dict:
         "focus_symbol": symbol,
         "included": included,
         "n_included": len(included),
+        # Edges that pointed OUT of the declared center and were therefore not
+        # expanded through. Reported rather than dropped in silence: a slice
+        # that stops at the shell boundary and a slice with no neighbors at all
+        # look identical from the outside, and only one of them is complete.
+        "shell_boundary_stops": shell_stops,
         "slice_tokens": slice_tokens,
         "whole_repo_tokens": whole,
         "reduction_pct": round(100 * (1 - slice_tokens / whole), 1),
