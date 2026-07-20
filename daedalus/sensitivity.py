@@ -91,20 +91,56 @@ SECRET_FLOOR_CONTENT: tuple[str, ...] = (
     r"\bAIza[0-9A-Za-z_\-]{35}\b",              # Google API key
     r"\b(?:sk|rk)_live_[0-9A-Za-z]{20,}\b",     # Stripe live key
     r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b",  # JWT
-    # VALUE-SHAPED credential assignment. Cerberus's CRITICAL: the shape-only
-    # rules above catch AWS/GitHub/JWT but let an arbitrary plaintext secret
-    # (`password = "hunter2..."`, `token = "Bearer ..."`) through the floor
-    # silently, on the trusted lane, with withheld=[]. Reproduced across all
-    # three slice paths before this was added.
+    # VALUE-SHAPED credential assignment. Cerberus's CRITICAL (twice): the
+    # shape-only rules above catch AWS/GitHub/JWT but let an arbitrary plaintext
+    # secret -- a credential-named identifier bound to a quoted string literal --
+    # through the floor silently, on the trusted lane, with withheld=[].
+    # Reproduced across all three slice paths.
     #
     # The discriminator that distinguishes a secret from Momus's B2 false
-    # positive (`api_key=None`, `api_key: str`) is a QUOTED value of real
-    # length: a secret is assigned a literal string, a kwarg default is not.
-    # `api_key=None` has no quote after `=`; `api_key: str` has no `=` before a
-    # quote. `{8,}` keeps it off `mode = "run"`-style short labels. Kept compact
-    # and on ONE line -- ``_compile`` silently drops any pattern over 200 chars,
-    # and the verbose/indented form blew past that and vanished without error.
-    r"""(?i)\b(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|bearer|client[_-]?secret)\b\s*[=:]\s*(['"])[^'"\n]{8,}\1""",
+    # positive (api_key=None, api_key: str) is a QUOTED value of real length: a
+    # secret is assigned a literal string; a kwarg default is not. api_key=None
+    # has no quote after the operator; api_key: str has no quoted value at all.
+    #
+    # The first cut used \b...\b word boundaries and a bare single/double quote,
+    # which left SIX bypass classes open across two Cerberus re-reviews of the
+    # slice egress gate. Classes 1-4 (first review of d714128):
+    #   1. underscore/camelCase-glued names -- \b never fires inside DB_PASSWORD,
+    #      access_token, SECRET_KEY, refreshToken. So the keyword is matched as a
+    #      SUB-token of the identifier: no left \b, and \w* consumes the rest of
+    #      the identifier up to the operator (that is how SECRET_KEY reaches =).
+    #   2. string prefixes between the operator and the quote -- f"", b"", r"",
+    #      rb"". Allowed via [bruf]{0,2} (IGNORECASE covers B/R/U/F).
+    #   3. triple-quoted values -- the [^'"\n] value class dies on the 2nd quote,
+    #      so triple quotes get their OWN entry below (opening quote + \1\1).
+    #   4. short values -- {8,} let a real short secret slip (a 6-char value
+    #      bound to a credential-named identifier). Lowered to {4,}: a keyword
+    #      followed by a quoted literal is a strong signal on its own, and the
+    #      safety asymmetry favours withholding a 4-char value (a PIN / short
+    #      pwd) over leaking it to a paid lane. A scan of daedalus/ + apps/web/src
+    #      found ZERO benign 4-7 char keyword assignments, so {4,} costs nothing.
+    # Classes 5-6 (second review) are the mainstream typed/config forms:
+    #   5. ANNOTATED assignment -- a typed field (pydantic/dataclass/settings):
+    #      a credential name, a ':' type, then '=' quoted value. The optional
+    #      (?::[^='"\n]{1,60})? consumes the type; excluding = ' " keeps it from
+    #      running into the operator or the value, and the {1,60} bound plus NO
+    #      trailing \s* keeps backtracking finite -- an earlier draft that let the
+    #      type class overlap an adjacent \s* was O(n^2) and hung on a padded line.
+    #   6. QUOTED-KEY form -- a dict-literal / JSON secret where the keyword sits
+    #      inside quotes, so its closing quote blocked the ':' adjacency. The
+    #      optional ['"]? after \w* steps over that closing quote. 'authorization'
+    #      was added to the keyword set for the HTTP-header config case.
+    #
+    # SPLIT into two index-aligned entries (single/double vs triple quote) so
+    # each stays under ``_compile``'s 200-char cap -- a monster one-line regex
+    # that silently blew the cap and vanished is exactly the failure that let the
+    # original leak ship. The value match stays LINEAR (negated class, bounded
+    # type, no nested/overlapping quantifiers): a 200k-char pathological line is
+    # ~70ms. A shape-based floor still cannot reach these (documented, not chased):
+    # unquoted values (password: secret / YAML unquoted), a secret split across
+    # lines, or a value whose first embedded escaped quote is within 4 chars.
+    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])[^'"\n]{4,}\1""",
+    r"""(?i)(?:passwd|password|pwd|secret|token|api[_-]?key|access[_-]?key|auth[_-]?token|authorization|bearer|client[_-]?secret)\w*['"]?[ \t]*(?::[^='"\n]{1,60})?[=:][ \t]*[bruf]{0,2}(['"])\1\1[^\n]{4,}""",
 )
 
 # Human-readable label per floor-content pattern, so the ``withheld`` report
@@ -122,6 +158,7 @@ SECRET_FLOOR_CONTENT_LABELS: tuple[str, ...] = (
     "Stripe live key",
     "JWT",
     "credential assigned a quoted literal value",
+    "credential assigned a triple-quoted literal value",
 )
 assert len(SECRET_FLOOR_CONTENT_LABELS) == len(SECRET_FLOOR_CONTENT), \
     "SECRET_FLOOR_CONTENT_LABELS must stay index-aligned with SECRET_FLOOR_CONTENT"
