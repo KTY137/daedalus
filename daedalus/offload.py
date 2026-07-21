@@ -24,7 +24,7 @@ from pathlib import Path
 from . import metrics
 from .ikarus import FREE_LANES
 from .provider_router import route_and_select
-from .verifier import verify
+from .verifier import VerifyResult, verify
 
 _ALL = {"claude_cli": True, "ollama": True, "deepseek": True, "codex_cli": True}
 
@@ -133,6 +133,17 @@ def offload(
         "persona": decision.persona, "mode": decision.mode, "risk": decision.risk,
         "sensitive": decision.sensitive, "eligible": eligible,
     }
+    # Surface the blast-radius verdict at the seam the operator actually reads.
+    # The escalating case already reaches them via decision.reason -> note, but
+    # the NON-escalating diagnostics -- the dominance stand-down notice, the
+    # "index contains no modules" degenerate-index error, the unresolved-path
+    # list -- live only on decision.reachability and were dropped here, so a run
+    # where the graph fence stood down looked identical to a clean low-risk
+    # offload. A degraded/withheld safety measurement must never be silent.
+    # Omitted entirely when no repo_root/idx was supplied, so a caller that never
+    # asked for the check gets a byte-identical result dict (matches as_dict()).
+    if decision.reachability is not None:
+        result["reachability"] = decision.reachability
 
     def _escalate(note: str, provider: str = "claude_cli") -> dict:
         result["action"] = "escalate_to_claude" if eligible else "senior"
@@ -212,6 +223,38 @@ def offload(
     # work legitimately produces no writes (Claude applies the draft later).
     vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
                 require_changes=(decision.mode == "write"), disk_changed=disk_changed)
+
+    # POST-WRITE BLAST-RADIUS FENCE. The routing-time reachability check in
+    # select_provider only ever saw the DECLARED --paths. A writable agentic run
+    # can write a file it was never told about (empty --paths -> the worker is
+    # told to "explore from the repo root", and the local write tool isn't
+    # restricted to the hint list), and that leaf may transitively feed a fenced
+    # module -- the exact leak the routing fence closes for declared paths but
+    # NOT for undeclared writes. So re-run the fence over what ACTUALLY landed on
+    # disk (the verified before/after diff, not the model's self-report) and, if
+    # any changed file reaches a fenced module, fail the gate -- the write is
+    # rolled back and escalated to Claude below, never silently accepted.
+    # Only meaningful with a loaded policy (writes without one are already
+    # refused above); fail-closed like the routing precheck (an unbuildable index
+    # escalates rather than passes).
+    if decision.mode == "write" and pol is not None and disk_changed:
+        from .provider_router import _reachability_precheck
+        from .structcore.index import cached_index
+        try:
+            # A FRESH index is load-bearing here: the routing-time index predates
+            # these writes, so a just-CREATED leaf would read as "absent from the
+            # graph" and the fail-closed precheck would (wrongly) escalate every
+            # legitimate new-file write. Rebuilding over the post-write tree gives
+            # a TRUE reachability verdict for what actually landed.
+            fence = _reachability_precheck(
+                disk_changed, pol, repo_root, cached_index(repo_root, refresh=True))
+            escalate = bool(fence and fence.get("escalate"))
+            detail = (fence or {}).get("reason") or "edit reaches a fenced module"
+        except Exception as exc:                    # noqa: BLE001 - unknown == unsafe
+            escalate, detail = True, f"post-write blast-radius re-check failed ({exc})"
+        if escalate:
+            vr = VerifyResult(ok=False, checks=[*vr.checks, {
+                "name": "blast_radius", "ok": False, "detail": detail}])
     result["verify"] = vr.as_dict()
 
     if vr.ok:

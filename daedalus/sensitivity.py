@@ -226,6 +226,24 @@ def _norm(path: str) -> str:
     return path.replace("\\", "/").lower()
 
 
+def _fence_norm(path: str) -> str:
+    """Root-anchored path for HIGH-BLAST-RADIUS fragment matching, mirroring
+    ``structcore.graph._fence_norm``.
+
+    The generic fence ships slash-anchored fragments (``/controller``,
+    ``/safety``, ``/hv``) so they match a fenced *subtree* anywhere. A repo-
+    relative TOP-LEVEL path -- ``controller/core.py`` -- has no leading slash, so
+    a bare-substring test (``_norm``) structurally cannot match ``/controller``
+    against it, and a literally-fenced top-level file scored ``low`` and reached
+    the local write lane. Anchoring with a leading '/' closes that: it can only
+    ever match MORE (over-escalation), which is the sole direction this fence is
+    allowed to err in. Deliberately NOT applied to the egress deny/allow lists,
+    whose bare substrings (``.env``, ``token``, ``/tests/``) are tuned to match
+    anywhere and would change meaning under a forced anchor.
+    """
+    return "/" + _norm(path).lstrip("/")
+
+
 @dataclass
 class DataClass:
     """Result of the data-egress classification."""
@@ -354,7 +372,7 @@ def change_risk(objective: str, paths: list[str] | None = None, policy: Policy |
     policy = policy or DEFAULT_POLICY
     obj = objective.lower()
     for raw in paths or []:
-        if any(frag in _norm(raw) for frag in policy.high_risk_path_substrings):
+        if any(frag in _fence_norm(raw) for frag in policy.high_risk_path_substrings):
             return "high"
     if any(term in obj for term in policy.high_risk_terms):
         return "high"
@@ -383,7 +401,10 @@ def path_write_blocked(path: str, policy: Policy | None = None) -> bool:
         return False
     if any(d in norm for d in policy.deny_substrings):
         return True
-    return any(h in norm for h in policy.high_risk_path_substrings)
+    # Root-anchored (not bare ``norm``) so a top-level fenced tree -- the
+    # repo-relative ``controller/core.py`` a slash-anchored ``/controller``
+    # cannot substring-match -- is still blocked from the local write lane.
+    return any(h in _fence_norm(path) for h in policy.high_risk_path_substrings)
 
 
 def read_inlined_context(

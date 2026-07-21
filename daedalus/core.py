@@ -657,6 +657,20 @@ def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
         agent = route_task(payload["objective"], paths,
                            repo_root=payload.get("repo_root") or None)
         writable = pol is not None and change_risk(payload["objective"], paths, pol) != "high"
+        # The forced codex lane never calls select_provider, so the routing
+        # blast-radius fence would otherwise never run on this write path -- a
+        # declared leaf that transitively feeds a fenced module would get a
+        # workspace-write sandbox with no trusted review. Consult the same
+        # reachability pre-check directly and drop codex to its read-only sandbox
+        # when the edit reaches a fenced module, mirroring what select_provider
+        # does for every other write path. Fail-closed: an unbuildable index
+        # escalates (writable -> False), never grants more rights.
+        if writable:
+            from .provider_router import _reachability_precheck
+            reach = _reachability_precheck(
+                paths, pol, payload.get("repo_root") or None, None)
+            if reach and reach.get("escalate"):
+                writable = False
         out = provider.run(
             objective=payload["objective"], repo_root=payload["repo_root"],
             # 1500s to match the provider's own default (codex real-task budget

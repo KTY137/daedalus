@@ -26,6 +26,7 @@ unaffected.
 from __future__ import annotations
 
 import keyword
+import posixpath
 import re
 from dataclasses import dataclass, field
 
@@ -178,3 +179,204 @@ def callers(focus: CodeUnit, candidates: list[CodeUnit],
         elif u.module not in resolver.imports_by_file:  # no import info -> keep
             out.append(u)
     return _dedup(out)
+
+
+# --------------------------------------------------------------------------- #
+# Safety-class reachability (blast radius over the import graph)                #
+# --------------------------------------------------------------------------- #
+# The safety fence in ``sensitivity.change_risk`` matches fenced fragments
+# against the LITERAL edited path only. That answers "is this file dangerous?"
+# and never "does this file feed something dangerous?" -- so a leaf helper that
+# a hardware interlock transitively imports scores low-risk and becomes writable
+# by the local 7B bench. The index already carries the answer
+# (``import_edges_reverse``: rel -> rels that import it); these helpers ask it.
+#
+# Pure and index-level on purpose: no ``daedalus.sensitivity`` import, so the
+# fenced fragments arrive as a parameter and structcore keeps its light import
+# graph (the router owns the policy, this file owns the traversal).
+
+# A leaf that 5000 modules transitively depend on is either a pathological graph
+# or a blast radius so large that escalating is right anyway, so the cap is not
+# a correctness compromise -- but the caller MUST treat ``truncated`` as "could
+# not prove safe", never as "safe". Bounded work is what keeps a router that
+# runs on every task from hanging on a cyclic or degenerate import graph.
+REACH_VISIT_CAP = 5000
+
+
+def _fence_norm(rel: str) -> str:
+    """Path normalised for fence matching: forward slashes, lower-cased, and
+    ROOT-ANCHORED with a leading '/'.
+
+    The leading slash is deliberate and is NOT what ``sensitivity._norm`` does.
+    The generic fence ships fragments like ``/controller`` and ``/safety``, which
+    a repo-relative rel (``controller/hv_interlock.py``) cannot contain -- so
+    anchoring here catches top-level fenced trees that a bare substring test
+    misses. It can only ever match MORE than the literal check, which is the
+    direction this whole module is allowed to err in.
+    """
+    return "/" + rel.replace("\\", "/").lower().lstrip("/")
+
+
+def fenced_fragment(rel: str, fenced_paths) -> str | None:
+    """The first fenced fragment matching ``rel``, or None. Fragment order comes
+    from the policy tuple (a total order), so the reported reason is stable."""
+    norm = _fence_norm(rel)
+    for frag in fenced_paths or ():
+        f = str(frag).replace("\\", "/").lower()
+        if f and f in norm:
+            return frag
+    return None
+
+
+def canonical_node(idx: dict, rel: str) -> str | None:
+    """The index node ``rel`` names, or None if the graph has never seen it.
+
+    Spelling is a BYPASS CLASS, not a cosmetic detail: the fence is keyed on
+    graph membership, so ``Utils/Clamp.py`` (Windows hands back either case),
+    ``./utils/clamp.py`` and ``utils/../utils/clamp.py`` all used to miss the
+    node and read as "no known dependents" -- i.e. as safe. Resolve the spelling
+    before deciding, never after.
+    """
+    norm = posixpath.normpath(rel.replace("\\", "/")).lstrip("/")
+    nodes = _graph_nodes(idx)
+    if norm in nodes:
+        return norm
+    lowered = {n.lower(): n for n in sorted(nodes)}
+    return lowered.get(norm.lower())
+
+
+def _graph_nodes(idx: dict) -> set[str]:
+    nodes = set(idx.get("modules") or ())
+    nodes.update(idx.get("import_edges") or ())
+    for srcs in (idx.get("import_edges_reverse") or {}).values():
+        nodes.update(srcs)
+    return nodes
+
+
+def fenced_reachability(idx: dict, rel: str, fenced_paths,
+                        visit_cap: int = REACH_VISIT_CAP) -> dict:
+    """Shortest dependency chain from ``rel`` to a fenced module.
+
+    BFS over ``idx["import_edges_reverse"]`` (rel -> rels that import it), i.e.
+    outward through everything that would be affected by editing ``rel``.
+
+    ``hops`` 0 means the edited path is itself fenced -- exactly what today's
+    literal check already catches. ``hops`` >= 1 is the case the literal check
+    cannot see: a leaf that a fenced module transitively depends on.
+
+    Determinism is load-bearing (two processes must block the same edit with the
+    same explanation): the frontier and every neighbour list are iterated
+    sorted, first parent wins, and among fenced nodes found at the minimal hop
+    level the lexicographically smallest is reported.
+
+    Non-Python import edges are best-effort, so this OVER-reports. That is
+    intended: a spurious escalation costs a Claude call, a missed one lets a 7B
+    model write code a hardware interlock depends on. Do not "tighten" this.
+    """
+    rev: dict = idx.get("import_edges_reverse") or {}
+    node = canonical_node(idx, rel)
+    result = {
+        "reaches": False,
+        "hops": None,
+        "via": None,
+        "fenced_node": None,
+        "fragment": None,
+        "chain": [],
+        "visited": 0,
+        "truncated": False,
+        # A path the index never saw has no KNOWN dependents. Reported so the
+        # caller can decide what to do about an unknown rather than silently
+        # reading absence-of-edges as absence-of-risk.
+        "known": node is not None,
+    }
+    # Traverse from the CANONICAL spelling when there is one; an unknown path
+    # is still walked as given so a fenced-looking path is never let through
+    # merely for being absent from the graph.
+    rel = node or rel
+
+    frontier = [rel]
+    seen = {rel}                      # doubles as the cycle guard
+    parent: dict[str, str] = {}
+    hops = 0
+    while frontier:
+        hit = sorted(n for n in frontier if fenced_fragment(n, fenced_paths))
+        if hit:
+            node = hit[0]
+            chain = [node]
+            while chain[-1] in parent:
+                chain.append(parent[chain[-1]])
+            chain.reverse()
+            result.update({
+                "reaches": True,
+                "hops": hops,
+                "via": " -> ".join(chain),
+                "fenced_node": node,
+                "fragment": fenced_fragment(node, fenced_paths),
+                "chain": chain,
+                "visited": len(seen),
+            })
+            return result
+        nxt: list[str] = []
+        for node in sorted(frontier):
+            for nb in sorted(rev.get(node, ())):
+                if nb in seen:
+                    continue
+                if len(seen) >= visit_cap:
+                    result["visited"] = len(seen)
+                    result["truncated"] = True
+                    return result
+                seen.add(nb)
+                parent[nb] = node
+                nxt.append(nb)
+        frontier = nxt
+        hops += 1
+    result["visited"] = len(seen)
+    return result
+
+
+def fenced_dominance(idx: dict, fenced_paths) -> dict:
+    """How much of the repo the fence already covers by reachability.
+
+    Returns ``{"fraction", "escalated", "candidates", "fenced_nodes"}`` where
+    ``fraction`` is, of the modules that are NOT themselves fenced, the share
+    that transitively feeds a fenced module -- i.e. exactly the share of edits
+    that ``fenced_reachability`` would newly escalate.
+
+    DENOMINATOR CHOICE (deliberate): already-fenced modules are excluded. They
+    are high-risk under the literal check today, so reachability changes nothing
+    about them; counting them would measure "how safety-critical is this repo"
+    instead of "how much NEW escalation does this feature add", and a repo that
+    is 90% fenced would then trip the guardrail on the strength of files the
+    feature never touches. What we want to bound is the delta.
+
+    Computed as ONE multi-source BFS over the forward edges from the fenced set
+    (a module reaches a fenced node in the reverse graph exactly when it is
+    reachable from a fenced node in the forward graph), not V separate BFS runs
+    -- the router calls this on every task and O(V*E) on a 7k-file repo is not
+    something a fence may cost.
+    """
+    fwd: dict = idx.get("import_edges") or {}
+    nodes = _graph_nodes(idx)
+    fenced = {n for n in nodes if fenced_fragment(n, fenced_paths)}
+
+    seen = set(fenced)
+    frontier = sorted(fenced)
+    while frontier:
+        nxt = []
+        for node in frontier:
+            for tgt in sorted(fwd.get(node, ())):
+                if tgt not in seen:
+                    seen.add(tgt)
+                    nxt.append(tgt)
+        frontier = sorted(nxt)
+
+    candidates = sorted(nodes - fenced)
+    escalated = [n for n in candidates if n in seen]
+    return {
+        # No non-fenced candidates -> 0.0, which keeps the guard ON. A guardrail
+        # that fails toward "disable the fence" is the wrong failure.
+        "fraction": round(len(escalated) / len(candidates), 4) if candidates else 0.0,
+        "escalated": len(escalated),
+        "candidates": len(candidates),
+        "fenced_nodes": len(fenced),
+    }
