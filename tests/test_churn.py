@@ -12,7 +12,12 @@ import unittest
 from pathlib import Path
 
 from daedalus.structcore import build_index
-from daedalus.structcore.churn import git_churn, _parse_numstat
+from daedalus.structcore.churn import (
+    co_change_pairs,
+    git_churn,
+    temporal_misses,
+    _parse_numstat,
+)
 
 
 # An identically-complex function body (long + guarded) planted in two files, so
@@ -104,6 +109,103 @@ class ChurnRankingTest(unittest.TestCase):
         self.assertGreater(rows["hot.py"]["score"], rows["stable.py"]["score"])
         order = [h["module"] for h in idx["hotspots"]]
         self.assertLess(order.index("hot.py"), order.index("stable.py"))
+
+
+@unittest.skipUnless(GIT, "git not on PATH")
+class CoChangePairsTest(unittest.TestCase):
+    """Hand-built history: a.py/b.py always co-change and never import each
+    other (true coupling, no static edge); a 7-file 'mega' commit is the ONLY
+    place x.py/y.py ever co-occur (coincidental, must be capped out)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _git(self.root, "init", "-q")
+
+        names = ["a.py", "b.py", "c.py", "x.py", "y.py", "j1.py", "j2.py", "j3.py", "j4.py", "j5.py"]
+        for n in names:
+            (self.root / n).write_text("VALUE = 0\n", encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-q", "-m", "init")  # 10 files -> dropped at cap=5
+
+        for i in range(1, 5):
+            (self.root / "a.py").write_text(f"VALUE = {i}\n", encoding="utf-8")
+            (self.root / "b.py").write_text(f"VALUE = {i}\n", encoding="utf-8")
+            _git(self.root, "add", "-A")
+            _git(self.root, "commit", "-q", "-m", f"a+b edit {i}")
+
+        (self.root / "c.py").write_text("VALUE = 99\n", encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-q", "-m", "c only")
+
+        for n in ["x.py", "y.py", "j1.py", "j2.py", "j3.py", "j4.py", "j5.py"]:
+            (self.root / n).write_text("VALUE = 7\n", encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-q", "-m", "mega touch (7 files, over cap)")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_true_coupling_surfaces_with_positive_pmi(self):
+        pairs = co_change_pairs(self.root, max_files_per_commit=5)
+        row = next((p for p in pairs if {p["a"], p["b"]} == {"a.py", "b.py"}), None)
+        self.assertIsNotNone(row)
+        self.assertGreater(row["pmi"], 0)
+        self.assertEqual(row["count"], 4)
+
+    def test_mega_commit_pair_is_suppressed_by_cap(self):
+        # x.py/y.py co-occur ONLY in the 7-file commit, which exceeds cap=5 and
+        # is dropped whole -- proving the cap, not just min_count, is doing work.
+        pairs = co_change_pairs(self.root, max_files_per_commit=5)
+        self.assertFalse(any({p["a"], p["b"]} == {"x.py", "y.py"} for p in pairs))
+
+    def test_git_churn_contract_unchanged_alongside_cochange(self):
+        # git_churn's shape and non-degraded behavior must be untouched by the
+        # new co_change_pairs code path living in the same module.
+        churn = git_churn(self.root)
+        self.assertIsInstance(churn, dict)
+        self.assertGreater(churn.get("a.py", 0), 0)
+        for v in churn.values():
+            self.assertIsInstance(v, int)
+
+    def test_temporal_misses_reports_both_axes_for_real_pairs(self):
+        idx = build_index(self.root)
+        pairs = co_change_pairs(self.root, max_files_per_commit=5)
+        misses = temporal_misses(idx, pairs)
+        row = next((m for m in misses if {m["a"], m["b"]} == {"a.py", "b.py"}), None)
+        self.assertIsNotNone(row)
+        self.assertIn("recall_axis", row)
+        self.assertGreater(row["recall_axis"]["pmi"], 0)
+        self.assertIn("compression_cost_loc", row)
+        self.assertGreaterEqual(row["compression_cost_loc"], 0)
+
+
+class TemporalMissesExclusionTest(unittest.TestCase):
+    """Pure-function checks on temporal_misses against hand-built idx/pairs --
+    no git involved, isolates the graph-exclusion + two-axis reporting logic."""
+
+    def test_pair_with_static_edge_is_excluded(self):
+        idx = {"import_edges": {"d.py": ["e.py"]}, "modules": {"d.py": {"loc": 10}, "e.py": {"loc": 20}}}
+        pairs = [{"a": "d.py", "b": "e.py", "count": 5, "count_a": 5, "count_b": 5,
+                 "commits_considered": 5, "pmi": 1.5, "lift": 4.0}]
+        self.assertEqual(temporal_misses(idx, pairs), [])
+
+    def test_pair_with_no_static_edge_reports_both_axes(self):
+        idx = {"import_edges": {}, "modules": {"p.py": {"loc": 10}, "q.py": {"loc": 20}}}
+        pairs = [{"a": "p.py", "b": "q.py", "count": 3, "count_a": 3, "count_b": 3,
+                 "commits_considered": 5, "pmi": 0.9, "lift": 2.5}]
+        out = temporal_misses(idx, pairs)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["compression_cost_loc"], 30)
+        self.assertEqual(out[0]["recall_axis"], {"pmi": 0.9, "lift": 2.5, "count": 3})
+
+    def test_reverse_direction_edge_also_excludes(self):
+        # The static edge can point either way; a co-change pair is "known to
+        # the graph" if EITHER direction has an import edge.
+        idx = {"import_edges": {"e.py": ["d.py"]}, "modules": {}}
+        pairs = [{"a": "d.py", "b": "e.py", "count": 5, "count_a": 5, "count_b": 5,
+                 "commits_considered": 5, "pmi": 1.5, "lift": 4.0}]
+        self.assertEqual(temporal_misses(idx, pairs), [])
 
 
 if __name__ == "__main__":

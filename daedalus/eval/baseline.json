@@ -1,0 +1,56 @@
+{
+  "note": "Advisory regression baseline for daedalus.eval.harness.run_gate. Never auto-updates -- only 'python -m daedalus.eval --update-baseline' (an explicit, human-invoked action) writes this file.",
+  "schema": 1,
+  "tasks": {
+    "garden_care_file": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "garden_cli_file": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "garden_plants_file": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "garden_watering_plan": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "ikarus_distill": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "index_build_index": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "projects_resolve_repo_root": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "report_structure_summary": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "slice_semantic_slice": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    },
+    "web_api_file": {
+      "label_provenance": "hand_reachable",
+      "recall": 1.0,
+      "tier": "primary"
+    }
+  }
+}

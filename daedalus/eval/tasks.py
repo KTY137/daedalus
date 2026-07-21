@@ -10,18 +10,42 @@ or caller in the neighborhood.
 Task shape::
 
     {
-      "id":              short unique id,
-      "repo":            repo label -- "agent_env" | "sunny_garden" | abs path,
-      "target":          "path/to/file.py"  or  "path/to/file.py::symbol",
-      "must_include":    [symbol_or_substring, ...]   # Tier 1 recall labels
-      "question":        natural question about the target (optional, Tier 2),
-      "answer_contains": [substring, ...]              # Tier 2 success labels
+      "id":               short unique id,
+      "repo":             repo label -- "agent_env" | "sunny_garden" | abs path,
+      "target":           "path/to/file.py"  or  "path/to/file.py::symbol",
+      "must_include":     [symbol_or_substring, ...]   # Tier 1 recall labels
+      "question":         natural question about the target (optional, Tier 2),
+      "answer_contains":  [substring, ...]              # Tier 2 success labels
+      "label_provenance": how ``must_include`` was derived -- see below,
+      "tier":             "primary" | "quarantine" -- see below,
     }
 
 Honesty note: ``must_include`` items are matched as substrings against the
 slice text. For a symbol target the slice is 1-hop (the focus symbol's direct
 callees/callers), so we only label symbols reachable within that hop -- we do
 NOT claim transitive callees-of-callees are present when they are not.
+
+Label provenance (the point of this sprint -- read this before trusting a
+recall number):
+
+  * "hand_reachable"   -- a human picked the label AND verified it reachable
+    by running ``semantic_slice`` (see ``daedalus.eval.harness``). This is
+    CIRCULAR: the slicer chose what it is graded on. Every task below is this
+    provenance today. Recall computed over ``hand_reachable`` tasks is an
+    upper bound / sanity check, NOT independent proof the slicer works --
+    ``report.py`` says so on every render, and ``harness.run_tier1`` never
+    blends it with the other provenances into one number.
+  * "independent_diff" -- labels derived from what an on-disk diff LITERALLY
+    changed, with no graph walk involved. Independent of the slicer.
+  * "temporal_churn"    -- labels derived from git co-change (files that
+    change together), surfacing edges the static import graph doesn't have.
+    Independent of the slicer.
+
+``tier``: "primary" tasks count toward any go/no-go recall number.
+"quarantine" tasks are minted but not yet confirmed -- ``harness.run_tier1``
+excludes them from every headline/aggregate and reports them separately so
+the labelling flywheel (mint -> quarantine -> confirm -> primary) stays
+observable instead of silently inflating (or deflating) the real number.
 """
 from __future__ import annotations
 
@@ -60,12 +84,17 @@ def task_project_label(task: dict) -> str:
 
 # --------------------------------------------------------------------------- #
 # The task set. Small + fast on purpose: agent_env (dogfood) + sunny_garden.   #
-# All Tier-1 labels verified reachable against the current slices.             #
+# All Tier-1 labels verified reachable against the current slices -- which is  #
+# exactly the circularity documented above. Every task is "hand_reachable" /   #
+# "primary" until an "independent_diff" or "temporal_churn" minter (see        #
+# daedalus.eval.mint, a separate track) adds tasks with independent labels.    #
 # --------------------------------------------------------------------------- #
 TASKS: list[dict] = [
     # ----- agent_env: file-level targets ----------------------------------- #
     {
         "id": "web_api_file",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/web_api.py",
         "must_include": ["_structure_index", "resolve_repo_root", "cached_index"],
@@ -75,6 +104,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "garden_care_file",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "sunny_garden",
         "target": "garden/care.py",
         "must_include": ["needs_water", "watering_plan", "PLANTS"],
@@ -83,6 +114,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "garden_cli_file",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "sunny_garden",
         "target": "garden/cli.py",
         "must_include": ["watering_plan"],
@@ -91,6 +124,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "garden_plants_file",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "sunny_garden",
         "target": "garden/plants.py",
         "must_include": ["PLANTS"],
@@ -100,6 +135,8 @@ TASKS: list[dict] = [
     # ----- agent_env: symbol-level targets --------------------------------- #
     {
         "id": "slice_semantic_slice",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/structcore/slice.py::semantic_slice",
         # Updated when neighborhood expansion moved off the python-only dotted
@@ -110,10 +147,19 @@ TASKS: list[dict] = [
         "must_include": ["_reverse_edges", "extract_units", "estimate_tokens"],
         "question": "How does semantic_slice compute the whole-repo token count "
                     "it reports the reduction against?",
-        "answer_contains": ["total_chars"],
+        # Updated by the HONEST DENOMINATOR change (slice.py::_whole_repo_tokens):
+        # the primary path is now idx["total_tokens"] (tokenizer-measured,
+        # carried through by build_index); total_chars // 4 survives only as
+        # the fallback for an index dict that predates the field. The label
+        # tested total_chars unconditionally and was never updated when the
+        # code it grades moved off that formula -- ground truth follows the
+        # code (see the comment above this task).
+        "answer_contains": ["total_tokens"],
     },
     {
         "id": "index_build_index",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/structcore/index.py::build_index",
         # Updated when the per-file pass was extracted into perfile.py and
@@ -127,6 +173,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "report_structure_summary",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/structcore/report.py::structure_summary",
         "must_include": ["unit_clusters", "window_clusters", "fan_in"],
@@ -135,6 +183,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "ikarus_distill",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/ikarus_os.py::_distill",
         "must_include": ["semantic_slice", "resolve_repo_root", "cached_index"],
@@ -144,6 +194,8 @@ TASKS: list[dict] = [
     },
     {
         "id": "projects_resolve_repo_root",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "agent_env",
         "target": "daedalus/projects.py::resolve_repo_root",
         "must_include": ["load_project"],
@@ -154,6 +206,8 @@ TASKS: list[dict] = [
     # ----- sunny_garden: symbol-level target ------------------------------- #
     {
         "id": "garden_watering_plan",
+        "label_provenance": "hand_reachable",
+        "tier": "primary",
         "repo": "sunny_garden",
         "target": "garden/care.py::watering_plan",
         "must_include": ["needs_water", "PLANTS"],

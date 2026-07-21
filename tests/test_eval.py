@@ -79,9 +79,11 @@ class EvalTier1Test(unittest.TestCase):
             self.assertGreater(t["compression"], 0.0)
             self.assertLessEqual(t["compression"], 1.0)
             self.assertLess(t["slice_tokens"], t["whole_repo_tokens"])
-        self.assertGreater(result["mean_compression"], 0.0)
-        self.assertGreaterEqual(result["mean_recall"], 0.0)
-        self.assertLessEqual(result["mean_recall"], 1.0)
+        # These fixture tasks carry no label_provenance/tier -> default bucket.
+        agg = result["by_provenance"]["hand_reachable"]["primary"]
+        self.assertGreater(agg["mean_compression"], 0.0)
+        self.assertGreaterEqual(agg["mean_recall"], 0.0)
+        self.assertLessEqual(agg["mean_recall"], 1.0)
 
     def test_miss_detection(self):
         result = harness.run_tier1(self.tasks)
@@ -91,17 +93,24 @@ class EvalTier1Test(unittest.TestCase):
         # unrelated.py (with SECRET_MARKER) is omitted from the slice -> a miss
         self.assertLess(by_id["fx_miss"]["recall"], 1.0)
         self.assertIn("SECRET_MARKER", by_id["fx_miss"]["missed"])
-        self.assertEqual(result["n_slice_recall_misses"], 1)
+        agg = result["by_provenance"]["hand_reachable"]["primary"]
+        self.assertEqual(agg["n_slice_recall_misses"], 1)
+        self.assertEqual(agg["missed_ids"], ["fx_miss"])
 
     def test_report_structure_wellformed(self):
         result = harness.run_tier1(self.tasks)
-        for key in ("tier", "n_tasks", "mean_recall", "mean_compression",
-                    "n_slice_recall_misses", "tokenizer", "per_task"):
+        for key in ("tier", "n_tasks", "n_primary_tasks", "n_quarantine_tasks",
+                    "tokenizer", "per_task", "by_provenance"):
             self.assertIn(key, result)
+        # No blended top-level recall/compression -- see daedalus.eval.tasks
+        # docstring: "hand_reachable" is circular and must never be the
+        # headline number on its own.
+        self.assertNotIn("mean_recall", result)
+        self.assertNotIn("mean_compression", result)
         text = report.render_tier1(result)
         self.assertIsInstance(text, str)
         self.assertIn("NOT SWE-bench", text)
-        self.assertIn("mean recall", text)
+        self.assertIn("PARTIALLY SELF-GRADED", text)
         # ASCII-safe for a cp1252 Windows console.
         text.encode("ascii")
 
@@ -122,10 +131,13 @@ class EvalBuiltinTasksTest(unittest.TestCase):
         tasks = [t for t in TASKS if task_project_label(t) == "sunny_garden"]
         self.assertTrue(tasks)
         result = harness.run_tier1(tasks)
-        self.assertEqual(result["mean_recall"], 1.0)
-        self.assertGreater(result["mean_compression"], 0.0)
+        agg = result["by_provenance"]["hand_reachable"]["primary"]
+        self.assertEqual(agg["mean_recall"], 1.0)
+        self.assertGreater(agg["mean_compression"], 0.0)
         for t in result["per_task"]:
             self.assertEqual(t["missed"], [])
+            self.assertEqual(t["label_provenance"], "hand_reachable")
+            self.assertEqual(t["label_tier"], "primary")
 
 
 if __name__ == "__main__":
