@@ -30,6 +30,26 @@ quoted the same 100% as if independent); `--gate` ratchet **PASS** (exit 0);
 grown by the sprint's own ~2.5k new lines), no longer `total_chars//4`. The standing rule in
 §4d (eval gate stays ADVISORY) is unchanged and load-bearing.
 
+**THE FIRST INDEPENDENT NUMBER (same day, after the flywheel hardening below): quarantine
+tier recall = 61.7% [M]** over 18 tasks minted from 20 real commits (2 skipped, reasons
+stated). Suite **718/0 [M]**, primary tier unchanged, gate PASS. The first seeding also
+CAUGHT ITS OWN POISONING — out-of-scope dist targets, same-file-label tautology, and one
+unindexable task that crashed the whole oracle — all fixed same-day (`df0daee`): labels are
+now scope-gated + cross-file-only, and a bad task becomes an ERRORED row (errored primary
+fails the gate; errored quarantine is reported-only). **Miss triage [M, author-scripted
+against import_edges]: of 129 missed labels — 57% = secret-floor fail-closed focus files
+(four security-test files whose planted credential fixtures trip the unconditional floor;
+the fence working as designed, colliding with the eval), 19% = genuine co-change coupling
+with NO static import edge (the temporal class), 25% = cross-language labels (TS symbols
+co-committed with .py targets) + parser junk (`if`, `<anonymous>`), and 0% =
+edge-but-dropped.** Read that last one again: **the slicer dropped NOTHING it could
+structurally see.** Excluding the fence-artifact tasks, structural recall ≈ 79% [M-derived],
+and the entire remaining gap is coupling the import graph cannot express. Follow-ups this
+implies, in order: (1) minter filters junk/cross-language label names and classifies
+floor-tripping targets as `focus_withheld` instead of scoring them as misses; (2) the
+temporal co-change tier becomes a slice ENRICHMENT experiment (add co-change neighbours,
+measure recall gain vs compression cost on both axes); (3) only then wire slice→offload.
+
 ## TL;DR
 
 A correctness + product-scope session. **14 commits on `checkpoint/2026-07-20-session`**
