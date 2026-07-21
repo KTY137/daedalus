@@ -160,7 +160,8 @@ class AskStreamTest(unittest.TestCase):
         self.assertEqual(evs[-1][1]["assistant"], "fallback")
 
     def test_unwired_provider_degrades_to_deterministic(self):
-        evs = self._events(self.PROJECT, "hello there", provider="codex_cli")
+        # codex_cli gained a real chat branch; "gemini" remains genuinely unwired.
+        evs = self._events(self.PROJECT, "hello there", provider="gemini")
         self.assertEqual(evs[-1][1]["provider_used"], "deterministic")
         self.assertNotIn("delta", [e for e, _ in evs])
 

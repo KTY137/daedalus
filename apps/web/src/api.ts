@@ -41,12 +41,53 @@ export function getControlPlane(project: string) {
   return request<ControlPlanePayload>(`/api/projects/${encodeURIComponent(project)}/control-plane`);
 }
 
+/** Per-provider BYOK readiness, from `daedalus/env.py` `env_status()`.
+ * `configured` is the invariant that matters — `ollama` needs no key so it is
+ * always `true`; `deepseek`/`anthropic_api`/`openai_api` reflect whether their
+ * env key is actually set (never the key's value). */
+export interface EnvProviderInfo {
+  configured: boolean;
+  host?: string;
+  model?: string;
+  embed_model?: string;
+  base_url?: string;
+}
+
+export interface EnvStatusPayload {
+  env_file: string;
+  env_file_exists: boolean;
+  loaded_keys: string[];
+  public: Record<string, string>;
+  secrets: Record<string, { configured: boolean }>;
+  providers: Record<string, EnvProviderInfo>;
+}
+
 export function getEnvStatus() {
-  return request<ApiEnvelope & { env: Record<string, unknown> }>('/api/env/status');
+  return request<ApiEnvelope & { env: EnvStatusPayload }>('/api/env/status');
+}
+
+/** One provider row from `daedalus/providers/__init__.py` `provider_health()` —
+ * richer than a runtime row: carries `configured` (env key / CLI auth present)
+ * SEPARATE from `available` (actually reachable right now), so the UI can tell
+ * "no key" apart from "key set but server down" instead of collapsing both
+ * into one flat unavailable/offline state. */
+export interface ProviderStatusRow {
+  name: string;
+  display_name: string;
+  local: boolean;
+  trusted_with_ip: boolean;
+  can_write: boolean;
+  agentic: boolean;
+  requires_key: boolean;
+  env_keys: string[];
+  implemented: boolean;
+  configured: boolean;
+  available: boolean;
+  last_error: string;
 }
 
 export function getProviderStatus() {
-  return request<ApiEnvelope & { providers: Array<Record<string, unknown>> }>('/api/providers/status');
+  return request<ApiEnvelope & { providers: ProviderStatusRow[] }>('/api/providers/status');
 }
 
 export function updateAgent(project: string, agent: string, patch: Record<string, unknown>) {
@@ -238,6 +279,43 @@ export interface DraftRow {
 
 export function getDrafts() {
   return request<ApiEnvelope & { drafts: DraftRow[]; pending_count: number }>('/api/drafts');
+}
+
+/** Full draft content — `daedalus/drafts.py` `save_draft()`'s stored shape.
+ * `report` is the agent_report_v1 the offload run produced; there is no
+ * separate computed unified diff on the backend, so `report` (summary,
+ * files_changed, risks, todos, handoff) IS the proposal a reviewer reads
+ * before Apply. `handoff` is free-form (provider-specific: e.g. `notes` or
+ * `suggestion`) and may itself contain diff-shaped text. */
+export interface DraftReport {
+  status: 'done' | 'blocked' | 'needs_review' | 'failed';
+  summary: string;
+  files_changed: string[];
+  tests_run: string[];
+  risks: string[];
+  todos: string[];
+  handoff: Record<string, unknown>;
+}
+
+export interface DraftDetail {
+  id: string;
+  created: string;
+  objective: string;
+  paths: string[];
+  agent: string;
+  provider: string;
+  persona: string;
+  repo_root: string;
+  report: DraftReport;
+  status: 'pending' | 'applied' | 'dismissed';
+  status_changed?: string;
+}
+
+/** The review packet for ONE draft — GET before Apply, so a user reads the
+ * proposal instead of applying it blind. 404 (unknown id) surfaces as a
+ * thrown Error via the shared `request()` envelope check. */
+export function getDraft(id: string) {
+  return request<ApiEnvelope & { draft: DraftDetail }>(`/api/drafts/${encodeURIComponent(id)}`);
 }
 
 export function applyDraft(id: string) {

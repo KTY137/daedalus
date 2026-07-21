@@ -39,10 +39,18 @@ SYSTEM = (
     "and a verify-or-rollback gate."
 )
 
-# Runtimes that can currently power the freeform 'brain'. Others (codex, gemini)
-# appear in the picker but fall back to the deterministic layer until wired.
+# Runtimes that can currently power the freeform 'brain'. A provider string not
+# in any of these sets still falls back to the deterministic layer -- cleanly,
+# via _llm()'s final `return None, None, _EMPTY_CTX` -- rather than crashing or
+# guessing at a different brain.
 _LOCAL = {"ollama", "ollama_http", "ollama_cli"}
 _CLAUDE = {"claude", "claude_cli", "claude_code_cli"}
+# CODEX and DEEPSEEK are EXTERNAL, NOT-trusted-with-IP lanes (see
+# daedalus/providers/__init__.py _PROVIDERS: trusted_with_ip=False for both) --
+# _llm() below deliberately builds their brain context with lane="untrusted",
+# never "trusted" like Ollama/Claude get.
+_CODEX = {"codex", "codex_cli"}
+_DEEPSEEK = {"deepseek"}
 
 # --------------------------------------------------------------------------- #
 # Project-aware brain context (GATED distilled slice)                          #
@@ -247,10 +255,11 @@ def _project_context(project: str, message: str, lane: str = "trusted") -> _Ctx:
 
     Returns ``_EMPTY_CTX`` (text="") — reproducing today's neutral, context-free
     behaviour — when there is no file token, when the filename is ambiguous (we
-    won't guess which file to egress), or on any build hiccup. Both Claude and
-    local Ollama are TRUSTED lanes, so ``lane="trusted"``: floor on, default-deny
-    off (recall preserved). ``untrusted`` is reserved for a real external
-    untrusted provider and is intentionally never passed here."""
+    won't guess which file to egress), or on any build hiccup. The caller picks
+    the lane: Claude and local Ollama are TRUSTED (``lane="trusted"`` -- floor
+    on, default-deny off, recall preserved); DeepSeek and Codex CLI are
+    EXTERNAL and NOT trusted with IP, so ``_llm()`` calls this with
+    ``lane="untrusted"`` for them (floor on, default-deny ALSO on)."""
     # Cheap guard: no path/file-shaped token -> no context, WITHOUT indexing the
     # repo. Keeps every non-file chat turn as fast and inert as before BOOTSTRAP.
     if not re.search(r"[\w./\\-]+\.\w+", message):
@@ -336,6 +345,17 @@ def _effort_cap(effort: str | None) -> int:
     return _EFFORT_CAP.get((effort or "low").lower(), 300)
 
 
+def _unconfigured_reply(brain: str, remedy: str) -> str:
+    """A clear, honest 'this brain is not set up' answer -- never a crash, and
+    never a silent switch to a different provider's answer wearing this one's
+    name. Used for the fast pre-flight checks in ``_llm`` (missing key /
+    missing CLI, checked before any egress or subprocess spawn); a runtime
+    failure AFTER that check still falls through to the existing
+    ``return None`` -> deterministic-help-text path, same as Ollama/Claude."""
+    return (f"{brain} isn't set up yet -- {remedy}. Pick a different brain in "
+            "the header, or fix that and try again.")
+
+
 def _llm(provider: str | None, message: str, model: str | None = None,
          effort: str | None = None,
          project: str | None = None) -> tuple[str | None, str | None, _Ctx]:
@@ -357,7 +377,23 @@ def _llm(provider: str | None, message: str, model: str | None = None,
     if p in _CLAUDE:
         ctx = _project_context(project, message, lane="trusted")
         return _claude(message, effort, model, ctx.text), (model or "claude"), ctx
-    return None, None, _EMPTY_CTX  # codex / gemini / api slots: not wired yet
+    if p in _DEEPSEEK:
+        from .providers.deepseek import DEFAULT_MODEL
+
+        if not os.environ.get("DEEPSEEK_API_KEY"):
+            return _unconfigured_reply(
+                "DeepSeek", "set the DEEPSEEK_API_KEY environment variable"), None, _EMPTY_CTX
+        mdl = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
+        ctx = _project_context(project, message, lane="untrusted")
+        return _deepseek(message, mdl, effort, ctx.text), mdl, ctx
+    if p in _CODEX:
+        if not shutil.which("codex"):
+            return _unconfigured_reply(
+                "Codex CLI", "install the Codex CLI and run `codex login`"), None, _EMPTY_CTX
+        mdl = model or os.environ.get("CODEX_MODEL", "")
+        ctx = _project_context(project, message, lane="untrusted")
+        return _codex(message, effort, mdl, ctx.text), (mdl or "codex"), ctx
+    return None, None, _EMPTY_CTX  # gemini / api slots: not wired yet
 
 
 def _ollama(message: str, model: str, effort: str | None,
@@ -375,6 +411,31 @@ def _ollama(message: str, model: str, effort: str | None,
             base_url=host.rstrip("/") + "/v1", model=model,
             system=system, user=_with_context(message, context),
             force_json=False, temperature=0.3,
+            timeout_s=120, extra={"max_tokens": _effort_cap(effort)},
+        )
+        return (txt or "").strip() or None
+    except Exception:
+        return None
+
+
+def _deepseek(message: str, model: str, effort: str | None,
+              context: str = "") -> str | None:
+    """DeepSeek chat brain -- the SAME OpenAI-compatible client Ollama's chat
+    brain uses (``providers._openai_compat.chat_completion``), just pointed at
+    DeepSeek's base URL with the API key it requires. No new HTTP client.
+
+    ``base_url`` is used AS-IS (no ``/v1`` suffix appended) -- matching
+    ``DeepSeekProvider.run()`` in providers/deepseek.py exactly, since
+    DeepSeek's REST root already serves ``/chat/completions`` directly."""
+    from .providers.deepseek import DEFAULT_BASE_URL
+
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
+    system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
+    try:
+        txt = chat_completion(
+            base_url=base_url, model=model, system=system, user=_with_context(message, context),
+            api_key=api_key, force_json=False, temperature=0.3,
             timeout_s=120, extra={"max_tokens": _effort_cap(effort)},
         )
         return (txt or "").strip() or None
@@ -429,6 +490,43 @@ def _claude(message: str, effort: str | None = None, model: str | None = None,
         return None
 
 
+def _codex(message: str, effort: str | None = None, model: str | None = None,
+           context: str = "") -> str | None:
+    """Codex CLI chat brain -- the lightweight, read-only, non-agentic sibling
+    of ``CodexCLIProvider`` (providers/codex_cli.py), which stays reserved for
+    the agentic, write-capable offload/task path. Mirrors ``_claude`` above:
+    a neutral cwd (never the project repo -- codex is agentic and would
+    otherwise read whatever its cwd contains), ``--sandbox read-only`` so it
+    can never write, and the SAME ``--output-last-message`` capture convention
+    codex_cli.py already uses (no ``--output-schema`` here -- a freeform chat
+    reply is plain text, not the agent_report_v1 json)."""
+    path = shutil.which("codex")
+    if not path:
+        return None
+    prompt = _claude_prompt(message, effort, context)  # model-agnostic SYSTEM+context+turn assembly
+    try:
+        with tempfile.TemporaryDirectory(prefix="daedalus-codex-chat-") as td:
+            message_path = Path(td) / "last_message.txt"
+            args = [
+                path, "exec",
+                "--cd", _neutral_cwd(),
+                "--sandbox", "read-only",
+                "--skip-git-repo-check",
+                "--color", "never",
+                "--output-last-message", str(message_path),
+            ]
+            if model:
+                args += ["--model", model]
+            args.append(prompt)
+            subprocess.run(
+                args, capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=150, stdin=subprocess.DEVNULL, check=False,
+            )
+            return (message_path.read_text(encoding="utf-8") or "").strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 # --------------------------------------------------------------------------- #
 # Streaming brain — same routing as ask(), tokens pushed as they are produced   #
 # --------------------------------------------------------------------------- #
@@ -479,6 +577,21 @@ def ask_stream(project: str, message: str, provider: str | None = None,
         model_used = model or "claude"
         ctx = _project_context(project, message, lane="trusted")
         streamer = _claude_stream(message, effort, model, ctx.text)
+    elif p in _DEEPSEEK and os.environ.get("DEEPSEEK_API_KEY"):
+        from .providers.deepseek import DEFAULT_MODEL
+
+        model_used = model or os.environ.get("DEEPSEEK_MODEL", DEFAULT_MODEL)
+        ctx = _project_context(project, message, lane="untrusted")
+        streamer = _deepseek_stream(message, model_used, effort, ctx.text)
+    # Codex CLI has no verified streaming JSON frame format (unlike Claude's,
+    # confirmed against 2.1.201 -- see _claude_stream's comment), so an
+    # unverified parser here risks yielding garbled deltas. It deliberately
+    # stays on the blocking path via the `streamer is None` fallback below,
+    # where `ask()` -> `_llm()` still answers it correctly, just without
+    # per-token streaming. An unconfigured DeepSeek (missing key) falls
+    # through the same way on purpose: the blocking call produces the clear
+    # "not set up" reply via `_llm()`'s pre-flight check instead of this
+    # function duplicating it.
 
     yield "start", {"intent": "chat",
                     "provider_used": p or "deterministic",
@@ -525,6 +638,23 @@ def _ollama_stream(message: str, model: str, effort: str | None, context: str = 
         base_url=host.rstrip("/") + "/v1", model=model,
         system=system, user=_with_context(message, context), temperature=0.3,
         timeout_s=120, extra={"max_tokens": _effort_cap(effort)},
+    )
+
+
+def _deepseek_stream(message: str, model: str, effort: str | None, context: str = ""):
+    """Yield text deltas from the DeepSeek API. Same OpenAI-compatible
+    streaming client Ollama's stream uses (``chat_stream``); only
+    base_url/api_key differ -- no new HTTP client."""
+    from .providers._openai_compat import chat_stream
+    from .providers.deepseek import DEFAULT_BASE_URL
+
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    base_url = os.environ.get("DEEPSEEK_BASE_URL", DEFAULT_BASE_URL)
+    system = SYSTEM + ("\nKeep answers short and direct." if (effort or "low").lower() == "low" else "")
+    yield from chat_stream(
+        base_url=base_url, model=model, system=system, user=_with_context(message, context),
+        api_key=api_key, temperature=0.3, timeout_s=120,
+        extra={"max_tokens": _effort_cap(effort)},
     )
 
 

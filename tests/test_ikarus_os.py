@@ -35,8 +35,10 @@ class AskTest(unittest.TestCase):
         self.assertIn("Ikarus", res["assistant"])
 
     def test_unwired_provider_falls_back_safely(self):
-        # a picker-visible but not-yet-wired runtime must not error or execute
-        res = ikarus_os.ask(self.PROJECT, "hello there", provider="codex_cli")
+        # a picker-visible but not-yet-wired runtime must not error or execute.
+        # codex_cli was the example here until it got a real _llm branch;
+        # "gemini" is a runtime the registry knows but chat does not.
+        res = ikarus_os.ask(self.PROJECT, "hello there", provider="gemini")
         self.assertEqual(res["provider_used"], "deterministic")
 
     def test_status_reads_the_bus(self):

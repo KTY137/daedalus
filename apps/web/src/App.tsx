@@ -56,15 +56,21 @@ import {
   getControlPlane,
   getDashboard,
   getClaudeBootstrap,
+  getDraft,
   getDrafts,
+  getEnvStatus,
   getHierarchy,
   getProjects,
+  getProviderStatus,
   getRuntimeStatus,
   getStructure,
   queueTask,
   testRuntime,
   updateAutonomy,
-  type DraftRow
+  type DraftDetail,
+  type DraftRow,
+  type EnvStatusPayload,
+  type ProviderStatusRow
 } from './api';
 import type { AgentProfile, BootstrapPayload, ControlPlanePayload, DashboardPayload, EffortLevel, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, ProjectRow, RuntimeRow, RuntimeTestPayload, StructurePayload } from './types';
 
@@ -242,11 +248,76 @@ function saveTranscript(messages: ChatMsg[]): void {
   } catch { /* storage disabled or over quota — the live transcript is unaffected */ }
 }
 
-/** Friendly label for a `provider_used` id: runtime label if known, else prettified. */
-function brainLabel(id: string, runtimes: RuntimeRow[]): string {
+/** Friendly label for a `provider_used` id: runtime label if known, else the
+ * matching `/api/providers/status` display name (covers brains like DeepSeek
+ * that have no runtime-registry row), else the raw id. */
+function brainLabel(id: string, runtimes: RuntimeRow[], providerStatus: ProviderStatusRow[] = []): string {
   if (!id) return '';
   if (id === 'deterministic') return 'Deterministic';
-  return runtimes.find((r) => r.id === id)?.label || id;
+  const runtime = runtimes.find((r) => r.id === id)?.label;
+  if (runtime) return runtime;
+  return providerStatus.find((p) => p.name === id)?.display_name || id;
+}
+
+/** Maps a runtime-registry id (daedalus/runtime_registry.py, CLI-first) to the
+ * matching provider-status name (daedalus/providers/__init__.py, capability-
+ * first) so the two id namespaces can be joined for readiness gating. */
+const RUNTIME_TO_PROVIDER: Record<string, string> = {
+  claude_code_cli: 'claude_cli',
+  codex_cli: 'codex_cli',
+  ollama_http: 'ollama',
+  ollama_cli: 'ollama'
+};
+
+interface BrainOption {
+  id: string;
+  label: string;
+  disabled: boolean;
+  reason: string;
+}
+
+/**
+ * Brain picker options, GATED by real readiness instead of just "is the CLI
+ * on PATH" (runtime availability) — a runtime being on PATH is not the same
+ * as it being logged in / keyed, and picking a lane that then silently
+ * degrades to a different brain is the exact footgun this closes.
+ *
+ * Also surfaces DeepSeek, which has NO runtime-registry row (registry is
+ * CLI-first) but IS a real chat brain once `daedalus/ikarus_os.py` wires it —
+ * without this it would be reachable on the backend yet unpickable in the UI.
+ */
+function brainOptions(runtimes: RuntimeRow[], providerStatus: ProviderStatusRow[]): BrainOption[] {
+  const readiness = (name: string) => providerStatus.find((p) => p.name === name);
+
+  const fromRuntimes: BrainOption[] = runtimes
+    .filter((r) => r.available)
+    .map((r) => {
+      const row = readiness(RUNTIME_TO_PROVIDER[r.id] || r.id);
+      if (!row) return { id: r.id, label: r.label, disabled: false, reason: '' };
+      const disabled = !row.configured || !row.available;
+      const reason = !row.configured
+        ? `Needs ${row.env_keys.join(', ') || 'setup'}`
+        : !row.available
+          ? row.last_error || 'Not currently reachable'
+          : '';
+      return { id: r.id, label: r.label, disabled, reason };
+    });
+
+  const deepseek = readiness('deepseek');
+  const extra: BrainOption[] = deepseek && !fromRuntimes.some((o) => o.id === 'deepseek')
+    ? [{
+        id: 'deepseek',
+        label: deepseek.display_name || 'DeepSeek',
+        disabled: !deepseek.configured || !deepseek.available,
+        reason: !deepseek.configured
+          ? `Needs ${deepseek.env_keys.join(', ') || 'an API key'}`
+          : !deepseek.available
+            ? deepseek.last_error || 'Not currently reachable'
+            : ''
+      }]
+    : [];
+
+  return [...fromRuntimes, ...extra];
 }
 
 /** Defensively count roles/subagents from the design draft (shape = chatIkarus draft). */
@@ -274,7 +345,7 @@ function statLine(payload: IkarusAskPayload): string | undefined {
  * while the network-designer capability (`chatIkarus` + apply) stays intact and
  * is reused for the `design` intent's Apply affordance.
  */
-function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtimes: RuntimeRow[]; onApplied: () => void }) {
+function IkarusPanel({ project, runtimes, providerStatus, onApplied }: { project: string; runtimes: RuntimeRow[]; providerStatus: ProviderStatusRow[]; onApplied: () => void }) {
   const [messages, setMessages] = useState<ChatMsg[]>(loadTranscript);
   const [input, setInput] = useState('Build a clean app-project agent network with Claude, Codex, Ikarus, QA, UI, API and memory roles.');
   const [provider, setProvider] = useState('deterministic');
@@ -367,7 +438,7 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
     setInput('');
     setBusy(true);
     // Show the thinking bubble immediately with the brain we expect to use.
-    setThinking({ brain: provider === 'deterministic' ? 'deterministic' : `via ${brainLabel(provider, runtimes)}` });
+    setThinking({ brain: provider === 'deterministic' ? 'deterministic' : `via ${brainLabel(provider, runtimes, providerStatus)}` });
 
     // STREAM FIRST. The endpoint routes identically to /api/ikarus/ask and
     // returns the same `final` envelope, so this is purely a latency win: the
@@ -462,9 +533,12 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
     }
   }
 
-  const currentBrain = brainLabel(provider, runtimes);
+  const currentBrain = brainLabel(provider, runtimes, providerStatus);
   // Prefill local model names for the current provider when we know them (Ollama etc.).
   const providerModels = runtimes.find((r) => r.id === provider)?.models || [];
+  // Readiness-gated picker options — see brainOptions() for why this is not
+  // just `runtimes.filter(available)`.
+  const brains = useMemo(() => brainOptions(runtimes, providerStatus), [runtimes, providerStatus]);
 
   return (
     <section className="spine glass">
@@ -511,8 +585,10 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
               aria-label="Ikarus brain / provider"
             >
               <option value="deterministic">Deterministic</option>
-              {runtimes.filter((r) => r.available).map((r) => (
-                <option key={r.id} value={r.id}>{r.label}</option>
+              {brains.map((opt) => (
+                <option key={opt.id} value={opt.id} disabled={opt.disabled} title={opt.reason || undefined}>
+                  {opt.label}{opt.disabled ? ' (not configured)' : ''}
+                </option>
               ))}
             </select>
           </label>
@@ -527,7 +603,7 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
             <span>{m.text}</span>
             {m.brain && (
               <small style={{ display: 'block', marginTop: 6, color: 'var(--dim)', fontSize: 11 }}>
-                brain: {brainLabel(m.brain, runtimes)}{m.model ? ` · ${m.model}` : ''}
+                brain: {brainLabel(m.brain, runtimes, providerStatus)}{m.model ? ` · ${m.model}` : ''}
               </small>
             )}
             {m.stat && (
@@ -596,10 +672,91 @@ function IkarusPanel({ project, runtimes, onApplied }: { project: string; runtim
   );
 }
 
+/** Best-effort diff-line coloring for free-form proposal text. The backend has
+ * no structured unified-diff endpoint — `report.handoff` is whatever free-form
+ * text/object the provider returned (see providers/_report.py) — so this only
+ * upgrades rendering WHEN the text already looks diff-shaped (+/-/@@ prefixed
+ * lines); plain text still renders, just unstyled. */
+function DraftProposalText({ text }: { text: string }) {
+  return (
+    <pre
+      style={{
+        whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 320, overflowY: 'auto',
+        fontSize: 12, lineHeight: 1.6, margin: 0, padding: 10,
+        background: 'var(--glass-thin)', border: '1px solid var(--edge-soft)', borderRadius: 'var(--r-md)'
+      }}
+    >
+      {text.split('\n').map((line, i) => {
+        const color = /^\+(?!\+\+)/.test(line) ? 'var(--good)'
+          : /^-(?!--)/.test(line) ? 'var(--bad)'
+          : /^@@/.test(line) ? 'var(--warn)'
+          : undefined;
+        return <div key={i} style={{ color }}>{line || ' '}</div>;
+      })}
+    </pre>
+  );
+}
+
+/** `report.handoff` is a free-form object (provider-specific keys like `notes`
+ * or `suggestion`); render every entry rather than guessing one canonical key. */
+function DraftHandoff({ handoff }: { handoff: Record<string, unknown> }) {
+  const entries = Object.entries(handoff || {});
+  if (entries.length === 0) {
+    return <p style={{ color: 'var(--muted)', fontSize: 12 }}>No proposed content in this draft's handoff.</p>;
+  }
+  return (
+    <>
+      {entries.map(([key, value]) => (
+        <div key={key} style={{ marginBottom: 10 }}>
+          <small style={{ display: 'block', marginBottom: 4, color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            {key}
+          </small>
+          {typeof value === 'string'
+            ? <DraftProposalText text={value} />
+            : <pre style={{ margin: 0, fontSize: 12, maxHeight: 240, overflowY: 'auto' }}>{JSON.stringify(value, null, 2)}</pre>}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Draft inbox + review-before-apply. Applying a draft you have not read is
+ * the footgun: Apply is no longer reachable straight from the compact row —
+ * "Review" fetches the FULL draft (`getDraft`) and only the detail panel it
+ * opens carries the Apply button. Dismiss stays on the row: it is not
+ * destructive/spendy (it never hands anything to a write-capable lane), so
+ * forcing a read first would only add friction without closing a footgun.
+ */
 function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => void }) {
   const [busy, setBusy] = useState('');
   const [applied, setApplied] = useState<Record<string, unknown> | undefined>();
+  const [selectedId, setSelectedId] = useState('');
+  const [detail, setDetail] = useState<DraftDetail | undefined>();
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const pending = drafts.filter((d) => d.status === 'pending');
+
+  async function review(id: string) {
+    setSelectedId(id);
+    setDetail(undefined);
+    setDetailError('');
+    setDetailLoading(true);
+    try {
+      const res = await getDraft(id);
+      setDetail(res.draft);
+    } catch (err) {
+      setDetailError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function closeReview() {
+    setSelectedId('');
+    setDetail(undefined);
+    setDetailError('');
+  }
 
   async function act(id: string, verb: 'apply' | 'dismiss') {
     setBusy(id);
@@ -610,6 +767,7 @@ function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => v
       } else {
         await dismissDraft(id);
       }
+      if (selectedId === id) closeReview();
       onChange();
     } finally {
       setBusy('');
@@ -620,7 +778,7 @@ function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => v
     <section className="panel feature-panel">
       <div className="panel-head"><Inbox size={18} /><div>
         <h2>Draft Inbox</h2>
-        <p>Advisory proposals from the free bench. A free model may propose — never merge. Applying hands a review packet to the trusted (Claude) lane.</p>
+        <p>Advisory proposals from the free bench. A free model may propose — never merge. Review a draft before applying; applying hands the review packet to the trusted (Claude) lane.</p>
       </div></div>
       {pending.length === 0 && <div className="feed-row"><span>No pending drafts. Advisory offloads land here.</span></div>}
       <div className="feed-list">
@@ -632,12 +790,61 @@ function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => v
               <small>{(d.paths || []).join(', ') || 'no paths'} · {d.created}</small>
             </div>
             <div className="draft-actions">
-              <button className="primary" disabled={busy === d.id} onClick={() => act(d.id, 'apply')}><Check size={13} /> Apply</button>
+              <button className="primary" disabled={busy === d.id} onClick={() => review(d.id)}><FileText size={13} /> Review</button>
               <button disabled={busy === d.id} onClick={() => act(d.id, 'dismiss')}><Trash2 size={13} /> Dismiss</button>
             </div>
           </div>
         ))}
       </div>
+
+      {selectedId && (
+        <div className="bootstrap-box">
+          <div className="panel-head compact">
+            <MessageSquare size={16} />
+            <div><h2>Review before applying</h2><p>Nothing is written yet — Apply hands this packet to the trusted (Claude) lane.</p></div>
+          </div>
+          {detailLoading && <div className="feed-row"><span>Loading draft…</span></div>}
+          {detailError && <div className="feed-row"><span style={{ color: 'var(--bad)' }}>{detailError}</span></div>}
+          {detail && (
+            <>
+              <div className="field-grid">
+                <div><label>Agent</label><strong>{detail.agent || 'bench'}</strong></div>
+                <div><label>Provider</label><strong>{detail.provider || 'unknown'}</strong></div>
+                <div><label>Status</label><strong>{detail.report?.status || 'needs_review'}</strong></div>
+                <div><label>Paths</label><strong>{(detail.paths || []).join(', ') || 'none'}</strong></div>
+              </div>
+              <p><b>Objective:</b> {detail.objective}</p>
+              <p>{detail.report?.summary || 'No summary provided.'}</p>
+              {(detail.report?.files_changed?.length ?? 0) > 0 && (
+                <p><b>Files:</b> {detail.report.files_changed.join(', ')}</p>
+              )}
+              {(detail.report?.risks?.length ?? 0) > 0 && (
+                <div>
+                  <small style={{ color: 'var(--warn)' }}>Risks</small>
+                  <ul>{detail.report.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                </div>
+              )}
+              {(detail.report?.todos?.length ?? 0) > 0 && (
+                <div>
+                  <small>Todos</small>
+                  <ul>{detail.report.todos.map((t, i) => <li key={i}>{t}</li>)}</ul>
+                </div>
+              )}
+              <div className="section-title">Proposed change</div>
+              <DraftHandoff handoff={detail.report?.handoff || {}} />
+              <div className="confirm-row">
+                <GlassButton primary disabled={busy === selectedId} onClick={() => act(selectedId, 'apply')}>
+                  <Check size={14} /> Apply
+                </GlassButton>
+                <GlassButton disabled={busy === selectedId} onClick={closeReview}>
+                  <X size={14} /> Close
+                </GlassButton>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {applied && (
         <div className="bootstrap-box">
           <div className="panel-head compact"><MessageSquare size={16} /><div><h2>Review packet</h2><p>Hand this to the Claude lane to actually apply the change.</p></div></div>
@@ -724,6 +931,8 @@ export default function App() {
   const [hierarchy, setHierarchy] = useState<HierarchyPayload | undefined>();
   const [control, setControl] = useState<ControlPlanePayload | undefined>();
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
+  const [envStatus, setEnvStatus] = useState<EnvStatusPayload | undefined>();
+  const [providerStatus, setProviderStatus] = useState<ProviderStatusRow[]>([]);
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | undefined>();
   const [selectedName, setSelectedName] = useState('');
   const [view, setView] = useState<SheetView>('network');
@@ -784,6 +993,12 @@ export default function App() {
         }),
         getRuntimeStatus().then((payload) => {
           if (serial === refreshSerial.current) setRuntimes(payload.runtimes);
+        }),
+        getEnvStatus().then((payload) => {
+          if (serial === refreshSerial.current) setEnvStatus(payload.env);
+        }),
+        getProviderStatus().then((payload) => {
+          if (serial === refreshSerial.current) setProviderStatus(payload.providers || []);
         }),
         getClaudeBootstrap(chosen).then((payload) => {
           if (serial === refreshSerial.current) setBootstrap(payload);
@@ -948,6 +1163,18 @@ export default function App() {
   const queueDepth = typeof live.queueDepth === 'number' && Number.isFinite(live.queueDepth) ? live.queueDepth : queuePending;
   const streamLive = liveStatus === 'live';
 
+  // BYOK readiness badge (Connections/env.py `env_status().providers`). This
+  // is the invariant the flagship BYOK promise depends on — a user who cannot
+  // see whether a key is configured cannot trust that a paid brain will work
+  // (or that a free one didn't just silently take over). `ollama` needs no
+  // key so it always reads configured=true; the count is still meaningful as
+  // a per-provider readiness rollup, and the tooltip spells out every row.
+  const envProviders = Object.entries(envStatus?.providers || {});
+  const byokConfigured = envProviders.filter(([, info]) => info.configured).length;
+  const byokTitle = envProviders.length > 0
+    ? envProviders.map(([name, info]) => `${name}: ${info.configured ? 'configured' : 'not configured'}`).join('\n')
+    : 'Loading provider readiness…';
+
   function openSheet(next: SheetView) {
     setView(next);
     setSheetOpen(true);
@@ -1083,6 +1310,17 @@ export default function App() {
           </select>
         )}
         <div className="spacer" />
+        {envStatus && (
+          <button
+            type="button"
+            className="pill"
+            onClick={() => openSheet('providers')}
+            title={byokTitle}
+            aria-label={`BYOK readiness: ${byokConfigured} of ${envProviders.length} providers configured`}
+          >
+            <KeyRound size={12} /> BYOK {byokConfigured}/{envProviders.length}
+          </button>
+        )}
         <span
           className="pill livechip"
           title={streamLive ? 'Live event stream connected' : 'Stream down — falling back to polling'}
@@ -1144,7 +1382,7 @@ export default function App() {
 
         <div className="spine-wrap">
           {error && <div className="error-banner">{error}</div>}
-          <IkarusPanel project={project} runtimes={runtimes} onApplied={() => refresh(project)} />
+          <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
         </div>
 
         <LiveRail>
