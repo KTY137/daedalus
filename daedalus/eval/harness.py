@@ -113,9 +113,10 @@ def _by_provenance(rows: list[dict], aggregate_fn) -> dict:
     the ONLY aggregation path Tier 1 and the arms comparison use -- there is
     deliberately no top-level blended mean anywhere in this module.
 
-    CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``"error" in row``) before
-    passing ``rows`` here -- see ``run_tier1``/``run_arms``. An errored row
-    carries no recall/compression measurement, so folding it in would either
+    CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``"error" in row``) AND
+    FOCUS-WITHHELD ROWS (``row.get("focus_withheld")``) before passing
+    ``rows`` here -- see ``run_tier1``/``run_arms``. Neither carries a
+    recall/compression measurement, so folding either in would either
     KeyError or (worse) silently get treated as a zero, corrupting the mean
     it was supposed to be excluded from."""
     grouped = _group_rows_by_provenance(rows)
@@ -143,6 +144,34 @@ def _task_error_row(task: dict, exc: Exception) -> dict:
         "project": task_project_label(task),
         "target": task.get("target"),
         "error": str(exc),
+        "label_provenance": task.get("label_provenance", "hand_reachable"),
+        "label_tier": task.get("tier", "primary"),
+    }
+
+
+def _is_focus_withheld(res: dict) -> bool:
+    """True iff ``semantic_slice`` fail-closed on the task's OWN focus file
+    (see slice.py's FOCUS GATE): the withheld block contains a role=="focus"
+    entry -- the exact shape slice.py emits when the unconditional secret
+    floor fires on the target itself, not on some neighbour it dropped."""
+    return any(w.get("role") == "focus" for w in (res.get("withheld") or []))
+
+
+def _focus_withheld_row(task: dict, res: dict) -> dict:
+    """Shared shape for a FOCUS-WITHHELD row -- the fence fail-closed on the
+    task's own focus file, a lane A1 label-hygiene case distinct from
+    ``_task_error_row``: ``semantic_slice`` did not raise (this is not a
+    resolution failure), it legitimately returned an empty, gate-refused
+    slice. There is NO recall/compression/missed (Tier 1) or recall_A/tokens_A/
+    ... (arms) key at all -- ABSENT, not a zero -- same "any aggregator that
+    forgets to filter fails loudly" contract as the ``error`` marker, keyed
+    here on ``focus_withheld`` instead."""
+    return {
+        "id": task["id"],
+        "project": task_project_label(task),
+        "target": task.get("target"),
+        "focus_file": res.get("focus_file"),
+        "focus_withheld": True,
         "label_provenance": task.get("label_provenance", "hand_reachable"),
         "label_tier": task.get("tier", "primary"),
     }
@@ -178,6 +207,8 @@ def eval_task_tier1(task: dict, idx: dict | None = None) -> dict:
         res = semantic_slice(repo, task["target"], idx=idx)
     except (ValueError, OSError) as exc:
         return _task_error_row(task, exc)
+    if _is_focus_withheld(res):
+        return _focus_withheld_row(task, res)
     slice_tokens = res["slice_tokens"]
     whole_tokens = res["whole_repo_tokens"]
     recall, missed = _recall(res["slice_text"], task.get("must_include", []))
@@ -254,13 +285,21 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
     n = len(per_task)
     n_primary = sum(1 for t in per_task if _is_primary_tier(t["label_tier"]))
     errored = [t for t in per_task if "error" in t]
-    healthy = [t for t in per_task if "error" not in t]
+    # FOCUS-WITHHELD (lane A1): the fence fail-closed on the task's own focus
+    # file -- not a resolution error (excluded above), not a recall outcome
+    # either. Excluded from `healthy` (therefore from every mean/miss count in
+    # by_provenance) same as errored rows, and separately counted/named so it
+    # is reported, never silently folded into either a pass or a miss.
+    focus_withheld = [t for t in per_task if t.get("focus_withheld")]
+    healthy = [t for t in per_task if "error" not in t and not t.get("focus_withheld")]
     return {
         "tier": 1,
         "n_tasks": n,
         "n_primary_tasks": n_primary,
         "n_quarantine_tasks": n - n_primary,
         "n_errored_tasks": len(errored),
+        "n_focus_withheld": len(focus_withheld),
+        "focus_withheld_ids": sorted(t["id"] for t in focus_withheld),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
         "errored": sorted(errored, key=lambda r: r["id"]),
@@ -454,6 +493,8 @@ def eval_task_arms(task: dict, idx: dict | None = None,
         res = semantic_slice(repo, task["target"], idx=idx)
     except (ValueError, OSError) as exc:
         return _task_error_row(task, exc)
+    if _is_focus_withheld(res):
+        return _focus_withheld_row(task, res)
     must_include = task.get("must_include", [])
 
     text_a = res["slice_text"]
@@ -536,11 +577,14 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
             continue
         per_task.append(eval_task_arms(task, idx=idx_cache[repo], chunks=chunks_cache[repo]))
     errored = [t for t in per_task if "error" in t]
-    healthy = [t for t in per_task if "error" not in t]
+    focus_withheld = [t for t in per_task if t.get("focus_withheld")]  # see run_tier1
+    healthy = [t for t in per_task if "error" not in t and not t.get("focus_withheld")]
     return {
         "tier": "arms",
         "n_tasks": len(per_task),
         "n_errored_tasks": len(errored),
+        "n_focus_withheld": len(focus_withheld),
+        "focus_withheld_ids": sorted(t["id"] for t in focus_withheld),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
         "errored": sorted(errored, key=lambda r: r["id"]),
@@ -717,8 +761,10 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
     ERRORED tasks (``run_tier1``) have no recall to snapshot and are skipped
     here -- they simply get no baseline entry, which makes them a "new task"
     (not silently a pass) the next time ``run_gate`` sees them resolve
-    successfully.
-    """
+    successfully. FOCUS-WITHHELD tasks (the secret floor fail-closed on the
+    task's own focus file) are skipped for the same reason: there is no
+    ``recall`` key to snapshot, and re-baselining a fence-refused task would
+    silently launder "never measured" into "passing"."""
     tasks = all_tasks() if tasks is None else tasks
     result = run_tier1(tasks)
     snap = {
@@ -728,7 +774,7 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
             "tier": t["label_tier"],
         }
         for t in result["per_task"]
-        if "error" not in t
+        if "error" not in t and not t.get("focus_withheld")
     }
     return {
         "schema": 1,
@@ -780,6 +826,14 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
       * QUARANTINE tier -- reported only (``errored_quarantine``), never fails
         the gate -- flywheel debris (an unconfirmed minted task whose target
         moved/vanished) must not be able to block a developer's gate run.
+
+    FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus
+    file -- lane A1) are likewise SPLIT OUT, not folded into ``regressions``:
+    a task that TRANSITIONS to focus-withheld this run has no ``recall`` to
+    compare (fail-closed is not "recall dropped to 0"), so treating it as a
+    regression would be a false alarm on the fence doing its job. Reported in
+    its own ``focus_withheld`` section, regardless of tier, and never fails
+    the gate.
     """
     tasks = all_tasks() if tasks is None else tasks
     p = baseline_path or DEFAULT_BASELINE_PATH
@@ -794,6 +848,7 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
     current_ids: set[str] = set()
     errored_primary: list[dict] = []
     errored_quarantine: list[dict] = []
+    focus_withheld: list[dict] = []
 
     for t in result["per_task"]:
         current_ids.add(t["id"])
@@ -803,6 +858,9 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
                 errored_primary.append(row)
             else:
                 errored_quarantine.append(row)
+            continue
+        if t.get("focus_withheld"):
+            focus_withheld.append({"id": t["id"], "target": t.get("target")})
             continue
         if not _is_primary_tier(t["label_tier"]):
             continue  # quarantine is never gated, see module docstring
@@ -837,4 +895,5 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
         "missing_tasks": missing_tasks,
         "errored_primary": sorted(errored_primary, key=lambda r: r["id"]),
         "errored_quarantine": sorted(errored_quarantine, key=lambda r: r["id"]),
+        "focus_withheld": sorted(focus_withheld, key=lambda r: r["id"]),
     }

@@ -440,6 +440,30 @@ class ErroredTaskResilienceTest(unittest.TestCase):
         self.assertNotIn("ERRORED", gate_text)
         self.assertNotIn("FAILED TO RESOLVE", gate_text)
 
+    def test_zero_focus_withheld_tasks_report_has_no_focus_withheld_section(self):
+        """Regression (lane A1): a task set with zero focus-withheld tasks --
+        i.e. every fixture used across the pre-existing eval oracle suite --
+        renders and gates byte-identically to before the focus_withheld
+        machinery existed. n_focus_withheld/focus_withheld_ids are new,
+        additive, and always present but empty here."""
+        result = harness.run_tier1([self.healthy_task])
+        self.assertEqual(result["n_focus_withheld"], 0)
+        self.assertEqual(result["focus_withheld_ids"], [])
+        text = report.render_tier1(result)
+        self.assertNotIn("FOCUS-WITHHELD", text)
+
+        gate = harness.run_gate([self.healthy_task], baseline_path=self.baseline_path)
+        self.assertEqual(gate["focus_withheld"], [])
+        gate_text = report.render_gate(gate)
+        self.assertNotIn("FOCUS-WITHHELD", gate_text)
+
+    def test_zero_focus_withheld_arms_report_has_no_focus_withheld_section(self):
+        result = harness.run_arms([self.healthy_task])
+        self.assertEqual(result["n_focus_withheld"], 0)
+        self.assertEqual(result["focus_withheld_ids"], [])
+        text = report.render_arms(result)
+        self.assertNotIn("FOCUS-WITHHELD", text)
+
     def test_builtin_task_set_renders_with_no_errored_section(self):
         """The real, shipped task set has zero errored tasks today -- pins
         that the whole ERRORED machinery is invisible until something

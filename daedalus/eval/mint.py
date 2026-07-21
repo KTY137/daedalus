@@ -47,7 +47,48 @@ same-file symbols were allowed in. A commit/edit where only one in-scope file
 has any diffed symbols therefore has no valid label source at all: it mints
 nothing rather than minting a label=[] task (``harness._recall`` returns a
 vacuous 1.0 for an empty ``must_include``, which would be worse than not
-minting).
+minting). THE SAME GUARD APPLIES AFTER LABEL HYGIENE BELOW: the junk /
+cross-language / secret-floor filters can themselves drain every candidate
+label, and an emptied-by-filtering ``must_include`` is exactly as vacuous as
+an empty one from a single-file diff -- ``_mint_from_diffs`` re-checks
+non-emptiness once, after filtering, and mints nothing (with a ``reason``)
+if nothing survives.
+
+LABEL HYGIENE (lane A1 -- the honest number, not a hidden one): three more
+filters, applied inside ``_mint_from_diffs``, each recording what it dropped
+rather than silently discarding it:
+
+  * JUNK: a diffed name that fails ``_is_junk_label`` (not a plausible
+    identifier under any supported language's rules, or one of a small set of
+    node-text markers that are never legitimate exported symbol names in ANY
+    of them -- ``if``/``<anonymous>``/etc.) never becomes a ``must_include``
+    entry -- dropped names land in ``labels_filtered_junk`` (sorted). This
+    list is deliberately narrow: a name that is a real, commonly-used
+    identifier in even one supported language (``delete`` as a Python/Django
+    method, ``New`` as a Go exported constructor) is NOT junk just because it
+    is also a reserved word in some other language.
+  * CROSS-LANGUAGE: a label may only come from a file whose language FAMILY
+    (``_language_family(languages.spec_for(...).name)``) matches the
+    TARGET's -- a TS symbol co-committed with a Python target measures
+    nothing about the Python slicer. Families group languages the slicer's
+    own import graph routinely crosses (a C++ file and its own ``.h``; a
+    ``.ts`` file and the ``.js`` it imports) -- those are NOT cross-language
+    for this filter's purposes, since the label genuinely can turn up in a
+    same-family neighbour's slice. Filtered names land in
+    ``labels_filtered_cross_language`` (sorted). This is orthogonal to
+    CROSS-FILE ONLY above, not a relaxation of it.
+  * FLOOR-TRIPPING LABEL SOURCE EXCLUSION: ``sensitivity.secret_floor_rule``
+    is run against every anchor CANDIDATE's current content before target
+    selection. A file that trips the floor is dropped from the ANCHOR POOL
+    (recorded in ``skipped_secret_floor``) -- pointing a task at it is
+    unanswerable, since ``semantic_slice`` fails that file closed by design
+    (see slice.py's FOCUS GATE) -- AND from label consideration: the same
+    egress gate that fails the file closed as a FOCUS also withholds it as a
+    NEIGHBOUR, in every lane, at every emission point (slice.py's
+    ``_emit_ok``) -- so a symbol defined only in a floor-tripping file can
+    never appear in ANY slice, focus or otherwise, and scoring recall against
+    it would just be a guaranteed, permanent miss mislabeled as a slicer
+    defect. Filtered names land in ``labels_filtered_secret_floor`` (sorted).
 """
 from __future__ import annotations
 
@@ -56,14 +97,90 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 
+from daedalus.sensitivity import secret_floor_rule
 from daedalus.structcore.index import cached_index
 from daedalus.structcore.languages import spec_for
 from daedalus.structcore.parse import extract_units
 
 _LOG = logging.getLogger(__name__)
+
+# JUNK FILTER (label hygiene, lane A1): a diffed "symbol name" that is not a
+# plausible identifier is parser noise, not a real label -- ``<anonymous>``
+# (an unnamed closure/callback our extractor still has to name *something*)
+# or a keyword the language grammar hands back as a node text in some grammar
+# edge case (`if`, `else`, ...).
+#
+# Name-shape check: unicode-aware (a non-ASCII identifier -- ``café`` -- is
+# legal Python/JS/etc and must not be treated as noise just for using
+# non-ASCII letters) and allows a leading/embedded ``$`` (legal anywhere in a
+# JS/TS identifier, e.g. Angular's ``$scope``) on top of the universal
+# letter/digit/underscore identifier shape.
+#
+# Keyword check: deliberately NARROW, and case-SENSITIVE. Real reserved
+# words are fixed-case in every language here (always lowercase) -- a
+# PascalCase match (``New``, ``Default``, ``Case``, ``Switch``) is essentially
+# never grammar-recovery noise and near-always a real exported identifier
+# (a Go constructor named ``New``, a C#/Java ``Default``/``Case`` member, a
+# class literally named ``Switch``). The set below is further limited to
+# words that are reserved in EVERY supported language and implausible as a
+# real symbol name in any of them -- unlike ``new``/``delete``/``default``/
+# ``case``/``switch``/``static``/``of``/``in``, which are ordinary, common
+# identifiers in at least one supported language (Python has none of these as
+# keywords at all) and were previously flagged as junk regardless of case,
+# silently deflating recall for real symbols like a Python/Django ``delete``
+# view method or a Go ``New`` constructor.
+_IDENTIFIER_RE = re.compile(r"^(?:[^\W\d]|\$)[\w$]*$")
+_JUNK_KEYWORDS = frozenset({
+    "if", "elif", "else", "for", "while", "do",
+    "try", "except", "catch", "finally", "throw", "raise",
+    "return", "yield", "break", "continue", "pass",
+    "const", "let", "var", "function", "def", "class", "struct", "enum",
+    "interface", "import", "export", "from", "as",
+    "typeof", "instanceof", "async", "await",
+    "public", "private", "protected", "this", "self", "super",
+    "true", "false", "null", "none", "undefined", "nil",
+    "<anonymous>",
+})
+
+
+# CROSS-LANGUAGE FAMILY (label hygiene, lane A1): languages the slicer's own
+# import graph routinely crosses, so a label source in the "other" member is
+# NOT cross-language for recall purposes -- imports.py resolves a C/C++
+# ``#include "foo.h"`` regardless of whether the includer is ``.c`` or
+# ``.cpp`` (``.h`` is its own LanguageSpec, name "c"), and a ``.ts`` file's
+# ``import`` can resolve straight to a co-located ``.js`` module. Every
+# LanguageSpec name NOT listed here maps to its own singleton family (its
+# prior, unchanged behavior) -- this is purely additive grouping, not a
+# relaxation of the filter for any language pair not named below.
+_LANGUAGE_FAMILIES: dict[str, str] = {
+    "c": "c_cpp", "cpp": "c_cpp",
+    "javascript": "js_ts", "typescript": "js_ts",
+}
+
+
+def _language_family(lang_name: str | None) -> str | None:
+    """The cross-language filter's equality key for ``lang_name`` -- see
+    ``_LANGUAGE_FAMILIES`` above. ``None`` (no LanguageSpec) stays ``None``
+    and therefore never equals any real family, same fail-closed behavior as
+    before this grouping existed."""
+    if lang_name is None:
+        return None
+    return _LANGUAGE_FAMILIES.get(lang_name, lang_name)
+
+
+def _is_junk_label(name: str) -> bool:
+    """True if ``name`` cannot be a real symbol label -- see the JUNK FILTER
+    comment above. Checked name-shape-first (a non-identifier like
+    ``<anonymous>`` never reaches the keyword set at all). The keyword check
+    is intentionally case-SENSITIVE (see the comment above ``_JUNK_KEYWORDS``
+    for why) -- ``name`` is matched as-is, never lowercased."""
+    if not _IDENTIFIER_RE.match(name):
+        return True
+    return name in _JUNK_KEYWORDS
 
 # Below this many independent confirmations a mint stays quarantined and is
 # excluded from go/no-go. Rationale: a SINGLE diff-derived label can be a
@@ -272,23 +389,94 @@ def _mint_from_diffs(
         return None, diagnostics
 
     existing = {rel: syms for rel, syms in per_file.items() if scoped[rel][1] is not None}
-    anchor_pool = existing or per_file
+
+    # FLOOR-TRIPPING LABEL SOURCE EXCLUSION -- see module docstring. Used
+    # below for BOTH the anchor pool (a floor-tripping file can't be pointed
+    # at -- semantic_slice's FOCUS GATE fails it closed) and, further down,
+    # the cross-file label loop (the same file is withheld as a NEIGHBOUR in
+    # every lane too, so its symbols can never be recalled either). Computed
+    # over ALL of per_file (not just `existing`) so a deleted-but-still-named
+    # path (e.g. a rename that trips a path-marker rule) is caught too; the
+    # content check degrades to "" for a deleted file (nothing left on disk
+    # to scan).
+    floor_tripped = sorted(
+        rel for rel in per_file
+        if secret_floor_rule(rel, scoped[rel][1] or "") is not None
+    )
+    diagnostics["skipped_secret_floor"] = floor_tripped
+
+    anchor_pool = {rel: syms for rel, syms in (existing or per_file).items()
+                   if rel not in floor_tripped}
+    if not anchor_pool:
+        # Every file that could anchor this task trips the secret floor --
+        # there is no safe target to mint, full stop (never fall back to an
+        # unsafe anchor just to produce a task).
+        diagnostics["reason"] = (
+            "every candidate anchor file trips the secret floor; no safe "
+            "target exists"
+        )
+        return None, diagnostics
     anchor = sorted(anchor_pool, key=lambda r: (-len(anchor_pool[r]), r))[0]
     anchor_syms = per_file[anchor]
+    target_lang = spec_for(anchor)
+    target_lang_name = target_lang.name if target_lang else None
 
     # Cross-file only: a symbol NAME can repeat across files (different
     # symbol, same name) -- keep the larger magnitude rather than letting one
     # silently clobber the other, matching _diffed_symbols' own duplicate-name
-    # handling. Guaranteed non-empty: the len(per_file) < 2 check above means
-    # at least one OTHER (non-anchor) entry exists in per_file, and every
-    # per_file entry is non-empty by construction (the `if sizes:` guard when
-    # per_file was built).
+    # handling. NOT guaranteed non-empty any more: the len(per_file) < 2 check
+    # above only guarantees at least one OTHER (non-anchor) per_file entry
+    # existed BEFORE filtering -- the junk / cross-language / secret-floor
+    # filters below can still drain every one of its symbols, so the
+    # post-filter emptiness guard after this loop is load-bearing, not
+    # defensive dead code. JUNK / CROSS-LANGUAGE / SECRET-FLOOR filtering (see
+    # module docstring) happens per (file, name) occurrence, BEFORE the
+    # max-magnitude merge -- a name filtered out of one file's occurrence can
+    # still be kept from another (matching-family, non-junk, non-floor-
+    # tripping) file's occurrence.
     cross_file_sizes: dict[str, int] = {}
+    labels_filtered_junk: set[str] = set()
+    labels_filtered_cross_language: set[str] = set()
+    labels_filtered_secret_floor: set[str] = set()
+    target_family = _language_family(target_lang_name)
     for rel, sizes in per_file.items():
         if rel == anchor:
             continue
+        if rel in floor_tripped:
+            # FLOOR-TRIPPING LABEL SOURCE EXCLUSION (see module docstring):
+            # semantic_slice withholds this file as a neighbour in EVERY
+            # lane, so any symbol defined only here can never appear in any
+            # slice -- keeping it in must_include would be a guaranteed,
+            # permanent miss mislabeled as a slicer defect, not a real signal.
+            labels_filtered_secret_floor.update(sizes)
+            continue
+        rel_lang = spec_for(rel)
+        rel_lang_name = rel_lang.name if rel_lang else None
         for name, size in sizes.items():
+            if _is_junk_label(name):
+                labels_filtered_junk.add(name)
+                continue
+            if rel_lang_name is None or _language_family(rel_lang_name) != target_family:
+                labels_filtered_cross_language.add(name)
+                continue
             cross_file_sizes[name] = max(cross_file_sizes.get(name, 0), size)
+
+    if not cross_file_sizes:
+        # Label hygiene filtered every cross-file candidate -- see CROSS-FILE
+        # ONLY in the module docstring: minting must_include=[] here would be
+        # exactly as vacuous (harness._recall's 1.0-for-empty) as the
+        # single-file case already guarded above, just reached by a different
+        # path. Diagnostics carry what was filtered even though there is no
+        # task dict to carry it on, so the drop is reported, never silent.
+        diagnostics["labels_filtered_junk"] = sorted(labels_filtered_junk)
+        diagnostics["labels_filtered_cross_language"] = sorted(labels_filtered_cross_language)
+        diagnostics["labels_filtered_secret_floor"] = sorted(labels_filtered_secret_floor)
+        diagnostics["reason"] = (
+            "label hygiene (junk/cross-language/secret-floor filters) "
+            "dropped every cross-file candidate symbol; no valid label "
+            "source remains"
+        )
+        return None, diagnostics
 
     ranked = sorted(cross_file_sizes, key=lambda n: (-cross_file_sizes[n], n))
     kept = sorted(ranked[:MUST_INCLUDE_CAP])
@@ -309,6 +497,10 @@ def _mint_from_diffs(
         "confirmations": 0,
         "mint_source": source,
         "skipped_out_of_scope": skipped,
+        "labels_filtered_junk": sorted(labels_filtered_junk),
+        "labels_filtered_cross_language": sorted(labels_filtered_cross_language),
+        "labels_filtered_secret_floor": sorted(labels_filtered_secret_floor),
+        "skipped_secret_floor": floor_tripped,
     }
     return task, diagnostics
 

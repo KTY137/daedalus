@@ -133,6 +133,18 @@ class MintFromCommitTest(unittest.TestCase):
         self.assertEqual(task["must_include_dropped"], 0)
         self.assertEqual(task["skipped_out_of_scope"], [])
 
+    def test_label_hygiene_fields_present_and_empty_for_clean_diff(self):
+        # Regression (lane A1): the JUNK/CROSS-LANGUAGE/FLOOR fields are
+        # additive -- present on every minted task, empty for a diff that
+        # trips none of them, and must_include/target stay byte-identical
+        # to the pre-lane-A1 values pinned above.
+        task = mint_from_commit(str(self.root), self.sha2)[0]
+        self.assertEqual(task["labels_filtered_junk"], [])
+        self.assertEqual(task["labels_filtered_cross_language"], [])
+        self.assertEqual(task["labels_filtered_secret_floor"], [])
+        self.assertEqual(task["skipped_secret_floor"], [])
+        self.assertEqual(task["must_include"], ["other_func"])
+
     def test_root_commit_has_no_parent_and_stays_cross_file_only(self):
         # v1 itself is the root commit and already adds BOTH files: mod.py
         # gets 2 added symbols (helper, target_func), other.py gets 1

@@ -38,6 +38,27 @@ def _row(cells: list[str], widths: list[int]) -> str:
     return "| " + " | ".join(c.ljust(w) for c, w in zip(cells, widths)) + " |"
 
 
+def _focus_withheld_lines(result: dict) -> list[str]:
+    """FOCUS-WITHHELD (lane A1) -- honest, ASCII-only accounting for tasks
+    where the unconditional secret floor fail-closed on the task's OWN focus
+    file (see harness._is_focus_withheld / slice.py's FOCUS GATE). Neither a
+    pass (no slice text was ever compared to must_include) nor a recall miss
+    (the label was never even attempted) -- its own bucket, excluded from
+    every mean/count above. Absent (result.get) for any hand-built result
+    dict that predates this field, and adds no lines when there are none."""
+    ids = result.get("focus_withheld_ids") or []
+    if not ids:
+        return []
+    lines = [
+        "",
+        f"FOCUS-WITHHELD ({len(ids)}): the secret floor fail-closed on the "
+        "focus file itself -- not a recall miss, not a pass, EXCLUDED from "
+        "every mean/count above:",
+    ]
+    lines += [f"  {id_}" for id_ in ids]
+    return lines
+
+
 def _table(headers: list[str], rows: list[list[str]]) -> str:
     widths = [len(h) for h in headers]
     for r in rows:
@@ -91,9 +112,11 @@ def render_tier1(result: dict) -> str:
     rows = []
     # Errored rows carry no recall/compression/slice_tokens/... at all (see
     # harness._task_error_row) -- they get their own ERRORED section below,
-    # not a row in this recall/compression table.
+    # not a row in this recall/compression table. FOCUS-WITHHELD rows (see
+    # harness._focus_withheld_row) are excluded the same way, into their own
+    # section below.
     for t in result["per_task"]:
-        if "error" in t:
+        if "error" in t or t.get("focus_withheld"):
             continue
         rows.append([
             t["id"],
@@ -123,10 +146,14 @@ def render_tier1(result: dict) -> str:
         "",
     ]
     lines += _provenance_breakdown_lines(result["by_provenance"])
-    # Healthy (non-errored) misses only -- an errored task has no "missed"
-    # list at all (it never got as far as measuring recall); it is reported
-    # below, in its own unmissable section, not folded in here as a miss.
-    misses = [t for t in result["per_task"] if "error" not in t and t["missed"]]
+    lines += _focus_withheld_lines(result)
+    # Healthy (non-errored, non-focus-withheld) misses only -- an errored task
+    # has no "missed" list at all (it never got as far as measuring recall);
+    # a focus-withheld task has none either (the fence refused before recall
+    # was ever measured). Both are reported in their own unmissable sections,
+    # not folded in here as a miss.
+    misses = [t for t in result["per_task"]
+              if "error" not in t and not t.get("focus_withheld") and t["missed"]]
     if misses:
         lines.append("")
         lines.append(f"SLICE-RECALL MISSES ({len(misses)}) "
@@ -165,7 +192,10 @@ def render_arms(result: dict) -> str:
     rows = []
     # Errored rows carry no recall_A/tokens_A/... at all (see harness._task_error_row)
     # -- they are reported in their own section below, not in this table.
-    healthy = [t for t in result["per_task"] if "error" not in t]
+    # FOCUS-WITHHELD rows (harness._focus_withheld_row) are excluded the same
+    # way, into their own section.
+    healthy = [t for t in result["per_task"]
+               if "error" not in t and not t.get("focus_withheld")]
     for t in healthy:
         rows.append([
             t["id"], t["label_provenance"], t["label_tier"],
@@ -193,6 +223,7 @@ def render_arms(result: dict) -> str:
     ]
     lines += _provenance_breakdown_lines(
         result["by_provenance"], recall_key="mean_recall_A", compression_key=None)
+    lines += _focus_withheld_lines(result)
     lines.append("")
     lines.append("A vs B vs C, mean recall / mean tokens, by provenance x tier "
                  "(quarantine excluded from any go/no-go read):")
@@ -355,6 +386,17 @@ def render_gate(result: dict) -> str:
                      "reported only, does NOT fail the gate:")
         for r in errored_quarantine:
             lines.append(f"  {r['id']} [{r.get('target')}]: {r['error']}")
+    # Focus-withheld tasks (result.get: absent for any hand-built pre-existing
+    # gate result dict) -- a fence fail-closing on a task's own focus file is
+    # NOT a recall regression (see harness.run_gate); reported here, never
+    # folded into REGRESSIONS above.
+    focus_withheld = result.get("focus_withheld") or []
+    if focus_withheld:
+        lines.append("")
+        lines.append(f"FOCUS-WITHHELD ({len(focus_withheld)}) -- secret floor fail-closed on "
+                     "the focus file; NOT a recall regression, reported only:")
+        for r in focus_withheld:
+            lines.append(f"  {r['id']} [{r.get('target')}]")
     if not result["regressions"] and not errored_primary:
         lines.append("")
         lines.append("No primary-tier task lost recall vs the stored baseline.")
