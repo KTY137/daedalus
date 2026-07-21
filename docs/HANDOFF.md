@@ -50,6 +50,44 @@ floor-tripping targets as `focus_withheld` instead of scoring them as misses; (2
 temporal co-change tier becomes a slice ENRICHMENT experiment (add co-change neighbours,
 measure recall gain vs compression cost on both axes); (3) only then wire slice→offload.
 
+### Campaign Build Day 1 (2026-07-21) — Lane A1 label hygiene + Lane B1 memory ledger
+
+**Item (1) is now shipped.** The first follow-up action landed with two parallel workstreams: minter label filters (Lane A1) that implement the planned junk/cross-language exclusion + floor-withheld classification, and an append-only memory ledger (Lane B1) for task persistence.
+
+**Lane A1: Label hygiene in `_mint_from_diffs` [M].** Three filters now live in `daedalus/eval/mint.py` (~93–121, `_is_junk_label` new):
+
+- **Junk filter:** non-identifier or keyword-shaped names (`if`, `<anonymous>`) never become `must_include`; excluded into `labels_filtered_junk` (sorted, counted).
+- **Cross-language filter:** label's source file language must match anchor/target language; mismatches land in `labels_filtered_cross_language` (sorted, counted).
+- **Secret floor anchor exclusion:** `secret_floor_rule` applied per-anchor; floor-tripping files drop from anchor pool (stay eligible as sources); if all candidates trip, honest `reason` in `skipped_secret_floor` (sorted, counted).
+
+Wired into `daedalus/eval/harness.py` via `_is_focus_withheld()` / `_focus_withheld_row()`: these rows split from `by_provenance`/means, never fail the gate, never snapshot recall. `daedalus/eval/report.py` renders them one honest sentence: "the secret floor fail-closed on the focus file itself — not a recall miss, not a pass". **Tests: 14 new [M]** in `tests/test_mint_label_hygiene.py`.
+
+**Lane B1: Append-only memory ledger (dmem/1) [M].** `daedalus/memstore.py` (390 lines) + `tests/test_memstore.py` (15 tests). Hash-chained ledger at `memory/ledger.local.jsonl`:
+
+- `append_entry`: forces `trust.minted_tier="quarantine"` at write (earned via fold, never asserted), runs secret floor BEFORE writing over text/detail/paths; refused entries store redacted `gate_outcome` only. Dedupe by `body_sha` returns existing id. Hash boundary: `body_sha` = SHA256(canonical_body, sort_keys, separators, ensure_ascii, excluding ts/prev/entry_sha/id/body_sha); `entry_sha` = SHA256(prev+"\0"+body_sha+"\0"+ts); genesis prev→"".
+- `append_confirm`/`append_flag`: control records on chain; `MEM_CONFIRM_THRESHOLD = 3` (cited to `MINT_CONFIRM_THRESHOLD`, not import-coupled).
+- `load_ledger` (skip-corrupt), `verify_ledger` (chain walk, three per-line checks naming exact 1-indexed line on failure), `fold_state` (quarantine→primary at 3 confirms; flag→terminal; deterministic `state.local.json`).
+
+**Verification [M]:** `pytest tests/test_memstore.py -q` → **15 passed in 24.35s** (roundtrip/dedupe/trust-forced, determinism byte-identical, tamper tests: flipped-byte and deleted-line break chain, planted AKIA/PEM/`.env` paths all refused with secret absent from raw bytes, 3-confirm-promote / 2-stay / flag-terminal, 1000-entry scale verifies <1s + catches flip at line 501). Adjacent suites: `pytest tests/test_dctx.py tests/test_eval.py -q` → **20 passed in 5.46s** [M]; no breakage.
+
+**Measured result [M, re-verified by the session author against the raw eval printout — an
+agent-reported "16 minted / 17 focus_withheld" did NOT survive that check and is corrected
+here]:** pytest **779 passed / 0 failed**; independent_diff quarantine tier recall **86.2%
+over 17 minted tasks** (up from 61.7% at the foundation-sprint seeding), compression 98.4%;
+**17 tasks minted from 20 real commits** (3 skipped with reasons: 0360964, d714128, e2c77ad —
+no unit-level change or filters drained all cross-file labels); **zero focus_withheld rows in
+the final eval** — the hygienic minter excludes floor-tripping anchors at mint time, so none
+reach scoring (the focus_withheld classification remains live for any future store); primary
+tier unchanged **100% / 79.3%**; gate **PASS**. The lift 61.7%→86.2% is HONEST ACCOUNTING,
+not a slicer improvement: junk + cross-language labels no longer count as misses and
+fence-artifact targets are no longer minted. The 7 remaining miss tasks are almost entirely
+the temporal class (co-committed symbols with no static import edge) — Lane A2's target.
+**Adversarial review: 13 confirmed findings repaired (incl. 2 CRITICALs in the new ledger:
+secret floor skipped provenance/refs fields; the refusal receipt re-embedded unscanned
+provenance), 1 refuted [M].** Tail-truncation of the ledger is now detectable via a
+head/count anchor persisted in state.local.json. `.gitignore` gained `memory/*.local.json`
++ `memory/receipts/`.
+
 ## TL;DR
 
 A correctness + product-scope session. **14 commits on `checkpoint/2026-07-20-session`**
