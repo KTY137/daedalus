@@ -27,6 +27,7 @@ from pathlib import Path
 
 from .parse import CodeUnit
 from .perfile import ANALYSIS_VERSION, FileAnalysis
+from . import tokens
 
 _SCHEMA = 1
 
@@ -75,6 +76,18 @@ def file_key(rel: str, spec_name: str, text: str) -> str:
     h.update(b"\0")
     h.update(_parser_version().encode())
     h.update(b"\0")
+    # Tokenizer identity. FileAnalysis.n_tokens rides this cache, and its value
+    # is whatever tokens.count_tokens' runtime encoder produced -- tiktoken
+    # cl100k_base when the optional dep is installed, else the chars/4 fallback.
+    # tiktoken is optional and installing/removing it changes no source byte, so
+    # without this segment every file is a cache HIT across that change: the
+    # cached n_tokens (old tokenizer) sums into total_tokens (the distill
+    # denominator) while the slice numerator is recounted under the NEW tokenizer
+    # -- a silent mixed-tokenizer ratio that slice.py still stamps
+    # whole_repo_tokens_exact=True. Keying on tokenizer identity turns that
+    # into a miss (recompute under the current tokenizer) instead.
+    h.update(tokens.tokenizer_name().encode())
+    h.update(b"\0")
     h.update(rel.encode("utf-8", "replace"))
     h.update(b"\0")
     h.update(spec_name.encode())
@@ -89,7 +102,8 @@ def file_key(rel: str, spec_name: str, text: str) -> str:
 # --------------------------------------------------------------------------- #
 def _encode(a: FileAnalysis) -> bytes:
     doc = {
-        "rel": a.rel, "lang": a.lang, "n_chars": a.n_chars, "loc": a.loc,
+        "rel": a.rel, "lang": a.lang, "n_chars": a.n_chars,
+        "n_tokens": a.n_tokens, "loc": a.loc,
         "metrics": a.metrics,
         "units": [[u.language, u.module, u.name, u.line, u.end_line, u.loc, u.source]
                   for u in a.units],
@@ -102,8 +116,16 @@ def _encode(a: FileAnalysis) -> bytes:
 
 def _decode(blob: bytes) -> FileAnalysis:
     doc = json.loads(zlib.decompress(blob).decode("utf-8"))
+    # Every field is read by subscript, never .get(<default>): a row written by
+    # an older encoder is missing keys, and a default would let it decode into a
+    # plausible-looking analysis carrying a wrong measurement (n_tokens=0 reads
+    # as "this file contributes nothing to the repo's token total"). KeyError
+    # here is caught by get_many and becomes a cache MISS -- recompute, not
+    # quietly-wrong. ANALYSIS_VERSION already separates the generations; this is
+    # the second lock on the same door.
     return FileAnalysis(
-        rel=doc["rel"], lang=doc["lang"], n_chars=doc["n_chars"], loc=doc["loc"],
+        rel=doc["rel"], lang=doc["lang"], n_chars=doc["n_chars"],
+        n_tokens=doc["n_tokens"], loc=doc["loc"],
         metrics=doc["metrics"],
         units=[CodeUnit(*u) for u in doc["units"]],
         runs=doc["runs"],

@@ -37,6 +37,27 @@ def estimate_tokens(text: str) -> int:
     return count_tokens(text)
 
 
+def _whole_repo_tokens(idx: dict) -> tuple[int, bool]:
+    """The distill ratio's DENOMINATOR, plus whether it was actually measured.
+
+    ``slice_tokens`` (the numerator) is tokenizer-exact whenever tiktoken is
+    installed, but this used to be ``total_chars // 4`` unconditionally -- a real
+    token count divided by a heuristic one, which makes the headline reduction %
+    wrong by however far chars/4 misses on this corpus (it under-counts source
+    code, so the published number was systematically flattering). ``total_tokens``
+    is now carried through the index by the same tokenizer.
+
+    The fallback survives for index dicts that predate the field: an older JSON
+    dump, or the Rust engine (structcore-rs emits total_chars only). Degraded is
+    allowed; degraded-and-silent is not, hence the returned flag, which callers
+    surface as ``whole_repo_tokens_exact``.
+    """
+    tok = idx.get("total_tokens")
+    if tok is not None:
+        return max(1, int(tok)), True
+    return max(1, idx.get("total_chars", 0) // 4), False
+
+
 def _read(root: Path, rel: str) -> str:
     try:
         return (root / rel).read_text(encoding="utf-8", errors="replace")
@@ -161,6 +182,30 @@ def semantic_slice(
     hallucinating the missing callee. If the FOCUS file itself is denied the
     slice fails closed -- no neighbour slice is returned in its place.
 
+    WHAT THE REDUCTION % IS MEASURED AGAINST. ``reduction_pct`` is
+    ``1 - slice_tokens / whole_repo_tokens``. Both sides are now counted by the
+    SAME tokenizer (``tokens.count_tokens``: tiktoken cl100k_base when installed,
+    chars/4 otherwise); the denominator used to be a bare ``total_chars // 4``
+    regardless, so the ratio mixed a measured numerator with an estimated
+    denominator. ``whole_repo_tokens_exact`` is False when that old estimate is
+    still in play (an index dict lacking ``total_tokens`` -- an older JSON dump,
+    or the Rust engine).
+
+    ``whole_repo_tokens`` is the summed token count of the IN-CENTER source files
+    -- exactly the file set ``index`` accumulates inside its metric-withholding
+    guard, so .daedalusignore'd and out-of-scope files are excluded from the
+    baseline just as they are from the slice.
+
+    It is deliberately NOT identical to what ``eval/harness.py:_whole_repo_text``
+    concatenates for the Tier-2 A/B, which differs in three ways: it prepends a
+    ``# ===== rel =====`` header per file (so its total runs HIGHER), it truncates
+    at a char cap (so on a large repo its total runs LOWER, and it reports
+    ``b_truncated``), and it walks the filesystem with its own ignore-dir list
+    rather than the index's scope, so the two can disagree about which files
+    "the repo" contains. Treat ``reduction_pct`` as the index-scoped ratio and
+    Tier-2's ``tokens_B`` as the as-fed-to-a-model count; they answer different
+    questions and should not be expected to match.
+
     ``max_tokens`` (default ``None`` -> no cap, byte-identical to before) caps the
     assembled ``slice_text``. When exceeded the slice degrades by dropping WHOLE
     neighbour units (never truncating text), always keeping the FOCUS and the
@@ -196,7 +241,7 @@ def semantic_slice(
             f"# focus file withheld by the egress gate (lane={lane}); "
             f"slice refused (fail-closed)."
         )
-        whole = max(1, idx.get("total_chars", 0) // 4)
+        whole, whole_exact = _whole_repo_tokens(idx)
         slice_tokens = estimate_tokens(breadcrumb)
         return {
             "target": target,
@@ -209,6 +254,11 @@ def semantic_slice(
             "withheld_count": 1,
             "slice_tokens": slice_tokens,
             "whole_repo_tokens": whole,
+            "whole_repo_tokens_exact": whole_exact,
+            # Which tokenizer produced the denominator. "chars/4 (heuristic)"
+            # when tiktoken is absent -- so a consumer never reports a heuristic
+            # count as "measured". None when the index predates the field.
+            "whole_repo_tokenizer": idx.get("tokenizer"),
             "reduction_pct": round(100 * (1 - slice_tokens / whole), 1),
             "backend": idx["backend"],
             "slice_text": breadcrumb,
@@ -404,7 +454,7 @@ def semantic_slice(
 
     included = [focus_inc] + [n["inc"] for n in kept]
     slice_tokens = estimate_tokens(slice_text)
-    whole = max(1, idx.get("total_chars", 0) // 4)
+    whole, whole_exact = _whole_repo_tokens(idx)
     return {
         "target": target,
         "focus_file": rel,
@@ -424,6 +474,16 @@ def semantic_slice(
         "withheld_count": len(withheld),
         "slice_tokens": slice_tokens,
         "whole_repo_tokens": whole,
+        # False => the index predates total_tokens, so the denominator fell back
+        # to the chars/4 whole-repo estimate rather than the per-file token sum.
+        # True only means "same tokenizer as the numerator", NOT "tiktoken-
+        # measured" -- when tiktoken is absent both sides are chars/4 and the
+        # ratio is consistent but the absolute count is a heuristic. Read
+        # whole_repo_tokenizer for the honest label; a degraded tokenizer is
+        # reported there, never silent.
+        "whole_repo_tokens_exact": whole_exact,
+        # Tokenizer behind whole_repo_tokens (see the focus-gate return above).
+        "whole_repo_tokenizer": idx.get("tokenizer"),
         "reduction_pct": round(100 * (1 - slice_tokens / whole), 1),
         "backend": idx["backend"],
         "slice_text": slice_text,
@@ -447,7 +507,23 @@ def main(argv: list[str] | None = None) -> int:
     for i in res["included"][:25]:
         print(f"  {i['role']:11} {i['mode']:8} {i['tokens']:>7} tok  {i['file']}")
     print(f"\n  slice:      {res['slice_tokens']:>9} tokens")
-    print(f"  whole repo: {res['whole_repo_tokens']:>9} tokens  (Repomix-style full concat)")
+    # Honest label: name the actual tokenizer instead of blanket "measured".
+    # whole_repo_tokens_exact only says the denominator is the per-file token
+    # sum (not the legacy chars/4 whole-repo fallback); it does NOT say a real
+    # BPE tokenizer was used. tokenizer_name() already distinguishes the two.
+    tk = res.get("whole_repo_tokenizer")
+    if not res.get("whole_repo_tokens_exact"):
+        denom = "ESTIMATED chars/4"
+    elif tk and "heuristic" in tk:
+        # tiktoken absent: per-file chars/4 sum. Consistent with the numerator,
+        # but a heuristic -- do not call it "measured".
+        denom = f"ESTIMATED {tk}"
+    elif tk:
+        denom = f"measured: {tk}"
+    else:
+        denom = "measured"
+    print(f"  whole repo: {res['whole_repo_tokens']:>9} tokens  "
+          f"(Repomix-style full concat; {denom})")
     print(f"  REDUCTION:  {res['reduction_pct']}%")
     if args.out:
         Path(args.out).write_text(res["slice_text"], encoding="utf-8")

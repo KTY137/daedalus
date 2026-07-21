@@ -23,13 +23,19 @@ from .clones import window_runs
 from .languages import LanguageSpec
 from .metrics import file_metrics
 from .parse import CodeUnit, extract_units, python_units_and_imports
+from .tokens import count_tokens
 from . import imports as imports_mod
 
 # Bump whenever the MEANING of any field below changes (new metric, different
 # unit extraction, changed window hashing). It is part of the disk-cache key, so
 # bumping it invalidates every cached entry. A stale cache reporting wrong code
 # health is far worse than a slow scan -- when in doubt, bump.
-ANALYSIS_VERSION = "2"
+#
+# "3": added n_tokens. A row cached under "2" has no token count, and an index
+# built from such rows would report a denominator of zero for part of the repo
+# -- i.e. an inflated distillation headline, silently. Bumping makes that
+# unrepresentable.
+ANALYSIS_VERSION = "3"
 
 
 @dataclass
@@ -38,6 +44,13 @@ class FileAnalysis:
     rel: str
     lang: str
     n_chars: int
+    # Real tokenizer count of the file's text (tiktoken cl100k_base when
+    # installed, else tokens.count_tokens' chars/4 fallback). Carried per-file
+    # rather than recomputed at report time so it rides the disk cache: the
+    # distill ratio's DENOMINATOR then comes from the same tokenizer as its
+    # numerator, instead of a chars/4 guess. Computed in the pass that already
+    # holds the text, so it costs one encode per cache miss.
+    n_tokens: int
     loc: int
     metrics: dict
     units: list[CodeUnit] = field(default_factory=list)
@@ -60,7 +73,8 @@ def analyze_file(rel: str, text: str, spec: LanguageSpec, ts_on: bool) -> FileAn
 
     metrics = file_metrics(rel, text, spec, units)
     return FileAnalysis(
-        rel=rel, lang=spec.name, n_chars=len(text), loc=metrics["loc"],
+        rel=rel, lang=spec.name, n_chars=len(text), n_tokens=count_tokens(text),
+        loc=metrics["loc"],
         metrics=metrics, units=units, runs=window_runs(text, spec),
         py_imports=py_imports, raw_imports=raw_imports,
     )

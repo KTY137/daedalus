@@ -30,6 +30,7 @@ from .perfile import FileAnalysis, analyze_chunk, analyze_file
 from .cache import FileCache, file_key
 from . import imports as imports_mod
 from . import graph
+from . import tokens
 from .churn import git_churn
 from .ignore import project_scope
 
@@ -415,6 +416,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     # symbol resolver; distinct from ``dep_edges`` whose Python keys are dotted.
     import_targets_by_rel: dict[str, set[str]] = defaultdict(set)
     total_chars = 0
+    total_tokens = 0
 
     # Import RESOLUTION stays here in the parent: it needs the whole file set
     # (``known``/``known_files``), which no single-file worker can know. Only
@@ -427,6 +429,12 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         # Import resolution below is intentionally OUTSIDE the guard.
         if rel not in ignored:
             total_chars += a.n_chars
+            # Inside the SAME withholding guard as total_chars on purpose: this
+            # is the denominator of the distill ratio, and its numerator only
+            # ever contains in-center files. A token total accumulated outside
+            # the guard would count ignored files as part of "the repo the slice
+            # replaced", inflating the reduction headline.
+            total_tokens += a.n_tokens
             all_units.extend(a.units)
             modules[rel] = a.metrics
             runs_by_file.append((rel, a.runs))
@@ -576,6 +584,17 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         # every node, not just the top 15.
         "module_heat": scored,
         "total_chars": total_chars,
+        # Tokenizer-measured size of the same file set total_chars covers.
+        # total_chars stays: it is public and other consumers read it. Absent
+        # from an index dict produced by an older build or by the Rust engine,
+        # which is why every reader must treat it as optional (see slice.py).
+        "total_tokens": total_tokens,
+        # Identity of the tokenizer that produced total_tokens (and every
+        # per-file n_tokens summed into it). Additive; absent from older dumps
+        # and the Rust engine. Carried so a consumer can report the denominator
+        # HONESTLY: chars/4 is a heuristic, not a measurement, even though it
+        # rides the same count_tokens code path, and "measured" is a lie for it.
+        "tokenizer": tokens.tokenizer_name(),
     }
 
 
