@@ -5,11 +5,38 @@
 > this section exists is that last session cited its own earlier numbers as fact — so every
 > number below says where it came from.
 
+## 0. Session 3 addendum (2026-07-21) — the Code Evolution foundation sprint — READ FIRST
+
+Phase 0/1 of the code-evolution thesis landed as ONE sprint, currently **uncommitted** on
+`checkpoint/2026-07-20-session`. Six workstreams: honest token denominator (tokenizer-exact,
+cache-keyed by tokenizer identity), Safety-Class Reachability Router (the fence now asks the
+import graph; three fail-open holes closed during build), UI/chat wires (BYOK badge, gated
+picker, codex/deepseek brains on the untrusted lane, review-before-apply), `.dctx` certified
+context receipts (deterministic SHA, offline verify, anti-tautology `label_provenance`),
+the decontaminated eval oracle (per-provenance recall, A/B/C arms incl. BM25, per-task
+ratchet `--gate`), and independent label minting + git temporal coupling.
+
+Adversarial pass over the sprint: 18 raw findings → **14 confirmed** by 3-skeptic panels
+(3 CRITICAL, 5 HIGH) → **all repaired and regression-tested same-sprint**; 4 refuted.
+Cerberus egress review: **zero CRITICALs**. Fence-defect detail + the one known residual
+(empty-paths codex sandbox) in §4c.
+
+**Verified by the session author, not inherited from agents [M]:** pytest **700 passed / 0
+failed**; `python -m daedalus.eval` prints the per-provenance breakdown and reports
+**100% recall / 79.2% compression on the `hand_reachable` primary tier, explicitly labelled
+PARTIALLY SELF-GRADED** (that labelling is the sprint's real deliverable — the old headline
+quoted the same 100% as if independent); `--gate` ratchet **PASS** (exit 0);
+`whole_repo_tokens` for agent_env is now a measured **381,265** (tiktoken/cl100k_base, tree
+grown by the sprint's own ~2.5k new lines), no longer `total_chars//4`. The standing rule in
+§4d (eval gate stays ADVISORY) is unchanged and load-bearing.
+
 ## TL;DR
 
 A correctness + product-scope session. **14 commits on `checkpoint/2026-07-20-session`**
 (`ff59963`..`95f00d2`; including the secret-floor CRITICAL fix, this doc update, and the
-completed bootstrap), `main` untouched. Suite **549 passing [M]**, eval **100% recall / 78.7% compression [M]**.
+completed bootstrap), `main` untouched. Suite **549 passing [M, session 2]**, eval **100% recall /
+78.7% compression [M, session 2 — under the chars/4 denominator then in use; re-measured 79.2% in
+session 3 under the tokenizer-exact denominator, see §0]**.
 The through-line: the structural engine was shipping *confidently wrong* answers on a real
 repo, and most of this session was making it honest. The **bootstrap is now SHIPPED and
 Cerberus-CLEARED** (egress review complete on the slice gate after six bypass classes were
@@ -113,10 +140,12 @@ six plaintext-secret bypass classes closed), and (2) `_project_context` had to b
 safely into `ikarus_os.py`.
 
 **Verification [M]:** pytest **549 passed** (+23 new: `test_ikarus_context.py`, slice degrade
-tests); eval **100% recall / 78.7% compression** (slice refactor byte-identical, no symbol
-lost); no-file chat and deterministic intents (status/distill/design/enqueue) are
-behaviorally identical; planted secrets (glued/annotated/dict-key) never in the assembled
-prompt across module/focus/symbol paths. Cerberus CLEARED the egress path.
+tests); eval **100% recall / 78.7% compression [M, session 2 — chars/4 denominator; the session-3
+sprint replaced that denominator with a tokenizer-exact one, under which the same corpus measures
+79.2%]** (slice refactor byte-identical, no symbol lost); no-file chat and deterministic intents
+(status/distill/design/enqueue) are behaviorally identical; planted secrets
+(glued/annotated/dict-key) never in the assembled prompt across module/focus/symbol paths.
+Cerberus CLEARED the egress path.
 
 **Residual limits, non-blocking (Cerberus ledger, for general-product hardening):**
 - Keep `_project_context` OFF any untrusted lane. Metadata-disclosure safety (withheld
@@ -183,11 +212,50 @@ of verifiable context); **Cockpit-as-Proof-Surface** (distillation x-ray + colla
 *The old "two paths" are absorbed: the js-tokens over-block + a distillation consent surface stay in
 the backlog (§5); Movement III becomes Phase 2, resequenced after the eval oracle.*
 
+## 4c. What this sprint did NOT do (Horizon, still pending)
+
+The foundation sprint completed Phase 0/1 as designed. These remain open:
+
+- **Wire `semantic_slice` into `offload.py`** — the distilled slice now feeds chat (Ikarus) but
+  not yet the edit loop. The loop remains routed on raw change-risk path-matching.
+- **The closed edit loop** (Movement III MVP) — minting, persistence, and reload all exist
+  (`eval/mint.py` store + `--mint-commit`/`--confirm-mint` CLI + `harness.all_tasks()`), but the
+  flywheel's live seam is still open: `offload.py` never calls `mint_task_from_landed_edit` after
+  a landed write, so minted tasks only enter the corpus by hand today.
+- **Panel of Rivals** — cross-vendor candidate selection where the gate (not a model) judges which
+  provider answered best, remains phase 2.
+- **Repo Physician** — hotspot-to-draft automation remains phase 2.
+- **Context-as-a-Service MCP** — third-party tools (Cursor, Claude-Code, Copilot) becoming
+  consumers of verifiable distilled context remains phase 3.
+
+Fence-defect status, stated precisely: the adversarial review panel (not Cerberus — Cerberus's
+egress review returned **zero CRITICALs**) confirmed three CRITICALs against the new reachability
+fence, and **all three were fixed and regression-tested in the same sprint**: (1) the dominance
+stand-down could hand an itself-fenced top-level file to the local write lane — closed at the
+source by root-anchoring the path-fence match (`sensitivity._fence_norm`; `tests/test_fence_anchoring.py`);
+(2) the agentic ollama write tool could write outside the declared paths with no fence consult —
+closed by a post-write blast-radius fence over the verified `disk_changed` diff in `offload.py`
+(`tests/test_repair_blast_radius_write.py`); (3) the forced codex bridge lane granted writable
+without ever calling the fence — closed in `core.py` by consulting the reachability pre-check
+before granting write. One residual is genuinely open and known: an **empty-paths codex task**
+runs in a repo-wide `workspace-write` sandbox whose individual writes cannot be intercepted
+per-file; keep codex off empty-paths write work until that lane gets its own post-write gate.
+
+## 4d. Advisory guardrail on the eval gate
+
+The new `run_gate` (eval/harness.py:635) and any health-delta metric MUST remain **ADVISORY only**
+and NEVER gate autonomous action until independently validated to predict task success on real work.
+The underlying data (hand_reachable labels) is partly self-graded; the machinery is honest but the
+labels themselves are not independent. Do not upgrade the gate to a blocking gate without:
+1. An independent label source (minted diffs, temporal churn, or a human-reviewed held-out set)
+2. A live validation round showing gate decisions correlate with task success/rollback rates
+3. Explicit sign-off from the risk/security review that the policy applies to your actual deployment
+
 ## 5. Backlog (recommended order)
 
 1. ✅ **Bootstrap: wire slice → Ikarus context.** SHIPPED + Cerberus-CLEARED (commit
    `95f00d2`). Chat brains now project-aware via gated slice, both lanes trusted, 549 pass /
-   eval 100%·78.7%. See §4 for residual ledger and hardening priorities.
+   eval 100%·78.7% [M, session 2]. See §4 for residual ledger and hardening priorities.
 
 2. **Scan out of the server process.** STILL OPEN. The scan is CPU-bound in a
    `ThreadingHTTPServer` thread and freezes the cockpit; measured 97% of one core, 20s
