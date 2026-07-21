@@ -100,6 +100,7 @@ COCHANGE_MAX_FILES_PER_COMMIT = 40
 def co_change_pairs(
     repo_root, since: str | None = None, min_count: int = 2,
     max_files_per_commit: int = COCHANGE_MAX_FILES_PER_COMMIT, timeout: float = 30.0,
+    rev: str | None = None,
 ) -> list[dict]:
     """Files that repeatedly change together -- a coupling signal the static
     import graph structurally cannot see (config<->consumer, schema<->
@@ -120,6 +121,18 @@ def co_change_pairs(
     ``min_count`` additionally floors out pairs seen fewer than N times, since
     a single co-occurrence is one data point, not a pattern.
 
+    ``rev`` (default ``None`` -> full history, byte-identical to before the
+    parameter existed) is passed to ``git log`` as a revision range. Its use
+    case is the BACKTEST-CLEAN cut the eval's temporal-ceiling check needs:
+    ``rev="<sha>^"`` counts only commits strictly before ``<sha>``, so a
+    measurement about ``<sha>`` cannot be predicted by ``<sha>``'s own data.
+    Caveat carried by git itself: ``<sha>^`` is the FIRST parent, so on a merge
+    commit the merged-in side branch is excluded too (the ceiling check flags
+    merge SHAs rather than pretending otherwise). An unresolvable ``rev`` makes
+    git exit non-zero -> ``[]``, same degradation contract as everything else
+    here -- callers who must distinguish "no coupling" from "no history" probe
+    the rev themselves first.
+
     Returns ``[]`` on any git failure -- same degradation contract as
     ``git_churn``. Rows are ``{"a", "b", "count", "count_a", "count_b",
     "commits_considered", "pmi", "lift"}``, sorted by ``(-pmi, a, b)`` for
@@ -129,6 +142,8 @@ def co_change_pairs(
     cmd = ["git", "-C", str(root), "log", "--numstat", "--format=%H"]
     if since:
         cmd.append(f"--since={since}")
+    if rev:
+        cmd.append(rev)
     try:
         proc = subprocess.run(
             cmd, capture_output=True, timeout=timeout,

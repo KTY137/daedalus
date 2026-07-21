@@ -88,6 +88,51 @@ provenance), 1 refuted [M].** Tail-truncation of the ledger is now detectable vi
 head/count anchor persisted in state.local.json. `.gitignore` gained `memory/*.local.json`
 + `memory/receipts/`.
 
+### Campaign Build Day 2 (2026-07-21 pm) — Lane A2 CLOSED ON MEASUREMENT, nothing built
+
+**Follow-up (2) is resolved — by refutation, not by construction.** The planned "temporal
+co-change slice enrichment" experiment was designed in full (opt-in `temporal_pairs` on
+`semantic_slice`, backtest-clean per-task pairs, k-grid both-axes measurement), then
+NO-GO'd by Momus at the design gate, which ran the cheap measurement the design had
+deferred to its own risk list: a pairs-only reachability CEILING over the 7 miss tasks /
+43 missed labels. **Backtest-clean (pairs from `git log <minted_at_sha>^`, min_count=2),
+zero missed labels were reachable — 0/43.** I reproduced that independently in a fresh
+process before accepting it, then extended it [M]: min_count=1 (any single prior
+co-commit) = 1/43; full-history (leaky) = 6/43 at min_count=2 and **42/43 at min_count=1**
+— i.e. the handoff's own "19% temporal class" triage number was predominantly **the minted
+commit predicting itself** (the mint commit IS a co-change event; count it and almost
+every miss looks temporally reachable).
+
+**Nemesis then refuted one sub-claim of MY close, and the instrument was corrected:** my
+"rename-aware matching does not change it" had only been measured at min_count=1. The true
+rename-aware clean ceiling at min_count=2 is **1/43 = 2.3%** — one genuine
+`verifier.py<->providers/ollama.py` coupling crossing the agent_env→daedalus rebrand
+boundary (93-file rename; numstat spellings differ per commit, so exact-rel matching
+starves real pairs below min_count). Verdict CLOSE-STANDS on materiality: **41/43 missed
+labels sit on focus files BORN at their mint commit** (zero pre-mint history — structural
+temporal immunity under ANY enrichment), 1/43 is a stale label (`_py_maps`, deleted by the
+mint commit itself → NO_INSCOPE_DEF).
+
+**What shipped instead of the tier (small, read-only, the reopen gate):**
+`daedalus/eval/ceiling.py` — rename-aware (alias-unified counts via `git log --follow`,
+summed across spellings BEFORE min_count), clean + leaky arms, per-label classification
+(REACHABLE / UNREACHABLE / STATIC_EDGE / NO_INSCOPE_DEF), machine-printed reopen signal
+with a **materiality floor** (>=10% of scored labels or >=3 tasks — a lone label must
+read "stay closed"), audit list naming every clean-REACHABLE label, alias-probe failures
+surfaced. Run: `python -m daedalus.eval.ceiling`. Plus an additive `rev` param on
+`churn.co_change_pairs` (the backtest cut). `semantic_slice` was NOT touched — zero new
+core-API surface. **Tests: 16 new** (`tests/test_temporal_ceiling.py`) incl. a positive
+control (an always-zero checker fails), the leak-artifact control (clean UNREACHABLE /
+leaky REACHABLE on the same fixture), the Nemesis rename-boundary case, and the
+materiality-floor case. **[M, current corpus]: clean 2.3% / leaky 14.0%, reopen: none.**
+
+**Standing decision this encodes:** slice-side temporal enrichment is CLOSED unless a
+grown corpus trips the rename-aware materiality floor (`ceiling.py` docstring is the
+canonical statement). Re-run the ceiling when the corpus grows — today's zero generalizes
+weakly (born-at-mint focus files can never show pre-mint coupling). The 7 miss tasks stay
+open as honest misses; the next lever on the list is **(3) wire slice→offload
+(static-only)** — Horizon Phase 2, unchanged.
+
 ## TL;DR
 
 A correctness + product-scope session. **14 commits on `checkpoint/2026-07-20-session`**
