@@ -11,8 +11,10 @@ runs/*.md
 runs/processed/
 memory/*.local.jsonl
 memory/*.local.md
+memory/*.local.json
 memory/*.status.json
 memory/*status.local.json
+memory/receipts/
 outbox/*.json
 inbox/*.json
 .env
