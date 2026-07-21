@@ -111,10 +111,41 @@ def _group_rows_by_provenance(rows: list[dict]) -> dict[str, dict[str, list[dict
 def _by_provenance(rows: list[dict], aggregate_fn) -> dict:
     """Apply ``aggregate_fn`` within each (provenance, tier) bucket. This is
     the ONLY aggregation path Tier 1 and the arms comparison use -- there is
-    deliberately no top-level blended mean anywhere in this module."""
+    deliberately no top-level blended mean anywhere in this module.
+
+    CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``"error" in row``) before
+    passing ``rows`` here -- see ``run_tier1``/``run_arms``. An errored row
+    carries no recall/compression measurement, so folding it in would either
+    KeyError or (worse) silently get treated as a zero, corrupting the mean
+    it was supposed to be excluded from."""
     grouped = _group_rows_by_provenance(rows)
     return {prov: {tier: aggregate_fn(items) for tier, items in tiers.items()}
             for prov, tiers in grouped.items()}
+
+
+def _task_error_row(task: dict, exc: Exception) -> dict:
+    """Shared shape for a per-task RESOLUTION failure -- ``ValueError``
+    (unindexable target, e.g. a quarantined mint task whose file was renamed/
+    deleted after minting, or an unresolvable ``repo`` label) or ``OSError``
+    (repo unreadable). Used by every ``eval_task_*``/``run_*`` per-task try
+    block so one malformed task degrades to a single reported row instead of
+    crashing the whole eval run -- "a quarantined flywheel task must not be
+    able to take down the go/no-go machinery."
+
+    ``error`` is the marker every downstream aggregator/report checks
+    (``"error" in row`` or ``row.get("error")``). There is deliberately no
+    ``recall``/``compression`` (or arms ``recall_A``/``tokens_A``/...) key at
+    all -- ABSENT, not ``None`` -- so any aggregation path that forgets to
+    filter on ``error`` fails loudly (``KeyError``) instead of silently
+    averaging in a placeholder."""
+    return {
+        "id": task.get("id", "<unknown>"),
+        "project": task_project_label(task),
+        "target": task.get("target"),
+        "error": str(exc),
+        "label_provenance": task.get("label_provenance", "hand_reachable"),
+        "label_tier": task.get("tier", "primary"),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -131,10 +162,22 @@ def _recall(slice_text: str, must_include: list[str]) -> tuple[float, list[str]]
 
 
 def eval_task_tier1(task: dict, idx: dict | None = None) -> dict:
-    """Deterministic Tier-1 result for a single task."""
-    repo = resolve_task_repo(task["repo"])
-    idx = idx if idx is not None else cached_index(repo)
-    res = semantic_slice(repo, task["target"], idx=idx)
+    """Deterministic Tier-1 result for a single task.
+
+    NEVER RAISES: a resolution failure -- ``semantic_slice``/``resolve_task_repo``
+    raising ``ValueError`` (e.g. the task's ``target`` is not in the index, the
+    live repro that motivated this: a minted quarantine task whose target file
+    had moved), or ``OSError`` reading the repo -- is caught and returned as an
+    ERRORED row (``_task_error_row``) instead of propagating. See
+    ``run_tier1``/``run_gate`` for how ERRORED rows are aggregated (excluded),
+    reported (never silently dropped) and gated (primary tier fails loudly,
+    quarantine tier is reported-only)."""
+    try:
+        repo = resolve_task_repo(task["repo"])
+        idx = idx if idx is not None else cached_index(repo)
+        res = semantic_slice(repo, task["target"], idx=idx)
+    except (ValueError, OSError) as exc:
+        return _task_error_row(task, exc)
     slice_tokens = res["slice_tokens"]
     whole_tokens = res["whole_repo_tokens"]
     recall, missed = _recall(res["slice_text"], task.get("must_include", []))
@@ -180,26 +223,48 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
     honest, per-provenance-tier numbers. ``tier == "quarantine"`` tasks are
     counted in ``n_quarantine_tasks`` and reported inside ``by_provenance``,
     but never inside a go/no-go figure.
+
+    A single unresolvable task (bad ``repo`` label, or a target no longer in
+    the index -- the quarantined-mint-task crash this guards against) is
+    caught here too, not just inside ``eval_task_tier1``: this loop resolves
+    the repo/builds the index ITSELF (for the cross-task index cache) before
+    calling ``eval_task_tier1``, so that resolution step needs its own guard.
+    ERRORED rows land in both ``per_task`` (never silently dropped -- "a
+    degraded measurement is reported, never silent") and the dedicated
+    ``errored`` list, and are excluded from ``by_provenance`` (every mean/
+    recall/compression aggregate) -- see ``_by_provenance``'s docstring.
+    ``n_tasks``/``n_primary_tasks``/``n_quarantine_tasks`` remain simple
+    total-attempted counts over label alone (unaffected by error status, and
+    therefore byte-identical to before this existed for any store with zero
+    errored tasks); ``n_errored_tasks`` is new and additive.
     """
     tasks = all_tasks() if tasks is None else tasks
     idx_cache: dict[str, dict] = {}
     per_task: list[dict] = []
     for task in tasks:
-        repo = resolve_task_repo(task["repo"])
-        if repo not in idx_cache:
-            idx_cache[repo] = cached_index(repo)
+        try:
+            repo = resolve_task_repo(task["repo"])
+            if repo not in idx_cache:
+                idx_cache[repo] = cached_index(repo)
+        except (ValueError, OSError) as exc:
+            per_task.append(_task_error_row(task, exc))
+            continue
         per_task.append(eval_task_tier1(task, idx=idx_cache[repo]))
 
     n = len(per_task)
     n_primary = sum(1 for t in per_task if _is_primary_tier(t["label_tier"]))
+    errored = [t for t in per_task if "error" in t]
+    healthy = [t for t in per_task if "error" not in t]
     return {
         "tier": 1,
         "n_tasks": n,
         "n_primary_tasks": n_primary,
         "n_quarantine_tasks": n - n_primary,
+        "n_errored_tasks": len(errored),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
-        "by_provenance": _by_provenance(per_task, _tier1_aggregate),
+        "errored": sorted(errored, key=lambda r: r["id"]),
+        "by_provenance": _by_provenance(healthy, _tier1_aggregate),
     }
 
 
@@ -377,13 +442,20 @@ def eval_task_arms(task: dict, idx: dict | None = None,
           this module's own docstring promise that a tie is "reported loudly,
           not smoothed over") and reported plainly either way; nothing here is
           tuned to make A win.
+
+    NEVER RAISES: same per-task resolution guard as ``eval_task_tier1`` -- a
+    ``ValueError``/``OSError`` resolving the repo or slicing the target
+    returns an ERRORED row (``_task_error_row``) instead of propagating.
     """
-    repo = resolve_task_repo(task["repo"])
-    idx = idx if idx is not None else cached_index(repo)
-    chunks = chunks if chunks is not None else _repo_chunks(repo)
+    try:
+        repo = resolve_task_repo(task["repo"])
+        idx = idx if idx is not None else cached_index(repo)
+        chunks = chunks if chunks is not None else _repo_chunks(repo)
+        res = semantic_slice(repo, task["target"], idx=idx)
+    except (ValueError, OSError) as exc:
+        return _task_error_row(task, exc)
     must_include = task.get("must_include", [])
 
-    res = semantic_slice(repo, task["target"], idx=idx)
     text_a = res["slice_text"]
     tokens_a = res["slice_tokens"]
     recall_a, missed_a = _recall(text_a, must_include)
@@ -453,18 +525,26 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
     chunks_cache: dict[str, list[tuple[str, str]]] = {}
     per_task: list[dict] = []
     for task in tasks:
-        repo = resolve_task_repo(task["repo"])
-        if repo not in idx_cache:
-            idx_cache[repo] = cached_index(repo)
-        if repo not in chunks_cache:
-            chunks_cache[repo] = _repo_chunks(repo)
+        try:
+            repo = resolve_task_repo(task["repo"])
+            if repo not in idx_cache:
+                idx_cache[repo] = cached_index(repo)
+            if repo not in chunks_cache:
+                chunks_cache[repo] = _repo_chunks(repo)
+        except (ValueError, OSError) as exc:
+            per_task.append(_task_error_row(task, exc))
+            continue
         per_task.append(eval_task_arms(task, idx=idx_cache[repo], chunks=chunks_cache[repo]))
+    errored = [t for t in per_task if "error" in t]
+    healthy = [t for t in per_task if "error" not in t]
     return {
         "tier": "arms",
         "n_tasks": len(per_task),
+        "n_errored_tasks": len(errored),
         "tokenizer": tokenizer_name(),
         "per_task": per_task,
-        "by_provenance": _by_provenance(per_task, _arms_aggregate),
+        "errored": sorted(errored, key=lambda r: r["id"]),
+        "by_provenance": _by_provenance(healthy, _arms_aggregate),
     }
 
 
@@ -556,18 +636,26 @@ def run_tier2(tasks: list[dict] | None = None, provider: str | None = None,
     whole_cache: dict[str, tuple[str, bool]] = {}
     whole_true_tokens_cache: dict[str, int] = {}
     per_task: list[dict] = []
+    errored: list[dict] = []
     for task in tasks:
         if not task.get("question"):
             continue
-        repo = resolve_task_repo(task["repo"])
-        if repo not in idx_cache:
-            idx_cache[repo] = cached_index(repo)
-        if repo not in whole_cache:
-            whole_cache[repo] = _whole_repo_text(repo, cap_chars)
-        if repo not in whole_true_tokens_cache:
-            full_text, _ = _whole_repo_text(repo, cap_chars=None)
-            whole_true_tokens_cache[repo] = count_tokens(full_text)
-        res = semantic_slice(repo, task["target"], idx=idx_cache[repo])
+        # Same per-task resolution guard as Tier 1/arms: a bad repo label or
+        # an unindexed target must not take down an opt-in, potentially
+        # long-running LLM run over the rest of the task set.
+        try:
+            repo = resolve_task_repo(task["repo"])
+            if repo not in idx_cache:
+                idx_cache[repo] = cached_index(repo)
+            if repo not in whole_cache:
+                whole_cache[repo] = _whole_repo_text(repo, cap_chars)
+            if repo not in whole_true_tokens_cache:
+                full_text, _ = _whole_repo_text(repo, cap_chars=None)
+                whole_true_tokens_cache[repo] = count_tokens(full_text)
+            res = semantic_slice(repo, task["target"], idx=idx_cache[repo])
+        except (ValueError, OSError) as exc:
+            errored.append(_task_error_row(task, exc))
+            continue
         ctx_a = res["slice_text"]
         ctx_b, truncated = whole_cache[repo]
 
@@ -598,6 +686,8 @@ def run_tier2(tasks: list[dict] | None = None, provider: str | None = None,
         "tokens_B_true": sum(t["tokens_B_true"] for t in per_task),
         "b_truncated_any": any(t["b_truncated"] for t in per_task),
         "per_task": per_task,
+        "n_errored_tasks": len(errored),
+        "errored": sorted(errored, key=lambda r: r["id"]),
     }
     return agg
 
@@ -623,6 +713,11 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
     (default TASKS). Does not touch disk -- see ``write_baseline``. Every task
     is snapshotted (including quarantine ones) so quarantine promotion is
     still comparable later; only PRIMARY tasks are ever gated (see ``run_gate``).
+
+    ERRORED tasks (``run_tier1``) have no recall to snapshot and are skipped
+    here -- they simply get no baseline entry, which makes them a "new task"
+    (not silently a pass) the next time ``run_gate`` sees them resolve
+    successfully.
     """
     tasks = all_tasks() if tasks is None else tasks
     result = run_tier1(tasks)
@@ -633,6 +728,7 @@ def snapshot_baseline(tasks: list[dict] | None = None) -> dict:
             "tier": t["label_tier"],
         }
         for t in result["per_task"]
+        if "error" not in t
     }
     return {
         "schema": 1,
@@ -674,6 +770,16 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
     GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus
     a unit test (there is no CI in this repo -- verified: no .github/workflows).
     It must never be wired to block an autonomous action.
+
+    ERRORED tasks (see ``run_tier1``) have no recall to compare and are SPLIT
+    by tier, not folded into ``regressions``:
+      * PRIMARY tier  -- FAILS the gate loudly (``errored_primary``, named in
+        the rendered report). A broken primary-corpus task means the gate
+        itself can no longer vouch for that task at all, which must scream
+        exactly like a real recall regression would.
+      * QUARANTINE tier -- reported only (``errored_quarantine``), never fails
+        the gate -- flywheel debris (an unconfirmed minted task whose target
+        moved/vanished) must not be able to block a developer's gate run.
     """
     tasks = all_tasks() if tasks is None else tasks
     p = baseline_path or DEFAULT_BASELINE_PATH
@@ -686,9 +792,18 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
     new_tasks: list[str] = []
     checked: list[str] = []
     current_ids: set[str] = set()
+    errored_primary: list[dict] = []
+    errored_quarantine: list[dict] = []
 
     for t in result["per_task"]:
         current_ids.add(t["id"])
+        if "error" in t:
+            row = {"id": t["id"], "target": t.get("target"), "error": t["error"]}
+            if _is_primary_tier(t["label_tier"]):
+                errored_primary.append(row)
+            else:
+                errored_quarantine.append(row)
+            continue
         if not _is_primary_tier(t["label_tier"]):
             continue  # quarantine is never gated, see module docstring
         base = baseline_tasks.get(t["id"])
@@ -712,7 +827,7 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
 
     missing_tasks = sorted(set(baseline_tasks) - current_ids)
     return {
-        "passed": len(regressions) == 0,
+        "passed": len(regressions) == 0 and len(errored_primary) == 0,
         "advisory": True,
         "baseline_path": p,
         "n_checked": len(checked),
@@ -720,4 +835,6 @@ def run_gate(tasks: list[dict] | None = None, baseline_path: str | None = None) 
         "improved": sorted(improved, key=lambda r: r["id"]),
         "new_tasks": sorted(new_tasks),
         "missing_tasks": missing_tasks,
+        "errored_primary": sorted(errored_primary, key=lambda r: r["id"]),
+        "errored_quarantine": sorted(errored_quarantine, key=lambda r: r["id"]),
     }

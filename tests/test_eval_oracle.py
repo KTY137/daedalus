@@ -300,6 +300,158 @@ class Tier2LabelFollowsCodeTest(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+# 2c. A single unresolvable task must not brick the whole eval run            #
+#                                                                              #
+# Live repro: the mint store contained a task whose target file had moved/    #
+# been deleted after minting; semantic_slice raised ValueError("target not    #
+# found in index: ...") and it propagated all the way out of run_tier1,       #
+# killing the entire `python -m daedalus.eval` run over EVERY task, not just  #
+# the bad one. A quarantined flywheel task must not be able to take down the  #
+# go/no-go machinery.                                                         #
+# --------------------------------------------------------------------------- #
+class ErroredTaskResilienceTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        _write(self.root, "proj/__init__.py", "")
+        _write(self.root, "proj/core.py", CORE)
+        repo = str(self.root)
+        self.baseline_path = str(self.root / "baseline.json")  # never written -> empty baseline
+
+        self.healthy_task = {
+            "id": "healthy", "repo": repo, "target": "proj/core.py",
+            "must_include": ["helper", "Engine"],
+            "label_provenance": "hand_reachable", "tier": "primary",
+        }
+        # Mirrors the live repro: a minted task pointing at a target that is
+        # NOT in the index (moved/deleted file) -> semantic_slice raises
+        # ValueError("target not found in index: ...").
+        self.errored_quarantine_task = {
+            "id": "ghost_quarantine", "repo": repo,
+            "target": "proj/does_not_exist.py",
+            "must_include": ["whatever"],
+            "label_provenance": "temporal_churn", "tier": "quarantine",
+        }
+        self.errored_primary_task = {
+            "id": "ghost_primary", "repo": repo,
+            "target": "proj/does_not_exist.py",
+            "must_include": ["whatever"],
+            "label_provenance": "hand_reachable", "tier": "primary",
+        }
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_run_tier1_survives_unindexable_quarantine_task(self):
+        tasks = [self.healthy_task, self.errored_quarantine_task]
+        result = harness.run_tier1(tasks)  # must not raise
+
+        self.assertEqual(result["n_tasks"], 2)
+        self.assertEqual(result["n_errored_tasks"], 1)
+        self.assertEqual([t["id"] for t in result["errored"]], ["ghost_quarantine"])
+        self.assertIn("target not found in index", result["errored"][0]["error"])
+
+        # per_task keeps the errored row (never silently dropped) but it
+        # carries no recall/compression measurement at all.
+        by_id = {t["id"]: t for t in result["per_task"]}
+        self.assertNotIn("recall", by_id["ghost_quarantine"])
+        self.assertNotIn("compression", by_id["ghost_quarantine"])
+        self.assertEqual(by_id["healthy"]["recall"], 1.0)
+
+        # aggregates computed over the healthy tasks ONLY: the errored task
+        # was the sole temporal_churn task, so that provenance bucket must
+        # not appear at all (folding it in as a 0.0 would be silently wrong).
+        bp = result["by_provenance"]
+        self.assertNotIn("temporal_churn", bp)
+        self.assertEqual(bp["hand_reachable"]["primary"]["n_tasks"], 1)
+        self.assertEqual(bp["hand_reachable"]["primary"]["mean_recall"], 1.0)
+
+    def test_run_arms_survives_unindexable_quarantine_task(self):
+        tasks = [self.healthy_task, self.errored_quarantine_task]
+        result = harness.run_arms(tasks)  # must not raise
+        self.assertEqual(result["n_errored_tasks"], 1)
+        self.assertEqual([t["id"] for t in result["errored"]], ["ghost_quarantine"])
+        by_id = {t["id"]: t for t in result["per_task"]}
+        self.assertNotIn("recall_A", by_id["ghost_quarantine"])
+        self.assertEqual(by_id["healthy"]["recall_A"], 1.0)
+        text = report.render_arms(result)
+        text.encode("ascii")
+        self.assertIn("ERRORED TASKS", text)
+        self.assertIn("ghost_quarantine", text)
+
+    def test_report_renders_unmissable_errored_section(self):
+        tasks = [self.healthy_task, self.errored_quarantine_task]
+        result = harness.run_tier1(tasks)
+        text = report.render_tier1(result)
+        text.encode("ascii")  # cp1252 console safety
+        self.assertIn("ERRORED TASKS", text)
+        self.assertIn("ghost_quarantine", text)
+        self.assertIn("proj/does_not_exist.py", text)
+        self.assertIn("target not found in index", text)
+
+    def test_gate_fails_loudly_on_errored_primary_task(self):
+        """A broken PRIMARY-tier task screams: the gate fails and names it."""
+        tasks = [self.healthy_task, self.errored_primary_task]
+        gate = harness.run_gate(tasks, baseline_path=self.baseline_path)
+        self.assertFalse(gate["passed"])
+        self.assertEqual([r["id"] for r in gate["errored_primary"]], ["ghost_primary"])
+        self.assertEqual(gate["errored_quarantine"], [])
+        text = report.render_gate(gate)
+        text.encode("ascii")
+        self.assertIn("FAIL", text)
+        self.assertIn("FAILED TO RESOLVE", text)
+        self.assertIn("ghost_primary", text)
+
+    def test_gate_does_not_fail_on_errored_quarantine_task(self):
+        """Flywheel debris (an errored QUARANTINE task) is reported, not gated."""
+        tasks = [self.healthy_task, self.errored_quarantine_task]
+        gate = harness.run_gate(tasks, baseline_path=self.baseline_path)
+        self.assertTrue(gate["passed"])
+        self.assertEqual(gate["errored_primary"], [])
+        self.assertEqual([r["id"] for r in gate["errored_quarantine"]], ["ghost_quarantine"])
+        text = report.render_gate(gate)
+        self.assertIn("PASS", text)
+        self.assertIn("ERRORED QUARANTINE", text)
+        self.assertIn("ghost_quarantine", text)
+        self.assertNotIn("FAILED TO RESOLVE", text)
+
+    def test_snapshot_baseline_skips_errored_tasks(self):
+        """write_baseline must not crash on an errored task, and must not
+        snapshot a recall number that was never measured."""
+        tasks = [self.healthy_task, self.errored_quarantine_task]
+        written_path = harness.write_baseline(tasks, path=self.baseline_path)
+        data = json.loads(Path(written_path).read_text(encoding="utf-8"))
+        self.assertIn("healthy", data["tasks"])
+        self.assertNotIn("ghost_quarantine", data["tasks"])
+
+    def test_zero_errored_tasks_report_has_no_errored_section(self):
+        """Additive: a task set with zero errored tasks renders with no
+        ERRORED section at all -- the new code path adds nothing here."""
+        result = harness.run_tier1([self.healthy_task])
+        self.assertEqual(result["n_errored_tasks"], 0)
+        self.assertEqual(result["errored"], [])
+        text = report.render_tier1(result)
+        self.assertNotIn("ERRORED", text)
+
+        gate = harness.run_gate([self.healthy_task], baseline_path=self.baseline_path)
+        self.assertEqual(gate["errored_primary"], [])
+        self.assertEqual(gate["errored_quarantine"], [])
+        gate_text = report.render_gate(gate)
+        self.assertNotIn("ERRORED", gate_text)
+        self.assertNotIn("FAILED TO RESOLVE", gate_text)
+
+    def test_builtin_task_set_renders_with_no_errored_section(self):
+        """The real, shipped task set has zero errored tasks today -- pins
+        that the whole ERRORED machinery is invisible until something
+        actually breaks (no false positives on the healthy corpus)."""
+        tasks = [t for t in TASKS if task_project_label(t) == "sunny_garden"]
+        result = harness.run_tier1(tasks)
+        self.assertEqual(result["n_errored_tasks"], 0)
+        text = report.render_tier1(result)
+        self.assertNotIn("ERRORED", text)
+
+
+# --------------------------------------------------------------------------- #
 # 3. The advisory regression gate                                             #
 # --------------------------------------------------------------------------- #
 def _row(id_, recall, prov="hand_reachable", tier="primary"):
