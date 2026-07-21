@@ -14,6 +14,8 @@
     daedalus watcher status --project NAME --json
     daedalus review-diff --project NAME --lane local_only
     daedalus projects                   list registered projects
+    daedalus dctx <repo> <target> [--out F] | dctx <repo> --verify F
+                                        mint/verify a certified-context receipt
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
@@ -364,6 +366,8 @@ def main() -> None:
         _build(rest)
     elif cmd == "ikarus":
         from .ikarus import main as m; m()
+    elif cmd == "dctx":
+        from .dctx import main as m; m()
     elif cmd == "metrics":
         from .metrics import main as m; m()
     elif cmd == "benchmark":
