@@ -46,5 +46,63 @@ class SelftestHarnessTests(unittest.TestCase):
         self.assertFalse(r["ok"])   # file-changed + wrote-ground-truth checks fail
 
 
+class ScratchRepoCleanupTests(unittest.TestCase):
+    """The scratch repo is deleted through the GUARDED walker, and a delete
+    that could not finish is REPORTED.
+
+    This was ``shutil.rmtree(repo, ignore_errors=True)`` in a ``finally:`` on a
+    directory a live model had just written into -- the same pattern the
+    security round removed from ``daedalus.spine.attempt`` one file over.
+
+    The discriminating test is the REPORTING one, deliberately. A "does it
+    follow a junction" test would NOT reliably go red on a revert: measured on
+    this box, ``shutil.rmtree`` is safe against a junction that is already in
+    place and only unsafe against one renamed mid-walk, so a static junction
+    fixture can pass against the very code this guard replaced. Swallowed
+    versus reported failure separates them every time.
+    """
+
+    def test_a_delete_that_cannot_finish_is_reported_not_swallowed(self):
+        import tempfile
+
+        tmp = Path(tempfile.mkdtemp(prefix="daedalus-selftest-test-"))
+        blocker = tmp / "held.txt"
+        blocker.write_text("x", encoding="utf-8")
+        handle = open(blocker, "r+b")          # Windows: an open file blocks removal
+        try:
+            err = selftest._remove_selftest_repo(tmp)
+            if err is None:
+                # POSIX happily unlinks an open file; there the delete really
+                # does succeed and there is nothing to report.
+                self.assertFalse(tmp.exists())
+                self.skipTest("this platform can delete a directory holding an "
+                              "open file, so no failure exists to report")
+            self.assertIn(str(tmp), err)
+            self.assertIn("NOT removed", err)
+        finally:
+            handle.close()
+            selftest._remove_selftest_repo(tmp)
+
+    def test_a_clean_scratch_repo_is_actually_removed(self):
+        # The control: without it, a function that always failed would pass the
+        # reporting test above and prove nothing.
+        repo = Path(selftest._build_repo())
+        self.assertTrue(repo.exists())
+        self.assertIsNone(selftest._remove_selftest_repo(repo))
+        self.assertFalse(repo.exists())
+
+    def test_the_module_holds_no_recursive_delete_of_its_own(self):
+        # Structural, not a promise in a docstring: re-introducing
+        # `shutil.rmtree` here has to cost a visible import line.
+        import ast
+
+        source = Path(selftest.__file__).read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        imported = {alias.name
+                    for node in ast.walk(tree) if isinstance(node, ast.Import)
+                    for alias in node.names}
+        self.assertNotIn("shutil", imported)
+
+
 if __name__ == "__main__":
     unittest.main()

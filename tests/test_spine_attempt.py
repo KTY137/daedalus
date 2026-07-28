@@ -14,6 +14,7 @@ import pytest
 
 import daedalus.spine.attempt as attempt_mod
 from daedalus.spine.attempt import (
+    INTENT_KIND,
     STATE_CANCELLED,
     STATE_CLEAN,
     STATE_GATES_FAILED,
@@ -194,18 +195,93 @@ def test_ledger_has_no_open_intents_after_a_completed_attempt(repo, worktree_roo
     assert_primary_untouched(repo, head)
 
 
-def test_effect_key_is_the_branch_and_is_findable(repo, worktree_root, ledger):
+def test_effect_key_is_findable_in_the_world_WHILE_the_intent_is_open(
+        repo, worktree_root, ledger):
+    """The crash window, tested at the only moment it exists.
+
+    The effect key closes the window between "intent recorded" and "intent
+    resolved": crash in there and recovery asks `git branch --list <key>`. So
+    the property has to hold DURING the attempt, which is what this checks --
+    from inside the runner, while the intent is still INTENDED.
+
+    It deliberately no longer asserts the branch survives a completed run.
+    Once the intent is resolved the window is shut, recovery never looks the
+    key up again, and the ref is pure leak -- one per attempt in the shared
+    .git, forever. See the reaping tests below.
+    """
+    seen = {}
+
+    def runner(ctx):
+        # Mid-attempt: the effect exists in the world and the intent is open.
+        seen["branches"] = _git_out(repo, "branch", "--list", ctx.branch)
+        open_now = ledger.open_intents(INTENT_KIND)
+        seen["open_intent_effect_keys"] = [i.effect_key for i in open_now]
+        (ctx.worktree / "a.txt").write_text("a\n", encoding="utf-8")
+
+    head = head_of(repo)
+    at = TaskAttempt(spec(), runner=runner, gate=passing_gate(),
+                     repo_root=repo, ledger=ledger)
+    result = at.run()
+
+    assert result.effect_key == result.branch == at.branch
+    assert result.effect_key in seen["branches"], (
+        "the effect key was NOT findable in the world during the attempt -- "
+        "the crash window is open")
+    assert result.effect_key in seen["open_intent_effect_keys"], (
+        "recovery could not have joined the open intent to the branch")
+
+    found = ledger.resolve_by_effect(result.effect_key)
+    assert [i.id for i in found] == [result.intent_id]
+    assert_primary_untouched(repo, head)
+
+
+def test_a_resolved_attempt_reaps_its_branch_and_reports_it(
+        repo, worktree_root, ledger):
+    # `git worktree add -b` writes a ref into the SHARED .git that nothing
+    # removed. Reaping happens strictly AFTER resolution, so it cannot reopen
+    # the crash window above.
     head = head_of(repo)
     at = TaskAttempt(spec(), runner=writing_runner({"a.txt": "a\n"}),
                      gate=passing_gate(), repo_root=repo, ledger=ledger)
     result = at.run()
 
-    assert result.effect_key == result.branch == at.branch
-    # the key is answerable from the world, which is what closes the crash window
-    branches = _git_out(repo, "branch", "--list", result.effect_key)
-    assert result.effect_key in branches
-    found = ledger.resolve_by_effect(result.effect_key)
-    assert [i.id for i in found] == [result.intent_id]
+    assert result.state == STATE_CLEAN
+    assert result.reap_error is None
+    assert result.branch not in _git_out(repo, "branch", "--list", result.branch)
+    deleted = [r for r in result.reaped if r.get("action") == "deleted"]
+    assert [r.get("branch") for r in deleted] == [result.branch]
+    # The ledger still answers "did this attempt happen?" -- the durable record
+    # is the ledger's, not the ref's.
+    assert [i.id for i in ledger.resolve_by_effect(result.effect_key)] == \
+           [result.intent_id]
+    assert_primary_untouched(repo, head)
+
+
+def test_reaping_is_provably_lossless_and_can_be_turned_off(
+        repo, worktree_root, ledger):
+    head = head_of(repo)
+    at = TaskAttempt(spec(), runner=writing_runner({"a.txt": "a\n"}),
+                     gate=passing_gate(), repo_root=repo, ledger=ledger,
+                     reap=False)
+    result = at.run()
+
+    assert result.reaped == ()
+    assert result.branch in _git_out(repo, "branch", "--list", result.branch), (
+        "reap=False still deleted the branch")
+    assert_primary_untouched(repo, head)
+
+
+def test_keeping_the_worktree_reaps_nothing(repo, worktree_root, ledger):
+    # The manager's own precondition: a branch whose worktree has NOT been
+    # through cleanup is still live, and must not be reaped even by default.
+    head = head_of(repo)
+    at = TaskAttempt(spec(), runner=writing_runner({"a.txt": "a\n"}),
+                     gate=passing_gate(), repo_root=repo, ledger=ledger,
+                     keep_worktree=True)
+    result = at.run()
+
+    assert result.branch in _git_out(repo, "branch", "--list", result.branch)
+    assert not [r for r in result.reaped if r.get("action") == "deleted"]
     assert_primary_untouched(repo, head)
 
 

@@ -522,6 +522,8 @@ class AttemptResult:
     ledger_error: str | None = None
     artifact_path: str | None = None
     runner_detail: Any = None
+    reaped: tuple = ()
+    reap_error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -553,6 +555,8 @@ class AttemptResult:
             "ledger_error": self.ledger_error,
             "artifact_path": self.artifact_path,
             "runner_detail": _jsonable(self.runner_detail),
+            "reaped": _jsonable(list(self.reaped)),
+            "reap_error": self.reap_error,
         }
 
 
@@ -727,6 +731,7 @@ class TaskAttempt:
                  cancel: Any = None,
                  worktree_manager: GitWorktreeManager | None = None,
                  keep_worktree: bool = False,
+                 reap: bool = True,
                  artifact_dir: str | Path | None = None) -> None:
         if not isinstance(task, TaskSpec):
             raise TypeError("task must be a TaskSpec")
@@ -741,6 +746,11 @@ class TaskAttempt:
         self._manager = worktree_manager or GitWorktreeManager(self.repo_root)
         self._is_cancelled = _as_predicate(cancel)
         self._keep_worktree = bool(keep_worktree)
+        # Default ON because the leak is unbounded: one ref per attempt, in the
+        # SHARED .git, forever. Off is for an operator who wants the branch left
+        # behind for forensics -- the patch bytes are already persisted
+        # separately, so this costs nothing but a ref.
+        self._reap_enabled = bool(reap)
         self._artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._ledger = ledger
         self._owns_ledger = ledger is None
@@ -798,13 +808,55 @@ class TaskAttempt:
                           error=f"spine ledger unavailable: {e}")
 
         try:
-            return self._run_with_ledger(ledger, base_revision, finish)
+            result = self._run_with_ledger(ledger, base_revision, finish)
         finally:
             if self._owns_ledger:
                 try:
                     ledger.close()
                 except Exception:
                     pass
+
+        # 9. reap the candidate branch -- and ONLY here.
+        #
+        # `git worktree add -b` writes a ref into the SHARED .git that nothing
+        # removed, so an overnight loop left one ref per attempt forever. This
+        # is the one safe moment to remove it: the intent is RESOLVED by the
+        # time _run_with_ledger returns. Doing it inside cleanup's `finally:`
+        # would be strictly worse than the leak, because the branch IS the
+        # effect key -- the documented way to answer "did this attempt happen?"
+        # after a crash is `git branch --list <effect_key>`, and cleanup runs
+        # BEFORE resolution. That would open a window where an OPEN intent has
+        # no findable effect.
+        return self._reap(result)
+
+    def _reap(self, result: AttemptResult) -> AttemptResult:
+        """Delete this attempt's branch if the manager can prove it holds no work.
+
+        NEVER fails the attempt. The patch has already been captured and the
+        intent already resolved; losing a completed result to a bookkeeping
+        error would be strictly worse than leaving a ref behind. A reap that
+        could not run is REPORTED on the result instead, so a silently growing
+        ref namespace stays observable.
+
+        The decision itself is entirely the manager's, and deliberately so: it
+        deletes only branches THIS manager allocated in THIS process, whose
+        worktree has been through cleanup, and whose tip still matches the sha
+        it read at allocation. None of those three facts is available to
+        candidate code, which is why forging an allocation record on disk --
+        the attack that once deleted two branches of real work -- cannot steer
+        it. Passing `keep_worktree=True` therefore reaps nothing, because the
+        cleanup precondition never becomes true.
+        """
+        from dataclasses import replace as _replace
+
+        if not self._reap_enabled:
+            return result
+        try:
+            report = self._manager.reap_branches()
+        except Exception as e:                  # noqa: BLE001 - reported, not raised
+            return _replace(result,
+                            reap_error=f"{type(e).__name__}: {e}")
+        return _replace(result, reaped=tuple(report))
 
     # -- the recorded part -------------------------------------------------- #
     def _run_with_ledger(self, ledger: SpineLedger, base_revision: str,

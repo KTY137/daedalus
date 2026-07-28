@@ -19,7 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
+# NOT `import shutil`. The one recursive delete this module had -- the scratch
+# repo a LIVE model has just written into -- goes through
+# `remove_tree_no_follow`. Keeping the import out means re-introducing
+# `shutil.rmtree` costs a visible line in the diff instead of passing as an
+# ordinary use of something already imported. Same discipline as
+# daedalus/spine/attempt.py, which removed exactly this pattern one file over.
 import tempfile
 import time
 from pathlib import Path
@@ -47,6 +52,44 @@ def _build_repo() -> str:
     return tmp
 
 
+def _remove_selftest_repo(repo: Path) -> str | None:
+    """Delete the scratch repo through the GUARDED walker.
+
+    Returns ``None`` on success, or a one-line report of what stopped it.
+
+    This was ``shutil.rmtree(repo, ignore_errors=True)`` in a ``finally:``, and
+    it is the same pattern the security round removed from
+    :mod:`daedalus.spine.attempt` one file over. Both halves of it were wrong
+    here for the same reasons they were wrong there:
+
+    1. ``ignore_errors=True`` is a SILENT delete failure inside a ``finally:``.
+       A selftest whose whole job is to report honestly on a live round trip
+       must not be the thing that swallows a failed delete.
+    2. ``repo`` is a ``%TEMP%/daedalus-selftest-*`` directory that a LIVE MODEL
+       has just written into, under this user's privileges, with a public
+       prefix. That is precisely a directory candidate-authored content could
+       have reached. ``shutil.rmtree`` is not safe against a reparse point
+       renamed in mid-walk on Windows -- ``os.path.islink`` does not even see a
+       ``mklink /J`` junction (measured: ``islink=False``, reparse tag
+       ``0xa0000003``) -- so the walker that re-lstats every component is the
+       one that has to do this.
+
+    The model here is far less adversarial than a candidate patch: it is a
+    small local model writing one greeting function. That is a reason the
+    window is narrow, not a reason to leave an unguarded recursive delete in a
+    ``finally:``, because "the model probably behaved" is not a property this
+    module can check.
+    """
+    from .kairos.worktree import remove_tree_no_follow
+
+    try:
+        remove_tree_no_follow(repo)
+        return None
+    except Exception as e:                      # noqa: BLE001 - reported, not raised
+        return (f"selftest scratch repo {repo} was NOT removed: "
+                f"{type(e).__name__}: {e}")
+
+
 def _compiles(path: Path) -> bool:
     import py_compile
     try:
@@ -67,6 +110,11 @@ def run() -> dict:
 
     from .offload import offload
     repo = _build_repo()
+    # Bound BEFORE the try: the finally below attaches a cleanup report to it,
+    # and an exception raised before the assignment would otherwise turn a
+    # round-trip failure into a NameError in the cleanup handler -- hiding the
+    # real error behind the bookkeeping for it.
+    result: dict | None = None
     try:
         target = Path(repo) / _FILE
         before = target.read_text(encoding="utf-8")
@@ -95,7 +143,12 @@ def run() -> dict:
         }
         return result
     finally:
-        shutil.rmtree(repo, ignore_errors=True)
+        cleanup_error = _remove_selftest_repo(Path(repo))
+        if cleanup_error and isinstance(result, dict):
+            # Reported, never swallowed: a delete this module could not
+            # complete is a finding about the box, and a selftest that hides
+            # one is lying about the thing it exists to check.
+            result["cleanup_error"] = cleanup_error
 
 
 def _emit(result: dict, json_out: bool) -> None:

@@ -1,0 +1,141 @@
+{
+  "note": "per-test, module-grouped. Contested tests are excluded from 'excluding_contested' and listed with the reason. The compliance block is EXPLORATORY and decides nothing.",
+  "arms": {
+    "A": {
+      "arm": "A",
+      "core_exists": true,
+      "files": [
+        "deepLink.ts",
+        "objectRef.ts",
+        "scope.ts",
+        "viewRecipe.ts",
+        "visibility.ts"
+      ],
+      "headline": {
+        "passed": 21,
+        "total": 23
+      },
+      "excluding_contested": {
+        "passed": 20,
+        "total": 21
+      },
+      "contested": [
+        {
+          "test": "viewRecipe: unknown type or missing recipe returns null",
+          "passed": true,
+          "why_flagged": "asserts place+tisch -> null; the brief's mapping list is 'required', not exhaustive"
+        },
+        {
+          "test": "deepLink: parses the four documented example URLs",
+          "passed": false,
+          "why_flagged": "requires the document's recipe=tactical URL to parse; 'tactical' is not a RecipeId"
+        }
+      ],
+      "by_module": {
+        "deepLink": {
+          "passed": 3,
+          "failed": 2
+        },
+        "objectRef": {
+          "passed": 4,
+          "failed": 0
+        },
+        "scope": {
+          "passed": 4,
+          "failed": 0
+        },
+        "viewRecipe": {
+          "passed": 4,
+          "failed": 0
+        },
+        "visibility": {
+          "passed": 6,
+          "failed": 0
+        }
+      },
+      "failures": [
+        "deepLink: parses the four documented example URLs",
+        "deepLink: malformed input returns null and never throws"
+      ],
+      "compliance_EXPLORATORY": {
+        "modified": [],
+        "added": [
+          "design/visual-lab/src/core/deepLink.ts",
+          "design/visual-lab/src/core/objectRef.ts",
+          "design/visual-lab/src/core/scope.ts",
+          "design/visual-lab/src/core/viewRecipe.ts",
+          "design/visual-lab/src/core/visibility.ts"
+        ],
+        "forbidden_edits": []
+      }
+    },
+    "B": {
+      "arm": "B",
+      "core_exists": true,
+      "files": [
+        "deepLink.ts",
+        "objectRef.ts",
+        "scope.ts",
+        "viewRecipe.ts",
+        "visibility.ts"
+      ],
+      "headline": {
+        "passed": 21,
+        "total": 23
+      },
+      "excluding_contested": {
+        "passed": 20,
+        "total": 21
+      },
+      "contested": [
+        {
+          "test": "viewRecipe: unknown type or missing recipe returns null",
+          "passed": true,
+          "why_flagged": "asserts place+tisch -> null; the brief's mapping list is 'required', not exhaustive"
+        },
+        {
+          "test": "deepLink: parses the four documented example URLs",
+          "passed": false,
+          "why_flagged": "requires the document's recipe=tactical URL to parse; 'tactical' is not a RecipeId"
+        }
+      ],
+      "by_module": {
+        "deepLink": {
+          "passed": 3,
+          "failed": 2
+        },
+        "objectRef": {
+          "passed": 4,
+          "failed": 0
+        },
+        "scope": {
+          "passed": 4,
+          "failed": 0
+        },
+        "viewRecipe": {
+          "passed": 4,
+          "failed": 0
+        },
+        "visibility": {
+          "passed": 6,
+          "failed": 0
+        }
+      },
+      "failures": [
+        "deepLink: parses the four documented example URLs",
+        "deepLink: malformed input returns null and never throws"
+      ],
+      "compliance_EXPLORATORY": {
+        "modified": [],
+        "added": [
+          "design/visual-lab/src/core/deepLink.ts",
+          "design/visual-lab/src/core/objectRef.ts",
+          "design/visual-lab/src/core/scope.ts",
+          "design/visual-lab/src/core/viewRecipe.ts",
+          "design/visual-lab/src/core/visibility.ts"
+        ],
+        "forbidden_edits": []
+      }
+    }
+  }
+}

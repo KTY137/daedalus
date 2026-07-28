@@ -4,6 +4,96 @@ This section supersedes everything below it, including the session-2 block.
 The rest of the file is history; do not treat its arc claims, test counts or
 open items as current.
 
+## THE A/B RAN. Arm B did not earn its cost on this task.
+
+Full writeup: `docs/EXPERIMENT_A_B_RESULT.md`. Pre-registration §7's second
+falsification condition is MET — *"the gate outcome is the same for both, and
+the extra machinery bought only process."*
+
+```
+                    Arm A (self-directed)   Arm B (DSS + gate feedback)
+gate                pass, first try         pass, first try
+hidden conformance  21/23                   21/23        (same two failures)
+billable tokens     99,971                  122,592      +22.6%
+USD                 $1.4335                 $1.8451      +28.7%
+wall clock          358s                    545s         +52.2%
+turns / rework      1 / 0                   1 / 0
+human interventions 0                       0
+tests written       none                    none
+```
+
+**Read these four before quoting that table.**
+
+1. **It was NOT "full Daedalus".** Codex made this correction in design review
+   and it stands. Pre-registered Arm B is distilled context + TaskAttempt +
+   gates + council + human promotion. What ran was **DSS + enforced gate
+   feedback versus self-directed Claude**. TaskAttempt, council and promotion
+   were never in the loop. A plan-only `daedalus offload` returned
+   `action: "senior"` — for a high-risk greenfield write the router escalates
+   rather than executing — so "Arm B = offload --live" would have measured a
+   system declining to run. Silver lining: both arms then ran the SAME model,
+   so this measures process, not model.
+2. **Arm B's central mechanism never fired.** Both arms passed the gate on the
+   first pass, so the repair loop had nothing to repair. This run measures Arm
+   B's overhead in full and its benefit not at all. It is evidence about a task
+   that goes RIGHT, not about the case the machinery exists for.
+3. **Blind judging split, and the only uncontaminated verdict preferred Arm A.**
+   Mapping was X=B, Y=A. I preferred Y and guessed X=A — **my guess was wrong**,
+   and the direction matters: I preferred what I believed was Arm B, and it was
+   Arm A. Codex preferred X (Arm B) but **disqualified its own guess** because
+   it had contaminated the blind while locating files. That contamination taints
+   its qualitative verdict too, not just the guess. Opus 4.6 and Kaya did not
+   judge — two voices missing, named rather than papered over.
+4. **N = 1. An anecdote, recorded as one.**
+
+**The finding I did not expect: neither arm wrote a single test.** Both were
+told the gate was `tsc --noEmit && vite build` and both optimised precisely for
+it. That is a fact about MY BRIEF, not about the models — I specified a gate
+that cannot fail for a wrong-but-compiling implementation and got two
+wrong-but-compiling implementations. Same lesson this repo learned three times
+in one day on its own safety code, arriving from the opposite direction.
+
+**Codex's ruling on what comes next, and I agree: fix the gate first.** A repair
+loop is meaningless when its oracle accepts wrong implementations, and choosing
+a feature "to fail" would game the experiment. Pre-register behavioural
+acceptance tests, **prove they reject known-bad fixtures**, then run a naturally
+difficult second feature. That is the project's own guard doctrine — a test that
+does not die when the thing it checks is broken is decoration — applied to the
+experiment's own oracle.
+
+Blind review also found five defects **23 mechanical tests could not see**
+(stable-ID corruption in one arm's deep links, a forbidden `@revision` in the
+other's canonical form, both violating "export exactly", an unrecognised query
+key promoted to an object, two divergent slug grammars). That is an argument for
+cross-vendor review existing at all — not for Arm B's machinery, and it must not
+be read as one.
+
+## Also shipped this session, each verified by deleting the guard
+
+- **`6476cdf` — the picker has work again.** The queue was EMPTY because its
+  only source was hand-written and thirty commits stale. It now also ranks from
+  `docs/architecture-state.json` (generated, digest-covered, drift-gated), with
+  islands and shims as SEPARATE sources carrying opposite remedies. Trust is
+  verified via `digest_ok()` before any list is inherited, so a hand-edit the
+  drift gate would have caught cannot become the thing the loop works from.
+  Guards: digest check off → 2 red; suppression off → 1 red.
+- **`selftest.py`** — the last `shutil.rmtree(repo, ignore_errors=True)` in a
+  `finally:` on a directory a live model just wrote into. Now routes through
+  `remove_tree_no_follow` and REPORTS what it could not delete. `import shutil`
+  is gone, so re-introducing it costs a visible line. The discriminating test is
+  the REPORTING one on purpose: a static junction fixture would not reliably go
+  red on a revert, since `rmtree` is safe against a junction already in place
+  and only unsafe against one renamed mid-walk. Revert → 2 red.
+- **`reap_branches()` is wired** — the leak of one ref per attempt into the
+  SHARED `.git`, forever. Called from `TaskAttempt.run()` strictly AFTER intent
+  resolution and never in cleanup's `finally:`, because the branch IS the effect
+  key and deleting it there would leave an OPEN intent with no findable effect.
+  `reap=False` opts out; `keep_worktree=True` reaps nothing by construction.
+  The old test asserting the branch survives a completed run was REPLACED, not
+  deleted: the crash-window property is now tested where it actually exists —
+  from inside the runner, while the intent is still open. Unwiring the call →
+  1 red.
+
 ## THE SPRUNG WAS MIS-SPECIFIED. Here is the measured map.
 
 Session 2 recorded: *"All four exist; none is wired to the next."* **That is

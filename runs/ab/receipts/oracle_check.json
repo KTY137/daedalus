@@ -1,0 +1,116 @@
+{
+  "base": "C:\\Users\\nukei\\Desktop\\agent_env\\runs\\ab\\artifacts\\armA",
+  "baseline_failures": [
+    "deepLink: malformed input returns null and never throws",
+    "deepLink: parses the four documented example URLs"
+  ],
+  "results": [
+    {
+      "mutation": "secret_leaks_as_redacted",
+      "file": "visibility.ts",
+      "rule": "a secret object rendered as a locked row confirms it exists",
+      "expected_test": "visibility: SECRET never leaks its existence -- not_found, never redacted",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "visibility: SECRET never leaks its existence -- not_found, never redacted",
+        "visibility: redacted and not_found stay distinguishable states"
+      ]
+    },
+    {
+      "mutation": "gm_only_becomes_not_found",
+      "file": "visibility.ts",
+      "rule": "collapsing the two denial states into one",
+      "expected_test": "visibility: redacted and not_found stay distinguishable states",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "visibility: gm_only is redacted for members, not_found for public",
+        "visibility: redacted and not_found stay distinguishable states"
+      ]
+    },
+    {
+      "mutation": "public_can_read_open",
+      "file": "visibility.ts",
+      "rule": "campaign content exposed to a public viewer",
+      "expected_test": "visibility: open is visible to members, never to public",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "visibility: SECRET never leaks its existence -- not_found, never redacted",
+        "visibility: gm_only is redacted for members, not_found for public",
+        "visibility: open is visible to members, never to public"
+      ]
+    },
+    {
+      "mutation": "player_is_gm_tier",
+      "file": "visibility.ts",
+      "rule": "widening the GM tier",
+      "expected_test": "visibility: GM tier is exactly owner, gm, co_gm",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "visibility: GM tier is exactly owner, gm, co_gm",
+        "visibility: SECRET never leaks its existence -- not_found, never redacted",
+        "visibility: gm_only is redacted for members, not_found for public",
+        "visibility: redacted and not_found stay distinguishable states"
+      ]
+    },
+    {
+      "mutation": "slug_in_canonical_form",
+      "file": "objectRef.ts",
+      "rule": "identity built on a slug breaks across renames",
+      "expected_test": "objectRef: canonical form is built from type and id, never the slug",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "objectRef: canonical form is built from type and id, never the slug"
+      ]
+    },
+    {
+      "mutation": "revision_becomes_identity",
+      "file": "objectRef.ts",
+      "rule": "two revisions of one object treated as two objects",
+      "expected_test": "objectRef: sameObject ignores revision but respects identity",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "objectRef: sameObject ignores revision but respects identity",
+        "objectRef: scope is part of identity"
+      ]
+    },
+    {
+      "mutation": "scope_is_not_identity",
+      "file": "objectRef.ts",
+      "rule": "the same id in a different campaign treated as the same object",
+      "expected_test": "objectRef: scope is part of identity",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "objectRef: scope is part of identity"
+      ]
+    },
+    {
+      "mutation": "recipe_mapping_wrong",
+      "file": "viewRecipe.ts",
+      "rule": "a documented object/workspace mapping silently changed",
+      "expected_test": "viewRecipe: every required mapping from the document resolves",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "viewRecipe: every required mapping from the document resolves"
+      ]
+    },
+    {
+      "mutation": "role_accepted_as_workspace",
+      "status": "NOT_APPLICABLE",
+      "reason": "pattern not present in viewRecipe.ts",
+      "rule": "a role accepted where a workspace belongs"
+    },
+    {
+      "mutation": "scope_parse_throws",
+      "file": "scope.ts",
+      "rule": "the never-throws contract",
+      "expected_test": "scope: malformed input returns null and never throws",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "scope: a scope missing a required ancestor is invalid",
+        "scope: format(parse(p)) === p for every valid shape",
+        "scope: malformed input returns null and never throws",
+        "scope: parses the four documented path shapes"
+      ]
+    }
+  ]
+}

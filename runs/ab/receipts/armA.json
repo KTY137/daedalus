@@ -1,0 +1,96 @@
+{
+  "arm": "A",
+  "model": "sonnet",
+  "repo": "C:\\Users\\nukei\\Desktop\\ab_run\\armA",
+  "turns": [
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": false,
+      "api_error_status": null,
+      "duration_ms": 353789,
+      "duration_api_ms": 336356,
+      "ttft_ms": 2865,
+      "ttft_stream_ms": 2135,
+      "time_to_request_ms": 402,
+      "num_turns": 25,
+      "result": "Gate passes clean, `dist/` is gitignored, and only the new `src/core/` module is untracked. Not committing since that wasn't requested.\n\n## Summary\n\nBuilt the five Chronicle core navigation modules under `design/visual-lab/src/core/`, all pure TypeScript with no React/DOM dependency on the app:\n\n- **`scope.ts`** \u2014 platform/universe/campaign/session path parsing, prefix-consuming, `formatScope(parseScope(p)) === p` round-trips.\n- **`objectRef.ts`** \u2014 canonical `type:id@revision` text form (never the slug), `sameObject` compares type+id+scope but ignores revision.\n- **`viewRecipe.ts`** \u2014 the exact \u00a74.3 mapping table (character/scene/article/place \u00d7 workspace), no `Role` concept at all per spec.\n- **`visibility.ts`** \u2014 the sharpest one: `secret` always returns `not_found` (never `redacted`) for non-GM roles, so a locked-row render can't confirm a secret's existence; `open` returns `not_found` for `public` since campaign content isn't public.\n- **`deepLink.ts`** \u2014 builds/parses the four URL shapes from \u00a76.5 using the real `URL`/`URLSearchParams` APIs for correct percent-encoding round trips.\n\nTwo judgment calls worth flagging:\n1. Couldn't use the `.ts`-suffixed imports shown in the brief's own code blocks \u2014 `tsconfig.json` (which I'm barred from touching) doesn't have `allowImportingTsExtensions`, so imports are extension-less.\n2. `deepLink.ts` unifies the doc's two different object-embedding styles (bare slug in path for `world`, `scene=`/`recipe=` query keys for `table`) into one consistent `/objects/<type:id@revision>` path segment \u2014 a generic encoder can't derive a workspace-specific query key like `\"scene\"`, and a bare slug alone can't round-trip full `ObjectRef` identity. Documented inline in the file.\n\nVerified with a throwaway smoke script (not committed) exercising round-trips, GM-tier/visibility matrix, and recipe survival \u2014 all matched expected values \u2014 then confirmed `npm --prefix design/visual-lab run build` passes clean.",
+      "stop_reason": "end_turn",
+      "session_id": "61beeedd-a09f-41b4-9014-ea64b4536d7e",
+      "total_cost_usd": 1.4335221,
+      "usage": {
+        "input_tokens": 176,
+        "cache_creation_input_tokens": 65950,
+        "cache_read_input_tokens": 1755377,
+        "output_tokens": 33845,
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 65950,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 755,
+            "cache_read_input_tokens": 95060,
+            "cache_creation_input_tokens": 1093,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 1093
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard"
+      },
+      "modelUsage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 2936,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.003006,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 176,
+          "outputTokens": 33845,
+          "cacheReadInputTokens": 1755377,
+          "cacheCreationInputTokens": 65950,
+          "webSearchRequests": 0,
+          "costUSD": 1.4305161000000004,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "uuid": "19e435b6-534c-4d9e-8931-99cec710d24a",
+      "_wall_seconds": 355.97
+    }
+  ],
+  "rework": 0,
+  "human_interventions": 0,
+  "prompt_chars": 8002,
+  "gate_after_first_pass": true,
+  "gate_passed": true,
+  "gate_output_tail": "K\ntransforming...\u2713 2256 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                                              0.59 kB \u2502 gzip:   0.35 kB\ndist/assets/cinzel-latin-ext-500-normal-1Z8Q-7rh.woff2       8.18 kB\ndist/assets/cinzel-latin-ext-600-normal-BEFdM_VE.woff2       8.35 kB\ndist/assets/manrope-vietnamese-wght-normal-usUDDRr7.woff2    8.52 kB\ndist/assets/manrope-greek-wght-normal-DL7QRZyv.woff2         9.44 kB\ndist/assets/cinzel-latin-ext-500-normal-BxIh9iwm.woff        9.67 kB\ndist/assets/cinzel-latin-ext-600-normal-BY9Mq9iK.woff        9.78 kB\ndist/assets/manrope-cyrillic-wght-normal-Dvxsihut.woff2     14.50 kB\ndist/assets/cinzel-latin-500-normal-B-2dbOfA.woff2          15.04 kB\ndist/assets/manrope-latin-ext-wght-normal-Ch3YOpNY.woff2    15.12 kB\ndist/assets/cinzel-latin-600-normal-Dd5YO2UX.woff2          15.20 kB\ndist/assets/cinzel-latin-500-normal-DMNTwV-V.woff           17.39 kB\ndist/assets/cinzel-latin-600-normal-CH_LB4su.woff           17.50 kB\ndist/assets/manrope-latin-wght-normal-DHIcAJRg.woff2        24.83 kB\ndist/assets/Yalit-C3TtoWtW.webp                             39.51 kB\ndist/assets/SongKayn-vmN67qzc.webp                          48.47 kB\ndist/assets/Karte_von_Andaria-DT6g6Vnp.webp                801.27 kB\ndist/assets/index-Cw4mVjqt.css                              29.58 kB \u2502 gzip:   9.66 kB\ndist/assets/index-Bc6U6hnF.js                              412.14 kB \u2502 gzip: 132.53 kB \u2502 map: 1,955.76 kB\n\n\u001b[32m\u2713 built in 880ms\u001b[39m\n",
+  "wall_seconds_total": 358.37,
+  "totals": {
+    "input_tokens": 176,
+    "output_tokens": 33845,
+    "cache_read_input_tokens": 1755377,
+    "cache_creation_input_tokens": 65950,
+    "billable_tokens": 99971,
+    "usd": 1.4335,
+    "turns": 1
+  }
+}
