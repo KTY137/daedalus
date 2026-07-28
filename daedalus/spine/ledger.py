@@ -83,7 +83,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Sequence
 
 # --------------------------------------------------------------------------- #
 # constants                                                                    #
@@ -142,6 +142,16 @@ def canonical_sha(obj: Any) -> str:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _uri_path(path: Path) -> str:
+    """A filesystem path as the path part of a SQLite ``file:`` URI.
+
+    Backslashes are not URI separators, and ``?``/``#`` would start the query
+    and fragment -- on Windows all three turn up in real paths.
+    """
+    return (str(path).replace("\\", "/")
+            .replace("?", "%3f").replace("#", "%23"))
 
 
 def default_db_path() -> Path:
@@ -238,11 +248,40 @@ class SpineLedger:
     """
 
     def __init__(self, path: str | Path | None = None, *,
-                 busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> None:
+                 busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
+                 read_only: bool = False) -> None:
         self.path = Path(path) if path is not None else default_db_path()
         self.busy_timeout_ms = int(busy_timeout_ms)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.read_only = bool(read_only)
         self._lock = threading.RLock()
+
+        if self.read_only:
+            # A READER MUST NOT WRITE. The normal path creates the parent
+            # directory, sets journal_mode=WAL (which writes the file header)
+            # and runs migrations inside BEGIN IMMEDIATE -- so merely OPENING a
+            # ledger to look at it mutates it. That is intolerable for callers
+            # whose whole contract is that they change nothing (the picker's
+            # --dry-run ranks a queue and must stay a read). SQLite enforces it
+            # here rather than this class promising it: mode=ro fails any write
+            # at the engine, so a future edit that adds one cannot pass tests.
+            #
+            # HONEST LIMIT: opening a WAL database read-only still creates the
+            # ``-wal``/``-shm`` sidecars, because the shared-memory index is how
+            # WAL reads work. The ledger's CONTENTS are untouched (a test pins
+            # the file's sha256 across a read), but this is not "touches
+            # nothing on disk", and a genuinely read-only filesystem will fail
+            # the open -- which callers surface as an error rather than as a
+            # silently empty history.
+            uri = f"file:{_uri_path(self.path)}?mode=ro"
+            self._conn = sqlite3.connect(uri, uri=True, isolation_level=None,
+                                         check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+            # Per-connection only; neither touches the file.
+            self._conn.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
+            self._conn.execute("PRAGMA query_only=ON")
+            return
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.path), isolation_level=None,
                                      check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
@@ -420,6 +459,77 @@ class SpineLedger:
         with self._lock:
             rows = self._conn.execute(sql, args).fetchall()
         return [_row_to_intent(r, state=STATE_INTENDED) for r in rows]
+
+    def recent_intents(self, kind: str | None = None, *,
+                       limit: int | None = None) -> list[Intent]:
+        """Every intent, RESOLVED OR NOT, newest first.
+
+        The read that closes the loop's return path. ``open_intents`` is a
+        crash-recovery worklist and deliberately excludes anything terminal, so
+        before this existed a COMPLETED attempt was reachable only by an id or
+        an effect_key the caller had to already know -- which meant nothing
+        could ask the ledger the one question a self-improving loop has to ask:
+        *what have I already tried, and how did it end?* Without it the picker
+        re-selects the same candidate forever (measured: five recorded
+        gate-failed attempts left the top five of the queue unchanged).
+
+        Newest first because every caller wants recency; ``limit`` is applied in
+        SQL so a long-lived ledger does not have to be hydrated in full to
+        answer "what happened lately". A non-positive limit returns nothing,
+        which is the truthful answer to "give me zero rows" and keeps a caller's
+        arithmetic (``limit=n-1``) from silently meaning "all".
+        """
+        if limit is not None and int(limit) <= 0:
+            return []
+        sql = "SELECT * FROM intents"
+        args: list[Any] = []
+        if kind is not None:
+            sql += " WHERE kind = ?"
+            args.append(str(kind))
+        sql += " ORDER BY id DESC"
+        if limit is not None:
+            sql += " LIMIT ?"
+            args.append(int(limit))
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+            return [self._hydrate(r) for r in rows]
+
+    def intents_matching_payload(self, key: str, values: Sequence[str], *,
+                                 kind: str | None = None) -> list[Intent]:
+        """Intents whose payload records ``key`` as one of ``values``.
+
+        The targeted alternative to ``recent_intents(limit=N)``. A row limit is
+        a WINDOW, not a bound: with it, the oldest attempts silently fall out of
+        memory and their tasks become selectable again, so a loop would slowly
+        start repeating work it had already done -- the exact defect the memory
+        exists to prevent, reintroduced by the thing meant to make it cheap.
+        Asking for the specific values a caller cares about has no such edge.
+
+        Matching is a substring test against the payload TEXT, which is exact
+        here rather than approximate because every payload is written through
+        ``canonical_json``: sorted keys, no whitespace, ``ensure_ascii``. So a
+        recorded ``key``/``value`` pair always appears verbatim as
+        ``"key":"value"``. LIKE metacharacters in either are escaped, so a value
+        containing ``%`` matches only a literal ``%``.
+        """
+        wanted = [str(v) for v in values if str(v)]
+        if not wanted:
+            return []
+        clauses, args = [], []
+        for value in wanted:
+            fragment = canonical_json({str(key): value})[1:-1]  # drop the braces
+            escaped = (fragment.replace("\\", "\\\\").replace("%", "\\%")
+                       .replace("_", "\\_"))
+            clauses.append("payload LIKE ? ESCAPE '\\'")
+            args.append(f"%{escaped}%")
+        sql = f"SELECT * FROM intents WHERE ({' OR '.join(clauses)})"
+        if kind is not None:
+            sql += " AND kind = ?"
+            args.append(str(kind))
+        sql += " ORDER BY id DESC"
+        with self._lock:
+            rows = self._conn.execute(sql, args).fetchall()
+            return [self._hydrate(r) for r in rows]
 
     def resolve_by_effect(self, effect_key: str) -> list[Intent]:
         """Every intent recorded under ``effect_key``, oldest first.

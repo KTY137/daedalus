@@ -393,3 +393,74 @@ def test_event_details_are_canonical_json(ledger, db_path):
         (intent.id,))]
     assert details[-1] == canonical_json({"effect_id": "e",
                                           "result": {"a": 1, "b": 2}})
+
+
+# --------------------------------------------------------------------------- #
+# recent_intents -- the read that closes the loop's return path                #
+# --------------------------------------------------------------------------- #
+def _seed(led, n, kind="attempt.candidate", resolve=True):
+    made = []
+    for i in range(n):
+        intent = led.record_intent(kind, {"task_id": f"t{i}"}, effect_key=f"e{i}")
+        if resolve:
+            led.mark_completed(intent.id, effect_id=f"eff{i}",
+                               result={"state": "gates_failed"})
+        made.append(intent)
+    return made
+
+
+def test_recent_intents_returns_resolved_ones_that_open_intents_cannot(tmp_path):
+    # THE point of the query: after resolution open_intents goes empty, and
+    # before this existed a completed attempt was reachable only by an id or an
+    # effect_key the caller already had to know.
+    led = SpineLedger(tmp_path / "s.sqlite3")
+    _seed(led, 3)
+    assert led.open_intents("attempt.candidate") == []
+    recent = led.recent_intents("attempt.candidate")
+    assert len(recent) == 3
+    assert all(i.state == STATE_COMPLETED for i in recent)
+    assert [i.payload["task_id"] for i in recent] == ["t2", "t1", "t0"]
+    led.close()
+
+
+def test_recent_intents_is_newest_first_and_includes_open_ones(tmp_path):
+    led = SpineLedger(tmp_path / "s.sqlite3")
+    _seed(led, 2, resolve=True)
+    _seed(led, 1, resolve=False)          # one still open
+    recent = led.recent_intents("attempt.candidate")
+    assert [i.state for i in recent] == [STATE_INTENDED, STATE_COMPLETED,
+                                         STATE_COMPLETED]
+    led.close()
+
+
+def test_recent_intents_limit_and_kind_filter(tmp_path):
+    led = SpineLedger(tmp_path / "s.sqlite3")
+    _seed(led, 4, kind="attempt.candidate")
+    _seed(led, 2, kind="something.else")
+    assert len(led.recent_intents("attempt.candidate")) == 4
+    assert len(led.recent_intents("something.else")) == 2
+    assert len(led.recent_intents()) == 6                 # no filter = all kinds
+    assert len(led.recent_intents("attempt.candidate", limit=2)) == 2
+    led.close()
+
+
+def test_recent_intents_non_positive_limit_returns_nothing_not_everything(tmp_path):
+    # A caller computing limit=n-1 must never get "all rows" when it asked for
+    # zero -- SQL LIMIT 0 and LIMIT -1 mean opposite things, and -1 means ALL.
+    led = SpineLedger(tmp_path / "s.sqlite3")
+    _seed(led, 3)
+    assert led.recent_intents("attempt.candidate", limit=0) == []
+    assert led.recent_intents("attempt.candidate", limit=-1) == []
+    led.close()
+
+
+def test_recent_intents_carries_the_resolution_result(tmp_path):
+    led = SpineLedger(tmp_path / "s.sqlite3")
+    intent = led.record_intent("attempt.candidate", {"task_id": "x"})
+    led.mark_completed(intent.id, effect_id="abc",
+                       result={"state": "clean", "ok": True})
+    (got,) = led.recent_intents("attempt.candidate")
+    assert got.result == {"state": "clean", "ok": True}
+    assert got.effect_id == "abc"
+    assert got.resolved_ts
+    led.close()

@@ -226,6 +226,66 @@ def _git(repo_root, *args: str) -> str | None:
     return proc.stdout
 
 
+def _is_linked_worktree(repo_root) -> bool:
+    """True if ``repo_root`` is a git LINKED WORKTREE, not a primary checkout.
+
+    A minted task stores ``repo`` as an ABSOLUTE PATH (see ``_mint_from_diffs``)
+    and the mint store is append-only, so that path has to stay resolvable for
+    the whole life of the corpus. A linked worktree is by construction
+    temporary: ``daedalus.spine.attempt`` creates one per candidate and deletes
+    it in a ``finally:``. Minting from one therefore writes a task that can
+    NEVER be evaluated again -- ``daedalus.eval.tasks.resolve_task_repo`` takes
+    the absolute-path branch, finds the directory gone, and raises
+    ``cannot resolve task repo label`` for the rest of that task's life. One
+    dead row per attempt, forever, in a store nothing prunes.
+
+    Detection is the git on-disk contract, not a path heuristic: ``git worktree
+    add`` writes ``.git`` as a FILE holding a ``gitdir:`` pointer, whereas a
+    primary checkout has ``.git`` as a DIRECTORY. A bare repo and a plain
+    non-repo directory both read as "not a linked worktree" and are left to the
+    existing git-failure paths, which already degrade to "nothing minted".
+
+    The pointer alone is NOT enough, and this was measured rather than assumed:
+    a SUBMODULE also has ``.git`` as a ``gitdir:`` file, and a submodule
+    checkout is perfectly permanent -- refusing to mint from one would be a
+    false refusal, and a docstring saying "linked worktree" while the code also
+    caught submodules would be a claim its control did not implement.
+
+    Nor is the pointer's PATH enough: matching a ``worktrees`` path component
+    would fire on any ordinary repository that happens to live under a
+    directory someone named ``worktrees``. So the admin directory the pointer
+    resolves to is inspected STRUCTURALLY, which is what actually distinguishes
+    them (measured on real git artifacts, not inferred from documentation):
+
+        linked worktree  .git/worktrees/<id>/  HEAD ORIG_HEAD commondir gitdir index logs
+        submodule        .git/modules/<name>/  HEAD config description hooks index info
+                                               logs objects packed-refs refs
+
+    ``commondir`` and ``gitdir`` together appear only in the linked-worktree
+    admin layout. Requiring BOTH means an unreadable or unexpected target fails
+    toward "not ephemeral", i.e. toward minting -- which is the correct
+    direction for a false negative here, because the alternative is refusing to
+    mint from ordinary repositories.
+    """
+    try:
+        dot_git = Path(repo_root) / ".git"
+        if not dot_git.is_file():
+            return False
+        with open(dot_git, "r", encoding="utf-8", errors="replace") as fh:
+            pointer = fh.read(4096)
+        if not pointer.startswith("gitdir:"):
+            return False
+        target = pointer.split(":", 1)[1].strip()
+        if not target:
+            return False
+        admin = Path(target)
+        if not admin.is_absolute():
+            admin = Path(repo_root) / admin
+        return (admin / "commondir").is_file() and (admin / "gitdir").is_file()
+    except OSError:
+        return False
+
+
 def _show(repo_root, ref: str, rel: str) -> str | None:
     """Blob contents of ``rel`` at ``ref``, or ``None`` if it didn't exist
     there (distinct from an empty-but-present file, which is a real "")."""
@@ -368,6 +428,22 @@ def _mint_from_diffs(
     """
     skipped = sorted(rel for rel in files if rel not in in_scope)
     diagnostics: dict = {"skipped_out_of_scope": skipped}
+
+    # EPHEMERAL REPO ROOT -- refused before any work, for every caller.
+    # Placed here rather than at the one known bad call site (offload_runner
+    # pins offload's repo_root to the candidate worktree, attempt.py:707) so
+    # that closing it does not depend on remembering it at the NEXT call site.
+    # See ``_is_linked_worktree`` for why a task minted here is permanently
+    # unevaluable rather than merely wrong.
+    if _is_linked_worktree(repo_root):
+        diagnostics["reason"] = (
+            f"refusing to mint from a linked git worktree ({str(repo_root)!r}): "
+            "a minted task stores an absolute repo path, and a worktree is "
+            "deleted by whoever created it -- the task would be permanently "
+            "unresolvable"
+        )
+        diagnostics["refused_ephemeral_repo"] = True
+        return None, diagnostics
 
     scoped = {rel: v for rel, v in files.items() if rel in in_scope}
 

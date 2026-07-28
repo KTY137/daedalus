@@ -58,16 +58,21 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 __all__ = [
+    "ATTEMPT_INTENT_KIND",
+    "ATTEMPT_MEMORY_PENALTY",
     "BAND_SPAN",
     "Candidate",
+    "apply_attempt_memory",
+    "attempt_history",
     "EXIT_CANDIDATE",
     "EXIT_FAILED",
     "EXIT_NO_CHANGE",
+    "EXIT_SOURCE_UNAVAILABLE",
     "INVENTORY_REL_PATH",
     "PickedQueue",
     "SOURCE_BANDS",
@@ -76,7 +81,9 @@ __all__ = [
     "eval_baseline_candidates",
     "eval_gate_candidates",
     "hotspot_candidates",
+    "instruction_fingerprint",
     "inventory_candidates",
+    "inventory_freshness",
     "load_inventory",
     "main",
     "rank",
@@ -87,6 +94,15 @@ __all__ = [
 ROOT = Path(__file__).resolve().parents[2]
 
 INVENTORY_REL_PATH = "docs/FEATURE_INVENTORY.json"
+
+# A git object name as it appears in HEAD / refs / packed-refs.
+_SHA_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+
+# The shortest abbreviation a recorded head may use. git's own default floor is
+# 7; anything shorter is not an identifier, it is a coincidence waiting to
+# happen (a 1-char "prefix" matches ~1 HEAD in 16).
+_MIN_ABBREV = 7
+_ABBREV_SHA_RE = re.compile(rf"[0-9a-f]{{{_MIN_ABBREV},64}}")
 
 # Source priority. A PRIOR, not a measurement -- see the module docstring.
 SOURCE_BANDS: dict[str, float] = {
@@ -116,6 +132,15 @@ DEFAULT_LIMIT = 10
 EXIT_CANDIDATE = 0
 EXIT_FAILED = 1
 EXIT_NO_CHANGE = 2
+
+# A FOURTH value, for the same reason there are three: "a source could not be
+# consulted" and "the sources are healthy and there is no work" are different
+# facts, and they were previously indistinguishable to a caller -- both exited 0
+# on a dry run and both exited 1 under --once. Automation that cannot tell them
+# apart eventually reads a broken adapter as "nothing to do" and goes quiet,
+# which is precisely the failure a fail-closed source gate would otherwise
+# introduce. 0 still means, and only ever means, that work is waiting.
+EXIT_SOURCE_UNAVAILABLE = 3
 
 EXIT_BY_STATE: dict[str, int] = {
     "clean": EXIT_CANDIDATE,
@@ -244,11 +269,31 @@ class PickedQueue:
     def top(self) -> Candidate | None:
         return self.candidates[0] if self.candidates else None
 
+    @property
+    def degraded_sources(self) -> tuple[str, ...]:
+        """Sources that could NOT be consulted, so an empty queue is explained.
+
+        "The source was withheld or unreadable" and "the sources are healthy and
+        there is no work" are different facts, and a caller that cannot tell
+        them apart will eventually read a broken adapter as "nothing to do" --
+        which is the quiet failure this whole queue exists to avoid. Everything
+        here is already visible in ``sources``/``notes`` for a human; this is
+        the same fact in a shape a program can branch on.
+        """
+        bad = []
+        for name, detail in sorted(self.sources.items()):
+            if not isinstance(detail, Mapping):
+                continue
+            if detail.get("suppressed") or detail.get("error"):
+                bad.append(name)
+        return tuple(bad)
+
     def to_dict(self) -> dict:
         return {
             "candidates": [c.to_dict() for c in self.candidates],
             "sources": dict(self.sources),
             "notes": list(self.notes),
+            "degraded_sources": list(self.degraded_sources),
         }
 
 
@@ -299,6 +344,142 @@ def load_inventory(path: str | Path | None = None,
     except (OSError, ValueError, UnicodeDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return None
+
+
+def _head_sha(repo_root: str | Path) -> str | None:
+    """Current HEAD as a full sha, read STRAIGHT OFF DISK, or ``None``.
+
+    Deliberately NOT ``git rev-parse``. This module spawns no child process at
+    all, and ``test_there_is_no_apply_path_in_this_module`` enforces that by
+    asserting the process-spawning stdlib module is never so much as NAMED in
+    this file -- which is what makes "the picker cannot apply a patch"
+    structural rather than a promise in a docstring. Answering "which revision
+    am I on" is not worth weakening that for, so HEAD is resolved by reading
+    git's own on-disk files.
+
+    Handles the three shapes that occur here: ``.git`` as a directory (primary
+    checkout), ``.git`` as a ``gitdir:`` pointer file (linked worktree, where
+    refs live in the shared common dir), and a detached HEAD holding a raw sha.
+    Anything unrecognised returns ``None``, which callers read as "cannot tell"
+    and fail OPEN on -- never as "stale".
+    """
+    dot_git = Path(repo_root) / ".git"
+    git_dir: Path | None = None
+    if dot_git.is_dir():
+        git_dir = dot_git
+    else:
+        pointer = _read_text(dot_git) or ""
+        if pointer.startswith("gitdir:"):
+            candidate = Path(pointer.split(":", 1)[1].strip())
+            git_dir = candidate if candidate.is_absolute() else (
+                Path(repo_root) / candidate)
+    if git_dir is None or not git_dir.is_dir():
+        return None
+
+    head = (_read_text(git_dir / "HEAD") or "").strip()
+    if not head:
+        return None
+    if not head.startswith("ref:"):
+        return head if _SHA_RE.fullmatch(head) else None
+
+    ref = head.split(":", 1)[1].strip()
+    # A linked worktree keeps HEAD locally but shares refs/ through commondir.
+    search_dirs = [git_dir]
+    common = (_read_text(git_dir / "commondir") or "").strip()
+    if common:
+        common_path = Path(common)
+        search_dirs.append(common_path if common_path.is_absolute()
+                           else (git_dir / common_path))
+    for base in search_dirs:
+        loose = (_read_text(base / ref) or "").strip()
+        if loose and _SHA_RE.fullmatch(loose):
+            return loose
+        packed = _read_text(base / "packed-refs") or ""
+        for line in packed.splitlines():
+            if line.startswith(("#", "^")):
+                continue
+            parts = line.split(None, 1)
+            if len(parts) == 2 and parts[1].strip() == ref:
+                return parts[0].strip()
+    return None
+
+
+def inventory_freshness(inventory: Mapping[str, Any],
+                        repo_root: str | Path | None = None) -> dict:
+    """Does the inventory describe the tree we are actually standing in?
+
+    ``docs/FEATURE_INVENTORY.json`` is HAND-WRITTEN -- nothing in this repo
+    generates it -- and it drives the two highest bands, so a stale one steers
+    the whole loop toward work that may no longer exist. It stamps the revision
+    it was written against in ``repo_state.head``; this compares that to real
+    HEAD by PREFIX, because the file records a short sha and git reports a long
+    one, and a mismatch (or an unreadable stamp) means the picker is reasoning
+    about a different tree.
+
+    A ``dirty: true`` snapshot is NOT treated as stale on its own: this repo is
+    almost always dirty mid-session, and refusing to rank work whenever an
+    editor has unsaved changes would make the loop unusable for exactly the
+    person using it. The revision is the honest signal; dirtiness is reported
+    but does not suppress.
+
+    Fails OPEN (``fresh: True``) when git cannot answer at all -- a tarball
+    checkout with no git is not evidence of staleness, and turning "I cannot
+    tell" into "refuse everything" would be a worse failure than ranking.
+    """
+    state = inventory.get("repo_state") if isinstance(inventory, Mapping) else None
+    recorded = (str(state.get("head") or "").strip()
+                if isinstance(state, Mapping) else "")
+    dirty = bool(state.get("dirty")) if isinstance(state, Mapping) else False
+
+    if not isinstance(inventory, Mapping) or not inventory:
+        return {"fresh": True, "reason": "no inventory to check",
+                "recorded_head": None, "actual_head": None, "dirty": dirty}
+    if not recorded:
+        return {"fresh": False,
+                "reason": "the inventory records no repo_state.head, so it "
+                          "cannot be checked against the tree it describes",
+                "recorded_head": None, "actual_head": None, "dirty": dirty}
+    # A prefix comparison is only meaningful against a real abbreviated sha.
+    # Without this, a recorded "a" matches roughly one HEAD in sixteen and the
+    # gate silently reports fresh -- a check that passes by accident is worse
+    # than no check, because it is believed.
+    if not _ABBREV_SHA_RE.fullmatch(recorded):
+        return {"fresh": False,
+                "reason": (f"the inventory's recorded head {recorded!r} is not "
+                           f"an abbreviated git sha (expected at least "
+                           f"{_MIN_ABBREV} hex characters), so it cannot be "
+                           f"checked against the tree it describes"),
+                "recorded_head": recorded, "actual_head": None, "dirty": dirty}
+
+    actual = _head_sha(repo_root or ROOT)
+    if actual is None:
+        return {"fresh": True,
+                "reason": "git could not report HEAD; freshness unknown, "
+                          "failing open",
+                "recorded_head": recorded, "actual_head": None, "dirty": dirty}
+
+    # ONE direction only: the file records an abbreviation of the full sha git
+    # stores, so `actual.startswith(recorded)` is the containment that can be
+    # true. Testing the reverse as well would let a SHORTER actual satisfy a
+    # longer recorded value, which is not a prefix relationship any git
+    # abbreviation produces.
+    if actual.startswith(recorded):
+        return {"fresh": True, "reason": "inventory matches HEAD",
+                "recorded_head": recorded, "actual_head": actual[:len(recorded)],
+                "dirty": dirty}
+    return {"fresh": False,
+            "reason": (f"the inventory was written against {recorded} but HEAD "
+                       f"is {actual[:len(recorded)]}"),
+            "recorded_head": recorded, "actual_head": actual[:len(recorded)],
+            "dirty": dirty}
 
 
 def _island_instruction(name: str, entrypoints: Sequence[str],
@@ -658,20 +839,200 @@ def _load_index(repo_root: str | Path) -> tuple[Mapping[str, Any] | None, str | 
 # --------------------------------------------------------------------------- #
 # ranking                                                                      #
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# source (d): what has already been attempted (the loop's return path)         #
+# --------------------------------------------------------------------------- #
+# Mirrored rather than imported: importing it from daedalus.spine.attempt would
+# drag the worktree manager and the storage watermark into every --dry-run, and
+# ranking a queue must stay a cheap read. The duplication is DRIFT-CHECKED by a
+# test that asserts this equals attempt.INTENT_KIND, so the copy cannot rot
+# silently -- which is the only reason a copy is acceptable here at all.
+ATTEMPT_INTENT_KIND = "attempt.candidate"
+
+# How far an already-attempted candidate sinks. Deliberately >= BAND_SPAN so the
+# penalty always drives the measured offset to the band floor: "I have tried
+# this" outranks every within-band measurement, but -- because the result is
+# re-clamped into [0, BAND_SPAN] -- it can still never push a candidate out of
+# its stated band. Memory reorders within a priority; it does not overrule one.
+ATTEMPT_MEMORY_PENALTY = BAND_SPAN
+
+def instruction_fingerprint(instruction: str) -> str:
+    """The DEFINITION half of a candidate's retry identity.
+
+    ``task_id`` is lineage, not definition: an inventory id hashes
+    ``area|name|status`` only, so the tests, entrypoints, notes and therefore
+    the whole generated INSTRUCTION can change while the id stays byte-identical.
+    Joining memory on the id alone would make a rewritten task inherit the old
+    one's failures and sink on evidence about work nobody is proposing any more.
+
+    Deliberately excludes score and evidence: those move on every inventory
+    edit and are not what makes two attempts the same attempt.
+    """
+    return hashlib.sha256(str(instruction).encode("utf-8")).hexdigest()
+
+
+def attempt_history(db_path: str | Path | None = None, *,
+                    task_ids: Sequence[str] = ()) -> tuple[
+                        dict[str, dict], str | None]:
+    """Map ``task_id`` -> what the ledger remembers about attempting it.
+
+    Looks up EXACTLY the ids asked about rather than scanning a recent window.
+    A window would let the oldest attempts fall silently out of memory and
+    their tasks become selectable again -- the very defect this memory exists
+    to prevent, reintroduced by the optimisation meant to make it cheap.
+
+    Opens the ledger READ-ONLY. The normal constructor creates the parent
+    directory, sets ``journal_mode=WAL`` (a file write) and runs migrations
+    inside ``BEGIN IMMEDIATE``, so opening a ledger to look at it MUTATES it --
+    unacceptable in ``--dry-run``, whose entire contract is that it changes
+    nothing. SQLite enforces that here; this function does not merely promise it.
+
+    Returns ``(history, error)`` and NEVER raises: a missing ledger (a fresh
+    checkout has attempted nothing) is an empty history, not a failure. The
+    error string is surfaced as a queue note, because silently degrading to "no
+    memory" is exactly how a loop would go back to repeating itself without
+    saying so.
+    """
+    wanted = [str(t) for t in task_ids if str(t)]
+    if not wanted:
+        return {}, None
+    try:
+        from daedalus.spine.ledger import SpineLedger, default_db_path
+
+        path = Path(db_path) if db_path else default_db_path()
+        if not Path(path).exists():
+            return {}, None
+        ledger = SpineLedger(path, read_only=True)
+        try:
+            intents = ledger.intents_matching_payload(
+                "task_id", wanted, kind=ATTEMPT_INTENT_KIND)
+        finally:
+            ledger.close()
+    except Exception as e:  # unreadable, locked, corrupt, schema mismatch
+        return {}, f"{type(e).__name__}: {e}"
+
+    history: dict[str, dict] = {}
+    for intent in intents:
+        payload = intent.payload if isinstance(intent.payload, Mapping) else {}
+        task_id = str(payload.get("task_id") or "").strip()
+        # A LIKE match is a substring test; confirm the row really is one of
+        # the ids asked for rather than one that merely contains it.
+        if task_id not in wanted:
+            continue
+        rec = history.setdefault(
+            task_id, {"n_attempts": 0, "last_state": None, "last_ts": None,
+                      "last_outcome": None, "by_instruction": {}})
+        rec["n_attempts"] += 1
+        fingerprint = instruction_fingerprint(payload.get("instruction") or "")
+        rec["by_instruction"][fingerprint] = (
+            rec["by_instruction"].get(fingerprint, 0) + 1)
+        # Newest-first, so the FIRST row seen for a task is its latest attempt.
+        if rec["last_state"] is None:
+            rec["last_state"] = intent.state
+            rec["last_ts"] = intent.resolved_ts or intent.created_ts
+            outcome = intent.result if isinstance(intent.result, Mapping) else {}
+            rec["last_outcome"] = str(outcome.get("state") or "") or None
+    return history, None
+
+
+def apply_attempt_memory(candidates: Sequence[Candidate],
+                         history: Mapping[str, Mapping[str, Any]]) -> tuple[
+                             tuple[Candidate, ...], tuple[str, ...]]:
+    """Sink candidates the ledger has already seen attempted, and say so.
+
+    A PENALTY, not a filter. Dropping attempted work would let one transient
+    runner failure delete a real task from the queue forever, and would let the
+    queue silently empty -- both worse than showing the work with its history
+    attached. The operator (and ``--once``) still sees every candidate; what
+    changes is the order, and every moved candidate carries the evidence that
+    moved it.
+    """
+    if not history:
+        return tuple(candidates), ()
+    out: list[Candidate] = []
+    moved = 0
+    redefined = 0
+    for cand in candidates:
+        rec = history.get(cand.task_id)
+        if not rec:
+            out.append(cand)
+            continue
+        fingerprint = instruction_fingerprint(cand.instruction)
+        same = int(rec.get("by_instruction", {}).get(fingerprint, 0))
+        evidence = dict(cand.evidence)
+        evidence["prior_attempts"] = int(rec.get("n_attempts") or 0)
+        evidence["prior_attempts_same_instruction"] = same
+        evidence["last_attempt_state"] = rec.get("last_state")
+        evidence["last_attempt_outcome"] = rec.get("last_outcome")
+        evidence["last_attempt_ts"] = rec.get("last_ts")
+
+        if not same:
+            # LINEAGE matched, DEFINITION did not: the id is stable across
+            # instruction rewrites, so this is genuinely different work wearing
+            # a familiar name. Record the lineage, do not sink it -- penalising
+            # it would be evidence about a task nobody is proposing any more.
+            redefined += 1
+            evidence["memory"] = ("same task_id, different instruction -- "
+                                  "not treated as already attempted")
+            out.append(replace(cand, evidence=evidence))
+            continue
+
+        moved += 1
+        offset = _clamp(cand.offset - ATTEMPT_MEMORY_PENALTY, 0.0, BAND_SPAN)
+        out.append(replace(
+            cand,
+            score=round(SOURCE_BANDS[cand.source] + offset, 4),
+            evidence=evidence,
+            reason=(f"{cand.reason}; already attempted "
+                    f"{same}x with this exact instruction (last: "
+                    f"{rec.get('last_outcome') or rec.get('last_state')})")))
+
+    notes: list[str] = []
+    if moved:
+        notes.append(f"attempt memory: {moved} candidate(s) sank to their band "
+                     f"floor because the spine ledger records a prior attempt "
+                     f"at the same instruction")
+    if redefined:
+        notes.append(f"attempt memory: {redefined} candidate(s) share a task_id "
+                     f"with a prior attempt but their instruction changed, so "
+                     f"they were NOT penalised")
+    if not notes:
+        notes.append("attempt memory: the ledger has attempts recorded, but "
+                     "none for a candidate currently in the queue")
+    return tuple(out), tuple(notes)
+
+
 def rank(candidates: Sequence[Candidate],
          limit: int | None = None) -> tuple[Candidate, ...]:
-    """Deterministic ranking: score desc, then source order, then task_id.
+    """Deterministic ranking: score desc, untried first, source order, task_id.
 
-    The two tie-breaks are not decoration. Scores collide constantly (two
-    islands with the same test count are genuinely equal on evidence), and a
-    queue whose order depends on dict iteration or on which source ran first
-    is not reproducible -- which would make "measurement picks the next task"
+    The tie-breaks are not decoration. Scores collide constantly (two islands
+    with the same test count are genuinely equal on evidence), and a queue whose
+    order depends on dict iteration or on which source ran first is not
+    reproducible -- which would make "measurement picks the next task"
     unfalsifiable, since two runs could disagree with no cause to point at.
+
+    ``prior_attempts`` ranks ahead of the other tie-breaks because the score
+    alone cannot express memory at the bottom of a band. ``apply_attempt_memory``
+    drives an attempted candidate's offset to the band FLOOR, and the floor is
+    also where every candidate with no measured evidence already sits -- so a
+    tried candidate and an untried one collide on score exactly when the
+    distinction matters most. Expressing it as a tie-break rather than a bigger
+    penalty is deliberate: a penalty large enough to separate them would have to
+    leave the band, and the stated priority is not memory's to overrule.
     """
     order = {name: i for i, name in enumerate(SOURCE_ORDER)}
+
+    def _tried(c: Candidate) -> int:
+        try:
+            return int(c.evidence.get("prior_attempts") or 0)
+        except (TypeError, ValueError):
+            return 0
+
     ranked = sorted(
         candidates,
-        key=lambda c: (-c.score, order.get(c.source, len(order)), c.task_id))
+        key=lambda c: (-c.score, _tried(c), order.get(c.source, len(order)),
+                       c.task_id))
     if limit is not None and limit >= 0:
         ranked = ranked[:limit]
     return tuple(ranked)
@@ -682,7 +1043,10 @@ def build_queue(repo_root: str | Path | None = None, *,
                 include_eval: bool = False,
                 include_hotspots: bool = False,
                 inventory: Mapping[str, Any] | None = None,
-                baseline: Mapping[str, Any] | None = None) -> PickedQueue:
+                baseline: Mapping[str, Any] | None = None,
+                use_attempt_memory: bool = True,
+                enforce_inventory_freshness: bool = True,
+                spine_db: str | Path | None = None) -> PickedQueue:
     """Build the ranked queue. Never raises on a bad or missing source file.
 
     ``include_eval`` and ``include_hotspots`` default to OFF: both cost a
@@ -697,12 +1061,27 @@ def build_queue(repo_root: str | Path | None = None, *,
 
     inv = load_inventory(repo_root=root) if inventory is None else inventory
     inv_candidates, inv_notes = inventory_candidates(inv)
-    candidates.extend(inv_candidates)
     notes.extend(inv_notes)
+    freshness = inventory_freshness(inv, repo_root=root)
+    if freshness["fresh"] or not enforce_inventory_freshness:
+        candidates.extend(inv_candidates)
+    else:
+        # FAIL CLOSED. These are the two highest bands; letting a snapshot of a
+        # different tree drive them means the loop works from a description of
+        # a repo that no longer exists. Suppressed LOUDLY -- an empty queue with
+        # a stated reason is a truthful answer, a confidently-ranked stale one
+        # is not.
+        notes.append(
+            f"INVENTORY SUPPRESSED ({len(inv_candidates)} candidate(s) "
+            f"withheld): {freshness['reason']}. Regenerate "
+            f"{INVENTORY_REL_PATH}, or pass --stale-inventory to rank it anyway.")
     sources["inventory"] = {
         "path": str(Path(root) / INVENTORY_REL_PATH),
         "read": bool(inv),
-        "candidates": len(inv_candidates),
+        "candidates": len(inv_candidates) if (
+            freshness["fresh"] or not enforce_inventory_freshness) else 0,
+        "suppressed": (not freshness["fresh"]) and enforce_inventory_freshness,
+        "freshness": freshness,
         "repo_state": inv.get("repo_state") if isinstance(inv, Mapping) else None,
     }
 
@@ -747,6 +1126,22 @@ def build_queue(repo_root: str | Path | None = None, *,
         sources["hotspots"] = {"ran": False,
                                "reason": "opt-in (--hotspots); builds the "
                                          "whole-repo structural index"}
+
+    if use_attempt_memory:
+        history, hist_error = attempt_history(
+            spine_db, task_ids=[c.task_id for c in candidates])
+        if hist_error:
+            notes.append(f"attempt memory unavailable: {hist_error}")
+            sources["attempt_memory"] = {"read": False, "error": hist_error}
+        else:
+            candidates_t, mem_notes = apply_attempt_memory(candidates, history)
+            candidates = list(candidates_t)
+            notes.extend(mem_notes)
+            sources["attempt_memory"] = {"read": True,
+                                         "tasks_remembered": len(history)}
+    else:
+        sources["attempt_memory"] = {"read": False,
+                                     "reason": "disabled by caller (--forget)"}
 
     return PickedQueue(candidates=rank(candidates, limit),
                        sources=sources, notes=tuple(notes))
@@ -962,6 +1357,8 @@ def _build_parser():
             "Promotion is a human act. Exit codes for --once: "
             "0 = a gated candidate patch is waiting for you, "
             "2 = the attempt ran and changed nothing, "
+            "3 = a source could not be consulted, so 'no candidate' is NOT "
+            "evidence that there is no work, "
             "1 = anything else (gate failed, runner failed, no candidate)."))
     parser.add_argument("--once", action="store_true",
                         help="attempt exactly ONE candidate (the top of the "
@@ -991,6 +1388,14 @@ def _build_parser():
     parser.add_argument("--keep-worktree", action="store_true",
                         help="leave the candidate worktree on disk for "
                              "inspection")
+    parser.add_argument("--forget", action="store_true",
+                        help="ignore the spine ledger's record of prior "
+                             "attempts (by default an already-attempted "
+                             "candidate sinks to the floor of its band)")
+    parser.add_argument("--stale-inventory", action="store_true",
+                        help="rank inventory candidates even when the "
+                             "inventory was written against a different "
+                             "revision than HEAD (default: withhold them)")
     parser.add_argument("--verbose", "-v", action="store_true",
                         help="show each candidate's full evidence and "
                              "instruction")
@@ -1014,17 +1419,25 @@ def main(argv: Sequence[str] | None = None, *,
         list(argv) if argv is not None else _sys.argv[1:])
     queue = build_queue(args.repo_root, limit=args.limit,
                         include_eval=args.include_eval,
-                        include_hotspots=args.include_hotspots)
+                        include_hotspots=args.include_hotspots,
+                        use_attempt_memory=not args.forget,
+                        enforce_inventory_freshness=not args.stale_inventory)
+
+    degraded = queue.degraded_sources
 
     if args.json:
         print(json.dumps(queue.to_dict(), indent=2, default=str))
         if not args.once:
-            return 0
+            return EXIT_SOURCE_UNAVAILABLE if degraded else 0
 
     if not args.once:
         if not args.json:
             print(render_queue(queue, verbose=args.verbose))
-        return 0
+            if degraded:
+                print(f"\nINCOMPLETE: {', '.join(degraded)} could not be "
+                      f"consulted, so this queue is not the whole picture "
+                      f"(exit {EXIT_SOURCE_UNAVAILABLE}).")
+        return EXIT_SOURCE_UNAVAILABLE if degraded else 0
 
     top = queue.top
     if top is None:
@@ -1032,6 +1445,13 @@ def main(argv: Sequence[str] | None = None, *,
               "nothing was run.")
         for note in queue.notes:
             print(f"  - {note}")
+        if degraded:
+            # NOT "there is no work": we do not know that. Saying so with the
+            # same exit code as a healthy empty queue is how a silently broken
+            # source becomes an idle loop nobody investigates.
+            print(f"  ! {', '.join(degraded)} could not be consulted -- this is "
+                  f"NOT evidence that there is nothing to do.")
+            return EXIT_SOURCE_UNAVAILABLE
         return EXIT_FAILED
 
     print(f"attempting 1 of {len(queue)}: {top.task_id}  (score {top.score})")

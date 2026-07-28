@@ -584,5 +584,129 @@ class MintCliEntryPointTest(unittest.TestCase):
         self.assertEqual(minted[0]["tier"], "quarantine")
 
 
+@unittest.skipUnless(GIT, "git not on PATH")
+class MintRefusesEphemeralWorktreeTest(unittest.TestCase):
+    """The guard closing spine -> offload -> mint (attempt.py:707).
+
+    ``offload_runner`` pins offload's ``repo_root`` to the CANDIDATE WORKTREE,
+    and offload auto-mints when ``DAEDALUS_AUTO_MINT=1``. A task minted there
+    records ``repo`` as an absolute path into a directory ``TaskAttempt._cleanup``
+    deletes in a ``finally:``, so the task is unevaluable forever after -- one
+    dead row per attempt in an append-only store.
+
+    A CONTROL TEST IS MANDATORY IN THIS CLASS. Without
+    ``test_control_identical_edit_mints_in_a_primary_checkout`` every refusal
+    assertion below would also pass against a minter that mints NOTHING, in any
+    configuration -- a test pinning a property in a world the product never
+    runs. The control and the refusal differ in exactly one variable: whether
+    the repo root is a linked worktree.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name) / "primary"
+        self.root.mkdir()
+        _git(self.root, "init", "-q")
+        (self.root / "mod.py").write_text(_MOD_V1, encoding="utf-8")
+        (self.root / "other.py").write_text(_OTHER_V1, encoding="utf-8")
+        _git(self.root, "add", "-A")
+        _git(self.root, "commit", "-q", "-m", "v1")
+        # A REAL linked worktree, created the way the product creates one.
+        self.wt = Path(self._tmp.name) / "candidate-wt"
+        _git(self.root, "worktree", "add", "-q", "-b", "cand", str(self.wt), "HEAD")
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    @staticmethod
+    def _apply_cross_file_edit(root: Path) -> dict:
+        (root / "mod.py").write_text(_MOD_V2, encoding="utf-8")
+        (root / "other.py").write_text(_OTHER_V2, encoding="utf-8")
+        return {"wrote": ["mod.py", "other.py"]}
+
+    def test_the_worktree_fixture_is_really_a_linked_worktree(self):
+        # Pins the DETECTION CONTRACT itself: git writes .git as a file holding
+        # a gitdir: pointer in a linked worktree, and as a directory in the
+        # primary. If a future git changed that, the guard would silently stop
+        # firing and every other test here would still pass.
+        self.assertTrue((self.wt / ".git").is_file())
+        self.assertTrue((self.wt / ".git").read_text(encoding="utf-8").startswith("gitdir:"))
+        self.assertTrue((self.root / ".git").is_dir())
+
+    def test_a_submodule_is_not_treated_as_ephemeral(self):
+        # MEASURED false positive, not a hypothetical: a submodule also has
+        # .git as a gitdir: file. It is a permanent checkout, so refusing to
+        # mint from one would be a false refusal -- and would make the
+        # function's name and docstring a claim its control did not implement.
+        from daedalus.eval.mint import _is_linked_worktree
+
+        sub = Path(self._tmp.name) / "fake-submodule"
+        sub.mkdir()
+        modules_dir = self.root / ".git" / "modules" / "vendor"
+        modules_dir.mkdir(parents=True)
+        (sub / ".git").write_text(f"gitdir: {modules_dir}\n", encoding="utf-8")
+
+        self.assertFalse(_is_linked_worktree(sub))
+        self.assertTrue(_is_linked_worktree(self.wt))
+        self.assertFalse(_is_linked_worktree(self.root))
+
+    def test_control_identical_edit_mints_in_a_primary_checkout(self):
+        report = self._apply_cross_file_edit(self.root)
+        task = mint_task_from_landed_edit(report, str(self.root))
+        self.assertIsNotNone(
+            task, "CONTROL FAILED: the edit must mint in a primary checkout, "
+                  "otherwise the refusal tests below prove nothing")
+        self.assertEqual(task["must_include"], ["other_func"])
+
+    def test_refuses_to_mint_from_a_linked_worktree(self):
+        report = self._apply_cross_file_edit(self.wt)
+        self.assertIsNone(mint_task_from_landed_edit(report, str(self.wt)))
+
+    def test_mint_from_commit_also_refuses_inside_a_worktree(self):
+        # The second public entry point. The guard sits in _mint_from_diffs so
+        # that closing this did not depend on patching each caller.
+        self._apply_cross_file_edit(self.wt)
+        _git(self.wt, "commit", "-qam", "v2 inside the candidate worktree")
+        sha = _git(self.wt, "rev-parse", "HEAD").strip()
+        self.assertEqual(mint_from_commit(str(self.wt), sha), [])
+
+    def test_refusal_is_reported_not_silent(self):
+        report = self._apply_cross_file_edit(self.wt)
+        files = {rel: (None, (self.wt / rel).read_text(encoding="utf-8"))
+                 for rel in report["wrote"]}
+        task, diagnostics = _mint_from_diffs(
+            files, repo_root=str(self.wt), minted_at_sha=None,
+            source="landed_edit", in_scope=frozenset(files))
+        self.assertIsNone(task)
+        self.assertTrue(diagnostics.get("refused_ephemeral_repo"))
+        self.assertIn("linked git worktree", diagnostics.get("reason", ""))
+
+    def test_guard_is_load_bearing_and_the_harm_is_real(self):
+        """Disable ONLY the guard and measure what comes back.
+
+        This is the rule this repo earned the hard way: a guard whose absence
+        no test detects is decoration. So the guard is actually switched off
+        here, and the assertion is not merely "a task appeared" -- it is that
+        the task which appears is PERMANENTLY UNEVALUABLE, which is the damage
+        the guard exists to prevent.
+        """
+        from daedalus.eval.tasks import resolve_task_repo
+
+        report = self._apply_cross_file_edit(self.wt)
+        with mock.patch("daedalus.eval.mint._is_linked_worktree", return_value=False):
+            doomed = mint_task_from_landed_edit(report, str(self.wt))
+
+        self.assertIsNotNone(
+            doomed, "with the guard disabled a task MUST mint -- if it does "
+                    "not, this test is not exercising the guard at all")
+        self.assertEqual(Path(doomed["repo"]).resolve(), self.wt.resolve())
+
+        # Now do what TaskAttempt._cleanup does, and measure the consequence.
+        _git(self.root, "worktree", "remove", "--force", str(self.wt))
+        self.assertFalse(self.wt.exists())
+        with self.assertRaises(ValueError):
+            resolve_task_repo(doomed["repo"])
+
+
 if __name__ == "__main__":
     unittest.main()
