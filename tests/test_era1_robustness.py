@@ -177,8 +177,9 @@ class RewriteCreateTests(unittest.TestCase):
     def test_create_new_file_then_rollback_deletes_it(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = self._provider()
-            with mock.patch("daedalus.providers.ollama.chat_completion",
-                            return_value='{"content": "# Watering Tips\\n\\nWater at dawn.\\n"}'):
+            with mock.patch("daedalus.providers.ollama.native_chat",
+                            return_value={"role": "assistant",
+                                          "content": '{"content": "# Watering Tips\\n\\nWater at dawn.\\n"}'}):
                 report = p._run_rewrite("Create a watering tips doc", tmp,
                                         ["docs/tips.md"], None, 60, None)
             target = Path(tmp) / "docs" / "tips.md"
@@ -193,8 +194,8 @@ class RewriteCreateTests(unittest.TestCase):
     def test_create_refuses_empty_content(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = self._provider()
-            with mock.patch("daedalus.providers.ollama.chat_completion",
-                            return_value='{"content": ""}'):
+            with mock.patch("daedalus.providers.ollama.native_chat",
+                            return_value={"role": "assistant", "content": '{"content": ""}'}):
                 report = p._run_rewrite("Create a doc", tmp, ["docs/x.md"], None, 60, None)
             self.assertEqual(report["files_changed"], [])
             self.assertFalse((Path(tmp) / "docs" / "x.md").exists())

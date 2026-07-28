@@ -214,7 +214,10 @@ class BrainLaneContextTest(unittest.TestCase):
             captured["user"] = kw.get("user")
             return "ok"
 
-        with mock.patch("daedalus.providers.ollama.warm_model_async"), \
+        def fake_warm(*a, **kw):
+            return
+
+        with mock.patch("daedalus.providers.ollama.warm_model_async", side_effect=fake_warm), \
              mock.patch("daedalus.ikarus_os.chat_completion", side_effect=fake_chat):
             reply, mdl, ctx = ikarus_os._llm("ollama", "explain widget.py", None, "low", "p")
 

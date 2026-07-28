@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any
 
 from ..sensitivity import path_write_blocked, read_inlined_context
-from ._openai_compat import ProviderHTTPError, chat_completion, chat_raw, server_reachable
+from ..structcore.tokens import count_tokens
+from ._ollama_native import (
+    OUTPUT_RESERVE_TOKENS,
+    effective_input_window,
+    native_chat,
+    num_ctx_value,
+)
+from ._openai_compat import ProviderHTTPError, server_reachable
 from ._report import MAX_CONTEXT_CHARS, blocked_report, build_prompt, coerce_report, extract_json
 from .base import Provider, ProviderCapabilities
 from .personas import persona_for
@@ -29,6 +36,10 @@ MAX_AGENT_STEPS = 6
 MAX_READ_CHARS = 16_000
 MAX_REWRITE_FILES = 3       # scoped writes only; bigger fan-outs go through Ikarus
 MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation
+
+# Marker appended when a tool result is head-truncated to make the forced final
+# report call fit the local context window (visible so the model knows it lost tail).
+_TOOL_TRUNC_MARKER = "\n[...tool output truncated to fit the local context window]"
 
 # Elision markers (per docs/RESEARCH_LOCAL_EDITING.md): a rewrite containing one
 # of these almost certainly dropped code instead of returning the whole file.
@@ -91,7 +102,10 @@ def warm_model(host: str | None = None, model: str | None = None,
         return False
     import urllib.request
 
-    body = json.dumps({"model": model, "keep_alive": keep_alive}).encode("utf-8")
+    # Pin at the same num_ctx the real offload calls request, so the runner is
+    # pre-sized and the first real call doesn't pay a reload to grow the window.
+    body = json.dumps({"model": model, "keep_alive": keep_alive,
+                       "options": {"num_ctx": num_ctx_value()}}).encode("utf-8")
     req = urllib.request.Request(
         f"{host}/api/generate", data=body,
         headers={"Content-Type": "application/json"}, method="POST",
@@ -253,7 +267,8 @@ class OllamaProvider(Provider):
 
     # -- agentic loop -----------------------------------------------------
 
-    def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy, writable):
+    def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy,
+                     writable, slice_texts=None):
         changed: list[str] = []
         tools = _READ_TOOLS + ([_WRITE_TOOL] if writable else [])
         action = ("APPLY every change by calling the write_file tool with the FULL new file "
@@ -269,15 +284,42 @@ class OllamaProvider(Provider):
             "When done, STOP calling tools and reply with ONLY the json report."
         )
         hint = "Candidate paths: " + ", ".join(paths) if paths else "Explore from the repo root."
+        # Slice context (already gated by the caller) goes between the objective
+        # and the hint. Empty/None -> byte-identical to the pre-slice message.
+        if slice_texts:
+            block = "\n\n".join(slice_texts[k] for k in sorted(slice_texts))
+            first_user = (f"Objective:\n{objective}\n\n"
+                          f"Distilled project context (read-only, may be partial):\n{block}\n\n{hint}")
+        else:
+            first_user = f"Objective:\n{objective}\n\n{hint}"
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system},
-            {"role": "user", "content": f"Objective:\n{objective}\n\n{hint}"},
+            {"role": "user", "content": first_user},
         ]
-        base = self.host.rstrip("/") + "/v1"
+        window = effective_input_window()
+        # PRE-FLIGHT: never make a call we know the server will head-truncate.
+        # count_tokens is cl100k, which OVER-counts qwen tokens, so this refuses
+        # a bit early (honest escalation) rather than letting the system prompt
+        # be silently eaten. Same downstream semantics as a provider failure.
+        est = count_tokens(system) + count_tokens(first_user) + 8 * len(messages)
+        if est > window:
+            return blocked_report(
+                f"objective/context exceed the local context window (~{est} of ~{window} tokens)",
+                "Route to Claude, or trim the objective.")
         report = None
-        for _ in range(MAX_AGENT_STEPS):
-            msg = chat_raw(base_url=base, model=model or self.model, messages=messages,
-                           api_key=None, timeout_s=timeout_s, tools=tools)
+        for i in range(MAX_AGENT_STEPS):
+            if i > 0:
+                # MID-LOOP EVICTION: tool results grow the history. Before every
+                # round after the first, if the full conversation would overflow,
+                # do NOT send it (the server would head-truncate the system
+                # prompt). Evict to a minimal form and force the report instead.
+                grown = (sum(count_tokens(str(m.get("content") or "")) for m in messages)
+                         + 8 * len(messages))
+                if grown > window:
+                    report = self._forced_report(messages, model, timeout_s, window)
+                    break
+            msg = native_chat(host=self.host, model=model or self.model, messages=messages,
+                              tools=tools, keep_alive=keep_alive_value(), timeout_s=timeout_s)
             calls = msg.get("tool_calls") or []
             if not calls:
                 report = coerce_report(extract_json(msg.get("content") or "{}"))
@@ -294,24 +336,58 @@ class OllamaProvider(Provider):
                                  "name": fn.get("name", ""), "content": result})
         if report is None:  # exhausted the step budget -- force a final report
             messages.append({"role": "user", "content": "Stop using tools. Output the final json report now."})
-            final = chat_raw(base_url=base, model=model or self.model, messages=messages,
-                             api_key=None, timeout_s=timeout_s)
+            final = native_chat(host=self.host, model=model or self.model, messages=messages,
+                                keep_alive=keep_alive_value(), timeout_s=timeout_s)
             report = coerce_report(extract_json(final.get("content") or "{}"))
         report["files_changed"] = list(dict.fromkeys(changed))  # actual writes are authoritative
         return report
 
+    def _forced_report(self, messages, model, timeout_s, window):
+        """Evict the conversation to a minimal form and make ONE final report call.
+
+        Called mid-loop when accumulated tool output would overflow the local
+        context window. Sending the full history would let the server
+        head-truncate the SYSTEM prompt (the exact historic defect); instead we
+        keep only the system prompt, the original objective, the LAST tool result,
+        and a report-now instruction -- head-truncating the tool result ourselves
+        (keeping its HEAD, marking the cut) if even that overflows. This call must
+        never be head-truncated by the server."""
+        system_msg, first_user_msg = messages[0], messages[1]
+        last_tool_msg = next((m for m in reversed(messages) if m.get("role") == "tool"), None)
+        stop_msg = {"role": "user", "content": "Stop using tools. Output the final json report now."}
+        final_msgs: list[dict[str, Any]] = [system_msg, first_user_msg]
+        if last_tool_msg is not None:
+            last_tool_msg = dict(last_tool_msg)  # copy: truncation must not mutate history
+            final_msgs.append(last_tool_msg)
+        final_msgs.append(stop_msg)
+
+        def _fits(msgs):
+            return (sum(count_tokens(str(m.get("content") or "")) for m in msgs)
+                    + 8 * len(msgs)) <= window
+
+        if last_tool_msg is not None:
+            original = str(last_tool_msg.get("content") or "")
+            keep = len(original)
+            while keep > 0 and not _fits(final_msgs):
+                keep //= 2
+                last_tool_msg["content"] = original[:keep] + _TOOL_TRUNC_MARKER
+        final = native_chat(host=self.host, model=model or self.model, messages=final_msgs,
+                            keep_alive=keep_alive_value(), timeout_s=timeout_s)
+        return coerce_report(extract_json(final.get("content") or "{}"))
+
     # -- full-file-rewrite write path --------------------------------------
 
-    def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy):
+    def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy, slice_texts=None):
         """Apply a scoped write WITHOUT the tool loop. The live benchmark showed
         7B-class models narrate edits but never emit write_file calls -- yet the
         same model reliably returns the COMPLETE edited file as json. So: model
         returns content, the harness writes it deterministically, the verifier
         still gates it. Every skip reason is recorded so a no-op escalation is
         explainable instead of silent."""
-        base = self.host.rstrip("/") + "/v1"
         changed: list[str] = []
         skipped: dict[str, str] = {}
+        dropped: list[str] = []            # rels whose slice context we shed to fit
+        slice_texts = slice_texts or {}
         for raw_rel in paths[:MAX_REWRITE_FILES]:
             try:
                 target, rel = self._resolve(repo_root, raw_rel)
@@ -346,16 +422,44 @@ class OllamaProvider(Provider):
                 "The value must be the complete file text -- every line, no omissions, "
                 "no markdown fences, no commentary. Preserve the existing style."
             )
+            # Slice context (caller-gated) goes between the change request and the
+            # file body -- never for a greenfield CREATE (no neighborhood, and the
+            # index only slices paths that exist). had_slice lets us shed it to
+            # fit the window before skipping the file outright.
+            had_slice = (not creating) and (rel in slice_texts)
             if creating:
                 user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
                         "Create it: return the complete initial contents of this new file.")
+            elif had_slice:
+                user = (f"Change request:\n{objective}\n\n"
+                        "Project context (distilled, read-only -- the neighborhood of this file):\n"
+                        f"{slice_texts[rel]}\n\nFILE {rel} (current contents):\n{original}")
             else:
                 user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+            # OUTPUT-RESERVE window check (never let the server truncate a rewrite).
+            # count_tokens is cl100k -> OVER-counts qwen tokens -> we over-skip
+            # (honest escalation) rather than under-count into silent truncation.
+            est_in = count_tokens(system) + count_tokens(user)
+            output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
+            window = effective_input_window(output_reserve)
+            if est_in > window:
+                if had_slice:  # shed the distilled context first, then re-check
+                    user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+                    dropped.append(rel)
+                    had_slice = False
+                    est_in = count_tokens(system) + count_tokens(user)
+                if est_in > window:
+                    skipped[rel] = (f"file needs ~{est_in} input tok but the local context "
+                                    f"window leaves ~{window} tok after a ~{output_reserve}-tok "
+                                    "generation reserve")
+                    continue
             try:
-                raw = chat_completion(base_url=base, model=model or self.model,
-                                      system=system, user=user, api_key=None,
-                                      timeout_s=timeout_s, force_json=True, temperature=0.0)
-                content = extract_json(raw).get("content")
+                msg = native_chat(host=self.host, model=model or self.model,
+                                  messages=[{"role": "system", "content": system},
+                                            {"role": "user", "content": user}],
+                                  force_json=True, keep_alive=keep_alive_value(),
+                                  timeout_s=timeout_s, temperature=0.0)
+                content = extract_json(msg.get("content") or "{}").get("content")
             except (ProviderHTTPError, ValueError) as exc:
                 skipped[rel] = f"model call failed: {exc}"
                 continue
@@ -391,6 +495,11 @@ class OllamaProvider(Provider):
                    if changed else "Rewrite produced no applicable change.")
         if skipped:
             summary += " Skipped: " + "; ".join(f"{k} ({v})" for k, v in skipped.items())
+        handoff: dict[str, Any] = {}
+        if skipped:
+            handoff["skipped"] = skipped
+        if dropped:
+            handoff["slice_context_dropped"] = dropped
         return {
             "status": "done" if changed else "needs_review",
             "summary": summary[:600],
@@ -398,7 +507,7 @@ class OllamaProvider(Provider):
             "tests_run": [],
             "risks": [],
             "todos": [],
-            "handoff": {"skipped": skipped} if skipped else {},
+            "handoff": handoff,
         }
 
     def run(
@@ -412,15 +521,17 @@ class OllamaProvider(Provider):
         timeout_s: int = 300,
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
+        slice_texts: dict[str, str] | None = None,  # rel -> caller-gated distilled context
     ) -> dict[str, Any]:
         persona = persona_for(self.caps.name, agent.get("name"))
         try:
             if writable and paths and len(paths) <= MAX_REWRITE_FILES:
                 # Scoped write -> full-file rewrite (deterministic apply; the
                 # benchmark proved the tool loop never actually writes at 7B).
-                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s, policy)
+                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s, policy, slice_texts)
             else:
-                report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s, policy, writable)
+                report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s,
+                                           policy, writable, slice_texts)
         except (ProviderHTTPError, ValueError) as exc:
             # Fall back to a single-shot advisory read if the tool loop can't run.
             try:
@@ -428,10 +539,12 @@ class OllamaProvider(Provider):
                     paths, repo_root, MAX_CONTEXT_CHARS, allow_sensitive=True, policy=policy
                 )
                 system, user = build_prompt(agent, objective, context)
-                raw = chat_completion(base_url=self.host.rstrip("/") + "/v1",
-                                      model=model or self.model, system=system, user=user,
-                                      api_key=None, timeout_s=timeout_s, force_json=True, temperature=0.0)
-                report = coerce_report(extract_json(raw))
+                msg = native_chat(host=self.host, model=model or self.model,
+                                  messages=[{"role": "system", "content": system},
+                                            {"role": "user", "content": user}],
+                                  force_json=True, keep_alive=keep_alive_value(),
+                                  timeout_s=timeout_s, temperature=0.0)
+                report = coerce_report(extract_json(msg.get("content") or "{}"))
             except (ProviderHTTPError, ValueError):
                 return {"provider": self.caps.name, "persona": persona, "agent": agent.get("name"),
                         "report": blocked_report(

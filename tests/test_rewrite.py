@@ -23,10 +23,11 @@ def _repo(files: dict[str, str]) -> tempfile.TemporaryDirectory:
 
 
 def _model_returns(content: str):
-    """Patch the module-level chat_completion to return {'content': ...}."""
+    """Patch the module-level native_chat to return an assistant message whose
+    content is {'content': ...} (the shape _run_rewrite parses)."""
     return mock.patch(
-        "daedalus.providers.ollama.chat_completion",
-        return_value=json.dumps({"content": content}),
+        "daedalus.providers.ollama.native_chat",
+        return_value={"role": "assistant", "content": json.dumps({"content": content})},
     )
 
 
@@ -100,30 +101,38 @@ class RewriteApplyTests(unittest.TestCase):
 
 
 class RunRoutingTests(unittest.TestCase):
+    # Both paths now share native_chat, so the branch is asserted from the CALL:
+    # the rewrite path sends force_json=True and NO tools; the agentic loop sends
+    # tools and no force_json. That is the routing branch's semantics, observable
+    # in the request -- a stronger check than the old distinct-symbol trick.
     def test_writable_scoped_task_uses_rewrite_not_tool_loop(self):
         agent = {"name": "docs-dev", "call_name": "Lucia"}
-        with _repo({"src/calc.py": ORIGINAL}) as d, _model_returns(EDITED), mock.patch(
-            "daedalus.providers.ollama.chat_raw",
-            side_effect=AssertionError("tool loop must not run for scoped writes"),
-        ):
+        with _repo({"src/calc.py": ORIGINAL}) as d, mock.patch(
+            "daedalus.providers.ollama.native_chat",
+            return_value={"role": "assistant", "content": json.dumps({"content": EDITED})},
+        ) as nc:
             out = OllamaProvider().run(objective="Add docstrings", repo_root=d,
                                        paths=["src/calc.py"], agent=agent, writable=True)
         self.assertEqual(out["report"]["files_changed"], ["src/calc.py"])
+        # single rewrite call: force_json, and the tool loop did NOT run (no tools)
+        self.assertEqual(nc.call_count, 1)
+        self.assertTrue(nc.call_args.kwargs.get("force_json"))
+        self.assertNotIn("tools", nc.call_args.kwargs)
 
     def test_advisory_task_still_uses_agentic_loop(self):
         agent = {"name": "docs-dev", "call_name": "Lucia"}
         final = {"status": "needs_review", "summary": "reviewed", "files_changed": [],
                  "tests_run": [], "risks": [], "todos": [], "handoff": {}}
         with _repo({"src/calc.py": ORIGINAL}) as d, mock.patch(
-            "daedalus.providers.ollama.chat_raw",
-            return_value={"content": json.dumps(final)},
-        ) as chat_raw, mock.patch(
-            "daedalus.providers.ollama.chat_completion",
-            side_effect=AssertionError("rewrite path must not run for advisory tasks"),
-        ):
+            "daedalus.providers.ollama.native_chat",
+            return_value={"role": "assistant", "content": json.dumps(final)},
+        ) as nc:
             out = OllamaProvider().run(objective="Review the calc helpers", repo_root=d,
                                        paths=["src/calc.py"], agent=agent, writable=False)
-        self.assertTrue(chat_raw.called)
+        self.assertTrue(nc.called)
+        # agentic loop ran (tools passed), and the rewrite path did NOT (no force_json)
+        self.assertIn("tools", nc.call_args.kwargs)
+        self.assertFalse(nc.call_args.kwargs.get("force_json", False))
         self.assertEqual(out["report"]["files_changed"], [])
 
 
