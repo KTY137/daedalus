@@ -1,0 +1,1289 @@
+{
+  "schema": "daedalus-feature-inventory/1",
+  "repo_state": {
+    "branch": "checkpoint/2026-07-20-session",
+    "head": "f40529c",
+    "dirty": true
+  },
+  "areas": [
+    {
+      "area": "CLI + web server surface",
+      "path": "daedalus/cli.py, daedalus/web_api.py",
+      "features": [
+        {
+          "name": "daedalus CLI dispatcher",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus (pyproject script)", "daedalus/cli.py:main"],
+          "tests": ["tests/test_wires.py"],
+          "notes": "26 subcommands; single entry point installed via [project.scripts]."
+        },
+        {
+          "name": "Web API server (stdlib http.server, SPA static host)",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["daedalus web", "daedalus/web_api.py:main"],
+          "tests": ["tests/test_web_api.py", "tests/test_ui_contract.py"],
+          "notes": "Zero-dep GET/PUT/POST router + SSE streams; serves apps/web dist; DAEDALUS_WEB_DEBUG for tracebacks."
+        },
+        {
+          "name": "SSE event stream (project events)",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["GET /api/events"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "Live mission feed consumed by useEventSource in the web UI."
+        },
+        {
+          "name": "SSE Ikarus token stream",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["GET /api/ikarus/stream"],
+          "tests": ["tests/test_ikarus_stream.py"],
+          "notes": "Streaming chat tokens from the selectable Ikarus brain."
+        }
+      ]
+    },
+    {
+      "area": "Core harness (routing, schemas, policy, safety)",
+      "path": "daedalus/",
+      "features": [
+        {
+          "name": "Agent task router (stage 1, keyword/path)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/router.py:route_task"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "Loads agents/*.json personas; deterministic keyword+path ownership routing."
+        },
+        {
+          "name": "Task/report schemas + report validation",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/schemas.py"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "AgentTask/AgentReport/RunState dataclasses; validate_report is the contract every provider must satisfy."
+        },
+        {
+          "name": "Core envelope / status collection",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/core.py"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "Shared payload envelope for API; forced --lane codex is now advisory-only (HANDOFF 1.5 safety correction)."
+        },
+        {
+          "name": "Provider router (stage 2: pick provider per agent+task)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/provider_router.py"],
+          "tests": ["tests/test_parallel_dispatch.py", "tests/test_cascade.py"],
+          "notes": "FrugalGPT-style cheap-first lane choice under sensitivity constraints."
+        },
+        {
+          "name": "Semantic stage-1 routing (embedding cosine)",
+          "kind": "orchestration",
+          "status": "island",
+          "entrypoints": ["daedalus/semantic_route.py:semantic_route"],
+          "tests": ["tests/test_cascade.py"],
+          "notes": "Zero-dep semantic-router pattern over OLLAMA_EMBED_MODEL; built + tested but no production caller imports it."
+        },
+        {
+          "name": "Sensitivity / egress classification",
+          "kind": "safety",
+          "status": "wired",
+          "entrypoints": ["daedalus/sensitivity.py"],
+          "tests": ["tests/test_hardening.py", "tests/test_slice_secret_value_shape.py"],
+          "notes": "Data-egress + change-risk classes gate which provider may see/write what."
+        },
+        {
+          "name": "Verifier gate",
+          "kind": "safety",
+          "status": "wired",
+          "entrypoints": ["daedalus/verifier.py"],
+          "tests": ["tests/test_verify_gate.py", "tests/test_cascade.py"],
+          "notes": "Cascade quality check: syntax/JSON/YAML validation before a local result is accepted."
+        },
+        {
+          "name": "Offload bridge (FrugalGPT cascade + fail-closed write guard)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus offload", "daedalus/offload.py:main"],
+          "tests": ["tests/test_offload_write_failclose.py", "tests/test_repair_blast_radius_write.py", "tests/test_write_guard_e2e.py", "tests/test_rewrite.py", "tests/test_cascade.py"],
+          "notes": "The single seam handing work to the free bench: policy-aware route -> guarded local worker -> verifier gate -> accept or rollback+escalate; refuses live writes without a project policy."
+        },
+        {
+          "name": "Slice-to-offload distilled context injection",
+          "kind": "orchestration",
+          "status": "dark",
+          "entrypoints": ["daedalus/offload.py:_slice_context (OFFLOAD_SLICE_TOKENS)"],
+          "tests": ["tests/test_offload_slice_context.py"],
+          "notes": "Wired 2026-07-26 but default OFF (OFFLOAD_SLICE_TOKENS=0); fail-open on build, fail-closed on content via slice egress gates."
+        },
+        {
+          "name": "Fallback decision logic",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/fallback.py:fallback_decision"],
+          "tests": ["tests/test_cascade.py"],
+          "notes": "Escalation policy when the local lane fails; see docs/FALLBACK.md."
+        },
+        {
+          "name": "Escalation metering (silent-escalation alarm)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus metrics", "daedalus/metrics.py:main"],
+          "tests": ["tests/test_cascade.py"],
+          "notes": "Counts local-vs-Claude outcomes so silent cost drift becomes visible."
+        },
+        {
+          "name": "Token policy / Daedalus Bridge Protocol prompt prefix",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/token_policy.py"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "Static protocol prefix + budget rules shared by claude_bridge, codex and report builders."
+        },
+        {
+          "name": "Token monitor / usage checkpoint watcher",
+          "kind": "module",
+          "status": "island",
+          "entrypoints": ["python -m daedalus.token_monitor"],
+          "tests": [],
+          "notes": "Samples Claude Code project logs and suggests checkpoints; has its own main but no CLI/API route calls it."
+        },
+        {
+          "name": "Context compaction",
+          "kind": "module",
+          "status": "island",
+          "entrypoints": ["daedalus/compaction.py"],
+          "tests": ["tests/test_cascade.py"],
+          "notes": "Zero-dep long-session compaction; tested but nothing imports it in production paths."
+        },
+        {
+          "name": "Storage watermark (fail-closed disk check)",
+          "kind": "safety",
+          "status": "wired",
+          "entrypoints": ["daedalus/storage.py"],
+          "tests": ["tests/test_storage_watermark.py"],
+          "notes": "DAEDALUS_MIN_FREE_GIB; refuses work when free space is below the watermark."
+        },
+        {
+          "name": "Doctor readiness check",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus doctor", "daedalus/doctor.py:main"],
+          "tests": [],
+          "notes": "Can daedalus actually offload real work right now (Ollama, keys, bridges)?"
+        },
+        {
+          "name": "Live selftest (real Ollama round-trip)",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus selftest", "daedalus/selftest.py:main"],
+          "tests": ["tests/test_selftest.py"],
+          "notes": "Repeatable live smoke, separate from the offline pytest suite."
+        },
+        {
+          "name": "Status collection",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus status", "daedalus/status.py:main"],
+          "tests": [],
+          "notes": "Aggregated harness status; also feeds core.collect_status for the API."
+        },
+        {
+          "name": "Provider token/cost benchmark",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus benchmark", "daedalus/benchmark.py:main", "bench_run.ps1"],
+          "tests": [],
+          "notes": "Measures token/cost per lane to justify routing choices."
+        },
+        {
+          "name": "Portable per-repo config + init",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus init", "daedalus/config.py:init_repo"],
+          "tests": [],
+          "notes": "Resolves agentenv config per repo; templates/ provides agentenv.json, CLAUDE.md, AGENTS.md scaffolds."
+        },
+        {
+          "name": "Server-side .env loading + env status",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/env.py", "GET /api/env/status"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "Loads OLLAMA_*/DEEPSEEK_*/API keys; env_status redacts values."
+        },
+        {
+          "name": "Projects registry",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus projects", "daedalus/projects.py", "GET /api/projects"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "projects/*.json with repo roots + policies; resolve_repo_root used everywhere."
+        },
+        {
+          "name": "File bridge (inbox/outbox file bus + heartbeat)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/file_bridge.py:main", "daedalus watcher (via kairos.control)"],
+          "tests": ["tests/test_comms.py"],
+          "notes": "Async request/report exchange with Claude via inbox/ and outbox/ dirs; heartbeat + unread-report tracking; docs/COMMS_PROTOCOL.md."
+        },
+        {
+          "name": "Claude bridge (subprocess ask_claude)",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/claude_bridge.py:ask_claude"],
+          "tests": ["tests/test_bridge_signals.py"],
+          "notes": "Paid escalation lane; not yet unified with adapters/worktrees (HANDOFF 1.5)."
+        },
+        {
+          "name": "Claude crew detection",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus claude-crew", "daedalus/claude_detect.py"],
+          "tests": ["tests/test_claude_detect.py"],
+          "notes": "Detects Claude Code subagents in a repo's .claude/agents/."
+        },
+        {
+          "name": "Bootstrap prompts for external runtimes",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/bootstrap_prompt.py", "GET /api/projects/{p}/bootstrap/claude"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "Session bootstrap text the UI can copy into a fresh Claude session."
+        },
+        {
+          "name": "Repo guard enforcement (CLAUDE.md/AGENTS.md blocks)",
+          "kind": "safety",
+          "status": "wired",
+          "entrypoints": ["daedalus enforce", "daedalus/enforce.py:main"],
+          "tests": [],
+          "notes": "Injects/refreshes protocol guard blocks into repo instruction files."
+        },
+        {
+          "name": "Runbook scaffolding",
+          "kind": "module",
+          "status": "island",
+          "entrypoints": ["python -m daedalus.runbook"],
+          "tests": [],
+          "notes": "create_run writes run scaffolds; only referenced as a trigger word in ikarus_chat, nothing invokes it."
+        },
+        {
+          "name": "Bookkeeper (living architecture artifact)",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus bookkeeper", "daedalus/bookkeeper.py:main"],
+          "tests": ["tests/test_bookkeeper.py"],
+          "notes": "Keeps docs/architecture.html in sync with reality; history in docs/architecture_history/."
+        },
+        {
+          "name": "Hierarchy projection + team save",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["GET /api/projects/{p}/hierarchy", "PUT /api/projects/{p}/team"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "Agent-network graph for the webapp NetworkSheet."
+        },
+        {
+          "name": "Control plane projection + autonomy save",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["GET /api/projects/{p}/control-plane", "PUT /api/projects/{p}/autonomy"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "Capability gates + autonomy modes (manual/semi_auto/autonomous) for the Inspector."
+        },
+        {
+          "name": "Agents registry (runtime CRUD of roles)",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus agents list|show|add|edit|rm", "PUT /api/projects/{p}/agents/{name}"],
+          "tests": ["tests/test_agents_registry.py"],
+          "notes": "Ikarus as dynamic configurator; model tiers per role."
+        },
+        {
+          "name": "Role categories taxonomy",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus categories list|show|set", "PUT /api/projects/{p}/categories/{id}"],
+          "tests": ["tests/test_categories.py", "tests/test_categories_integration.py"],
+          "notes": "Strictly additive metadata layer: lane + model-tier per category; agents/categories.json."
+        },
+        {
+          "name": "Runtime registry (CLI runtime discovery + live test)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["GET /api/runtimes/status", "POST /api/runtimes/{id}/test"],
+          "tests": ["tests/test_web_api.py"],
+          "notes": "CLI-first, API-ready registry of connected runtimes (claude/codex/ollama...)."
+        },
+        {
+          "name": "Accelerator capability contract (RTX/CUDA lanes)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus accelerators [--json] [--live-probe]", "GET /api/accelerators/status"],
+          "tests": ["tests/test_accelerators.py"],
+          "notes": "Evidence-based probes; shallow import never claims CUDA readiness; remote RTX host via DAEDALUS_RTX_OLLAMA_HOST still unconfigured."
+        },
+        {
+          "name": "LangGraph adapter",
+          "kind": "module",
+          "status": "island",
+          "entrypoints": ["daedalus/langgraph_adapter.py"],
+          "tests": [],
+          "notes": "Optional langgraph_available/build_graph shim; nothing imports it and no tests."
+        },
+        {
+          "name": "dctx certified context artifact",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus dctx --lane trusted|untrusted", "daedalus/dctx.py:main"],
+          "tests": ["tests/test_dctx.py", "tests/test_dctx_policy_egress.py"],
+          "notes": "A slice plus a proof about it (reduction %, egress receipts); the .dctx genome of the Code Evolution direction."
+        },
+        {
+          "name": "Hybrid context planner (Forest + BM25 + latent seeds)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus context", "GET /api/context/plan"],
+          "tests": ["tests/test_context_plan.py"],
+          "notes": "Evidence-bearing planning over the Knowledge Forest with DSS receipts; known UX issue: full JSON can exceed 30 kB."
+        },
+        {
+          "name": "Build sessions (one feature -> bounded task plan)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus build", "daedalus/build.py:plan_build"],
+          "tests": ["tests/test_build.py"],
+          "notes": "Coordination layer that turns ONE feature into decomposed, routed subtasks."
+        },
+        {
+          "name": "Ikarus network-designer chat",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["POST /api/ikarus/chat"],
+          "tests": ["tests/test_drafts.py"],
+          "notes": "Proposes agent-network changes as advisory drafts (propose/confirm, never silent apply)."
+        },
+        {
+          "name": "Ikarus OS intent layer + selectable brain",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["POST /api/ikarus/ask", "GET /api/ikarus/stream"],
+          "tests": ["tests/test_ikarus_os.py", "tests/test_ikarus_context.py", "tests/test_ikarus_stream.py"],
+          "notes": "Deterministic intent layer; brain selectable between deterministic / ollama / deepseek / codex runtimes."
+        },
+        {
+          "name": "Compat shims for the kairos rename",
+          "kind": "module",
+          "status": "shim",
+          "entrypoints": ["daedalus/ikarus.py", "daedalus/decompose.py", "daedalus/drafts.py", "daedalus/mission_control.py", "daedalus/orchestrate.py"],
+          "tests": ["tests/test_mission_control.py"],
+          "notes": "Re-exports of daedalus.kairos.* under legacy names (Ikarus/MetronScheduler aliases included); keep until callers migrate."
+        }
+      ]
+    },
+    {
+      "area": "Kairos scheduler + execution (renamed from metron)",
+      "path": "daedalus/kairos/",
+      "features": [
+        {
+          "name": "Kairos bounded scheduler (contractor bench)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus ikarus", "daedalus spawn", "daedalus/kairos/scheduler.py:main"],
+          "tests": ["tests/test_parallel_dispatch.py", "tests/test_agent_env.py"],
+          "notes": "Free-lane assignment with path-overlap isolation; writable attempts now run sequentially with whole-repo attribution (HANDOFF 1.5)."
+        },
+        {
+          "name": "Control projections (dashboard/models/squads/watcher/review-diff)",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["daedalus dashboard|models|squads|watcher|review-diff", "daedalus/kairos/control.py"],
+          "tests": ["tests/test_comms.py"],
+          "notes": "Read-only dashboards + the file-bridge watcher loop + local-only diff review."
+        },
+        {
+          "name": "Dynamic task decomposition",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/kairos/decompose.py"],
+          "tests": ["tests/test_dynamic.py"],
+          "notes": "One objective -> bounded list of scoped subtasks via local model; consumed by build sessions."
+        },
+        {
+          "name": "Advisory drafts persistence",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus drafts list|show|rm|apply|dismiss", "GET/POST /api/drafts*"],
+          "tests": ["tests/test_drafts.py"],
+          "notes": "The missing half of the FrugalGPT loop: local proposals persist for the Claude review lane; apply prints a review packet."
+        },
+        {
+          "name": "Task orchestration (prepare_task)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/kairos/orchestrate.py:prepare_task"],
+          "tests": ["tests/test_parallel_dispatch.py", "tests/test_repair_blast_radius_write.py"],
+          "notes": "Path inference + policy threading for each dispatched task."
+        },
+        {
+          "name": "Git worktree isolation",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["daedalus/kairos/worktree.py"],
+          "tests": ["tests/test_worktree.py"],
+          "notes": "DAEDALUS_WORKTREE_ROOT; isolates candidate writes from the primary checkout (not a host sandbox)."
+        },
+        {
+          "name": "Shadow shell (branch-isolated task execution)",
+          "kind": "orchestration",
+          "status": "island",
+          "entrypoints": ["daedalus/kairos/shadow_shell.py"],
+          "tests": ["tests/test_kairos_evolution.py"],
+          "notes": "Completed-task-on-branch abstraction over worktree + adapters; only the evolution baseline consumes it."
+        },
+        {
+          "name": "Best-of-N candidate runner",
+          "kind": "orchestration",
+          "status": "baseline",
+          "entrypoints": ["daedalus/kairos/evolution.py"],
+          "tests": ["tests/test_kairos_evolution.py"],
+          "notes": "Explicit baseline: N candidates, fixed pytest, pick a green one. NOT Ariadne: no archive, lineage, QD, or frozen evaluators; also an island (no CLI/API caller)."
+        }
+      ]
+    },
+    {
+      "area": "structcore (Universal Structural Core)",
+      "path": "daedalus/structcore/",
+      "features": [
+        {
+          "name": "Multi-language structural index (build_index / cached_index)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["python -m daedalus.structcore <repo>", "daedalus/structcore/index.py"],
+          "tests": ["tests/test_structcore.py", "tests/test_structcore_api.py", "tests/test_structcore_coverage.py", "tests/test_structcore_parallel.py"],
+          "notes": "Repo walk -> per-file structural facts; DAEDALUS_SCAN_WORKERS / DAEDALUS_SCAN_MIN_PARALLEL tune parallel scan."
+        },
+        {
+          "name": "Per-file pure analysis half",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/perfile.py"],
+          "tests": ["tests/test_structcore_parallel.py"],
+          "notes": "Picklable, parallelizable per-file worker used by build_index."
+        },
+        {
+          "name": "Code-unit parsing (functions/methods per language)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/parse.py"],
+          "tests": ["tests/test_structcore_deep_ast.py", "tests/test_structcore_center_naming.py", "tests/test_structcore_cnames.py"],
+          "notes": "Python AST-deep, regex-based for other languages via LanguageSpec."
+        },
+        {
+          "name": "LanguageSpec registry",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/languages.py"],
+          "tests": ["tests/test_structcore_coverage.py"],
+          "notes": "Declarative per-language facts keyed by extension."
+        },
+        {
+          "name": "Import extraction + internal resolution",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/imports.py"],
+          "tests": ["tests/test_imports_graph.py"],
+          "notes": "All-language import graph feeding forest relations and topology."
+        },
+        {
+          "name": "Symbol-reference graph (call-graph approximation)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/graph.py"],
+          "tests": ["tests/test_structcore_graph.py"],
+          "notes": "Pragmatic reference edges used by slice expansion."
+        },
+        {
+          "name": "Git churn + temporal co-change pairs",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/churn.py:co_change_pairs"],
+          "tests": ["tests/test_churn.py"],
+          "notes": "CodeScene-style change-frequency signal; feeds context planner and eval ceiling."
+        },
+        {
+          "name": "Clone detection (exact + near)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/clones.py"],
+          "tests": ["tests/test_clones_precision.py", "tests/test_clones_string_literals.py"],
+          "notes": "The dominant AI-decay signal, language-generalized; clone hyperedges retained in the forest."
+        },
+        {
+          "name": "Per-file health metrics",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/metrics.py"],
+          "tests": ["tests/test_structcore.py"],
+          "notes": "Comment-aware code-health per language."
+        },
+        {
+          "name": "Token counting for the distill benchmark",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/tokens.py"],
+          "tests": ["tests/test_tokenizer_cache_identity.py"],
+          "notes": "Measured file-token costs underpin slice reduction claims."
+        },
+        {
+          "name": "Persistent per-file sqlite cache",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/cache.py"],
+          "tests": ["tests/test_tokenizer_cache_identity.py"],
+          "notes": "DAEDALUS_CACHE_DIR / DAEDALUS_NO_CACHE; keyed by content hash."
+        },
+        {
+          "name": "Structural ignore rules (.daedalusignore) + center naming",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/ignore.py"],
+          "tests": ["tests/test_structcore_ignore.py"],
+          "notes": "DAEDALUS_IGNORE and DAEDALUS_CENTER env overrides."
+        },
+        {
+          "name": "Structure report / API payload",
+          "kind": "api",
+          "status": "wired",
+          "entrypoints": ["GET /api/structure", "daedalus/structcore/report.py:structure_summary"],
+          "tests": ["tests/test_structcore_api.py"],
+          "notes": "Compact projection of a full index for the StructureSheet UI."
+        },
+        {
+          "name": "Semantic slice (Distill this) + egress gates",
+          "kind": "safety",
+          "status": "wired",
+          "entrypoints": ["POST /api/distill", "daedalus/structcore/slice.py:semantic_slice"],
+          "tests": ["tests/test_structcore_slice.py", "tests/test_slice_egress_gate.py", "tests/test_slice_secret_value_shape.py", "tests/test_slice_include_focus.py", "tests/test_fenrir_slice_attack.py", "tests/test_fence_anchoring.py", "tests/test_safety_reachability.py"],
+          "notes": "Semantic slice vs whole-repo concat; trusted/untrusted lanes, secret-shape withholding, fence anchoring hardened against the Fenrir attack; 3 fence CRITICALs fixed 2026-07-21."
+        },
+        {
+          "name": "Knowledge Forest snapshots",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/forest.py:build_knowledge_forest"],
+          "tests": ["tests/test_forest.py"],
+          "notes": "Versioned multiplex forest/hypergraph: hierarchy + import/co-change/clone/rename channels, stable IDs, rename confidence."
+        },
+        {
+          "name": "DSS v0 (deterministic semantic super-sampling)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/structcore/dss.py:semantic_super_sample"],
+          "tests": ["tests/test_dss.py"],
+          "notes": "Restriction + branch-bounded prolongation, greedy token-budget packing, content-addressed receipts; consumed by context_plan."
+        },
+        {
+          "name": "Spectral topology analysis",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["GET /api/topology", "daedalus/structcore/topology.py:spectral_partition"],
+          "tests": ["tests/test_topology.py"],
+          "notes": "Optional read-only spectral partition of the import graph; needs the [math] extra (numpy/scipy/networkx)."
+        }
+      ]
+    },
+    {
+      "area": "Eval harness (distillation thesis)",
+      "path": "daedalus/eval/",
+      "features": [
+        {
+          "name": "Distillation eval harness",
+          "kind": "eval",
+          "status": "wired",
+          "entrypoints": ["python -m daedalus.eval [--tier2] [--arms] [--gate]"],
+          "tests": ["tests/test_eval.py", "tests/test_honest_denominator.py", "tests/test_fake_offload.py"],
+          "notes": "Runs the labelled task set; hand_reachable tier printed; gate mode compares against baseline.json with --update-baseline."
+        },
+        {
+          "name": "Labelled task set",
+          "kind": "eval",
+          "status": "wired",
+          "entrypoints": ["daedalus/eval/tasks.py"],
+          "tests": ["tests/test_eval.py"],
+          "notes": "In-repo task labels; corpus reseeded with the hygienic minter (17 tasks, 86.2% independent recall)."
+        },
+        {
+          "name": "Independent-oracle task minting + label hygiene",
+          "kind": "eval",
+          "status": "wired",
+          "entrypoints": ["python -m daedalus.eval --mint-commit SHA / --confirm-mint TASK_ID"],
+          "tests": ["tests/test_eval_mint.py", "tests/test_eval_oracle.py", "tests/test_mint_label_hygiene.py"],
+          "notes": "Mints labels the slicer did NOT choose from real commits; junk/cross-language filters, floor-tripping anchor exclusion, focus_withheld classification; minted_tasks.json is the artifact."
+        },
+        {
+          "name": "Eval report renderer",
+          "kind": "eval",
+          "status": "wired",
+          "entrypoints": ["daedalus/eval/report.py"],
+          "tests": ["tests/test_eval.py"],
+          "notes": "ASCII table, Windows cp1252-safe."
+        },
+        {
+          "name": "Temporal co-change ceiling (lane A2 reopen gate)",
+          "kind": "eval",
+          "status": "wired",
+          "entrypoints": ["python -m daedalus.eval.ceiling"],
+          "tests": ["tests/test_temporal_ceiling.py"],
+          "notes": "Measured rename-aware clean ceiling 2.3%; lane A2 closed on measurement 2026-07-21 — this module is the reopen gate."
+        }
+      ]
+    },
+    {
+      "area": "Memory (journal, embeddings, certified ledger)",
+      "path": "daedalus/memory/, daedalus/memstore.py",
+      "features": [
+        {
+          "name": "Event journal + latent search API",
+          "kind": "memory",
+          "status": "wired",
+          "entrypoints": ["python -m daedalus.memory", "GET /api/latent/search", "GET /api/events/memory"],
+          "tests": ["tests/test_embeddings.py"],
+          "notes": "Append-only journal with project/trust/source filtering; explicit ready/partial/embedder_unavailable states."
+        },
+        {
+          "name": "Vector index auto-embedding on append",
+          "kind": "memory",
+          "status": "dark",
+          "entrypoints": ["DAEDALUS_VECTOR_INDEX=1 (daedalus/memory/__init__.py:append_event)"],
+          "tests": ["tests/test_embeddings.py"],
+          "notes": "Default off; known P0: embedding runs synchronously in the append path — Projection Worker planned to replace this."
+        },
+        {
+          "name": "Latent Projection Index v2 (versioned embeddings)",
+          "kind": "memory",
+          "status": "wired",
+          "entrypoints": ["daedalus/memory/embeddings.py:EventVectorStore"],
+          "tests": ["tests/test_embeddings.py"],
+          "notes": "Immutable EmbeddingSpec identity (provider/model/revision/dim/normalization/projector); v1 vectors quarantined; OLLAMA_EMBED_MODEL_REVISION pins tags; docs/LATENT_PROJECTION_INDEX.md."
+        },
+        {
+          "name": "memstore certified memory ledger (dmem/1)",
+          "kind": "memory",
+          "status": "island",
+          "entrypoints": ["daedalus/memstore.py"],
+          "tests": ["tests/test_memstore.py"],
+          "notes": "Append-only hash-chained ledger — memory that cannot silently lie (ADR 006/007 direction); built + tested, nothing calls it yet."
+        }
+      ]
+    },
+    {
+      "area": "Providers (model backends)",
+      "path": "daedalus/providers/",
+      "features": [
+        {
+          "name": "Provider base contract + health",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/base.py", "GET /api/providers/status"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "Common provider interface + provider_health aggregation."
+        },
+        {
+          "name": "Ollama provider (local free lane)",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/ollama.py"],
+          "tests": ["tests/test_rewrite.py", "tests/test_era1_robustness.py"],
+          "notes": "OLLAMA_HOST/OLLAMA_MODEL/OLLAMA_KEEP_ALIVE; full-file-rewrite protocol because 7B models won't call write_file (benchmark finding)."
+        },
+        {
+          "name": "Native Ollama /api/chat client",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/_ollama_native.py"],
+          "tests": ["tests/test_ollama_native.py"],
+          "notes": "Stdlib-only chat client with OLLAMA_NUM_CTX; used by the ollama provider for the offload lane."
+        },
+        {
+          "name": "OpenAI-compatible chat client",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/_openai_compat.py"],
+          "tests": ["tests/test_codex_provider.py"],
+          "notes": "Minimal stdlib client shared by deepseek/eval/compaction paths."
+        },
+        {
+          "name": "DeepSeek provider (cheap cloud lane)",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/deepseek.py"],
+          "tests": [],
+          "notes": "DEEPSEEK_API_KEY/BASE_URL/MODEL."
+        },
+        {
+          "name": "Codex CLI provider (agentic write-capable lane)",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/codex_cli.py"],
+          "tests": ["tests/test_codex_provider.py"],
+          "notes": "CODEX_MODEL; empty-paths codex residual still open (validation status); forced codex writes are advisory-only until Forge."
+        },
+        {
+          "name": "Claude CLI provider",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/claude_cli.py"],
+          "tests": ["tests/test_bridge_signals.py"],
+          "notes": "Paid lane wrapper around the claude CLI."
+        },
+        {
+          "name": "Report builder + validation helpers",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/_report.py"],
+          "tests": ["tests/test_agent_env.py"],
+          "notes": "Turns raw model responses into validated AgentReports; prompt construction for non-agentic providers."
+        },
+        {
+          "name": "Personas for free-model lanes",
+          "kind": "provider",
+          "status": "wired",
+          "entrypoints": ["daedalus/providers/personas.py", "daedalus/providers/personas.json"],
+          "tests": [],
+          "notes": "Named personas attached to local bench workers."
+        }
+      ]
+    },
+    {
+      "area": "Adapters (universal agent shell transport)",
+      "path": "daedalus/adapters/",
+      "features": [
+        {
+          "name": "Lossless TransportRecord event model",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/adapters/events.py"],
+          "tests": ["tests/test_adapters.py"],
+          "notes": "native runtime event -> lossless record -> optional text/embedding projection (ADR 008); explicitly NOT hidden-state communication."
+        },
+        {
+          "name": "Transport sinks",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/adapters/transport.py"],
+          "tests": ["tests/test_adapters.py"],
+          "notes": "Sinks for normalized runtime-shell records; consumed by embeddings projections and shadow_shell."
+        },
+        {
+          "name": "Subprocess adapter (configurable CLI runtimes)",
+          "kind": "module",
+          "status": "wired",
+          "entrypoints": ["daedalus/adapters/subprocess_adapter.py"],
+          "tests": ["tests/test_adapters.py"],
+          "notes": "Claude and Codex one-shot profiles tested; generic runtimes configurable; not yet the unified execution path (split worlds, HANDOFF 1.5)."
+        }
+      ]
+    },
+    {
+      "area": "Web UI (Agent OS glass app)",
+      "path": "apps/web/src/",
+      "features": [
+        {
+          "name": "Ikarus chat-first shell",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/App.tsx"],
+          "tests": ["tests/test_ui_contract.py"],
+          "notes": "Chat with effort selector (low/med/high), brain/model selector, chat chips, sessionStorage transcript persistence (cap 200)."
+        },
+        {
+          "name": "Glass component kit",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/components/glass/"],
+          "tests": [],
+          "notes": "GlassPanel/Card/Sheet/Button, ChatBubble, Composer, Dock, LiveDot, LiveRail, SegmentedControl."
+        },
+        {
+          "name": "Dock with 9 sheet views",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/App.tsx (SheetView)"],
+          "tests": ["tests/test_ui_contract.py"],
+          "notes": "network | claude | codex | providers | queue | inbox | structure | map (+ chat); lazy-loaded sheets."
+        },
+        {
+          "name": "NetworkSheet (agent network editor)",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/components/NetworkSheet.tsx"],
+          "tests": [],
+          "notes": "Hierarchy graph view + team save via PUT /api/projects/{p}/team."
+        },
+        {
+          "name": "StructureSheet + distill",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/components/StructureSheet.tsx"],
+          "tests": [],
+          "notes": "Structure summary + Distill-this action against POST /api/distill."
+        },
+        {
+          "name": "CodeMap visualization",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/components/CodeMap.tsx"],
+          "tests": [],
+          "notes": "Repo map over /api/structure and /api/topology."
+        },
+        {
+          "name": "ThemeEditor + glass theming + performance mode",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/components/ThemeEditor.tsx", "apps/web/src/hooks/useGlassTheme.ts", "useTheme.ts"],
+          "tests": [],
+          "notes": "Editable glass theme, persisted; performance mode toggle."
+        },
+        {
+          "name": "Inspector (autonomy + capability gates)",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/App.tsx:Inspector"],
+          "tests": [],
+          "notes": "manual/semi_auto/autonomous switches against PUT /api/projects/{p}/autonomy."
+        },
+        {
+          "name": "Live event streaming hook",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/hooks/useEventSource.ts"],
+          "tests": [],
+          "notes": "SSE consumer for /api/events and /api/ikarus/stream."
+        },
+        {
+          "name": "API client",
+          "kind": "ui",
+          "status": "wired",
+          "entrypoints": ["apps/web/src/api.ts"],
+          "tests": ["tests/test_ui_contract.py"],
+          "notes": "Typed wrappers for all endpoints incl. drafts review, runtime test, queueTask lanes, claude bootstrap copy."
+        }
+      ]
+    },
+    {
+      "area": "VS Code extension",
+      "path": "vscode-agent-env/",
+      "features": [
+        {
+          "name": "Daedalus VS Code cockpit",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["vscode-agent-env/extension.js", "daedalus-vscode-0.3.0.vsix"],
+          "tests": [],
+          "notes": "Cockpit for the Ikarus/Codex/Claude/Ollama team bus; settings: harness root, python path, default project."
+        },
+        {
+          "name": "Tree views: Dashboard + Projects",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["contributes.views daedalus.dashboard / daedalus.projects"],
+          "tests": [],
+          "notes": "Activity-bar container with live status."
+        },
+        {
+          "name": "Enqueue commands (local-only / auto / claude)",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["daedalus.enqueueLocalOnly", "daedalus.enqueueAuto", "daedalus.enqueueClaude"],
+          "tests": [],
+          "notes": "Lane-explicit task enqueue via the file bridge."
+        },
+        {
+          "name": "Watcher control + status + refresh",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["daedalus.startWatcher", "daedalus.stopWatcher", "daedalus.status", "daedalus.refresh"],
+          "tests": [],
+          "notes": "Starts/stops the file-bridge watcher from the editor."
+        },
+        {
+          "name": "Local-only diff review",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["daedalus.reviewDiff"],
+          "tests": [],
+          "notes": "Routes the current diff through the local review lane."
+        },
+        {
+          "name": "Ikarus spawn + inbox/outbox/memory/dashboard openers",
+          "kind": "extension",
+          "status": "wired",
+          "entrypoints": ["daedalus.spawn", "daedalus.openInbox", "daedalus.openOutbox", "daedalus.openMemory", "daedalus.openDashboard"],
+          "tests": [],
+          "notes": "openDashboard hosts a webview dashboard."
+        },
+        {
+          "name": "UI design mockups",
+          "kind": "doc-spec",
+          "status": "stale",
+          "entrypoints": ["vscode-agent-env/mockup.html", "vscode-agent-env/wheel-mock.html"],
+          "tests": [],
+          "notes": "Static design artifacts (see DESIGN.md); superseded by the extension + web app."
+        }
+      ]
+    },
+    {
+      "area": "Claude crew tooling",
+      "path": ".claude/",
+      "features": [
+        {
+          "name": "Crew protocol (3 tiers + adversarial gates)",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": [".claude/AGENT_PROTOCOL.md"],
+          "tests": [],
+          "notes": "How the Claude crew that BUILDS Daedalus is organised — distinct from the Ikarus runtime personas in agents/*.json; gates: Momus/Tyr/Nemesis/Cerberus."
+        },
+        {
+          "name": "Coffee Protocol v2 retro ritual",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": [".claude/COFFEE_PROTOCOL.md"],
+          "tests": [],
+          "notes": "In-character retro after each era/big merge; docs/COFFEE_RETRO_2026-07-06.md is a run."
+        },
+        {
+          "name": "16 Claude Code subagents",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": [".claude/agents/*.md"],
+          "tests": ["tests/test_claude_detect.py"],
+          "notes": "argus, aristaeus, cerberus, core-dev, docs-dev, extension-dev, iris, kadmos, metron, mnemosyne, momus, orchestration-dev, provider-researcher, qa-critic, safety-dev, test-dev."
+        }
+      ]
+    },
+    {
+      "area": "Repo infrastructure + runtime data",
+      "path": "(repo root)",
+      "features": [
+        {
+          "name": "Ikarus runtime persona registry",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["agents/*.json", "agents/categories.json"],
+          "tests": ["tests/test_agents_registry.py"],
+          "notes": "acquisition-dev, data-analysis-dev, docs-dev, hardware-dev, qa-critic, researcher, ui-ux-dev personas dispatched by the harness."
+        },
+        {
+          "name": "File-bus directories (inbox/outbox/memory)",
+          "kind": "orchestration",
+          "status": "wired",
+          "entrypoints": ["inbox/", "outbox/", "memory/"],
+          "tests": ["tests/test_comms.py"],
+          "notes": "Root-level comms + journal state used by file_bridge and memory."
+        },
+        {
+          "name": "Bootstrap scripts",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["bootstrap.ps1", "bootstrap.sh"],
+          "tests": [],
+          "notes": "Install external deps (Ollama, claude CLI) — the real dependencies of the zero-dep core."
+        },
+        {
+          "name": "Benchmark runner script",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["bench_run.ps1"],
+          "tests": [],
+          "notes": "Wraps daedalus benchmark runs."
+        },
+        {
+          "name": "llama-swap example config",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": ["configs/llama-swap.example.yaml"],
+          "tests": [],
+          "notes": "Example multi-model local serving config."
+        },
+        {
+          "name": "Project/repo templates",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": ["templates/ (CLAUDE.md, AGENTS.md, agentenv.json, project.example.json)"],
+          "tests": [],
+          "notes": "Scaffolds consumed by daedalus init / enforce."
+        },
+        {
+          "name": "TCT venv recreation tool",
+          "kind": "cli",
+          "status": "wired",
+          "entrypoints": ["tools/recreate_tct_venv.ps1"],
+          "tests": [],
+          "notes": "Rebuilds the TCT benchmark virtualenv."
+        },
+        {
+          "name": "Validation wheel artifacts",
+          "kind": "doc-spec",
+          "status": "wired",
+          "entrypoints": ["runs/validation_wheels/"],
+          "tests": [],
+          "notes": "Built wheels kept as evidence for the packaging bug fix (pyproject explicit packages list)."
+        },
+        {
+          "name": "structcore-rs Rust engine",
+          "kind": "module",
+          "status": "stale",
+          "entrypoints": ["structcore-rs/"],
+          "tests": [],
+          "notes": "Rust port experiment; HANDOFF section 7 records the performance claim needing correction — superseded by the Python engine; do not resurrect without new measurement."
+        },
+        {
+          "name": "Setuptools build output",
+          "kind": "module",
+          "status": "stale",
+          "entrypoints": ["build/lib/", "build/bdist.win-amd64/", "daedalus.egg-info/"],
+          "tests": [],
+          "notes": "Stale snapshot copies of the package; never edit, safe to delete/ignore."
+        },
+        {
+          "name": "hermes package remnants",
+          "kind": "module",
+          "status": "stale",
+          "entrypoints": ["daedalus/hermes/__pycache__/"],
+          "tests": [],
+          "notes": "Source (server/ws_bridge/client_bridge) deleted; only .pyc remain; ADR 002 documents the hermes-upstream decision."
+        },
+        {
+          "name": "pyproject packages list still names daedalus.metron",
+          "kind": "module",
+          "status": "stale",
+          "entrypoints": ["pyproject.toml [tool.setuptools] packages"],
+          "tests": [],
+          "notes": "metron was renamed to kairos; a non-editable install would fail/miss the scheduler package until the list says daedalus.kairos."
+        }
+      ]
+    },
+    {
+      "area": "Planned (spec-only, from HANDOFF + master plan + ADRs)",
+      "path": "docs/",
+      "features": [
+        {
+          "name": "Mission Spine (MissionSpec, durable state machine)",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/HANDOFF.md 4B", "docs/IKARUS_ARIADNE_MASTER_PLAN.md 6"],
+          "tests": [],
+          "notes": "daedalus/missions/{spec,state,store,events,recovery}.py: validated budgets/scope/policy digest, idempotency keys, leases, cancel/resume, crash-replay."
+        },
+        {
+          "name": "ExecutionTransaction / unified mutation path (Forge)",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/HANDOFF.md 4C", "docs/IKARUS_ARIADNE_MASTER_PLAN.md 11", "docs/adrs/004-execution-transactions.md"],
+          "tests": [],
+          "notes": "Mission -> TaskAttempt -> ExecutionTransaction -> PatchArtifact -> receipts -> explicit PromotionPacket; no provider writes the primary checkout before promotion."
+        },
+        {
+          "name": "Projection Worker (async journal-offset embedding)",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/HANDOFF.md 4D", "docs/LATENT_PROJECTION_INDEX.md"],
+          "tests": [],
+          "notes": "Replaces synchronous append-path embedding; consume journal by file identity + byte offset + record hash, idempotent re-projection."
+        },
+        {
+          "name": "The Grove (persistent candidate archive)",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 10.3"],
+          "tests": [],
+          "notes": "Append-only Experiment/Candidate/LineageEdge/InspirationEdge/EvaluationRun/SelectionDecision schemas."
+        },
+        {
+          "name": "Ariadne Forest Evolution Engine",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 10", "docs/adrs/009-ariadne-forest-evolution-engine.md"],
+          "tests": [],
+          "notes": "Parent/novelty/failure sampling, Quality-Diversity, Pareto + MAP-Elites, equal-budget multi-seed ablations; 'better than AlphaEvolve' is a falsifiable hypothesis, not a claim."
+        },
+        {
+          "name": "Talos/Nemesis evaluator pack + reward-hacking protection",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 12"],
+          "tests": [],
+          "notes": "Frozen external evaluator bundle with timeouts and protected tests; candidates never control their judges (invariant I4)."
+        },
+        {
+          "name": "Cerberus process-boundary enforcement",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/bypasses.md"],
+          "tests": [],
+          "notes": "Audited 2026-07-28: network/filesystem/subprocess egress is currently Python-convention only; enforcement must move to process/container boundary."
+        },
+        {
+          "name": "Remote RTX worker protocol + GPU receipts",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/HANDOFF.md 4F", "docs/IKARUS_ARIADNE_MASTER_PLAN.md 13"],
+          "tests": [],
+          "notes": "Authenticated health/capability/storage receipts; RTX D: HDD as Grove/artifact cold storage; storage_unavailable instead of silent local spill; first jobs = embedding batches + reranking."
+        },
+        {
+          "name": "Learned DSS residual + retrieval benchmark",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 8.4-8.6"],
+          "tests": [],
+          "notes": "Learned layer on top of the deterministic DSS core; gated by a retrieval benchmark; no false diffeomorphism claims."
+        },
+        {
+          "name": "Latent Atlas / hidden-state communication research",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 9.4-9.5", "docs/FOUNDATION_AUDIT.md 4"],
+          "tests": [],
+          "notes": "Requires named representation, adapter, baseline and fallback before any 'latent' claim (stop condition)."
+        },
+        {
+          "name": "HEP domain pack (vertical stresstest)",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/IKARUS_ARIADNE_MASTER_PLAN.md 14"],
+          "tests": [],
+          "notes": "High-energy-physics evaluators + forest extensions as the honest external benchmark domain."
+        },
+        {
+          "name": "Hermes upstream comms service",
+          "kind": "doc-spec",
+          "status": "planned",
+          "entrypoints": ["docs/adrs/002-hermes-upstream.md", "docs/COMMS_PROTOCOL.md"],
+          "tests": [],
+          "notes": "Decision recorded; local hermes module was removed (pycache remnants remain) — re-implementation would be upstream."
+        }
+      ]
+    }
+  ],
+  "cli_commands": [
+    "daedalus doctor",
+    "daedalus offload",
+    "daedalus spawn",
+    "daedalus build",
+    "daedalus ikarus",
+    "daedalus dctx",
+    "daedalus context",
+    "daedalus metrics",
+    "daedalus benchmark",
+    "daedalus status",
+    "daedalus dashboard",
+    "daedalus models",
+    "daedalus accelerators",
+    "daedalus squads",
+    "daedalus watcher",
+    "daedalus review-diff",
+    "daedalus projects",
+    "daedalus agents list|show|add|edit|rm",
+    "daedalus categories list|show|set",
+    "daedalus claude-crew",
+    "daedalus drafts list|show|rm|apply|dismiss",
+    "daedalus selftest",
+    "daedalus bookkeeper",
+    "daedalus web",
+    "daedalus enforce",
+    "daedalus init",
+    "python -m daedalus.structcore <repo> [--json]",
+    "python -m daedalus.eval [--tier2 --arms --gate --update-baseline --mint-commit --confirm-mint]",
+    "python -m daedalus.eval.ceiling",
+    "python -m daedalus.memory",
+    "python -m daedalus.token_monitor",
+    "python -m daedalus.runbook",
+    "python -m daedalus.file_bridge"
+  ],
+  "api_endpoints": [
+    "GET /api/dashboard",
+    "GET /api/projects",
+    "GET /api/projects/{p}/hierarchy",
+    "GET /api/projects/{p}/control-plane",
+    "GET /api/projects/{p}/bootstrap/claude",
+    "GET /api/providers/status",
+    "GET /api/runtimes/status",
+    "GET /api/accelerators/status",
+    "GET /api/env/status",
+    "GET /api/capabilities",
+    "GET /api/events (SSE)",
+    "GET /api/ikarus/stream (SSE)",
+    "GET /api/structure",
+    "GET /api/topology",
+    "GET /api/context/plan",
+    "GET /api/latent/search",
+    "GET /api/events/memory",
+    "GET /api/drafts",
+    "GET /api/drafts/{id}",
+    "POST /api/queue",
+    "POST /api/ikarus/chat",
+    "POST /api/ikarus/ask",
+    "POST /api/drafts/{id}/apply",
+    "POST /api/drafts/{id}/dismiss",
+    "POST /api/runtimes/{id}/test",
+    "POST /api/distill",
+    "PUT /api/projects/{p}/team",
+    "PUT /api/projects/{p}/autonomy",
+    "PUT /api/projects/{p}/agents/{name}",
+    "PUT /api/projects/{p}/categories/{id}"
+  ],
+  "env_vars": [
+    {"name": "OLLAMA_HOST", "read_in": "daedalus/env.py, providers/ollama.py, doctor.py, runtime_registry.py, semantic_route.py, eval/harness.py, ikarus_os.py, kairos/decompose.py", "purpose": "Base URL of the local Ollama server (free lane)."},
+    {"name": "OLLAMA_MODEL", "read_in": "daedalus/env.py, providers/ollama.py, doctor.py, runtime_registry.py, eval/harness.py, ikarus_os.py, kairos/decompose.py", "purpose": "Default local model for the offload lane."},
+    {"name": "OLLAMA_EMBED_MODEL", "read_in": "daedalus/env.py, memory/embeddings.py, semantic_route.py", "purpose": "Embedding model for latent projections and semantic routing."},
+    {"name": "OLLAMA_EMBED_MODEL_REVISION", "read_in": "daedalus/memory/__init__.py", "purpose": "Pins movable Ollama embed tags for EmbeddingSpec identity."},
+    {"name": "OLLAMA_NUM_CTX", "read_in": "daedalus/providers/_ollama_native.py", "purpose": "Context window override for native /api/chat calls."},
+    {"name": "OLLAMA_KEEP_ALIVE", "read_in": "daedalus/providers/ollama.py", "purpose": "Model keep-alive duration to avoid reload thrash."},
+    {"name": "DEEPSEEK_API_KEY", "read_in": "daedalus/env.py, providers/deepseek.py, doctor.py, ikarus_os.py", "purpose": "Enables the DeepSeek cheap-cloud lane."},
+    {"name": "DEEPSEEK_BASE_URL", "read_in": "daedalus/env.py, providers/deepseek.py, ikarus_os.py", "purpose": "DeepSeek endpoint override."},
+    {"name": "DEEPSEEK_MODEL", "read_in": "daedalus/env.py, providers/deepseek.py, ikarus_os.py", "purpose": "DeepSeek model selection."},
+    {"name": "ANTHROPIC_API_KEY", "read_in": "daedalus/env.py", "purpose": "Claude API credential presence for env status."},
+    {"name": "OPENAI_API_KEY", "read_in": "daedalus/env.py", "purpose": "OpenAI credential presence for env status / codex."},
+    {"name": "CODEX_MODEL", "read_in": "daedalus/providers/codex_cli.py, ikarus_os.py", "purpose": "Model passed to the Codex CLI lane."},
+    {"name": "OFFLOAD_SLICE_TOKENS", "read_in": "daedalus/offload.py", "purpose": "Token budget enabling distilled slice context on the local lane; default 0 = OFF (the dark slice->offload seam)."},
+    {"name": "DAEDALUS_VECTOR_INDEX", "read_in": "daedalus/memory/__init__.py", "purpose": "1 enables synchronous embedding on append_event (default off; P0 to replace with Projection Worker)."},
+    {"name": "DAEDALUS_WORKTREE_ROOT", "read_in": "daedalus/kairos/worktree.py", "purpose": "Root dir for isolation worktrees."},
+    {"name": "DAEDALUS_MIN_FREE_GIB", "read_in": "daedalus/storage.py", "purpose": "Fail-closed disk watermark."},
+    {"name": "DAEDALUS_CACHE_DIR", "read_in": "daedalus/structcore/cache.py", "purpose": "Location of the per-file sqlite analysis cache."},
+    {"name": "DAEDALUS_NO_CACHE", "read_in": "daedalus/structcore/cache.py", "purpose": "Disables the structcore cache."},
+    {"name": "DAEDALUS_IGNORE", "read_in": "daedalus/structcore/ignore.py", "purpose": "Extra structural ignore rules."},
+    {"name": "DAEDALUS_CENTER", "read_in": "daedalus/structcore/ignore.py", "purpose": "Center-naming override for repo focus."},
+    {"name": "DAEDALUS_SCAN_WORKERS", "read_in": "daedalus/structcore/index.py", "purpose": "Parallel scan worker count."},
+    {"name": "DAEDALUS_SCAN_MIN_PARALLEL", "read_in": "daedalus/structcore/index.py", "purpose": "Minimum file count before parallel scan kicks in."},
+    {"name": "DAEDALUS_WEB_DEBUG", "read_in": "daedalus/web_api.py", "purpose": "Verbose web server error output."},
+    {"name": "DAEDALUS_RTX_OLLAMA_HOST", "read_in": "daedalus/accelerators.py", "purpose": "Remote RTX Ollama endpoint (unconfigured; RTX machine offline)."},
+    {"name": "DAEDALUS_RTX_OLLAMA_TOKEN", "read_in": "daedalus/accelerators.py", "purpose": "Auth token for the remote RTX lane (always redact)."},
+    {"name": "DAEDALUS_RTX_TOKEN", "read_in": "daedalus/accelerators.py", "purpose": "Fallback name for the RTX token."},
+    {"name": "DAEDALUS_NVOF_SDK", "read_in": "daedalus/accelerators.py", "purpose": "Path to the NVIDIA Optical Flow SDK for that probe."}
+  ],
+  "islands": [
+    "daedalus/memstore.py (dmem/1 hash-chained certified memory ledger; tested, no caller)",
+    "daedalus/kairos/evolution.py (Best-of-N runner; also the explicit baseline; no CLI/API caller)",
+    "daedalus/kairos/shadow_shell.py (only consumed by the evolution island)",
+    "daedalus/semantic_route.py (embedding-based stage-1 routing; tested in test_cascade, unused in production)",
+    "daedalus/compaction.py (context compaction; tested, unimported)",
+    "daedalus/token_monitor.py (Claude usage checkpoint watcher; own main, no route)",
+    "daedalus/runbook.py (run scaffolding; only a trigger word in ikarus_chat)",
+    "daedalus/langgraph_adapter.py (optional LangGraph shim; unimported, untested)"
+  ],
+  "stale": [
+    "build/lib + build/bdist.win-amd64 + daedalus.egg-info (stale packaged copies of the source tree)",
+    "structcore-rs/ (Rust engine experiment; superseded per HANDOFF section 7)",
+    "daedalus/hermes/__pycache__ (source deleted, only .pyc remain; ADR 002 records the upstream decision)",
+    "pyproject.toml packages list still names daedalus.metron after the kairos rename (non-editable installs would miss the scheduler)",
+    "vscode-agent-env/mockup.html + wheel-mock.html (design mockups superseded by the shipped extension/web app)"
+  ]
+}

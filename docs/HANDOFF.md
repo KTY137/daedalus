@@ -1,3 +1,394 @@
+# Daedalus — Current Claude Handoff (2026-07-28)
+
+This section is authoritative for the next session. The older handoffs remain
+below as historical evidence; do not treat their old test counts, open items,
+or architecture claims as current.
+
+## 0. Executive state
+
+The session converted the Antigravity synthesis into an evidence-backed
+foundation and wrote the long-horizon plan for:
+
+- **Ikarus** — the user-facing, JARVIS-like assistant;
+- **Ariadne — the Daedalus Forest Evolution Engine** — the evolutionary search
+  subsystem;
+- **The Grove** — Ariadne's append-only Quality-Diversity archive;
+- **Kairos** — mission compilation and scheduling;
+- **Forge / Talos / Nemesis / Cerberus** — execution transactions, evaluator
+  packs, independent verification, and policy.
+
+`ForestEvolve` remains a useful descriptive CLI/protocol name. It is not a
+second product identity.
+
+Read these first:
+
+1. `docs/IKARUS_ARIADNE_MASTER_PLAN.md` — version 0.2, the dependency-gated
+   masterplan and definitions of done.
+2. `docs/FOUNDATION_AUDIT.md` — what survived the Antigravity audit and what was
+   removed as unsupported.
+3. `docs/LATENT_PROJECTION_INDEX.md` — exact Latent Index v2 contract and
+   migration behavior.
+4. `docs/adrs/009-ariadne-forest-evolution-engine.md` — naming and role
+   decision.
+5. `docs/bypasses.md` — known security gaps; proposed components are not
+   guarantees.
+
+Branch/working state:
+
+```text
+branch: checkpoint/2026-07-20-session
+HEAD:   f40529c
+state:  large, intentionally dirty, uncommitted working tree
+```
+
+Do not reset, checkout, bulk-format, or discard this tree. It contains the
+user's prior work plus the audited foundation. Split commits only after
+reviewing provenance and coherent scope.
+
+## 1. What is implemented now
+
+### 1.1 Knowledge Forest and DSS v0
+
+Relevant files:
+
+```text
+daedalus/structcore/forest.py
+daedalus/structcore/dss.py
+daedalus/context_plan.py
+tests/test_forest.py
+tests/test_dss.py
+tests/test_context_plan.py
+```
+
+The implemented object is a versioned multiplex forest/hypergraph, not a claim
+that software is literally an acyclic tree.
+
+DSS v0 provides:
+
+- deterministic repo/directory/file hierarchy;
+- restriction and branch-bounded prolongation;
+- independent import, co-change, exact-clone, near-clone, and rename channels;
+- clone hyperedges retained as hyperedges;
+- temporal carry only through stable IDs or explicit rename confidence;
+- measured file-token costs;
+- greedy token-budget packing;
+- content-addressed receipts.
+
+The hybrid planner adds path/symbol BM25 seeds plus optional, path-grounded
+latent memory seeds:
+
+```powershell
+python -m daedalus.cli context "<objective>" `
+  --repo-root <repo> --max-tokens 8000 --json
+
+GET /api/context/plan?project=<name>&q=<objective>&max_tokens=8000
+```
+
+The smoke run succeeded and produced a deterministic receipt. Known UX issue:
+the full JSON includes exhaustive relation-channel traces and can exceed
+30 kB. Add a concise default projection plus an explicit debug/evidence mode
+before feeding this directly into the UI.
+
+### 1.2 Lossless Agent Shell transport
+
+Relevant files:
+
+```text
+daedalus/adapters/events.py
+daedalus/adapters/transport.py
+daedalus/adapters/subprocess_adapter.py
+tests/test_adapters.py
+docs/adrs/008-universal-agent-adapter.md
+```
+
+Agent shells are translators/interfaces:
+
+```text
+native runtime input/output/tool event
+  -> lossless TransportRecord
+  -> optional text projection
+  -> optional versioned embedding projection
+```
+
+Claude and Codex one-shot profiles are tested. Generic runtimes are
+configurable. This is not hidden-state communication. Closed CLI text output
+must never be described as model latent state.
+
+### 1.3 Latent Projection Index v2
+
+Relevant files:
+
+```text
+daedalus/memory/embeddings.py
+daedalus/memory/__init__.py
+tests/test_embeddings.py
+docs/LATENT_PROJECTION_INDEX.md
+```
+
+Implemented:
+
+- current Ollama `POST /api/embed` batch contract;
+- injectable embedding backend;
+- immutable `EmbeddingSpec` identity over provider, model, optional
+  revision/digest, dimension, normalization, and projector version;
+- append-only projection tables;
+- v1 vectors quarantined instead of guessed/mixed;
+- strict finite/dimension/zero-vector validation;
+- exact project/trust/source filtering before scoring;
+- explicit `ready`, `partial`, `embedder_unavailable`,
+  `index_unavailable`, and invalid-response states;
+- memory bridge now preserves project, repo root, trust, source, task, status,
+  and explicit paths; path evidence is present in metadata and projection text;
+- optional `OLLAMA_EMBED_MODEL_REVISION` pins movable Ollama tags.
+
+Remaining P0: `append_event()` still performs embedding synchronously when
+`DAEDALUS_VECTOR_INDEX=1`. Build the journal-offset/content-hash Projection
+Worker from PR 2.5 in the masterplan; never make Ollama availability part of
+the operational append path.
+
+### 1.4 Accelerator capability contract
+
+Relevant files:
+
+```text
+daedalus/accelerators.py
+tests/test_accelerators.py
+```
+
+Surfaces:
+
+```powershell
+python -m daedalus.cli accelerators --json
+GET /api/accelerators/status
+```
+
+The local machine exposes an MX330 (compute capability 6.1, 2 GiB). A shallow
+probe does not claim CUDA readiness merely because a Python package imports.
+Remote RTX Ollama remains unconfigured:
+
+```text
+DAEDALUS_RTX_OLLAMA_HOST
+DAEDALUS_RTX_OLLAMA_TOKEN   # optional; always redact
+```
+
+Lane semantics are explicit:
+
+- CUDA tensor inference: unverified until an active kernel smoke passes;
+- cuVS/cuGraph/Warp/Newton: missing locally;
+- Optical Flow: image/UI temporal tasks only;
+- DLSS: unsupported as a general code/tensor backend;
+- Newton/PhysX: domain evaluators, never general code semantics.
+
+The user's large `D:` HDD is on the remote RTX machine, not this host. Design
+that worker as compute + content-addressed artifact storage:
+
+- RTX SSD/NVMe, if present: active scratch/workcells/index hot set;
+- RTX `D:` HDD: Grove artifacts, datasets, model cache, completed workcells,
+  and cold/warm archive;
+- local kernel: digests, metadata, small receipts;
+- missing remote volume must return `storage_unavailable`, never silently spill
+  to local `C:`.
+
+The next session needs the RTX worker's reachable endpoint, authentication
+method, and actual D:-capacity/free-space probe before wiring mutations or
+model downloads.
+
+### 1.5 Safety corrections made this session
+
+Two mathematically/security-false execution claims were closed:
+
+1. `core._codex_report` previously granted a direct forced-Codex
+   workspace-write while bypassing offload snapshot, verifier, rollback, and
+   worktree execution. Forced `--lane codex` is now advisory-only until Forge.
+2. Kairos previously called parallel writes “safe” when declared path strings
+   were disjoint, although a writer could touch undeclared files while
+   `isolate_paths` observed only declared paths. Writable attempts now run
+   sequentially with whole-repo attribution. Only advisory work may overlap.
+
+Do not overstate this fix. The system still has split execution worlds:
+
+- legacy offload/provider paths can mutate the primary checkout;
+- `_ask_claude_report` is not unified with adapters/worktrees;
+- auto-routed Codex/Ollama writes are not Forge transactions;
+- worktrees are not a host-security sandbox;
+- no durable Mission state machine exists.
+
+The next write-capable architecture must go through one `TaskAttempt` /
+`ExecutionTransaction` service. Do not re-enable forced Codex or parallel
+workspace writes as an interim shortcut.
+
+### 1.6 Evolution status
+
+`daedalus/kairos/evolution.py` remains a Best-of-N baseline:
+
+- launch N candidates;
+- run a fixed `pytest`;
+- reject failed candidates;
+- choose a green candidate.
+
+It is not evolution at AlphaEvolve level. There is no persistent candidate
+archive, lineage, parent/inspiration sampling, Quality-Diversity, frozen
+external evaluator bundle, repeated benchmark statistics, or promotion root of
+trust.
+
+Ariadne is specified, not implemented. “Better than AlphaEvolve” remains a
+falsifiable hypothesis requiring equal-budget, multi-seed held-out comparison.
+
+## 2. Removed or quarantined claims
+
+Do not restore these without an independent benchmark:
+
+- radial projection of Euclidean embeddings called Poincaré semantics;
+- weighted embedding averages called a code gradient;
+- spectral partitions called conflict-free schedules;
+- latent-vector interpolation treated as a decoder for discrete code patches;
+- DLSS treated as an arbitrary tensor/code interpolator;
+- PhysX collisions treated as merge conflicts;
+- graph-layout distance used as semantic ground truth;
+- candidate-authored tests used as sole correctness proof.
+
+Sparse spectral analysis remains read-only/scoped visualization with explicit
+limits. Hyperbolic geometry is allowed only as a separately trained,
+hierarchy-aware experiment with Euclidean/BM25/graph baselines.
+
+## 3. Validation evidence
+
+Final validation on 2026-07-28:
+
+```text
+python -m pytest -q
+  882 passed, 30 subtests passed in 143.34s
+
+focused new foundation set
+  67 passed in 11.43s
+
+python -m compileall -q daedalus
+  pass
+
+npm.cmd run build  (apps/web)
+  TypeScript pass
+  Vite production build pass
+  1,784 modules transformed in 4.58s
+
+python -m pip wheel . --no-deps --wheel-dir runs/validation_wheels
+  daedalus-0.1.0-py3-none-any.whl
+  365,780 bytes
+  SHA256 EE2EC874046DF7EBF3396741B1B0ED5CC24F8758D7A58D9B780807AF229200B6
+
+git diff --check
+  pass; only expected LF/CRLF warnings
+```
+
+Re-measured after the commit-hygiene pass that landed this foundation
+(2026-07-28, later the same day). The `882` above is kept as recorded: it was
+true when measured, before the native-Ollama layer added its tests.
+
+```text
+python -m pytest -q
+  908 passed, 30 subtests passed in 114.43s
+
+python -m compileall -q daedalus
+  pass
+```
+
+Provenance: [M] measured on this box against the post-hygiene HEAD. Not
+re-run in this pass: the npm build and the pip wheel — both regenerate
+artifacts (`apps/web/dist`, `runs/validation_wheels/`) that are now
+gitignored and deliberately kept out of history, so their numbers above are
+[INHERITED] from the run that produced them.
+
+The first full test attempt had three temporary-Git failures while C: had only
+0.57 GiB free. After the user cleared Downloads, C: reached ~14.36 GiB; the
+failed fixture passed 4/4 and the clean full run above passed. Treat this as
+evidence for the planned storage watermark, not a flaky test.
+
+The wheel is in `runs/validation_wheels/`. Frontend output is in
+`apps/web/dist/`. The optional `python -m build` package is not installed;
+`pip wheel` was used without changing the environment.
+
+## 4. Exact next sequence
+
+Do not add UI spectacle or new math names next. Follow the dependency gates:
+
+### A. Commit hygiene first
+
+1. Inspect the full dirty tree.
+2. Separate pre-existing/session work from the audited foundation.
+3. Run targeted tests per commit group.
+4. Never squash unrelated user work into a mystery “Ariadne” commit.
+
+### B. Movement 1 — Mission Spine
+
+Implement:
+
+```text
+daedalus/missions/spec.py
+daedalus/missions/state.py
+daedalus/missions/store.py
+daedalus/missions/events.py
+daedalus/missions/recovery.py
+```
+
+Start with canonical `MissionSpec`, validated budgets/scope/policy digest, a
+durable state machine, idempotency keys, leases/heartbeats, cancel/resume, and
+crash-replay tests.
+
+### C. Movement 2/4 — one mutation transaction
+
+Unify adapters, legacy providers, worktrees, and offload behind:
+
+```text
+Mission -> TaskAttempt -> ExecutionTransaction
+        -> TransportRecords + PatchArtifact
+        -> Talos/Nemesis receipts
+        -> explicit PromotionPacket
+```
+
+No provider may write the primary checkout before promotion. Compare actual
+patches for integration; declared path overlap is only a scheduling hint.
+
+### D. Projection Worker in parallel
+
+Consume the append-only journal by file identity, byte offset, and record hash.
+Retry independently, pin the Ollama model digest, retain full provenance, and
+make re-projection idempotent.
+
+### E. Then Grove + Ariadne Alpha
+
+Only after transactions and frozen evaluators:
+
+1. append-only `Experiment`, `Candidate`, `LineageEdge`, `InspirationEdge`,
+   `EvaluationRun`, and `SelectionDecision` schemas;
+2. record the current Best-of-N runner as an explicit baseline;
+3. external evaluator cascade with timeouts and protected tests;
+4. Parent/Novelty/Failure sampling;
+5. Pareto + MAP-Elites/island baselines;
+6. equal-budget, multi-seed ablations.
+
+### F. Remote RTX worker
+
+Register it through authenticated health/capability/storage receipts. First
+jobs should be Ollama embedding batches and reranking. Later candidates:
+cuVS ANN, cuGraph layout, Warp semantic kernels, and a custom TensorRT DSS
+residual. DLSS remains inspiration, not a backend.
+
+## 5. Stop conditions
+
+Pause and report instead of improvising when:
+
+- Forge/storage volume is unavailable;
+- a model revision/dimension does not match its projection index;
+- an evaluator/policy digest changes mid-experiment;
+- disk drops below the configured watermark;
+- a candidate requests evaluator, policy, hidden-test, or promotion writes;
+- remote GPU capability is import-only and lacks an active kernel smoke;
+- a “latent” feature has no named representation, adapter, baseline, and
+  fallback.
+
+---
+
+# Historical handoff (2026-07-20 onward; retained for provenance)
+
 # Daedalus — Session Handoff (2026-07-20, session 2)
 
 > Provenance tags: **[M]** measured this session, uncontended · **[I]** inherited from a
@@ -5,7 +396,116 @@
 > this section exists is that last session cited its own earlier numbers as fact — so every
 > number below says where it came from.
 
-## 0. Session 3 addendum (2026-07-21) — the Code Evolution foundation sprint — READ FIRST
+## 0. Session 4 addendum (2026-07-26) — slice→offload WIRED (dark) + the context-window repair — READ FIRST
+
+**STATE: ALL OF THIS IS UNCOMMITTED.** Working tree on `checkpoint/2026-07-20-session`
+(tip still `f40529c`): modified `daedalus/offload.py`, `daedalus/providers/ollama.py`,
+`daedalus/structcore/slice.py`, `tests/test_rewrite.py`, `tests/test_era1_robustness.py`;
+new `daedalus/providers/_ollama_native.py`, `tests/test_ollama_native.py`,
+`tests/test_offload_slice_context.py`, `tests/test_slice_include_focus.py`. The session was
+STOPPED BY KAYA mid-verification — see "gate status" below before touching anything.
+
+**The lever executed:** handoff item "(3) wire slice→offload (static-only)". It shipped —
+but the scoping measurement found something bigger first:
+
+**THE DISCOVERY THAT RESHAPED THE TASK [M, probe-verified twice with fresh unique
+prompts]: the local bench head-truncated an over-budget prompt at ~2050 tokens.** Ollama
+0.32.1's `/v1` OpenAI-compat shim ignores an `options` block entirely (measured:
+`usage.prompt_tokens` stays 2050 with its 4096 default ctx); truncation eats the HEAD, i.e.
+the system prompt with the report format and write rules dies first (proven by failed
+first-word recall). Every rewrite or fat agentic tool-read that overflowed that default has
+therefore been silently degraded since the bench was built — it plausibly explains part of
+the historic rewrite-truncation/elision skips. Momus forced the probe matrix BEFORE build
+(the A2 lesson, correctly applied): native `/api/chat` honors `options.num_ctx`, so the
+native switch was REQUIRED, not gold-plating.
+
+**CORRECTION [M, 2026-07-28]: the old “HALVING LAW” is refuted by measurement.** On the RTX
+bench at `num_ctx=16384`, fresh unique ~4k- and ~14k-token prompts produced
+`prompt_eval_count=3971` and `14375`, respectively, with first-word recall in both cases.
+Only an over-budget prompt fell to `8194` (`num_ctx/2`) and lost first-word recall; an
+over-budget prompt at `num_ctx=8192` likewise fell to `4098` and lost recall. The halving
+persisted after a fresh server with machine-wide `OLLAMA_NUM_PARALLEL=1`, so parallelism is
+not the cause. The usable input budget is the FULL `num_ctx` minus an explicit generation
+reserve. The ~`num_ctx/2` result is an over-budget truncation penalty that eats the head, not
+the normal request window. **Memory sizing remains measured and unchanged: num_ctx=16384
+needs a ~3.9GB runner buffer → loads on an idle box, OOMs mid-session; 8192 OOMs at 4.3GB
+free; 6144 loads under the same pressure (~20s cold). `DEFAULT_NUM_CTX=6144`**, with
+`OLLAMA_NUM_CTX` available to opt up on an idle box.
+
+**What shipped (Part A — context-window honesty, ollama lane only):**
+`providers/_ollama_native.py` (stdlib native `/api/chat` client; OpenAI-shaped message
+adapter — tool-call `arguments` re-serialized to JSON string, ids synthesized; a
+`_native_messages` normalizer converts our adapted history BACK to native shape for
+multi-round loops, or round 2 would 400). All FOUR ollama call sites switched (agentic loop
++ forced-final, rewrite, and the fallback-advisory 4th site Momus caught). Fail-loud window
+rules: agentic pre-flight refusal; mid-loop EVICTION to [system, first user, last tool
+result, report-now] before the forced final; rewrite reserves OUTPUT tokens
+(est(original)+margin) so generation can't overflow either. `warm_model` pins with the same
+num_ctx (one stable value — changing num_ctx reloads the model, ~15-45s).
+
+**What shipped (Part B — the wire, trusted lane only, DARK by default):**
+`offload._slice_context` builds gated `semantic_slice`s of the declared paths (≤3) ONLY
+inside the `decision.provider == "ollama"` branch — codex/deepseek can never receive slice
+text (the bootstrap's Cerberus invariant, kept). `lane="trusted"` (floor ON, default-deny
+OFF). `semantic_slice` gained additive `include_focus: bool = True`; rewrite-bound tasks get
+NEIGHBORHOOD-ONLY context (the prompt already carries the file body; the focus gate still
+runs FIRST on the full text and fail-closes identically — invariant proven by test #3 of
+`test_slice_include_focus.py`). Provenance never silent: every ollama live result carries
+`result["slice_context"]` (injected/reason/per-target status/withheld/trimmed/dropped).
+Fail-OPEN on build, fail-CLOSED on content. **Default `OFFLOAD_SLICE_TOKENS=0` = the wire
+ships dark** — the Momus landing-gate rule.
+
+**Live verification [M, this box, session lead ran these]:**
+- WINDOW: 2.6k-token prompt (above the old 2050 cap) through the new path → full recall of
+  the first word. The truncation regime is gone at the default window.
+- A/B (n=1, trivial task — directional only): both arms produced the correct
+  caller-compatible edit (`step=None` appended); arm B injected a 64-token neighborhood at
+  zero time cost. **No lift measurable → default stays OFF.** Flip condition: an op-test A/B
+  on tasks hard enough to differentiate (where neighborhood knowledge changes the edit).
+- BIG-FILE HONESTY [M at the time; threshold superseded 2026-07-28]: 12k-char rewrite
+  target → **0.4s loud skip** "file needs ~6426 tok but the local context window is ~3072
+  tok", escalated with reason, file untouched. The fail-loud behavior was correct, but the
+  ~3072 threshold came from the now-refuted halving diagnosis; current arithmetic uses the
+  full `num_ctx` minus a named generation reserve.
+
+**Gate status — READ BEFORE COMMITTING:** Momus design gate PASSED (GO-WITH-CHANGES, all
+adopted). Focused suites green [M]: 21 (`test_ollama_native`) + 8 (`test_offload_slice_context`)
++ 6 (`test_slice_include_focus`) + the 389-test ollama-touching set + the 80-test slice/eval
+set (incl. `test_eval`/`test_dctx` byte-identity through the default path). Two legacy test
+files were retargeted to the new seam (`test_rewrite.py`, `test_era1_robustness.py` — diffs
+reviewed by the session lead, intent preserved, the routing distinction now asserted from the
+request shape). **BUT the session was stopped mid-verification: the post-change FULL suite
+(Metron), the Nemesis live attack (esp. the native multi-round tool loop — the one thing the
+fake-server tests cannot prove, flagged by the build lane itself), and the Cerberus egress
+review were all KILLED before returning verdicts. This change is NOT gate-cleared. Do not
+commit until all three have run clean.** Also pending: the 2 `test_churn.py` fails from the
+baseline (git "not enough memory" while the 5GB model was RAM-resident — re-run with the
+model unloaded: `ollama stop qwen2.5-coder:7b` first), and the post-change eval numbers
+(pre-change baseline was byte-identical to session 3: 100%/79.3% primary, 86.2%/98.5%
+quarantine, gate PASS, ceiling 2.3%/14.0% no reopen).
+
+**Next steps, in order:** (1) rerun the three interrupted verdicts (Metron full gates with
+model unloaded; Nemesis per its brief — multi-round native tool loop live, warm/pin
+consistency, OOM honesty under env-16384, eviction live, `_slice_context` edge inputs;
+Cerberus per its brief), repair findings, THEN commit with provenance-tagged message.
+(2) Op-test A/B on a harder corpus → flip `OFFLOAD_SLICE_TOKENS` default only on measured
+lift. (3) Chat lane: `ikarus_os`'s ollama branch still rides `/v1` → still truncation-exposed
+AND causes reload thrash against the offload lane's 6144 runner (two window sizes, one
+server) — switch it to the native client (needs an NDJSON streaming variant for
+`chat_stream`). (4) The auto-mint seam (offload → `mint_task_from_landed_edit`) stays the
+next flywheel item, unchanged.
+
+**New gotchas (corrected [M] 2026-07-28):** `ollama ps` CONTEXT is the full request budget
+for an under-budget prompt; ~`num_ctx/2` is the head-eating penalty only after the prompt
+exceeds `num_ctx`, and `OLLAMA_NUM_PARALLEL` is not its cause. `prompt_eval_count` is
+polluted by KV-prefix caching — probe with fresh unique content or you measure the cache,
+not the window. Changing num_ctx reloads the model — pick ONE value per server. A
+RAM-resident 5GB model makes UNRELATED `git init` subprocesses fail
+("not enough memory") — unload before memory-sensitive test runs. cl100k over-counts qwen
+tokens (~4x on gibberish, direction safe for over-escalation); the code treats estimates as
+qwen-tokens with margin and documents the direction.
+
+## 0b. Session 3 addendum (2026-07-21) — the Code Evolution foundation sprint
 
 Phase 0/1 of the code-evolution thesis landed as ONE sprint, currently **uncommitted** on
 `checkpoint/2026-07-20-session`. Six workstreams: honest token denominator (tokenizer-exact,
