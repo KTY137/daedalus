@@ -171,6 +171,18 @@ def m_offload_writes(sb: Sandbox) -> None:
            "    if availability is None:")
 
 
+def m_enqueue_collides(sb: Sandbox) -> None:
+    """Restore the second-resolution filename, so two enqueues collide.
+
+    The real defect this seeds: a task queue that silently drops a task when
+    two arrive in the same second. Found by the acceptance run, not by any
+    unit test -- 1753 of them were green over it.
+    """
+    _patch(sb.repo / "daedalus" / "file_bridge.py",
+           "    if path.exists():",
+           "    if False:  # SEEDED DEFECT: colliding names overwrite silently")
+
+
 def m_break_map_snapshot(sb: Sandbox) -> None:
     """Corrupt the generated snapshot so the drift gate must object."""
     snap = sb.repo / "docs" / "architecture-state.json"
@@ -247,6 +259,8 @@ MUTATIONS = [
      "attempt memory is off, so the loop re-picks forever"),
     ("eval.replays_a_task_and_scores_it", m_eval_returns_no_score,
      "the replay stops producing a recall number"),
+    ("bridge.enqueue_watch_report_archive", m_enqueue_collides,
+     "two enqueues in one second overwrite, so a task is silently lost"),
     ("safety.remote_ollama_is_refused", m_allow_remote_ollama,
      "a remote endpoint is fed repository content"),
     ("safety.picker_cannot_apply", m_add_apply_flag,

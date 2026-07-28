@@ -629,6 +629,98 @@ def _web(sb: Sandbox) -> Result:
                 pass
 
 
+@check("bridge.enqueue_watch_report_archive", stage="6 bridge",
+       proves="a queued task is picked up by the REAL watcher, answered into "
+              "the inbox, and the request archived -- exactly once")
+def _file_bridge(sb: Sandbox) -> Result:
+    """The one loop in the product that is a loop: enqueue → watch → report →
+    archive.
+
+    Hermetic on purpose: the request uses ``strategy="configure"``, which
+    ``process_bridge_payload`` answers itself without routing to any model. That
+    keeps this a test of the BRIDGE -- the queue, the watcher, the report file,
+    the archive move -- instead of a test of whichever provider happened to be
+    reachable.
+
+    Also checks the property a queue must have and a smoke test would miss:
+    processing is EXACTLY ONCE. Two identical requests must produce two reports
+    and leave nothing in the outbox, and a second watcher pass must not
+    re-process what it already archived.
+    """
+    enq = sb.tmp / "bridge_enqueue.py"
+    enq.write_text(
+        "import json, os, sys\n"
+        "sys.path.insert(0, os.environ['ACC_REPO'])\n"
+        "from daedalus import file_bridge as fb\n"
+        "paths = []\n"
+        "for i in range(2):\n"
+        "    p = fb.enqueue('acceptance configure probe', os.environ['ACC_REPO'],\n"
+        "                   [], strategy='configure', source='acceptance')\n"
+        "    paths.append(p.name)\n"
+        "print(json.dumps({'queued': paths, 'outbox': str(fb.OUTBOX),\n"
+        "                  'inbox': str(fb.INBOX), 'archive': str(fb.ARCHIVE)}))\n",
+        encoding="utf-8")
+    rc, out = sb.py(str(enq), timeout=600, env={"ACC_REPO": str(sb.repo)})
+    info = _json_tail(out)
+    if info is None:
+        return Result("bridge.enqueue_watch_report_archive", FAIL,
+                      f"could not enqueue: {out[-300:]!r}", {"returncode": rc})
+
+    outbox, inbox, archive = (Path(info["outbox"]), Path(info["inbox"]),
+                              Path(info["archive"]))
+    queued = info["queued"]
+
+    proc = None
+    try:
+        proc = subprocess.Popen(
+            [PY, "-m", "daedalus.file_bridge", "watch", "--interval-s", "0.3",
+             "--repo-root", str(sb.repo)],
+            cwd=str(sb.repo), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding="utf-8", errors="replace",
+            env={**os.environ, **sb.env, "PYTHONIOENCODING": "utf-8"})
+        deadline = time.time() + 90
+        while time.time() < deadline:
+            if proc.poll() is not None:
+                break
+            done = [n for n in queued if (archive / n).exists()]
+            if len(done) == len(queued):
+                break
+            time.sleep(0.4)
+    except Exception as e:
+        return Result("bridge.enqueue_watch_report_archive", FAIL,
+                      f"the watcher could not start: {type(e).__name__}: {e}", {})
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=20)
+            except Exception:
+                pass
+
+    archived = sorted(p.name for p in archive.glob("*.json")) if archive.is_dir() else []
+    reports = sorted(p.name for p in inbox.glob("*.report.json")) if inbox.is_dir() else []
+    left = sorted(p.name for p in outbox.glob("*.json")) if outbox.is_dir() else []
+
+    problems = []
+    missing = [n for n in queued if n not in archived]
+    if missing:
+        problems.append(f"request(s) never archived: {missing}")
+    if left:
+        problems.append(f"outbox not drained: {left}")
+    expected_reports = {Path(n).stem + ".report.json" for n in queued}
+    absent = sorted(expected_reports - set(reports))
+    if absent:
+        problems.append(f"no report written for: {absent}")
+    # EXACTLY ONCE: two requests, two reports -- never one, never three.
+    if len(reports) != len(queued):
+        problems.append(f"{len(queued)} requests produced {len(reports)} reports")
+
+    return Result("bridge.enqueue_watch_report_archive",
+                  PASS if not problems else FAIL, "; ".join(problems),
+                  {"queued": len(queued), "archived": len(archived),
+                   "reports": len(reports), "outbox_left": left})
+
+
 # --------------------------------------------------------------------------- #
 # 7 -- safety                                                                  #
 # --------------------------------------------------------------------------- #

@@ -219,3 +219,52 @@ class CodexInlineBriefWarningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --------------------------------------------------------------------------- #
+# a queue that loses a task is not a queue                                     #
+# --------------------------------------------------------------------------- #
+def test_two_enqueues_in_the_same_second_do_not_overwrite(tmp_path, monkeypatch):
+    """The filename was `{second-resolution stamp}-{slug}.json`.
+
+    Two enqueues of the SAME objective inside one second produced the same
+    path, and the second silently overwrote the first: a task queue that drops
+    a task under load, with no error and nothing in any log. 1753 unit tests
+    were green over it; the end-to-end acceptance run found it by queueing two
+    requests and getting one report back.
+    """
+    from daedalus import file_bridge as fb
+
+    monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
+    # Freeze the clock so both calls land in the same second by construction,
+    # instead of hoping they do.
+    monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
+
+    first = fb.enqueue("identical objective", str(tmp_path), [])
+    second = fb.enqueue("identical objective", str(tmp_path), [])
+
+    assert first != second, "the second enqueue overwrote the first"
+    assert first.exists() and second.exists()
+    assert len(list((tmp_path / "outbox").glob("*.json"))) == 2
+
+
+def test_a_third_collision_also_gets_its_own_name(tmp_path, monkeypatch):
+    # The control for the suffix loop: one extra name is not enough if three
+    # tasks arrive together.
+    from daedalus import file_bridge as fb
+
+    monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
+    monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
+    paths = [fb.enqueue("same", str(tmp_path), []) for _ in range(3)]
+    assert len({p.name for p in paths}) == 3, [p.name for p in paths]
+
+
+def test_distinct_objectives_still_get_readable_names(tmp_path, monkeypatch):
+    # The timestamp+slug shape is for a human reading the directory; the fix
+    # must not turn every filename into an opaque id.
+    from daedalus import file_bridge as fb
+
+    monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
+    monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
+    p = fb.enqueue("wire the compaction module", str(tmp_path), [])
+    assert p.name.startswith("20260101T000000Z-wire-the-compaction-module")

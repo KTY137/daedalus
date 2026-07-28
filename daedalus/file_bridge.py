@@ -98,7 +98,22 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         print(f"WARNING: {warning}", file=sys.stderr)
     OUTBOX.mkdir(parents=True, exist_ok=True)
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
-    path = OUTBOX / f"{_stamp()}-{slug or 'task'}.json"
+    # A UNIQUE name, not a probably-unique one.
+    #
+    # This was `f"{_stamp()}-{slug}.json"`, and `_stamp()` has SECOND
+    # resolution: two enqueues of the same objective inside one second produced
+    # the same path and the second silently overwrote the first. A task queue
+    # that drops a task under load, with no error and nothing in any log --
+    # found by the acceptance run, which queued two requests and got one report.
+    # Timestamps are for humans reading the directory; uniqueness has to come
+    # from somewhere that cannot collide.
+    base = f"{_stamp()}-{slug or 'task'}"
+    path = OUTBOX / f"{base}.json"
+    if path.exists():
+        suffix = 1
+        while (OUTBOX / f"{base}-{suffix}.json").exists():
+            suffix += 1
+        path = OUTBOX / f"{base}-{suffix}.json"
     payload = {
         "objective": objective,
         "repo_root": repo_root,
