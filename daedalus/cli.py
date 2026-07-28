@@ -22,6 +22,9 @@
                                         plan budgeted hybrid DSS context
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
+    daedalus council "<question>" [--patch F] [--file P] [--rounds N] [--vendors a,b]
+                                        convene the cross-vendor council over a
+                                        patch/file; ADVISORY -- it promotes nothing
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
     daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
@@ -29,6 +32,11 @@
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
+    daedalus improve [--once] [--dry-run] [--limit N]
+                                        rank the repo's own work by measurement;
+                                        --once attempts the top item in an isolated
+                                        worktree and prints a patch for HUMAN review
+                                        (it never applies anything)
 """
 
 from __future__ import annotations
@@ -449,6 +457,167 @@ def _drafts(argv: list[str]) -> None:
         print("dismissed" if d else f"unknown draft '{args.id}'")
 
 
+def _council(argv: list[str]) -> None:
+    """Convene the cross-vendor council over a patch or a question.
+
+    Four independent vendors answer the SAME question over the SAME evidence:
+    round 1 blind, later rounds refuting. Every turn is appended to a
+    hash-chained, offline-verifiable transcript under runs/council/.
+
+    The output is ADVISORY and PROMOTES NOTHING. It carries no majority, no
+    score and no approve/reject field, by construction: a deterministic gate
+    (tests, fences, diffs) is the only thing that decides. What the council
+    produces is a queue of checks for that gate to run."""
+    import argparse
+    import json
+    from pathlib import Path
+    from .council import session as cs
+    from .council import vendors as cv
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus council",
+        description=(
+            "Ask N independent model vendors the same question over the same "
+            "evidence and record every dissent verbatim. ADVISORY: the verdict "
+            "promotes nothing -- the deterministic gate decides, not a model."))
+    # Optional only for --dry-run: a plan is about who would be seated and what
+    # would be sent, and asking for it must not require inventing a question.
+    parser.add_argument("question", nargs="?", default="",
+                        help="what the council is asked to examine")
+    parser.add_argument("--patch", help="unified diff file to review (the evidence)")
+    parser.add_argument("--file", action="append", default=[],
+                        help="evidence file to show the council (repeatable)")
+    parser.add_argument("--rounds", type=int, default=cs.DEFAULT_ROUNDS,
+                        help=f"deliberation rounds (default {cs.DEFAULT_ROUNDS}, "
+                             f"hard cap {cs.MAX_ROUNDS_CAP}); round 1 is always blind")
+    parser.add_argument("--vendors", default=",".join(cs.VENDOR_KEYS),
+                        help=f"comma-separated subset of {','.join(cs.VENDOR_KEYS)}")
+    parser.add_argument("--model", action="append", default=[], metavar="VENDOR=NAME",
+                        help="pin a vendor's model (repeatable)")
+    parser.add_argument("--trust", default="",
+                        help="comma-separated vendors the OPERATOR lifts off the "
+                             "untrusted allow-list for this council (recorded)")
+    parser.add_argument("--ollama-host", default=cv.DEFAULT_BENCH_OLLAMA_HOST)
+    parser.add_argument("--agy-signed-in", action="store_true",
+                        help="assert agy has completed its interactive sign-in")
+    parser.add_argument("--timeout", type=float, default=cs.DEFAULT_PER_CALL_TIMEOUT_S,
+                        help="per-vendor call cap in seconds")
+    parser.add_argument("--wall-clock", type=float, default=cs.DEFAULT_WALL_CLOCK_S,
+                        help="whole-council cap in seconds")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="print the plan and vendor availability; call NO model")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    if not args.question.strip():
+        if not args.dry_run:
+            parser.error("a question is required unless --dry-run is given")
+        args.question = "(no question given -- plan only)"
+
+    models: dict[str, str] = {}
+    for pair in args.model:
+        if "=" not in pair:
+            print(f"error: --model expects VENDOR=NAME, got '{pair}'")
+            return
+        vendor, name = pair.split("=", 1)
+        models[vendor.strip().lower()] = name.strip()
+    names = [v.strip() for v in args.vendors.split(",") if v.strip()]
+    try:
+        participants = cs.default_participants(
+            names, models=models, ollama_host=args.ollama_host,
+            agy_signed_in=args.agy_signed_in)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return
+
+    if args.patch:
+        text = Path(args.patch).read_text(encoding="utf-8", errors="replace")
+        paths = sorted({m for m in _diff_paths(text)})
+        evidence = cs.Evidence(label=f"patch:{Path(args.patch).name}",
+                               paths=tuple(paths),
+                               files=(("PATCH.diff", text),))
+    elif args.file:
+        evidence = cs.Evidence.from_files(args.file, label="files")
+    else:
+        evidence = cs.Evidence(label="question-only")
+
+    if args.dry_run:
+        plan = cs.dry_run_plan(
+            args.question, evidence, participants, rounds=args.rounds,
+            per_call_timeout_s=args.timeout, wall_clock_s=args.wall_clock)
+        seatable = cv.available_vendors(ollama_host=args.ollama_host,
+                                        agy_signed_in=args.agy_signed_in)
+        plan["availability"] = [
+            {"vendor": a.vendor, "available": a.available, "reason": a.reason,
+             "endpoint": a.endpoint, "lane": a.lane}
+            for a in seatable]
+        if args.json:
+            print(json.dumps(plan, indent=2, default=str))
+            return
+        print("COUNCIL PLAN (DRY RUN -- no model was called)")
+        print(f"  question : {args.question}")
+        print(f"  evidence : {plan['evidence']['label']}  "
+              f"{len(plan['evidence']['changed_paths'])} changed path(s), "
+              f"{plan['evidence']['evidence_tokens']} evidence tokens")
+        print(f"  rounds   : {len(plan['rounds'])} (round 1 blind), "
+              f"{plan['distinct_classes']} distinct weight family/families")
+        if plan["duplicate_classes"]:
+            print(f"  WARNING  : duplicate weight families -- "
+                  f"{', '.join(plan['duplicate_classes'])} (one opinion, twice)")
+        print(f"  bounds   : {args.timeout}s/call, {args.wall_clock}s total, "
+              f"<= {plan['bounds']['token_ceiling']} prompt tokens")
+        # The lane shown is the SEAT's lane, not the probe's guess: it decides
+        # whether the egress allow-list is on for that participant.
+        probe = {a.vendor: a for a in seatable}
+        print("\n  seat                                     lane        available")
+        print("  " + "-" * 68)
+        for p in plan["participants"]:
+            a = probe.get(p["vendor"])
+            state = "unprobed" if a is None else (
+                "yes" if a.available else f"no ({a.reason})")
+            print(f"  {p['actor'] + ' ' + p['endpoint']:<40} {p['lane']:<11} {state}")
+        print("\n  round assignments")
+        for r in plan["rounds"]:
+            who = ", ".join(f"{x['actor']}={x['role']}" for x in r["assignments"])
+            print(f"    r{r['round']} [{r['mode']}] {who}")
+        print("\nThe council's output is ADVISORY. It carries no majority and no "
+              "score, and\npromotes nothing: run the checks it emits through the "
+              "gate.")
+        return
+
+    # A vendor answer is arbitrary Unicode and a Windows console is cp1252; an
+    # UnicodeEncodeError here would discard a council that already ran and
+    # already cost four calls. The transcript on disk is UTF-8 regardless.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+    record = cs.convene(
+        args.question, evidence, participants, rounds=args.rounds,
+        per_call_timeout_s=args.timeout, wall_clock_s=args.wall_clock,
+        trusted_vendors=[v.strip() for v in args.trust.split(",") if v.strip()])
+    if args.json:
+        import dataclasses
+        print(json.dumps(dataclasses.asdict(record), indent=2, default=str))
+        return
+    print(record.render())
+
+
+def _diff_paths(diff_text: str) -> list[str]:
+    """Changed paths out of a unified diff -- the PATH channel of the secret
+    floor, which is the only tier that can see a patch ADDING a `.env`."""
+    import re
+    out: list[str] = []
+    for line in diff_text.splitlines():
+        m = re.match(r"^diff --git a/(.+?) b/(.+)$", line)
+        if m:
+            out.extend([m.group(1), m.group(2)])
+            continue
+        m = re.match(r"^(?:\+\+\+|---) [ab]/(.+?)(?:\t.*)?$", line)
+        if m and m.group(1) != "dev/null":
+            out.append(m.group(1))
+    return sorted(set(out))
+
+
 def _claude_crew(argv: list[str]) -> None:
     """List Claude Code subagents detected in a repo's .claude/agents/ -- the
     frontier crew, distinct from the harness roles Ikarus routes to."""
@@ -523,6 +692,8 @@ def main() -> None:
         _agents(rest)
     elif cmd == "categories":
         _categories(rest)
+    elif cmd == "council":
+        _council(rest)
     elif cmd == "claude-crew":
         _claude_crew(rest)
     elif cmd == "drafts":
@@ -535,6 +706,8 @@ def main() -> None:
         from .web_api import main as m; m(rest)
     elif cmd == "enforce":
         from .enforce import main as m; m()
+    elif cmd == "improve":
+        from .spine.picker import main as m; raise SystemExit(m(rest))
     elif cmd == "init":
         _init(rest)
     else:
