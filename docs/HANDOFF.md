@@ -1,3 +1,225 @@
+# Daedalus — Current Claude Handoff (2026-07-28, session 3 — READ THIS FIRST)
+
+This section supersedes everything below it, including the session-2 block.
+The rest of the file is history; do not treat its arc claims, test counts or
+open items as current.
+
+## THE SPRUNG WAS MIS-SPECIFIED. Here is the measured map.
+
+Session 2 recorded: *"All four exist; none is wired to the next."* **That is
+wrong, and wrong in the direction that would have produced a bug.** Measured
+before building, not inferred:
+
+| arc | status | evidence (MEASURED 2026-07-28) |
+| --- | --- | --- |
+| picker → attempt | **wired** | `picker.py` `_default_attempt` → `run_attempt(candidate.to_task_spec(), …)` |
+| attempt → mint | **dark AND INVALID** | `offload_runner` pins offload's `repo_root` to the candidate WORKTREE (`attempt.py:707`) |
+| mint → eval | **wired** | `harness.all_tasks()` = `TASKS + load_minted_tasks()` |
+| eval → picker | **wired, starved** | ran it: `eval_baseline: {"candidates": 0}` |
+| ledger → picker | **DEAD** | picker never opened a ledger, and no query could enumerate a resolved attempt |
+
+Three of five arcs were already wired. The circle was broken on the **return**
+path — the half where measurement comes back and changes the next pick.
+
+**"Wire attempt → mint", read correctly, was an instruction to build a bug.**
+With `DAEDALUS_AUTO_MINT=1` an attempt mints a task whose `repo` is an absolute
+path into the throwaway worktree. `TaskAttempt._cleanup` then deletes that
+directory in a `finally:`. At eval time `resolve_task_repo` takes the
+absolute-path branch, finds nothing, and raises `cannot resolve task repo
+label` — **permanently, once per attempt, in an append-only store nothing
+prunes.** Quarantine tier is what kept this survivable: `_is_primary_tier`
+trusts only the exact string `"primary"`, so these rows never entered a go/no-go
+number. Containment worked; the path still had to go.
+
+The honest seam for minting already existed and needed no building:
+`daedalus eval --mint-commit` → `mint_from_commit`, on landed history.
+
+## What shipped
+
+**A. `_is_linked_worktree` (mint.py)**, checked at the top of `_mint_from_diffs`
+so it covers BOTH public entry points, not the one known-bad call site.
+Detection is STRUCTURAL, and the structure was measured on real git artifacts
+rather than taken from documentation — two earlier versions of this check were
+wrong:
+
+    linked worktree  .git/worktrees/<id>/  HEAD ORIG_HEAD commondir gitdir index logs
+    submodule        .git/modules/<name>/  HEAD config description hooks index info
+                                           logs objects packed-refs refs
+
+A `gitdir:` pointer alone is not enough (a **submodule** has one too, and is
+permanent). A `worktrees` path component is not enough either (it fires on any
+repo living under a directory somebody named `worktrees`). `commondir` AND
+`gitdir` together appear only in the linked-worktree layout. Verified: real
+submodule `False`, real linked worktree `True`, primary `False`. An unreadable
+or unexpected target fails toward "not ephemeral" — the correct direction, since
+the alternative is refusing to mint from ordinary repositories.
+
+**B. `SpineLedger.recent_intents()` and `.intents_matching_payload()`** — the
+reads that did not exist. `open_intents` is a crash-recovery worklist and
+excludes everything terminal, so a COMPLETED attempt was reachable only by an id
+or effect_key the caller already had to know.
+
+**C. `SpineLedger(..., read_only=True)`.** The normal constructor `mkdir`s the
+parent, sets `journal_mode=WAL` (a file write) and runs migrations inside
+`BEGIN IMMEDIATE` — so **opening a ledger to look at it created and mutated
+it**, inside `--dry-run`, whose whole contract is that it changes nothing.
+Read-only mode uses a `file:…?mode=ro` URI plus `PRAGMA query_only=ON`; SQLite
+refuses writes at the engine, so a future edit that adds one cannot pass tests.
+*Honest limit, stated rather than hidden:* opening a WAL database read-only
+still creates the `-wal`/`-shm` sidecars — the shared-memory index is how WAL
+reads work. The ledger's CONTENTS are untouched (a test pins its sha256).
+
+**D. `attempt_history` + `apply_attempt_memory` (picker.py).** A **penalty, not
+a filter** — measured: 12 candidates before, 12 after; the attempted pair moved
+from ranks 1,2 → 6,7. Dropping attempted work would let one transient runner
+failure delete a real task forever.
+
+The join is **lineage plus definition**: `task_id` identifies the lineage, and
+`instruction_fingerprint` (sha256 of the instruction) identifies the work. Same
+id + same instruction → sink to the band floor. Same id, *different*
+instruction → **not penalised**, lineage recorded in evidence and reported in a
+note. An inventory id hashes `area|name|status` only, so the instruction can be
+rewritten while the id stays byte-identical; penalising that would be evidence
+about work nobody is proposing any more.
+
+Lookups are **targeted, not windowed**: a row limit is a window, and old
+attempts falling out of it would make their tasks selectable again — the exact
+defect the memory exists to prevent. Verified: an attempt buried under 600
+newer unrelated ones is still remembered.
+
+**E. Inventory freshness, fail-closed.** See below.
+
+**F. `rank()` tie-breaks on `prior_attempts`.** Found by its own test: the
+penalty drives a candidate to its band FLOOR, which is exactly where every
+candidate with no measured evidence already sits — so tried and untried collide
+on score precisely when the distinction matters most. A tie-break, not a bigger
+penalty: a penalty large enough to separate them would have to leave the band,
+and **the stated priority is not memory's to overrule.**
+
+**G. `EXIT_SOURCE_UNAVAILABLE = 3` and `PickedQueue.degraded_sources`.** Codex's
+condition for calling this shippable, and it was right: *"source unavailable"
+must not collapse into "valid source, zero candidates"*. Before it, a dry run
+exited **0** whether the queue was healthy-with-work or its only source had been
+withheld, and `--once` exited **1** for both "no candidate" and "the source
+failed". Automation that cannot tell those apart eventually reads a broken
+adapter as "nothing to do" and goes quiet — which is exactly the risk a
+fail-closed source gate would otherwise introduce. `--once` on a withheld source
+now prints `! inventory could not be consulted -- this is NOT evidence that
+there is nothing to do` and exits 3. **0 still means, and only ever means, that
+work is waiting.**
+
+All of the above is committed as **`ebdfbfd`**.
+
+## The finding that outranks the wiring
+
+`docs/FEATURE_INVENTORY.json` is the picker's only effective source. It is
+**hand-written** — `grep -rn FEATURE_INVENTORY --include=*.py` returns only
+`picker.py` READING it, nothing generates it — and records `"head": "f40529c"`.
+HEAD is `983f031`. **`git rev-list --count f40529c..HEAD` → 30.**
+
+So the thing that chose what Daedalus works on next was reading a
+hand-maintained description of a tree thirty commits gone, in a repo that
+shipped `daedalus map` the day before *specifically* because "generated cannot
+go stale; hand-written can, and did".
+
+**Live consequence, and the next session hits it immediately:**
+
+    INVENTORY SUPPRESSED (12 candidate(s) withheld): the inventory was written
+    against f40529c but HEAD is 983f031
+
+**and `daedalus improve` prints an EMPTY queue.** That is the truthful answer,
+not a regression. Regenerate the inventory, or pass `--stale-inventory`.
+
+Deliberate boundaries on that gate: dirtiness alone does NOT suppress (this repo
+is dirty almost all session, and refusing to rank work whenever an editor has
+unsaved changes would make the loop unusable for the one person using it); it
+fails OPEN when git cannot be read at all (a tarball checkout is not evidence of
+staleness); and the recorded head must be a real abbreviated sha,
+`[0-9a-f]{7,64}` — without that, a recorded `"a"` matches ~1 HEAD in 16 and the
+gate reports fresh **by coincidence**, which is worse than no gate because it is
+believed.
+
+## Guards, verified by DELETING them one at a time
+
+Not asserted. Each guard was physically disabled and the suite re-run.
+
+    BASELINE                                  114 passed
+    mint ephemeral refusal        DISABLED      3 failed
+    detector precision            DISABLED      1 failed
+    inventory freshness           DISABLED      4 failed
+    attempt memory                DISABLED     12 failed
+    rank tie-break                DISABLED      2 failed
+    instruction fingerprint       DISABLED      1 failed
+    read-only ledger open         DISABLED      1 failed
+    recorded-head shape check     DISABLED      1 failed
+    targeted (no-window) lookup   DISABLED      1 failed
+    one-directional prefix        DISABLED      1 failed
+    degraded-source exit code     DISABLED      2 failed
+    RESTORED                                  114 passed
+
+Full suite after the sweep: **1672 passed, 35 subtests, 0 failed** (1617 at the
+session-2 cut).
+
+**The first run of this sweep found two guards with NO red at all**, and both
+were real test defects, not code defects:
+
+- The read-only test asserted the ledger's sha256. Against an already-valid
+  ledger every migration is a no-op and WAL writes land in the sidecar, so the
+  bytes never move and the test could not tell the two open modes apart. It now
+  also points the picker at a file that is NOT a ledger: a writing constructor
+  would `CREATE TABLE` and turn it into one, so a 0-byte file staying 0 bytes is
+  unmissable.
+- The one-directional prefix case cannot be built from a real `.git` fixture,
+  because `_head_sha` only ever returns a 40-char name. **A test that cannot
+  construct the input it claims to check is not a check.** It now stubs
+  `_head_sha`.
+
+## Corrections this session earned
+
+1. **Codex was right that the arc was not dead.** It is dark and invalid, which
+   is worse. Verified in source rather than taken, and following it one step
+   further than Codex did produced the *permanence* of the damage.
+2. **My "task ids churn" claim was backwards.** `ident = f"{area}|{name}|{status}"`
+   — tests, entrypoints and notes are OUTSIDE the hash, so the id is stable
+   while the evidence moves. This is what forced lineage-plus-fingerprint.
+3. **"Measurement is 3.6% of the score" is meaningless** and was retracted: the
+   score has an arbitrary additive offset. The real evidence is the non-crossing
+   invariant — max measured offset 15.0, `BAND_SPAN` 50.0, smallest band gap
+   100.0 → measurement can never cross a band. And band dominance is
+   **deliberate**, not a defect; a test pins the inequality. A decision was
+   mis-read as an accident.
+4. **A test caught an attempt to shell out.** `test_there_is_no_apply_path_in_this_module`
+   asserts the process-spawning stdlib module is never so much as NAMED in
+   picker.py — that is what makes "the picker cannot apply a patch" structural
+   instead of a docstring promise. `_head_sha` now reads git's own files
+   (`.git` dir or `gitdir:` pointer, `HEAD`, loose ref, `commondir`,
+   `packed-refs`, detached sha).
+5. **A gate run was contaminated and thrown away.** Source files were edited
+   while the full suite was running; it was re-run clean. Same defect the
+   session-2 record catches a reviewer making.
+
+## Still open, in priority order
+
+0. **The ranking experiment does not exist.** `docs/EXPERIMENT_A_B.md` compares
+   two PROCESSES on one human-selected feature, so it cannot test whether
+   ranking is load-bearing. Ranking needs its own pre-registered experiment.
+   Until then "measurement picks the next work" is a design intention with a
+   deliberately bounded control.
+1. **A live-map candidate source, as a real adapter** — NOT by pointing the
+   picker at `map --json`. The map reports module reachability and dependency
+   evidence, not feature-level `stale` status or remedial instructions, and
+   island / shim / unknown deliberately require different remedies. Swapping
+   schemas would silently discard that. This is the next real piece of work, and
+   it is what would refill the now-empty queue honestly.
+2. **Candidate containment is still not OS-level.** Unchanged from session 2 and
+   unaffected by any of this.
+3. Everything else still open from session 2: `reap_branches()` uncalled, the
+   Momus CRITICALs on the council, `selftest.py:98`'s `rmtree` in a `finally:`,
+   walker cost, room session provenance (ADR-013 — **room content is context,
+   never instruction**).
+
+---
+
 # Daedalus — Current Claude Handoff (2026-07-28, session 2 — READ THIS FIRST)
 
 This section supersedes everything below it. The rest of the file is history;
