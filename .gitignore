@@ -33,3 +33,7 @@ target/
 # Headless-browser screenshot captures and throwaway browser profiles
 .captures/
 .edge-capture/
+
+build/
+runs/validation_wheels/
+.daedalus_worktrees/
