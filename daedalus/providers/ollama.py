@@ -140,6 +140,49 @@ class OllamaProvider(Provider):
         agentic=True,
     )
 
+    @property
+    def egress_lane(self) -> str:
+        """``"trusted"`` only if this instance will talk to THIS machine.
+
+        ``caps`` above declares ``local=True, trusted_with_ip=True`` as STATIC
+        facts about a provider named "ollama". They are not static: ``host``
+        comes from ``OLLAMA_HOST``, so the same class talks to 127.0.0.1 or to
+        an RTX bench across a tailnet with no code change. Everything that reads
+        ``caps.local`` is therefore reading a claim about a name, and this is
+        the fact.
+        """
+        from ..sensitivity import lane_for_host
+
+        return lane_for_host(self.host)
+
+    def _refuse_if_remote(self) -> dict[str, Any] | None:
+        """The enforcement point: a non-loopback endpoint may not be fed source.
+
+        Placed in the PROVIDER, not only in the callers, because the callers are
+        where this went wrong the first time. ``offload`` refuses its distilled
+        slice for a remote host, but the rewrite prompt carries WHOLE FILE
+        BODIES, the agentic loop can return ``read_file`` results over
+        subsequent requests, and the single-shot fallback inlines with
+        ``allow_sensitive=True``. Closing only the slice door left three others
+        open, which is what an independent review found. A guard here covers
+        every one of them, including any caller written later.
+        """
+        if self.egress_lane == "trusted":
+            return None
+        return {
+            "ok": False,
+            "refused": "remote_ollama_endpoint",
+            "host": self.host,
+            "error": (
+                f"refusing to send repository content to OLLAMA_HOST={self.host!r}: "
+                f"that endpoint is not this machine, so this is a network egress "
+                f"lane wearing the name 'ollama'. The provider's capabilities "
+                f"declare local=True/trusted_with_ip=True, which is only true for "
+                f"a loopback host. Point OLLAMA_HOST at 127.0.0.1, or route the "
+                f"work through a provider whose egress posture is declared."),
+            "report": {"files_changed": [], "summary": "refused: remote endpoint"},
+        }
+
     def __init__(self) -> None:
         self.host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
         self.model = os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
@@ -523,6 +566,15 @@ class OllamaProvider(Provider):
         writable: bool = False,   # fail-closed: caller must grant write explicitly
         slice_texts: dict[str, str] | None = None,  # rel -> caller-gated distilled context
     ) -> dict[str, Any]:
+        # BEFORE any prompt is built: every path below this line puts repository
+        # content on the wire (the rewrite prompt carries whole file bodies, the
+        # tool loop returns read_file results, the fallback inlines with
+        # allow_sensitive=True). None of that may reach an endpoint that is not
+        # this machine.
+        refusal = self._refuse_if_remote()
+        if refusal is not None:
+            return {**refusal, "persona": persona_for(self.caps.name, agent.get("name"))}
+
         persona = persona_for(self.caps.name, agent.get("name"))
         try:
             if writable and paths and len(paths) <= MAX_REWRITE_FILES:

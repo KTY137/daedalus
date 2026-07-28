@@ -4,6 +4,125 @@ This section supersedes everything below it, including the session-2 block.
 The rest of the file is history; do not treat its arc claims, test counts or
 open items as current.
 
+## A LIVE EGRESS BREACH, CLOSED — and the Momus CRITICALs re-audited
+
+**The breach.** `lane="trusted"` switches OFF the default-deny allow-list in
+`slice_egress_rule`, leaving only the secret floor. It was chosen from the
+PROVIDER NAME — *"ollama is local and trusted with IP, so lane='trusted'"* —
+while the client resolves its endpoint from an environment variable:
+
+```python
+# providers/ollama.py
+self.host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+```
+
+So `OLLAMA_HOST=http://100.119.126.9:11434` — the RTX bench, **off-machine over
+a tailnet** — kept the name "ollama", kept the lane "trusted", and converted a
+no-egress lane into a network one. Distilled source that the allow-list
+withholds from every external provider would have gone over the wire with only
+the secret floor applied. No code change, no flag, no log line. **A comment
+asserting locality was doing the security work.**
+
+**Closed by `sensitivity.lane_for_host(host)`**, which answers "where do the
+bytes actually go" and never "which provider is this". Loopback literals plus
+all of `127.0.0.0/8`; everything else untrusted; empty/unparseable/unknown fail
+CLOSED. `0.0.0.0` is deliberately not loopback — it is a bind address and
+promises nothing about who answers a connect.
+
+```
+OLLAMA_HOST=http://127.0.0.1:11434      -> trusted
+OLLAMA_HOST=http://100.119.126.9:11434  -> untrusted     (both were "trusted")
+```
+
+**TWO live call sites, not one.** The offload slice wire, and — found by
+grepping the class rather than stopping at the reported instance —
+`ikarus_os`'s LOCAL chat branches, which hardcoded the trusted lane next to an
+`OLLAMA_MODEL` lookup. The chat path is user-facing, so that one shipped
+distilled project context off-machine on every turn once the env var pointed
+away.
+
+The wire REFUSES rather than downgrades to `untrusted`: default-deny would still
+ship whatever survives the allow-list to a host somebody pointed an env var at,
+and this wire exists *because the destination was believed local*. A human
+decides what a remote bench may read.
+
+Guards, verified by disabling each: revert the wire → 2 red; make
+`lane_for_host` trust everything → 16 red. One ordering test exists because the
+bug was nearly re-shipped — the refusal must be evaluated BEFORE the budget
+check, or an operator with the wire enabled and a remote host gets the egress
+path while the refusal test still passes for the wrong reason (`budget=0` →
+nothing built → "no slice" looks like success).
+
+**Two safety predicates now disagree, and this is a finding, not a fix.**
+The council already derives its lane from the host (`session._is_local_http`,
+`vendors._LOCAL_HOSTS`), so this class was closed THERE and not in offload.
+Measured divergence against the new one:
+
+```
+http://[::1]:11434       sensitivity=trusted   council=untrusted
+http://127.5.5.5:11434   sensitivity=trusted   council=untrusted
+```
+
+Both cases have the council STRICTER, so it is imprecise rather than unsafe.
+Three implementations of "is this host local" is still one too many.
+**Deliberately NOT consolidated tonight:** collapsing them touches three council
+security call sites and would widen a boundary as a side effect of a refactor.
+It wants its own review.
+
+**The Momus CRITICALs, re-audited — and I got this wrong first, which is the
+point worth keeping.** I checked `daedalus/council/` and reported two of the
+three as already closed. They are — *in that module*. An independent review
+then pointed at `runs/council/room.py`, a SECOND implementation of the same
+council that never inherited the fixes. Verified in the source:
+
+| CRITICAL | `daedalus/council/` | `runs/council/room.py` |
+|---|---|---|
+| reviewers must not be write-capable | closed (`--sandbox read-only`, FORBIDDEN-flag list, pinned by a test) | flags are read-only, but they still start at `cwd=REPO_ROOT` (`:846`) |
+| agy-over-ssh must not put a prompt on a remote command line | closed (`agy -p -`, stdin, pinned by a test) | **LIVE RCE** (`:948`) |
+| `lane="trusted"` from the provider name | closed tonight (2 call sites) | **LIVE** (`:397`) — neighbourhoods built trusted, then sent to EXTERNAL speakers |
+
+The RCE, verbatim:
+
+```python
+cmd = f'agy -p "$(type {remote.replace("/", chr(92))})"'
+proc = subprocess.run(["ssh", BENCH_SSH, cmd], ...)
+```
+
+`$(...)` is command substitution performed by the REMOTE shell. The file it
+expands is the room prompt, which carries diffs. A patch containing backticks or
+`$(...)` — an ordinary shell script, a test log, a Python f-string — executes on
+the bench as Administrator, with no adversarial model required. This is the
+exact hazard `daedalus/council/vendors.py` documents at length and fixed by
+sending the prompt on stdin; `room.py` reimplements it.
+
+**The generalisable lesson, and it is about auditing, not about ssh: I searched
+the module I expected the bug to be in, found it fixed, and reported the class
+closed.** A fix that lives in one of two implementations is not a closed class.
+`runs/council/` is a parallel council that did not inherit any of the hardening,
+and nothing in the repo made that visible.
+
+**All three are now closed in `runs/council/room.py` too, and the RCE was in a
+THIRD copy as well.** `~/.claude/skills/room/room.py` — the portable skill, the
+one this session has been driving all night — carried the same
+`agy -p "$(type FILE)"`. I nearly reported it clean because my first grep used
+the project copy's variable name. Both now build a fixed argv and pass the
+prompt on **stdin**; the only remaining `$(type ...)` occurrences in either file
+are the comments explaining why.
+
+Room attachments now take the lane from the SPEAKER
+(`_speaker_lane(who, host)`), and ollama is judged by the endpoint it will
+actually dispatch to — `BENCH` by default, which is another machine. My first
+version of that predicate read `OLLAMA_HOST` and would have called bench traffic
+"trusted": the exact bug being fixed, reintroduced one module over, caught only
+because the predicate was exercised against the room's real default.
+
+**And the verification caught a hole in my own tests.** Reverting the
+`build_prompt` wiring changed nothing — 47 passed either way — because every
+test exercised `_attach(lane=...)` and `_speaker_lane()` *separately*. Both
+halves were perfect while the connection between them was untested. Fixed by a
+test that drives `build_prompt` end to end for an external speaker; the revert
+now goes red (2 tests). Same shape as a guard whose absence nothing detects.
+
 ## THE CIRCLE IS CLOSED, AND IT WAS RUN ON THIS REPO
 
 Not "the modules exist". Measured end to end on `agent_env` itself, in this

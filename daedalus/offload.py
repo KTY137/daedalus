@@ -173,6 +173,22 @@ def _slice_budget() -> int:
         return 0
 
 
+def _resolved_ollama_lane() -> tuple[str, str]:
+    """``(lane, host)`` for the Ollama endpoint that will ACTUALLY be called.
+
+    The lane is a fact about where bytes go, not about which provider name was
+    selected. See :func:`daedalus.sensitivity.lane_for_host` for the breach this
+    closes: ``OLLAMA_HOST`` is an environment variable, so "provider == ollama"
+    never implied "local", and treating it as though it did turned a no-egress
+    lane into a network one without changing a line of code.
+    """
+    from .providers.ollama import DEFAULT_HOST
+    from .sensitivity import lane_for_host
+
+    host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
+    return lane_for_host(host), host
+
+
 def _slice_context(repo_root: str, targets: list[str], pol,
                    include_focus: bool, budget: int) -> tuple[dict[str, str], dict]:
     """Gated distilled context for the LOCAL (trusted) lane -- the slice→offload
@@ -196,8 +212,22 @@ def _slice_context(repo_root: str, targets: list[str], pol,
     provider -- that invariant is enforced at the call site, which builds the
     slice exclusively inside the ollama branch.
     """
-    meta: dict = {"injected": False, "budget_tokens": budget, "targets": []}
+    lane, resolved_host = _resolved_ollama_lane()
+    meta: dict = {"injected": False, "budget_tokens": budget, "targets": [],
+                  "lane": lane, "resolved_host": resolved_host}
     texts: dict[str, str] = {}
+    if lane != "trusted":
+        # The endpoint is NOT this machine, so this is an egress lane wearing
+        # the name "ollama". Refused outright rather than downgraded: the
+        # untrusted lane's default-deny would still ship whatever survives the
+        # allow-list to a host the operator pointed an env var at, and this wire
+        # exists specifically because the destination was believed to be local.
+        # A human decides what a remote bench may read.
+        meta["reason"] = (
+            f"refused: OLLAMA_HOST resolves to {resolved_host!r}, which is not "
+            f"this machine, so the distilled-context wire would be a network "
+            f"egress lane rather than the local one it was built for")
+        return texts, meta
     if budget <= 0:
         meta["reason"] = f"disabled ({_SLICE_BUDGET_ENV}=0)"
         return texts, meta
@@ -215,7 +245,7 @@ def _slice_context(repo_root: str, targets: list[str], pol,
         for rel in targets:
             entry: dict = {"target": rel}
             try:
-                res = semantic_slice(repo_root, rel, idx=idx, lane="trusted",
+                res = semantic_slice(repo_root, rel, idx=idx, lane=lane,
                                      policy=pol, max_tokens=per_target,
                                      include_focus=include_focus)
             except ValueError:

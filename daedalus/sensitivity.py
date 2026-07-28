@@ -336,6 +336,70 @@ def secret_floor_rule(path: str, text: str = "") -> str | None:
     return None
 
 
+# Hosts that are the SAME MACHINE. "Local" in this project's security model
+# means "no bytes leave this host", so nothing else qualifies -- the RTX bench
+# at 100.119.126.9 is reached over a tailnet and is emphatically not local.
+_LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
+
+
+def lane_for_host(host: str | None) -> str:
+    """``"trusted"`` only if ``host`` is THIS machine; ``"untrusted"`` otherwise.
+
+    THE BUG THIS EXISTS TO PREVENT. ``lane="trusted"`` turns OFF the
+    default-deny allow-list in :func:`slice_egress_rule`, leaving only the
+    secret floor. That was previously chosen by PROVIDER NAME -- "ollama is
+    local, so trusted" -- while the Ollama client resolves its endpoint from
+    ``OLLAMA_HOST``, an environment variable
+    (``providers/ollama.py``: ``os.environ.get("OLLAMA_HOST", DEFAULT_HOST)``).
+    Exporting ``OLLAMA_HOST=http://100.119.126.9:11434`` therefore kept the name
+    "ollama", kept the lane "trusted", and silently converted a no-egress lane
+    into a network one: distilled source that the allow-list would have withheld
+    from any external provider goes over the wire with only the secret floor
+    applied. Nothing in the code said so, and no test noticed.
+
+    So the question this answers is never "which provider is this" but "where do
+    the bytes actually go".
+
+    FAILS CLOSED. An empty, unparseable, or unrecognised host is
+    ``"untrusted"`` -- if we cannot tell where the bytes go, they are treated as
+    leaving. ``0.0.0.0`` is deliberately NOT loopback: it is a bind address, and
+    as a connect target it is not a promise about this machine.
+
+    NUMERIC ONLY. ``localhost`` is NOT accepted. It was, on the reasoning that
+    refusing a name would push real setups into disabling the check — but the
+    shipped default is already numeric (``providers/ollama.py`` ``DEFAULT_HOST =
+    "http://127.0.0.1:11434"``), so the argument cost nothing to give up and the
+    name buys a DNS/hosts-file indirection this predicate cannot see. A name
+    that resolves to loopback when checked can resolve elsewhere when connected:
+    the same check-then-use shape that produced this repo's worktree CRITICALs,
+    with egress instead of deletion at the end of it. Refusing names removes the
+    window rather than narrowing it.
+    """
+    raw = (host or "").strip()
+    if not raw:
+        return "untrusted"
+    try:
+        from urllib.parse import urlsplit
+
+        # A bare "127.0.0.1:11434" has no scheme, and urlsplit would read the
+        # host as a path; give it one so hostname parsing works either way.
+        parsed = urlsplit(raw if "//" in raw else f"//{raw}")
+        name = (parsed.hostname or "").strip().lower()
+    except (ValueError, UnicodeError):
+        return "untrusted"
+    if not name:
+        return "untrusted"
+    if name in _LOOPBACK_LITERALS:
+        return "trusted"
+    # The whole 127.0.0.0/8 block is loopback, not just 127.0.0.1.
+    try:
+        import ipaddress
+
+        return "trusted" if ipaddress.ip_address(name).is_loopback else "untrusted"
+    except ValueError:
+        return "untrusted"
+
+
 def slice_egress_rule(
     path: str,
     text: str = "",

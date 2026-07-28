@@ -256,10 +256,17 @@ def _project_context(project: str, message: str, lane: str = "trusted") -> _Ctx:
     Returns ``_EMPTY_CTX`` (text="") — reproducing today's neutral, context-free
     behaviour — when there is no file token, when the filename is ambiguous (we
     won't guess which file to egress), or on any build hiccup. The caller picks
-    the lane: Claude and local Ollama are TRUSTED (``lane="trusted"`` -- floor
-    on, default-deny off, recall preserved); DeepSeek and Codex CLI are
-    EXTERNAL and NOT trusted with IP, so ``_llm()`` calls this with
-    ``lane="untrusted"`` for them (floor on, default-deny ALSO on)."""
+    the lane. Claude is TRUSTED (``lane="trusted"`` -- floor on, default-deny
+    off, recall preserved). DeepSeek and Codex CLI are EXTERNAL and NOT trusted
+    with IP, so ``_llm()`` calls this with ``lane="untrusted"`` (floor on,
+    default-deny ALSO on).
+
+    Ollama is trusted ONLY WHEN ITS RESOLVED HOST IS THIS MACHINE, which is why
+    the local branches call :func:`_local_lane` instead of naming a lane. This
+    sentence used to read "Claude and local Ollama are TRUSTED", and that word
+    "local" was doing security work no code performed: ``OLLAMA_HOST`` is an
+    environment variable, so pointing it at the RTX bench kept the trusted lane
+    while sending distilled source off-machine."""
     # Cheap guard: no path/file-shaped token -> no context, WITHOUT indexing the
     # repo. Keeps every non-file chat turn as fast and inert as before BOOTSTRAP.
     if not re.search(r"[\w./\\-]+\.\w+", message):
@@ -372,7 +379,7 @@ def _llm(provider: str | None, message: str, model: str | None = None,
         from .providers.ollama import DEFAULT_MODEL
 
         mdl = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane="trusted")
+        ctx = _project_context(project, message, lane=_local_lane())
         return _ollama(message, mdl, effort, ctx.text), mdl, ctx
     if p in _CLAUDE:
         ctx = _project_context(project, message, lane="trusted")
@@ -394,6 +401,24 @@ def _llm(provider: str | None, message: str, model: str | None = None,
         ctx = _project_context(project, message, lane="untrusted")
         return _codex(message, effort, mdl, ctx.text), (mdl or "codex"), ctx
     return None, None, _EMPTY_CTX  # gemini / api slots: not wired yet
+
+
+def _local_lane() -> str:
+    """The lane for the LOCAL branch, derived from the endpoint that will
+    actually be called -- never from the fact that the provider is named
+    "ollama".
+
+    ``_ollama``/``_ollama_stream`` resolve their host from ``OLLAMA_HOST``, an
+    environment variable. Hardcoding ``lane="trusted"`` here meant that pointing
+    that variable at the RTX bench silently turned this chat path's distilled
+    context into a NETWORK EGRESS lane: default-deny off, only the secret floor
+    left, source shipped off-machine, and nothing in the code or the transcript
+    saying so. See :func:`daedalus.sensitivity.lane_for_host`.
+    """
+    from .providers.ollama import DEFAULT_HOST
+    from .sensitivity import lane_for_host
+
+    return lane_for_host(os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
 
 
 def _ollama(message: str, model: str, effort: str | None,
@@ -571,7 +596,7 @@ def ask_stream(project: str, message: str, provider: str | None = None,
         from .providers.ollama import DEFAULT_MODEL
 
         model_used = model or os.environ.get("OLLAMA_MODEL", DEFAULT_MODEL)
-        ctx = _project_context(project, message, lane="trusted")
+        ctx = _project_context(project, message, lane=_local_lane())
         streamer = _ollama_stream(message, model_used, effort, ctx.text)
     elif p in _CLAUDE:
         model_used = model or "claude"
