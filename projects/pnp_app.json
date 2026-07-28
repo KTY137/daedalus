@@ -1,0 +1,42 @@
+{
+  "name": "pnp_app",
+  "repo_root": "C:\\Users\\nukei\\Desktop\\PnP_App",
+  "_center_comment": "GREENFIELD TEST GROUND. The app does not exist yet: as of baseline f894b3f the repo holds 1632 files of design corpus and zero application source. 'app' and 'src' are declared as the center in advance so the center is already correct the moment Daedalus writes the first file there; until then the center is legitimately empty and the index will be near-zero. design/visual-lab/src is the one existing React surface (React 19 + Vite, TypeScript and production build pass) and is included as the visual ancestor to read from, not as a build target. Everything else -- the 214 design docs, the 771-entry feature register, iterations/, research/, spikes/ -- is SHELL: readable context for planning, never a distillation or edit target.",
+  "center": [
+    "app",
+    "src",
+    "design/visual-lab/src"
+  ],
+  "_ignore_comment": "@tests is the built-in test-file preset. design/fixtures holds 1390 Eron corpus files (world text plus media) and is reference data, not source. iterations/ and research/ are the design lineage -- large, prose-heavy, and they would dominate every metric.",
+  "ignore": [
+    "@tests",
+    "design/fixtures/",
+    "design/iterations/",
+    "design/research/",
+    "design/screenshots/",
+    "claude_ttrpg_prompt_pack/"
+  ],
+  "default_branch": "master",
+  "test_command": "npm --prefix design/visual-lab run build",
+  "policy": {
+    "_comment": "No lab IP and no secrets here yet, but the Eron corpus under design/fixtures carries third-party terms on some uploaded images and map-tool exports (see STATUS.md), so it must never leave the machine in a slice. node_modules is ignored by git but denied here too, so a slice can never pull vendor source.",
+    "deny": [
+      ".env",
+      "design/fixtures/",
+      "node_modules/",
+      "dist/"
+    ],
+    "allow": [
+      "app/",
+      "src/",
+      "design/visual-lab/src/",
+      "design/00-intake.md",
+      "design/02-domain-model.md",
+      "design/05-visual-reset.md",
+      "design/06-giga-product-architecture.md",
+      "design/iterations/CHAMPION.md",
+      "STATUS.md",
+      ".md"
+    ]
+  }
+}
