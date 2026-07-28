@@ -264,7 +264,7 @@ class CodexLaneBridgeTests(unittest.TestCase):
         # no project policy loaded -> fail-closed: read-only sandbox
         self.assertFalse(run.call_args.kwargs["writable"])
 
-    def test_codex_lane_grants_write_with_policy_on_low_risk(self):
+    def test_codex_lane_remains_read_only_until_forge(self):
         out = {"provider": "codex_cli", "persona": "Riley", "agent": "ui-ux-dev",
                "report": VALID_REPORT}
         payload = self._payload(project="project_tct",
@@ -274,8 +274,9 @@ class CodexLaneBridgeTests(unittest.TestCase):
                 patch.object(CodexCLIProvider, "run", return_value=out) as run:
             report = core.process_bridge_payload(payload)
         self.assertEqual(report["bridge_status"], "done")
-        self.assertTrue(run.call_args.kwargs["writable"])
+        self.assertFalse(run.call_args.kwargs["writable"])
         self.assertIsNotNone(run.call_args.kwargs["policy"])
+        self.assertIn("advisory-only", report["mutation_blocked"])
 
     def test_codex_lane_refuses_denied_path_before_dispatch(self):
         payload = self._payload(project="project_tct",

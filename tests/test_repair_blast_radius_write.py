@@ -180,9 +180,10 @@ class CodexLaneFenceTests(unittest.TestCase):
         self.assertIs(fake.writable_seen, False)
 
     def test_declared_island_file_keeps_workspace_write(self):
-        # ALLOW half: an unconnected leaf still gets the write sandbox.
+        # The legacy forced lane no longer grants direct workspace writes;
+        # Forge will restore mutation through a verified worktree transaction.
         fake = self._run([_ISLAND])
-        self.assertIs(fake.writable_seen, True)
+        self.assertIs(fake.writable_seen, False)
 
 
 if __name__ == "__main__":

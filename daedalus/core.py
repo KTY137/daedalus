@@ -530,10 +530,10 @@ def review_diff(project: str, lane: str = "local_only") -> dict[str, Any]:
 
 
 def plan_ikarus(project: str, objective: str) -> dict[str, Any]:
-    from .ikarus import Ikarus
+    from .kairos.scheduler import KairosScheduler
 
     repo_root = resolve_repo_root(None, project)
-    plan = Ikarus(project=project).spawn(objective, repo_root, dry_run=True)
+    plan = KairosScheduler(project=project).spawn(objective, repo_root, dry_run=True)
     return envelope(project, plan=plan)
 
 
@@ -560,9 +560,9 @@ def _availability_from_doctor() -> dict[str, bool]:
 def _try_ikarus(payload: dict[str, Any]) -> dict[str, Any] | None:
     try:
         availability = _availability_from_doctor()
-        from .ikarus import Ikarus
+        from .kairos.scheduler import KairosScheduler
 
-        ikarus = Ikarus(availability=availability, project=payload.get("project"))
+        ikarus = KairosScheduler(availability=availability, project=payload.get("project"))
         if payload.get("strategy") == "spawn":
             results = ikarus.spawn(payload["objective"], payload["repo_root"], dry_run=False)
         else:
@@ -624,20 +624,24 @@ KNOWN_LANES = ("auto", "local", "local_only", "claude", "codex")
 
 
 def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
-    """Forced ``codex`` lane: dispatch straight to the Codex CLI provider.
+    """Forced ``codex`` lane: dispatch to Codex as a read-only translator.
 
     Like the forced ``claude`` lane there is NO fallback -- a failure is
     reported, not silently re-billed to another lane. Unlike Claude, codex is
     an EXTERNAL UNTRUSTED lane, so the egress policy is enforced twice:
     here, BEFORE dispatch (a denied path never reaches the provider), and
-    again inside the provider itself (defense in depth). Fail-closed grants:
-    with no project policy loaded, or a high change-risk task, codex runs in
-    its read-only sandbox (advisory) -- mirroring offload's refusal to let the
-    bench write unguarded."""
+    again inside the provider itself (defense in depth).
+
+    This legacy bridge used to grant workspace-write directly, bypassing
+    offload's before/after snapshot, verifier, rollback, and the newer
+    worktree path.  Until Forge supplies one transaction boundary for every
+    runtime, the forced lane is intentionally advisory-only.  Codex can still
+    translate, inspect, and propose a patch; it cannot mutate the primary
+    checkout through this split-brain seam."""
     from .config import resolve_project
     from .providers import get_provider
     from .router import route_task
-    from .sensitivity import change_risk, classify_data, load_policy
+    from .sensitivity import classify_data, load_policy
 
     try:
         pdata = resolve_project(payload.get("repo_root") or "", payload.get("project"))
@@ -656,21 +660,7 @@ def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
                     "error": "codex CLI is not on PATH (run `codex --version`)"}
         agent = route_task(payload["objective"], paths,
                            repo_root=payload.get("repo_root") or None)
-        writable = pol is not None and change_risk(payload["objective"], paths, pol) != "high"
-        # The forced codex lane never calls select_provider, so the routing
-        # blast-radius fence would otherwise never run on this write path -- a
-        # declared leaf that transitively feeds a fenced module would get a
-        # workspace-write sandbox with no trusted review. Consult the same
-        # reachability pre-check directly and drop codex to its read-only sandbox
-        # when the edit reaches a fenced module, mirroring what select_provider
-        # does for every other write path. Fail-closed: an unbuildable index
-        # escalates (writable -> False), never grants more rights.
-        if writable:
-            from .provider_router import _reachability_precheck
-            reach = _reachability_precheck(
-                paths, pol, payload.get("repo_root") or None, None)
-            if reach and reach.get("escalate"):
-                writable = False
+        writable = False
         out = provider.run(
             objective=payload["objective"], repo_root=payload["repo_root"],
             # 1500s to match the provider's own default (codex real-task budget
@@ -682,6 +672,10 @@ def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "request": payload, "bridge_status": "done", "lane": "codex",
             "agent": out.get("agent"), "persona": out.get("persona"),
+            "mutation_blocked": (
+                "forced codex is advisory-only until Forge provides a verified "
+                "worktree transaction"
+            ),
             "report": out["report"],
         }
     except Exception as exc:
@@ -690,11 +684,11 @@ def _codex_report(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def _configure_report(payload: dict[str, Any]) -> dict[str, Any]:
-    """strategy='configure': Ikarus mints/edits an agent role. Deterministic,
+    """strategy='configure': KairosScheduler mints/edits an agent role. Deterministic,
     local, and never spends -- independent of lane."""
-    from .ikarus import Ikarus
+    from .kairos.scheduler import KairosScheduler
     try:
-        result = Ikarus(project=payload.get("project")).configure(
+        result = KairosScheduler(project=payload.get("project")).configure(
             payload.get("role") or {}, payload.get("repo_root") or None,
             overwrite=bool(payload.get("overwrite")),
         )
