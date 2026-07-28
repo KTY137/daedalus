@@ -4,6 +4,41 @@ This section supersedes everything below it, including the session-2 block.
 The rest of the file is history; do not treat its arc claims, test counts or
 open items as current.
 
+## THE CIRCLE IS CLOSED, AND IT WAS RUN ON THIS REPO
+
+Not "the modules exist". Measured end to end on `agent_env` itself, in this
+order, with nothing mocked:
+
+```
+$ daedalus improve --once
+  picked   map-island-daedalus-compaction-py-269cb9   830.00  [map_island]
+  evidence classification=island, imported_only_by_tests=True,
+           measurement=docs/architecture-state.json (generated, digest-covered)
+  attempt  worktree created, intent #1 recorded BEFORE the effect
+  state    no_change (advisory runner -- no model was invoked)
+  cleanup  worktree removed: True
+  reaped   branch deleted; leaked attempt branches after: 0
+
+$ daedalus improve --dry-run          # the SAME command, immediately after
+  1. 830.00  map-island-daedalus-council-publish-py-ed442f     <-- moved on
+  ...
+  7. 800.00  map-island-daedalus-compaction-py-269cb9
+     "...; already attempted 1x with this exact instruction (last: no_change)"
+     prior_attempts=1, last_attempt_outcome=no_change, offset 30.00 -> 0.00
+  note: attempt memory: 1 candidate(s) sank to their band floor
+```
+
+**Rank 1 → rank 7 of 10, and still in the queue.** The loop picked work from
+generated evidence, recorded the attempt durably, cleaned up after itself
+including the ref, and then *chose something else*. That is "measurement picks
+the next work" actually happening rather than being asserted, and before this
+session the same command returned the same five candidates forever.
+
+What is still NOT true, and must not be claimed: the runner above was
+**advisory**, so no model wrote anything. The circle is proven for
+pick → attempt → record → reap → re-pick. It is not yet proven for a landed,
+promoted change, because promotion remains a human act by design.
+
 ## THE A/B RAN. Arm B did not earn its cost on this task.
 
 Full writeup: `docs/EXPERIMENT_A_B_RESULT.md`. Pre-registration §7's second
