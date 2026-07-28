@@ -167,3 +167,49 @@ class BootstrapPromptTest(unittest.TestCase):
         self.assertIn("daedalus.cli spawn", payload["prompt"])
         self.assertIn("Ollama", payload["prompt"])
         self.assertIn("outbox", payload["prompt"])
+
+
+class LatentSearchRouteTest(unittest.TestCase):
+    """Regression: the /api/latent/search route literal was once written with
+    backslashes ("\\api\\latent\\search") and could never match; GET dispatch
+    must reach the handler body instead of falling through to static serving."""
+
+    @staticmethod
+    def _get(path: str) -> dict:
+        from daedalus.web_api import DaedalusHandler
+
+        handler = object.__new__(DaedalusHandler)
+        handler.path = path
+        captured: dict = {}
+
+        def send_json(payload, status: int = 200) -> None:
+            captured["payload"] = payload
+            captured["status"] = status
+
+        handler._send_json = send_json
+        handler._send_static = lambda p: captured.setdefault("static", p)
+        handler._handle_get()
+        return captured
+
+    def test_latent_search_route_dispatches(self) -> None:
+        # No query string: the handler body answers 400 "q is required",
+        # which proves the route matched (an unmatched path serves static).
+        captured = self._get("/api/latent/search")
+        self.assertNotIn("static", captured)
+        self.assertEqual(captured["status"], 400)
+        self.assertEqual(captured["payload"]["error"], "q is required")
+
+    def test_all_route_literals_use_forward_slashes(self) -> None:
+        import inspect
+        import re
+
+        from daedalus import web_api
+
+        source = inspect.getsource(web_api)
+        routes = re.findall(r'path == "([^"]*)"', source)
+        self.assertTrue(routes, "expected route literals in web_api")
+        for route in routes:
+            self.assertTrue(
+                route.startswith("/") and "\\" not in route,
+                f"route literal is not a forward-slash path: {route!r}",
+            )

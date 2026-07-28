@@ -10,15 +10,29 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from . import agents_registry, categories, control_plane, core, drafts, hierarchy, ikarus_chat, runtime_registry
+from .kairos import drafts
+from . import (
+    accelerators,
+    agents_registry,
+    categories,
+    control_plane,
+    core,
+    hierarchy,
+    ikarus_chat,
+    runtime_registry,
+)
 from .bootstrap_prompt import claude_bootstrap_prompt
+from .context_plan import plan_context
 from .env import env_status, load_env
 from .projects import list_projects, resolve_repo_root
 from .file_bridge import stream_state
 from . import ikarus_os
 from .structcore.index import cached_index
+from .structcore.churn import co_change_pairs
 from .structcore.report import structure_summary
 from .structcore.slice import semantic_slice
+from .structcore.topology import spectral_partition
+from . import memory as memory_mod
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_DIST = ROOT / "apps" / "web" / "dist"
@@ -292,6 +306,20 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self._send_json(_provider_status())
         elif path == "/api/runtimes/status":
             self._send_json(core.envelope(None, **runtime_registry.all_status()))
+        elif path == "/api/accelerators/status":
+            deep = (qs.get("deep") or ["0"])[0] in ("1", "true", "yes")
+            probe_remote = (
+                (qs.get("probe_remote") or ["0"])[0] in ("1", "true", "yes")
+            )
+            self._send_json(
+                core.envelope(
+                    None,
+                    accelerators=accelerators.accelerator_status(
+                        deep=deep,
+                        probe_remote=probe_remote,
+                    ),
+                )
+            )
         elif path == "/api/env/status":
             self._send_json(core.envelope(None, env=env_status()))
         elif path == "/api/capabilities":
@@ -308,6 +336,124 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
             idx = _structure_index(project, refresh)
             self._send_json(core.envelope(project, structure=structure_summary(idx)))
+        elif path == "/api/topology":
+            project = (qs.get("project") or [None])[0]
+            if not project:
+                self._send_json({"ok": False, "error": "project is required"}, status=400)
+                return
+            repo_root = resolve_repo_root(None, project)
+            refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+            # Reuse the same center/ignore-scoped index as /api/structure.
+            topo = spectral_partition(repo_root, idx=_structure_index(project, refresh))
+            self._send_json(core.envelope(project, topology=topo))
+        elif path == "/api/context/plan":
+            project = (qs.get("project") or [None])[0]
+            objective = (qs.get("q") or [""])[0].strip()
+            if not project:
+                self._send_json(
+                    {"ok": False, "error": "project is required"},
+                    status=400,
+                )
+                return
+            if not objective:
+                self._send_json(
+                    {"ok": False, "error": "q is required"},
+                    status=400,
+                )
+                return
+            if len(objective) > 4000:
+                self._send_json(
+                    {"ok": False, "error": "q must be at most 4000 characters"},
+                    status=400,
+                )
+                return
+            try:
+                max_tokens = int((qs.get("max_tokens") or ["8000"])[0])
+            except ValueError:
+                self._send_json(
+                    {"ok": False, "error": "max_tokens must be an integer"},
+                    status=400,
+                )
+                return
+            if not 1 <= max_tokens <= 200_000:
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "max_tokens must be between 1 and 200000",
+                    },
+                    status=400,
+                )
+                return
+            refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+            use_latent = (qs.get("latent") or ["0"])[0] in ("1", "true", "yes")
+            use_cochange = (
+                (qs.get("cochange") or ["0"])[0] in ("1", "true", "yes")
+            )
+            repo_root = resolve_repo_root(None, project)
+            result = plan_context(
+                repo_root,
+                objective,
+                idx=_structure_index(project, refresh),
+                project=project,
+                token_budget=max_tokens,
+                use_latent=use_latent,
+                temporal_pairs=(
+                    co_change_pairs(repo_root) if use_cochange else ()
+                ),
+            )
+            self._send_json(
+                core.envelope(project, context_plan=result.to_dict())
+            )
+        elif path == "/api/latent/search":
+            query = (qs.get("q") or [""])[0].strip()
+            try:
+                limit = int((qs.get("limit") or ["5"])[0])
+            except ValueError:
+                self._send_json({"ok": False, "error": "limit must be an integer"}, status=400)
+                return
+            if not 1 <= limit <= 100:
+                self._send_json({"ok": False, "error": "limit must be between 1 and 100"}, status=400)
+                return
+            metric = (qs.get("metric") or ["cosine"])[0]
+            if not query:
+                self._send_json({"ok": False, "error": "q is required"}, status=400)
+                return
+            if len(query) > 2000:
+                self._send_json({"ok": False, "error": "q must be at most 2000 characters"}, status=400)
+                return
+            if metric != "cosine":
+                self._send_json(
+                    {"ok": False, "error": "only cosine search is supported"},
+                    status=400,
+                )
+                return
+            try:
+                from .memory import VECTOR_DB_PATH
+                from .memory.embeddings import EventVectorStore
+
+                store = EventVectorStore(VECTOR_DB_PATH)
+                try:
+                    results = store.search(query, limit=limit, metric=metric)
+                    hits = [
+                        {"event": ev.to_dict(), "score": round(score, 4)}
+                        for ev, score in results
+                    ]
+                finally:
+                    store.close()
+                self._send_json(core.envelope(None, results=hits, query=query))
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=500)
+        elif path == "/api/events/memory":
+            try:
+                limit = int((qs.get("limit") or ["50"])[0])
+            except ValueError:
+                self._send_json({"ok": False, "error": "limit must be an integer"}, status=400)
+                return
+            if not 1 <= limit <= 1000:
+                self._send_json({"ok": False, "error": "limit must be between 1 and 1000"}, status=400)
+                return
+            events = memory_mod.load_events()[-limit:]
+            self._send_json(core.envelope(None, events=events))
         elif path == "/api/drafts":
             rows = drafts.list_drafts()
             pending = [d for d in rows if d.get("status") == "pending"]

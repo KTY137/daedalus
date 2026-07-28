@@ -10,12 +10,16 @@
     daedalus status                     local bridge status
     daedalus dashboard --project NAME --json
     daedalus models --json
+    daedalus accelerators [--deep] [--probe-remote] --json
+                                        evidence-based local/RTX compute readiness
     daedalus squads --project NAME --json
     daedalus watcher status --project NAME --json
     daedalus review-diff --project NAME --lane local_only
     daedalus projects                   list registered projects
     daedalus dctx <repo> <target> [--out F] | dctx <repo> --verify F
                                         mint/verify a certified-context receipt
+    daedalus context "<objective>" [--project X|--repo-root R] [--latent] --json
+                                        plan budgeted hybrid DSS context
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
@@ -36,10 +40,10 @@ _USAGE = __doc__
 
 def _spawn(argv: list[str]) -> None:
     """Decompose one objective into subtasks and plan (default) or dispatch
-    (--live) them across the local bench via Ikarus."""
+    (--live) them across the local bench via Kairos."""
     import argparse
     import json
-    from .ikarus import Ikarus
+    from .kairos.scheduler import KairosScheduler
     from .projects import resolve_repo_root
 
     parser = argparse.ArgumentParser(
@@ -53,7 +57,7 @@ def _spawn(argv: list[str]) -> None:
     args = parser.parse_args(argv)
 
     repo_root = resolve_repo_root(args.repo_root, args.project)
-    ikarus = Ikarus(project=args.project)
+    ikarus = KairosScheduler(project=args.project)
     result = ikarus.spawn(args.objective, repo_root, dry_run=not args.live)
     print(json.dumps(result, indent=2, default=str))
 
@@ -120,6 +124,131 @@ def _projects(argv: list[str]) -> None:
         return
     for name in projects:
         print(name)
+
+
+def _accelerators(argv: list[str]) -> None:
+    import argparse
+    import json
+
+    from .accelerators import accelerator_status
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus accelerators",
+        description=(
+            "Report evidence-based CUDA/RTX backend readiness. "
+            "A visible GPU is not treated as a usable ML backend."
+        ),
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="import optional frameworks in an isolated process and verify CUDA readiness",
+    )
+    parser.add_argument(
+        "--probe-remote",
+        action="store_true",
+        help="probe DAEDALUS_RTX_OLLAMA_HOST /api/tags when configured",
+    )
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    payload = accelerator_status(deep=args.deep, probe_remote=args.probe_remote)
+    if args.json:
+        print(json.dumps(payload, indent=2, default=str))
+        return
+    hardware = payload["hardware"]
+    devices = hardware.get("devices") or []
+    if devices:
+        for device in devices:
+            print(
+                f"{device['name']}  cc {device['compute_capability']}  "
+                f"{device['memory_mib']} MiB  driver {device['driver_version']}"
+            )
+    else:
+        print(f"NVIDIA hardware unavailable: {hardware.get('error')}")
+    for lane in payload["lanes"]:
+        print(f"{lane['state']:<11} {lane['id']}: {lane['label']}")
+
+
+def _context(argv: list[str]) -> None:
+    import argparse
+    import json
+
+    from .context_plan import plan_context
+    from .projects import load_project, resolve_repo_root
+    from .structcore.churn import co_change_pairs
+    from .structcore.index import cached_index
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus context",
+        description=(
+            "Plan read-only, token-budgeted context with lexical/optional "
+            "versioned-latent seeds and deterministic DSS graph propagation."
+        ),
+    )
+    parser.add_argument("objective")
+    parser.add_argument("--repo-root")
+    parser.add_argument("--project")
+    parser.add_argument("--max-tokens", type=int, default=8_000)
+    parser.add_argument(
+        "--latent",
+        action="store_true",
+        help="add path-grounded hits from the versioned event projection index",
+    )
+    parser.add_argument("--embedding-host")
+    parser.add_argument("--embedding-model")
+    parser.add_argument(
+        "--cochange",
+        action="store_true",
+        help="derive bounded git co-change relations (runs a separate git-history pass)",
+    )
+    parser.add_argument("--refresh", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    repo_root = resolve_repo_root(args.repo_root, args.project)
+    center: list[str] = []
+    ignore: list[str] = []
+    if args.project:
+        project_data = load_project(args.project)
+        raw_center = project_data.get("center") or []
+        raw_ignore = project_data.get("ignore") or []
+        center = [raw_center] if isinstance(raw_center, str) else list(raw_center)
+        ignore = [raw_ignore] if isinstance(raw_ignore, str) else list(raw_ignore)
+    idx = cached_index(
+        repo_root,
+        refresh=args.refresh,
+        center=center,
+        ignore=ignore,
+    )
+    temporal_pairs = co_change_pairs(repo_root) if args.cochange else ()
+    options = {
+        "idx": idx,
+        "project": args.project,
+        "token_budget": args.max_tokens,
+        "use_latent": args.latent,
+        "temporal_pairs": temporal_pairs,
+    }
+    if args.embedding_host:
+        options["embedding_host"] = args.embedding_host
+    if args.embedding_model:
+        options["embedding_model"] = args.embedding_model
+    result = plan_context(repo_root, args.objective, **options)
+    payload = result.to_dict()
+    if args.json:
+        print(json.dumps(payload, indent=2, default=str))
+        return
+    plan = result.dss.context_plan
+    print(
+        f"DSS CONTEXT  {len(plan.selected)} selected / "
+        f"{plan.tokens_used}/{plan.token_budget} tokens"
+    )
+    print(f"receipt {result.receipt_sha256}")
+    for item in plan.selected:
+        why = ", ".join(item.reasons) or "ranked"
+        print(
+            f"{item.score:0.4f}  {item.estimated_tokens:>6}t  "
+            f"{item.node_id}  [{why}]"
+        )
 
 
 def _agents(argv: list[str]) -> None:
@@ -275,7 +404,7 @@ def _drafts(argv: list[str]) -> None:
     Claude action by design (a free model may propose, never merge)."""
     import argparse
     import json
-    from . import drafts as dr
+    from .kairos import drafts as dr
 
     parser = argparse.ArgumentParser(
         prog="daedalus drafts",
@@ -365,9 +494,11 @@ def main() -> None:
     elif cmd == "build":
         _build(rest)
     elif cmd == "ikarus":
-        from .ikarus import main as m; m()
+        from .kairos.scheduler import main as m; m()
     elif cmd == "dctx":
         from .dctx import main as m; m()
+    elif cmd == "context":
+        _context(rest)
     elif cmd == "metrics":
         from .metrics import main as m; m()
     elif cmd == "benchmark":
@@ -375,15 +506,17 @@ def main() -> None:
     elif cmd == "status":
         from .status import main as m; m()
     elif cmd == "dashboard":
-        from .mission_control import main_dashboard as m; m(rest)
+        from .kairos.control import main_dashboard as m; m(rest)
     elif cmd == "models":
-        from .mission_control import main_models as m; m(rest)
+        from .kairos.control import main_models as m; m(rest)
+    elif cmd == "accelerators":
+        _accelerators(rest)
     elif cmd == "squads":
-        from .mission_control import main_squads as m; m(rest)
+        from .kairos.control import main_squads as m; m(rest)
     elif cmd == "watcher":
-        from .mission_control import main_watcher as m; m(rest)
+        from .kairos.control import main_watcher as m; m(rest)
     elif cmd == "review-diff":
-        from .mission_control import main_review_diff as m; m(rest)
+        from .kairos.control import main_review_diff as m; m(rest)
     elif cmd == "projects":
         _projects(rest)
     elif cmd == "agents":
