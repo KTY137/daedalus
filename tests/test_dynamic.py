@@ -13,15 +13,15 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from daedalus import file_bridge
-from daedalus.decompose import decompose
-from daedalus.ikarus import Ikarus
+from daedalus.kairos.decompose import decompose
+from daedalus.kairos.scheduler import KairosScheduler
 
 
 class DecomposeFallbackTests(unittest.TestCase):
     """When the local model is unreachable, the deterministic split is used."""
 
     def test_multi_path_splits_one_subtask_per_path(self):
-        with patch("daedalus.decompose.server_reachable", return_value=False):
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=False):
             out = decompose("Tidy the modules", "/repo",
                             paths=["a.py", "b.py", "c.py"])
         self.assertEqual(len(out), 3)
@@ -29,13 +29,13 @@ class DecomposeFallbackTests(unittest.TestCase):
         self.assertTrue(all(s["objective"] == "Tidy the modules" for s in out))
 
     def test_single_path_is_one_passthrough_subtask(self):
-        with patch("daedalus.decompose.server_reachable", return_value=False):
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=False):
             out = decompose("Tidy one module", "/repo", paths=["only.py"])
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0], {"objective": "Tidy one module", "paths": ["only.py"]})
 
     def test_no_paths_still_returns_one_subtask(self):
-        with patch("daedalus.decompose.server_reachable", return_value=False):
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=False):
             out = decompose("Do the thing", "/repo")
         self.assertEqual(out, [{"objective": "Do the thing", "paths": []}])
 
@@ -48,8 +48,8 @@ class DecomposeModelTests(unittest.TestCase):
             {"objective": "Add docstrings to a", "paths": ["a.py"]},
             {"objective": "Refactor helper in b", "paths": ["b.py"]},
         ]})
-        with patch("daedalus.decompose.server_reachable", return_value=True), \
-                patch("daedalus.decompose.chat_completion", return_value=payload) as cc:
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=True), \
+                patch("daedalus.kairos.decompose.chat_completion", return_value=payload) as cc:
             out = decompose("Improve module", "/repo", paths=["a.py", "b.py"])
         cc.assert_called_once()  # went through the model, not the fallback
         self.assertEqual(len(out), 2)
@@ -62,14 +62,14 @@ class DecomposeModelTests(unittest.TestCase):
             {"objective": "s2", "paths": []},
             {"objective": "s3", "paths": []},
         ])
-        with patch("daedalus.decompose.server_reachable", return_value=True), \
-                patch("daedalus.decompose.chat_completion", return_value=payload):
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=True), \
+                patch("daedalus.kairos.decompose.chat_completion", return_value=payload):
             out = decompose("Split me", "/repo", max_subtasks=2)
         self.assertEqual(len(out), 2)  # truncated to max_subtasks
 
     def test_garbage_response_falls_back(self):
-        with patch("daedalus.decompose.server_reachable", return_value=True), \
-                patch("daedalus.decompose.chat_completion", return_value="not json at all"):
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=True), \
+                patch("daedalus.kairos.decompose.chat_completion", return_value="not json at all"):
             out = decompose("Fallback please", "/repo", paths=["x.py", "y.py"])
         self.assertEqual(len(out), 2)  # deterministic per-path split
 
@@ -77,8 +77,8 @@ class DecomposeModelTests(unittest.TestCase):
 class IkarusSpawnTests(unittest.TestCase):
     def test_spawn_dry_run_returns_a_plan(self):
         # Offline: no model -> deterministic subtask; plan() never touches network.
-        with patch("daedalus.decompose.server_reachable", return_value=False):
-            plan = Ikarus().spawn("Draft docstrings for the gui panel", "/repo", dry_run=True)
+        with patch("daedalus.kairos.decompose.server_reachable", return_value=False):
+            plan = KairosScheduler().spawn("Draft docstrings for the gui panel", "/repo", dry_run=True)
         self.assertIsInstance(plan, dict)
         for key in ("assignments", "spawned", "bounced_to_adam", "waves"):
             self.assertIn(key, plan)
@@ -168,7 +168,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
                     patch("daedalus.doctor.check", return_value=doctor_ready), \
-                    patch("daedalus.ikarus.route_and_select",
+                    patch("daedalus.kairos.scheduler.route_and_select",
                           return_value=({"name": "ui-ux-dev"}, decision)), \
                     patch("daedalus.offload.offload", return_value=offload_result) as off, \
                     patch("daedalus.core.ask_claude",
@@ -198,7 +198,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
                     patch("daedalus.doctor.check", return_value=doctor_ready), \
-                    patch("daedalus.ikarus.route_and_select",
+                    patch("daedalus.kairos.scheduler.route_and_select",
                           return_value=({"name": "hardware-dev"}, decision)), \
                     patch("daedalus.offload.offload",
                           side_effect=AssertionError("offload must not run for a senior-lane route")) as off, \
@@ -221,7 +221,7 @@ class BridgeLaneRoutingTests(unittest.TestCase):
                     patch.object(file_bridge, "ARCHIVE", tmp / "archive"), \
                     patch.object(file_bridge, "record_from_bridge_report", lambda r: None), \
                     patch("daedalus.doctor.check", return_value=doctor_ready), \
-                    patch("daedalus.ikarus.route_and_select",
+                    patch("daedalus.kairos.scheduler.route_and_select",
                           return_value=({"name": "hardware-dev"}, decision)), \
                     patch("daedalus.offload.offload",
                           side_effect=AssertionError("offload must not run for a senior-lane route")) as off, \

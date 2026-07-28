@@ -15,6 +15,7 @@ dependencies = []
 
 [project.optional-dependencies]
 yaml = ["pyyaml>=6"]   # enables YAML config verification in the verifier gate
+math = ["numpy", "scipy", "networkx"] # optional structural graph analysis
 
 [project.scripts]
 daedalus = "daedalus.cli:main"
@@ -30,6 +31,9 @@ daedalus = "daedalus.cli:main"
 # locally because every install here is editable.
 packages = [
     "daedalus",
+    "daedalus.adapters",
+    "daedalus.memory",
+    "daedalus.kairos",
     "daedalus.providers",
     "daedalus.structcore",
     "daedalus.eval",

@@ -3,7 +3,7 @@ import unittest
 
 from daedalus import agents_registry as reg
 from daedalus import router, core
-from daedalus.ikarus import Ikarus
+from daedalus.kairos.scheduler import KairosScheduler
 
 
 class AgentsRegistryTests(unittest.TestCase):
@@ -66,7 +66,7 @@ class AgentsRegistryTests(unittest.TestCase):
         self.assertFalse(role["external_ok"])
 
     def test_ikarus_configure_creates_then_updates(self):
-        ik = Ikarus()
+        ik = KairosScheduler()
         self.assertEqual(ik.configure(self._spec(), self.repo)["action"], "created")
         r2 = ik.configure({"name": "security-reviewer", "model_tier": "haiku"}, self.repo)
         self.assertEqual(r2["action"], "updated")

@@ -18,7 +18,8 @@ from unittest.mock import patch
 from daedalus.config import TOOL_INSTRUCTION_TEMPLATES, init_repo
 from daedalus.enforce import BEGIN, END, enforce_repo
 from daedalus.file_bridge import _read_request
-from daedalus import core, mission_control
+from daedalus import core
+from daedalus.kairos import control as mission_control
 from daedalus.providers import list_providers, provider_health
 
 ROOT = Path(__file__).resolve().parents[1]

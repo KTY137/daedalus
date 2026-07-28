@@ -11,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from daedalus import drafts, metrics
+from daedalus import metrics
+from daedalus.kairos import drafts
 from daedalus.offload import offload
 
 _AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}

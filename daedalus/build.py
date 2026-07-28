@@ -1,7 +1,7 @@
 """Build-session abstraction -- the coordination layer that turns ONE feature
 objective into a multi-wave build plan the crew can execute.
 
-Where :func:`daedalus.ikarus.Ikarus.spawn` plans a single objective across the
+Where :func:`daedalus.kairos.scheduler.Ikarus.spawn` plans a single objective across the
 *local* bench, a **build session** is the frontier-first counterpart: it owns
 one feature across several bounded **waves**, tracks who owns each subtask, and
 routes implementation to a frontier builder (Claude) while sending only routine
@@ -10,10 +10,10 @@ work (docs/tests) to the local Ollama bench.
 This module is deterministic and additive. It reuses the existing seams and
 invents no new ones:
 
-  * :func:`daedalus.decompose.decompose`  -- feature -> scoped subtasks.
+  * :func:`daedalus.kairos.decompose.decompose`  -- feature -> scoped subtasks.
   * :func:`daedalus.router.route_task`    -- subtask -> owning agent.
   * :func:`daedalus.categories.preset_for` -- owning agent -> {lane, tier}.
-  * :class:`daedalus.ikarus.Ikarus`       -- wave sizing (``max_workers``) and
+  * :class:`daedalus.kairos.scheduler.Ikarus`       -- wave sizing (``max_workers``) and
     the project's ``active_agents``.
 
 **Frontier-first topology.** The category preset's ``lane`` decides the builder:
@@ -34,8 +34,8 @@ from pathlib import Path
 from typing import Any
 
 from .categories import preset_for
-from .decompose import decompose
-from .ikarus import Ikarus
+from .kairos.decompose import decompose
+from .kairos.scheduler import KairosScheduler
 from .router import route_task
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -231,7 +231,7 @@ def plan_build(
     # Reuse Ikarus purely for its wave sizing + active_agents resolution: with
     # a project it loads the team's max_workers/active_agents; without one it
     # keeps the safe defaults. No spawning happens.
-    foreman = Ikarus(project=project)
+    foreman = KairosScheduler(project=project)
     max_workers = foreman.max_workers
     active_agents = foreman.active_agents
 

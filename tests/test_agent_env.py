@@ -5,8 +5,8 @@ from daedalus.claude_bridge import _blocked_report_from_wrapper, _extract_json, 
 from daedalus.file_bridge import _read_request
 from daedalus.fallback import fallback_decision
 from daedalus.memory import MemoryEvent
-from daedalus.orchestrate import _infer_paths
-from daedalus.ikarus import Ikarus
+from daedalus.kairos.orchestrate import _infer_paths
+from daedalus.kairos.scheduler import KairosScheduler
 from daedalus.projects import list_projects, load_project, resolve_repo_root
 from daedalus.router import route_task
 from daedalus.status import _count_open_todos
@@ -124,7 +124,7 @@ class DaedalusTests(unittest.TestCase):
             "policy": {},
         }
         with patch("daedalus.projects.load_project", return_value=project_data):
-            ikarus = Ikarus(project="demo")
+            ikarus = KairosScheduler(project="demo")
         self.assertEqual(ikarus.max_workers, 5)
         self.assertEqual(ikarus.active_agents, ["docs-dev"])
 

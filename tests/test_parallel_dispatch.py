@@ -1,10 +1,8 @@
-"""Era-3 #2: SAFE opt-in parallel dispatch (Theseus' napkin).
+"""Parallel dispatch remains read-only until Forge workcells exist.
 
-Concurrency on one repo is only safe if each task attributes ONLY its own
-declared paths (isolate_paths) and no two concurrent write-tasks share a path.
-These tests pin: disjoint tasks run in parallel with correct per-task
-attribution; overlapping write-tasks fall back to sequential with a note; the
-whole-repo cross-attribution bug does NOT reappear.
+Declared paths are routing hints, not an enforceable write boundary.  These
+tests pin the conservative contract: writable tasks run sequentially with
+whole-repo attribution even when their hints are disjoint.
 """
 
 import json
@@ -16,7 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 from daedalus import metrics
-from daedalus.ikarus import Ikarus, _paths_overlap
+from daedalus.kairos.scheduler import KairosScheduler, _paths_overlap
 from daedalus.offload import offload
 
 _AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False}
@@ -60,13 +58,13 @@ class ParallelDispatchTests(unittest.TestCase):
         self.assertFalse(_paths_overlap([A("write", ["src/a.py"]), A("write", ["src/b.py"])]))
         self.assertFalse(_paths_overlap([A("advisory", ["src/a.py"]), A("advisory", ["src/a.py"])]))
 
-    def test_disjoint_tasks_run_in_parallel_with_correct_attribution(self):
+    def test_disjoint_write_tasks_stay_sequential_with_correct_attribution(self):
         repo = _make_repo(self._tmp.name, [_agent("alpha", "src/a.py"), _agent("beta", "src/b.py")])
         tasks = [{"objective": "Fix the greeting string in the helper", "paths": ["src/a.py"]},
                  {"objective": "Fix the greeting string in the helper", "paths": ["src/b.py"]}]
 
         _PathAwareWorker.reset()
-        ik = Ikarus(max_workers=4, availability=_AVAIL,
+        ik = KairosScheduler(max_workers=4, availability=_AVAIL,
                     active_agents=["alpha", "beta"])
         with mock.patch("daedalus.providers.get_provider",
                         side_effect=lambda n: _PathAwareWorker(repo)):
@@ -78,10 +76,8 @@ class ParallelDispatchTests(unittest.TestCase):
             self.assertEqual(r["status"], "offloaded", r)
             # per-task attribution: each wrote EXACTLY its own path, not the sibling's
             self.assertEqual(r["wrote"], r["paths"], f"cross-attribution: {r}")
-        # DETERMINISTIC proof of real concurrency: both workers were inside run()
-        # at the same instant (not wall-time, which is weather-dependent).
-        self.assertGreaterEqual(_PathAwareWorker.max_concurrent, 2,
-                                "tasks did not actually overlap")
+        self.assertEqual(_PathAwareWorker.max_concurrent, 1)
+        self.assertTrue(any(r.get("status") == "note" for r in rows))
 
     def test_overlapping_write_tasks_fall_back_to_sequential(self):
         repo = _make_repo(self._tmp.name, [_agent("alpha", "src/a.py")])
@@ -89,10 +85,10 @@ class ParallelDispatchTests(unittest.TestCase):
                  {"objective": "Fix the greeting string in the helper", "paths": ["src/a.py"]}]
         with mock.patch("daedalus.providers.get_provider",
                         side_effect=lambda n: _PathAwareWorker(repo)):
-            rows = ik = Ikarus(max_workers=4, availability=_AVAIL, active_agents=["alpha"]) \
+            rows = ik = KairosScheduler(max_workers=4, availability=_AVAIL, active_agents=["alpha"]) \
                 .dispatch(repo, tasks, dry_run=False, parallel=True)
         self.assertTrue(any(r.get("status") == "note" for r in rows),
-                        "expected a 'ran sequentially' note on path conflict")
+                        "expected a 'ran sequentially' note for writable work")
 
 
 class _PathAwareWorker:
