@@ -53,7 +53,7 @@ defer judgment, force cross-domain collisions.
 - **Talos** (test) — suspicious of green; hates weather-dependent tests.
 - **Theseus** (orchestration) — over-caffeinated coordinator; calls out "fake parallel."
 - **Pythia** (providers) — dreamy researcher; wants bigger/second models, real numbers.
-- **Icarus** (extension) — jittery; holding two UIs; fears drift.
+- **Perdix** (extension) — jittery; holding two UIs; fears drift.
 - **Clio** (docs) — the calm one; wants a human to survive the README.
 - **Iris** (design) — late, sketches on napkins; wants the UI to *breathe*.
 

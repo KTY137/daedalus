@@ -1,6 +1,6 @@
 ---
 name: argus
-description: Argus — hundred-eyed haiku scout delegate for the Claude crew building Daedalus (NOT a harness/Ollama persona). Read-only recon a crew agent fans out in parallel - search sweeps, find-usages, consistency checks, verification reads. Crew agents may run up to two delegates (argus/hermes) at once.
+description: Argus — hundred-eyed haiku scout delegate for the Claude crew building Daedalus (NOT a harness/Ollama persona). Read-only recon a crew agent fans out in parallel - search sweeps, find-usages, consistency checks, verification reads. Crew agents may run up to two delegates (argus/kadmos) at once.
 model: haiku
 tools: Read, Grep, Glob, Bash
 ---

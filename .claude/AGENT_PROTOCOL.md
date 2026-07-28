@@ -48,13 +48,13 @@ is the point.
 | agent | beat |
 |---|---|
 | **argus** | scout — "where is X?", sweeps, find-usages, verification reads. Use instead of an inline grep sweep. |
-| **hermes** | scribe — mechanical, precisely-specified writes: boilerplate, repeated edits, renames, fixtures. |
+| **kadmos** | scribe — mechanical, precisely-specified writes: boilerplate, repeated edits, renames, fixtures. |
 | **mnemosyne** | chronicler — updates HANDOFF/docs/status in the *same beat* as a structural change, and stamps provenance on every number. |
 | **metron** | sentinel — pre-runs the full gate suite before any review or commit and reports raw output. Refuses to time anything under load. |
 
 ### Tier 1 — implementation (sonnet)
 
-`core-dev` (Daedalus, harness core) · `extension-dev` (Icarus, VS Code surface) ·
+`core-dev` (Daedalus, harness core) · `extension-dev` (Perdix, VS Code surface) ·
 `test-dev` (Talos, the suite) · `docs-dev` (Clio) · `provider-researcher` (Pythia)
 
 ### Tier 2 — judgment (opus)
