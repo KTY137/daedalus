@@ -1,0 +1,1020 @@
+"""spine/attempt.py -- TaskAttempt: produce a candidate change, never in the primary checkout.
+
+ONE way to attempt a task. The loop ("Daedalus writes Daedalus") needs exactly
+one seam between "we decided to try this" and "here is a patch a human may
+promote", and that seam must be crash-safe and incapable of touching the
+developer's working tree. This module is that seam.
+
+    storage -> intent -> worktree -> runner -> patch -> gates -> resolve -> cleanup
+
+Each arrow is a place the process can die; the intent is committed to the spine
+ledger BEFORE the first external effect, so a crash can never leave a worktree
+or a branch the ledger has no record of intending. The ``effect_key`` is the
+candidate BRANCH NAME -- a token you can go and look for afterwards
+(``git branch --list <effect_key>``), which is what actually closes the crash
+window (see :mod:`daedalus.spine.ledger`).
+
+WHY THIS CAN NOT WRITE THE PRIMARY CHECKOUT
+-------------------------------------------
+Not a convention, not a review rule -- three structural properties:
+
+1. ONE git choke point. Every git invocation in this module goes through
+   :func:`_git`, which raises :class:`PrimaryCheckoutWrite` if the working
+   directory OVERLAPS the primary checkout IN EITHER DIRECTION -- it is the
+   checkout, is under it, or CONTAINS it -- and the verb is not in
+   :data:`READ_ONLY_REPO_VERBS`. Overlap is decided by file IDENTITY as well as
+   by path text, because ``Path.resolve()`` does not canonicalise DOS-device or
+   UNC admin-share spellings and a text-only guard was measured allowing
+   ``git add -A`` to stage files in the checkout through them (see
+   :func:`_overlap_reason`). The guard runs BEFORE ``subprocess`` is
+   reached, so a mutating command aimed at the repo never executes. Mutating
+   git (``add``) is only ever run with ``cwd`` set to the worktree, which lives
+   outside the repo by construction (``GitWorktreeManager`` places worktrees
+   under ``%LOCALAPPDATA%``).
+2. THE RUNNER IS NEVER TOLD WHERE THE REPO IS. :class:`RunnerContext` -- the
+   only thing handed to injected runner/gate callables -- carries the worktree
+   path and nothing else path-shaped. There is deliberately no ``repo_root``
+   field to reach for.
+3. THERE IS NO APPLY PATH. The deliverable is :class:`PatchArtifact`: inert
+   bytes. This module defines no function that applies a patch, checks out a
+   ref, resets, merges, or commits to the primary checkout, and
+   :data:`READ_ONLY_REPO_VERBS` makes adding one fail loudly rather than
+   quietly work. Promotion is a separate, human-invoked act, and that is the
+   whole point: an unvalidated metric must never gate autonomy.
+
+What this DOES write in the primary repo's ``.git``: a branch ref and a
+worktree registration, created by ``git worktree add -b`` via
+``GitWorktreeManager``. That is how the effect becomes findable after a crash.
+HEAD does not move, no tracked file changes, and ``git status --porcelain``
+stays byte-identical -- which the test suite asserts after every scenario.
+
+FAILURE IS A STATE, NOT AN EXCEPTION
+------------------------------------
+:meth:`TaskAttempt.run` returns an :class:`AttemptResult` in every case. The
+states:
+
+``storage_unavailable``  the watermark refused before anything was recorded or
+                         created (fail closed; never spill onto another volume)
+``worktree_failed``      no isolated checkout could be produced, or the patch
+                         could not be captured out of one
+``runner_failed``        the injected runner raised
+``no_change``            the runner finished but changed nothing
+``gates_failed``         a patch exists and the gates rejected it
+``clean``                a patch exists and the gates passed
+``cancelled``            the cancel token fired at a checkpoint
+
+``no_change`` and ``cancelled`` are additions to the five states the brief
+named. ``cancelled`` is required by the cancellation contract. ``no_change``
+exists because gates run against an UNMODIFIED tree are a vacuous pass: without
+this state a runner that did nothing returns ``clean``, which is exactly the
+kind of unearned green this project forbids. Gates are skipped in that state --
+there is nothing to judge.
+
+LEDGER RESOLUTION
+-----------------
+The recorded intent is "produce a candidate patch", so it is COMPLETED whenever
+an artifact exists -- including ``gates_failed``, because a rejected candidate
+is a successfully produced candidate, and the gate verdict is a judgement ABOUT
+the effect, not the effect. ``effect_id`` is the patch digest. Intents are
+marked FAILED only when no artifact was produced at all.
+"""
+from __future__ import annotations
+
+import hashlib
+import os
+import re
+# NOT `import shutil`. This module has no recursive delete of its own any more:
+# the only one it had (the gate's scratch directory) goes through
+# `remove_tree_no_follow` below. Keeping the import out means re-introducing
+# `shutil.rmtree` costs a visible line in the diff rather than passing as an
+# ordinary use of something already imported.
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Callable, Mapping, Sequence
+
+from daedalus.kairos.worktree import GitWorktreeManager, remove_tree_no_follow
+from daedalus.spine.ledger import SpineLedger, canonical_json
+from daedalus.storage import StorageUnavailable, require_storage
+
+__all__ = [
+    "ATTEMPT_STATES",
+    "AttemptResult",
+    "GateResult",
+    "GitCommandError",
+    "INTENT_KIND",
+    "PatchArtifact",
+    "PrimaryCheckoutWrite",
+    "READ_ONLY_REPO_VERBS",
+    "RunnerContext",
+    "STATE_CANCELLED",
+    "STATE_CLEAN",
+    "STATE_GATES_FAILED",
+    "STATE_NO_CHANGE",
+    "STATE_RUNNER_FAILED",
+    "STATE_STORAGE_UNAVAILABLE",
+    "STATE_WORKTREE_FAILED",
+    "TaskAttempt",
+    "TaskSpec",
+    "offload_runner",
+    "pytest_gate",
+    "pytest_gate_argv",
+    "run_attempt",
+]
+
+ROOT = Path(__file__).resolve().parents[2]
+
+INTENT_KIND = "attempt.candidate"
+
+STATE_CLEAN = "clean"
+STATE_GATES_FAILED = "gates_failed"
+STATE_NO_CHANGE = "no_change"
+STATE_RUNNER_FAILED = "runner_failed"
+STATE_WORKTREE_FAILED = "worktree_failed"
+STATE_STORAGE_UNAVAILABLE = "storage_unavailable"
+STATE_CANCELLED = "cancelled"
+
+ATTEMPT_STATES = (
+    STATE_CLEAN,
+    STATE_GATES_FAILED,
+    STATE_NO_CHANGE,
+    STATE_RUNNER_FAILED,
+    STATE_WORKTREE_FAILED,
+    STATE_STORAGE_UNAVAILABLE,
+    STATE_CANCELLED,
+)
+
+# The only git verbs this module may aim at the primary checkout. Every one of
+# them reports; none of them writes. Adding a verb here is the single place a
+# reviewer has to look to know whether the no-write property still holds.
+READ_ONLY_REPO_VERBS = frozenset({
+    "rev-parse", "status", "diff", "log", "show", "cat-file", "ls-files",
+    "config",
+})
+
+# Gate output is retained in full on GateResult. Only the ledger copy is
+# trimmed -- an unbounded pytest log inside a SQLite row would grow the ledger
+# without making any decision better; the digest keeps the trimmed copy honest.
+GATE_OUTPUT_TAIL_CHARS = 4000
+
+DEFAULT_GATE_TIMEOUT_S = 900.0
+DEFAULT_GIT_TIMEOUT_S = 120.0
+BRANCH_PREFIX = "daedalus-attempt"
+
+
+class PrimaryCheckoutWrite(RuntimeError):
+    """A mutating git command was aimed at the primary checkout.
+
+    This is a bug in this module, never a runtime condition, so it is a raised
+    error rather than a result state -- silently degrading it would defeat the
+    guard.
+    """
+
+
+class GitCommandError(RuntimeError):
+    """A git command run by this module exited non-zero."""
+
+
+# --------------------------------------------------------------------------- #
+# helpers                                                                      #
+# --------------------------------------------------------------------------- #
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+
+
+def _slug(text: str, limit: int = 32) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-")[:limit].strip("-")
+    return slug or "task"
+
+
+def _jsonable(value: Any) -> Any:
+    """Coerce to something :func:`canonical_json` accepts.
+
+    A caller's metadata must never be able to abort an attempt: an
+    unserialisable value is degraded to its repr rather than raising out of the
+    ledger write, which would strand the attempt between intent and effect.
+    """
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Mapping):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [_jsonable(v) for v in value]
+    return repr(value)
+
+
+def _existing_ancestor(path: Path) -> Path:
+    """The nearest existing directory at or above ``path``.
+
+    ``shutil.disk_usage`` raises on a missing path, so checking the worktree
+    root directly would report ``storage_unavailable`` on a first run purely
+    because the directory has not been created yet. Walking up asks the
+    question that was actually meant: does the VOLUME have room -- and it asks
+    it without creating anything, so the storage check stays side-effect free.
+    """
+    p = Path(path)
+    while not p.exists():
+        if p.parent == p:
+            break
+        p = p.parent
+    return p
+
+
+def _as_predicate(cancel: Any) -> Callable[[], bool]:
+    """Normalise a cancel token to a zero-arg predicate.
+
+    Accepts ``None``, a callable, or anything with ``is_set()`` (so a
+    ``threading.Event`` works unwrapped). A token that raises is treated as
+    "not cancelled": a broken token must not be able to abort work it was only
+    supposed to observe.
+    """
+    if cancel is None:
+        return lambda: False
+    if callable(cancel):
+        def _call() -> bool:
+            try:
+                return bool(cancel())
+            except Exception:
+                return False
+        return _call
+    is_set = getattr(cancel, "is_set", None)
+    if callable(is_set):
+        def _event() -> bool:
+            try:
+                return bool(is_set())
+            except Exception:
+                return False
+        return _event
+    raise TypeError("cancel must be None, a callable, or expose is_set()")
+
+
+def _identity(path: Path) -> tuple | None:
+    """``(volume, file-index)`` for ``path``, or ``None`` if it cannot be read.
+
+    The comparison key for "are these two names the same directory?".
+    ``Path.resolve()`` is NOT that key: it canonicalises neither DOS-device
+    (``\\\\?\\C:\\x``, ``\\\\?\\UNC\\host\\share\\x``) nor UNC admin-share
+    (``\\\\localhost\\C$\\x``, ``\\\\127.0.0.1\\C$\\x``) spellings into the
+    drive-letter form. Measured: four such spellings of the primary checkout
+    compared UNEQUAL under ``resolve()`` and EQUAL under ``st_dev``/``st_ino``.
+
+    ``os.stat`` follows reparse points on purpose here -- the question is which
+    directory a name lands on, and a junction that lands on the checkout is
+    exactly as dangerous as the checkout's own name.
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    return (st.st_dev, st.st_ino)
+
+
+def _overlap_reason(cwd_path: Path, repo_path: Path) -> str | None:
+    """Why ``cwd_path`` touches the primary checkout, or ``None`` if it does not.
+
+    Overlap is checked in BOTH directions and by TWO independent means.
+
+    Both directions, because asking only "is cwd inside the repo?" leaves a
+    geometric hole: an ANCESTOR of the checkout is not inside it, so a
+    worktree_manager that handed back ``repo_root.parent`` would pass -- and
+    whenever the checkout is nested inside an outer repo (a workspace, a
+    vendored clone), a mutating verb run there stages the developer's tree.
+
+    Both means, because the lexical test is only as good as the spelling. It
+    correctly refuses equal paths, different case and 8.3 short names, and it
+    is the only test available for a path that does not exist yet; but it was
+    measured ALLOWING ``git add -A`` to run in the primary checkout, and stage
+    files there, when the directory was named ``\\\\localhost\\C$\\...`` or
+    ``\\\\?\\C:\\...``. File identity closes every alias at once, including
+    ones nobody has thought of, because it stops comparing names.
+
+    Fail-closed: a path whose identity cannot be established is REFUSED for
+    mutating verbs rather than assumed innocent.
+
+    NOTE ON THE TEXT COMPARISON BELOW: it is a fast path, NOT a guard, and it
+    is labelled that way because a comment that reads like a guard gets trusted
+    like one. Deleting it was mutation-tested and changed no verdict in the
+    suite -- the identity comparison catches every case it catches, including
+    a path that does not exist (unexaminable, therefore refused). It is kept
+    only because it answers the common cases without touching the filesystem
+    and gives a more specific refusal message.
+    """
+    if cwd_path == repo_path:
+        return "it is the primary checkout"
+    if repo_path in cwd_path.parents:
+        return "it is inside the primary checkout"
+    if cwd_path in repo_path.parents:
+        return "it contains the primary checkout"
+
+    repo_id = _identity(repo_path)
+    if repo_id is None:
+        return ("the primary checkout could not be examined, so overlap with "
+                "it cannot be ruled out")
+    cwd_id = _identity(cwd_path)
+    if cwd_id is None:
+        return ("this directory could not be examined, so overlap with the "
+                "primary checkout cannot be ruled out")
+    if cwd_id == repo_id:
+        return "it is the primary checkout under a different spelling"
+    for ancestor in cwd_path.parents:
+        if _identity(ancestor) == repo_id:
+            return (f"it is inside the primary checkout, which it reaches "
+                    f"through {ancestor}")
+    for ancestor in repo_path.parents:
+        if _identity(ancestor) == cwd_id:
+            return (f"it contains the primary checkout, which is reached "
+                    f"through {ancestor}")
+    return None
+
+
+def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
+         timeout: float = DEFAULT_GIT_TIMEOUT_S,
+         check: bool = True) -> subprocess.CompletedProcess:
+    """Run git and return the RAW BYTES it produced.
+
+    The single choke point (see the module docstring). ``cwd`` inside the
+    primary checkout is restricted to :data:`READ_ONLY_REPO_VERBS`; anything
+    else raises :class:`PrimaryCheckoutWrite` before the process is spawned.
+
+    Output is not decoded: a patch digest must be taken over the bytes git
+    emitted, so a lossy decode can never change what was hashed.
+    """
+    args = [str(a) for a in args]
+    if not args:
+        raise ValueError("_git requires at least a verb")
+    verb = args[0]
+    if verb.startswith("-"):
+        raise ValueError(f"_git expects the verb first, got {verb!r}")
+    cwd_path = Path(cwd).resolve()
+    repo_path = Path(repo_root).resolve()
+    if verb not in READ_ONLY_REPO_VERBS:
+        overlap = _overlap_reason(cwd_path, repo_path)
+        if overlap is not None:
+            raise PrimaryCheckoutWrite(
+                f"refusing to run 'git {verb}' in {cwd_path}, which overlaps "
+                f"the primary checkout {repo_path} ({overlap}): an attempt may "
+                f"only read there. Candidate changes belong in the isolated "
+                f"worktree; promotion is a human act outside this module."
+            )
+    proc = subprocess.run(["git", *args], cwd=str(cwd_path),
+                          capture_output=True, timeout=timeout)
+    if check and proc.returncode != 0:
+        detail = proc.stderr.decode("utf-8", "replace").strip()
+        raise GitCommandError(
+            f"git {' '.join(args)} failed in {cwd_path} "
+            f"(exit {proc.returncode}): {detail or 'no stderr'}")
+    return proc
+
+
+# --------------------------------------------------------------------------- #
+# records                                                                      #
+# --------------------------------------------------------------------------- #
+@dataclass(frozen=True)
+class TaskSpec:
+    """What is being attempted. Immutable, and digestible into an effect key."""
+
+    task_id: str
+    instruction: str
+    base_revision: str | None = None
+    gate_paths: tuple[str, ...] = ()
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def body(self) -> dict:
+        """The canonical, JSON-safe view -- the thing that gets digested."""
+        return {
+            "task_id": str(self.task_id),
+            "instruction": str(self.instruction),
+            "base_revision": self.base_revision,
+            "gate_paths": [str(p) for p in self.gate_paths],
+            "metadata": _jsonable(dict(self.metadata)),
+        }
+
+    @property
+    def digest(self) -> str:
+        return _sha256_text(canonical_json(self.body()))
+
+
+@dataclass(frozen=True)
+class RunnerContext:
+    """Everything an injected runner or gate is given.
+
+    There is no ``repo_root`` field, and that absence is load-bearing: a runner
+    that cannot name the primary checkout cannot write it by accident.
+    """
+
+    worktree: Path
+    branch: str
+    base_revision: str
+    task: TaskSpec
+    is_cancelled: Callable[[], bool]
+
+
+@dataclass(frozen=True)
+class GateResult:
+    """A gate verdict with its raw output kept, not summarised."""
+
+    passed: bool
+    name: str = "gate"
+    command: tuple[str, ...] = ()
+    returncode: int | None = None
+    output: str = ""
+    duration_s: float = 0.0
+    cancelled: bool = False
+    timed_out: bool = False
+
+    @property
+    def output_sha256(self) -> str:
+        return _sha256_text(self.output)
+
+    def summary(self) -> dict:
+        """The trimmed view written to the ledger (see GATE_OUTPUT_TAIL_CHARS)."""
+        tail = self.output[-GATE_OUTPUT_TAIL_CHARS:]
+        return {
+            "name": self.name,
+            "passed": bool(self.passed),
+            "returncode": self.returncode,
+            "command": list(self.command),
+            "duration_s": round(self.duration_s, 3),
+            "cancelled": bool(self.cancelled),
+            "timed_out": bool(self.timed_out),
+            "output_sha256": self.output_sha256,
+            "output_chars": len(self.output),
+            "output_tail": tail,
+            "output_truncated": len(tail) < len(self.output),
+        }
+
+
+@dataclass(frozen=True)
+class PatchArtifact:
+    """A candidate change as inert data. Nothing here applies itself.
+
+    ``diff_bytes`` is authoritative and ``diff_sha256`` is taken over it; a
+    human promoting the patch should write those bytes, not the decoded
+    ``diff``, because a decode round-trip can corrupt a diff containing bytes
+    that are not valid UTF-8.
+    """
+
+    task_id: str
+    branch: str
+    base_revision: str
+    diff_bytes: bytes
+    diff_sha256: str
+    changed_paths: tuple[str, ...]
+    created_ts: str
+
+    @property
+    def diff(self) -> str:
+        """Convenience view for humans and logs; not the digested form."""
+        return self.diff_bytes.decode("utf-8", "replace")
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.diff_bytes
+
+    @property
+    def byte_length(self) -> int:
+        return len(self.diff_bytes)
+
+    def summary(self) -> dict:
+        return {
+            "task_id": self.task_id,
+            "branch": self.branch,
+            "base_revision": self.base_revision,
+            "diff_sha256": self.diff_sha256,
+            "changed_paths": list(self.changed_paths),
+            "byte_length": self.byte_length,
+            "created_ts": self.created_ts,
+        }
+
+
+@dataclass(frozen=True)
+class AttemptResult:
+    """The complete, exception-free outcome of one attempt."""
+
+    state: str
+    task_id: str
+    started_ts: str
+    finished_ts: str
+    duration_s: float
+    effect_key: str
+    branch: str
+    base_revision: str | None = None
+    intent_id: int | None = None
+    artifact: PatchArtifact | None = None
+    gates: GateResult | None = None
+    error: str | None = None
+    worktree_path: str | None = None
+    worktree_removed: bool = False
+    cleanup_error: str | None = None
+    ledger_error: str | None = None
+    artifact_path: str | None = None
+    runner_detail: Any = None
+
+    @property
+    def ok(self) -> bool:
+        """True only for a real, gated candidate. ``no_change`` is not ok."""
+        return self.state == STATE_CLEAN
+
+    @property
+    def has_artifact(self) -> bool:
+        return self.artifact is not None
+
+    def to_dict(self) -> dict:
+        """JSON-safe view. Carries the gate SUMMARY, not the full log."""
+        return {
+            "state": self.state,
+            "task_id": self.task_id,
+            "started_ts": self.started_ts,
+            "finished_ts": self.finished_ts,
+            "duration_s": round(self.duration_s, 3),
+            "effect_key": self.effect_key,
+            "branch": self.branch,
+            "base_revision": self.base_revision,
+            "intent_id": self.intent_id,
+            "artifact": self.artifact.summary() if self.artifact else None,
+            "gates": self.gates.summary() if self.gates else None,
+            "error": self.error,
+            "worktree_path": self.worktree_path,
+            "worktree_removed": self.worktree_removed,
+            "cleanup_error": self.cleanup_error,
+            "ledger_error": self.ledger_error,
+            "artifact_path": self.artifact_path,
+            "runner_detail": _jsonable(self.runner_detail),
+        }
+
+
+# --------------------------------------------------------------------------- #
+# default gate                                                                 #
+# --------------------------------------------------------------------------- #
+def pytest_gate_argv(paths: Sequence[str] = ()) -> tuple[str, ...]:
+    """The gate command line, as a pure function so it is assertable.
+
+    ``-p no:cacheprovider`` keeps pytest from writing ``.pytest_cache`` into the
+    candidate worktree; the patch is captured before gates run, but a gate that
+    dirties the tree it is judging is a trap worth not setting.
+    """
+    return (sys.executable, "-m", "pytest", *[str(p) for p in paths],
+            "-q", "-p", "no:cacheprovider")
+
+
+def _remove_gate_tmpdir(tmpdir: Path) -> str | None:
+    """Delete the gate's scratch directory through the GUARDED walker.
+
+    Returns ``None`` on success, or a one-line report of what stopped it.
+
+    WHY NOT ``shutil.rmtree(tmpdir, ignore_errors=True)``, which is what this
+    was. Two reasons, and only the second one is about reparse points:
+
+    1. ``ignore_errors=True`` is a SILENT delete failure in a ``finally:``. A
+       recursive delete this module cannot complete is exactly the thing the
+       rest of this file refuses to swallow (see ``cleanup_worktree``, whose
+       failures are raised), so it is reported here and appended to the gate's
+       own output rather than discarded.
+    2. ``tmpdir`` is ``%TEMP%/daedalus-gate-*``, created while candidate code is
+       running as THIS user with THIS user's privileges, and the prefix is a
+       public constant in this file. Candidate code can therefore create paths
+       inside it. Measured on this box (CPython 3.10.11): ``shutil.rmtree`` is
+       safe against a junction that is ALREADY in place, and unsafe against one
+       renamed in mid-walk, because its check reads the Windows ``scandir``
+       stat cache and never refreshes it -- with the victim in the last entry
+       position it destroyed the target 3/3.
+
+    THE CONTAINMENT THAT IS NOT WRITTEN DOWN ANYWHERE ELSE, so it is written
+    here: the gate child runs under
+    :class:`daedalus.spine.cancel.ManagedProcess`, i.e. inside a Windows Job
+    Object with ``KILL_ON_JOB_CLOSE``, and ``release()`` runs on the ``with``
+    exit BEFORE this function is reached -- so by the time this deletes, the
+    candidate's test process tree is normally already dead. Cerberus could not
+    demonstrate a live candidate at this point (two job-escape attempts failed
+    on this box). That is a reason to believe the window is small; it is not a
+    reason to leave an unguarded recursive delete behind it, because "the
+    process was probably dead" is not a property this module can check, and a
+    Job Object is not a filesystem guard -- anything the candidate planted
+    while it WAS alive is still on disk when this runs.
+    """
+    try:
+        remove_tree_no_follow(tmpdir)
+        return None
+    except Exception as e:                      # noqa: BLE001 - reported, not raised
+        return (f"[gate scratch directory {tmpdir} was NOT removed: "
+                f"{type(e).__name__}: {e}]")
+
+
+def pytest_gate(paths: Sequence[str] = (), *,
+                timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
+                poll_s: float = 0.25,
+                name: str = "pytest") -> Callable[[RunnerContext], GateResult]:
+    """Default gate: run a pytest subset INSIDE the candidate worktree.
+
+    The child runs under :class:`daedalus.spine.cancel.ManagedProcess`, so a
+    cancelled attempt kills the whole process TREE rather than the immediate
+    child -- a leaked test process still writing into a worktree that is about
+    to be removed is a correctness hazard, not untidiness.
+
+    Output goes to a file OUTSIDE the worktree: a pipe would deadlock on a
+    chatty run while we are polling the cancel token instead of reading.
+
+    That scratch directory is then removed through the GUARDED walker, not
+    ``shutil.rmtree`` -- it lives in ``%TEMP%`` under a prefix named in this
+    file while candidate code is running as this user, so it is a delete
+    against attacker-reachable ground like every other delete in this system.
+    See :func:`_remove_gate_tmpdir`, which also records what the Job Object
+    does and does not contain.
+    """
+    argv_paths = tuple(str(p) for p in paths)
+
+    def _gate(ctx: RunnerContext) -> GateResult:
+        from daedalus.spine.cancel import CancellationUnavailable, ManagedProcess
+
+        argv = pytest_gate_argv(argv_paths)
+        started = time.monotonic()
+        tmpdir = Path(tempfile.mkdtemp(prefix="daedalus-gate-"))
+        out_path = tmpdir / "gate.out"
+        cancelled = False
+        timed_out = False
+        returncode: int | None = None
+        try:
+            with open(out_path, "wb") as fh:
+                try:
+                    proc = ManagedProcess(argv, cwd=ctx.worktree, stdout=fh,
+                                          stderr=subprocess.STDOUT)
+                except CancellationUnavailable as e:
+                    return GateResult(
+                        passed=False, name=name, command=argv, returncode=None,
+                        output=f"gate refused to launch outside a killable "
+                               f"container: {e}",
+                        duration_s=time.monotonic() - started)
+                with proc:
+                    deadline = started + float(timeout_s)
+                    while proc.poll() is None:
+                        if ctx.is_cancelled():
+                            proc.cancel()
+                            cancelled = True
+                            break
+                        if time.monotonic() > deadline:
+                            proc.cancel()
+                            timed_out = True
+                            break
+                        time.sleep(poll_s)
+                    returncode = proc.returncode
+            output = out_path.read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            output = f"gate output could not be captured: {e}"
+        finally:
+            # Guarded, and REPORTED -- see _remove_gate_tmpdir. A scratch
+            # directory that could not be removed appends to the gate's output
+            # instead of vanishing; it never changes the verdict, because
+            # whether the scratch dir survived says nothing about the candidate.
+            scratch_error = _remove_gate_tmpdir(tmpdir)
+        if scratch_error:
+            output = f"{output}\n{scratch_error}"
+        passed = returncode == 0 and not cancelled and not timed_out
+        return GateResult(passed=passed, name=name, command=argv,
+                          returncode=returncode, output=output,
+                          duration_s=time.monotonic() - started,
+                          cancelled=cancelled, timed_out=timed_out)
+
+    return _gate
+
+
+def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:
+    """Opt-in runner backed by :func:`daedalus.offload.offload`.
+
+    ``repo_root`` is pinned to the WORKTREE, so offload's snapshot / verify /
+    rollback machinery operates entirely inside the isolated checkout.
+
+    Deliberately not the default: :class:`TaskAttempt` refuses to construct
+    without an explicit runner, so no attempt can quietly reach a model because
+    a caller forgot an argument.
+    """
+    def _runner(ctx: RunnerContext) -> Any:
+        from daedalus.offload import offload
+        kwargs = dict(offload_kwargs)
+        kwargs.pop("repo_root", None)
+        return offload(ctx.task.instruction, str(ctx.worktree), **kwargs)
+    return _runner
+
+
+# --------------------------------------------------------------------------- #
+# the attempt                                                                  #
+# --------------------------------------------------------------------------- #
+class TaskAttempt:
+    """Produce one candidate change for one task, outside the primary checkout.
+
+    :meth:`run` NEVER applies its result. There is no code path in this class
+    that writes the primary working tree -- see the module docstring for the
+    three properties that make that structural rather than promised.
+    """
+
+    def __init__(self, task: TaskSpec, *,
+                 runner: Callable[[RunnerContext], Any],
+                 repo_root: str | Path | None = None,
+                 gate: Callable[[RunnerContext], Any] | None = None,
+                 ledger: SpineLedger | None = None,
+                 cancel: Any = None,
+                 worktree_manager: GitWorktreeManager | None = None,
+                 keep_worktree: bool = False,
+                 artifact_dir: str | Path | None = None) -> None:
+        if not isinstance(task, TaskSpec):
+            raise TypeError("task must be a TaskSpec")
+        if runner is None or not callable(runner):
+            raise ValueError(
+                "TaskAttempt requires an explicit runner callable; there is no "
+                "implicit model-backed default (use offload_runner() to opt in)")
+        self.task = task
+        self.repo_root = Path(repo_root).resolve() if repo_root else ROOT
+        self._runner = runner
+        self._gate = gate if gate is not None else pytest_gate(task.gate_paths)
+        self._manager = worktree_manager or GitWorktreeManager(self.repo_root)
+        self._is_cancelled = _as_predicate(cancel)
+        self._keep_worktree = bool(keep_worktree)
+        self._artifact_dir = Path(artifact_dir) if artifact_dir else None
+        self._ledger = ledger
+        self._owns_ledger = ledger is None
+        # Derived from the task, plus a nonce so a retry of the SAME task does
+        # not collide with the branch its predecessor left behind (and so
+        # resolve_by_effect can tell two attempts apart in the world).
+        self.branch = (f"{BRANCH_PREFIX}-{_slug(task.task_id)}-"
+                       f"{task.digest[:8]}-{uuid.uuid4().hex[:6]}")
+        self.effect_key = self.branch
+
+    # -- entry point -------------------------------------------------------- #
+    def run(self) -> AttemptResult:
+        """Attempt the task and return an :class:`AttemptResult`. Never raises.
+
+        The returned artifact is data. Applying it to the primary checkout is a
+        separate, human-invoked act that this module intentionally does not
+        provide.
+        """
+        started = time.monotonic()
+        started_ts = _now_iso()
+
+        def finish(state: str, **kw: Any) -> AttemptResult:
+            return AttemptResult(
+                state=state, task_id=self.task.task_id, started_ts=started_ts,
+                finished_ts=_now_iso(), duration_s=time.monotonic() - started,
+                effect_key=self.effect_key, branch=self.branch, **kw)
+
+        # 1. storage, fail closed and BEFORE anything is recorded or created.
+        try:
+            require_storage(str(_existing_ancestor(self._manager.worktree_root)))
+        except StorageUnavailable as e:
+            return finish(STATE_STORAGE_UNAVAILABLE, error=str(e))
+        except OSError as e:
+            return finish(STATE_STORAGE_UNAVAILABLE,
+                          error=f"storage_unavailable: {e}")
+
+        if self._is_cancelled():
+            return finish(STATE_CANCELLED, error="cancelled before any effect")
+
+        # Resolving the base is a READ of the primary checkout, not an effect,
+        # so it happens before the intent -- the payload can then name the exact
+        # revision the candidate was built on.
+        try:
+            base_revision = self._resolve_base()
+        except Exception as e:
+            return finish(STATE_WORKTREE_FAILED,
+                          error=f"could not resolve base revision: {e}")
+
+        try:
+            ledger = self._get_ledger()
+        except Exception as e:
+            # No durable record is possible, so no effect may be performed.
+            return finish(STATE_WORKTREE_FAILED,
+                          base_revision=base_revision,
+                          error=f"spine ledger unavailable: {e}")
+
+        try:
+            return self._run_with_ledger(ledger, base_revision, finish)
+        finally:
+            if self._owns_ledger:
+                try:
+                    ledger.close()
+                except Exception:
+                    pass
+
+    # -- the recorded part -------------------------------------------------- #
+    def _run_with_ledger(self, ledger: SpineLedger, base_revision: str,
+                         finish: Callable[..., AttemptResult]) -> AttemptResult:
+        # 2. intent BEFORE effect, committed by record_intent.
+        payload = dict(self.task.body())
+        payload.update({
+            "resolved_base_revision": base_revision,
+            "branch": self.branch,
+            "repo_root": str(self.repo_root),
+            "worktree_root": str(self._manager.worktree_root),
+        })
+        try:
+            intent = ledger.record_intent(INTENT_KIND, payload,
+                                          effect_key=self.effect_key)
+        except Exception as e:
+            return finish(STATE_WORKTREE_FAILED, base_revision=base_revision,
+                          error=f"could not record intent: {e}")
+
+        # 3. isolated worktree (already outside the repo by construction).
+        try:
+            worktree = self._manager.create_worktree(base_revision, self.branch)
+        except StorageUnavailable as e:
+            return self._resolve_and_finish(
+                ledger, intent.id, finish, STATE_STORAGE_UNAVAILABLE,
+                artifact=None, base_revision=base_revision, error=str(e))
+        except Exception as e:
+            return self._resolve_and_finish(
+                ledger, intent.id, finish, STATE_WORKTREE_FAILED, artifact=None,
+                base_revision=base_revision,
+                error=f"worktree creation failed: {e}")
+
+        ctx = RunnerContext(worktree=worktree, branch=self.branch,
+                            base_revision=base_revision, task=self.task,
+                            is_cancelled=self._is_cancelled)
+        state = STATE_CLEAN
+        artifact: PatchArtifact | None = None
+        gates: GateResult | None = None
+        error: str | None = None
+        runner_detail: Any = None
+        artifact_path: str | None = None
+
+        try:
+            if self._is_cancelled():
+                state, error = STATE_CANCELLED, "cancelled before the runner ran"
+            else:
+                # 4. the work, inside the worktree and nowhere else.
+                try:
+                    runner_detail = self._runner(ctx)
+                except Exception as e:
+                    state = STATE_RUNNER_FAILED
+                    error = f"{type(e).__name__}: {e}"
+
+            if state == STATE_CLEAN:
+                # 5. the artifact.
+                try:
+                    artifact = self._capture_patch(worktree, base_revision)
+                except Exception as e:
+                    state = STATE_WORKTREE_FAILED
+                    error = f"patch capture failed: {type(e).__name__}: {e}"
+
+            if artifact is not None and self._artifact_dir is not None:
+                artifact_path, persist_error = self._persist(artifact)
+                if persist_error and error is None:
+                    error = persist_error
+
+            if artifact is not None and state == STATE_CLEAN:
+                if artifact.is_empty:
+                    # Gates on an unmodified tree would pass without judging
+                    # anything; that vacuous green is exactly what must not be
+                    # reported as `clean`.
+                    state = STATE_NO_CHANGE
+                    error = "the runner produced no change to gate"
+                elif self._is_cancelled():
+                    state = STATE_CANCELLED
+                    error = "cancelled after the patch was captured"
+                else:
+                    # 6. gates, inside the worktree, raw output retained.
+                    gates = self._run_gates(ctx)
+                    if not gates.passed:
+                        state = STATE_GATES_FAILED
+                        if gates.cancelled:
+                            state = STATE_CANCELLED
+                        error = error or (
+                            f"gate {gates.name!r} failed "
+                            f"(exit {gates.returncode})")
+        finally:
+            # 8. cleanup, reported rather than swallowed.
+            removed, cleanup_error = self._cleanup(worktree)
+
+        # 7. resolve the intent with the artifact digest as the effect id.
+        return self._resolve_and_finish(
+            ledger, intent.id, finish, state, artifact=artifact, gates=gates,
+            base_revision=base_revision, error=error,
+            worktree_path=str(worktree), worktree_removed=removed,
+            cleanup_error=cleanup_error, artifact_path=artifact_path,
+            runner_detail=runner_detail)
+
+    # -- steps -------------------------------------------------------------- #
+    def _resolve_base(self) -> str:
+        ref = self.task.base_revision or "HEAD"
+        out = _git(["rev-parse", ref], cwd=self.repo_root,
+                   repo_root=self.repo_root)
+        return out.stdout.decode("utf-8", "replace").strip()
+
+    def _capture_patch(self, worktree: Path, base_revision: str) -> PatchArtifact:
+        """Stage everything in the WORKTREE's own index and read the diff.
+
+        ``git add -A`` writes only the worktree's private index -- worktrees do
+        not share an index with the primary checkout -- and it respects
+        ``.gitignore``, so the artifact contains exactly what a human would be
+        asked to commit.
+
+        ``--no-renames`` is pinned so the digest does not move with git's
+        rename-detection heuristics, and ``--no-ext-diff`` so a developer's
+        configured external differ cannot rewrite the bytes we hash.
+        """
+        _git(["add", "-A"], cwd=worktree, repo_root=self.repo_root)
+        opts = ["--cached", "--no-color", "--no-ext-diff", "--no-renames"]
+        diff = _git(["diff", *opts], cwd=worktree,
+                    repo_root=self.repo_root).stdout
+        names = _git(["diff", *opts, "--name-only", "-z"], cwd=worktree,
+                     repo_root=self.repo_root).stdout
+        changed = tuple(p.decode("utf-8", "replace")
+                        for p in names.split(b"\0") if p)
+        return PatchArtifact(
+            task_id=self.task.task_id, branch=self.branch,
+            base_revision=base_revision, diff_bytes=diff,
+            diff_sha256=_sha256_bytes(diff), changed_paths=changed,
+            created_ts=_now_iso())
+
+    def _run_gates(self, ctx: RunnerContext) -> GateResult:
+        started = time.monotonic()
+        try:
+            verdict = self._gate(ctx)
+        except Exception as e:
+            return GateResult(
+                passed=False, name="gate",
+                output=f"gate raised: {type(e).__name__}: {e}",
+                duration_s=time.monotonic() - started)
+        if isinstance(verdict, GateResult):
+            return verdict
+        # A bare bool is accepted for trivial gates, but it carries no output,
+        # and that absence is recorded rather than dressed up.
+        return GateResult(passed=bool(verdict), name="gate",
+                          output="gate returned a bare verdict with no output",
+                          duration_s=time.monotonic() - started)
+
+    def _persist(self, artifact: PatchArtifact) -> tuple[str | None, str | None]:
+        """Write the patch bytes beside the ledger, if a directory was given.
+
+        Off by default: the artifact is returned to the caller, and writing it
+        anywhere is a decision about somebody else's disk.
+        """
+        try:
+            self._artifact_dir.mkdir(parents=True, exist_ok=True)
+            path = self._artifact_dir / f"{artifact.diff_sha256}.patch"
+            path.write_bytes(artifact.diff_bytes)
+            return str(path), None
+        except OSError as e:
+            return None, f"artifact could not be persisted: {e}"
+
+    def _cleanup(self, worktree: Path) -> tuple[bool, str | None]:
+        if self._keep_worktree:
+            return False, None
+        try:
+            self._manager.cleanup_worktree(worktree)
+        except Exception as e:
+            # A leaked worktree is an operational fact the caller must see; it
+            # does not invalidate the artifact, so it is reported alongside the
+            # state rather than overwriting it.
+            return False, f"{type(e).__name__}: {e}"
+        return True, None
+
+    def _resolve_and_finish(self, ledger: SpineLedger, intent_id: int,
+                            finish: Callable[..., AttemptResult], state: str, *,
+                            artifact: PatchArtifact | None,
+                            gates: GateResult | None = None,
+                            **kw: Any) -> AttemptResult:
+        ledger_error: str | None = None
+        result_body = {
+            "state": state,
+            "branch": self.branch,
+            "base_revision": kw.get("base_revision"),
+            "cleanup_error": kw.get("cleanup_error"),
+            "worktree_removed": kw.get("worktree_removed", False),
+            "artifact": artifact.summary() if artifact else None,
+            "gates": gates.summary() if gates else None,
+            "error": kw.get("error"),
+        }
+        try:
+            if artifact is not None:
+                ledger.mark_completed(intent_id,
+                                      effect_id=artifact.diff_sha256,
+                                      result=_jsonable(result_body))
+            else:
+                ledger.mark_failed(
+                    intent_id,
+                    canonical_json(_jsonable(result_body)))
+        except Exception as e:
+            ledger_error = f"{type(e).__name__}: {e}"
+        return finish(state, intent_id=intent_id, artifact=artifact,
+                      gates=gates, ledger_error=ledger_error, **kw)
+
+    def _get_ledger(self) -> SpineLedger:
+        if self._ledger is None:
+            self._ledger = SpineLedger()
+        return self._ledger
+
+
+def run_attempt(task: TaskSpec, **kwargs: Any) -> AttemptResult:
+    """Construct and run one :class:`TaskAttempt`. Returns, never raises."""
+    return TaskAttempt(task, **kwargs).run()
