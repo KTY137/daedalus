@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Der Raum</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f5f2;
+    --panel: #ffffff;
+    --panel-2: #efede8;
+    --ink: #1b1a18;
+    --ink-soft: #45423d;
+    --muted: #726d66;
+    --line: #e2dfd8;
+    --line-strong: #cfcbc2;
+    --shadow: 0 1px 2px rgba(28,26,22,.06), 0 8px 24px -18px rgba(28,26,22,.35);
+    --ok: #1f7a5c;
+    --warn: #a8720f;
+    --bad: #b23b32;
+    --c-claude: #b4552f;
+    --c-codex:  #1f7a5c;
+    --c-ollama: #6d4bc4;
+    --c-agy:    #2563c9;
+    --c-kaya:   #4a4642;
+    --kaya-bg:  #eceae3;
+    --code-bg:  #f4f2ed;
+    --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101216;
+      --panel: #171a20;
+      --panel-2: #1d2128;
+      --ink: #e7e4dd;
+      --ink-soft: #cbc7bf;
+      --muted: #918c83;
+      --line: #262a32;
+      --line-strong: #343a44;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -20px rgba(0,0,0,.9);
+      --ok: #4fd1a5;
+      --warn: #dfa63c;
+      --bad: #f0776b;
+      --c-claude: #e08c62;
+      --c-codex:  #4fd1a5;
+      --c-ollama: #b39bf5;
+      --c-agy:    #7fb0ff;
+      --c-kaya:   #cdc8bf;
+      --kaya-bg:  #1e232b;
+      --code-bg:  #12151a;
+    }
+  }
+
+  * { box-sizing: border-box; min-width: 0; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--font); font-size: 15px; line-height: 1.62;
+    -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+  .app { display: grid; grid-template-rows: auto 1fr auto; height: 100%; }
+
+  /* ---------- header ---------- */
+  header {
+    border-bottom: 1px solid var(--line); background: var(--panel);
+    padding: 10px max(14px, 3vw);
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+  .brand h1 { font-size: 16px; letter-spacing: .02em; margin: 0; font-weight: 650; }
+  .brand .sub { color: var(--muted); font-size: 12.5px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--line-strong); background: var(--panel-2);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px; color: var(--ink-soft);
+    cursor: pointer; font-family: inherit;
+  }
+  .pill:hover { border-color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); }
+  .dot.warn { background: var(--warn); }
+  .dot.bad { background: var(--bad); }
+  #detail {
+    width: 100%; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel-2); padding: 10px 12px; font-size: 12.5px;
+    color: var(--muted); display: none;
+  }
+  #detail.open { display: block; }
+  #detail div { margin: 2px 0; }
+  #detail b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- transcript ---------- */
+  main { overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; position: relative; }
+  .col { max-width: 820px; margin: 0 auto; padding: 22px max(14px, 3vw) 8px; }
+  .empty { color: var(--muted); text-align: center; padding: 60px 0; }
+
+  .turn { margin: 0 0 20px; }
+  .who { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; flex-wrap: wrap; }
+  .who .name { font-weight: 650; font-size: 13.5px; letter-spacing: .01em; color: var(--sp, var(--ink)); }
+  .who .tag { font-size: 11.5px; color: var(--muted); }
+  .who .clock { font-size: 11.5px; color: var(--muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+  .body {
+    border-left: 2.5px solid var(--sp, var(--line-strong));
+    background: var(--panel); border-radius: 0 10px 10px 0;
+    padding: 12px 16px; box-shadow: var(--shadow);
+  }
+  .turn.kaya .body {
+    background: var(--kaya-bg); border-left: none;
+    border: 1px dashed var(--line-strong); border-radius: 10px;
+  }
+  .turn.kaya .who .name { text-transform: lowercase; letter-spacing: .06em; }
+
+  .body p { margin: 0 0 .7em; overflow-wrap: anywhere; }
+  .body p:last-child { margin-bottom: 0; }
+  .body ul { margin: 0 0 .7em; padding-left: 1.2em; }
+  .body li { margin: .15em 0; overflow-wrap: anywhere; }
+  .body blockquote {
+    margin: 0 0 .7em; padding: 2px 0 2px 12px;
+    border-left: 2px solid var(--line-strong); color: var(--muted);
+  }
+  .body strong { font-weight: 650; color: var(--ink); }
+  .body a { color: var(--c-agy); text-decoration: underline; text-underline-offset: 2px; }
+  .body code {
+    font-family: var(--mono); font-size: .875em; background: var(--code-bg);
+    border: 1px solid var(--line); border-radius: 4px; padding: .05em .32em;
+  }
+  .codewrap {
+    position: relative; margin: 0 0 .8em; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--code-bg); overflow: hidden;
+  }
+  .codewrap .lang {
+    display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--muted);
+    padding: 5px 12px 0;
+  }
+  .codewrap pre { margin: 0; padding: 10px 12px; overflow-x: auto; }
+  .codewrap code {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55;
+    background: none; border: none; padding: 0; white-space: pre; display: block;
+  }
+
+  /* ---------- jobs / thinking ---------- */
+  .jobs { max-width: 820px; margin: 0 auto; padding: 0 max(14px, 3vw) 18px; }
+  .job {
+    display: flex; align-items: center; gap: 10px; font-size: 13px;
+    border: 1px solid var(--line); border-left: 2.5px solid var(--sp, var(--muted));
+    background: var(--panel); border-radius: 0 10px 10px 0;
+    padding: 9px 14px; margin-bottom: 8px; color: var(--ink-soft);
+  }
+  .job .lbl { font-weight: 600; color: var(--sp, var(--ink)); }
+  .job .el { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+  .job.error { border-color: var(--bad); border-left-color: var(--bad); }
+  .job.error .lbl { color: var(--bad); }
+  .job pre {
+    margin: 0; font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap;
+    color: var(--muted);
+  }
+  .job.col2 { display: block; }
+  .breathe { display: inline-flex; gap: 3px; }
+  .breathe i {
+    width: 4px; height: 4px; border-radius: 50%; background: currentColor;
+    animation: b 1.25s ease-in-out infinite;
+  }
+  .breathe i:nth-child(2) { animation-delay: .18s; }
+  .breathe i:nth-child(3) { animation-delay: .36s; }
+  @keyframes b { 0%,100% { opacity: .25; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .breathe i { animation: none; opacity: .6; }
+    main { scroll-behavior: auto; }
+  }
+
+  /* ---------- composer ---------- */
+  footer { border-top: 1px solid var(--line); background: var(--panel); }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 10px max(14px, 3vw) 14px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  button {
+    font: inherit; font-size: 12.5px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--ink-soft);
+    padding: 5px 11px;
+  }
+  button:hover:not(:disabled) { border-color: var(--muted); color: var(--ink); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.ask { border-left: 3px solid var(--sp); }
+  button.send {
+    background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600;
+    padding: 7px 16px;
+  }
+  button.send:hover:not(:disabled) { opacity: .88; color: var(--bg); }
+  input[type=text] {
+    font: inherit; font-size: 12.5px; padding: 5px 9px; border-radius: 8px;
+    border: 1px solid var(--line-strong); background: var(--bg); color: var(--ink);
+    min-width: 0;
+  }
+  input#model { width: 175px; }
+  input#attach { width: 210px; }
+  input#extra { flex: 1 1 200px; }
+  input::placeholder { color: var(--muted); }
+  textarea {
+    font: inherit; width: 100%; resize: none; min-height: 74px; max-height: 38vh;
+    padding: 11px 13px; border-radius: 10px; border: 1px solid var(--line-strong);
+    background: var(--bg); color: var(--ink); line-height: 1.55;
+  }
+  textarea:focus, input:focus { outline: 2px solid var(--c-agy); outline-offset: -1px; }
+  .sendrow { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  .hint { font-size: 11.5px; color: var(--muted); margin-right: auto; }
+
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+    max-width: min(680px, 92vw); background: var(--panel); color: var(--ink);
+    border: 1px solid var(--bad); border-left: 3px solid var(--bad);
+    border-radius: 10px; padding: 10px 14px; font-size: 13px; box-shadow: var(--shadow);
+    display: none; z-index: 20; overflow-wrap: anywhere;
+  }
+  #toast.show { display: block; }
+  #jump {
+    position: absolute; right: max(16px, 4vw); bottom: 14px; display: none;
+    background: var(--panel); box-shadow: var(--shadow); border-radius: 999px;
+    padding: 6px 14px; font-size: 12px;
+  }
+  #jump.show { display: block; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>Der Raum</h1>
+      <span class="sub" id="sub">loading…</span>
+    </div>
+    <div class="pills" id="pills"></div>
+    <div id="detail"></div>
+  </header>
+
+  <main id="scroll">
+    <div class="col" id="turns"><div class="empty">reading the room…</div></div>
+    <div class="jobs" id="jobs" aria-live="polite"></div>
+    <button id="jump" type="button">jump to latest ↓</button>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div class="controls" id="controls"></div>
+      <textarea id="text" placeholder="Say something to the room…  (Ctrl+Enter sends)"
+                spellcheck="true"></textarea>
+      <div class="sendrow">
+        <span class="hint" id="hint">speaking as <b>Kaya</b> · Ctrl+Enter to send</span>
+        <button class="send" id="send" type="button">Send</button>
+      </div>
+    </div>
+  </footer>
+</div>
+<div id="toast" role="alert"></div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Everything below treats agent output as hostile text. The ONLY path *
+ * from model output to the DOM is renderMarkdown(), which escapes     *
+ * first and then applies a fixed set of transformations to the        *
+ * already-escaped string. No innerHTML ever sees a raw model byte.    *
+ * ------------------------------------------------------------------ */
+
+const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ESCAPES[c]); }
+
+function safeUrl(u) {
+  // u is already HTML-escaped; scheme text is unaffected by escaping.
+  return /^(https?:\/\/|mailto:|#|\/)[^\s]*$/i.test(u) ? u : null;
+}
+
+// Sentinel for stashing inline-code spans. Written as an escape, never a
+// raw byte (an HTML parser rewrites a literal U+0000 to U+FFFD), and
+// scrubbed from the input first so it can never collide with real text.
+const NUL = "\u0000";
+function inlineMd(raw) {
+  let t = esc(String(raw).replace(/[\u0000\ufffd]/g, ""));
+  const stash = [];
+  t = t.replace(/`([^`\n]+)`/g, (m, c) => {
+    stash.push("<code>" + c + "</code>");
+    return NUL + (stash.length - 1) + NUL;
+  });
+  t = t.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  t = t.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, label, url) => {
+    const safe = safeUrl(url);
+    return safe
+      ? '<a href="' + safe + '" target="_blank" rel="noreferrer noopener">' + label + "</a>"
+      : m;
+  });
+  return t.replace(new RegExp(NUL + "(\\d+)" + NUL, "g"), (m, i) => stash[+i]);
+}
+
+function renderBlocks(src) {
+  const html = [];
+  const lines = src.split("\n");
+  let para = [], list = [], quote = [];
+  const flushPara = () => {
+    if (para.length) { html.push("<p>" + inlineMd(para.join("\n")).replace(/\n/g, "<br>") + "</p>"); para = []; }
+  };
+  const flushList = () => {
+    if (list.length) { html.push("<ul>" + list.map(i => "<li>" + inlineMd(i) + "</li>").join("") + "</ul>"); list = []; }
+  };
+  const flushQuote = () => {
+    if (quote.length) { html.push("<blockquote>" + inlineMd(quote.join("\n")).replace(/\n/g, "<br>") + "</blockquote>"); quote = []; }
+  };
+  const flushAll = () => { flushPara(); flushList(); flushQuote(); };
+
+  for (const line of lines) {
+    if (!line.trim()) { flushAll(); continue; }
+    const bullet = line.match(/^\s{0,3}[-*+]\s+(.*)$/);
+    const quoted = line.match(/^\s{0,3}>\s?(.*)$/);
+    const heading = line.match(/^\s{0,3}#{1,6}\s+(.*)$/);
+    if (bullet) { flushPara(); flushQuote(); list.push(bullet[1]); }
+    else if (quoted) { flushPara(); flushList(); quote.push(quoted[1]); }
+    else if (heading) { flushAll(); html.push("<p><strong>" + inlineMd(heading[1]) + "</strong></p>"); }
+    else { flushList(); flushQuote(); para.push(line); }
+  }
+  flushAll();
+  return html.join("");
+}
+
+function renderMarkdown(src) {
+  const parts = String(src == null ? "" : src).split("```");
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {                       // inside a fence (odd = code)
+      let body = parts[i], lang = "";
+      const nl = body.indexOf("\n");
+      if (nl >= 0) {
+        const first = body.slice(0, nl).trim();
+        if (/^[\w+#.-]{0,24}$/.test(first)) { lang = first; body = body.slice(nl + 1); }
+      }
+      out.push('<div class="codewrap">' + (lang ? '<span class="lang">' + esc(lang) + "</span>" : "") +
+               "<pre><code>" + esc(body.replace(/\n+$/, "")) + "</code></pre></div>");
+    } else if (parts[i].trim()) {
+      out.push(renderBlocks(parts[i]));
+    }
+  }
+  return out.join("");
+}
+
+/* ------------------------------- state ------------------------------- */
+
+const state = { hash: null, turns: [], jobs: [], jobsAt: 0, status: null, sending: false };
+const $ = id => document.getElementById(id);
+const scroller = $("scroll");
+
+function speakerVar(who) {
+  return ["claude", "codex", "ollama", "agy", "kaya"].includes(who) ? "var(--c-" + who + ")" : "var(--muted)";
+}
+function atBottom() {
+  return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+}
+function toBottom() { scroller.scrollTop = scroller.scrollHeight; }
+
+let toastTimer = null;
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 9000);
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  let data = null;
+  try { data = await res.json(); } catch (e) { throw new Error("bad response from " + path); }
+  if (!res.ok || data.error) throw new Error(data.error || (path + " -> HTTP " + res.status));
+  return data;
+}
+
+/* ----------------------------- transcript ---------------------------- */
+
+function renderTurns() {
+  const host = $("turns");
+  if (!state.turns.length) { host.innerHTML = '<div class="empty">the room is empty</div>'; return; }
+  host.innerHTML = state.turns.map(t => {
+    const who = String(t.who || "").replace(/[^a-z0-9_-]/gi, "");
+    return '<article class="turn ' + esc(who) + '" style="--sp:' + speakerVar(who) + '">' +
+      '<div class="who"><span class="name">' + esc(t.name) + "</span>" +
+      '<span class="tag">' + esc(t.tag) + "</span>" +
+      '<span class="clock">' + esc(t.time) + "</span></div>" +
+      '<div class="body">' + renderMarkdown(t.text) + "</div></article>";
+  }).join("");
+  $("sub").textContent = state.turns.length + (state.turns.length === 1 ? " turn" : " turns");
+}
+
+function renderJobs() {
+  const drift = (Date.now() - state.jobsAt) / 1000;
+  const live = state.jobs.filter(j => j.state === "queued" || j.state === "running");
+  const recentBad = state.jobs.filter(j => j.state === "error").slice(-2);
+  const host = $("jobs");
+  const rows = [];
+  for (const j of live) {
+    const secs = j.state === "running" ? Math.max(0, j.duration_s + drift) : j.waited_s + drift;
+    const verb = j.state === "running"
+      ? esc(j.name) + " is thinking"
+      : esc(j.name) + " is queued behind another call";
+    rows.push('<div class="job" style="--sp:' + speakerVar(j.vendor) + '">' +
+      '<span class="breathe"><i></i><i></i><i></i></span>' +
+      '<span class="lbl">' + verb + "</span>" +
+      (j.model ? '<span style="color:var(--muted);font-size:12px">' + esc(j.model) + "</span>" : "") +
+      '<span class="el">' + secs.toFixed(0) + "s</span></div>");
+  }
+  for (const j of recentBad) {
+    rows.push('<div class="job error col2"><div class="lbl">' + esc(j.name) +
+      " failed after " + j.duration_s.toFixed(0) + "s (job " + esc(j.id) + ")</div>" +
+      "<pre>" + esc(String(j.error || "").split("\n").slice(0, 4).join("\n")) + "</pre></div>");
+  }
+  host.innerHTML = rows.join("");
+}
+
+/* ------------------------------ controls ----------------------------- */
+
+const VENDORS = [
+  { key: "codex", label: "Ask Codex" },
+  { key: "ollama", label: "Ask Ollama" },
+  { key: "agy", label: "Ask Antigravity" },
+];
+
+function buildControls() {
+  const c = $("controls");
+  c.innerHTML =
+    VENDORS.map(v => '<button class="ask" type="button" data-vendor="' + v.key +
+                     '" style="--sp:' + speakerVar(v.key) + '">' + v.label + "</button>").join("") +
+    '<input type="text" id="model" placeholder="ollama model" value="qwen2.5-coder:14b" ' +
+    'title="model for the Ollama call" list="models"><datalist id="models"></datalist>' +
+    '<input type="text" id="attach" placeholder="attach: path/a.py, path/b.py" ' +
+    'title="repo-relative files inlined into the prompt — local models cannot read your disk">' +
+    '<input type="text" id="extra" placeholder="extra instruction for the invited agent (optional)">';
+  c.querySelectorAll("button.ask").forEach(b => b.addEventListener("click", () => ask(b.dataset.vendor)));
+}
+
+function renderStatus() {
+  const s = state.status;
+  if (!s) return;
+  const pills = $("pills");
+  pills.innerHTML = s.vendors.map(v => {
+    const cls = v.available ? "ok" : (v.invokable ? "warn" : "bad");
+    return '<button class="pill" type="button" title="' + esc(v.detail) + '">' +
+      '<span class="dot ' + cls + '"></span>' + esc(v.name) + "</button>";
+  }).join("");
+  pills.onclick = () => $("detail").classList.toggle("open");
+  $("detail").innerHTML = s.vendors.map(v =>
+    "<div><b>" + esc(v.name) + "</b> — " + esc(v.detail) + "</div>").join("") +
+    "<div><b>room</b> — " + esc(s.room_file) + "</div>";
+
+  const models = s.vendors.find(v => v.key === "ollama");
+  const dl = $("models");
+  if (dl && models && models.models) {
+    dl.innerHTML = models.models.map(m => '<option value="' + esc(m) + '"></option>').join("");
+  }
+  for (const v of s.vendors) {
+    const btn = document.querySelector('button.ask[data-vendor="' + v.key + '"]');
+    if (btn) btn.title = v.detail;
+  }
+}
+
+function syncButtons() {
+  const busy = new Set(state.jobs.filter(j => j.state === "queued" || j.state === "running")
+                                 .map(j => j.vendor));
+  document.querySelectorAll("button.ask").forEach(b => {
+    const v = b.dataset.vendor;
+    b.disabled = busy.has(v);
+    b.textContent = busy.has(v) ? "…waiting on " + v : (VENDORS.find(x => x.key === v) || {}).label;
+  });
+  $("send").disabled = state.sending;
+}
+
+/* ------------------------------- actions ----------------------------- */
+
+async function send() {
+  const box = $("text");
+  const text = box.value.trim();
+  if (!text || state.sending) return;
+  state.sending = true; syncButtons();
+  try {
+    const data = await api("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ who: "kaya", text: text }),
+    });
+    box.value = ""; box.style.height = "";
+    state.hash = data.hash; state.turns = data.turns;
+    renderTurns(); toBottom();
+  } catch (e) {
+    toast("could not send: " + e.message);
+  } finally {
+    state.sending = false; syncButtons();
+  }
+}
+
+async function ask(vendor) {
+  const attach = $("attach").value.split(",").map(s => s.trim()).filter(Boolean);
+  const payload = { vendor: vendor, extra: $("extra").value.trim(), attach: attach };
+  if (vendor === "ollama") payload.model = $("model").value.trim();
+  try {
+    const data = await api("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    state.jobs = state.jobs.concat([data.job]); state.jobsAt = Date.now();
+    renderJobs(); syncButtons(); toBottom();
+  } catch (e) {
+    toast("could not invite " + vendor + ": " + e.message);
+  }
+}
+
+/* -------------------------------- polling ---------------------------- */
+
+async function pollRoom() {
+  try {
+    const url = "/api/room" + (state.hash ? "?since=" + encodeURIComponent(state.hash) : "");
+    const data = await api(url);
+    if (data.unchanged) return;
+    const stick = atBottom();
+    state.hash = data.hash; state.turns = data.turns;
+    renderTurns();
+    if (stick) toBottom();
+  } catch (e) { /* transient: the next tick retries */ }
+}
+
+async function pollJobs() {
+  try {
+    const data = await api("/api/jobs");
+    state.jobs = data.jobs; state.jobsAt = Date.now();
+    renderJobs(); syncButtons();
+  } catch (e) { /* transient */ }
+}
+
+async function pollStatus() {
+  try { state.status = await api("/api/status"); renderStatus(); }
+  catch (e) { /* transient */ }
+}
+
+/* --------------------------------- boot ------------------------------ */
+
+buildControls();
+pollRoom().then(toBottom);
+pollJobs();
+pollStatus();
+setInterval(() => { pollRoom(); pollJobs(); }, 1000);
+setInterval(renderJobs, 1000);      // keeps the elapsed counter honest between polls
+setInterval(pollStatus, 15000);
+
+$("send").addEventListener("click", send);
+$("text").addEventListener("keydown", ev => {
+  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); send(); }
+});
+$("text").addEventListener("input", ev => {
+  ev.target.style.height = "auto";
+  ev.target.style.height = Math.min(ev.target.scrollHeight + 2, window.innerHeight * 0.38) + "px";
+});
+scroller.addEventListener("scroll", () => $("jump").classList.toggle("show", !atBottom()));
+$("jump").addEventListener("click", toBottom);
+</script>
+</body>
+</html>
