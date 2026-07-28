@@ -89,6 +89,75 @@ def _scoped_snapshot(repo_root: str, rels: list[str]) -> dict[str, str]:
     return snap
 
 
+_AUTO_MINT_ENV = "DAEDALUS_AUTO_MINT"
+_AUTO_MINT_TRUE = {"1", "true", "yes", "on"}
+
+
+def _auto_mint_enabled() -> bool:
+    """Whether a landed write should be turned into an eval task automatically.
+
+    Default OFF. Minting is not free: ``mint_task_from_landed_edit`` shells out
+    to git (``rev-parse`` + one ``show`` per changed file, 30s timeout each) and
+    builds/loads the structcore index for the whole repo, then rewrites the mint
+    store on disk. That is fine for an operator-triggered flywheel run and wrong
+    to impose on every write offload -- so the seam ships dark and is turned on
+    explicitly with ``DAEDALUS_AUTO_MINT=1``. Anything else (unset, empty, "0")
+    reads as off, and the run still reports WHY it did not mint.
+    """
+    return os.environ.get(_AUTO_MINT_ENV, "").strip().lower() in _AUTO_MINT_TRUE
+
+
+def _auto_mint(result: dict, repo_root: str) -> dict:
+    """Mint one quarantined eval task from a LANDED write, fail-soft and loud.
+
+    This is the flywheel seam: a write that actually changed disk and passed the
+    gate becomes a labelled eval task, so the next measurement reflects the edit
+    that just landed. Returns the block stamped on ``result["auto_mint"]`` -- it
+    is written for EVERY write-mode run, minted or not, so a seam that declined
+    to fire is observable in the result an operator reads rather than invisible.
+
+    Fires only on a genuinely landed edit: ``action == "offloaded"`` (the verify
+    gate passed, nothing was rolled back) AND a non-empty ``wrote`` (the
+    before/after disk-hash diff, never the model's self-reported files_changed).
+    An escalated, rolled-back, advisory or dry run never reaches the minter.
+
+    A minting failure must never fail or roll back the offload -- the write has
+    already landed and been verified, and losing it over a bookkeeping error
+    would be strictly worse than not minting. So every failure below is caught
+    and reported as ``status == "error"``; the offload result stays successful.
+    """
+    if not _auto_mint_enabled():
+        return {"status": "disabled",
+                "reason": f"{_AUTO_MINT_ENV} is not set (default off)"}
+    if result.get("action") != "offloaded":
+        return {"status": "skipped",
+                "reason": f"run did not land (action={result.get('action')!r})"}
+    if not result.get("wrote"):
+        return {"status": "skipped", "reason": "no verified on-disk change"}
+    try:
+        from .eval.mint import add_minted_task, mint_task_from_landed_edit
+
+        task = mint_task_from_landed_edit(result, repo_root)
+        if not task:
+            return {"status": "skipped",
+                    "reason": "minter found no independent label in the landed edit"}
+        # QUARANTINE ONLY. mint.py stamps this itself; the write path re-checks
+        # it because minting at write time is the one caller that could quietly
+        # inject a self-graded label into the corpus a promotion decision reads.
+        # An unexpected tier is refused, not downgraded -- if the minter's
+        # contract changed, a human decides what it means.
+        if task.get("tier") != "quarantine":
+            return {"status": "error",
+                    "reason": f"refusing to persist minted task with tier "
+                              f"{task.get('tier')!r} (expected 'quarantine')"}
+        store = add_minted_task(task)
+        return {"status": "minted", "task_id": task["id"], "tier": task["tier"],
+                "must_include": len(task.get("must_include") or []),
+                "store": store}
+    except Exception as exc:    # noqa: BLE001 -- minting NEVER fails a landed write
+        return {"status": "error", "reason": f"{type(exc).__name__}: {exc}"}
+
+
 _SLICE_BUDGET_ENV = "OFFLOAD_SLICE_TOKENS"
 
 
@@ -441,6 +510,13 @@ def offload(
         metrics.record(provider=decision.provider, action="escalated_after_verify_fail",
                        owner=agent["name"], risk=decision.risk, eligible=True,
                        note=",".join(vr.failed))
+
+    # THE FLYWHEEL SEAM (closed here): a landed write mints its own eval task.
+    # Stamped on every write-mode run -- including the ones that did NOT mint --
+    # so the seam is observable instead of silent. Advisory/dry runs get no
+    # field at all, keeping their result dict byte-identical to before.
+    if decision.mode == "write":
+        result["auto_mint"] = _auto_mint(result, repo_root)
     return result
 
 
