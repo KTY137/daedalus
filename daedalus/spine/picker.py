@@ -74,6 +74,7 @@ __all__ = [
     "EXIT_NO_CHANGE",
     "EXIT_SOURCE_UNAVAILABLE",
     "INVENTORY_REL_PATH",
+    "MAP_STATE_REL_PATH",
     "PickedQueue",
     "SOURCE_BANDS",
     "SOURCE_ORDER",
@@ -85,7 +86,10 @@ __all__ = [
     "inventory_candidates",
     "inventory_freshness",
     "load_inventory",
+    "load_map_state",
     "main",
+    "map_candidates",
+    "map_state_trustworthy",
     "rank",
     "render_queue",
     "review_packet",
@@ -105,7 +109,16 @@ _MIN_ABBREV = 7
 _ABBREV_SHA_RE = re.compile(rf"[0-9a-f]{{{_MIN_ABBREV},64}}")
 
 # Source priority. A PRIOR, not a measurement -- see the module docstring.
+#
+# The two map_* bands sit ABOVE the inventory ones, and that ordering is the
+# whole argument for this source existing. Both describe "built but unreachable",
+# but docs/FEATURE_INVENTORY.json is HAND-WRITTEN and was measured thirty commits
+# stale, while docs/architecture-state.json is GENERATED and covered by a digest
+# and a drift gate. When two sources disagree about the same tree, the one that
+# cannot silently rot is the one to work from.
 SOURCE_BANDS: dict[str, float] = {
+    "map_island": 800.0,
+    "map_shim": 700.0,
     "inventory_island": 400.0,
     "inventory_stale": 300.0,
     "eval_miss": 200.0,
@@ -120,6 +133,7 @@ SOURCE_BANDS: dict[str, float] = {
 BAND_SPAN = 50.0
 
 SOURCE_ORDER: tuple[str, ...] = (
+    "map_island", "map_shim",
     "inventory_island", "inventory_stale", "eval_miss", "hotspot",
 )
 
@@ -480,6 +494,165 @@ def inventory_freshness(inventory: Mapping[str, Any],
                        f"is {actual[:len(recorded)]}"),
             "recorded_head": recorded, "actual_head": actual[:len(recorded)],
             "dirty": dirty}
+
+
+# --------------------------------------------------------------------------- #
+# source (e): the GENERATED architecture map                                    #
+# --------------------------------------------------------------------------- #
+MAP_STATE_REL_PATH = "docs/architecture-state.json"
+
+
+def load_map_state(path: str | Path | None = None,
+                   repo_root: str | Path | None = None) -> dict:
+    """Read ``docs/architecture-state.json``, or ``{}`` if it cannot be read.
+
+    Same degrade-to-empty contract as :func:`load_inventory`: the picker's job
+    is to rank work, not to be the thing that breaks when a generated file is
+    mid-write.
+    """
+    if path is None:
+        base = Path(repo_root) if repo_root else ROOT
+        path = Path(base) / MAP_STATE_REL_PATH
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def map_state_trustworthy(state: Mapping[str, Any]) -> dict:
+    """Does the snapshot's own digest still cover its own mechanical lists?
+
+    ``daedalus.mapping.drift`` states the rule this implements: *any verb that
+    INHERITS lists from an existing snapshot rather than rescanning has to ask
+    this first and refuse on a mismatch* -- otherwise a hand-edit that the drift
+    gate would have caught silently becomes the thing the loop picks work from.
+    Ranking work out of those lists is exactly such a verb.
+
+    This is a DIFFERENT question from the inventory's freshness check. That one
+    asks "was this written against the tree I am standing in", because a
+    hand-written file has no other defence. This one asks "has anyone edited the
+    generated file by hand", because a generated file's defence is its digest.
+    """
+    if not state:
+        return {"trusted": True, "reason": "no map snapshot to check"}
+    try:
+        from daedalus.mapping.drift import digest_ok
+
+        ok = bool(digest_ok(dict(state)))
+    except Exception as e:  # mapping unavailable -> cannot verify -> do not trust
+        return {"trusted": False,
+                "reason": f"could not verify the snapshot digest ({type(e).__name__}: {e})"}
+    if ok:
+        return {"trusted": True, "reason": "snapshot digest verifies"}
+    return {"trusted": False,
+            "reason": ("the snapshot's mechanical lists do not match the digest "
+                       "written with them -- it has been hand-edited. Regenerate "
+                       "with `daedalus map`")}
+
+
+def _map_island_instruction(module: str, test_only: bool) -> str:
+    how = ("Its ONLY importers are tests, so the behaviour is already pinned: "
+           "wiring it up is cheap and a regression would be caught."
+           if test_only else
+           "NOTHING imports it at all -- not even a test. Whatever you decide, "
+           "add a test that exercises the path you keep.")
+    return (
+        f"Module {module!r} is an ISLAND in the generated architecture map: the "
+        f"reachability engine cannot get to it from ANY entry point. {how} "
+        f"Either wire it into a real caller so the capability is reachable from "
+        f"the CLI / API / harness, or delete it together with its tests. Do not "
+        f"do both, and do not leave a shim behind -- a shim is a separate "
+        f"finding with its own remedy. Re-run `daedalus map --check` afterwards; "
+        f"the island count must go down, not sideways."
+    )
+
+
+def _map_shim_instruction(module: str) -> str:
+    return (
+        f"Module {module!r} is a SHIM in the generated architecture map: it "
+        f"exists only to re-export from somewhere else, and nothing reaches it. "
+        f"The remedy is NOT the island remedy -- do not 'wire it in'. Find its "
+        f"importers (there should be none), confirm the real module it forwards "
+        f"to is reachable on its own, and then remove the shim and its entry in "
+        f"the map's shim list. If something DOES still import it, the finding is "
+        f"wrong and the map should be corrected instead."
+    )
+
+
+def map_candidates(state: Mapping[str, Any]) -> tuple[
+        tuple[Candidate, ...], tuple[str, ...]]:
+    """Candidates from the generated map: islands and shims, with their evidence.
+
+    Islands and shims are deliberately DIFFERENT sources with different
+    instructions. They look alike in a count ("unreached") and need opposite
+    remedies -- an island is capability nobody can get to and usually wants
+    wiring; a shim is indirection nobody uses and wants removing. Collapsing
+    them into one "unreached" bucket would hand a fixer the wrong verb.
+    """
+    if not isinstance(state, Mapping) or not state:
+        return (), ()
+    islands = _strs(state.get("islands"))
+    shims = _strs(state.get("shims"))
+    test_only = set(_strs(state.get("test_only")))
+    counts = state.get("counts") if isinstance(state.get("counts"), Mapping) else {}
+    digest = str(state.get("digest") or "")
+
+    candidates: list[Candidate] = []
+    for module in islands:
+        is_test_only = module in test_only
+        # Measured: an island whose tests already exist is cheap and safe to
+        # wire, because the behaviour is pinned before anything is moved. One
+        # with no importer at all is a research task wearing an engineering
+        # task's clothes -- same reasoning the inventory source uses.
+        offset = 30.0 if is_test_only else 10.0
+        candidates.append(_candidate(
+            task_id=f"map-island-{_slug(module)}-{_short_hash(module)}",
+            source="map_island",
+            instruction=_map_island_instruction(module, is_test_only),
+            reason=(f"{module} is unreachable from every entry point"
+                    + (" and is imported only by tests" if is_test_only else
+                       " and has no importer at all")),
+            band_offset=offset,
+            evidence={
+                "measurement": f"{MAP_STATE_REL_PATH} (generated, digest-covered)",
+                "classification": "island",
+                "module": module,
+                "imported_only_by_tests": is_test_only,
+                "snapshot_digest": digest,
+                "snapshot_islands": len(islands),
+                "snapshot_modules": counts.get("modules"),
+            },
+            gate_paths=()))
+
+    for module in shims:
+        candidates.append(_candidate(
+            task_id=f"map-shim-{_slug(module)}-{_short_hash(module)}",
+            source="map_shim",
+            instruction=_map_shim_instruction(module),
+            reason=f"{module} is a re-export shim that nothing reaches",
+            band_offset=10.0,
+            evidence={
+                "measurement": f"{MAP_STATE_REL_PATH} (generated, digest-covered)",
+                "classification": "shim",
+                "module": module,
+                "snapshot_digest": digest,
+                "snapshot_shims": len(shims),
+                "snapshot_modules": counts.get("modules"),
+            },
+            gate_paths=()))
+
+    notes: list[str] = []
+    unknown = _strs(state.get("unknown"))
+    if unknown:
+        # Reported, never ranked: "the engine could not classify this" is a
+        # finding about the MAP, and turning it into a work item would send a
+        # fixer to change code because a scanner was confused.
+        notes.append(
+            f"map: {len(unknown)} module(s) the reachability engine could not "
+            f"classify -- reported, not ranked (fix the map, not the module)")
+    return tuple(candidates), tuple(notes)
 
 
 def _island_instruction(name: str, entrypoints: Sequence[str],
@@ -1043,6 +1216,7 @@ def build_queue(repo_root: str | Path | None = None, *,
                 include_eval: bool = False,
                 include_hotspots: bool = False,
                 inventory: Mapping[str, Any] | None = None,
+                map_snapshot: Mapping[str, Any] | None = None,
                 baseline: Mapping[str, Any] | None = None,
                 use_attempt_memory: bool = True,
                 enforce_inventory_freshness: bool = True,
@@ -1058,6 +1232,27 @@ def build_queue(repo_root: str | Path | None = None, *,
     candidates: list[Candidate] = []
     notes: list[str] = []
     sources: dict[str, Any] = {}
+
+    map_state = load_map_state(repo_root=root) if map_snapshot is None else map_snapshot
+    map_trust = map_state_trustworthy(map_state)
+    map_cands, map_notes = map_candidates(map_state)
+    if map_trust["trusted"]:
+        candidates.extend(map_cands)
+        notes.extend(map_notes)
+    else:
+        # A hand-edited generated file is worse than a missing one: it looks
+        # authoritative. Withheld for the same reason the inventory is, and
+        # said out loud for the same reason.
+        notes.append(
+            f"MAP SUPPRESSED ({len(map_cands)} candidate(s) withheld): "
+            f"{map_trust['reason']}")
+    sources["map"] = {
+        "path": str(Path(root) / MAP_STATE_REL_PATH),
+        "read": bool(map_state),
+        "candidates": len(map_cands) if map_trust["trusted"] else 0,
+        "suppressed": not map_trust["trusted"],
+        "trust": map_trust,
+    }
 
     inv = load_inventory(repo_root=root) if inventory is None else inventory
     inv_candidates, inv_notes = inventory_candidates(inv)

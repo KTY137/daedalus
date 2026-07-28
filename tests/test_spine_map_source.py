@@ -1,0 +1,215 @@
+"""The picker's GENERATED source: candidates derived from `daedalus map`.
+
+Why this source exists. The picker's only effective input used to be
+``docs/FEATURE_INVENTORY.json``, which is hand-written -- nothing in the repo
+generates it -- and which was measured thirty commits stale while driving the
+two highest bands. ``docs/architecture-state.json`` describes the same property
+("built, but nothing reaches it") and cannot rot the same way: it is generated,
+covered by its own digest, and gated by ``daedalus map --check``.
+
+Two properties carry this file:
+
+TRUST IS VERIFIED, NOT ASSUMED. ``daedalus.mapping.drift`` states the rule --
+any verb that INHERITS lists from a snapshot rather than rescanning must check
+the digest first, or a hand-edit the drift gate would have caught silently
+becomes the thing the loop picks work from. Fixtures here are stamped with the
+REAL ``_digest``, so these tests exercise the same contract the product does
+rather than a mocked stand-in.
+
+ISLANDS AND SHIMS ARE NOT THE SAME FINDING. They look alike in a count and need
+opposite remedies: an island is capability nobody can reach and usually wants
+wiring; a shim is indirection nobody uses and wants removing. Handing a fixer
+the wrong verb is the failure this separation prevents.
+"""
+from __future__ import annotations
+
+import json
+
+import pytest
+
+import daedalus.spine.picker as picker
+from daedalus.spine.picker import (
+    BAND_SPAN,
+    SOURCE_BANDS,
+    build_queue,
+    load_map_state,
+    map_candidates,
+    map_state_trustworthy,
+)
+
+
+def _stamped(**overrides) -> dict:
+    """A snapshot carrying a genuinely valid digest, per the real algorithm."""
+    from daedalus.mapping.drift import _digest
+
+    doc = {
+        "schema": 3,
+        "counts": {"modules": 3, "islands": 1, "shims": 1},
+        "ignore": {},
+        "modules": ["pkg/a.py", "pkg/b.py", "pkg/c.py"],
+        "islands": ["pkg/a.py"],
+        "unknown": [],
+        "shims": ["pkg/b.py"],
+        "test_only": ["pkg/a.py"],
+        "dark_switches": [],
+        "doc_drift": [],
+        "unparsable": [],
+        "index_extra_edges": [],
+        "acceptances": [],
+        "note": "GENERATED",
+    }
+    doc.update(overrides)
+    doc["digest"] = _digest(doc)
+    return doc
+
+
+def _write_map(tmp_path, doc):
+    docs = tmp_path / "docs"
+    docs.mkdir(parents=True, exist_ok=True)
+    (docs / "architecture-state.json").write_text(json.dumps(doc), encoding="utf-8")
+    return tmp_path
+
+
+@pytest.fixture
+def no_eval(monkeypatch):
+    monkeypatch.setattr(picker, "_load_baseline", lambda: ({}, None))
+    return monkeypatch
+
+
+# --------------------------------------------------------------------------- #
+# trust                                                                        #
+# --------------------------------------------------------------------------- #
+def test_a_valid_snapshot_is_trusted():
+    assert map_state_trustworthy(_stamped())["trusted"] is True
+
+
+def test_a_hand_edited_snapshot_is_refused():
+    # The exact failure the digest exists to catch: somebody deletes an
+    # inconvenient island from the generated file by hand.
+    doc = _stamped()
+    doc["islands"] = []                      # edited AFTER the digest was written
+    got = map_state_trustworthy(doc)
+    assert got["trusted"] is False
+    assert "hand-edited" in got["reason"]
+
+
+def test_editing_acceptances_does_not_break_trust():
+    # acceptances is the one part a human is SUPPOSED to write, so it is
+    # deliberately outside the digest. If this ever fails, the picker would be
+    # refusing snapshots for the one edit the workflow requires.
+    doc = _stamped()
+    doc["acceptances"] = [{"id": "island:pkg/a.py", "why": "kept on purpose"}]
+    assert map_state_trustworthy(doc)["trusted"] is True
+
+
+def test_an_absent_snapshot_is_not_an_error():
+    assert map_state_trustworthy({})["trusted"] is True
+    assert map_candidates({}) == ((), ())
+
+
+def test_an_unreadable_snapshot_degrades_to_empty(tmp_path):
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "architecture-state.json").write_text("{not json", encoding="utf-8")
+    assert load_map_state(repo_root=tmp_path) == {}
+
+
+# --------------------------------------------------------------------------- #
+# candidates                                                                   #
+# --------------------------------------------------------------------------- #
+def test_islands_and_shims_are_separate_sources_with_separate_remedies():
+    cands, _ = map_candidates(_stamped())
+    by_source = {c.source: c for c in cands}
+    assert set(by_source) == {"map_island", "map_shim"}
+
+    island = by_source["map_island"].instruction
+    shim = by_source["map_shim"].instruction
+    assert "wire it into a real caller" in island
+    assert "do not 'wire it in'" in shim, "a shim was handed the island's verb"
+    assert "remove the shim" in shim
+
+
+def test_an_island_imported_only_by_tests_outranks_one_with_no_importer():
+    tested, _ = map_candidates(_stamped())
+    lonely_doc = _stamped(test_only=[])
+    lonely, _ = map_candidates(lonely_doc)
+    a = next(c for c in tested if c.source == "map_island")
+    b = next(c for c in lonely if c.source == "map_island")
+    # Behaviour that is already pinned is cheaper and safer to move.
+    assert a.offset > b.offset
+    assert a.evidence["imported_only_by_tests"] is True
+    assert b.evidence["imported_only_by_tests"] is False
+
+
+def test_every_map_candidate_carries_its_generated_provenance():
+    cands, _ = map_candidates(_stamped())
+    for c in cands:
+        assert "architecture-state.json" in c.evidence["measurement"]
+        assert c.evidence["snapshot_digest"].startswith("sha256:")
+        assert c.evidence["module"]
+        assert c.evidence["classification"] in ("island", "shim")
+
+
+def test_unclassifiable_modules_are_reported_but_never_ranked():
+    # "the engine could not classify this" is a finding about the MAP. Ranking
+    # it would send a fixer to change code because a scanner was confused.
+    cands, notes = map_candidates(_stamped(unknown=["pkg/c.py"]))
+    assert all("pkg/c.py" not in c.task_id for c in cands)
+    assert any("could not classify" in n for n in notes)
+
+
+def test_task_ids_are_stable_across_runs():
+    a, _ = map_candidates(_stamped())
+    b, _ = map_candidates(_stamped())
+    assert [c.task_id for c in a] == [c.task_id for c in b]
+
+
+# --------------------------------------------------------------------------- #
+# how it sits in the queue                                                     #
+# --------------------------------------------------------------------------- #
+def test_the_generated_source_outranks_the_hand_written_one():
+    # The whole argument for this source: when two sources describe the same
+    # property, the one that cannot silently rot is the one to work from.
+    assert SOURCE_BANDS["map_island"] > SOURCE_BANDS["inventory_island"]
+    assert SOURCE_BANDS["map_shim"] > SOURCE_BANDS["inventory_island"]
+
+
+def test_adding_map_bands_did_not_break_the_non_crossing_invariant():
+    bands = sorted(SOURCE_BANDS.values())
+    smallest_gap = min(b - a for a, b in zip(bands, bands[1:]))
+    assert BAND_SPAN < smallest_gap, (
+        "a measurement can now cross a band boundary; the stated priority is "
+        "no longer stated")
+
+
+def test_a_hand_edited_snapshot_is_withheld_from_the_queue_loudly(tmp_path, no_eval):
+    doc = _stamped()
+    doc["islands"] = []
+    _write_map(tmp_path, doc)
+    q = build_queue(tmp_path, limit=None)
+    assert q.sources["map"]["suppressed"] is True
+    assert q.sources["map"]["candidates"] == 0
+    assert any("MAP SUPPRESSED" in n for n in q.notes)
+    assert "map" in q.degraded_sources
+
+
+def test_a_valid_snapshot_fills_the_queue(tmp_path, no_eval):
+    _write_map(tmp_path, _stamped())
+    q = build_queue(tmp_path, limit=None)
+    assert q.sources["map"]["suppressed"] is False
+    assert q.sources["map"]["candidates"] == 2
+    assert "map" not in q.degraded_sources
+    assert q.candidates[0].source == "map_island"
+
+
+def test_the_real_repo_snapshot_verifies_and_produces_work():
+    # Against the ACTUAL committed snapshot, not a fixture -- the configuration
+    # the product runs in. A fixture-only test here would prove nothing about
+    # whether this source works on this repo.
+    state = load_map_state()
+    if not state:
+        pytest.skip("no committed architecture-state.json")
+    assert map_state_trustworthy(state)["trusted"] is True
+    cands, _ = map_candidates(state)
+    assert cands, "the generated map produced no work items for this repo"
+    assert {c.source for c in cands} <= {"map_island", "map_shim"}
