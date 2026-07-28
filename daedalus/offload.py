@@ -19,10 +19,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from . import metrics
-from .ikarus import FREE_LANES
+from .kairos.scheduler import FREE_LANES
 from .provider_router import route_and_select
 from .verifier import VerifyResult, verify
 
@@ -43,7 +44,8 @@ def _content_hash(repo_root: str, rel: str) -> str | None:
 
 
 _SNAPSHOT_SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv",
-                  ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+                  ".mypy_cache", ".pytest_cache", ".ruff_cache",
+                  ".daedalus_worktrees"}
 _SNAPSHOT_MAX = 400_000  # per-file byte cap: skip large/binary blobs
 
 
@@ -85,6 +87,103 @@ def _scoped_snapshot(repo_root: str, rels: list[str]) -> dict[str, str]:
         if h is not None:
             snap[Path(rel).as_posix()] = h
     return snap
+
+
+_SLICE_BUDGET_ENV = "OFFLOAD_SLICE_TOKENS"
+
+
+def _slice_budget() -> int:
+    """Token budget for distilled slice context on the LOCAL lane. Default 0 =
+    OFF: the wire ships dark until the live A/B (the landing gate) shows the
+    local model does better work with the neighborhood in view. Set
+    OFFLOAD_SLICE_TOKENS to a positive int to enable; anything unparsable or
+    negative reads as off."""
+    try:
+        return max(0, int(os.environ.get(_SLICE_BUDGET_ENV, "0")))
+    except ValueError:
+        return 0
+
+
+def _slice_context(repo_root: str, targets: list[str], pol,
+                   include_focus: bool, budget: int) -> tuple[dict[str, str], dict]:
+    """Gated distilled context for the LOCAL (trusted) lane -- the slice→offload
+    wire (Horizon Phase 2, static import graph only).
+
+    Returns ``(slice_texts, meta)``: rel -> slice_text for every declared
+    target the slicer could serve, plus a provenance block for the result dict.
+    A slice that failed to build, was refused by the egress gate, or came back
+    empty is REPORTED in ``meta``, never silent -- a withheld or degraded
+    context must be visible at the seam the operator reads.
+
+    Fail-OPEN on build (a broken index/slicer never blocks the task; the worker
+    just runs context-free, exactly as before this wire existed). Fail-CLOSED
+    on content: the gates inside ``semantic_slice`` do the withholding -- the
+    secret floor runs on every lane, and a focus-refused file injects NOTHING
+    (its breadcrumb is a refusal notice, not context).
+
+    ``lane="trusted"`` is only correct because this is called for the local
+    bench alone (ollama: no bytes leave the machine, and its agentic loop may
+    already read any repo file). NEVER route this output to an external
+    provider -- that invariant is enforced at the call site, which builds the
+    slice exclusively inside the ollama branch.
+    """
+    meta: dict = {"injected": False, "budget_tokens": budget, "targets": []}
+    texts: dict[str, str] = {}
+    if budget <= 0:
+        meta["reason"] = f"disabled ({_SLICE_BUDGET_ENV}=0)"
+        return texts, meta
+    if not targets:
+        meta["reason"] = "no declared paths to focus on"
+        return texts, meta
+    try:
+        from .structcore.index import cached_index
+        from .structcore.slice import semantic_slice
+
+        # Warm for write tasks: the routing reachability precheck already built
+        # this index; the cache makes the wire near-free at dispatch time.
+        idx = cached_index(repo_root)
+        per_target = max(256, budget // len(targets))
+        for rel in targets:
+            entry: dict = {"target": rel}
+            try:
+                res = semantic_slice(repo_root, rel, idx=idx, lane="trusted",
+                                     policy=pol, max_tokens=per_target,
+                                     include_focus=include_focus)
+            except ValueError:
+                # Not in the index: a create target or an unindexed tree --
+                # nothing to distill; the worker proceeds exactly as before.
+                entry.update(status="skipped", reason="target not in index")
+                meta["targets"].append(entry)
+                continue
+            focus_refused = any(w.get("role") == "focus"
+                                for w in res.get("withheld") or ())
+            text = (res.get("slice_text") or "").strip()
+            if focus_refused or not text:
+                rule = next((w.get("rule") for w in res.get("withheld") or ()
+                             if w.get("role") == "focus"), None)
+                entry.update(status="skipped",
+                             reason=(f"focus withheld by egress gate ({rule})"
+                                     if focus_refused else "empty slice"))
+                meta["targets"].append(entry)
+                continue
+            texts[rel] = text
+            entry.update(
+                status="injected",
+                slice_tokens=int(res.get("slice_tokens", 0)),
+                included=int(res.get("n_included", 0)),
+                withheld_count=int(res.get("withheld_count", 0)),
+                trimmed_count=int(res.get("trimmed_count", 0)),
+                shell_boundary_stops=int(res.get("shell_boundary_stops", 0)),
+            )
+            meta["targets"].append(entry)
+    except Exception as exc:  # noqa: BLE001 -- fail-open: context is optional, the task is not
+        texts.clear()
+        return texts, {"injected": False, "budget_tokens": budget, "targets": [],
+                       "reason": f"slice build failed: {exc}"}
+    meta["injected"] = bool(texts)
+    if not texts and "reason" not in meta:
+        meta["reason"] = "no target produced an injectable slice"
+    return texts, meta
 
 
 def offload(
@@ -172,16 +271,53 @@ def offload(
     worker = get_provider(decision.provider)
     run_kwargs = dict(objective=objective, repo_root=repo_root, paths=paths or [],
                       agent=agent, policy=pol)
+    slice_meta = None
     if decision.provider == "ollama":
         run_kwargs["writable"] = (decision.mode == "write")   # advisory truly can't write
         model_assignments = ((pdata or {}).get("team") or {}).get("model_assignments") or {}
         preferred_model = model_assignments.get(agent["name"])
         if preferred_model:
             run_kwargs["model"] = str(preferred_model)
+        # THE WIRE (Horizon Phase 2, static-only): hand the LOCAL bench a gated
+        # distilled slice of the declared targets. Built exclusively in this
+        # branch -- ollama is local and trusted with IP, so lane="trusted"
+        # (secret floor ON, default-deny OFF). codex/deepseek NEVER get a
+        # slice: external lanes keep their existing egress posture (the
+        # bootstrap's Cerberus invariant, kept here on purpose).
+        from .providers.ollama import MAX_REWRITE_FILES
+        slice_targets = list(dict.fromkeys(
+            p.replace("\\", "/") for p in (paths or [])))[:MAX_REWRITE_FILES]
+        rewrite_bound = (decision.mode == "write" and bool(paths)
+                        and len(paths) <= MAX_REWRITE_FILES)
+        # The rewrite prompt already carries the full file body, so its slice
+        # omits the FOCUS body (neighborhood only) rather than paying for a
+        # duplicate. Agentic/advisory workers haven't read the file yet -- they
+        # get the full slice. This mirrors the provider's own dispatch rule.
+        slice_texts, slice_meta = _slice_context(
+            repo_root, slice_targets, pol,
+            include_focus=not rewrite_bound, budget=_slice_budget())
+        if slice_texts:
+            run_kwargs["slice_texts"] = slice_texts
     elif decision.provider == "codex_cli":
         # Same reduced-rights grant as ollama: advisory runs in codex's
         # read-only sandbox and structurally cannot write.
         run_kwargs["writable"] = (decision.mode == "write")
+
+    # FAIL-CLOSED writable grant: the verify-fail path below undoes a bad write
+    # via worker.rollback(), so a provider without a callable rollback() must
+    # never hold write rights -- a failed verify would leave the primary
+    # checkout dirty while the result reported rolled_back=[] with no flag
+    # (today that's codex_cli; only the ollama provider implements rollback).
+    # The downgrade is EXPLICIT, mirroring core._codex_report's
+    # mutation_blocked stamp: the notice + needs_stronger_lane ride the result,
+    # and the write-mode verify gate (require_changes) then fails the run into
+    # escalated_after_verify_fail -- never a silent advisory acceptance.
+    if run_kwargs.get("writable") and not callable(getattr(worker, "rollback", None)):
+        run_kwargs["writable"] = False
+        result["mutation_blocked"] = (
+            f"routed {decision.provider} write is advisory-only until Forge: "
+            "provider has no rollback capability")
+        result["needs_stronger_lane"] = True
 
     # Snapshot the repo BEFORE the run so we can prove a real on-disk change
     # afterward -- the write-mode gate must NOT trust the model's self-reported
@@ -198,6 +334,16 @@ def offload(
 
     out = worker.run(**run_kwargs)
     report = out["report"]
+
+    # Slice-context provenance rides the result even on escalation: what the
+    # worker actually saw (or why it saw nothing) must never be reconstructable
+    # only from logs. A file whose context was dropped to fit the local window
+    # is surfaced from the worker's report here.
+    if slice_meta is not None:
+        dropped = (report.get("handoff") or {}).get("slice_context_dropped")
+        if dropped:
+            slice_meta["dropped_for_window"] = list(dropped)
+        result["slice_context"] = slice_meta
 
     # Which files ACTUALLY changed on disk (create, edit, or delete) -- this,
     # not report["files_changed"], is what the write-mode gate trusts.
@@ -264,7 +410,7 @@ def offload(
         # them so `daedalus drafts` can list/review/apply later (Era 3 #1).
         if decision.mode == "advisory":
             try:
-                from .drafts import save_draft
+                from .kairos.drafts import save_draft
                 result["draft"] = save_draft(
                     objective, paths or [], agent["name"], decision.provider,
                     decision.persona, report, repo_root=repo_root).stem
