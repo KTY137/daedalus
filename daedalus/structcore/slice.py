@@ -162,6 +162,7 @@ def semantic_slice(
     lane: str = "trusted",
     policy=None,
     max_tokens: int | None = None,
+    include_focus: bool = True,
 ) -> dict:
     """Assemble a semantic slice of ``target``.
 
@@ -211,6 +212,17 @@ def semantic_slice(
     neighbour units (never truncating text), always keeping the FOCUS and the
     WITHHELD block and appending a visible ``# ===== CONTEXT TRIMMED ... =====``
     marker; ``trimmed_count`` reports how many neighbours were dropped.
+
+    ``include_focus`` (default ``True`` -> byte-identical to before) controls only
+    whether the FOCUS file's BODY is emitted into ``slice_text``. With ``False`` the
+    body is replaced by a one-line header and ``included[0]`` is reported as
+    ``mode="omitted"``; the focus source is still read and still drives symbol
+    resolution (callees/callers). The offload rewrite path sets this: it already
+    puts the file body in the prompt separately, so duplicating it via the FOCUS
+    block would waste the window -- the slice then contributes only neighbour
+    context. INVARIANT: the FOCUS GATE (the floor scan of the FULL focus text and
+    its fail-closed refusal) runs FIRST and IDENTICALLY in both modes -- omitting
+    the body never skips the gate, so a secret-bearing focus is refused either way.
     """
     from ..sensitivity import slice_egress_rule
 
@@ -273,8 +285,18 @@ def semantic_slice(
     else:
         focus_src = text
 
-    focus_inc = {"file": rel, "role": "focus", "mode": "full", "tokens": estimate_tokens(focus_src)}
-    focus_block = f"# ===== FOCUS: {target} =====\n{focus_src}"
+    if include_focus:
+        focus_inc = {"file": rel, "role": "focus", "mode": "full", "tokens": estimate_tokens(focus_src)}
+        focus_block = f"# ===== FOCUS: {target} =====\n{focus_src}"
+    else:
+        # Body omitted -- the offload rewrite path already supplies it separately.
+        # The FOCUS GATE above scanned the FULL focus text and would have returned
+        # before reaching here; only the EMITTED text drops. focus_src is still read
+        # and focus_unit still resolved the symbol's callees/callers. Provenance
+        # must not claim mode "full"/full-body tokens for an omitted body.
+        focus_block = f"# ===== FOCUS: {target} (body omitted -- supplied separately) ====="
+        focus_inc = {"file": rel, "role": "focus", "mode": "omitted",
+                     "tokens": estimate_tokens(focus_block)}
     # Neighbour units, collected in emission order and kept SEPARATE from the
     # FOCUS so an optional token budget can degrade by dropping whole units (see
     # _fit_budget). ``keep`` is the drop priority: dependency/callee bodies (2)
