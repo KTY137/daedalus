@@ -25,10 +25,20 @@
     daedalus council "<question>" [--patch F] [--file P] [--rounds N] [--vendors a,b]
                                         convene the cross-vendor council over a
                                         patch/file; ADVISORY -- it promotes nothing
+    daedalus canary [--quick] [--vendors a,b] [--dry-run]
+                                        health-check every vendor lane with a
+                                        small REAL task that has a checkable
+                                        answer; "unavailable" is NOT failure
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
     daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
     daedalus bookkeeper update          refresh docs/architecture.html (+ history snapshot)
+    daedalus map [--json] [--check] [--accept ITEM --why TEXT]
+                                        generate docs/architecture-map.html: the
+                                        mechanical half derived every run, the
+                                        narrative half read from
+                                        docs/architecture-narrative.md; --check
+                                        is the gate and exits non-zero on drift
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
@@ -618,6 +628,147 @@ def _diff_paths(diff_text: str) -> list[str]:
     return sorted(set(out))
 
 
+def _canary(argv: list[str]) -> int:
+    """Health-check every vendor lane with a small task that has a checkable
+    answer, and fail loud when a lane degrades.
+
+    Each probe is (prompt, deterministic checker) -- no model judges another
+    model, because a checker that needed an LLM would have the same failure
+    mode the canary exists to catch. Exit code is non-zero ONLY when a lane
+    that used to pass a LIVENESS probe now fails it."""
+    import argparse
+    import dataclasses
+    import json
+    from .council import canary as cn
+
+    parser = argparse.ArgumentParser(
+        prog="daedalus canary",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Give every vendor lane a small real task with a checkable answer "
+            "and fail loud when one degrades. Every probe is a (prompt, "
+            "deterministic-Python checker) pair: no model grades another model."),
+        epilog=(
+            "UNAVAILABLE IS NOT FAILURE.\n"
+            "  'we could not ask' (agy not signed in, bench asleep, CLI not\n"
+            "  installed) and 'we asked and the answer was wrong' are separate\n"
+            "  statuses and are never merged -- conflating them is the main way\n"
+            "  a health check lies. An unavailable lane never trips the exit code.\n"
+            "\n"
+            "PROBES\n"
+            + "".join(f"  {p.name:<14} [{p.severity}] {p.blurb}\n" for p in cn.PROBES)
+            + "  liveness = did our bytes arrive and did the lane obey the shape\n"
+              "  quality  = is this lane's reasoning the right shape for a job.\n"
+              "             A quality regression is printed but does NOT trip the\n"
+              "             exit code: a lane can be alive and still be a bad fit.\n"
+            "\n"
+            "EXIT CODE\n"
+            "  1 only when a previously-passing liveness probe now fails, so this\n"
+            "  can be wired into a scheduled run. A lane that has never passed is\n"
+            "  reported but is not a regression.\n"))
+    parser.add_argument("--vendors", default=",".join(cn.VENDOR_KEYS),
+                        help=f"comma-separated subset of {','.join(cn.VENDOR_KEYS)}")
+    parser.add_argument("--probes", default="",
+                        help="comma-separated subset of "
+                             f"{','.join(p.name for p in cn.PROBES)} (default: all)")
+    parser.add_argument("--quick", action="store_true",
+                        help=f"one probe per lane ('{cn.QUICK_PROBE}' -- the probe "
+                             "that catches a truncated prompt)")
+    parser.add_argument("--model", action="append", default=[], metavar="VENDOR=NAME",
+                        help="pin a vendor's model (repeatable); the default local "
+                             f"model is the cheap {cn.DEFAULT_OLLAMA_MODEL}, not a 32b")
+    parser.add_argument("--ollama-host", default=cn.DEFAULT_BENCH_OLLAMA_HOST,
+                        help="passed EXPLICITLY per call; OLLAMA_HOST is never read "
+                             "for routing and never written. Only 127.0.0.1 counts "
+                             "as local -- the bench is egress")
+    parser.add_argument("--agy-signed-in", action="store_true",
+                        help="assert agy completed its interactive sign-in "
+                             "(otherwise it reports unavailable, which is fine)")
+    parser.add_argument("--timeout", type=float, default=cn.DEFAULT_PER_PROBE_TIMEOUT_S,
+                        help="hard per-probe cap in seconds")
+    parser.add_argument("--wall-clock", type=float, default=cn.DEFAULT_WALL_CLOCK_S,
+                        help="total cap in seconds; a hung lane is abandoned here "
+                             "and reported as a timeout, never blocking the rest")
+    parser.add_argument("--max-parallel", type=int, default=cn.DEFAULT_MAX_PARALLEL,
+                        help="lanes probed concurrently (probes WITHIN a lane are "
+                             "sequential: four calls at once is a load test)")
+    parser.add_argument("--history", default=str(cn.DEFAULT_HISTORY_PATH),
+                        help="append-only JSONL run log used for the median/pass-rate "
+                             "comparison")
+    parser.add_argument("--no-record", action="store_true",
+                        help="compare against history but do not append this run")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="print the plan and call NOTHING")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    names = [v.strip() for v in args.vendors.split(",") if v.strip()]
+    probe_names = [p.strip() for p in args.probes.split(",") if p.strip()]
+    models: dict[str, str] = {}
+    for pair in args.model:
+        if "=" not in pair:
+            print(f"error: --model expects VENDOR=NAME, got '{pair}'")
+            return 2
+        vendor, name = pair.split("=", 1)
+        models[vendor.strip().lower()] = name.strip()
+    try:
+        probes = cn.probes_for(probe_names, quick=args.quick)
+        lanes = cn.default_lanes(names, models=models,
+                                 ollama_host=args.ollama_host,
+                                 agy_signed_in=args.agy_signed_in)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
+
+    if args.dry_run:
+        plan = cn.dry_run_plan(lanes, probes, per_probe_timeout_s=args.timeout,
+                               wall_clock_s=args.wall_clock,
+                               max_parallel=args.max_parallel,
+                               history_path=args.history)
+        if args.json:
+            print(json.dumps(plan, indent=2, default=str))
+            return 0
+        print("VENDOR CANARY PLAN (DRY RUN -- no model was called)")
+        print(f"  {plan['calls']} call(s): {len(lanes)} lane(s) x {len(probes)} probe(s)")
+        print(f"  bounds  : {args.timeout}s/probe, {args.wall_clock}s total, "
+              f"{args.max_parallel} lane(s) in flight")
+        print(f"  history : {plan['history_path']}")
+        print("\n  lane                                     egress")
+        print("  " + "-" * 62)
+        for lane in plan["lanes"]:
+            print(f"  {lane['vendor'] + ' ' + lane['model'] + ' @ ' + lane['endpoint']:<40} "
+                  f"{lane['egress']}")
+        print("\n  probe          severity  chars  what it catches")
+        print("  " + "-" * 74)
+        for p in plan["probes"]:
+            print(f"  {p['name']:<14} {p['severity']:<9} {p['prompt_chars']:<6} {p['blurb']}")
+        print("\nUnavailable is not failure. Nothing was asked and nothing was billed.")
+        return 0
+
+    # A vendor answer is arbitrary Unicode and a Windows console is cp1252; an
+    # UnicodeEncodeError here would discard a canary that already ran.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
+    history = cn.load_history(args.history)
+    run = cn.run_canary(lanes, probes, per_probe_timeout_s=args.timeout,
+                        wall_clock_s=args.wall_clock,
+                        max_parallel=args.max_parallel, history=history)
+    if not args.no_record:
+        cn.append_history(run, args.history)
+
+    if args.json:
+        payload = dataclasses.asdict(run)
+        payload["summary"] = run.summary()
+        payload["exit_code"] = run.exit_code()
+        print(json.dumps(payload, indent=2, default=str))
+        return run.exit_code()
+    print(cn.render_table(run))
+    return run.exit_code()
+
+
 def _claude_crew(argv: list[str]) -> None:
     """List Claude Code subagents detected in a repo's .claude/agents/ -- the
     frontier crew, distinct from the harness roles Ikarus routes to."""
@@ -694,6 +845,8 @@ def main() -> None:
         _categories(rest)
     elif cmd == "council":
         _council(rest)
+    elif cmd == "canary":
+        raise SystemExit(_canary(rest))
     elif cmd == "claude-crew":
         _claude_crew(rest)
     elif cmd == "drafts":
@@ -702,6 +855,8 @@ def main() -> None:
         from .selftest import main as m; m(rest)
     elif cmd == "bookkeeper":
         from .bookkeeper import main as m; m(rest)
+    elif cmd == "map":
+        from .mapping.render import main as m; raise SystemExit(m(rest))
     elif cmd == "web":
         from .web_api import main as m; m(rest)
     elif cmd == "enforce":
