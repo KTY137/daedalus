@@ -15,6 +15,12 @@ Design goals:
 - local JSON run logs that are ignored by Git
 - optional LangGraph adapter for durable production workflows
 
+The long-horizon architecture and dependency-gated delivery program live in
+[Ikarus & Ariadne: Der Daedalus-Masterplan](docs/IKARUS_ARIADNE_MASTER_PLAN.md).
+In that vocabulary, **Ikarus** is the user-facing assistant and **Ariadne** is
+the Daedalus Forest Evolution Engine; `forest-evolve` remains a descriptive
+CLI/API surface rather than a second product identity.
+
 ## Layout
 
 | Path | Purpose |
@@ -52,19 +58,21 @@ The file bus remains the compatibility backbone. Existing `outbox/*.json` and
 | `claude_cli` | external (Claude CLI) | yes | yes | Senior lane; always the backstop for `auto`/`local`. |
 | `ollama` | local (no egress) | low-risk only | yes | The free bench; full-file rewrite + verifier gate. |
 | `deepseek` | external API | no (advisory) | **no** | Non-sensitive content only; needs `DEEPSEEK_API_KEY`. |
-| `codex_cli` | external (OpenAI Codex CLI) | low-risk only | **no** | `codex exec` edits files in place; egress-gated like DeepSeek. Auth via `codex login` (no env key). In `auto` it sits between the local bench and the Claude lane. |
+| `codex_cli` | external (OpenAI Codex CLI) | legacy `auto` path only | **no** | Egress-gated like DeepSeek. The forced `--lane codex` bridge is advisory-only until Forge provides a verified worktree transaction. |
 
 Codex quickstart: install the CLI (`npm i -g @openai/codex`), run `codex login`
 once, confirm with `python -m daedalus.cli doctor` (presence + auth line), then
-either let `auto` fall through to it when the bench is down or force it:
+either let `auto` fall through to the legacy verified path when the bench is
+down or force a read-only specialist report:
 
 ```powershell
 python -m daedalus.file_bridge enqueue "<task>" --project <name> --lane codex
 ```
 
 The per-project egress policy (`projects/<name>.json` -> `policy.deny`) gates
-every codex dispatch: a denied path is refused before the CLI is spawned, and
-without a loaded policy codex runs advisory-only (read-only sandbox).
+every codex dispatch: a denied path is refused before the CLI is spawned. The
+forced lane always runs advisory-only; direct external mutations are being
+retired behind the Forge transaction boundary described in the masterplan.
 
 ## Quickstart — zero to first verified offload
 
