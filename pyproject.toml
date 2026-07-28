@@ -37,4 +37,6 @@ packages = [
     "daedalus.providers",
     "daedalus.structcore",
     "daedalus.eval",
+    "daedalus.spine",
+    "daedalus.council",
 ]
