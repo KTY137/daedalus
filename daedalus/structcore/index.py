@@ -436,7 +436,11 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
             # replaced", inflating the reduction headline.
             total_tokens += a.n_tokens
             all_units.extend(a.units)
-            modules[rel] = a.metrics
+            # Per-file token cost is required by budgeted context planners.
+            # ``total_tokens`` alone cannot tell DSS whether a candidate fits,
+            # and falling back to LOC*8 makes the receipt deterministic but not
+            # tokenizer-true.  Additive: existing metric keys keep their meaning.
+            modules[rel] = {**a.metrics, "n_tokens": a.n_tokens}
             runs_by_file.append((rel, a.runs))
             lang_summary[spec.name]["files"] += 1
             lang_summary[spec.name]["loc"] += a.loc

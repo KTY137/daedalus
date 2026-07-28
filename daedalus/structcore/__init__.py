@@ -21,6 +21,22 @@ from __future__ import annotations
 
 from .languages import LanguageSpec, spec_for, SPECS
 from .index import build_index, backend_status, cached_index
+from .forest import (
+    ForestEdge,
+    ForestHyperedge,
+    ForestNode,
+    KnowledgeForest,
+    build_knowledge_forest,
+)
+from .dss import (
+    ContextPlan,
+    DSSConfig,
+    DSSReceipt,
+    DSSResult,
+    ForestHierarchy,
+    build_forest_hierarchy,
+    semantic_super_sample,
+)
 
 # NOTE: ``semantic_slice`` lives in ``daedalus.structcore.slice`` and is imported
 # lazily (below) rather than eagerly, so ``python -m daedalus.structcore.slice``
@@ -28,6 +44,10 @@ from .index import build_index, backend_status, cached_index
 __all__ = [
     "LanguageSpec", "spec_for", "SPECS", "build_index", "backend_status",
     "cached_index", "semantic_slice", "estimate_tokens",
+    "ForestNode", "ForestEdge", "ForestHyperedge", "KnowledgeForest",
+    "build_knowledge_forest",
+    "ForestHierarchy", "DSSConfig", "ContextPlan", "DSSReceipt", "DSSResult",
+    "build_forest_hierarchy", "semantic_super_sample",
 ]
 
 
