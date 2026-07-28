@@ -801,6 +801,19 @@ def verify_room(store_path: str | Path | None = None) -> tuple[bool, list[str]]:
                 failures.append(
                     f"turn {i} ({turns[i].name}): inside the attested range but "
                     f"MISSING from the chain (mirror gap)")
+        # THE TAIL, which used to be excused wholesale.
+        #
+        # Turns BEFORE the first chained one genuinely predate the mirror and
+        # are correctly not covered. Turns AFTER the last chained one do NOT:
+        # the mirror was demonstrably running by then, so an unchained turn
+        # there is the same defect as a hole in the middle -- it just happens to
+        # sit at the end. Reporting only the interior meant a writer that
+        # bypassed `append_turn` was invisible for as long as it was the most
+        # recent writer, which is exactly how long it matters.
+        for i in range(max(seen) + 1, len(turns)):
+            failures.append(
+                f"turn {i} ({turns[i].name}): appended AFTER the last chained "
+                f"turn but MISSING from the chain (unmirrored tail)")
     return (not failures), failures
 
 
@@ -819,6 +832,116 @@ def chain_coverage(store_path: str | Path | None = None) -> tuple[int, int]:
     return len(rounds), len(turns)
 
 
+class _RoomLock:
+    """A CROSS-PROCESS lock around append+mirror.
+
+    ``bus._WRITE_LOCK`` is a ``threading.Lock``, which serialises threads inside
+    one interpreter and nothing else. The writers here are separate PROCESSES --
+    the CLI, the GUI server, and a Claude Code hook that fires for every session
+    on the machine -- so a thread lock never applied to the case that actually
+    happens. Two processes could interleave an append and a mirror and leave the
+    markdown holding a turn the chain does not attest.
+
+    Degrades to a no-op if the lock cannot be taken rather than blocking a turn
+    forever: losing serialisation is bad, losing the human's message is worse,
+    and ``verify_room`` still reports any gap that results BY POSITION.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._fh = None
+
+    def __enter__(self):
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = open(self.path, "a+b")
+            if os.name == "nt":
+                import msvcrt
+                for _ in range(300):            # ~30s, then proceed unlocked
+                    try:
+                        msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+                        break
+                    except OSError:
+                        time.sleep(0.1)
+            else:
+                import fcntl
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX)
+        except Exception:
+            self._fh = None
+        return self
+
+    def __exit__(self, *exc) -> bool:
+        if self._fh is not None:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    self._fh.seek(0)
+                    msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                self._fh.close()
+            except Exception:
+                pass
+        return False
+
+
+def append_turn(who: str, text: str, model: str | None = None,
+                name: str | None = None, tag: str | None = None,
+                room_path: Path | None = None,
+                bus_path: Path | None = None) -> dict:
+    """THE ONE PLACE A TURN ENTERS THE ROOM. Appends AND mirrors, under a lock.
+
+    Every writer goes through here. That is the whole point: a turn that reaches
+    the markdown by any other route is a turn the hash chain does not attest,
+    and ``verify_room`` will correctly report it as a gap in a range it claims
+    to cover. That is exactly what happened -- `runs/council/stream_hook.py`
+    appended directly with its own ``open(..., "a")`` and never mirrored, so the
+    room accumulated turns inside the attested range with no chained record.
+    The detection was right; there were simply two writers and only one of them
+    knew about the chain.
+
+    Returns the mirror status dict. NEVER raises: the markdown already holds the
+    turn by the time the mirror runs, and losing it to a bookkeeping error would
+    be strictly worse than an un-attested turn that ``verify`` can name.
+    """
+    # EXPLICIT PATHS, never a module global the caller mutates.
+    #
+    # The first version had callers assign `room.ROOM` before calling. That
+    # leaked across every later call in the same process: a test that redirected
+    # the room left the global pointing at its temp dir, and the next caller --
+    # or the next TEST -- wrote wherever the previous one had aimed. It appended
+    # a pytest turn into the real transcript before anyone noticed, which is the
+    # same "two writers, one target" shape this function exists to remove.
+    target = Path(room_path) if room_path else ROOM
+    bus = Path(bus_path) if bus_path else (
+        target.parent / "room.jsonl" if room_path else BUS_PATH)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        target.write_text(
+            "# Der Raum\n\nA shared room for agents from different vendors. "
+            "Append-only.\n\n", encoding="utf-8")
+    if name is None or tag is None:
+        default_name, default_tag = SPEAKERS.get(who, (who, "unknown"))
+        name = name or default_name
+        tag = tag or default_tag
+    with _RoomLock(target.parent / ".room.lock"):
+        with target.open("a", encoding="utf-8") as fh:
+            fh.write(f"\n---\n\n### {name}  {DOT}  {tag}  {DOT}  {_now()}\n\n"
+                     f"{text.strip()}\n")
+        turns = parse_turns(target.read_text(encoding="utf-8"))
+        res = mirror_turn(who, text.strip(), model, index=max(0, len(turns) - 1),
+                          store_path=bus)
+    if not res["ok"]:
+        print(f"[room] WARNING: turn NOT chained ({res['error']}); "
+              f"room.md is ahead of the mirror", file=sys.stderr)
+    return {**res, "turns": len(turns)}
+
+
 def say(who: str, text: str, model: str | None = None) -> None:
     """Append a turn to the markdown, mirror it into the chain, advance the
     speaker's cursor.
@@ -827,19 +950,9 @@ def say(who: str, text: str, model: str | None = None) -> None:
     and the GUI reach the room through this one function: a speaker that has
     just spoken has, by construction, seen everything before its own turn.
     """
-    _ensure()
-    name, tag = SPEAKERS.get(who, (who, "unknown"))
-    with ROOM.open("a", encoding="utf-8") as fh:
-        fh.write(f"\n---\n\n### {name}  {DOT}  {tag}  {DOT}  {_now()}\n\n"
-                 f"{text.strip()}\n")
-    turns = parse_turns(transcript())
-    res = mirror_turn(who, text.strip(), model, index=max(0, len(turns) - 1))
-    if not res["ok"]:
-        # Loud, never silent: the markdown is now ahead of the chain, and
-        # `verify` will say so by position.
-        print(f"[room] WARNING: turn NOT chained ({res['error']}); "
-              f"room.md is ahead of the mirror", file=sys.stderr)
-    set_cursor(who, len(turns), model=model)
+    name, _tag = SPEAKERS.get(who, (who, "unknown"))
+    res = append_turn(who, text, model)
+    set_cursor(who, res["turns"], model=model)
     print(f"[room] {name} spoke ({len(text)} chars)"
           + (f", chained {res['id']}" if res["ok"] else ", NOT CHAINED"))
 

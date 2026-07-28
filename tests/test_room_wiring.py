@@ -629,3 +629,154 @@ class AttachmentLaneIsDecidedByTheSpeaker(RoomTestCase):
         local, _, _ = room.build_prompt("ollama", attach=["big.py"],
                                         speaker_host="http://127.0.0.1:11434")
         self.assertIn("def fn_0(a, b, c=None):", local)
+
+
+class OneAppendBoundary(RoomTestCase):
+    """Every writer enters the room through append_turn, and it chains.
+
+    THE DEFECT THIS PINS, found by the acceptance run and diagnosed in review:
+    `verify` reported turns 30-32 as "inside the attested range but MISSING
+    from the chain". The detection was correct; the cause was that there were
+    TWO writers and only `say()` knew about the mirror -- `stream_hook.py`
+    appended with its own `open(..., "a")`. Same class as every other finding
+    this week: a second implementation that did not inherit the invariant.
+    """
+
+    def test_append_turn_appends_AND_chains(self):
+        before = len(room.parse_turns(room.transcript()))
+        res = room.append_turn("kaya", "a turn that must be attested")
+        self.assertTrue(res["ok"], f"the turn was not chained: {res.get('error')}")
+        self.assertEqual(res["turns"], before + 1)
+        ok, failures = room.verify_room()
+        self.assertTrue(ok, f"chain broke after one append: {failures}")
+
+    def test_say_goes_through_the_same_boundary(self):
+        room.say("kaya", "spoken through say()")
+        ok, failures = room.verify_room()
+        self.assertTrue(ok, f"say() left the chain inconsistent: {failures}")
+
+    def test_many_appends_leave_no_gap(self):
+        for i in range(5):
+            room.append_turn("kaya", f"turn {i}")
+        ok, failures = room.verify_room()
+        self.assertTrue(ok, f"gaps after repeated appends: {failures}")
+        self.assertFalse([f for f in failures if "mirror gap" in f])
+
+    def test_a_stream_hook_turn_LANDS_IN_THE_CHAIN(self):
+        """BEHAVIOUR, not a string search.
+
+        Two earlier versions of this test asserted that the source contains
+        "append_turn" -- which stayed true after the call was reverted, because
+        the word also appears in the comment explaining it. Reverting the fix
+        changed nothing and the suite stayed green: a guard whose absence
+        nothing detects, in the test for a guard. The only thing that settles
+        it is driving the hook and asking the verifier.
+        """
+        import importlib.util
+        from pathlib import Path as _P
+
+        hook_path = _P(room.__file__).parent / "stream_hook.py"
+        spec = importlib.util.spec_from_file_location("stream_hook_probe", hook_path)
+        hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook)
+        hook._room_path = lambda: room.ROOM        # point it at the test room
+        hook._hook_dir = lambda: room.ROOM.parent
+
+        # Establish a chained turn FIRST. In a room with no chained records at
+        # all, `seen` is empty and verify_room checks nothing -- so a test that
+        # starts from an empty room cannot observe an unmirrored turn no matter
+        # how broken the writer is.
+        room.append_turn("claude", "an attested turn, so the chain is running")
+
+        before = len(room.parse_turns(room.transcript()))
+        hook._append("Kaya", "human · live", "a turn mirrored by the hook")
+        after = len(room.parse_turns(room.transcript()))
+        self.assertEqual(after, before + 1, "the hook did not append a turn")
+
+        ok, failures = room.verify_room()
+        gaps = [f for f in failures if "mirror gap" in f]
+        self.assertFalse(gaps, f"the hook's turn was not chained: {gaps}")
+        self.assertTrue(ok, f"chain inconsistent after a hook turn: {failures}")
+
+    def test_a_failed_mirror_goes_to_a_DEAD_LETTER_not_the_markdown(self):
+        """The escape hatch must not reintroduce the bug it escapes.
+
+        Appending directly and letting `verify` report the gap was the obvious
+        fallback and the wrong one: `verify` makes an invariant break VISIBLE,
+        it does not PREVENT one. A turn that cannot be chained is spooled and
+        replayed through the same door, so the room never holds a turn the
+        chain does not know about.
+        """
+        import importlib.util
+        from pathlib import Path as _P
+
+        hook_path = _P(room.__file__).parent / "stream_hook.py"
+        spec = importlib.util.spec_from_file_location("stream_hook_dl", hook_path)
+        hook = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hook)
+        hook._room_path = lambda: room.ROOM
+        hook._hook_dir = lambda: room.ROOM.parent
+
+        room.append_turn("claude", "an attested turn")
+        before = len(room.parse_turns(room.transcript()))
+
+        # Break the append boundary the way a bad import would.
+        saved = room.append_turn
+        room.append_turn = lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom"))
+        try:
+            hook._append("Kaya", "human", "a turn that cannot be chained")
+        finally:
+            room.append_turn = saved
+
+        after = len(room.parse_turns(room.transcript()))
+        self.assertEqual(after, before,
+                         "the fallback appended an UNATTESTED turn to the room")
+        spool = room.ROOM.parent / "dead_letter.jsonl"
+        self.assertTrue(spool.exists(), "the turn was lost entirely")
+        rec = json.loads(spool.read_text(encoding="utf-8").splitlines()[-1])
+        self.assertIn("cannot be chained", rec["body"])
+
+        ok, failures = room.verify_room()
+        self.assertTrue(ok, f"the chain must stay clean: {failures}")
+
+    def test_the_stream_hook_no_longer_writes_the_markdown_directly(self):
+        # Structural: a second writer is exactly how the gap appeared, so the
+        # fix is only real if the direct append is not simply back.
+        import ast
+        from pathlib import Path as _P
+
+        src = (_P(room.__file__).parent / "stream_hook.py").read_text(encoding="utf-8")
+        self.assertIn("append_turn", src,
+                      "the stream hook does not use the room's append boundary")
+        # AST, not text. Two earlier versions of this assertion were wrong in
+        # the same way and both are worth remembering: the first flagged the
+        # module's own diagnostics log (a check that cannot tell the artifact
+        # from the logbook), and the second matched the COMMENT that documents
+        # the removed code -- the identical trap as grepping `--help` for
+        # "--apply" and hitting the sentence that says the flag does not exist.
+        # Comments are not code.
+        tree = ast.parse(src)
+        room_appends = []
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "open"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "room"
+                    and any(isinstance(a, ast.Constant) and a.value == "a"
+                            for a in node.args)):
+                room_appends.append(getattr(node, "lineno", "?"))
+        self.assertLessEqual(
+            len(room_appends), 1,
+            f"more than one direct markdown append at lines {room_appends}; "
+            f"exactly one documented fallback is allowed")
+
+    def test_the_room_lock_is_cross_process_not_a_thread_lock(self):
+        # bus._WRITE_LOCK is a threading.Lock, which never applied to the case
+        # that actually happens here: separate PROCESSES (CLI, GUI, and a hook
+        # that fires for every Claude Code session on the machine).
+        import inspect
+
+        src = inspect.getsource(room._RoomLock)
+        self.assertTrue("msvcrt" in src or "fcntl" in src,
+                        "the room lock does not take an OS-level file lock")
