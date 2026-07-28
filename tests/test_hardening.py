@@ -357,24 +357,77 @@ class FileBridgeRequestTests(unittest.TestCase):
                 payload = json.loads(path.read_text(encoding="utf-8"))
         return path.name, payload
 
+    def _parts(self, name: str):
+        """Split `<stamp>-<slug>-<uniquifier>.json` into its three fields.
+
+        The uniquifier is a late addition: the name used to be stamp+slug
+        only, at one-second resolution, so two requests enqueued in the same
+        second collided and one was silently overwritten -- a real dropped
+        task, found end-to-end while 1756 unit tests were green. The slug
+        assertions below are still the point of these tests; parsing here
+        keeps them about the slug instead of re-pinning the whole filename."""
+        self.assertTrue(name.endswith(".json"), name)
+        stem = name[:-len(".json")]
+        head, _, unique = stem.rpartition("-")
+        stamp, _, slug = head.partition("-")
+        return stamp, slug, unique
+
     def test_enqueue_empty_objective_slug(self):
         name, payload = self._enqueue("")
-        self.assertEqual(name, "20260705T000000Z-task.json")  # falls back to 'task'
+        stamp, slug, _ = self._parts(name)
+        self.assertEqual(stamp, "20260705T000000Z")
+        self.assertEqual(slug, "task")  # falls back to 'task'
         self.assertEqual(payload["lane"], "auto")
         self.assertEqual(payload["model"], "sonnet")
 
     def test_enqueue_symbol_only_objective_slug(self):
         # every char maps to '-' and is stripped -> same 'task' fallback
         name, _ = self._enqueue("!!! ???")
-        self.assertEqual(name, "20260705T000000Z-task.json")
+        self.assertEqual(self._parts(name)[1], "task")
 
     def test_enqueue_normal_slug_and_truncation(self):
         name, payload = self._enqueue("Fix GUI panel layout")
-        self.assertEqual(name, "20260705T000000Z-fix-gui-panel-layout.json")
+        stamp, slug, _ = self._parts(name)
+        self.assertEqual(stamp, "20260705T000000Z")
+        self.assertEqual(slug, "fix-gui-panel-layout")
         self.assertEqual(payload["objective"], "Fix GUI panel layout")
         self.assertEqual(payload["paths"], ["a.py"])
         long_name, _ = self._enqueue("a" * 100)
-        self.assertEqual(long_name, "20260705T000000Z-" + "a" * 48 + ".json")
+        self.assertEqual(self._parts(long_name)[1], "a" * 48)
+
+    def test_two_identical_requests_in_the_same_second_both_survive(self):
+        """The bug the uniquifier exists for, pinned as a property.
+
+        Same objective, same stamp, same outbox -- the queue must end up with
+        TWO files. With the old stamp+slug name this produced one, and the
+        first request was gone with nothing logged."""
+        with tempfile.TemporaryDirectory() as d:
+            outbox = Path(d)
+            with patch.object(file_bridge, "OUTBOX", outbox), \
+                    patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"):
+                first = file_bridge.enqueue("same objective", "/r", [])
+                second = file_bridge.enqueue("same objective", "/r", [])
+            self.assertNotEqual(first.name, second.name)
+            self.assertEqual(len(list(outbox.glob("*.json"))), 2)
+
+    def test_enqueue_leaves_no_partial_file_a_consumer_could_read(self):
+        """Publication is atomic: the temp name must not match the watcher's glob.
+
+        The watcher globs `*.json`; a half-written file matching that glob is
+        dispatched as a truncated request."""
+        seen: list[list[str]] = []
+        real_replace = file_bridge.os.replace
+
+        def spy(src, dst):
+            seen.append(sorted(p.name for p in Path(dst).parent.glob("*.json")))
+            return real_replace(src, dst)
+
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(file_bridge, "OUTBOX", Path(d)), \
+                    patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"), \
+                    patch.object(file_bridge.os, "replace", spy):
+                file_bridge.enqueue("atomic", "/r", [])
+        self.assertEqual(seen, [[]], "a consumer's glob saw the request mid-write")
 
     def test_enqueue_preserves_project(self):
         with tempfile.TemporaryDirectory() as d:
