@@ -94,10 +94,26 @@
       ]
     },
     {
-      "mutation": "role_accepted_as_workspace",
-      "status": "NOT_APPLICABLE",
-      "reason": "pattern not present in viewRecipe.ts",
-      "rule": "a role accepted where a workspace belongs"
+      "mutation": "role_resolves_to_a_recipe",
+      "file": "viewRecipe.ts",
+      "rule": "a role (player/gm/observer/public) resolving to a recipe",
+      "expected_test": "viewRecipe: roles are not recipes",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "viewRecipe: roles are not recipes",
+        "viewRecipe: selection survives exactly when both workspaces have a recipe",
+        "viewRecipe: unknown type or missing recipe returns null"
+      ]
+    },
+    {
+      "mutation": "selection_survives_without_a_recipe",
+      "file": "viewRecipe.ts",
+      "rule": "selection kept into a workspace that has no recipe for it",
+      "expected_test": "viewRecipe: selection survives exactly when both workspaces have a recipe",
+      "status": "CAUGHT",
+      "newly_failing": [
+        "viewRecipe: selection survives exactly when both workspaces have a recipe"
+      ]
     },
     {
       "mutation": "scope_parse_throws",

@@ -81,11 +81,17 @@ MUTATIONS: list[tuple[str, str, str, str, str, str]] = [
      "viewRecipe: every required mapping from the document resolves",
      "a documented object/workspace mapping silently changed"),
 
-    ("role_accepted_as_workspace", "viewRecipe.ts",
-     "export function resolveRecipe(objectType: string, workspace: Workspace)",
-     "export function resolveRecipe(objectType: string, workspace: any)",
+    ("role_resolves_to_a_recipe", "viewRecipe.ts",
+     "return recipe ?? null;",
+     'return recipe ?? (RECIPE_TABLE[objectType] ? "article-reader" : null);',
      "viewRecipe: roles are not recipes",
-     "a role accepted where a workspace belongs"),
+     "a role (player/gm/observer/public) resolving to a recipe"),
+
+    ("selection_survives_without_a_recipe", "viewRecipe.ts",
+     "resolveRecipe(objectType, from) !== null &&",
+     "resolveRecipe(objectType, from) !== null ||",
+     "viewRecipe: selection survives exactly when both workspaces have a recipe",
+     "selection kept into a workspace that has no recipe for it"),
 
     ("scope_parse_throws", "scope.ts",
      "export function parseScope",
