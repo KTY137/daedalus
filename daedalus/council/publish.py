@@ -63,6 +63,7 @@ import json
 import shutil
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from ..sensitivity import secret_floor_rule
@@ -644,6 +645,89 @@ def _first_url(text: str) -> str:
 # --------------------------------------------------------------------------- #
 # publish_to_pr -- the outbound half                                           #
 # --------------------------------------------------------------------------- #
+# --------------------------------------------------------------------------- #
+# load_for_publish -- the seam that made this module reachable                  #
+# --------------------------------------------------------------------------- #
+STATUS_NO_TRANSCRIPT = "no_transcript"
+
+
+def load_for_publish(store_path: str | Path) -> tuple[dict, list[dict]]:
+    """``(verdict, turns)`` reconstructed from a stored bus transcript.
+
+    WHY THIS EXISTS. Everything above was written to be called with a live
+    :class:`~daedalus.council.session.CouncilRecord` still in memory, which is
+    the one moment a human is least likely to want a PR comment -- they want it
+    afterwards, about a council that already ran. Without a way in from a path
+    on disk, the only caller this module could have was a hand-written snippet,
+    and that is precisely what it had: MEASURED 2026-07-29, zero production
+    callers, one test file, and a code sample in
+    ``.claude/skills/council/SKILL.md`` telling agents to type the import
+    themselves. This function is the missing seam.
+
+    WHAT IS AND IS NOT RECONSTRUCTED. Only what the bus actually recorded. The
+    council package stores no ``outcome`` and no ``convergence`` field -- by
+    construction, because it promotes nothing -- so none is invented here, and
+    :func:`render_markdown` prints "(not recorded)" for them. Inventing a
+    plausible outcome to make the comment read better would manufacture exactly
+    the authority the whole package refuses to claim.
+
+    Quorum comes from the roster records' ``participants``: a vendor is
+    ANSWERED only if it actually produced a turn, not if it was merely seated.
+    That is the distinction the degraded-quorum banner is built on, so deriving
+    it from the seat list would silently upgrade every short council to a full
+    one.
+    """
+    from . import bus
+
+    turns = bus.load_transcript(store_path)
+    council_id = ""
+    question = ""
+    requested: list[str] = []
+    answered: list[str] = []
+    for rec in turns:
+        if not isinstance(rec, Mapping):
+            continue
+        council_id = council_id or _text(rec.get("council_id"))
+        question = question or _text(_field(rec, "question", "topic", "objective",
+                                            default=""))
+        if rec.get("record") == "roster":
+            for p in _as_list(rec.get("participants")):
+                actor = _text(_field(p, "vendor", "actor", default=""))
+                if actor and actor not in requested:
+                    requested.append(actor)
+        elif rec.get("record") == "turn":
+            # ONLY a turn whose status is "spoke" counts as an answer.
+            #
+            # This was written the obvious way first -- any turn with a vendor
+            # on it -- and it was WRONG, caught against a real transcript
+            # (runs/council/council-20260728T121214Z-a5241ac5.jsonl): that
+            # council has four turn records but two of them are placeholders,
+            # google `not_authenticated` and openai `not_on_path`, and the bus
+            # itself records `responded: 2, degraded: true`. The naive version
+            # rendered "Quorum: 4 of 4 (full roster)" over a council where half
+            # the vendors never ran -- silently upgrading a degraded council to
+            # a full one, which is the single most misleading thing this
+            # renderer could say, since independence is the only thing a
+            # multi-vendor council buys.
+            if _text(rec.get("status")) != "spoke":
+                continue
+            actor = _text(_field(rec, "vendor", "actor", default=""))
+            if actor and actor not in answered:
+                answered.append(actor)
+
+    verdict = {
+        "council_id": council_id,
+        "bus_path": str(store_path).replace("\\", "/"),
+        "advisory": True,
+        "vendors_requested": requested,
+        "vendors_answered": [v for v in requested if v in answered] or answered,
+        "chain_head": _text(_field(turns[-1], "entry_sha", default="")) if turns else "",
+    }
+    if question:
+        verdict["question"] = question
+    return verdict, turns
+
+
 def publish_to_pr(verdict: Any,
                   transcript: Any = None,
                   pr: str | int = "",

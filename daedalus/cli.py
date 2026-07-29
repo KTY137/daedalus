@@ -63,6 +63,12 @@
     daedalus web                         run the local Agent OS web API/app
     daedalus enforce                    add/update Codex/Claude harness instructions
     daedalus init [repo]                scaffold .agentenv/agentenv.json (enables writes)
+    daedalus governance [--json]        may this system promote anything right now,
+                                        and why not? the discrimination gate, the
+                                        installed write confinement and the
+                                        operability drill, each with its own state
+                                        and provenance; exits non-zero when
+                                        promotion is refused
     daedalus improve [--once] [--dry-run] [--limit N]
                                         rank the repo's own work by measurement;
                                         --once attempts the top item in an isolated
@@ -542,7 +548,34 @@ def _council(argv: list[str]) -> None:
                              "the evidence to every seated vendor. Without this "
                              "flag no model is called.")
     parser.add_argument("--json", action="store_true")
+    # -- the PR channel ----------------------------------------------------
+    # daedalus/council/publish.py renders a stored deliberation and posts it as
+    # a PR comment. It had NO production caller: SKILL.md told agents to type
+    # `from daedalus.council.publish import publish_to_pr` by hand, so the
+    # secret-floor gate inside it was never on any path a human could take.
+    # These three flags are that path.
+    parser.add_argument("--publish-pr", metavar="PR",
+                        help="render a stored council and post it as a comment "
+                             "on this PR. Requires --live to actually send; "
+                             "without it the body is rendered and gated but gh "
+                             "is never invoked.")
+    parser.add_argument("--read-thread", metavar="PR",
+                        help="read a PR's comments back as council turns "
+                             "(INPUT to a later round; authoritative for nothing)")
+    parser.add_argument("--transcript", metavar="PATH",
+                        help="the council to publish: a runs/council/*.jsonl "
+                             "path, or a bare council id")
+    parser.add_argument("--repo", metavar="OWNER/NAME",
+                        help="target repository (default: gh's current repo)")
     args = parser.parse_args(argv)
+
+    # The PR channel convenes nobody, so it returns BEFORE the spend gate below
+    # -- which exists to stop a council calling vendors, and would otherwise
+    # demand a question for an operation that does not have one.
+    if args.publish_pr or args.read_thread:
+        _council_pr(args, parser)
+        return
+
     if not args.question.strip():
         if not args.dry_run:
             parser.error("a question is required unless --dry-run is given")
@@ -660,6 +693,74 @@ def _council(argv: list[str]) -> None:
         print(json.dumps(dataclasses.asdict(record), indent=2, default=str))
         return
     print(record.render())
+
+
+def _council_pr(args, parser) -> None:
+    """The council's GitHub channel: publish a stored deliberation, or read a
+    PR thread back as turns.
+
+    FAIL CLOSED. Publishing sends a whole deliberation off this machine, so it
+    is a dry run unless ``--live`` is given -- the same posture the convene path
+    takes about spending money, for the same reason. The secret floor inside
+    ``publish_to_pr`` runs on the dry path too, so a rehearsal is honest rather
+    than a way around the gate.
+
+    Every operational failure here is a STATUS, never an exception: the module
+    enumerates them precisely so a caller does not have to guess."""
+    from pathlib import Path
+    from .council import publish as cp
+
+    # A deliberation is arbitrary Unicode and a Windows console is cp1252. The
+    # convene path already learned this; the early return for the PR channel
+    # jumps over that guard, and an UnicodeEncodeError here would abort AFTER
+    # the egress gate had already passed the body. MEASURED: a stored council
+    # containing U+2192 crashed this command before this line existed.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
+
+    if args.read_thread:
+        res = cp.read_pr_thread(args.read_thread, args.repo)
+        print(f"[{res.status}] {res.detail}")
+        for turn in res.turns:
+            print(f"\n--- {turn.author}  {turn.created_at}  {turn.url}")
+            print(turn.body)
+        if res.status != cp.STATUS_READ_OK:
+            raise SystemExit(1)
+        print("\nNothing above is authoritative: a reply is INPUT to a later "
+              "round, and is not on the hash-chained bus until a council "
+              "appends it there.")
+        return
+
+    if not args.transcript:
+        parser.error("--publish-pr needs --transcript: the path of the council "
+                     "to publish (runs/council/<id>.jsonl) or its bare id")
+    store = Path(args.transcript)
+    if not store.is_file():
+        # Accept a bare council id, which is what the transcript header and the
+        # convene output both print.
+        cand = Path("runs/council") / f"{args.transcript}.jsonl"
+        if not cand.is_file():
+            print(f"error: no such council transcript: {args.transcript}")
+            raise SystemExit(1)
+        store = cand
+
+    verdict, turns = cp.load_for_publish(store)
+    res = cp.publish_to_pr(verdict, turns, args.publish_pr, args.repo,
+                           dry_run=not args.live)
+    print(f"[{res.status}] {res.detail}")
+    if res.status == cp.STATUS_DRY_RUN:
+        print("\n" + res.markdown)
+        print(f"\nNOTHING WAS SENT. Re-run with --live to post this to PR "
+              f"{args.publish_pr}.")
+        return
+    if res.status == cp.STATUS_PUBLISHED:
+        if res.comment_url:
+            print(res.comment_url)
+        return
+    # refused_secret / gh_missing / gh_unauthenticated / pr_not_found / ...
+    raise SystemExit(1)
 
 
 def _diff_paths(diff_text: str) -> list[str]:
@@ -880,6 +981,55 @@ def _claude_crew(argv: list[str]) -> None:
             print(f"{a['name']}\t{a['model']}\t{a['description'][:64]}")
 
 
+_GOV_GLYPH = {"working": "OK", "present": "??", "degraded": "!!",
+              "absent": "XX", "unknown": "??"}
+
+
+def _governance(argv: list[str]) -> int:
+    """May this system promote anything right now, and why not?
+
+    Same payload the web API and both UIs render -- `core.get_governance` is
+    the only place this is computed, so the CLI cannot answer differently from
+    the screen. Exits non-zero when promotion is refused so a script can gate
+    on it without parsing prose.
+    """
+    import argparse
+
+    p = argparse.ArgumentParser(prog="daedalus governance")
+    p.add_argument("--project", default=None)
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args(argv)
+
+    import json
+
+    from .core import get_governance
+
+    g = get_governance(args.project)
+    if args.json:
+        print(json.dumps(g, indent=2))
+        return 0 if g["promotion_allowed"] else 1
+
+    head = (g.get("head") or "unknown")[:12]
+    print("PROMOTION: " + ("ALLOWED" if g["promotion_allowed"] else "REFUSED"))
+    print(f"  {g['verdict']}")
+    print(f"  aggregate state: {g['state']}   HEAD: {head}")
+    print()
+    for gate in g.get("gates", []):
+        print(f"  [{_GOV_GLYPH.get(gate['state'], '??')}] "
+              f"{gate['state']:<9} {gate['provenance']:<9} {gate['id']}")
+        print(f"        {gate['question']}")
+        print(f"        {gate['headline']}")
+        if gate.get("write_allow"):
+            print(f"        write_allow: {', '.join(gate['write_allow'])}")
+        print()
+    for w in g.get("warnings", []):
+        print(f"  warning: {w}")
+    if not g["promotion_allowed"]:
+        print("Nothing may be promoted on the strength of this gate. "
+              "Promotion remains a human act in every case.")
+    return 0 if g["promotion_allowed"] else 1
+
+
 def main() -> None:
     argv = sys.argv[1:]
     if not argv or argv[0] in ("-h", "--help", "help"):
@@ -989,6 +1139,8 @@ def main() -> None:
         from .spine.picker import main as m; raise SystemExit(m(rest))
     elif cmd == "init":
         _init(rest)
+    elif cmd == "governance":
+        raise SystemExit(_governance(rest))
     else:
         print(f"unknown command '{cmd}'\n")
         print(_USAGE)
