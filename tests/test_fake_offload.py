@@ -73,7 +73,12 @@ def _make_repo(tmp: str) -> str:
 class VerifierDiskChangeUnitTests(unittest.TestCase):
     """The gate must not fall back to the untrusted self-report."""
 
-    _DOC = "notes.md"   # the real repro path; not a .py/.json so no extra checks
+    # The real repro path. It WAS chosen as a .md "so no extra checks" -- that
+    # is no longer true: prose now gets a fact-preservation check, and a prose
+    # file with no before-image is refused rather than waved through. These
+    # cases are about the did_work gate, so they declare the file as created
+    # (``None``), which is the honest before-image for a path the test invents.
+    _DOC = "notes.md"
 
     def test_disk_evidence_overrides_a_lying_self_report(self):
         # The report CLAIMS an edit, but the caller's disk snapshot proves
@@ -85,7 +90,8 @@ class VerifierDiskChangeUnitTests(unittest.TestCase):
 
     def test_real_disk_change_passes(self):
         vr = verify(_report(files_changed=[self._DOC]), ".",
-                    require_changes=True, disk_changed=[self._DOC])
+                    require_changes=True, disk_changed=[self._DOC],
+                    prose_before={self._DOC: None})
         self.assertTrue(vr.ok)
 
 

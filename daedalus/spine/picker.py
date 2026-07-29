@@ -64,6 +64,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -258,6 +259,17 @@ class Candidate:
     gate_cwd: str = "."
     gate_timeout_s: float = 900.0
     base_revision: str | None = None
+    # SWE-bench's FAIL_TO_PASS / PASS_TO_PASS schema (docs/ABSORPTION.md F1) --
+    # see the matching fields on daedalus.spine.attempt.TaskSpec for the full
+    # rationale. Empty (the default) means this candidate carries no
+    # correctness task and the gate falls through to gate_argv/gate_paths
+    # exactly as it did before these fields existed. ``correctness_before_state``
+    # is the pre-verified receipt the lists were measured under (e.g. an entry
+    # read from daedalus.eval.correctness's minted corpus) -- carried, never
+    # re-derived here, because ranking a queue must not run pytest.
+    fail_to_pass: tuple[str, ...] = ()
+    pass_to_pass: tuple[str, ...] = ()
+    correctness_before_state: Mapping[str, Any] = field(default_factory=dict)
 
     @property
     def band(self) -> float:
@@ -286,6 +298,9 @@ class Candidate:
             gate_argv=tuple(self.gate_argv),
             gate_cwd=self.gate_cwd,
             gate_timeout_s=float(self.gate_timeout_s),
+            fail_to_pass=tuple(self.fail_to_pass),
+            pass_to_pass=tuple(self.pass_to_pass),
+            correctness_before_state=dict(self.correctness_before_state),
             metadata={
                 "picker_source": self.source,
                 "picker_score": self.score,
@@ -309,6 +324,12 @@ class Candidate:
                 "argv": list(self.gate_argv),
                 "cwd": self.gate_cwd,
                 "timeout_s": self.gate_timeout_s,
+            },
+            "correctness": {
+                "fail_to_pass": list(self.fail_to_pass),
+                "pass_to_pass": list(self.pass_to_pass),
+                "before_state_verified": bool(
+                    self.correctness_before_state.get("verified")),
             },
             "base_revision": self.base_revision,
             "instruction": self.instruction,
@@ -446,6 +467,19 @@ def resolve_spine_db_path(
     while the picker remembered agent_env attempts. The default is now
     ``<repo>/runs/spine/spine.sqlite3`` and a configured override is accepted
     only when its resolved target remains inside that same repository.
+
+    DELIBERATELY DOES NOT READ ``DAEDALUS_SPINE_DB``, and this is the ruling,
+    not an oversight (resolver author, 2026-07-29): that env var belongs to the
+    process-global ledger surface -- :func:`daedalus.spine.ledger.default_db_path`
+    -- where tests and isolated worktrees point the WHOLE process elsewhere.
+    This resolver answers a different question: "where does THIS repository
+    keep its attempt memory", and the answer must be repo-confined (pinned by
+    ``tests/test_picker_work_queue.py``) so that picking for a foreign repo can
+    never read or write agent_env's ledger through an inherited environment.
+    They look like two resolvers for one question; they are one resolver per
+    question. Three queue tests once assumed otherwise, set the env var, and
+    silently measured the developer's real ledger -- red in the full suite,
+    green alone. If you are here to "unify" them, read that history first.
     """
     root = Path(repo_root).resolve() if repo_root else ROOT
     cfg = project_config if project_config is not None else _project_config(root)
@@ -1086,6 +1120,26 @@ def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple
     resolving = _count("resolving")
     scanned = _count("files_scanned")
 
+    # Per-document resolving counts, for the gate's second denominator. The
+    # corpus count alone is blind to a document that held no resolving
+    # reference: gutting it changes nothing corpus-wide, so the one move the
+    # denominator exists to catch would pass. Measured by Minos.
+    def _seq(name: str) -> Sequence[Any]:
+        value = (report.get(name) if isinstance(report, Mapping)
+                 else getattr(report, name, None))
+        return value if hasattr(value, "__iter__") and not isinstance(value, str) else ()
+
+    doc_resolving: dict[str, int] = {}
+    for ref in _seq("resolving"):
+        key = str(_field(ref, "doc_path") or "").replace("\\", "/")
+        if key:
+            doc_resolving[key] = doc_resolving.get(key, 0) + 1
+    # A document with zero resolving references has no entry and a real count
+    # of 0 -- that is the case the second denominator exists for, so it must
+    # NOT be confused with "we could not count". The distinction is whether the
+    # report carried the evidence sequence at all.
+    counted_per_doc = bool(doc_resolving) or resolving == 0
+
     candidates: list[Candidate] = []
     notes: list[str] = []
     # Worst document first: most broken references is the biggest single
@@ -1134,18 +1188,61 @@ def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple
                 "corpus_broken": len(broken),
                 "corpus_files_scanned": scanned,
             },
-            gate_paths=(doc,),
+            # THE GATE IS THE RE-SCAN, NOT PYTEST. ``gate_paths=(doc,)`` became
+            # ``pytest docs/THAT.md``, which exits non-zero on a path pytest
+            # cannot collect -- every docref attempt failed its gate always,
+            # for a reason that had nothing to do with the fix. Fail-closed and
+            # indistinguishable from a real finding, which is the worse half.
+            #
+            # ``--ref`` is built from ``refs``, not ``detail``: detail is capped
+            # at twelve for the instruction, and a fix that left reference #13
+            # broken would otherwise pass. The raw text is the UNTRUNCATED one
+            # for the same reason detail truncates -- the gate refuses to judge
+            # a target it cannot find verbatim, so a 160-char copy would block.
+            gate_argv=(
+                sys.executable, "-m", "daedalus.spine.docref_gate",
+                "--repo-root", ".", "--doc", doc,
+                "--expect-resolving", str(resolving),
+                *(("--expect-doc-resolving", str(doc_resolving.get(doc, 0)))
+                  if counted_per_doc else ()),
+                *(arg for ref in refs
+                  for arg in ("--ref", str(_field(ref, "raw") or ""))),
+            ),
+            gate_cwd=".",
             target_paths=(doc,),
         ))
     if len(ranked) > top:
         notes.append(
             f"DOCREF: {len(ranked)} document(s) carry broken references; "
             f"the {top} worst are queued")
+    if not counted_per_doc:
+        notes.append(
+            "DOCREF: the scan report carried no per-reference evidence, so the "
+            "per-document denominator could not be measured; these gates run on "
+            "the corpus count alone and are blind to a gutted document that "
+            "held no resolving reference")
     return tuple(candidates), tuple(notes)
 
 
-def map_candidates(state: Mapping[str, Any]) -> tuple[
-        tuple[Candidate, ...], tuple[str, ...]]:
+def _spectral_row(spectral: Mapping[str, Mapping[str, Any]] | None,
+                  module: str) -> dict[str, Any]:
+    """Spectral facts for one module, or nothing at all.
+
+    ENRICHMENT ONLY. These keys decorate a candidate the map already produced
+    for reachability reasons; they never create one, never remove one, and
+    never touch ``band_offset``. A module with no spectral row contributes no
+    keys rather than zeroes -- absent means NOT MEASURED, and a zero here would
+    read as a measurement that says something.
+    """
+    if not spectral:
+        return {}
+    row = spectral.get(module)
+    return dict(row) if isinstance(row, Mapping) and row else {}
+
+
+def map_candidates(state: Mapping[str, Any], *,
+                   spectral: Mapping[str, Mapping[str, Any]] | None = None,
+                   ) -> tuple[tuple[Candidate, ...], tuple[str, ...]]:
     """Candidates from the generated map: islands and shims, with their evidence.
 
     Islands and shims are deliberately DIFFERENT sources with different
@@ -1153,6 +1250,13 @@ def map_candidates(state: Mapping[str, Any]) -> tuple[
     remedies -- an island is capability nobody can get to and usually wants
     wiring; a shim is indirection nobody uses and wants removing. Collapsing
     them into one "unreached" bucket would hand a fixer the wrong verb.
+
+    ``spectral`` is optional evidence enrichment from
+    :func:`daedalus.mapping.spectral.spectral_evidence` -- structure
+    measurements attached to the SAME modules, so a fixer can see whether the
+    package around an island is tight or a pass-through. Omitted by default:
+    the ranking, the bands and the candidate set are byte-identical with and
+    without it. It is evidence, not a gate.
     """
     if not isinstance(state, Mapping) or not state:
         return (), ()
@@ -1186,6 +1290,7 @@ def map_candidates(state: Mapping[str, Any]) -> tuple[
                 "snapshot_digest": digest,
                 "snapshot_islands": len(islands),
                 "snapshot_modules": counts.get("modules"),
+                **_spectral_row(spectral, module),
             },
             gate_paths=()))
 
@@ -1203,6 +1308,7 @@ def map_candidates(state: Mapping[str, Any]) -> tuple[
                 "snapshot_digest": digest,
                 "snapshot_shims": len(shims),
                 "snapshot_modules": counts.get("modules"),
+                **_spectral_row(spectral, module),
             },
             gate_paths=()))
 
@@ -2076,6 +2182,7 @@ def build_queue(repo_root: str | Path | None = None, *,
                 limit: int | None = DEFAULT_LIMIT,
                 include_eval: bool = False,
                 include_hotspots: bool = False,
+                include_spectral: bool = False,
                 inventory: Mapping[str, Any] | None = None,
                 map_snapshot: Mapping[str, Any] | None = None,
                 baseline: Mapping[str, Any] | None = None,
@@ -2084,10 +2191,13 @@ def build_queue(repo_root: str | Path | None = None, *,
                 spine_db: str | Path | None = None) -> PickedQueue:
     """Build the ranked queue. Never raises on a bad or missing source file.
 
-    ``include_eval`` and ``include_hotspots`` default to OFF: both cost a
-    whole-repo analysis pass, and a picker that takes a minute to answer "what
-    next" will not be run before every attempt, which would leave the loop
-    picking by habit instead of by measurement.
+    ``include_eval``, ``include_hotspots`` and ``include_spectral`` default to
+    OFF: each costs a whole-repo analysis pass, and a picker that takes a minute
+    to answer "what next" will not be run before every attempt, which would
+    leave the loop picking by habit instead of by measurement.
+    ``include_spectral`` is MEASURED at ~10s (``reach.analyse`` over this tree)
+    and adds only evidence keys -- it cannot change the queue's contents or
+    order.
     """
     root = Path(repo_root).resolve() if repo_root else ROOT
     candidates: list[Candidate] = []
@@ -2145,7 +2255,25 @@ def build_queue(repo_root: str | Path | None = None, *,
                 load_map_state(repo_root=root)
                 if map_snapshot is None else map_snapshot)
             map_trust = map_state_trustworthy(map_state, repo_root=root)
-            map_cands, map_notes = map_candidates(map_state)
+            spectral_rows: Mapping[str, Mapping[str, Any]] | None = None
+            spectral_note = "off"
+            if include_spectral:
+                # Never raises out of build_queue: the contract is "never raises
+                # on a bad or missing source", and an optional enrichment is the
+                # last thing that should be allowed to take the queue down.
+                try:
+                    from ..mapping import spectral as spectral_mod
+                    reading = spectral_mod.analyse(root)
+                    if reading.get("available"):
+                        spectral_rows = spectral_mod.spectral_evidence(reading)
+                        spectral_note = f"on ({len(spectral_rows)} module rows)"
+                    else:
+                        spectral_note = f"unavailable: {reading.get('reason')}"
+                        notes.append(f"SPECTRAL UNAVAILABLE: {reading.get('reason')}")
+                except Exception as exc:  # noqa: BLE001 - enrichment must not block
+                    spectral_note = f"failed: {exc}"
+                    notes.append(f"SPECTRAL FAILED: {exc}")
+            map_cands, map_notes = map_candidates(map_state, spectral=spectral_rows)
             if map_trust["trusted"]:
                 candidates.extend(map_cands)
                 notes.extend(map_notes)
@@ -2163,6 +2291,7 @@ def build_queue(repo_root: str | Path | None = None, *,
                 "candidates": len(map_cands) if map_trust["trusted"] else 0,
                 "suppressed": not map_trust["trusted"],
                 "trust": map_trust,
+                "spectral": spectral_note,
             }
 
     # source: prose the tree contradicts. Derived every run, so unlike the map

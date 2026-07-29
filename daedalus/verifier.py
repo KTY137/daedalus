@@ -19,6 +19,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .preservation import check_preservation, is_prose_path
 from .schemas import validate_report
 
 # How long the project suite may run before we kill it. This is a RUNAWAY
@@ -28,6 +29,33 @@ from .schemas import validate_report
 # ``test_timeout_s`` in their project config; the default must stay 120 so that
 # adding that knob does not silently re-time every other repo's gate.
 DEFAULT_TEST_TIMEOUT_S = 120
+
+#: Per-check ``status`` values that mean THE CHECK NEVER REACHED A VERDICT about
+#: the candidate. A check that timed out, blew up, or had no evidence to work
+#: with has said nothing about whether the write is good -- it has only said
+#: that we do not know. Every one of them still blocks (``ok=False``), because
+#: unknown is not permission; what they must never do is get RECORDED as "the
+#: model broke it".
+#:
+#: Why this is a constant and not a string test at each call site: the accept /
+#: reject gate is one function, but the reason a rejection happened is consumed
+#: somewhere else entirely -- routing metrics, the escalation note, the queue's
+#: verdict. Today exactly one caller (``offload``) remembers to dig ``status``
+#: out of the ``tests`` check by name; a second caller reintroduces the conflation
+#: by construction rather than by mistake, because nothing tells it the
+#: distinction exists. Measured cost of getting it wrong, from the concurrency
+#: review: under load a suite overruns its budget, a GOOD patch is rolled back
+#: and the task escalates to a PAID lane, and the local lane's statistics record
+#: a correctness failure it did not commit.
+INCONCLUSIVE_STATUSES = frozenset({"timeout", "error", "unknown", "unavailable"})
+
+
+def _check_status(check: dict) -> str:
+    """The status of a check, defaulted for checks that declare none."""
+    status = check.get("status")
+    if status:
+        return str(status)
+    return "pass" if check.get("ok") else "fail"
 
 
 @dataclass
@@ -39,8 +67,48 @@ class VerifyResult:
     def failed(self) -> list[str]:
         return [c["name"] for c in self.checks if not c["ok"]]
 
+    @property
+    def inconclusive(self) -> list[str]:
+        """Names of blocking checks that never reached a verdict.
+
+        A non-empty list with ``ok is False`` means "we could not tell", which is
+        a different diagnosis from "the write is bad" and must be routed as one.
+        """
+        return [c["name"] for c in self.checks
+                if not c["ok"] and _check_status(c) in INCONCLUSIVE_STATUSES]
+
+    @property
+    def verdict(self) -> str:
+        """``pass`` / ``fail`` / ``inconclusive`` -- the routing-grade answer.
+
+        ``fail`` wins over ``inconclusive`` when both are present: a check that
+        DID reach a verdict and said no is a real finding about the candidate,
+        and a timeout elsewhere in the same run does not soften it. Only when
+        every blocking check is inconclusive is the whole run inconclusive.
+
+        ``ok`` keeps its exact old meaning and is still the accept/reject bit.
+        Nothing here may ever read ``inconclusive`` as permission to proceed.
+        """
+        if self.ok:
+            return "pass"
+        return "inconclusive" if len(self.inconclusive) == len(self.failed) else "fail"
+
+    def reason_note(self) -> str:
+        """One comma-separated line naming each blocking check AND its status.
+
+        This is the string metrics and escalation records should carry. It is a
+        method on the result rather than a comprehension at the call site so the
+        next caller cannot forget that a status exists -- see
+        :data:`INCONCLUSIVE_STATUSES`.
+        """
+        return ",".join(
+            f"{c['name']}:{_check_status(c)}" if _check_status(c) != "fail"
+            else str(c["name"])
+            for c in self.checks if not c["ok"])
+
     def as_dict(self) -> dict:
-        return {"ok": self.ok, "checks": self.checks, "failed": self.failed}
+        return {"ok": self.ok, "checks": self.checks, "failed": self.failed,
+                "verdict": self.verdict, "inconclusive": self.inconclusive}
 
 
 def _py_compile(repo_root: str, rel: str) -> tuple[bool, str]:
@@ -140,6 +208,101 @@ def _config_check(repo_root: str, rel: str) -> tuple[bool, str]:
         return False, f"invalid yaml: {exc}"[:200]
 
 
+def _norm_rel(rel: object) -> str:
+    """Repo-relative, forward slashes, no ``./`` prefix."""
+    text = str(rel).replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return text
+
+
+def prose_before_images(backups: "dict[str, bytes | None] | None",
+                        repo_root: str) -> dict[str, str | None]:
+    """Turn a writer's rollback backups into before-images for :func:`verify`.
+
+    The provider that performs local writes already keeps the exact original
+    bytes of every file it touched, because it needs them to roll back. Those
+    bytes -- not ``git show HEAD:``, not a re-read -- are the only truthful
+    before-image: they are what the file said at the instant before the write,
+    which is the question the preservation tripwire asks. A working tree that
+    was already dirty makes HEAD a lie, and a re-read after the fact returns the
+    damage rather than the original.
+
+    Keys are absolute paths (as the writer records them) and come back
+    repo-relative. A value of ``None`` means the file did NOT exist before, which
+    the prose check reads as "created" rather than as missing evidence.
+    """
+    out: dict[str, str | None] = {}
+    if not backups:
+        return out
+    root = Path(repo_root).resolve()
+    for abs_path, original in backups.items():
+        try:
+            rel = Path(abs_path).resolve().relative_to(root).as_posix()
+        except (ValueError, OSError):
+            rel = _norm_rel(abs_path)
+        if original is None:
+            out[rel] = None
+        else:
+            try:
+                out[rel] = original.decode("utf-8", errors="replace")
+            except (AttributeError, UnicodeError):
+                out[rel] = None
+    return out
+
+
+def _prose_check(repo_root: str, rel: str,
+                 prose_before: "dict[str, str | None] | None"
+                 ) -> tuple[bool, str, str]:
+    """Fact-preservation tripwire for a written prose file. ``(ok, detail, status)``.
+
+    WHY THIS BRANCH EXISTS. The dispatch below judges ``.py``, ``.json``,
+    ``.js`` and ``.html``. Prose fell off the end of that chain, so a ``.md``
+    write was accepted on "the report parsed and a file changed" -- the empty
+    green the rest of this harness exists to refuse. The installed local write
+    policy permits ``docs/``, ``tests/`` and ``README.md``, so prose is not a
+    corner of the local lane, it is most of it.
+
+    MEASURED failure it catches (qwen2.5-coder:7b rewriting
+    ``docs/LOCAL_MODELS.md`` under an instruction to keep every fact): "pointed
+    at an OpenAI-compatible endpoint via three env vars" became "configured via
+    three environment variables". That sentence carries no markdown at all, so
+    nothing structural would ever have seen it go.
+
+    FAIL CLOSED, AND SAY WHICH KIND OF NOT-OK IT IS. Without a before-image
+    there is nothing to compare, so the check cannot run -- and a check that
+    cannot run must not be reported as a check that ran and passed. It blocks
+    with ``status="unknown"``, which :class:`VerifyResult` classifies as
+    inconclusive so the local lane is not blamed for a verdict nobody reached.
+    """
+    key = _norm_rel(rel)
+    if prose_before is None or key not in prose_before:
+        return False, (
+            "no before-image of this file was captured, so the fact-preservation "
+            "tripwire COULD NOT RUN. This is not a finding about the write -- it "
+            "is the absence of one. Pass prose_before= (see prose_before_images) "
+            "to make prose verifiable; until then a prose write is refused rather "
+            "than accepted unchecked."), "unknown"
+
+    before = prose_before[key]
+    if before is None:
+        return True, "file did not exist before this write -- nothing could be lost", "created"
+
+    target = Path(repo_root) / key
+    if target.exists():
+        try:
+            after = target.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            return False, f"cannot read written prose file: {exc}"[:200], "unreadable"
+    else:
+        # Deleted. Not an error and not missing evidence: every fact the file
+        # carried really is gone, and check_preservation says so precisely.
+        after = ""
+
+    result = check_preservation(before, after)
+    return result.ok, result.summary(), "checked"
+
+
 def _effective_timeout(timeout_s: object) -> int | float:
     """Coerce a project-declared ``test_timeout_s`` to a usable positive budget.
 
@@ -204,6 +367,7 @@ def verify(
     timeout_s: int = DEFAULT_TEST_TIMEOUT_S,
     require_changes: bool = False,
     disk_changed: list[str] | None = None,
+    prose_before: dict[str, str | None] | None = None,
 ) -> VerifyResult:
     checks: list[dict] = []
 
@@ -235,9 +399,27 @@ def verify(
                       "write task produced NO file changes (model narrated instead of editing)")
         checks.append({"name": "did_work", "ok": did_write, "detail": detail})
 
-    for rel in report.get("files_changed", []):
+    # WHICH FILES GET CHECKED. Same argument as did_work directly above, applied
+    # one loop lower: this used to iterate ``report["files_changed"]``, the
+    # model's SELF-REPORT. That let a writer dodge every per-file check by
+    # writing to disk and reporting nothing -- did_work passed on the disk diff
+    # while the dispatch below saw an empty list and ran no check at all. When
+    # the caller has real evidence, the evidence is the work list; the
+    # self-report is only used when there is none (advisory / direct unit calls,
+    # where nothing was written and the list is a draft's claim).
+    changed = ([_norm_rel(r) for r in disk_changed] if disk_changed is not None
+               else [_norm_rel(r) for r in report.get("files_changed", [])])
+
+    for rel in changed:
         s = str(rel)
-        if s.endswith(".py"):
+        if is_prose_path(s):
+            # Only in write mode: outside it nothing was written, so there is no
+            # after-image to judge and the path is a draft's claim, not an edit.
+            if require_changes:
+                ok, detail, status = _prose_check(repo_root, s, prose_before)
+                checks.append({"name": f"prose:{s}", "ok": ok,
+                               "status": status, "detail": detail})
+        elif s.endswith(".py"):
             ok, detail = _py_compile(repo_root, s)
             checks.append({"name": f"syntax:{s}", "ok": ok, "detail": detail})
             lok, ldetail = _lint_py(repo_root, s)

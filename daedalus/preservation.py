@@ -21,13 +21,22 @@ Why it exists anyway
 --------------------
 The installed self-policy lets the local model write to ``docs/``, ``tests/``
 and ``README.md``. Two of those three have a machine-checkable gate: a test
-either passes or it doesn't. **Prose has none.** Concretely: ``verify()``'s
-per-file dispatch (``daedalus/verifier.py``) branches on ``.py``, ``.json`` /
-``.yaml``, ``.js`` and ``.html`` -- there is no markdown branch at all, so a
-``.md`` write falls off the end of that chain and faces only the schema and
-did_work checks. It is accepted on the strength of "the report parsed and a
-file changed", which is exactly the "empty green" the rest of the harness
-exists to prevent. Nothing goes red when a true sentence is deleted.
+either passes or it doesn't. **Prose had none.** ``verify()``'s per-file
+dispatch (``daedalus/verifier.py``) branched on ``.py``, ``.json`` / ``.yaml``,
+``.js`` and ``.html`` and nothing else, so a ``.md`` write fell off the end of
+that chain and faced only the schema and did_work checks. It was accepted on the
+strength of "the report parsed and a file changed", which is exactly the "empty
+green" the rest of the harness exists to prevent. Nothing went red when a true
+sentence was deleted.
+
+``verify()`` now has a prose branch (``_prose_check``) and it calls
+:func:`check_preservation`. It needs a BEFORE-image to compare against, which
+the caller supplies as ``prose_before=`` -- built from the writer's own rollback
+backups, the only source that is truthful about what the file said at the
+instant before the write. Without one the branch blocks with
+``status="unknown"``: a check that could not run is refused, and is recorded as
+inconclusive rather than as a verdict against the model. **Read the rest of this
+docstring before treating that green as meaning anything.**
 
 MEASURED failure this repo actually produced (qwen2.5-coder:7b rewriting
 ``docs/LOCAL_MODELS.md`` under an instruction that said *"Keep every fact that

@@ -62,10 +62,17 @@ class _RealWritingWorker:
 
     def __init__(self, repo_root: str):
         self._repo_root = repo_root
+        # Mirrors what the real ollama provider keeps for rollback: absolute
+        # path -> the exact bytes that were there before, or None when the
+        # write CREATED the file. offload() hands this to the verifier as the
+        # prose before-image, so a worker without it fails the prose check.
+        self._backups: dict = {}
 
     def run(self, **kwargs):
         p = Path(self._repo_root) / _ALLOWED_TARGET
         p.parent.mkdir(parents=True, exist_ok=True)
+        self._backups.setdefault(
+            str(p.resolve()), p.read_bytes() if p.exists() else None)
         p.write_text("# notes\nreal content\n", encoding="utf-8")
         return {"report": _report(files_changed=[_ALLOWED_TARGET])}
 

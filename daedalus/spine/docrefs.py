@@ -88,12 +88,15 @@ __all__ = [
     "DocRefReport",
     "FixVerdict",
     "Reference",
+    "check_denominator",
     "extract_references",
     "iter_doc_files",
     "reference_key",
     "resolve_reference",
     "scan",
     "verify_fix",
+    "verify_fix_counts",
+    "verify_fixes",
 ]
 
 # Where prose lives. README.md is included because the policy names it
@@ -569,10 +572,35 @@ def resolve_reference(ref: Reference, repo_root: str | Path,
                         "why": f"{rel} defines {head!r}"})
 
 
-def scan(repo_root: str | Path, doc_files: Sequence[Path] | None = None) -> DocRefReport:
-    """Measure the whole prose corpus against the tree. Never raises."""
+def _rel_key(path: str | Path) -> str:
+    """Normalise a repo-relative path the way :class:`Reference` records one."""
+    text = str(path).replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return text
+
+
+def scan(repo_root: str | Path, doc_files: Sequence[Path] | None = None,
+         overrides: Mapping[str, str | None] | None = None) -> DocRefReport:
+    """Measure the whole prose corpus against the tree. Never raises.
+
+    ``overrides`` maps a repo-relative doc path to the text to scan INSTEAD of
+    whatever is on disk, or to ``None`` meaning "this file does not exist in the
+    snapshot being measured". It exists so a caller that remembers what a
+    document said BEFORE an edit can compute the before-report exactly, without
+    moving files and without disturbing ``doc_path`` -- which is half of
+    :func:`reference_key`, so a relocated corpus would make every finding look
+    withdrawn.
+
+    The MODULE tree is read from ``repo_root`` on both sides. That is deliberate:
+    the denominator compares two prose snapshots against ONE tree, so a
+    difference in ``resolving`` is attributable to the prose edit and to nothing
+    else. It is not a general time machine and must not be used as one.
+    """
     root = Path(repo_root)
     files = tuple(doc_files) if doc_files is not None else iter_doc_files(root)
+    over: dict[str, str | None] = {
+        _rel_key(k): v for k, v in (overrides or {}).items()}
     cache: dict = {}
     resolving: list[Reference] = []
     broken: list[Reference] = []
@@ -581,16 +609,38 @@ def scan(repo_root: str | Path, doc_files: Sequence[Path] | None = None) -> DocR
     dropped_total = 0
     scanned = 0
 
+    planned: list[tuple[str, Path | None]] = []
+    seen: set[str] = set()
     for path in files:
-        try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError as e:
-            errors.append(f"{path}: {type(e).__name__}: {e}")
-            continue
         try:
             rel = path.relative_to(root).as_posix()
         except ValueError:
             rel = path.as_posix()
+        rel = _rel_key(rel)
+        if rel in seen:
+            continue
+        seen.add(rel)
+        planned.append((rel, path))
+    # An override may ADD a document the snapshot on disk no longer has -- the
+    # deletion case, which is the one the denominator exists to catch.
+    for rel in sorted(over):
+        if rel not in seen and over[rel] is not None:
+            seen.add(rel)
+            planned.append((rel, None))
+
+    for rel, path in planned:
+        if rel in over:
+            text = over[rel]
+            if text is None:
+                continue            # absent in this snapshot: not scanned, not an error
+        elif path is None:
+            continue
+        else:
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as e:
+                errors.append(f"{path}: {type(e).__name__}: {e}")
+                continue
         scanned += 1
         refs, dropped = extract_references(text, rel)
         dropped_total += dropped
@@ -612,6 +662,65 @@ def scan(repo_root: str | Path, doc_files: Sequence[Path] | None = None) -> DocR
 # --------------------------------------------------------------------------- #
 # verification -- the anti-gaming half                                         #
 # --------------------------------------------------------------------------- #
+def check_denominator(resolving_before: int, resolving_after: int) -> FixVerdict | None:
+    """The denominator half, on its own. ``None`` means the denominator HELD.
+
+    Extracted so the ordering that makes this module safe is STRUCTURAL rather
+    than a paragraph of prose asking the next caller to be careful. Every path
+    that judges a prose fix goes through here first, because
+    :func:`verify_fix_counts` calls it on its first line and there is no other
+    way in.
+
+    It takes counts, not reports, because the count is all the rule needs and a
+    caller that only has a remembered number (the queue's pick-time
+    measurement, carried on a gate command line) must be able to apply the same
+    rule as one holding both full reports.
+    """
+    if resolving_after < resolving_before:
+        return FixVerdict(
+            ok=False, verdict="evidence_destroyed",
+            resolving_before=resolving_before, resolving_after=resolving_after,
+            detail=(f"the corpus went from {resolving_before} to "
+                    f"{resolving_after} references that resolve. A fix may "
+                    f"correct a claim or withdraw one; it may not reduce the "
+                    f"documentation that was already true. This is refused "
+                    f"whatever happened to the finding itself."))
+    return None
+
+
+def verify_fix_counts(resolving_before: int, after: DocRefReport,
+                      target: Reference | Mapping[str, Any]) -> FixVerdict:
+    """:func:`verify_fix` with the before-side reduced to its one load-bearing
+    number, for callers that never held the before-report."""
+    destroyed = check_denominator(resolving_before, after.n_resolving)
+    if destroyed is not None:
+        return destroyed
+
+    key = (reference_key(target) if isinstance(target, Reference)
+           else f"{target.get('doc_path')}|{target.get('raw')}")
+
+    still_broken = any(reference_key(r) == key for r in after.broken)
+    if still_broken:
+        return FixVerdict(
+            ok=False, verdict="still_broken",
+            resolving_before=resolving_before, resolving_after=after.n_resolving,
+            detail="the reference is still in the file and still names code "
+                   "that is not there")
+
+    now_resolving = any(reference_key(r) == key for r in after.resolving)
+    if now_resolving:
+        return FixVerdict(
+            ok=True, verdict="fixed",
+            resolving_before=resolving_before, resolving_after=after.n_resolving,
+            detail="the reference now names code that exists")
+    return FixVerdict(
+        ok=True, verdict="claim_withdrawn",
+        resolving_before=resolving_before, resolving_after=after.n_resolving,
+        detail=("the reference is gone and no reference that resolved was lost "
+                "-- the stale claim was withdrawn, which is the other honest "
+                "remedy"))
+
+
 def verify_fix(before: DocRefReport, after: DocRefReport,
                target: Reference | Mapping[str, Any]) -> FixVerdict:
     """Did the attempted fix fix the thing, without destroying the evidence?
@@ -626,37 +735,38 @@ def verify_fix(before: DocRefReport, after: DocRefReport,
     Both honest remedies pass: naming the symbol that exists now (``fixed``) and
     withdrawing the stale claim (``claim_withdrawn``). Neither lowers the count
     of references that resolve.
+
+    KNOW WHERE ``target`` CAME FROM. ``claim_withdrawn`` is the verdict for a
+    key found in neither list, and that reading is only sound when the target
+    was taken from ``before.broken``: then absence really does mean the sentence
+    went. A caller that reconstructs a target from somewhere else -- a command
+    line, a serialised and TRUNCATED copy in a queue's evidence -- can produce a
+    key that never matched anything, and will be told the claim was honourably
+    withdrawn. Such a caller must establish independently that the claim was
+    there to withdraw; :mod:`daedalus.spine.docref_gate` does it by requiring the
+    text to be gone from the document.
     """
-    key = (reference_key(target) if isinstance(target, Reference)
-           else f"{target.get('doc_path')}|{target.get('raw')}")
+    return verify_fix_counts(before.n_resolving, after, target)
 
-    if after.n_resolving < before.n_resolving:
-        return FixVerdict(
-            ok=False, verdict="evidence_destroyed",
-            resolving_before=before.n_resolving, resolving_after=after.n_resolving,
-            detail=(f"the corpus went from {before.n_resolving} to "
-                    f"{after.n_resolving} references that resolve. A fix may "
-                    f"correct a claim or withdraw one; it may not reduce the "
-                    f"documentation that was already true. This is refused "
-                    f"whatever happened to the finding itself."))
 
-    still_broken = any(reference_key(r) == key for r in after.broken)
-    if still_broken:
-        return FixVerdict(
-            ok=False, verdict="still_broken",
-            resolving_before=before.n_resolving, resolving_after=after.n_resolving,
-            detail="the reference is still in the file and still names code "
-                   "that is not there")
+def verify_fixes(resolving_before: int, after: DocRefReport,
+                 targets: Sequence[Reference | Mapping[str, Any]]) -> tuple[
+                     bool, tuple[FixVerdict, ...]]:
+    """Judge a whole document's worth of findings under ONE denominator check.
 
-    now_resolving = any(reference_key(r) == key for r in after.resolving)
-    if now_resolving:
-        return FixVerdict(
-            ok=True, verdict="fixed",
-            resolving_before=before.n_resolving, resolving_after=after.n_resolving,
-            detail="the reference now names code that exists")
-    return FixVerdict(
-        ok=True, verdict="claim_withdrawn",
-        resolving_before=before.n_resolving, resolving_after=after.n_resolving,
-        detail=("the reference is gone and no reference that resolved was lost "
-                "-- the stale claim was withdrawn, which is the other honest "
-                "remedy"))
+    The denominator is a property of the corpus, not of any one reference, so it
+    is asked once and asked FIRST: if the evidence was destroyed, that is the
+    only verdict returned and no per-reference verdict is manufactured to sit
+    beside it looking reassuring.
+
+    NO EMPTY GREEN. An empty ``targets`` returns ``False``. Verifying nothing is
+    not the same as verifying something and finding it sound, and a gate that
+    passed on zero targets would turn "we lost the findings" into a green tick
+    -- which is the exact shape of failure the rest of this harness exists to
+    refuse.
+    """
+    destroyed = check_denominator(resolving_before, after.n_resolving)
+    if destroyed is not None:
+        return False, (destroyed,)
+    verdicts = tuple(verify_fix_counts(resolving_before, after, t) for t in targets)
+    return bool(verdicts) and all(v.ok for v in verdicts), verdicts

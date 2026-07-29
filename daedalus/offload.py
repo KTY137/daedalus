@@ -25,7 +25,8 @@ from pathlib import Path
 from . import metrics
 from .kairos.scheduler import FREE_LANES
 from .provider_router import route_and_select
-from .verifier import DEFAULT_TEST_TIMEOUT_S, VerifyResult, verify
+from .verifier import (DEFAULT_TEST_TIMEOUT_S, VerifyResult,
+                       prose_before_images, verify)
 
 _ALL = {"claude_cli": True, "ollama": True, "deepseek": True, "codex_cli": True}
 
@@ -487,9 +488,16 @@ def offload(
     # Write-mode work MUST actually change files -- otherwise it's a silent no-op
     # that would fake acceptance (zero Claude tokens, zero work done). Advisory
     # work legitimately produces no writes (Claude applies the draft later).
+    # The prose check needs the text from the instant BEFORE the write, and the
+    # writer is the only thing that has it -- ``git show HEAD:`` is a lie the
+    # moment the tree was already dirty. The provider keeps exact original bytes
+    # for rollback; this hands the same bytes to the verifier as before-images.
+    # A prose file with no before-image is refused, not waved through.
     vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
                 timeout_s=test_timeout_s,
-                require_changes=(decision.mode == "write"), disk_changed=disk_changed)
+                require_changes=(decision.mode == "write"), disk_changed=disk_changed,
+                prose_before=prose_before_images(
+                    getattr(worker, "_backups", None), repo_root))
 
     # POST-WRITE BLAST-RADIUS FENCE. The routing-time reachability check in
     # select_provider only ever saw the DECLARED --paths. A writable agentic run

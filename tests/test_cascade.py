@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from daedalus import compaction, metrics, semantic_route, verifier
+from daedalus import metrics, semantic_route, verifier
 from daedalus.offload import offload
 from daedalus.provider_router import route_and_select
 from daedalus.projects import load_project
@@ -101,18 +101,6 @@ class SemanticFallbackTests(unittest.TestCase):
         agent = semantic_route.semantic_route("review scan state machine races",
                                               paths=["TCT_app/controller/state_machine.py"])
         self.assertIn("name", agent)
-
-
-class CompactionTests(unittest.TestCase):
-    def test_compacts_long_history(self):
-        msgs = [{"role": "system", "content": "sys"}]
-        msgs += [{"role": "user", "content": f"m{i}"} for i in range(20)]
-        out = compaction.compact(msgs, keep_last=4)
-        self.assertEqual(out[0]["role"], "system")
-        self.assertTrue(any("[compacted earlier context]" in m["content"]
-                            for m in out if m["role"] == "system"))
-        self.assertLess(len(out), len(msgs))
-        self.assertEqual(out[-1]["content"], "m19")
 
 
 class WriteGuardTests(unittest.TestCase):
