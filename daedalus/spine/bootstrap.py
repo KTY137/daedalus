@@ -201,13 +201,53 @@ class GateDiscrimination:
 
 def gate_discrimination(repo_root: str | Path,
                         head: str | None = None) -> GateDiscrimination:
-    """Read the discrimination receipt and judge it. Fails closed, four ways.
+    """Read the discrimination receipt and judge it. Fails closed, SIX ways.
 
     A receipt only counts when it is present, parseable, measured against THE
-    CURRENT REVISION, and clean on every critical class. The revision clause is
-    the same doctrine the map and inventory sources follow: a measurement of a
-    tree that no longer exists is not a measurement of this one.
+    CURRENT REVISION, internally consistent, and clean on every critical class.
+    The revision clause is the same doctrine the map and inventory sources
+    follow: a measurement of a tree that no longer exists is not a measurement
+    of this one.
+
+    TWO OF THESE SIX WERE PROSE UNTIL AN AUDIT FOUND THEM, and both let a
+    forged promotion through:
+
+    * **The revision clause failed OPEN when HEAD could not be read.** The test
+      was ``if head and measured_head and not head.startswith(measured_head)``,
+      so a falsy ``head`` skipped the staleness branch entirely. The caller in
+      :func:`shadow_run` resolves HEAD inside a bare ``except`` that yields
+      ``None`` — so a repository with no readable ``.git`` turned a receipt from
+      ANY revision into ``proven=True``. ``picker._head_sha``'s own docstring
+      said callers "fail OPEN on" None; this one's said "measured against THE
+      CURRENT REVISION". Two documents, one code path, opposite claims.
+      ``head`` is now resolved here when not supplied, and an unresolvable
+      revision REFUSES.
+    * **No sanity bound on the counts.** ``{"planted": 12, "killed": 99}``
+      yielded a kill rate of 825%, which sails past an 80% floor. A rate is now
+      rejected unless ``0 <= killed <= planted``.
+
+    Still NOT defended, and deliberately named rather than quietly left: the
+    receipt has no integrity protection. Anything that can write
+    ``runs/spine/`` can author a receipt naming the current HEAD, and this
+    function will believe it. That is a key-management decision, not a patch.
     """
+    # Resolved HERE, not trusted from the caller, and refused when unknown.
+    # Passing an explicit head stays supported because
+    # tools/bootstrap_receipt.py deliberately asks about a DIFFERENT revision.
+    if head is None:
+        try:
+            from daedalus.spine.picker import _head_sha
+
+            head = _head_sha(repo_root)
+        except Exception:                        # noqa: BLE001
+            head = None
+    if not head:
+        return GateDiscrimination(
+            False,
+            "the current revision could not be read, so no receipt can be tied "
+            "to it -- refusing rather than accepting a measurement of an "
+            "unknown tree")
+
     path = Path(repo_root) / DISCRIMINATION_REL_PATH
     if not path.exists():
         return GateDiscrimination(
@@ -238,11 +278,22 @@ def gate_discrimination(repo_root: str | Path,
     planted = doc.get("planted")
     killed = doc.get("killed")
     try:
-        rate = float(killed) / float(planted) if planted else 0.0
-    except (TypeError, ValueError, ZeroDivisionError):
+        planted_f = float(planted)
+        killed_f = float(killed)
+    except (TypeError, ValueError):
         return GateDiscrimination(
             False, "the receipt does not record a usable planted/killed count",
             measured_at, measured_head)
+    # SANITY BOUND, and it is load-bearing: without it {"planted": 12,
+    # "killed": 99} produced a kill rate of 825% and cleared the 80% floor.
+    # A rate above 1.0 is not a very good gate, it is a broken receipt.
+    if not (planted_f > 0 and 0 <= killed_f <= planted_f):
+        return GateDiscrimination(
+            False,
+            f"the receipt is internally inconsistent: killed={killed} of "
+            f"planted={planted}",
+            measured_at, measured_head)
+    rate = killed_f / planted_f
 
     survivors = doc.get("surviving_classes") or []
     critical = tuple(c for c in survivors if c in CRITICAL_DEFECT_CLASSES)
