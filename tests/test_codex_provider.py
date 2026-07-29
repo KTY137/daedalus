@@ -337,7 +337,18 @@ class DoctorCodexTests(unittest.TestCase):
                 patch("daedalus.doctor.subprocess.run") as run:
             status = codex_status()
         run.assert_not_called()
-        self.assertEqual(status, {"present": False, "version": None, "logged_in": None})
+        # `refused` joined the contract when the spend ceiling started killing
+        # `daedalus doctor` outright: BudgetRefused is neither OSError nor
+        # SubprocessError, so it escaped both handlers in codex_status and the
+        # diagnostic died on a traceback the moment the ceiling was reached.
+        # It is a THIRD state, deliberately not folded into present=False --
+        # "codex is not installed" and "I was not allowed to ask" send an
+        # operator to different places. Here nothing was refused because
+        # nothing was probed, so it must be None rather than absent: an exact
+        # dict comparison is the point of this test, and dropping the key would
+        # let a future refusal go unnoticed in the absent path.
+        self.assertEqual(status, {"present": False, "version": None,
+                                  "logged_in": None, "refused": None})
 
     def test_codex_status_present_version_and_auth(self):
         from daedalus.doctor import codex_status

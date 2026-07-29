@@ -24,24 +24,43 @@ def codex_status() -> dict:
     login flow or a model call."""
     # Use the resolved path: npm ships `codex` as a .CMD shim on Windows and
     # subprocess cannot spawn it by bare name (WinError 2).
+    # A FIRING GUARD MUST NOT KILL THE DIAGNOSTIC. The spend ceiling wraps
+    # subprocess.run and raises BudgetRefused -- which is neither OSError nor
+    # SubprocessError, so it escaped both handlers below and `daedalus doctor`
+    # died on a traceback the moment the ceiling was reached. Measured at
+    # ceiling=$5.00 spent=$5.00: doctor exited 1 mid-report.
+    #
+    # `refused` is its OWN state, deliberately not folded into present=False.
+    # "codex is not installed" and "I was not allowed to ask" are different
+    # facts, and a doctor that reports the second as the first sends the
+    # operator to reinstall a CLI that is sitting right there.
+    from .budget import BudgetRefused
+
     codex = shutil.which("codex")
     version: str | None = None
     logged_in: bool | None = None
+    refused: str | None = None
     if codex:
         try:
             v = subprocess.run([codex, "--version"], capture_output=True,
                                text=True, timeout=10, check=False)
             if v.returncode == 0:
                 version = v.stdout.strip() or None
+        except BudgetRefused as exc:
+            refused = str(exc).split("\n")[0]
         except (OSError, subprocess.SubprocessError):
             version = None
-        try:
-            s = subprocess.run([codex, "login", "status"], capture_output=True,
-                               text=True, timeout=10, check=False)
-            logged_in = s.returncode == 0
-        except (OSError, subprocess.SubprocessError):
-            logged_in = None
-    return {"present": codex is not None, "version": version, "logged_in": logged_in}
+        if refused is None:
+            try:
+                s = subprocess.run([codex, "login", "status"], capture_output=True,
+                                   text=True, timeout=10, check=False)
+                logged_in = s.returncode == 0
+            except BudgetRefused as exc:
+                refused = str(exc).split("\n")[0]
+            except (OSError, subprocess.SubprocessError):
+                logged_in = None
+    return {"present": codex is not None, "version": version,
+            "logged_in": logged_in, "refused": refused}
 
 
 def _ollama_models(host: str) -> list[str] | None:
@@ -128,7 +147,13 @@ def main() -> None:
     detail = cx["version"] or "on PATH"
     print(f"[{_m(cx['present'])}] codex CLI                   "
           f"({detail}; external lane, egress-gated)")
-    if cx["present"]:
+    if cx.get("refused"):
+        # NOT an error line. The ceiling doing its job is a healthy system, and
+        # the operator needs to read it as "I did not ask" rather than as a
+        # broken CLI or an unknown auth state.
+        print(f"     probe refused by the spend ceiling -- version/auth NOT measured")
+        print(f"     {cx['refused']}")
+    elif cx["present"]:
         if cx["logged_in"] is True:
             print("     auth: logged in (codex login status)")
         elif cx["logged_in"] is False:
