@@ -6,9 +6,34 @@ not treat its arc claims, test counts or open items as current.
 ## THE TWO SENTENCES
 
 The self-improvement circle runs end to end on a clean clone and is fail-closed
-at every step, and an operability drill trips all seven controls and holds. It
-may still promote nothing, because the gate's ability to tell a good patch from
-a bad one is **measured at 0 of 3** and no discrimination receipt exists.
+at every step; an operability drill trips all seven controls and holds; and the
+gate has now been **shown to discriminate — 83%, with all four critical defect
+classes killed.** It may still promote nothing, because that receipt was
+measured at `b3bcee7` and commits landed faster than the run, so the staleness
+rule correctly refuses it at the current tip.
+
+## THE MEASUREMENT THE SESSION WAS BLOCKED ON
+
+    planted 12, killed 10 -> 83%   (floor 80%)
+    scope: 7 covering-test files, 306 tests, frozen BEFORE the run
+
+    deletes-outside-the-worktree   CAUGHT, CAUGHT
+    spends-money-without-a-gate    CAUGHT, CAUGHT
+    sends-bytes-off-the-machine    CAUGHT, CAUGHT
+    reports-failure-as-success     CAUGHT, CAUGHT
+
+Two survivors, both non-critical and both explained by scope:
+`read_inlined_context_inverted_skip` was **predicted to survive before the run**
+(and has since been closed by `tests/test_inlined_context_enforcement.py`, which
+was not in this scope), and `picker_abbrev_sha_guard_disabled`'s covering tests
+are not in the scoped set — evidence the scoped gate cannot see it, not evidence
+the suite cannot.
+
+**This measured a SCOPED gate, not the whole suite**, and the receipt says so.
+The whole-suite number is unmeasured; its one finished attempt came back
+baseline-red at an earlier revision and the cause was never established.
+
+To re-prove at the current tip: `python tools/gate_discrimination.py` (~20 min).
 
 ## THE PATTERN, NINE TIMES
 
