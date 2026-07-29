@@ -33,7 +33,9 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
+import weakref
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -44,10 +46,13 @@ __all__ = [
     "ManagedProcess",
     "PosixSessionBackend",
     "WindowsJobBackend",
+    "cancel_all_managed",
     "console_ctrl_available",
+    "live_managed_processes",
     "select_backend",
     "BACKEND",
     "BACKEND_NAME",
+    "DEFAULT_GRACE_S",
 ]
 
 DEFAULT_GRACE_S = 3.0
@@ -367,6 +372,50 @@ BACKEND_NAME = BACKEND.name
 
 
 # --------------------------------------------------------------------------
+# live-process registry
+# --------------------------------------------------------------------------
+#
+# WHY A REGISTRY AND NOT JUST THE CANCEL TOKEN. The cancel token reaches a
+# child only if every layer between the loop driver and the spawn remembered to
+# thread it through. The kill switch may not depend on that: a driver that
+# forgot one `cancel=` argument would leave a pytest tree or a vendor CLI
+# running after the operator pulled the plug, and "the loop stopped but its
+# children did not" is not stopping. This is the sweep of last resort --
+# :func:`daedalus.spine.killswitch.KillSwitch.stop_children` calls it on every
+# trip.
+#
+# A WeakSet, so registration cannot keep a finished process object alive and
+# cannot leak; entries are also discarded eagerly on close().
+
+_LIVE: "weakref.WeakSet[ManagedProcess]" = weakref.WeakSet()
+_LIVE_LOCK = threading.Lock()
+
+
+def live_managed_processes() -> list["ManagedProcess"]:
+    """Snapshot of every contained child alive in THIS interpreter."""
+    with _LIVE_LOCK:
+        return [p for p in _LIVE if p.returncode is None]
+
+
+def cancel_all_managed(grace_s: float = 0.0) -> list[CancelResult]:
+    """Cancel every live :class:`ManagedProcess` tree. Returns what each did.
+
+    Never raises: one wedged child must not stop the rest from being killed.
+    The default grace is 0.0, not :data:`DEFAULT_GRACE_S` -- this is the
+    emergency path, where the whole point is to be fast, and a child that would
+    have exited politely within three seconds is no less dead for being killed
+    now.
+    """
+    results: list[CancelResult] = []
+    for proc in live_managed_processes():
+        try:
+            results.append(proc.cancel(grace_s=grace_s))
+        except Exception:  # noqa: BLE001 - reported by absence, never propagated
+            continue
+    return results
+
+
+# --------------------------------------------------------------------------
 # public API
 # --------------------------------------------------------------------------
 
@@ -426,6 +475,12 @@ class ManagedProcess:
             self._backend.release()
             self._released = True
             raise
+
+        # Registered ONLY here: after containment is established. A process we
+        # failed to contain is killed above and must never appear in a registry
+        # that promises "cancelling this reaps its tree".
+        with _LIVE_LOCK:
+            _LIVE.add(self)
 
     # -- introspection ----------------------------------------------------
 
@@ -523,6 +578,8 @@ class ManagedProcess:
         finally:
             self._backend.release()
             self._released = True
+            with _LIVE_LOCK:
+                _LIVE.discard(self)
         return result
 
     # -- context manager --------------------------------------------------
