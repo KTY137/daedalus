@@ -543,7 +543,24 @@ def declared_trusted_hosts() -> frozenset[str]:
             candidate = (parsed.hostname or entry).strip().lower()
             import ipaddress
 
-            out.add(str(ipaddress.ip_address(candidate)))
+            addr = ipaddress.ip_address(candidate)
+            # A DECLARATION MUST NAME ONE MACHINE. ``0.0.0.0`` and ``::`` are
+            # not addresses of anything -- they are bind wildcards, and
+            # ``lane_for_host`` already refuses them as connect targets on
+            # exactly that reasoning ("it is a bind address, and as a connect
+            # target it is not a promise about this machine"). Accepting one
+            # HERE would have let a single declaration mean "every host",
+            # turning an operator's statement about their own bench into a
+            # blanket. Multicast and reserved ranges are refused for the same
+            # reason: they do not identify a peer you could have consented to.
+            #
+            # Raised by Cerberus as a non-blocking hardening while reviewing the
+            # CRITICAL in this commit's sibling; dormant today because the only
+            # declared address is a unicast tailnet host, and dormant is not the
+            # same as absent.
+            if addr.is_unspecified or addr.is_multicast or addr.is_reserved:
+                continue
+            out.add(str(addr))
         except (ValueError, UnicodeError):
             continue  # a typo must NARROW the list, never widen it
     return frozenset(out)
