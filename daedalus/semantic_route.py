@@ -37,6 +37,20 @@ Three failure modes here were measured, not theorised (2026-07-29):
 * **Dimension drift.** ``zip()`` silently truncates, so comparing a 768-dim
   role vector against a 384-dim query (two different models) scored a prefix
   and reported confidence. Mismatched dimensions are now a failure.
+* **A cold model read as a dead host.** The single hardcoded ``timeout=10``
+  was applied to the call that loads the model. MEASURED 2026-07-29 on the
+  shipped backend: cold ``nomic-embed-text`` answers in 15.48s, warm in 0.18s.
+  Every fresh process therefore blew the cap on its first role, aborted the
+  batch, and routed by keyword while reporting ``host_unreachable`` about a
+  host that was up -- so the feature was wired, tested, and had never once run
+  in production (0 of 5 live probes). The first call of a batch now gets a
+  separate cold budget, and a blown deadline is ``embed_timeout``, not a dead
+  host. See :data:`DEFAULT_EMBED_COLD_TIMEOUT_S`.
+
+None of the five is theoretical, and note what they have in common: each one
+turned a broken latent route into a *plausible* keyword answer. That is why
+provenance is not decoration here -- it is the only thing that can tell you the
+feature is dead.
 """
 
 from __future__ import annotations
@@ -188,20 +202,105 @@ def _validate_vector(v: object) -> tuple[list[float] | None, str | None, str | N
     return out, None, None
 
 
-def _embed_detailed(text: str, host: str,
-                    model: str) -> tuple[list[float] | None, str | None, str | None]:
-    """The backend boundary. Returns ``(vector, error_kind, detail)``."""
+def _is_timeout(exc: BaseException) -> bool:
+    """Did this failure come from OUR deadline rather than from the network?
+
+    A socket deadline surfaces two ways depending on where urllib gives up:
+    directly as :class:`TimeoutError` (``socket.timeout`` is an alias for it
+    since 3.10), or wrapped in a ``URLError`` whose ``reason`` is that same
+    object. Both are the same event and must classify the same way.
+    """
+    if isinstance(exc, TimeoutError):
+        return True
+    reason = getattr(exc, "reason", None)
+    return isinstance(reason, TimeoutError)
+
+
+def _timeout_s(env: str, default: float) -> float:
+    """A positive float from ``env``, else ``default``. Never raises: a typo in
+    an operator's environment must not take routing down."""
+    raw = os.environ.get(env, "")
+    if not raw.strip():
+        return default
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        logger.warning("semantic_route: %s=%r is not a number; using %.1fs",
+                       env, raw, default)
+        return default
+    if val <= 0 or not math.isfinite(val):
+        logger.warning("semantic_route: %s=%r is not a positive duration; "
+                       "using %.1fs", env, raw, default)
+        return default
+    return val
+
+
+#: Deadline for an embedding call against a backend that has already answered
+#: once in this batch. 10s was the ONLY timeout this module had, and it is
+#: correct for the warm case: MEASURED 2026-07-29, a warm ``nomic-embed-text``
+#: on 127.0.0.1 answers in 0.18s.
+EMBED_TIMEOUT_ENV = "DAEDALUS_EMBED_TIMEOUT_S"
+DEFAULT_EMBED_TIMEOUT_S = 10.0
+
+#: Deadline for the FIRST embedding call of a batch, which is the one that may
+#: have to pull the model off disk and into VRAM.
+#:
+#: THIS IS THE BUG THAT MADE THE WHOLE FEATURE DEAD, and it is worth stating
+#: plainly because nothing else in the module could have revealed it. The single
+#: 10s deadline above was applied to the cold call too. MEASURED 2026-07-29 on
+#: this repo's own box, against the very backend the harness ships with:
+#:
+#:     cold `nomic-embed-text` first call ... 15.48s   -> exceeded the 10s cap
+#:     the same call once warm ..............  0.18s
+#:
+#: So on every freshly started process the first role embedding hit the cap,
+#: `_role_vectors_detailed` aborted the batch, and the route degraded to the
+#: keyword router -- reporting ``host_unreachable`` about a host that was up,
+#: healthy and 0.18s away. Because failures are deliberately never cached (see
+#: the docstring), every subsequent call in that process paid another 10s and
+#: degraded again. The latent route was fully wired into
+#: ``provider_router.route_and_select``, fully tested, and had MEASURED never
+#: run in production: 0 of 5 live probes.
+#:
+#: Only the first call of a batch pays this, and a genuinely absent daemon
+#: still fails in milliseconds with ECONNREFUSED rather than timing out -- a
+#: timeout means something ACCEPTED the connection and is thinking, which is
+#: exactly the case worth waiting for. 60s is ~4x the measured cold load, for
+#: a slower disk or a larger embedding model.
+EMBED_COLD_TIMEOUT_ENV = "DAEDALUS_EMBED_COLD_TIMEOUT_S"
+DEFAULT_EMBED_COLD_TIMEOUT_S = 60.0
+
+
+def _embed_detailed(text: str, host: str, model: str,
+                    timeout: float | None = None,
+                    ) -> tuple[list[float] | None, str | None, str | None]:
+    """The backend boundary. Returns ``(vector, error_kind, detail)``.
+
+    ``timeout`` defaults to the WARM budget; callers that know they may be
+    triggering a model load pass the cold one.
+    """
+    if timeout is None:
+        timeout = _timeout_s(EMBED_TIMEOUT_ENV, DEFAULT_EMBED_TIMEOUT_S)
     url = host.rstrip("/") + "/api/embeddings"
     body = json.dumps({"model": model, "prompt": text}).encode("utf-8")
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         # Must precede URLError: HTTPError is a subclass of it.
         kind, detail = _classify_http(exc)
         return None, kind, detail
     except (urllib.error.URLError, OSError) as exc:
+        # A DEADLINE and an ABSENT HOST are different findings with different
+        # remedies, and collapsing them sent an operator to restart a daemon
+        # that was already running. "embed_timeout" names the budget it blew so
+        # the receipt says which knob to turn.
+        if _is_timeout(exc):
+            return None, "embed_timeout", (
+                f"no answer within {timeout:g}s (the host accepted the "
+                f"connection, so it is up); raise {EMBED_COLD_TIMEOUT_ENV} / "
+                f"{EMBED_TIMEOUT_ENV} or pre-load the model")
         return None, "host_unreachable", f"{type(exc).__name__}: {exc}"
     try:
         payload = json.loads(raw)
@@ -250,9 +349,16 @@ def _role_vectors_detailed(
         return cached, None, None, 0
     vecs: list[tuple[str, tuple[float, ...]]] = []
     calls = 0
+    cold = _timeout_s(EMBED_COLD_TIMEOUT_ENV, DEFAULT_EMBED_COLD_TIMEOUT_S)
+    warm = _timeout_s(EMBED_TIMEOUT_ENV, DEFAULT_EMBED_TIMEOUT_S)
     for agent in agents:
         calls += 1
-        v, kind, detail = _embed_detailed(_role_text(agent), host, model)
+        # Only the FIRST call may be paying for a model load. Handing the cold
+        # budget to all of them would let a wedged backend hold routing for
+        # roles*cold seconds; as written the worst case is one cold budget,
+        # because the first failure aborts the batch.
+        v, kind, detail = _embed_detailed(_role_text(agent), host, model,
+                                          timeout=cold if calls == 1 else warm)
         if v is None:
             # Deliberately NOT cached.
             return None, kind, f"embedding role {agent.get('name','?')!r} failed: {detail}", calls
@@ -329,7 +435,15 @@ def semantic_route_explained(
                         attempted=calls > 0, error_kind=kind, detail=detail,
                         calls=calls)
 
-    q, kind, detail = _embed_detailed(objective, host, model)
+    # ``calls == 0`` means the role vectors came from the cache, so nothing in
+    # THIS call has proven the backend warm -- the model may well have been
+    # evicted since. That makes the objective embed the cold call, and giving
+    # it the warm budget would reintroduce the same silent degradation one
+    # cache hit later.
+    q, kind, detail = _embed_detailed(
+        objective, host, model,
+        timeout=(_timeout_s(EMBED_COLD_TIMEOUT_ENV, DEFAULT_EMBED_COLD_TIMEOUT_S)
+                 if calls == 0 else None))
     calls += 1
     if q is None:
         return _keyword(FALLBACK, f"could not embed the objective ({kind})",
