@@ -268,3 +268,71 @@ def test_distinct_objectives_still_get_readable_names(tmp_path, monkeypatch):
     monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
     p = fb.enqueue("wire the compaction module", str(tmp_path), [])
     assert p.name.startswith("20260101T000000Z-wire-the-compaction-module")
+
+
+def test_PARALLEL_producers_do_not_collide(tmp_path, monkeypatch):
+    """The race a serial test cannot see.
+
+    The first fix for the second-resolution collision was an existence check
+    with a counter -- check-then-use. Two producers running at once both see
+    the same free name and both write it, and every serial caller (including
+    the acceptance check that found the original bug) goes green over it.
+    Uniqueness has to come from the name, not from looking.
+    """
+    import threading
+
+    from daedalus import file_bridge as fb
+
+    monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
+    monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
+
+    made, errors = [], []
+    start = threading.Barrier(12)
+
+    def worker():
+        try:
+            start.wait(timeout=10)
+            made.append(fb.enqueue("same objective", str(tmp_path), []))
+        except Exception as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    assert not errors, errors
+    assert len(made) == 12
+    assert len({p.name for p in made}) == 12, "two producers wrote the same file"
+    assert len(list((tmp_path / "outbox").glob("*.json"))) == 12
+
+
+def test_a_request_is_published_atomically(tmp_path, monkeypatch):
+    """A reader never sees half a request.
+
+    The watcher globs `*.json` on a timer. A plain `write_text` lets it pick up
+    a file that is half a JSON document, so the request has to appear under a
+    name the glob ignores and then be renamed into place.
+    """
+    from daedalus import file_bridge as fb
+
+    monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
+    seen: list[list[str]] = []
+    real_write = Path.write_text
+
+    def spy(self, *a, **kw):
+        result = real_write(self, *a, **kw)
+        # Whatever a poller would see the instant the bytes land.
+        seen.append(sorted(p.name for p in (tmp_path / "outbox").glob("*.json")))
+        return result
+
+    monkeypatch.setattr(Path, "write_text", spy)
+    path = fb.enqueue("atomic probe", str(tmp_path), [])
+
+    assert path.exists()
+    # At the moment the body was written, no *.json was visible yet.
+    assert seen and seen[-1] == [], (
+        f"a partially written request was glob-visible: {seen[-1]}")
+    assert not list((tmp_path / "outbox").glob("*.tmp")), "temp file left behind"
+    assert json.loads(path.read_text(encoding="utf-8"))["objective"] == "atomic probe"
