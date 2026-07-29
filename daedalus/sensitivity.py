@@ -197,6 +197,12 @@ class Policy:
     mid_risk_terms: tuple[str, ...] = GENERIC_MID_RISK_TERMS
     high_risk_path_substrings: tuple[str, ...] = GENERIC_HIGH_RISK_PATHS
     default_deny: bool = True
+    # OPT-IN WRITE CONFINEMENT. Empty (the default) means "no confinement" --
+    # exactly today's behaviour for every repo that does not set it. Non-empty
+    # means this list is the WHOLE write permission: anything not matching is
+    # blocked. See :func:`path_write_blocked` for why this is a separate field
+    # rather than a reuse of ``allow``/``default_deny``.
+    write_allow: tuple[str, ...] = ()
 
 
 DEFAULT_POLICY = Policy()
@@ -219,6 +225,14 @@ def load_policy(project_config: dict | None) -> Policy:
         high_risk_path_substrings=tuple(dict.fromkeys(
             GENERIC_HIGH_RISK_PATHS + tuple(p.get("high_risk_paths", ())))),
         default_deny=bool(p.get("default_deny", True)),
+        # NORMALISED AT LOAD, deliberately. Matching happens against ``_norm``
+        # (forward-slashed, lower-cased), so a policy entry like "README" or
+        # "Docs\\" could never match anything -- a DEAD ALLOW ENTRY, which under
+        # a confinement list reads as "I permitted this" while permitting
+        # nothing. Normalising here makes an operator's natural spelling work
+        # instead of silently confining harder than they asked.
+        write_allow=tuple(dict.fromkeys(
+            _norm(str(a)) for a in p.get("write_allow", ()) if str(a).strip())),
     )
 
 
@@ -251,6 +265,28 @@ class DataClass:
     sensitive: bool
     offending: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+
+
+def _within_write_allow(path: str, allow: tuple[str, ...]) -> bool:
+    """Root-anchored PREFIX match of ``path`` against a confinement list.
+
+    Deliberately NOT the substring test the rest of this module uses. Every
+    other list here is a DENY list, where a loose match errs toward blocking --
+    the safe direction. A confinement list is the opposite: a loose match errs
+    toward PERMITTING. Substring-matching ``"docs/"`` would admit
+    ``evildocs/payload.py`` and ``daedalus/docs/../core.py``-shaped names, i.e.
+    the confinement would leak in exactly the direction it exists to stop.
+
+    Semantics: an entry ending in ``/`` names a subtree; any other entry names
+    that one file. Both are anchored at the repo root, so ``readme.md`` permits
+    ``/readme.md`` and not ``/vendor/readme.md``.
+    """
+    anchored = "/" + _norm(path).lstrip("/")
+    for entry in allow:
+        e = "/" + entry.lstrip("/")
+        if anchored == e or anchored.startswith(e if e.endswith("/") else e + "/"):
+            return True
+    return False
 
 
 def _path_is_sensitive(norm_path: str, policy: Policy) -> str | None:
@@ -481,7 +517,28 @@ def path_write_blocked(path: str, policy: Policy | None = None) -> bool:
     """True if a local agentic writer (Ollama) must NOT write here. Blocks the
     denylist (device drivers, vendor IP, secrets) and high-blast-radius trees
     (devices/, controller/, state machine) so a weak local model can't clobber
-    hardware or safety-critical code. Simulated/base files stay writable."""
+    hardware or safety-critical code. Simulated/base files stay writable.
+
+    THIS PREDICATE IS DENY-ONLY BY DEFAULT, AND THAT SURPRISED ITS OWN AUTHOR.
+    ``policy.allow_substrings`` and ``policy.default_deny`` are read by
+    :func:`classify_data` -- the EGRESS axis -- and were never consulted here.
+    A drafted self-policy for this repo said, in prose, "the allow-list is the
+    whole permission"; measured against this function, 8 of 12 paths it claimed
+    to deny were writable, including ``daedalus/config.py``, which *loads the
+    policy*. Same shape as the two-predicates-for-one-question bug in
+    :func:`read_inlined_context` above: a document described a fence the code
+    did not have.
+
+    ``write_allow`` is the fix, and it is a SEPARATE, OPT-IN field on purpose:
+
+    * Reusing ``allow``/``default_deny`` would silently confine every existing
+      repo's write lane the moment this shipped -- an egress list retro-fitted
+      as a write list, which is exactly the conflation that caused the bug.
+    * Empty ``write_allow`` therefore means "unconfined", byte-identical to the
+      previous behaviour.
+    * Non-empty means the list is the WHOLE write permission, and the deny
+      lists below still run on top of it. Confinement narrows; it never widens.
+    """
     policy = policy or DEFAULT_POLICY
     norm = _norm(path)
     # The generic secret floor wins over EVERYTHING -- even a *_simulated.py
@@ -490,10 +547,19 @@ def path_write_blocked(path: str, policy: Policy | None = None) -> bool:
     # egress; simulated backends still get the explicit write exemption below.
     if any(d in norm for d in GENERIC_DENY_SUBSTRINGS):
         return True
+    if policy.write_allow:
+        if not _within_write_allow(norm, policy.write_allow):
+            return True
+        # Confinement in force: fall through to the deny lists WITHOUT the
+        # *_simulated.py exemption. That exemption exists so a weak model may
+        # touch fake hardware backends in a device repo; under an explicit
+        # confinement it would instead be a way for `docs/adrs/x_simulated.py`
+        # to skip the high-risk check below. A repo that opts into confinement
+        # is asking for fewer exemptions, not more.
     # For WRITES the only other exemption is a simulated backend. *_base.py is
     # NOT exempt: the real ISEG/motor drivers inherit it, so a bad write there
     # breaks or alters real hardware behaviour.
-    if norm.endswith("_simulated.py"):
+    elif norm.endswith("_simulated.py"):
         return False
     if any(d in norm for d in policy.deny_substrings):
         return True

@@ -1,0 +1,41 @@
+{
+  "_comment": "Daedalus's policy for its OWN repository. Authorised by Kaya on 2026-07-29. See docs/PROPOSED_SELF_POLICY.md for the reasoning and docs/adrs/ for the write-confinement finding. To revoke: delete this file. There is no other state.",
+
+  "name": "agent_env",
+  "repo_root": "C:/Users/nukei/Desktop/agent_env",
+
+  "policy": {
+    "_comment_write_allow": "THIS is the write permission. `allow` below is the EGRESS axis and does NOT gate writes -- measured: with allow-only, 8 of 12 paths this policy claims to deny were writable, including daedalus/config.py, which loads this file. write_allow is prefix-anchored at the repo root: an entry ending in / names a subtree, anything else names one file.",
+    "write_allow": [
+      "docs/",
+      "tests/",
+      "README.md"
+    ],
+
+    "_comment_egress": "Which paths' BYTES may reach an untrusted external API. Separate question from writing, deliberately kept separate.",
+    "default_deny": true,
+    "allow": ["docs/", "/tests/", "test_", ".md", "readme"],
+
+    "_comment_high_risk": "Belt to write_allow's braces, and it does real work even though write_allow already denies these: it forces change_risk -> 'high', which routes the task AWAY from the free local lane before any write is attempted. If somebody widens write_allow later -- and somebody will -- these must still be refused, so that widening has to delete a line that names what it is protecting.",
+    "high_risk_paths": [
+      "daedalus/sensitivity.py",
+      "daedalus/enforce.py",
+      "daedalus/budget.py",
+      "daedalus/config.py",
+      "daedalus/offload.py",
+      "daedalus/spine/",
+      "daedalus/kairos/worktree.py",
+      "tools/operability_drill.py",
+      "tools/system_check.py",
+      "tools/gate_discrimination.py",
+      ".agentenv/",
+      "docs/adrs/",
+      ".github/",
+      ".git/"
+    ]
+  },
+
+  "_comment_test": "The verify gate after a live write. Deliberately the WHOLE suite, not a scoped subset: write_allow permits tests/, so a candidate can write a test, and a scoped command would not necessarily run the file the candidate just added. -x stops at the first failure, which is the only outcome that matters to a gate.",
+  "test_command": "python -m pytest tests -q -x",
+  "test_cwd": "."
+}

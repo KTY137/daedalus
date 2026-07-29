@@ -1,7 +1,40 @@
 # Proposed: a project policy that lets Daedalus write to Daedalus
 
-**Status: a proposal. Nothing in this file is in force.** Installing it is a
-one-move decision described at the bottom, and it is yours to take, not mine.
+> ## CORRECTION, 2026-07-29 — this document's central claim was FALSE
+>
+> Kaya authorised this policy. Measured before installing it, the version below
+> **did not confine writes at all**. The claim further down —
+>
+> > "The ONLY paths a candidate patch may touch. Everything else is denied by
+> > `default_deny`, so this list is the whole permission."
+>
+> — is wrong. `allow` and `default_deny` are read by `classify_data`, the
+> **egress** axis. `path_write_blocked`, which the local write lane actually
+> calls, never looked at either. Measured: **8 of 12** paths this document
+> claimed to deny were writable, including `daedalus/config.py`, which loads
+> this policy — a candidate could have rewritten the policy loader.
+>
+> ```text
+> WRITABLE  daedalus/core.py      WRITABLE  daedalus/cli.py
+> WRITABLE  daedalus/offload.py   WRITABLE  daedalus/health.py
+> WRITABLE  daedalus/router.py    WRITABLE  daedalus/config.py  <-- loads this file
+> WRITABLE  daedalus/providers/ollama.py    WRITABLE  pyproject.toml
+> ```
+>
+> **What was installed instead** is `.agentenv/agentenv.json`, using a new
+> opt-in, prefix-anchored `write_allow` field that the write guard does read.
+> See `docs/adrs/019-one-decision-point.md` for the structural finding behind
+> it and `tests/test_self_policy_confinement.py` for the receipt.
+>
+> This document is kept rather than deleted because the mistake is the more
+> useful artefact: it is the ninth time in one week that a *document described
+> a capability the code did not have*, and the first time the author of both
+> was the same.
+
+**Status: SUPERSEDED by `.agentenv/agentenv.json` (installed 2026-07-29).**
+Everything below is the original proposal, preserved unedited apart from this
+header. Read it for the reasoning about *which paths*; do not trust it about
+*how the mechanism works*.
 
 ## Why this is the last blocker
 

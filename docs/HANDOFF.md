@@ -3,6 +3,60 @@
 This section supersedes everything below it. The rest of the file is history; do
 not treat its arc claims, test counts or open items as current.
 
+## SESSION 5 — THE SELF-POLICY IS INSTALLED, AND WHAT IT TAUGHT
+
+Kaya authorised self-modification on 2026-07-29. Four things were measured
+before anything was installed, and all four changed the outcome.
+
+**1. The drafted policy confined nothing.** `docs/PROPOSED_SELF_POLICY.md`
+claimed its `allow` list was "the whole permission". Measured against
+`path_write_blocked` — the function the write lane actually calls — **8 of 12
+paths it claimed to deny were writable**, including `daedalus/config.py`, which
+*loads the policy*. `allow`/`default_deny` are the EGRESS axis and are read by
+`classify_data` and by nothing on the write axis. The ninth instance of this
+repo's recurring defect, and the first where the author of the document and of
+the code was the same. Fixed with an opt-in, prefix-anchored `write_allow`;
+see ADR-019 and `tests/test_self_policy_confinement.py`.
+
+**2. The policy only counts if it is COMMITTED.** `offload_runner` pins
+`repo_root` to the worktree, and a worktree is checked out from HEAD. An
+uncommitted `.agentenv/agentenv.json` grants exactly nothing. This is a good
+property — permission travels with the revision — and it is not written down
+anywhere else.
+
+**3. The picker's queue and the write permission do not intersect.** Measured:
+17 candidates (7 map_island, 7 inventory_island, 3 map_shim), every one of them
+source surgery under `daedalus/`. The permission is `docs/`, `tests/`,
+`README.md`. The top candidate does not even reach the write guard — its
+instruction contains "delete", a HIGH risk term, so it routes `risk=high ->
+claude_cli -> senior`. **The loop correctly selects work it is not allowed to
+do.** Do not fix this by widening the fence; that is the day-one failure mode
+the policy itself warns about.
+
+**4. The one permitted lane has no gate.** A live 7B write against
+`docs/LOCAL_MODELS.md` succeeded mechanically (`action=offloaded`, file changed
+2235 -> 2207 bytes) and was **not promotable**: against an instruction that said
+"keep every fact", the model deleted "OpenAI-compatible endpoint" and the
+cross-reference to `docs/IMPROVEMENTS_RESEARCH.md`, dropped backticks around
+`daedalus`, and re-cased two headings. **No gate could have caught this.**
+`test_command` proves tests pass; there is no red test for a deleted true
+sentence in Markdown. The policy chose `docs/` because a wrong patch there
+"costs a review rather than an incident" — that is now measured to be exactly
+right, and it means the review is a HUMAN one. `docs/` is simultaneously the
+safest place to write and the least verifiable. Those are the same property.
+
+**Also fixed:** `daedalus doctor` died on a traceback whenever the spend ceiling
+fired — `BudgetRefused` is neither `OSError` nor `SubprocessError`, so it
+escaped both handlers in `codex_status`. A firing guard must not kill the
+diagnostic that reports it. `refused` is now its own state, deliberately not
+folded into `present=False`: "codex is not installed" and "I was not allowed to
+ask" are different facts.
+
+**Standing constraint at the time of writing:** the spend ceiling is exhausted
+(`$5.00/$5.00`), so codex is unreachable and none of the above has had an
+adversarial cross-vendor review. Raising `DAEDALUS_BUDGET_USD` is a deliberate
+act and was not taken unilaterally.
+
 ## THE TWO SENTENCES
 
 The self-improvement circle runs end to end on a clean clone and is fail-closed
