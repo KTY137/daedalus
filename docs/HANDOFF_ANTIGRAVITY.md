@@ -123,9 +123,25 @@ too, and build so it gets caught.
    index otherwise untouched — so it is immune to the race in both directions.
    Reading the staged set is still worth doing; it just stops being the thing
    that protects you.
+
+   **The sharp edge, and it is the one way this differs from the habit it
+   replaces:** `git commit -- <paths>` commits WORKING-TREE content and ignores
+   the index *including your own deliberate partial staging*. VERIFIED in a
+   throwaway repo: a file staged at `v1` and edited to `v2` committed as `v2`,
+   a version that had never been staged; a peer's staged file was still staged
+   afterwards; a dirty protected file stayed dirty. So it is **incompatible
+   with `git add -p`** — if you staged selected hunks, this commits the rest of
+   the file too. The two habits are safe individually and dangerous together.
+
+   Options must precede the `--`. `git commit -- <path> -F -` fails with
+   `error: pathspec '-F' did not match any file(s)`.
 10. **An agreed sequence needs an agreed EXECUTOR.** Two agents negotiated the
     correct commit ORDER and both then acted on it. Settling *what* happens is
     not settling *who does it*.
+
+    Items 9 and 10 are one failure in two costumes: **two actors writing one
+    global.** In 9 the global is the git index; in 10 it is the plan. The
+    remedy is the same both times — stop relying on shared mutable state.
 
 ---
 
