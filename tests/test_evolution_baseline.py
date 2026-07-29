@@ -111,13 +111,21 @@ def test_bare_pytest_does_not_reach_the_candidates_own_code(tmp_path):
         f"test documents is absent in this environment; got {bare!r}")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "MEASURED DEFECT -- see docs/adrs/015-ariadne-preconditions.md, P1. The "
-    "evaluator shells out to a bare 'pytest', which does not put the candidate "
-    "worktree on sys.path. Fixing it to `sys.executable, '-m', 'pytest'` makes "
-    "this XPASS, which turns the suite red ON PURPOSE so ADR-015 gets updated."))
 def test_evaluator_invokes_an_interpreter_qualified_pytest():
-    """The fitness signal must run the candidate's interpreter and code."""
+    """The fitness signal must run the candidate's interpreter and code.
+
+    Until 2026-07-29 this was an ``xfail(strict=True)`` pinning the MEASURED
+    defect (ADR-015 P1): the evaluator shelled out to a bare ``pytest``, which
+    does not put the candidate worktree on ``sys.path``, so every score ever
+    produced described the PRIMARY checkout's code against the candidate's
+    tests. The xfail was a deliberate tripwire -- fixing the bug XPASSed it
+    and turned the suite red so ADR-015 could not be silently outdated. The
+    fix landed (``sys.executable, "-m", "pytest"``, verified by a direct
+    shadowing experiment: bare pytest resolved daedalus to the primary tree,
+    ``-m pytest`` to the candidate worktree), the tripwire fired as designed,
+    and this is now a plain regression guard. ADR-015 P1 is addressed; the
+    ADR text itself still needs its owner's update.
+    """
     src = _EVOLUTION_PY.read_text(encoding="utf-8")
     assert "sys.executable" in src, (
         "evaluate_candidates must not invoke a bare 'pytest'")
@@ -176,17 +184,20 @@ def test_the_fitness_function_has_no_caller():
     assert hits == [], f"evaluate_candidates now has callers: {hits}"
 
 
-def test_evaluator_passes_no_timeout_to_the_candidate_test_run():
-    """A candidate that hangs hangs the whole generation.
+def test_evaluator_bounds_the_candidate_test_run():
+    """A candidate that hangs must not hang the whole generation.
 
-    ``await process.communicate()`` (evolution.py:62) has no timeout, and the
-    surrounding ``asyncio.gather`` (evolution.py:80) waits for every candidate,
-    so one non-terminating test blocks the run forever. Recorded as ADR-015
-    precondition P6 (budget accounting and guaranteed termination). If this goes
-    red, evolution.py grew a timeout -- a fix; update P6 and delete this test.
+    The INVERSE of the characterisation test that stood here until 2026-07-29.
+    The old test pinned the defect (``await process.communicate()`` with no
+    timeout inside an ungated ``gather`` -- one non-terminating candidate
+    blocked the run forever, ADR-015 P6) and instructed, in its own docstring:
+    "If this goes red, evolution.py grew a timeout -- a fix; update P6 and
+    delete this test." The timeout landed (600s per candidate, process killed
+    on expiry), so per its own instruction the characterisation is deleted and
+    replaced by this guard so the bound cannot silently regress. ADR-015 P6 is
+    addressed in code; the ADR text still needs its owner's update.
     """
     src = _EVOLUTION_PY.read_text(encoding="utf-8")
-    assert "communicate()" in src
-    assert "wait_for" not in src and "timeout" not in src, (
-        "evolution.py grew a timeout -- ADR-015 P6 cites its absence; "
-        "update the ADR and remove this characterisation test")
+    assert "wait_for" in src or "timeout" in src, (
+        "evolution.py lost its per-candidate timeout -- a hung candidate "
+        "would block the whole generation again (ADR-015 P6)")

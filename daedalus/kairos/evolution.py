@@ -1,4 +1,5 @@
 import asyncio
+import sys
 from typing import List, Callable, Optional, Dict, Any
 from pathlib import Path
 import logging
@@ -6,6 +7,11 @@ import logging
 from daedalus.kairos.shadow_shell import ShadowShellManager, CandidateBranch
 
 logger = logging.getLogger(__name__)
+
+# Wall-clock ceiling for ONE candidate's test run. Without it a candidate that
+# hangs -- an agent that left an input() or an unbounded loop in the tree --
+# blocks the whole `gather` below forever, and the run has no way to end.
+DEFAULT_EVAL_TIMEOUT_S = 600.0
 
 class EvolutionaryOrchestrator:
     """
@@ -42,31 +48,79 @@ class EvolutionaryOrchestrator:
             logger.error(f"Error during candidate generation: {e}")
             return []
 
-    async def evaluate_candidates(self, candidates: List[CandidateBranch]) -> None:
+    async def evaluate_candidates(
+        self,
+        candidates: List[CandidateBranch],
+        timeout_s: float = DEFAULT_EVAL_TIMEOUT_S,
+    ) -> None:
         """
         Evaluates candidates using pytest concurrently. Populates candidate.score and candidate.error.
+
+        THE INTERPRETER IS PART OF THE MEASUREMENT. This shells out to
+        ``sys.executable -m pytest``, never to a bare ``pytest``, and the
+        difference is not cosmetic -- it decides WHICH TREE gets scored.
+
+        MEASURED 2026-07-29, running the same test file two ways inside a
+        worktree that shadows ``daedalus/``:
+
+            bare `pytest`          -> daedalus resolved to the PRIMARY checkout
+            `python -m pytest`     -> daedalus resolved to the WORKTREE copy
+
+        The editable install pins ``daedalus`` to the primary checkout by
+        absolute path via an ``_EditableFinder`` on ``sys.meta_path``. Bare
+        ``pytest`` puts only each test file's own basedir on ``sys.path``, never
+        the worktree root, so nothing shadows that finder and the candidate's
+        edits are invisible to its own tests. ``-m`` puts the working directory
+        on ``sys.path[0]``, ahead of ``PathFinder``, which is ahead of
+        ``_EditableFinder`` -- so the candidate's code wins, as it must.
+
+        Until this changed, every score this class produced described the
+        primary checkout's code running the candidate's tests.
+
+        This is still a BINARY, whole-suite signal and it is still not a
+        promotion boundary -- see ``docs/adrs/015-ariadne-preconditions.md``.
+        The stronger measurement (``daedalus.eval.correctness.evaluate_change``,
+        which freezes the selection before candidate code runs and reports five
+        outcomes with precedence) is the intended replacement; this fix makes
+        the interim signal describe the right tree, nothing more.
         """
         async def evaluate_single(candidate: CandidateBranch):
             if not candidate.completed or candidate.error:
                 candidate.score = -1.0
                 return
-                
+
+            process = None
             try:
-                # Run pytest inside the worktree asynchronously
+                # Run pytest inside the worktree asynchronously. `-m` is
+                # load-bearing: see the docstring.
                 process = await asyncio.create_subprocess_exec(
-                    "pytest",
+                    sys.executable, "-m", "pytest",
                     cwd=str(candidate.worktree_path),
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE
                 )
-                stdout, stderr = await process.communicate()
-                
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout_s)
+
                 if process.returncode == 0:
                     candidate.score = 100.0
                 else:
                     candidate.score = 0.0
                     combined = (stdout + b"\n" + stderr).decode(errors="replace")
                     candidate.error = f"Tests failed. Output: {combined[-4000:]}"
+            except asyncio.TimeoutError:
+                # A hung candidate is a FAILED candidate, never an unscored one
+                # left to block the gather. Kill it and say why.
+                candidate.score = 0.0
+                candidate.error = f"Evaluation timed out after {timeout_s}s"
+                if process is not None:
+                    try:
+                        process.kill()
+                        await process.wait()
+                    except ProcessLookupError:
+                        pass
+                logger.error(
+                    f"Evaluation of candidate {candidate.branch_name} timed out")
             except FileNotFoundError:
                 candidate.score = 0.0
                 candidate.error = "pytest not found"
