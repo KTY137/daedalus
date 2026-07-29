@@ -582,3 +582,14 @@ def test_post_gate_binding_error_fails_closed_and_resolves_intent(
         assert ledger.open_intents() == []
     finally:
         ledger.close()
+
+
+def test_review_packet_is_safe_for_a_cp1252_windows_console():
+    rendered = picker._console_safe(
+        "transforming...✓ 2256 modules\nsize │ gzip", "cp1252")
+
+    assert rendered == (
+        r"transforming...\u2713 2256 modules"
+        "\n"
+        r"size \u2502 gzip")
+    assert picker._console_safe("✓", "utf-8") == "✓"

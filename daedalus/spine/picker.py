@@ -2403,6 +2403,24 @@ def review_packet(candidate: Candidate, result: Any, *,
     return "\n".join(out)
 
 
+def _console_safe(text: str, encoding: str | None) -> str:
+    """Render arbitrary gate output through the active console encoding.
+
+    Windows PowerShell may expose a CP-1252 stdout even when a verifier emits
+    Unicode progress glyphs such as Vite's check mark.  The attempt and ledger
+    are already complete when the review packet is printed, so an encoding
+    exception here would turn a clean result into CLI exit 1.  Preserve the
+    exact text when representable and escape only unsupported code points.
+    """
+    codec = encoding or "utf-8"
+    try:
+        return str(text).encode(
+            codec, errors="backslashreplace").decode(codec)
+    except LookupError:
+        return str(text).encode(
+            "ascii", errors="backslashreplace").decode("ascii")
+
+
 # --------------------------------------------------------------------------- #
 # CLI                                                                          #
 # --------------------------------------------------------------------------- #
@@ -2549,7 +2567,9 @@ def main(argv: Sequence[str] | None = None, *,
     print("")
     run = attempt_fn or _default_attempt
     result = run(top, args)
-    print(review_packet(top, result))
+    print(_console_safe(
+        review_packet(top, result),
+        getattr(_sys.stdout, "encoding", None)))
     return EXIT_BY_STATE.get(getattr(result, "state", "unknown"), EXIT_FAILED)
 
 
