@@ -419,11 +419,45 @@ class ProbesReportBadNews(unittest.TestCase):
         self.assertNotEqual(rep.state, WORKING)
 
     def test_a_module_with_no_production_caller_is_an_island(self):
+        # Was pinned to `daedalus.spine.containment`, which STOPPED being an
+        # island the moment it was wired into the gate -- so the test went red
+        # for a good change. A test nailed to a fact rots when the fact does;
+        # `daedalus.compaction` is the standing example (a capability nobody
+        # reaches), and if it is ever wired or deleted this should be pointed at
+        # whatever `wiring.islands` then reports rather than kept alive by hand.
         with mock.patch.object(health, "CAPABILITY_MODULES",
-                               ("daedalus.spine.containment",)):
+                               ("daedalus.compaction",)):
             rep = health._p_islands(Ctx())
         self.assertEqual(rep.state, DEGRADED)
         self.assertIn("ZERO", rep.headline)
+
+    def test_every_import_FORM_counts_as_a_caller(self):
+        """The regression this file did not catch, pinned directly.
+
+        The detector required the module's leaf name inside the dotted path,
+        which cannot span the space before `import` -- so
+        `from daedalus.spine import containment` was invisible and the surface
+        reported a freshly-wired module as having ZERO production callers.
+        """
+        forms = {
+            "import a.b.leafmod": "import a.b.leafmod\n",
+            "from a.b.leafmod import X": "from a.b.leafmod import X\n",
+            "from a.b import leafmod": "from a.b import leafmod\n",
+            "from a.b import x, leafmod": "from a.b import x, leafmod\n",
+        }
+        for label, text in forms.items():
+            rows = [("daedalus/caller.py", "daedalus/caller.py", text)]
+            hits = health.production_importers("a.b.leafmod", Path("."), rows)
+            self.assertEqual(hits, ["daedalus/caller.py"],
+                             f"{label} was not recognised as an import")
+
+    def test_an_unrelated_word_is_not_an_import(self):
+        """The allow side. A detector that matched any mention of the name
+        would report every docstring as a caller and never find an island."""
+        rows = [("daedalus/caller.py", "daedalus/caller.py",
+                 "# see daedalus.spine.leafmod for why\nx = 'leafmod'\n")]
+        self.assertEqual(
+            health.production_importers("a.b.leafmod", Path("."), rows), [])
 
     def test_a_wired_module_is_not_an_island(self):
         with mock.patch.object(health, "CAPABILITY_MODULES",
