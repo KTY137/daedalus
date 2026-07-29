@@ -94,6 +94,7 @@ import tempfile
 import time
 import uuid
 from dataclasses import dataclass, field
+from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
@@ -383,6 +384,48 @@ def _read_gitdir_pointer(worktree: str | Path) -> Path | None:
     return Path(target) if target else None
 
 
+#: Config keys that decide what a file's CONTENT IS, rather than what runs.
+#: None of them can name a program, so all of them are safe to carry over.
+#:
+#: They must be carried over, and that was measured rather than foreseen.
+#: Emptying GIT_CONFIG_GLOBAL removes ``core.autocrlf`` along with everything
+#: else, and on Windows that setting is what makes a CRLF working tree compare
+#: equal to an LF index. Without it `git add -A` staged a committed, unmodified
+#: file, `_capture_patch` returned a non-empty diff for a runner that changed
+#: nothing, and the attempt reported `clean` instead of `no_change` -- an
+#: unearned green, and every candidate patch would have carried the whole tree.
+_GIT_INHERITED_CONFIG = (
+    "core.autocrlf", "core.eol", "core.safecrlf", "core.fileMode",
+    "core.symlinks", "core.ignorecase", "core.longpaths", "core.precomposeUnicode",
+)
+
+
+@lru_cache(maxsize=1)
+def _inherited_config_args() -> tuple[str, ...]:
+    """Read the allowlisted keys from the operator's REAL config, once.
+
+    Read with git's ordinary environment on purpose: the question is what this
+    checkout was created under, and the answer lives in the config the hardened
+    environment is about to hide. Cached because it cannot change mid-run and
+    the alternative is a subprocess per key per git call.
+
+    Failure is silent BY DESIGN and is the safe direction: a key we cannot read
+    is simply not passed, which leaves git's own default. The dangerous
+    direction would be inheriting something we did not mean to.
+    """
+    args: list[str] = []
+    for key in _GIT_INHERITED_CONFIG:
+        try:
+            proc = _git(["config", "--get", key], cwd=ROOT, repo_root=ROOT,
+                        harden=False, check=False, timeout=10)
+        except Exception:                        # noqa: BLE001
+            continue
+        value = proc.stdout.decode("utf-8", "replace").strip()
+        if proc.returncode == 0 and value:
+            args += ["-c", f"{key}={value}"]
+    return tuple(args)
+
+
 def _git_env() -> dict:
     """The environment git is spawned with: no config it did not get from us.
 
@@ -414,6 +457,7 @@ def _git_env() -> dict:
 def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
          git_dir: str | Path | None = None,
          work_tree: str | Path | None = None,
+         harden: bool = True,
          timeout: float = DEFAULT_GIT_TIMEOUT_S,
          check: bool = True) -> subprocess.CompletedProcess:
     """Run git and return the RAW BYTES it produced.
@@ -472,16 +516,33 @@ def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
                 f"only read there. Candidate changes belong in the isolated "
                 f"worktree; promotion is a human act outside this module."
             )
+    # THE ONE DELIBERATE EXCEPTION, and it is narrowed so it cannot be reused.
+    # `_inherited_config_args` has to read the operator's REAL config -- that is
+    # the whole question it asks -- and the hardened environment exists to hide
+    # exactly that. So the exception is allowed only for a `config` read, which
+    # cannot write and cannot execute anything. Any other verb asking for it is
+    # a bug in this module, so it raises rather than degrading.
+    if not harden and verb != "config":
+        raise ValueError(
+            f"harden=False is only for reading git config, not 'git {verb}'")
     pre: list[str] = []
-    if git_dir is not None:
+    if harden and git_dir is not None:
         pre += [f"--git-dir={Path(git_dir)}"]
-    if work_tree is not None:
+    if harden and work_tree is not None:
         pre += [f"--work-tree={Path(work_tree)}"]
-    for kv in _GIT_EXEC_CONFIG:
-        pre += ["-c", kv]
+    if harden:
+        # Content semantics first, execution pinning second: a later -c wins, so
+        # the exec pins can never be undone by an inherited value.
+        pre += list(_inherited_config_args())
+        for kv in _GIT_EXEC_CONFIG:
+            pre += ["-c", kv]
+    # ONE subprocess call in this module, and a test asserts there is exactly
+    # one -- a second would be a way around the primary-checkout guard above.
+    # `harden` therefore changes the ARGUMENTS to this call, never whether the
+    # call goes through here.
     proc = subprocess.run(["git", *pre, *args], cwd=str(cwd_path),
                           capture_output=True, timeout=timeout,
-                          env=_git_env())
+                          env=_git_env() if harden else None)
     if check and proc.returncode != 0:
         detail = proc.stderr.decode("utf-8", "replace").strip()
         raise GitCommandError(
@@ -1012,7 +1073,7 @@ class TaskAttempt:
         # makes the pointer irrelevant. This is not a check-then-use window:
         # the value is captured before the window opens, not validated inside
         # it.
-        self._admin_dir = _read_gitdir_pointer(worktree)
+        self._admin_dir = None
 
         ctx = RunnerContext(worktree=worktree, branch=self.branch,
                             base_revision=base_revision, task=self.task,
