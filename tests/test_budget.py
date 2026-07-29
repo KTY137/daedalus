@@ -46,6 +46,7 @@ from daedalus.budget import (
     classify_url,
     price_call,
 )
+from daedalus.sensitivity import lane_for_host
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,7 +60,7 @@ def _clean_env(monkeypatch, tmp_path):
     """Every test starts with NO budget configuration and its own ledger, so a
     stray env var on the developer's box can never make a refusal test pass."""
     for var in (ENV_CEILING, ENV_MAX_CALLS, ENV_PERIOD, B.ENV_ON_UNKNOWN,
-                B.ENV_LEDGER):
+                B.ENV_LEDGER, B.ENV_SUBSCRIPTIONS):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv(B.ENV_LEDGER, str(tmp_path / "ledger.json"))
     B.reset_default_ledger()
@@ -919,3 +920,125 @@ def test_the_deepseek_retry_is_priced_as_two_calls():
     one = price_call("deepseek", "v4", calls=1).usd
     two = price_call("deepseek", "v4", calls=2).usd
     assert two == pytest.approx(2 * one)
+
+
+# ===========================================================================
+# 11. THE SUBSCRIPTION AXIS -- $0.00 is not the same as unmetered
+# ===========================================================================
+# A declared subscription vendor (DAEDALUS_SUBSCRIPTION_VENDORS) prices at
+# $0.00 on the DOLLAR axis but still consumes a call on the RATE axis -- the
+# real constraint on a flat-rate plan. This is a SEPARATE kind of free from
+# FREE_VENDORS/free_local: it is free of money, not of egress, and it is read
+# only by price_call/reserve, never by lane_for_host or the egress fence.
+
+def test_a_declared_subscription_vendor_prices_at_zero_with_subscription_basis(monkeypatch):
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, "anthropic_cli")
+    est = price_call("anthropic_cli", "opus")
+    assert est.usd == 0.0
+    assert est.basis == "subscription"
+
+
+def test_a_subscription_call_still_consumes_one_call_against_the_cap(tmp_path, monkeypatch):
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, "anthropic_cli")
+    small = Ledger(tmp_path / "ledger.json", ceiling_usd=1000.0, max_calls=3)
+    for i in range(3):
+        small.reserve(price_call("anthropic_cli", "opus"), label=f"sub {i}").settle()
+    assert small.state().calls == 3
+    assert small.state().spent_usd == 0.0
+    with pytest.raises(BudgetRefused) as ei:
+        small.reserve(price_call("anthropic_cli", "opus"), label="one too many")
+    assert "call-count" in str(ei.value)
+
+
+def test_an_undeclared_vendor_is_unchanged_at_its_worst_case_price(monkeypatch):
+    monkeypatch.delenv(B.ENV_SUBSCRIPTIONS, raising=False)
+    est = price_call("anthropic_cli", "opus")
+    assert est.basis == "worst_case"
+    assert est.usd == pytest.approx(B._PRICES["anthropic_cli"].per_call_worst_usd)
+
+
+def test_a_typo_in_the_declaration_is_silently_ignored_and_full_price_stands(monkeypatch):
+    """A typo must not widen the free set: an unrecognised name is dropped, so
+    the vendor it was meant to name keeps paying worst-case price."""
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, "anthropic_clii")     # typo
+    assert B.subscription_vendors() == frozenset()
+    est = price_call("anthropic_cli", "opus")
+    assert est.basis == "worst_case"
+    assert est.usd == pytest.approx(B._PRICES["anthropic_cli"].per_call_worst_usd)
+
+
+def test_declaring_other_vendors_does_not_free_an_undeclared_one(monkeypatch):
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, "openai_cli,google_agy")
+    est = price_call("anthropic_cli", "opus")
+    assert est.basis == "worst_case"
+    assert est.usd > 0.0
+
+
+def test_zero_cost_subscription_call_is_not_refused_by_an_exhausted_ceiling(led, monkeypatch):
+    """THE REGRESSION THAT MATTERS. The dollar guard changed from
+    ``committed + estimate > ceiling`` to ``estimate > 0 and committed +
+    estimate > ceiling``: a call that adds nothing to the bill cannot cross a
+    dollar ceiling, so a subscription call must sail through even when the
+    ceiling is already fully committed."""
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, "anthropic_cli")
+    led.reserve(_est(1.00), label="fill the ceiling").settle()
+    assert led.state().remaining_usd == pytest.approx(0.0)
+    sub_est = price_call("anthropic_cli", "opus")
+    assert sub_est.usd == 0.0
+    led.reserve(sub_est, label="subscription call after exhaustion").settle()
+    assert led.state().calls == 2
+
+
+def test_a_nonzero_call_at_the_same_exhausted_ceiling_is_still_refused(led):
+    """The control for the test above: proves the dollar guard was narrowed
+    for zero-cost calls specifically, not disabled outright."""
+    led.reserve(_est(1.00), label="fill the ceiling").settle()
+    with pytest.raises(BudgetRefused):
+        led.reserve(_est(0.01), label="one cent over an exhausted ceiling")
+
+
+# ===========================================================================
+# 12. price_call ORDERING -- a declared subscription must not launder an
+#     untrusted host into looking free
+# ===========================================================================
+# The source comment on the subscription branch claims the host check runs
+# BEFORE the subscription check specifically so "a declared subscription can
+# never launder an untrusted host into looking local". This is the same SHAPE
+# of bug Cerberus found for real in web_api._resolve_bind: a predicate meant
+# to answer one question (consent to egress, lane_for_host) got read for a
+# different one (is this call free / is this bind safe). That one was fixed
+# by splitting the predicate. This section checks whether the analogous claim
+# inside price_call actually holds, rather than trusting the comment.
+
+@pytest.mark.parametrize("vendor,declared", [
+    ("ollama", "remote_inference"),        # realistic: reassigned to
+                                            # remote_inference by the host block
+    ("remote_inference", "remote_inference"),
+    ("anthropic_cli", "anthropic_cli"),
+])
+def test_a_declared_subscription_does_not_launder_an_untrusted_host(
+        monkeypatch, vendor, declared):
+    """A host lane_for_host would NOT certify, paired with a vendor that IS
+    declared in DAEDALUS_SUBSCRIPTION_VENDORS: the estimate must not be free
+    and must not carry basis=="subscription" -- exactly the assertion named
+    for this case.
+
+    MEASURED BEFORE WRITING THIS ASSERTION, not assumed: as of this test,
+    price_call returns usd=0.0/basis="subscription" for all three
+    parametrizations. Confirmed harmless for EGRESS specifically -- neither
+    lane_for_host nor slice_egress_rule ever consult subscription_vendors(),
+    so no source code ships anywhere it should not -- but the DOLLAR estimate
+    this function returns is laundered to $0 by a declaration that only ever
+    claimed to speak about money. This test is expected to be RED against the
+    current implementation; it exists so that gap has an executable owner
+    instead of a comment that was never checked.
+    """
+    monkeypatch.setenv(B.ENV_SUBSCRIPTIONS, declared)
+    host = "100.119.126.9"          # the tailnet bench; never declared trusted here
+    assert lane_for_host(host) == "untrusted"
+    est = price_call(vendor, "m", host=host)
+    assert est.basis not in ("subscription", "free_local"), (
+        f"{vendor!r} over an untrusted host was priced as {est.basis!r} "
+        f"(usd={est.usd}) because {declared!r} is declared in "
+        f"{B.ENV_SUBSCRIPTIONS}")
+    assert est.usd > 0.0

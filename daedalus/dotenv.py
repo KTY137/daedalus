@@ -123,7 +123,12 @@ def load(path: Path | None = None, *, override: bool = False) -> list[str]:
 
     names: list[str] = []
     for key, value in parse(text).items():
-        if not override and os.environ.get(key):
+        # PRESENCE, not truthiness. `os.environ.get(key)` treated an exported-
+        # but-EMPTY variable as absent, so the file overwrote it -- and an empty
+        # export is exactly how an operator says "clear this list for the
+        # session" (e.g. `DAEDALUS_TRUSTED_HOSTS=`). A deliberate narrowing
+        # must never be silently re-widened by a config file. Found by Cerberus.
+        if not override and key in os.environ:
             continue  # a real export wins; see rule 1
         os.environ[key] = value
         names.append(key)

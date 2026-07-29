@@ -289,11 +289,25 @@ def price_call(
         # An explicit host overrules the vendor NAME. That is the whole lesson
         # of the OLLAMA_HOST incident: the question is never "which provider is
         # this" but "where do the bytes actually go".
-        from .sensitivity import lane_for_host
+        from .sensitivity import is_loopback_host, lane_for_host
 
-        if lane_for_host(host) == "trusted":
+        # TWO kinds of "trusted", split on purpose (Cerberus, same shape as the
+        # tailnet bind fix): loopback is PHYSICS -- bytes cannot leave, nothing
+        # can be billed, and the runaway brake (the call cap) may stand down.
+        # A DECLARED trusted host is POLICY -- an env var widened it. Zero
+        # dollars is right (the operator's own bench is not per-call billed),
+        # but the call cap is the brake against a runaway loop, and a brake
+        # that an env var can disarm is not a brake. So: free on the dollar
+        # axis, still counted on the call axis, and the reason string says
+        # which kind of trust this is instead of claiming "this machine".
+        if is_loopback_host(host):
             return Estimate(vendor or "local_inference", model, 0.0, calls,
                             "free_local", f"host {host} is this machine")
+        if lane_for_host(host) == "trusted":
+            return Estimate(vendor or "local_inference", model, 0.0, calls,
+                            "trusted_remote",
+                            f"host {host} is operator-declared trusted: $0, "
+                            f"but still counted against the call cap")
         vendor = vendor if vendor in _PRICES else "remote_inference"
         # The host was SUPPLIED and came back untrusted, so this call reaches an
         # endpoint that is not this machine. A subscription declaration must not
