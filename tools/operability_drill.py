@@ -491,11 +491,19 @@ def staleness(head: str | None) -> Control:
             prior_head = None
     c.measurements = {"head": head, "discrimination": disc.to_dict(),
                       "previous_drill_head": prior_head}
+    # ONLY PROOFS THIS RUN CONSULTS CAN BE STALE. The drill's own previous
+    # receipt is history, not evidence -- THIS run is the fresh measurement, and
+    # failing on it would mean the drill can never pass twice at two revisions,
+    # which is not a safety property, it is a bug wearing one.
+    #
+    # The first version did fail on it, and the distinction only became visible
+    # when the drill went red immediately after a commit it had itself just
+    # helped produce.
     stale = []
     if disc.measured_head and head and not head.startswith(disc.measured_head):
-        stale.append(f"gate discrimination was measured at {disc.measured_head}")
-    if prior_head and head and not head.startswith(str(prior_head)[:12]):
-        stale.append(f"the previous drill ran at {str(prior_head)[:12]}")
+        stale.append(f"gate discrimination was measured at {disc.measured_head}, "
+                     f"but HEAD is {str(head)[:12]}")
+    moved = bool(prior_head and head and not head.startswith(str(prior_head)[:12]))
     if stale:
         c.status = FAIL
         c.effect = "; ".join(stale)
@@ -503,8 +511,10 @@ def staleness(head: str | None) -> Control:
                        "re-measure at this revision")
     else:
         c.status = PASS
-        c.effect = "every proof consulted is for the current revision"
-        c.telemetry = f"HEAD {str(head)[:12]}"
+        c.effect = "every proof this run CONSULTS is for the current revision"
+        c.telemetry = (f"HEAD {str(head)[:12]}"
+                       + (f"; the previous drill ran at {str(prior_head)[:12]}, "
+                          f"which this run supersedes" if moved else ""))
     return c
 
 
