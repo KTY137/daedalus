@@ -141,6 +141,20 @@ SOURCE_BANDS: dict[str, float] = {
     "work_queue": 900.0,
     "map_island": 800.0,
     "map_shim": 700.0,
+    # Prose that contradicts the code it describes. Ranked BELOW unreachable
+    # capability and ABOVE a stale inventory entry, on importance alone.
+    #
+    # Deliberately NOT ranked by how convenient it is. As of 2026-07-29 this is
+    # the only source whose candidates the installed self-policy actually
+    # permits a local writer to touch -- every other source produces surgery
+    # under ``daedalus/`` against a ``write_allow`` of ``docs/``, ``tests/``,
+    # ``README.md``, so the intersection is empty and the loop selects only work
+    # it may not do. That makes this source the one that closes the loop, which
+    # is a powerful reason to inflate its band and exactly the wrong one: the
+    # band states IMPORTANCE, and "I am allowed to do this" is not a measurement
+    # of importance. Smuggling permission into the prior is how a priority order
+    # stops meaning what it says.
+    "docref": 500.0,
     "inventory_island": 400.0,
     "inventory_stale": 300.0,
     "eval_miss": 200.0,
@@ -1015,6 +1029,119 @@ def _map_shim_instruction(module: str) -> str:
         f"the map's shim list. If something DOES still import it, the finding is "
         f"wrong and the map should be corrected instead."
     )
+
+
+def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple[
+        tuple[Candidate, ...], tuple[str, ...]]:
+    """Candidates from :mod:`daedalus.spine.docrefs`: prose the tree contradicts.
+
+    THE ONE THAT CLOSES THE LOOP. Every other source in this module produces
+    source surgery under ``daedalus/``; the installed self-policy permits
+    ``docs/``, ``tests/`` and ``README.md``. Measured 2026-07-29, the
+    intersection was EMPTY -- the picker ranked seventeen candidates and a local
+    writer was permitted to attempt none of them. This source produces work
+    inside the permitted tree without widening the tree, which is the difference
+    between closing the loop and lowering the fence to reach it.
+
+    ONE CANDIDATE PER DOCUMENT, NOT PER REFERENCE. A doc with eleven broken
+    references is one editing session, not eleven attempts: they share a file,
+    a gate run and a rollback, and eleven attempts against one file would be
+    eleven chances to collide with each other for one unit of work. The
+    per-reference detail still travels, in the evidence.
+
+    The gate is the scan itself, not pytest. ``docrefs.verify_fix`` checks the
+    DENOMINATOR first -- deleting the paragraph withdraws the claim and lowers
+    ``resolving`` in one move, which would otherwise read as a fix. That
+    asymmetry is the whole reason this source is safe to point a weak model at,
+    so a candidate that does not carry it is not this source's candidate.
+    """
+    broken = getattr(report, "broken", None)
+    if broken is None and isinstance(report, Mapping):
+        broken = report.get("broken")
+    if not broken:
+        return (), ()
+
+    def _field(ref: Any, name: str) -> Any:
+        return (ref.get(name) if isinstance(ref, Mapping)
+                else getattr(ref, name, None))
+
+    by_doc: dict[str, list[Any]] = {}
+    for ref in broken:
+        doc = str(_field(ref, "doc_path") or "").replace("\\", "/")
+        if not doc:
+            continue
+        by_doc.setdefault(doc, []).append(ref)
+
+    # ``resolving`` is a SEQUENCE of references, not a count -- it carries the
+    # evidence, which is what makes docrefs.verify_fix's denominator check
+    # possible at all. ``files_scanned`` really is an int. Counting the first
+    # with ``int()`` was this function's first bug.
+    def _count(name: str) -> int:
+        value = (report.get(name) if isinstance(report, Mapping)
+                 else getattr(report, name, None))
+        if value is None:
+            return 0
+        return len(value) if hasattr(value, "__len__") else int(value)
+
+    resolving = _count("resolving")
+    scanned = _count("files_scanned")
+
+    candidates: list[Candidate] = []
+    notes: list[str] = []
+    # Worst document first: most broken references is the biggest single
+    # correction available, and ties broken by path so the order is stable
+    # across runs rather than dependent on dict insertion.
+    ranked = sorted(by_doc.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+    for doc, refs in ranked[:max(0, int(top))]:
+        detail = []
+        for ref in refs[:12]:
+            detail.append({
+                "line": _field(ref, "line"),
+                "raw": str(_field(ref, "raw") or "")[:160],
+                "module_path": _field(ref, "module_path"),
+                "symbol": _field(ref, "symbol"),
+                "why": str(_field(ref, "why") or "")[:200],
+            })
+        # Bounded so a document with a hundred broken references cannot move
+        # further than the band allows -- the gap to the next band is what keeps
+        # a measurement from silently reordering a human's stated priority.
+        offset = min(40.0, 4.0 * len(refs))
+        candidates.append(_candidate(
+            task_id=f"docref-{_slug(doc)}-{_short_hash(doc)}",
+            source="docref",
+            instruction=(
+                f"{doc} contains {len(refs)} reference(s) to code that does not "
+                f"exist in this tree. Correct the PROSE to match the tree, or "
+                f"correct the reference to name what the code is actually "
+                f"called now.\n\n"
+                f"DO NOT delete the sentence, the paragraph or the file to make "
+                f"the reference go away. The verifier checks the number of "
+                f"RESOLVING references before it checks the broken one: removing "
+                f"the claim lowers that number and is rejected as a fix, because "
+                f"withdrawing a statement is not the same as correcting it.\n\n"
+                f"Broken references:\n" + "\n".join(
+                    f"  line {d['line']}: {d['raw']}  -- {d['why']}"
+                    for d in detail)),
+            reason=(f"{doc} makes {len(refs)} statement(s) about code that is "
+                    f"not in this tree"),
+            band_offset=offset,
+            evidence={
+                "measurement": "daedalus.spine.docrefs.scan (derived every run)",
+                "doc_path": doc,
+                "broken_in_this_doc": len(refs),
+                "references": detail,
+                "corpus_resolving": resolving,
+                "corpus_broken": len(broken),
+                "corpus_files_scanned": scanned,
+            },
+            gate_paths=(doc,),
+            target_paths=(doc,),
+        ))
+    if len(ranked) > top:
+        notes.append(
+            f"DOCREF: {len(ranked)} document(s) carry broken references; "
+            f"the {top} worst are queued")
+    return tuple(candidates), tuple(notes)
 
 
 def map_candidates(state: Mapping[str, Any]) -> tuple[
@@ -2037,6 +2164,53 @@ def build_queue(repo_root: str | Path | None = None, *,
                 "suppressed": not map_trust["trusted"],
                 "trust": map_trust,
             }
+
+    # source: prose the tree contradicts. Derived every run, so unlike the map
+    # and the inventory it has no snapshot that can go stale and no digest to
+    # verify -- the scan IS the measurement, taken now, against this tree.
+    # Never raises (docrefs.scan promises that); a failure here must cost the
+    # queue this one source, never the whole queue.
+    docref_mode = _picker_source_mode(project_config, "docref")
+    if docref_mode == "disabled":
+        sources["docref"] = {
+            "state": "disabled", "read": False, "candidates": 0,
+            "reason": "disabled by repo-local picker_sources.docref",
+        }
+    elif docref_mode == "invalid":
+        sources["docref"] = {
+            "state": "invalid", "read": False, "candidates": 0,
+            "error": "picker_sources.docref must be enabled or disabled",
+        }
+    else:
+        try:
+            from . import docrefs
+
+            docref_report = docrefs.scan(root)
+            doc_cands, doc_notes = docref_candidates(docref_report)
+            candidates.extend(doc_cands)
+            notes.extend(doc_notes)
+            sources["docref"] = {
+                "state": "valid",
+                "read": True,
+                "candidates": len(doc_cands),
+                "files_scanned": int(getattr(docref_report, "files_scanned", 0)),
+                # resolving/broken/skipped are sequences of references, not
+                # counts: the picker reports the size, the candidate carries the
+                # detail, and verify_fix needs the references themselves.
+                "resolving": len(getattr(docref_report, "resolving", ()) or ()),
+                "broken": len(getattr(docref_report, "broken", ()) or ()),
+                "skipped": len(getattr(docref_report, "skipped", ()) or ()),
+            }
+        except Exception as exc:                     # noqa: BLE001
+            # Reported, not swallowed: a source that failed is a different fact
+            # from a source that found nothing, and a queue that hides the
+            # difference is the shape this repo keeps finding in stale
+            # artifacts.
+            sources["docref"] = {
+                "state": "error", "read": False, "candidates": 0,
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+            notes.append(f"DOCREF SOURCE FAILED: {type(exc).__name__}: {exc}")
 
     inventory_mode = _picker_source_mode(project_config, "inventory")
     if inventory_mode == "disabled":

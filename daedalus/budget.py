@@ -295,6 +295,27 @@ def price_call(
             return Estimate(vendor or "local_inference", model, 0.0, calls,
                             "free_local", f"host {host} is this machine")
         vendor = vendor if vendor in _PRICES else "remote_inference"
+        # The host was SUPPLIED and came back untrusted, so this call reaches an
+        # endpoint that is not this machine. A subscription declaration must not
+        # survive that, and the ordering above is not enough on its own: the
+        # host check runs first but only REASSIGNS the vendor, and the
+        # subscription lookup below would then happily price the reassigned
+        # vendor at zero.
+        #
+        # Why that matters more than it looks: ``remote_inference`` is the
+        # CATCH-ALL for "we cannot tell whose GPU this is". Declaring it
+        # flat-rate -- a reasonable-sounding thing to do for your own bench --
+        # would declare every unknown remote endpoint free, including a rented
+        # host or an OLLAMA_HOST somebody moved. A subscription is a statement
+        # about a VENDOR ACCOUNT you hold, never about an arbitrary address.
+        #
+        # Found by a test written to pin the ordering this module's own comment
+        # claimed; the comment was aspirational and the test was red. Kept as a
+        # local flag rather than an early return so the unknown-price and
+        # token-priced paths below still apply exactly as before.
+        untrusted_endpoint = True
+    else:
+        untrusted_endpoint = False
 
     if vendor in FREE_VENDORS and host is None:
         # A "local" vendor with no host given is NOT provably local. Callers who
@@ -302,7 +323,7 @@ def price_call(
         # the case that bit this repo once already.
         vendor = "remote_inference"
 
-    if vendor in subscription_vendors():
+    if vendor in subscription_vendors() and not untrusted_endpoint:
         # $0.00 on the DOLLAR axis, one call on the RATE axis. The call is still
         # counted -- and that is the whole point of doing it here rather than by
         # deleting the price entry: a subscription cannot be overspent, it can
