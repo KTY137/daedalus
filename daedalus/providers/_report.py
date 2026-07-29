@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from ..budget import BudgetError, BudgetRefused, Reservation, reserve
 from ..schemas import validate_report
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX
 
@@ -86,3 +87,61 @@ def blocked_report(summary: str, todo: str, **handoff: Any) -> dict[str, Any]:
         "todos": [todo],
         "handoff": handoff,
     }
+
+
+# ---------------------------------------------------------------------------
+# spend ceiling -- the providers' side of daedalus.budget
+# ---------------------------------------------------------------------------
+#
+# A billable provider must reserve BEFORE it calls out, and must turn a refusal
+# into a valid ``agent_report_v1`` rather than an exception, so a capped run
+# still produces a report the harness can read instead of a stack trace the
+# watcher swallows. The two helpers below are the whole integration surface;
+# see ``daedalus/budget.py`` for why enforcement cannot live in one place.
+
+
+def budget_refusal_report(exc: BudgetError) -> dict[str, Any]:
+    """The blocked report for a refused call. NAMES the numbers.
+
+    A refusal the operator cannot read is a refusal the operator switches off,
+    so the ceiling, the spend and the refused label all survive into the report
+    body and into ``handoff`` in machine-readable form.
+    """
+    detail = exc.as_dict() if isinstance(exc, BudgetRefused) else {"reason": str(exc)}
+    return blocked_report(
+        f"Refused by the spend ceiling: {exc}",
+        "Raise DAEDALUS_BUDGET_USD deliberately, wait for the budget period to "
+        "roll over, or route this task to a local lane.",
+        budget=detail,
+    )
+
+
+def reserve_or_report(
+    *,
+    vendor: str,
+    model: str | None,
+    label: str,
+    provider: str,
+    persona: str,
+    agent: str | None,
+    calls: int = 1,
+    host: str | None = None,
+) -> tuple[Reservation | None, dict[str, Any] | None]:
+    """``(reservation, None)`` when the call may proceed, ``(None, envelope)``
+    when it may not.
+
+    FAIL CLOSED: every :class:`~daedalus.budget.BudgetError` -- refused ceiling,
+    unreadable ledger, unobtainable lock, unpriceable vendor -- lands in the
+    second branch. There is no path through this function that returns
+    ``(None, None)`` and lets the caller carry on.
+    """
+    try:
+        res = reserve(vendor, model, label=label, calls=calls, host=host)
+    except BudgetError as exc:
+        return None, {
+            "provider": provider,
+            "persona": persona,
+            "agent": agent,
+            "report": budget_refusal_report(exc),
+        }
+    return res, None

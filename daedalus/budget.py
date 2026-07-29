@@ -1,0 +1,1121 @@
+"""A HARD CEILING on money. Ledger-backed, cross-process, fail-closed.
+
+WHY THIS EXISTS
+---------------
+This repo spends real money on vendor APIs and, until this module, had no cost
+ceiling of any kind. A single A/B feature build measured $1.43-$1.85 per arm;
+``daedalus canary`` defaults to 4 lanes x 4 probes = 16 billable calls. Behind a
+human typing one command that is fine. Behind the unattended loop this repo is
+being built toward it is the failure that ends the project: a loop with no cap
+bills until the card declines.
+
+THERE IS NO SINGLE CHOKEPOINT IN THIS REPO. Vendor spend leaves from at least
+four independent subsystems (``providers/``, ``council/vendors.py``,
+``ikarus_os.py``, ``runs/``), each spawning the vendor itself. So this module
+offers enforcement at two levels:
+
+1. **Explicit** -- :func:`reserve` / :func:`guard` at a call site. Precise: the
+   site knows the vendor, the model, and how many calls it is about to make.
+2. **Interposed** -- :func:`install_process_guard` monkeypatches
+   ``subprocess.run``/``Popen`` and ``urllib.request.urlopen`` for the whole
+   process. Coarse (it must guess the price) but it MANUFACTURES the chokepoint
+   the architecture lacks, and it covers the sites this module cannot edit.
+
+Level 2 is the net under level 1. An unattended entrypoint should install it
+once at startup; every site that also does level 1 is charged exactly once
+(the interposer stands down inside an explicit reservation).
+
+THE FIVE INVARIANTS
+-------------------
+* **FAIL CLOSED.** If the budget state cannot be read -- corrupt ledger,
+  unparseable ceiling, a lock we could not take -- the answer is
+  :class:`BudgetUnavailable`, never "allow". Absence of configuration is not
+  absence of a cap: an unconfigured process gets :data:`DEFAULT_CEILING_USD`,
+  not infinity.
+* **THE CHECK HAPPENS BEFORE THE CALL.** :meth:`Ledger.reserve` PERSISTS the
+  reservation to disk before it returns, so the money is committed before a
+  single vendor byte moves. A cap that inspects what was already spent is not a
+  cap; it is a receipt.
+* **REFUSAL IS LOUD AND NAMED.** :class:`BudgetRefused` carries the ceiling, the
+  spend, the estimate, and what was refused, and says all four in ``str()``.
+* **CONCURRENCY.** Sixteen agents run here at once. Reserve/settle happen under
+  a cross-process advisory lock built on the same primitives as
+  ``runs/council/room.py::_RoomLock`` (``msvcrt`` on Windows, ``fcntl`` on
+  POSIX) -- with ONE deliberate inversion, see :class:`_BudgetLock`.
+* **AN UNKNOWN PRICE IS NOT A FREE PRICE.** An unpriced vendor, an unpriced
+  model, or an inference host we cannot place is charged
+  :data:`UNKNOWN_CALL_USD` -- deliberately above the most expensive call this
+  repo has ever measured -- or refused outright under
+  ``DAEDALUS_BUDGET_ON_UNKNOWN=refuse``. Never zero.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import threading
+import time
+import uuid
+from contextlib import contextmanager
+from dataclasses import dataclass
+from math import isfinite
+from pathlib import Path
+from typing import Any, Callable, Iterator
+
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_LEDGER_PATH = ROOT / "runs" / "budget" / "ledger.json"
+
+ENV_LEDGER = "DAEDALUS_BUDGET_LEDGER"
+ENV_CEILING = "DAEDALUS_BUDGET_USD"
+ENV_MAX_CALLS = "DAEDALUS_BUDGET_MAX_CALLS"
+ENV_PERIOD = "DAEDALUS_BUDGET_PERIOD"
+ENV_ON_UNKNOWN = "DAEDALUS_BUDGET_ON_UNKNOWN"
+
+# The default cap. Chosen so that an operator who has configured NOTHING still
+# has a cap, and so that the cap is crossed loudly on the third A/B arm rather
+# than silently on the three-hundredth. Raise it explicitly with
+# DAEDALUS_BUDGET_USD -- that is the point: spending above this is a decision
+# someone made, not a default someone inherited.
+DEFAULT_CEILING_USD = 5.00
+# A second axis, because price is the thing we are least sure of and call count
+# is the thing we are most sure of. The canary's default fan-out is 16.
+DEFAULT_MAX_CALLS = 40
+# What one call of unknown price costs. MUST exceed the most expensive single
+# call ever measured here ($1.85, one A/B arm) by a wide margin: under-pricing
+# the unknown is exactly the arithmetic that lets a runaway loop through.
+UNKNOWN_CALL_USD = 5.00
+# Ledger periods. "day" is the default because an unattended loop runs for days
+# and a lifetime cap would either be crossed in week one and disabled, or set so
+# high it caps nothing.
+PERIODS = ("day", "total")
+DEFAULT_PERIOD = "day"
+
+LOCK_TIMEOUT_S = 30.0
+MAX_ENTRIES = 500
+
+__all__ = [
+    "BudgetError", "BudgetRefused", "BudgetUnavailable", "UnknownPrice",
+    "Estimate", "BudgetState", "Reservation", "Ledger",
+    "price_call", "reserve", "guard", "ledger", "reset_default_ledger",
+    "classify_argv", "classify_url",
+    "install_process_guard", "uninstall_process_guard",
+    "BILLABLE_SITES",
+]
+
+
+# --------------------------------------------------------------------------
+# errors
+# --------------------------------------------------------------------------
+
+class BudgetError(RuntimeError):
+    """Base for every refusal this module makes. Callers that catch this and
+    continue anyway are the hole; catch it to REPORT, never to retry."""
+
+
+class BudgetUnavailable(BudgetError):
+    """The budget state could not be established. This is a REFUSAL.
+
+    Not knowing what has been spent is indistinguishable, from the card's point
+    of view, from having spent everything.
+    """
+
+
+class BudgetRefused(BudgetError):
+    """The ceiling would be crossed. Carries every number a human needs."""
+
+    def __init__(self, *, label: str, vendor: str, model: str, estimate_usd: float,
+                 spent_usd: float, reserved_usd: float, ceiling_usd: float,
+                 calls: int, open_calls: int, want_calls: int, max_calls: int,
+                 reason: str) -> None:
+        self.label = label
+        self.vendor = vendor
+        self.model = model
+        self.estimate_usd = estimate_usd
+        self.spent_usd = spent_usd
+        self.reserved_usd = reserved_usd
+        self.ceiling_usd = ceiling_usd
+        self.calls = calls
+        self.open_calls = open_calls
+        self.want_calls = want_calls
+        self.max_calls = max_calls
+        self.reason = reason
+        super().__init__(self.message())
+
+    def message(self) -> str:
+        return (
+            f"BUDGET REFUSED: {self.reason}. "
+            f"refused='{self.label}' (vendor={self.vendor or '?'}, "
+            f"model={self.model or '?'}, {self.want_calls} call(s), "
+            f"estimate=${self.estimate_usd:.4f}). "
+            f"ceiling=${self.ceiling_usd:.4f}, spent=${self.spent_usd:.4f}, "
+            f"reserved=${self.reserved_usd:.4f}, "
+            f"remaining=${self.ceiling_usd - self.spent_usd - self.reserved_usd:.4f}, "
+            f"calls={self.calls}+{self.open_calls} of {self.max_calls}. "
+            f"Raise {ENV_CEILING}/{ENV_MAX_CALLS} deliberately, or wait for the "
+            f"period to roll over."
+        )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "refused": self.label, "vendor": self.vendor, "model": self.model,
+            "estimate_usd": self.estimate_usd, "spent_usd": self.spent_usd,
+            "reserved_usd": self.reserved_usd, "ceiling_usd": self.ceiling_usd,
+            "calls": self.calls, "open_calls": self.open_calls,
+            "want_calls": self.want_calls, "max_calls": self.max_calls,
+            "reason": self.reason,
+        }
+
+
+class UnknownPrice(BudgetError):
+    """Strict mode: the price could not be determined and the operator asked to
+    refuse rather than assume the worst case."""
+
+
+# --------------------------------------------------------------------------
+# pricing
+# --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class VendorPrice:
+    vendor: str
+    # A flat UPPER BOUND for one call/session of this vendor. Every number here
+    # is deliberately an over-estimate: a wrong-high price costs one refused
+    # call an operator can unblock, a wrong-low price costs money nobody
+    # noticed. Provenance is on each line.
+    per_call_worst_usd: float
+    input_usd_per_mtok: float | None = None
+    output_usd_per_mtok: float | None = None
+
+
+_PRICES: dict[str, VendorPrice] = {
+    # MEASURED: one A/B arm through `claude -p` cost $1.43-$1.85 (2026-07-28,
+    # runs/ab). Rounded up hard, because an agentic session's length is set by
+    # the task, not by us.
+    "anthropic_cli": VendorPrice("anthropic_cli", 3.00),
+    "openai_cli": VendorPrice("openai_cli", 2.00),        # ASSUMED, same class
+    "google_agy": VendorPrice("google_agy", 2.00),        # ASSUMED, same class
+    # ASSUMED from published per-token scales; the flat bound assumes the whole
+    # 24k-char inlined context plus a full-length answer.
+    "anthropic_api": VendorPrice("anthropic_api", 0.50, 15.0, 75.0),
+    "openai_api": VendorPrice("openai_api", 0.50, 10.0, 40.0),
+    "deepseek": VendorPrice("deepseek", 0.05, 0.60, 1.80),
+    "google_api": VendorPrice("google_api", 0.50, 10.0, 40.0),
+    # A remote inference host is somebody's GPU on somebody's bill. We cannot
+    # price it, so it is charged the unknown rate rather than the local rate --
+    # the OLLAMA_HOST bug (see sensitivity.lane_for_host) is exactly the shape
+    # of "a name stayed the same while the bytes started leaving".
+    "remote_inference": VendorPrice("remote_inference", UNKNOWN_CALL_USD),
+}
+
+# Vendors that cost nothing because no bytes leave this machine.
+FREE_VENDORS = frozenset({"local", "local_inference"})
+
+
+@dataclass(frozen=True)
+class Estimate:
+    """What a call is assumed to cost BEFORE it is made."""
+
+    vendor: str
+    model: str
+    usd: float
+    calls: int
+    basis: str          # "priced" | "worst_case" | "unknown" | "free_local"
+    detail: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"vendor": self.vendor, "model": self.model, "usd": self.usd,
+                "calls": self.calls, "basis": self.basis, "detail": self.detail}
+
+
+def _on_unknown_default() -> str:
+    raw = (os.environ.get(ENV_ON_UNKNOWN) or "worst_case").strip().lower()
+    return raw if raw in ("worst_case", "refuse") else "worst_case"
+
+
+def price_call(
+    vendor: str | None,
+    model: str | None = None,
+    *,
+    calls: int = 1,
+    host: str | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    on_unknown: str | None = None,
+) -> Estimate:
+    """Upper-bound the cost of ``calls`` calls to ``vendor``.
+
+    NEVER returns 0 for anything that might leave the machine. The only zero is
+    a host this repo's single host predicate
+    (:func:`daedalus.sensitivity.lane_for_host`) certifies as THIS machine.
+    """
+    calls = max(1, int(calls))
+    vendor = (vendor or "").strip().lower()
+    model = (model or "").strip()
+    mode = (on_unknown or _on_unknown_default()).strip().lower()
+
+    if host is not None:
+        # An explicit host overrules the vendor NAME. That is the whole lesson
+        # of the OLLAMA_HOST incident: the question is never "which provider is
+        # this" but "where do the bytes actually go".
+        from .sensitivity import lane_for_host
+
+        if lane_for_host(host) == "trusted":
+            return Estimate(vendor or "local_inference", model, 0.0, calls,
+                            "free_local", f"host {host} is this machine")
+        vendor = vendor if vendor in _PRICES else "remote_inference"
+
+    if vendor in FREE_VENDORS and host is None:
+        # A "local" vendor with no host given is NOT provably local. Callers who
+        # mean local pass the host; this is the unknown-price rule applied to
+        # the case that bit this repo once already.
+        vendor = "remote_inference"
+
+    price = _PRICES.get(vendor)
+    if price is None:
+        if mode == "refuse":
+            raise UnknownPrice(
+                f"no price for vendor '{vendor or '?'}' model '{model or '?'}' "
+                f"and {ENV_ON_UNKNOWN}=refuse")
+        return Estimate(vendor or "unknown", model, UNKNOWN_CALL_USD * calls,
+                        calls, "unknown",
+                        f"no price entry for '{vendor or '?'}'; charged the "
+                        f"unknown-call rate ${UNKNOWN_CALL_USD:.2f}")
+
+    if (input_tokens is not None and output_tokens is not None
+            and price.input_usd_per_mtok is not None
+            and price.output_usd_per_mtok is not None):
+        usd = (max(0, int(input_tokens)) / 1_000_000 * price.input_usd_per_mtok
+               + max(0, int(output_tokens)) / 1_000_000 * price.output_usd_per_mtok)
+        # Even a token-based estimate is floored at nothing and capped BELOW by
+        # nothing: it is an estimate of a call that is about to happen, and the
+        # model may emit more than we asked for. Take the larger of the token
+        # arithmetic and a fraction of the flat bound so a lowball token guess
+        # cannot price a real call at zero.
+        usd = max(usd, price.per_call_worst_usd * 0.01) * calls
+        return Estimate(vendor, model, usd, calls, "priced",
+                        f"{input_tokens} in / {output_tokens} out tokens")
+
+    return Estimate(vendor, model, price.per_call_worst_usd * calls, calls,
+                    "worst_case",
+                    f"flat upper bound ${price.per_call_worst_usd:.2f}/call")
+
+
+# --------------------------------------------------------------------------
+# cross-process lock
+# --------------------------------------------------------------------------
+
+class _BudgetLock:
+    """Cross-process exclusive lock, same primitives as
+    ``runs/council/room.py::_RoomLock`` -- ``msvcrt`` on Windows, ``fcntl`` on
+    POSIX -- with ONE DELIBERATE INVERSION.
+
+    ``_RoomLock`` degrades to a NO-OP when the lock cannot be taken, on the
+    reasoning that "losing serialisation is bad, losing the human's message is
+    worse". For money that reasoning runs backwards. Two processes that both
+    read "remaining: $0.50" and both spend it have spent $1.00 against a $0.50
+    ceiling, and no downstream verifier reports that by position or otherwise.
+    So an unobtainable lock here RAISES :class:`BudgetUnavailable`, which the
+    caller must treat as a refusal.
+
+    The lock file is separate from the ledger file: the ledger is replaced
+    atomically under the lock, and on Windows you cannot replace a file another
+    handle holds open.
+    """
+
+    def __init__(self, path: Path, timeout_s: float = LOCK_TIMEOUT_S) -> None:
+        self.path = Path(path)
+        self.timeout_s = timeout_s
+        self._fh: Any = None
+
+    def __enter__(self) -> "_BudgetLock":
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = open(self.path, "a+b")
+        except OSError as exc:
+            self._fh = None
+            raise BudgetUnavailable(
+                f"cannot open budget lock '{self.path}': {exc}; refusing to "
+                "spend without serialisation") from exc
+
+        deadline = time.monotonic() + self.timeout_s
+        last: Exception | None = None
+        while True:
+            try:
+                self._acquire()
+                return self
+            except OSError as exc:
+                last = exc
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.05)
+
+        try:
+            self._fh.close()
+        except OSError:
+            pass
+        self._fh = None
+        raise BudgetUnavailable(
+            f"could not take the budget lock '{self.path}' within "
+            f"{self.timeout_s:g}s ({last}); another agent holds it. Refusing "
+            "rather than spending unserialised.")
+
+    def _acquire(self) -> None:
+        self._fh.seek(0)
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def __exit__(self, *exc: Any) -> bool:
+        if self._fh is None:
+            return False
+        try:
+            self._fh.seek(0)
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            self._fh.close()
+        except OSError:
+            pass
+        self._fh = None
+        return False
+
+
+# --------------------------------------------------------------------------
+# ledger
+# --------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class BudgetState:
+    ceiling_usd: float
+    max_calls: int
+    spent_usd: float
+    reserved_usd: float
+    calls: int
+    open_calls: int
+    period: str
+    period_key: str
+
+    @property
+    def committed_usd(self) -> float:
+        return self.spent_usd + self.reserved_usd
+
+    @property
+    def remaining_usd(self) -> float:
+        return self.ceiling_usd - self.committed_usd
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"ceiling_usd": self.ceiling_usd, "max_calls": self.max_calls,
+                "spent_usd": self.spent_usd, "reserved_usd": self.reserved_usd,
+                "committed_usd": self.committed_usd,
+                "remaining_usd": self.remaining_usd, "calls": self.calls,
+                "open_calls": self.open_calls, "period": self.period,
+                "period_key": self.period_key}
+
+
+@dataclass
+class Reservation:
+    """Money already committed to the ledger for a call that has NOT happened
+    yet. Holding one of these is what makes the call legal."""
+
+    id: str
+    estimate: Estimate
+    label: str
+    ledger: "Ledger"
+    _closed: bool = False
+
+    @property
+    def usd(self) -> float:
+        return self.estimate.usd
+
+    def settle(self, actual_usd: float | None = None) -> None:
+        """Close the reservation, charging ``actual_usd`` -- or, if that is
+        None, the ESTIMATE. An unknown actual is not a free actual."""
+        if self._closed:
+            return
+        self.ledger._close(self, actual_usd, released=False, reason="")
+        self._closed = True
+
+    def release(self, reason: str) -> None:
+        """Close the reservation charging NOTHING.
+
+        ONLY legal when you can prove no vendor bytes moved -- e.g. the argv was
+        rejected before spawn. This is the one fail-OPEN lever in the module;
+        it demands a reason so its use is auditable in the ledger entries.
+        """
+        if self._closed:
+            return
+        if not (reason or "").strip():
+            raise ValueError("release() requires a reason naming why no call happened")
+        self.ledger._close(self, 0.0, released=True, reason=reason)
+        self._closed = True
+
+
+def _num(value: Any, name: str, *, allow_zero: bool = True) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise BudgetUnavailable(f"budget field '{name}' is not a number: {value!r}")
+    out = float(value)
+    if not isfinite(out):
+        raise BudgetUnavailable(f"budget field '{name}' is not finite: {value!r}")
+    if out < 0 or (out == 0 and not allow_zero):
+        raise BudgetUnavailable(f"budget field '{name}' is out of range: {value!r}")
+    return out
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        out = float(raw.strip())
+    except ValueError as exc:
+        raise BudgetUnavailable(
+            f"{name}={raw!r} is not a number; refusing to guess a ceiling") from exc
+    if not isfinite(out) or out <= 0:
+        raise BudgetUnavailable(
+            f"{name}={raw!r} is not a usable ceiling (must be finite and > 0)")
+    return out
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        out = int(raw.strip())
+    except ValueError as exc:
+        raise BudgetUnavailable(
+            f"{name}={raw!r} is not an integer; refusing to guess a call cap") from exc
+    if out <= 0:
+        raise BudgetUnavailable(f"{name}={raw!r} is not a usable call cap (must be > 0)")
+    return out
+
+
+class Ledger:
+    """The spend record, plus the ceiling it is checked against.
+
+    Every mutating operation takes the cross-process lock, re-reads from disk,
+    decides, and writes atomically. Nothing is cached across the lock boundary:
+    a decision made from a value read before another process wrote is the race
+    this class exists to close.
+    """
+
+    def __init__(
+        self,
+        path: str | os.PathLike[str] | None = None,
+        *,
+        ceiling_usd: float | None = None,
+        max_calls: int | None = None,
+        period: str | None = None,
+        now: Callable[[], float] | None = None,
+        lock_timeout_s: float = LOCK_TIMEOUT_S,
+    ) -> None:
+        raw = path if path is not None else os.environ.get(ENV_LEDGER) or DEFAULT_LEDGER_PATH
+        self.path = Path(raw)
+        self.lock_path = self.path.with_name(self.path.name + ".lock")
+        self._ceiling_override = ceiling_usd
+        self._max_calls_override = max_calls
+        self._period_override = period
+        self._now = now or time.time
+        self.lock_timeout_s = lock_timeout_s
+
+    # -- configuration ----------------------------------------------------
+
+    def ceiling_usd(self) -> float:
+        if self._ceiling_override is not None:
+            return _num(self._ceiling_override, ENV_CEILING, allow_zero=False)
+        return _env_float(ENV_CEILING, DEFAULT_CEILING_USD)
+
+    def max_calls(self) -> int:
+        if self._max_calls_override is not None:
+            if isinstance(self._max_calls_override, bool) or int(self._max_calls_override) <= 0:
+                raise BudgetUnavailable(f"max_calls={self._max_calls_override!r} is not usable")
+            return int(self._max_calls_override)
+        return _env_int(ENV_MAX_CALLS, DEFAULT_MAX_CALLS)
+
+    def period(self) -> str:
+        raw = (self._period_override or os.environ.get(ENV_PERIOD) or DEFAULT_PERIOD)
+        raw = str(raw).strip().lower()
+        if raw not in PERIODS:
+            raise BudgetUnavailable(
+                f"{ENV_PERIOD}={raw!r} is not one of {PERIODS}; refusing to "
+                "guess how long the ceiling lasts")
+        return raw
+
+    def period_key(self) -> str:
+        if self.period() == "total":
+            return "total"
+        t = time.gmtime(self._now())
+        return f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}"
+
+    # -- reading ----------------------------------------------------------
+
+    def _load(self) -> dict[str, Any]:
+        """Read the raw ledger. Raises BudgetUnavailable on ANY doubt.
+
+        A MISSING file is the one benign case: it is an unambiguous "nothing has
+        been spent yet". A file that exists but does not parse is not benign --
+        it means we do not know the spend, and not knowing is a refusal.
+        """
+        try:
+            text = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return self._fresh()
+        except OSError as exc:
+            raise BudgetUnavailable(
+                f"cannot read budget ledger '{self.path}': {exc}; refusing to "
+                "spend against an unknown balance") from exc
+        if not text.strip():
+            raise BudgetUnavailable(
+                f"budget ledger '{self.path}' is empty but present; a truncated "
+                "ledger is an unknown balance, not a zero balance")
+        try:
+            data = json.loads(text)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise BudgetUnavailable(
+                f"budget ledger '{self.path}' is corrupt ({exc}); refusing to "
+                "spend against an unknown balance") from exc
+        if not isinstance(data, dict):
+            raise BudgetUnavailable(
+                f"budget ledger '{self.path}' is not an object; refusing")
+        data["spent_usd"] = _num(data.get("spent_usd"), "spent_usd")
+        calls = data.get("calls")
+        if isinstance(calls, bool) or not isinstance(calls, int) or calls < 0:
+            raise BudgetUnavailable(f"budget ledger 'calls' is not a count: {calls!r}")
+        data["calls"] = calls
+        open_res = data.get("open")
+        if not isinstance(open_res, dict):
+            raise BudgetUnavailable("budget ledger 'open' is not an object; refusing")
+        for key, row in open_res.items():
+            if not isinstance(row, dict):
+                raise BudgetUnavailable(f"budget ledger open reservation {key!r} is malformed")
+            row["usd"] = _num(row.get("usd"), f"open[{key}].usd")
+            n = row.get("calls", 1)
+            if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+                raise BudgetUnavailable(f"budget ledger open[{key}].calls is not a count")
+            row["calls"] = n
+        if not isinstance(data.get("entries"), list):
+            data["entries"] = []
+        return self._roll(data)
+
+    def _fresh(self) -> dict[str, Any]:
+        return {"version": 1, "period": self.period(), "period_key": self.period_key(),
+                "spent_usd": 0.0, "calls": 0, "open": {}, "entries": []}
+
+    def _roll(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Roll the period over. Settled spend resets; OPEN reservations do NOT
+        -- money in flight is still in flight when the clock strikes midnight."""
+        want = self.period_key()
+        if data.get("period_key") == want and data.get("period") == self.period():
+            return data
+        data["period"] = self.period()
+        data["period_key"] = want
+        data["spent_usd"] = 0.0
+        data["calls"] = 0
+        return data
+
+    def _state(self, data: dict[str, Any]) -> BudgetState:
+        open_res = data.get("open") or {}
+        return BudgetState(
+            ceiling_usd=self.ceiling_usd(),
+            max_calls=self.max_calls(),
+            spent_usd=float(data["spent_usd"]),
+            reserved_usd=float(sum(float(r["usd"]) for r in open_res.values())),
+            calls=int(data["calls"]),
+            open_calls=int(sum(int(r.get("calls", 1)) for r in open_res.values())),
+            period=str(data.get("period", self.period())),
+            period_key=str(data.get("period_key", self.period_key())),
+        )
+
+    def state(self) -> BudgetState:
+        """Current state. Read under the lock, so it never straddles a write."""
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            return self._state(self._load())
+
+    # -- writing ----------------------------------------------------------
+
+    def _store(self, data: dict[str, Any]) -> None:
+        entries = data.get("entries") or []
+        data["entries"] = entries[-MAX_ENTRIES:]
+        tmp = self.path.with_name(self.path.name + f".{os.getpid()}.tmp")
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+            for attempt in range(10):          # Windows: replace can lose a race
+                try:
+                    os.replace(tmp, self.path)
+                    return
+                except PermissionError:
+                    if attempt == 9:
+                        raise
+                    time.sleep(0.05)
+        except OSError as exc:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            raise BudgetUnavailable(
+                f"cannot write budget ledger '{self.path}': {exc}; refusing to "
+                "spend against a balance we cannot record") from exc
+
+    def reserve(self, estimate: Estimate, *, label: str) -> Reservation:
+        """Commit ``estimate`` to the ledger BEFORE the call is made.
+
+        This is the enforcement point. It returns only if the money fits; the
+        money is already written to disk by the time it returns, so a caller
+        that crashes mid-call leaves the spend counted (conservative) rather
+        than uncounted (a leak).
+        """
+        label = (label or "").strip() or "<unlabelled call>"
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            data = self._load()
+            st = self._state(data)
+            want = max(1, int(estimate.calls))
+
+            if st.committed_usd + estimate.usd > st.ceiling_usd:
+                raise BudgetRefused(
+                    label=label, vendor=estimate.vendor, model=estimate.model,
+                    estimate_usd=estimate.usd, spent_usd=st.spent_usd,
+                    reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                    calls=st.calls, open_calls=st.open_calls, want_calls=want,
+                    max_calls=st.max_calls,
+                    reason=(f"spend ceiling would be crossed "
+                            f"(basis={estimate.basis})"))
+
+            # The call cap bounds BILLABLE fan-out (the canary's 16 probes), not
+            # work in general. A call to this machine costs nothing, so counting
+            # it would price the local lane out of the loop the cap exists to
+            # protect. Gated on the BASIS, not on ``usd == 0``: a zero that came
+            # from a mispriced vendor must still be counted, and only
+            # ``free_local`` is certified zero by the shared host predicate.
+            billable = estimate.basis != "free_local"
+            if billable and st.calls + st.open_calls + want > st.max_calls:
+                raise BudgetRefused(
+                    label=label, vendor=estimate.vendor, model=estimate.model,
+                    estimate_usd=estimate.usd, spent_usd=st.spent_usd,
+                    reserved_usd=st.reserved_usd, ceiling_usd=st.ceiling_usd,
+                    calls=st.calls, open_calls=st.open_calls, want_calls=want,
+                    max_calls=st.max_calls,
+                    reason="call-count cap would be crossed")
+
+            rid = uuid.uuid4().hex
+            data["open"][rid] = {
+                "usd": float(estimate.usd), "calls": want if billable else 0,
+                "vendor": estimate.vendor, "model": estimate.model,
+                "basis": estimate.basis, "label": label, "at": self._now(),
+                "pid": os.getpid(),
+            }
+            data["entries"].append(
+                {"kind": "reserve", "id": rid, "usd": float(estimate.usd),
+                 "calls": want, "vendor": estimate.vendor, "model": estimate.model,
+                 "basis": estimate.basis, "label": label, "at": self._now()})
+            self._store(data)
+        return Reservation(id=rid, estimate=estimate, label=label, ledger=self)
+
+    def _close(self, res: Reservation, actual_usd: float | None,
+               *, released: bool, reason: str) -> None:
+        with _BudgetLock(self.lock_path, self.lock_timeout_s):
+            data = self._load()
+            row = data["open"].pop(res.id, None)
+            if row is None:
+                # Rolled over, hand-edited, or already closed. Charging the
+                # estimate again would double-bill; ignoring it silently would
+                # hide a corrupted ledger. Record and move on.
+                data["entries"].append(
+                    {"kind": "orphan_close", "id": res.id, "label": res.label,
+                     "at": self._now()})
+                self._store(data)
+                return
+            charge = float(row["usd"]) if actual_usd is None else _num(actual_usd, "actual_usd")
+            if released:
+                charge = 0.0
+            data["spent_usd"] = float(data["spent_usd"]) + charge
+            data["calls"] = int(data["calls"]) + (0 if released else int(row.get("calls", 1)))
+            data["entries"].append(
+                {"kind": "release" if released else "settle", "id": res.id,
+                 "usd": charge, "estimate_usd": float(row["usd"]),
+                 "vendor": row.get("vendor"), "model": row.get("model"),
+                 "label": res.label, "reason": reason, "at": self._now()})
+            self._store(data)
+
+
+# --------------------------------------------------------------------------
+# module-level convenience
+# --------------------------------------------------------------------------
+
+_DEFAULT: Ledger | None = None
+_DEFAULT_LOCK = threading.Lock()
+
+
+def ledger() -> Ledger:
+    """The process-wide default ledger (path from ``DAEDALUS_BUDGET_LEDGER``)."""
+    global _DEFAULT
+    with _DEFAULT_LOCK:
+        if _DEFAULT is None:
+            _DEFAULT = Ledger()
+        return _DEFAULT
+
+
+def reset_default_ledger() -> None:
+    """Drop the cached default ledger. For tests and for a process that has just
+    changed ``DAEDALUS_BUDGET_LEDGER``."""
+    global _DEFAULT
+    with _DEFAULT_LOCK:
+        _DEFAULT = None
+
+
+def reserve(
+    vendor: str | None,
+    model: str | None = None,
+    *,
+    label: str,
+    calls: int = 1,
+    host: str | None = None,
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    led: Ledger | None = None,
+) -> Reservation:
+    """Price and reserve in one step. Raises :class:`BudgetRefused` /
+    :class:`BudgetUnavailable` / :class:`UnknownPrice` instead of returning."""
+    est = price_call(vendor, model, calls=calls, host=host,
+                     input_tokens=input_tokens, output_tokens=output_tokens)
+    return (led or ledger()).reserve(est, label=label)
+
+
+@contextmanager
+def guard(
+    vendor: str | None,
+    model: str | None = None,
+    *,
+    label: str,
+    calls: int = 1,
+    host: str | None = None,
+    led: Ledger | None = None,
+) -> Iterator[Reservation]:
+    """Reserve, run the body, settle.
+
+    ON EXCEPTION THIS SETTLES, IT DOES NOT RELEASE. An exception raised while a
+    vendor call is in flight tells you nothing about whether the request
+    reached the vendor -- a timeout after the tokens were generated looks
+    exactly like a connection refused. Charging for a call that may not have
+    happened over-counts by at most one call; the reverse under-counts without
+    bound.
+    """
+    res = reserve(vendor, model, label=label, calls=calls, host=host, led=led)
+    token = _enter_explicit()
+    try:
+        yield res
+    finally:
+        _exit_explicit(token)
+        res.settle()
+
+
+# --------------------------------------------------------------------------
+# classification -- what is a billable call, seen from the syscall boundary
+# --------------------------------------------------------------------------
+
+# argv[0] basenames that ARE a paid vendor.
+_PAID_EXECUTABLES: dict[str, str] = {
+    "claude": "anthropic_cli",
+    "codex": "openai_cli",
+    "agy": "google_agy",
+    "antigravity": "google_agy",
+}
+# argv[0] basenames that RUN something else; scan their arguments too, because
+# `ssh bench agy -p ...` and `cmd /c claude -p ...` spend exactly as much money
+# as `claude -p ...` does.
+_WRAPPERS = frozenset({"ssh", "cmd", "cmd.exe", "sh", "bash", "zsh", "pwsh",
+                       "powershell", "npx", "bunx", "env", "wsl", "wsl.exe"})
+
+# Host suffixes that are a paid inference API.
+_PAID_API_HOSTS: dict[str, str] = {
+    "api.anthropic.com": "anthropic_api",
+    "api.openai.com": "openai_api",
+    "api.deepseek.com": "deepseek",
+    "generativelanguage.googleapis.com": "google_api",
+    "openrouter.ai": "openai_api",
+}
+# Path fragments that mean "this request will generate tokens" (as opposed to
+# /api/tags and /api/version, which are free probes and must not be billed).
+_INFERENCE_PATHS = ("/v1/chat/completions", "/v1/completions", "/v1/messages",
+                    "/v1/responses", "/api/chat", "/api/generate", "/api/embed",
+                    "/api/embeddings", ":generatecontent", ":streamgeneratecontent")
+
+
+def _basename(token: str) -> str:
+    name = os.path.basename(str(token or "").strip().strip('"')).lower()
+    for ext in (".exe", ".cmd", ".bat", ".ps1", ".sh"):
+        if name.endswith(ext):
+            name = name[: -len(ext)]
+            break
+    return name
+
+
+def classify_argv(argv: Any) -> str | None:
+    """Vendor id if this argv spends money, else None.
+
+    Conservative in the direction that matters: an unrecognised binary is NOT
+    billed (billing `git` would make the guard unusable and it would be turned
+    off), but a recognised vendor reached THROUGH a wrapper IS.
+    """
+    if isinstance(argv, (str, bytes, os.PathLike)):
+        tokens = [os.fspath(argv) if isinstance(argv, os.PathLike) else argv]
+        if isinstance(tokens[0], bytes):
+            tokens[0] = tokens[0].decode("utf-8", "replace")
+        # A shell string: split loosely and scan every token.
+        tokens = str(tokens[0]).replace('"', " ").split()
+        scan_all = True
+    else:
+        try:
+            tokens = [os.fspath(t) if isinstance(t, os.PathLike) else
+                      (t.decode("utf-8", "replace") if isinstance(t, bytes) else str(t))
+                      for t in argv]
+        except TypeError:
+            return None
+        scan_all = False
+    if not tokens:
+        return None
+
+    head = _basename(tokens[0])
+    if head in _PAID_EXECUTABLES:
+        return _PAID_EXECUTABLES[head]
+    if scan_all or head in _WRAPPERS:
+        # Split on whitespace as well: `bash -c "agy -p ..."` and
+        # `ssh bench 'claude -p'` hand the whole command over as ONE token.
+        for tok in tokens[1:]:
+            for word in str(tok).replace("'", " ").replace('"', " ").split():
+                vendor = _PAID_EXECUTABLES.get(_basename(word))
+                if vendor:
+                    return vendor
+    return None
+
+
+def classify_url(url: Any) -> tuple[str | None, str | None]:
+    """``(vendor, host)`` if this request spends money, else ``(None, host)``.
+
+    Two ways to be billable: a known paid API host, or an INFERENCE endpoint on
+    a host that :func:`daedalus.sensitivity.lane_for_host` will not certify as
+    this machine. The second is the OLLAMA_HOST case -- same provider name,
+    same code path, somebody else's GPU.
+    """
+    from urllib.parse import urlsplit
+
+    raw = url
+    if hasattr(raw, "full_url"):                      # urllib.request.Request
+        raw = raw.full_url
+    if hasattr(raw, "get_full_url"):
+        try:
+            raw = raw.get_full_url()
+        except Exception:                              # noqa: BLE001
+            pass
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", "replace")
+    if not isinstance(raw, str) or not raw.strip():
+        return None, None
+    try:
+        parts = urlsplit(raw if "//" in raw else f"//{raw}")
+        host = (parts.hostname or "").lower()
+    except (ValueError, UnicodeError):
+        return None, None
+    if not host:
+        return None, None
+
+    for suffix, vendor in _PAID_API_HOSTS.items():
+        if host == suffix or host.endswith("." + suffix):
+            return vendor, raw
+    path = (parts.path or "").lower() + (parts.query or "").lower()
+    if not any(frag in path for frag in _INFERENCE_PATHS):
+        return None, raw                               # /api/tags etc: a free probe
+
+    from .sensitivity import lane_for_host
+
+    if lane_for_host(host) == "trusted":
+        return None, raw                               # this machine; no bill
+    return "remote_inference", raw
+
+
+# --------------------------------------------------------------------------
+# process-wide interposition -- the chokepoint the architecture lacks
+# --------------------------------------------------------------------------
+
+_EXPLICIT = threading.local()
+
+
+def _enter_explicit() -> None:
+    _EXPLICIT.depth = getattr(_EXPLICIT, "depth", 0) + 1
+
+
+def _exit_explicit(_token: Any = None) -> None:
+    _EXPLICIT.depth = max(0, getattr(_EXPLICIT, "depth", 0) - 1)
+
+
+def _inside_explicit() -> bool:
+    return getattr(_EXPLICIT, "depth", 0) > 0
+
+
+_INSTALLED: dict[str, Any] = {}
+
+
+def _guarded_spawn(original: Callable[..., Any], kind: str) -> Callable[..., Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        argv = kwargs.get("args", args[0] if args else None)
+        vendor = None if _inside_explicit() else classify_argv(argv)
+        if vendor is None:
+            return original(*args, **kwargs)
+        label = f"{kind}: {_render(argv)}"
+        res = reserve(vendor, label=label)
+        # ``subprocess.run`` calls ``subprocess.Popen`` through the MODULE
+        # GLOBAL, which this function has also replaced -- without this the same
+        # spawn would be reserved twice. Standing the interposer down for the
+        # duration of the original call is also what stops it double-charging a
+        # site that already reserved explicitly.
+        _enter_explicit()
+        try:
+            return original(*args, **kwargs)
+        finally:
+            _exit_explicit()
+            res.settle()
+    wrapper.__wrapped__ = original           # type: ignore[attr-defined]
+    wrapper.__daedalus_budget__ = True       # type: ignore[attr-defined]
+    return wrapper
+
+
+def _guarded_urlopen(original: Callable[..., Any]) -> Callable[..., Any]:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        url = kwargs.get("url", args[0] if args else None)
+        vendor, shown = (None, None) if _inside_explicit() else classify_url(url)
+        if vendor is None:
+            return original(*args, **kwargs)
+        res = reserve(vendor, label=f"urlopen: {str(shown)[:200]}")
+        _enter_explicit()
+        try:
+            return original(*args, **kwargs)
+        finally:
+            _exit_explicit()
+            res.settle()
+    wrapper.__wrapped__ = original           # type: ignore[attr-defined]
+    wrapper.__daedalus_budget__ = True       # type: ignore[attr-defined]
+    return wrapper
+
+
+def _render(argv: Any) -> str:
+    if isinstance(argv, (str, bytes)):
+        return str(argv)[:200]
+    try:
+        return " ".join(str(t) for t in argv)[:200]
+    except TypeError:
+        return repr(argv)[:200]
+
+
+def install_process_guard() -> Callable[[], None]:
+    """Put EVERY vendor spawn and inference request in this process behind the
+    ceiling, without editing the call sites.
+
+    This exists because the repo has no single chokepoint: paid calls leave from
+    ``providers/``, ``council/vendors.py``, ``ikarus_os.py`` and ``runs/``
+    independently. It is coarse -- it prices by vendor, not by task -- and it is
+    opt-in, so it is a NET, not a substitute for an explicit
+    :func:`guard` at a site that knows its own cost. Idempotent; returns the
+    uninstaller.
+    """
+    import subprocess
+    import urllib.request
+
+    if _INSTALLED:
+        return uninstall_process_guard
+
+    _INSTALLED["subprocess.run"] = subprocess.run
+    _INSTALLED["subprocess.Popen"] = subprocess.Popen
+    _INSTALLED["urllib.request.urlopen"] = urllib.request.urlopen
+    subprocess.run = _guarded_spawn(subprocess.run, "subprocess.run")            # type: ignore[assignment]
+    subprocess.Popen = _guarded_spawn(subprocess.Popen, "subprocess.Popen")      # type: ignore[assignment]
+    urllib.request.urlopen = _guarded_urlopen(urllib.request.urlopen)            # type: ignore[assignment]
+    return uninstall_process_guard
+
+
+def uninstall_process_guard() -> None:
+    import subprocess
+    import urllib.request
+
+    if not _INSTALLED:
+        return
+    subprocess.run = _INSTALLED.pop("subprocess.run")                            # type: ignore[assignment]
+    subprocess.Popen = _INSTALLED.pop("subprocess.Popen")                        # type: ignore[assignment]
+    urllib.request.urlopen = _INSTALLED.pop("urllib.request.urlopen")            # type: ignore[assignment]
+    _INSTALLED.clear()
+
+
+# --------------------------------------------------------------------------
+# the coverage register -- what spends, and whether it is guarded YET
+# --------------------------------------------------------------------------
+
+# EVERY known billable site in this repo, audited 2026-07-29. ``explicit`` is
+# True only when the site itself reserves; the rest are covered ONLY when
+# install_process_guard() has run in their process. This list is the honest
+# accounting: a hole named in code is a hole someone can close, a hole in a
+# report is a hole nobody reads twice. tests/test_budget.py fails if a NEW
+# vendor spawn appears in the tree that is not listed here.
+BILLABLE_SITES: tuple[dict[str, Any], ...] = (
+    {"file": "daedalus/claude_bridge.py", "func": "ask_claude",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "daedalus/providers/codex_cli.py", "func": "CodexCLIProvider.run",
+     "vendor": "openai_cli", "how": "subprocess.run", "explicit": False},
+    # STATICALLY INVISIBLE for the mirror-image reason: the spawn is here but
+    # the vendor is not -- the host arrives as ``base_url`` from the caller.
+    {"file": "daedalus/providers/_openai_compat.py", "func": "chat_completion",
+     "vendor": "deepseek", "how": "urlopen(base_url)",
+     "explicit": False, "static_visible": False},
+    # STATICALLY INVISIBLE. The argv is built here but SPAWNED in
+    # spine/cancel.py::ManagedProcess (subprocess.Popen), so no text scan of
+    # this file finds a spawn, and no text scan of cancel.py finds a vendor.
+    # Only the runtime interposer sees these -- the argv is concrete by then.
+    {"file": "daedalus/council/vendors.py", "func": "_CliAdapter._dispatch",
+     "vendor": "anthropic_cli|openai_cli", "how": "run_managed->spine.cancel.Popen",
+     "explicit": False, "static_visible": False},
+    {"file": "daedalus/council/vendors.py", "func": "AntigravityAdapter._dispatch",
+     "vendor": "google_agy", "how": "run_managed->spine.cancel.Popen",
+     "explicit": False, "static_visible": False},
+    # Also invisible: the request is issued in providers/_ollama_native.py, and
+    # whether it costs anything depends on ``self.host`` at runtime.
+    {"file": "daedalus/council/vendors.py", "func": "OllamaAdapter._dispatch",
+     "vendor": "remote_inference", "how": "_chat->_ollama_native.urlopen",
+     "explicit": False, "static_visible": False},
+    {"file": "daedalus/ikarus_os.py", "func": "_claude",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "daedalus/ikarus_os.py", "func": "_codex",
+     "vendor": "openai_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "daedalus/ikarus_os.py", "func": "_claude_stream",
+     "vendor": "anthropic_cli", "how": "subprocess.Popen", "explicit": False},
+    {"file": "runs/council/room.py", "func": "ask_codex",
+     "vendor": "openai_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "runs/council/room.py", "func": "ask_fable",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "runs/council/room.py", "func": "ask_opus",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "runs/council/room.py", "func": "ask_agy",
+     "vendor": "google_agy", "how": "subprocess.run(ssh)", "explicit": False},
+    {"file": "runs/council/room.py", "func": "ask_ollama",
+     "vendor": "remote_inference", "how": "urlopen", "explicit": False},
+    {"file": "runs/ab/run_arm.py", "func": "call_claude",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    # These two were MISSED by the hand audit and found by the drift detector in
+    # tests/test_budget.py the first time it ran. That is the argument for
+    # keeping the detector: a hand-maintained list of spend sites rots within a
+    # week in a repo where sixteen agents are adding code.
+    {"file": "runs/council/summarize.py", "func": "cli_summariser",
+     "vendor": "anthropic_cli", "how": "subprocess.run", "explicit": False},
+    {"file": "runs/council/summarize.py", "func": "ollama_summariser",
+     "vendor": "remote_inference", "how": "urlopen", "explicit": False},
+)
