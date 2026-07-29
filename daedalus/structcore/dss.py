@@ -33,6 +33,22 @@ HIERARCHY_SCHEMA_VERSION = "daedalus-dss-hierarchy/0"
 RECEIPT_SCHEMA_VERSION = "daedalus-dss-receipt/0"
 REPOSITORY_NODE_ID = "repo:."
 
+# Forest node kinds that are FILES for selection purposes: a leaf of the
+# repository hierarchy, a legal seed, and a candidate for the token budget.
+#
+# ONE definition, because there were three copies of this set (the hierarchy
+# builder, the temporal carry and the packer) and they have to agree by
+# construction: a kind accepted as a seed but rejected as a hierarchy leaf
+# raises ``KeyError: unknown Forest file ID`` from ``semantic_super_sample``,
+# which is precisely what a partially-added node kind produces.
+#
+# ``document`` is here because the defect this feature exists to fix is a
+# SELECTION defect: a task specified entirely in a 3592-line markdown
+# architecture document got a context plan of three TypeScript files, because
+# the specification was not a node the selector could see. A document that is
+# indexed but unselectable fixes nothing.
+FILE_NODE_KINDS = frozenset({"source_file", "file", "document"})
+
 
 def _canonical_json(value: Any) -> bytes:
     return json.dumps(
@@ -157,13 +173,14 @@ class ForestHierarchy:
 
 
 def build_forest_hierarchy(forest: KnowledgeForest) -> ForestHierarchy:
-    """Build the repository/directory/file hierarchy for source-file nodes."""
+    """Build the repository/directory/file hierarchy for file-kind nodes
+    (``FILE_NODE_KINDS``: source files and documents)."""
     directories: set[str] = set()
     files: list[tuple[str, str]] = []
     canonical_paths: dict[str, str] = {}
 
     for node in forest.nodes:
-        if node.kind not in {"source_file", "file"}:
+        if node.kind not in FILE_NODE_KINDS:
             continue
         path = _canonical_file_path(node.id)
         prior = canonical_paths.get(path)
@@ -374,7 +391,7 @@ def carry_temporal_scores(
     rename_confidence = rename_confidence or {}
     current_ids = {
         node.id for node in forest.nodes
-        if node.kind in {"source_file", "file"}
+        if node.kind in FILE_NODE_KINDS
     }
     carried: dict[str, float] = {}
     evidence: list[TemporalEvidence] = []
@@ -806,7 +823,7 @@ def semantic_super_sample(
 
     file_ids = {
         node.id for node in forest.nodes
-        if node.kind in {"source_file", "file"}
+        if node.kind in FILE_NODE_KINDS
     }
     seeds: dict[str, float] = {}
     for node_id, raw_score in sorted(seed_scores.items()):

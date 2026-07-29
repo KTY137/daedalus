@@ -246,7 +246,24 @@ def canonical_node(idx: dict, rel: str) -> str | None:
 
 
 def _graph_nodes(idx: dict) -> set[str]:
-    nodes = set(idx.get("modules") or ())
+    """Nodes of the DEPENDENCY graph. Code only.
+
+    Documents are excluded deliberately, and this is a safety decision rather
+    than a tidiness one. Everything downstream of this set is a fence question:
+    ``fenced_reachability`` (does editing this file reach safety-critical code?)
+    and ``fenced_dominance``, whose ``fraction`` is the share of NON-fenced
+    modules that feed a fenced one -- and which ``provider_router`` reads to
+    decide whether to stand the reachability escalation down.
+
+    A document has no import edges by construction, so every one of them would
+    land in the denominator and none in the numerator: turning documents on
+    would DILUTE the fence's dominance fraction with files that cannot reach
+    anything, making a guardrail less likely to fire for a bookkeeping reason.
+    A safety number must move only when safety moves.
+    """
+    from .markdown import code_modules
+
+    nodes = set(code_modules(idx))
     nodes.update(idx.get("import_edges") or ())
     for srcs in (idx.get("import_edges_reverse") or {}).values():
         nodes.update(srcs)

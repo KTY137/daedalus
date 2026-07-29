@@ -5,15 +5,18 @@ tree.  A repository contains cycles, relations with different meanings, and
 groups that cannot be represented faithfully as pairwise edges.  This module
 therefore exposes a multiplex graph with explicit hyperedges:
 
-* nodes are currently indexed source files;
-* edge layers keep imports and temporal co-change evidence separate;
+* nodes are indexed source files, and -- when the index carries them --
+  DOCUMENTS, which are the same contract with a different ``kind``;
+* edge layers keep imports, document links and temporal co-change evidence
+  separate;
 * hyperedges preserve clone groups without expanding them into fake cliques.
 
-Symbols, build targets, documents, schemas, runtime spans, and domain entities
-can be added as new node kinds and relation layers without changing this
-contract.  No latent coordinates or partitions are inferred here.  The
-snapshot is evidence-preserving input for later, independently evaluated
-algorithms.
+Symbols, build targets, schemas, runtime spans, and domain entities can be
+added as new node kinds and relation layers without changing this contract --
+``document`` (node kind) and ``documents`` (relation layer) were added exactly
+that way and cost this file no new field, no new dataclass and no schema bump.
+No latent coordinates or partitions are inferred here.  The snapshot is
+evidence-preserving input for later, independently evaluated algorithms.
 """
 from __future__ import annotations
 
@@ -206,7 +209,20 @@ def build_knowledge_forest(
             "heat_score": float(heat.get("score", 0.0) or 0.0),
             "churn": int(heat.get("churn", 0) or 0),
         })
-        nodes.append(ForestNode(module, "source_file", attributes))
+        # THE PROMISED SECOND NODE KIND. This module's own docstring already
+        # said documents could be added "as new node kinds and relation layers
+        # without changing this contract", and this is that, in full: one
+        # discriminator read, no new field, no new dataclass, no schema bump.
+        #
+        # The alternative -- labelling a README "source_file" because that is
+        # what the loop used to emit -- would push the lie downstream into every
+        # consumer that keys off ``node.kind`` (``dss``'s hierarchy, propagation
+        # set and budget packer; ``context_plan``'s latent evidence filter), and
+        # those are exactly the consumers that must be able to tell prose from
+        # code. ``heat_score``/``churn`` come out 0 because documents are held
+        # out of ``module_heat`` upstream, which is deliberate, not missing data.
+        kind = "document" if attributes.get("kind") == "document" else "source_file"
+        nodes.append(ForestNode(module, kind, attributes))
 
     edges: list[ForestEdge] = []
     seen_imports: set[tuple[str, str]] = set()
@@ -224,6 +240,31 @@ def build_knowledge_forest(
                 "imports",
                 True,
                 evidence=("structcore.import_edges",),
+            ))
+
+    # DOCUMENT LINK LAYER. A separate relation, not extra ``imports`` edges: the
+    # multiplex graph exists so two kinds of relation can coexist without either
+    # one being read as the other. A link says "this document refers to that
+    # file"; an import says "this code cannot run without that file". Merging
+    # them would silently move ``fan_in`` and every reachability answer derived
+    # from the import layer, including the safety fence's dominance fraction.
+    # Absent key -> empty loop -> byte-identical forest, so an index built
+    # without documents produces the forest it always produced.
+    seen_links: set[tuple[str, str]] = set()
+    for source, targets in sorted((index.get("document_links") or {}).items()):
+        for target in sorted(set(targets or ())):
+            if source not in module_ids or target not in module_ids:
+                continue
+            key = (str(source), str(target))
+            if key in seen_links:
+                continue
+            seen_links.add(key)
+            edges.append(ForestEdge(
+                str(source),
+                str(target),
+                "documents",
+                True,
+                evidence=("structcore.document_links",),
             ))
 
     seen_temporal: set[tuple[str, str]] = set()

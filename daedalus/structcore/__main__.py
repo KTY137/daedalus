@@ -32,6 +32,15 @@ def print_summary(idx: dict) -> None:
         print(f"scope:   {ign['count']} of {ign['n_files_scanned']} files are SHELL, withheld "
               f"from metrics [{' '.join(why)}]")
         print("         (shell stays resolvable as an import target; it is not expanded through)")
+    # Same rule as the scope line: state what was counted and what it was held
+    # out of, so a reader never has to infer coverage from silence.
+    docs = idx.get("documents")
+    if docs and docs.get("enabled"):
+        print(f"documents: {docs['count']} indexed "
+              f"({docs['n_sections']} sections, {docs['n_links']} intra-repo links, "
+              f"{docs['n_links_external']} off-repo URLs kept as attributes, "
+              f"{docs['n_links_unresolved']} links unresolved and dropped)")
+        print(f"           held out of: {', '.join(docs['excluded_from'])}")
     print("\nLANGUAGES (by loc):")
     for lang, s in langs.items():
         print(f"  {s['loc']:7}  {s['files']:4} files  {lang}")
@@ -93,10 +102,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ignore", action="append", default=None, metavar="PATTERN",
                     help="extra ignore pattern (repeatable). Composes on top of "
                          ".daedalusignore. '@tests' expands to the test-file preset.")
+    ap.add_argument("--documents", action="store_true", default=None,
+                    help="also index markdown DOCUMENTS as nodes (headings as the "
+                         "hierarchy, sections as units, intra-repo links as their "
+                         "own relation layer). Off by default: it grows "
+                         "total_tokens, which is the distill ratio's denominator. "
+                         "Env: DAEDALUS_INDEX_DOCUMENTS=1.")
     args = ap.parse_args(argv)
 
     idx = build_index(args.repo, max_files=args.max_files, center=args.center,
-                      ignore=args.ignore)
+                      ignore=args.ignore, documents=args.documents)
     if args.json:
         Path(args.json).write_text(json.dumps(idx, indent=1), encoding="utf-8")
         print(f"wrote {args.json}")

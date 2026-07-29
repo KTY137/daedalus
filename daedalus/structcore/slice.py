@@ -23,8 +23,9 @@ import argparse
 import json
 from pathlib import Path
 
+from . import markdown as markdown_mod
 from .index import build_index, resolution_context
-from .languages import spec_for
+from .languages import doc_spec_for, spec_for
 from .parse import extract_units
 from .tokens import count_tokens
 
@@ -65,15 +66,41 @@ def _read(root: Path, rel: str) -> str:
         return ""
 
 
-def _units_of(root: Path, rel: str):
-    text = _read(root, rel)
+def _units_of(root: Path, rel: str, text: str | None = None):
+    """Editable units of a file: code units, or -- for a document -- SECTIONS.
+
+    A ``DocSection`` is field-compatible with a ``CodeUnit`` (module/name/line/
+    end_line/loc/source/language), so a caller that already handles units needs
+    no type switch. What a caller MUST NOT do is feed sections into the call-
+    graph approximation: identifiers in prose are not calls, and
+    ``semantic_slice`` keeps the two apart for that reason.
+    """
+    if text is None:
+        text = _read(root, rel)
+    if doc_spec_for(rel) is not None:
+        return list(markdown_mod.parse_document(rel, text).sections)
     spec = spec_for(rel)
     return extract_units(rel, text, spec) if spec else []
 
 
 def _skeleton(root: Path, rel: str) -> str:
-    """Signature-level digest of a file: one line per unit (its first line)."""
+    """Signature-level digest of a file: one line per unit (its first line).
+
+    For a DOCUMENT the analogue is exact and is delegated to
+    ``markdown.document_skeleton``: the heading tree is the signature set, the
+    prose is the body, the body is dropped, and the drop is reported inline.
+    That path also carries the hard invariant this function cannot state for
+    code -- the result is never larger than the raw document.
+
+    Routing documents here matters as much as what it produces. The old
+    fallthrough (``spec_for`` returns None for .md, so zero units, so the
+    ``len(out) == 1`` branch) emitted twelve raw lines of prose under a header
+    reading ``(skeleton)`` -- presenting a document as though it had signatures,
+    with no statement that the other 3,580 lines existed at all.
+    """
     text = _read(root, rel)
+    if doc_spec_for(rel) is not None:
+        return markdown_mod.document_skeleton(rel, text).text
     spec = spec_for(rel)
     units = extract_units(rel, text, spec) if spec else []
     out = [f"# {rel}  (skeleton)"]
@@ -276,11 +303,21 @@ def semantic_slice(
             "slice_text": breadcrumb,
         }
 
-    spec = spec_for(rel)
+    is_doc = doc_spec_for(rel) is not None
     focus_unit = None
     if symbol:
-        units = extract_units(rel, text, spec) if spec else []
+        # ``file.py::function`` and ``spec.md::Heading`` are the same request:
+        # give me this one unit, not the whole file. For a document the anchor
+        # slug is accepted as well as the literal heading text, because a link
+        # written elsewhere in the repo spells it that way
+        # (``[x](docs/spec.md#the-heading)``) and refusing the spelling the repo
+        # itself uses would make the sharper target unreachable in practice.
+        units = _units_of(root, rel, text)
         focus_unit = next((x for x in units if x.name == symbol), None)
+        if focus_unit is None and is_doc:
+            wanted = markdown_mod.slugify(symbol)
+            focus_unit = next(
+                (x for x in units if getattr(x, "anchor", "") == wanted), None)
         focus_src = focus_unit.source if focus_unit else text
     else:
         focus_src = text
@@ -345,6 +382,34 @@ def semantic_slice(
         else:
             shell_stops += 1
 
+    # DOCUMENT LAYER, kept as its OWN neighbour class rather than merged into
+    # dep_rels/caller_rels. Two reasons, both load-bearing:
+    #
+    #  * a link is not an import, and the roles must stay distinguishable in the
+    #    ``included`` provenance -- a reader of the receipt has to be able to
+    #    tell "the code this file needs" from "the prose that describes it";
+    #  * the symbol path below feeds dep_rels/caller_rels into
+    #    ``graph.callees``/``graph.callers``, which match IDENTIFIER TOKENS. Prose
+    #    is full of words that look like identifiers, so a document merged into
+    #    those sets would manufacture call edges out of English.
+    #
+    # Both maps are absent from an index built without documents, so this is
+    # inert by construction on the default path.
+    doc_edges = idx.get("document_links") or {}
+    doc_rev = idx.get("document_links_reverse") or {}
+    documents_out: set[str] = set()      # files THIS document links to
+    documented_by: set[str] = set()      # documents that link to THIS file
+    for r in doc_edges.get(rel, ()):
+        if r != rel and r in modules:
+            documents_out.add(r)
+        elif r != rel:
+            shell_stops += 1
+    for src in doc_rev.get(rel, ()):
+        if src != rel and src in modules:
+            documented_by.add(src)
+        elif src != rel:
+            shell_stops += 1
+
     # NEIGHBOUR EGRESS GATE. Applied at the EMISSION point of every file whose
     # text would enter slice_text -- skeletons on the module path, and the actual
     # callee/caller UNITS on the symbol path. It must be the emission point, not
@@ -374,7 +439,14 @@ def semantic_slice(
             return False
         return True
 
-    if symbol and focus_unit is not None:
+    # ``not is_doc``: the symbol path is the CALL-GRAPH path, and a document has
+    # no call graph. ``graph.callees`` resolves identifier TOKENS, and for a
+    # document focus the resolver's same-file table is that document's own
+    # headings -- so any prose word matching a heading title would be emitted as
+    # a "callee", with its whole section body, under a label asserting a call
+    # relation that does not exist. A document's real relations are its links,
+    # and they are emitted below in their own section under their own name.
+    if symbol and focus_unit is not None and not is_doc:
         # symbol-level: include exactly the callees (full) + callers (signature)
         # of THIS symbol, from the module neighborhood — sharper than whole files.
         from . import graph
@@ -442,6 +514,30 @@ def semantic_slice(
                 inc = {"file": r, "role": role, "mode": "skeleton", "tokens": estimate_tokens(sk)}
                 neighbors.append({"section": section, "text": sk,
                                   "tokens": inc["tokens"], "keep": keep_rank, "inc": inc})
+
+    # THE DOCUMENT RELATION LAYER, emitted on BOTH paths (symbol and module) and
+    # for BOTH directions, because they answer two different questions that are
+    # both wanted: distilling a spec should show the code it points at, and
+    # distilling a source file should show the spec that describes it -- which is
+    # the exact inverse of the defect this feature exists to fix.
+    #
+    # Same egress gate, same order (``_emit_ok`` BEFORE ``_skeleton``, so a file
+    # that trips the floor is never read into the emitted text). Lowest keep rank
+    # (0) so a token budget sheds prose before it sheds code.
+    for role, rels in (("documents", sorted(documents_out)),
+                       ("documented_by", sorted(documented_by))):
+        kept_docs = [r for r in rels if _emit_ok(r, role)]
+        if not kept_docs:
+            continue
+        label = ("DOCUMENTS (linked from this document)" if role == "documents"
+                 else "DOCUMENTED BY (documents linking here)")
+        section = f"\n# ===== {label}, skeleton ====="
+        for r in kept_docs:
+            sk = _skeleton(root, r)
+            inc = {"file": r, "role": role, "mode": "skeleton",
+                   "tokens": estimate_tokens(sk)}
+            neighbors.append({"section": section, "text": sk,
+                              "tokens": inc["tokens"], "keep": 0, "inc": inc})
 
     # sorted() for determinism: the withheld block and its breadcrumbs are order-
     # independent of dict insertion / set iteration.

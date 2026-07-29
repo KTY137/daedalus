@@ -12,6 +12,15 @@ Output (all derived, regenerate-anytime):
   * hotspots    — complexity ranking, multiplied by normalized git churn (the
     CodeScene signal: rot lives where code is complex AND changing)
   * backend     — which optional precision engines were active
+
+OPT-IN, absent unless ``documents=True`` (or ``DAEDALUS_INDEX_DOCUMENTS=1``):
+  * documents      — what was parsed, and everything it was withheld from
+  * document_links / document_links_reverse — intra-repo markdown links, kept
+    in their OWN relation layer because a link is not an import
+
+With documents on, ``modules`` also carries document entries, each marked
+``kind: "document"`` (``markdown.is_document`` / ``code_modules``). See the
+``DOCUMENTS`` block below for the measurement that made this opt-in.
 """
 from __future__ import annotations
 
@@ -21,8 +30,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import NamedTuple
 
-from .languages import LanguageSpec, spec_for
+from .languages import (DOCUMENT_EXTENSIONS, DocumentSpec, LanguageSpec,
+                        doc_spec_for, spec_for)
 from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
+from . import markdown as markdown_mod
 from .metrics import lizard_available
 from .clones import (TYPE3_EXCLUDED_LANGUAGES, CloneMemo, unit_clusters,
                      window_clusters_from_runs, renamed_clusters, near_clusters)
@@ -51,6 +62,90 @@ def _collect(root: Path, max_files: int) -> list[tuple[Path, str, LanguageSpec]]
         dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith(".")]
         for fn in filenames:
             spec = spec_for(fn)
+            if spec is None:
+                continue
+            p = Path(dirpath) / fn
+            rel = p.relative_to(root).as_posix()
+            out.append((p, rel, spec))
+            if len(out) >= max_files:
+                return out
+    return out
+
+
+# --------------------------------------------------------------------------- #
+# DOCUMENTS — opt-in, and here is the measurement that decided that             #
+# --------------------------------------------------------------------------- #
+# OPT-IN, DEFAULT OFF. Not because documents are expensive -- they are not --
+# but because indexing them MOVES A PUBLISHED NUMBER, and this repo has already
+# paid once for a denominator that shifted under a headline.
+#
+# MEASURED COST (2026-07-29, both indexes built end-to-end and diffed):
+#     repo          n_files         total_tokens     documents
+#     agent_env     311 -> 373      +17.2%           61 md
+#     project_tct  6799 -> 7137     + 2.0%          338 md
+# and the parse itself is cheap: 0.17s for agent_env's 61 documents (731k
+# chars), 0.86s for project_tct's 338 (3.7M chars), best of three. A third repo
+# (NorthStar, 221 code / 76 md) was counted but not built: +34% file count is
+# the worst ratio to hand. So cost is bounded on every real repo available, and
+# cost is NOT the reason for the gate.
+#
+# The reason is ``total_tokens``, which is the distill ratio's DENOMINATOR.
+# Turning documents on inflates it by 17.2% on this repo, so EVERY existing
+# ``reduction_pct`` improves by ~17 points without the slicer getting one line
+# better. That is precisely the flattering-denominator failure ``slice.
+# _whole_repo_tokens`` and ``tests/test_honest_denominator.py`` exist to
+# prevent. A measurement may only move when the thing measured moves, so the
+# operator turns this on deliberately and knows the baseline changed.
+#
+# WHAT DEFAULT-OFF COSTS: the indexing defect stays open until someone flips the
+# flag. That is a real cost and it is the trade being made -- correctness of the
+# published numbers over convenience -- not an oversight. The flip is one
+# argument (``documents=True``), one env var (``DAEDALUS_INDEX_DOCUMENTS=1``) or
+# one CLI switch (``--documents``), and the honest sequence is: re-baseline the
+# eval with documents on, THEN change the default.
+#
+# Two further consequences of enabling it, stated rather than discovered:
+#   * ``provider_router``'s degenerate-index detector ("a docs-only repo yields
+#     an empty index") stops firing on a docs-only repo, because with documents
+#     on such a repo is no longer empty. It is not a structcore module and is
+#     not edited here.
+#   * ``context_plan``'s BM25 normalizers (corpus size, average length, document
+#     frequency) move, so every existing code file's seed score shifts. That is
+#     the INTENDED effect -- a specification must be rankable -- but it is a
+#     change in ranking with no change in code, so it is opt-in.
+#
+# Documents are excluded, always, from: all four clone passes (a repeated
+# paragraph is not a refactoring target), ``score_modules``/``hotspots``/
+# ``module_heat`` (a long design doc is not rot, and ``spine/picker`` turns a
+# hotspot into a "extract the long functions" work item), ``import_edges``/
+# ``fan_in`` (a link is not an import), and ``graph._graph_nodes`` (the safety
+# fence's denominator). Their links live in their own relation layer.
+_DOC_ENV = "DAEDALUS_INDEX_DOCUMENTS"
+_TRUTHY = {"1", "true", "yes", "on"}
+
+
+def documents_enabled(flag: bool | None = None) -> bool:
+    """Whether this build indexes documents. Explicit argument wins; else the
+    ``DAEDALUS_INDEX_DOCUMENTS`` env var; else False."""
+    if flag is not None:
+        return bool(flag)
+    return os.environ.get(_DOC_ENV, "").strip().lower() in _TRUTHY
+
+
+def _collect_docs(root: Path, max_files: int) -> list[tuple[Path, str, DocumentSpec]]:
+    """Walk for DOCUMENTS only.
+
+    A separate walk rather than a second return value from ``_collect``:
+    ``_collect``'s ``(root, max_files) -> list`` signature is monkeypatched by
+    ``tests/test_structcore_parallel.py`` to prove walk-order independence, and
+    widening it would break that proof for a saving of one os.walk (~0.2s on a
+    7k-file tree, and only when documents are enabled at all).
+    """
+    out: list[tuple[Path, str, DocumentSpec]] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith(".")]
+        for fn in filenames:
+            spec = doc_spec_for(fn)
             if spec is None:
                 continue
             p = Path(dirpath) / fn
@@ -354,7 +449,8 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
             out[i] = analyze_file(rel, text, spec, ts_on)
 
 
-def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
+def build_index(root, max_files: int = 20000, center=None, ignore=None,
+                documents: bool | None = None) -> dict:
     root = Path(root).resolve()
     collected = _collect(root, max_files)
 
@@ -365,6 +461,19 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         except OSError:
             continue
         records.append((rel, spec, text))
+
+    # DOCUMENTS. Off unless asked for -- see ``documents_enabled`` above for the
+    # measurement that decided that. When off, nothing below this flag executes
+    # and the returned dict is byte-identical to the pre-document build.
+    docs_on = documents_enabled(documents)
+    doc_records: list[tuple[str, DocumentSpec, str]] = []
+    if docs_on:
+        for path, rel, dspec in _collect_docs(root, max_files):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            doc_records.append((rel, dspec, text))
 
     # SCOPE: the declared center (what this project IS) plus .daedalusignore
     # (exceptions carved within it). Everything else in the repo is SHELL --
@@ -379,6 +488,11 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     scope = project_scope(root, center, ignore)
     ignored: frozenset[str] = frozenset(
         rel for rel, _, _ in records if scope.is_shell(rel))
+    # Documents obey the SAME scope. A vendored/spec-copy doc tree is shell for
+    # exactly the reasons a vendored source tree is; a new node kind does not get
+    # to walk around the boundary.
+    doc_ignored: frozenset[str] = frozenset(
+        rel for rel, _, _ in doc_records if scope.is_shell(rel))
 
     # Python dotted-name tables, per importer. A center root is also a PACKAGE
     # root, so files under it are named relative to it; everything else keeps
@@ -472,6 +586,78 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
                     dep_edges[rel].add(tgt_rel)
                     import_targets_by_rel[rel].add(tgt_rel)
 
+    # ----------------------------------------------------------------------- #
+    # DOCUMENT PASS. Serial, in the parent, and not on the disk cache: parsing
+    # markdown is a regex per line (measured 0.17s for this repo's 61 documents
+    # / 731k chars, 0.86s for project_tct's 338 / 3.7M), so a process pool would
+    # cost more to spawn than it saves, and adding a second cache schema for a
+    # fraction of the work is not worth the way a STALE document cache would
+    # fail: silently wrong structure.
+    #
+    # It runs AFTER the code pass because link resolution needs the whole file
+    # set -- same split as import resolution: extraction is per-file, resolution
+    # is whole-repo.
+    # ----------------------------------------------------------------------- #
+    doc_units: list[markdown_mod.DocSection] = []
+    doc_links: dict[str, set[str]] = defaultdict(set)
+    doc_totals = {"count": 0, "sections": 0, "links": 0,
+                  "links_external": 0, "links_unresolved": 0}
+    if doc_records:
+        # Link targets may be code OR another document; the resolvable universe
+        # is both. Deliberately NOT folded into ``by_basename``/``by_dir_tail``:
+        # those drive best-effort C/JS import resolution, where admitting a .md
+        # would let ``require('./README')`` bind to a document.
+        known_all = known_files | {rel for rel, _, _ in doc_records}
+        for rel, dspec, text in doc_records:
+            # A SHELL document is skipped before the parse, unlike a shell SOURCE
+            # file which is still parsed. The asymmetry is real, not an
+            # oversight: a shell source file is parsed so that a real file
+            # importing INTO it resolves to a true edge, whereas a shell
+            # document's links are withheld from metrics either way, and links
+            # INTO it already resolve via ``known_all`` above, which is built
+            # from the record list rather than from the parse.
+            if rel in doc_ignored:
+                continue
+            parsed = markdown_mod.parse_document(rel, text)
+            targets, unresolved = markdown_mod.internal_links(parsed, known_all)
+            n_external = len(parsed.external_links)
+            doc_totals["count"] += 1
+            doc_totals["sections"] += len(parsed.sections)
+            doc_totals["links"] += len(targets)
+            doc_totals["links_external"] += n_external
+            doc_totals["links_unresolved"] += unresolved
+            n_tokens = tokens.count_tokens(text)
+            total_chars += parsed.n_chars
+            total_tokens += n_tokens
+            doc_units.extend(parsed.sections)
+            if targets:
+                doc_links[rel].update(targets)
+            lang_summary[dspec.name]["files"] += 1
+            lang_summary[dspec.name]["loc"] += parsed.loc
+            # ``kind`` is THE discriminator (markdown.DOCUMENT_KIND). The
+            # code-health keys are present and zero because zero is their true
+            # value for a file with no code -- keeping every existing joiner
+            # (report.py, score_modules, the web payload) working without a type
+            # switch -- and ``kind`` is what tells a reader those zeros describe
+            # an absence of code, not unhealthy code.
+            modules[rel] = {
+                "kind": markdown_mod.DOCUMENT_KIND,
+                "language": dspec.name,
+                "loc": parsed.loc,
+                "n_tokens": n_tokens,
+                "title": parsed.title[:200],
+                "n_sections": len(parsed.sections),
+                "max_heading_depth": parsed.max_depth,
+                "n_links_internal": len(targets),
+                "n_links_external": n_external,
+                "n_links_unresolved": unresolved,
+                "n_functions": 0,
+                "comment_density": 0.0,
+                "guard_density": 0.0,
+                "guard_count": 0,
+                "long_functions": [],
+            }
+
     # Reverse of ``import_targets_by_rel``: who imports ME. Built ONCE here
     # because it is index-invariant, and ``semantic_slice`` is called in a loop
     # against a single shared index (eval harness, web API) -- inverting the
@@ -510,11 +696,28 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
     # that still contained SHELL units -- pulling a vendored body into a slice
     # the center was supposed to exclude. Reachable from /api/distill, where two
     # projects can share a repo_root under different centers.
-    _RESOLVER_CACHE[_scope_key(root, scope)] = graph.build_resolver(
-        all_units, import_targets_by_rel)
+    #
+    # DOCUMENT SECTIONS ARE IN THE RESOLVER, AND ONLY THERE. ``build_resolver``
+    # uses units for one thing -- ``defs_by_file`` -- and ``resolve`` consults
+    # that map only for the querying file itself and for files it IMPORTS.
+    # Nothing imports a document (document links are kept out of
+    # ``import_targets_by_rel`` on purpose), so a heading can never be returned
+    # as the resolution of a code identifier. What it CAN do is the thing the
+    # defect needs: ``context_plan._symbol_names`` reads ``defs_by_file``
+    # wholesale to build the BM25 lexical corpus, so heading titles become
+    # searchable evidence and a specification stops being invisible to the
+    # planner. Documents stay OUT of ``all_units`` so no clone pass sees prose.
+    _RESOLVER_CACHE[_scope_key(root, scope, docs_on)] = graph.build_resolver(
+        all_units + doc_units, import_targets_by_rel)
 
     churn = git_churn(root)
-    scored = score_modules(modules, churn)
+    # HOTSPOTS ARE A CODE-HEALTH RANKING, so documents are not in it. Left in,
+    # a 1,800-line handoff scores loc/50 = 36 -- competitive with real rot, with
+    # no code in it at all -- and ``spine/picker.hotspot_candidates`` turns a
+    # hotspot row into a work item reading "extract the long functions, keep
+    # every public name and signature". Against a document that instruction is
+    # self-contradictory and nothing downstream rejects it.
+    scored = score_modules(markdown_mod.code_modules({"modules": modules}), churn)
 
     # ADDITIVE AND GATED. An unconfigured repo with nothing to report must
     # produce a byte-identical index to before this change, so the key is
@@ -532,22 +735,68 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
             **naming_report,
         }
 
+    # SAME GATE, SAME REASON as ``python_naming``: present only when there is
+    # something to say. With documents off the returned dict has no document
+    # keys at all, so a pre-document consumer sees the dict it always saw and
+    # ``forest``/``slice``/``graph`` take their unchanged paths by construction
+    # rather than by a flag test. With documents ON, the block is never silent
+    # about what it withheld -- an unresolved link is a relation the map is NOT
+    # showing, and an unreported one is indistinguishable from a document that
+    # links to nothing.
+    if docs_on:
+        doc_rev: dict[str, set[str]] = defaultdict(set)
+        for src, tgts in doc_links.items():
+            for tgt in tgts:
+                doc_rev[tgt].add(src)
+        extra["documents"] = {
+            "enabled": True,
+            "parse_version": markdown_mod.DOCUMENT_PARSE_VERSION,
+            "extensions": sorted(DOCUMENT_EXTENSIONS),
+            "count": doc_totals["count"],
+            "n_scanned": len(doc_records),
+            "ignored_count": len(doc_ignored),
+            "n_sections": doc_totals["sections"],
+            "n_links": doc_totals["links"],
+            "n_links_external": doc_totals["links_external"],
+            "n_links_unresolved": doc_totals["links_unresolved"],
+            # Say the exclusions out loud. A consumer that sees documents in
+            # ``modules`` and zero of them in ``hotspots`` must be able to read
+            # WHY here instead of inferring a clean bill of health.
+            "excluded_from": [
+                "duplication", "fan_in", "hotspots", "import_edges",
+                "module_heat", "safety_graph_nodes", "temporal_misses",
+            ],
+        }
+        # The document relation layer, kept SEPARATE from ``import_edges``. A
+        # link is not an import: it carries no name binding, it does not make the
+        # target a dependency, and folding it in would silently move
+        # ``fan_in``, ``fenced_dominance`` and every reachability answer derived
+        # from the import graph. The forest is a MULTIPLEX graph precisely so a
+        # second kind of relation gets its own layer instead of contaminating one.
+        extra["document_links"] = {
+            m: sorted(t) for m, t in sorted(doc_links.items())}
+        extra["document_links_reverse"] = {
+            m: sorted(s) for m, s in sorted(doc_rev.items())}
+
     return {
         **extra,
         "root": str(root),
         "backend": backend_status(),
-        "n_files": len(records) - len(ignored),
+        "n_files": len(records) - len(ignored) + doc_totals["count"],
         # NEVER let exclusion be silent -- a shrunken duplication report that
         # does not say what it dropped reads exactly like a clean bill of health
         # (the same trap as report.truncated / S6's max_files ceiling).
         "ignored": {
-            "count": len(ignored),
-            "n_files_scanned": len(records),
+            # Documents obey the same scope, so a shell document is a withheld
+            # file exactly like a shell source file and is counted as one. With
+            # documents off both addends are zero and the numbers are unchanged.
+            "count": len(ignored) + len(doc_ignored),
+            "n_files_scanned": len(records) + len(doc_records),
             **scope.describe(),
             # Bounded sample, sorted for determinism -- the full list can be
             # tens of thousands of paths on a vendored tree.
-            "sample": sorted(ignored)[:25],
-            "truncated": len(ignored) > 25,
+            "sample": sorted(ignored | doc_ignored)[:25],
+            "truncated": len(ignored) + len(doc_ignored) > 25,
         },
         "languages": {k: v for k, v in sorted(lang_summary.items(),
                                               key=lambda kv: kv[1]["loc"], reverse=True)},
@@ -582,7 +831,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
         # The (root, scope) identity of THIS index. Additive. Lets a consumer
         # holding only the index dict ask for the resolver built alongside it
         # (``resolution_context``) instead of guessing at the bare-root key.
-        "scope_key": _scope_key(root, scope),
+        "scope_key": _scope_key(root, scope, docs_on),
         "hotspots": scored[:15],
         # Full ranking (same pass as ``hotspots``) so the map can heat-shade
         # every node, not just the top 15.
@@ -605,17 +854,27 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None) -> dict:
 _RESOLVER_CACHE: dict[str, "graph.SymbolResolver"] = {}
 
 
-def _scope_key(resolved: Path, scope) -> str:
-    """Cache identity of an index: its root, plus the scope when one is declared.
+def _scope_key(resolved: Path, scope, documents: bool = False) -> str:
+    """Cache identity of an index: its root, the scope when one is declared, and
+    whether documents were indexed.
 
     SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``.
     They are two views of one build and MUST agree; when they were keyed by
     different expressions they drifted apart and a scoped index was served with
     an unscoped resolver. An unscoped repo keeps its bare path key, so nothing
     changes for repos that never configure this.
+
+    ``documents`` is part of the key for the same reason ``scope`` is: a
+    document-bearing index is a DIFFERENT index (different ``modules``,
+    different ``total_tokens``, an extra relation layer, and a resolver whose
+    ``defs_by_file`` carries heading titles). Serving one to a caller that asked
+    for the other would present as the feature silently not working in one
+    process and silently working in the next -- the worst kind of bug to chase,
+    and the exact failure the scope fingerprint was added to close.
     """
     unscoped = not scope.center and not scope.ignore
-    return str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
+    base = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
+    return f"{base}+docs" if documents else base
 
 
 def resolution_context(repo_root, key: str | None = None) -> "graph.SymbolResolver | None":
@@ -644,7 +903,7 @@ def _build_lock(key: str) -> threading.Lock:
 
 
 def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
-                 center=None, ignore=None) -> dict:
+                 center=None, ignore=None, documents: bool | None = None) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -665,7 +924,13 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # so nothing changes for repos that never configure this.
     resolved = Path(repo_root).resolve()
     scope = project_scope(resolved, center, ignore)
-    key = _scope_key(resolved, scope)
+    # ``documents`` is resolved ONCE, here, and the same resolved boolean is used
+    # for both the key and the build. Reading the env var independently in
+    # ``build_index`` would let the two disagree if it changed between the two
+    # reads, and the cache would then be keyed for one answer while holding the
+    # other.
+    docs_on = documents_enabled(documents)
+    key = _scope_key(resolved, scope, docs_on)
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
     with _build_lock(key):
@@ -675,7 +940,8 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
         # it, and then this call is a cache hit rather than a second scan.
         if key not in _INDEX_CACHE:
             _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files,
-                                           center=center, ignore=ignore)
+                                           center=center, ignore=ignore,
+                                           documents=docs_on)
         return _INDEX_CACHE[key]
 
 

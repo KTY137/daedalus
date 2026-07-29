@@ -233,16 +233,34 @@ def temporal_misses(idx: dict, pairs: list[dict], min_pmi: float = 0.0) -> list[
     avoid a churn<->index import cycle (index.py imports ``git_churn`` from
     this module already).
     """
+    from .markdown import is_document
+
     edges = idx.get("import_edges", {})
+    # CODE ONLY, and not for tidiness. This function's entire claim is "real
+    # coupling the import graph CANNOT see", and its filter for false positives
+    # is ``_linked`` -- a static import edge. A document has no import edge by
+    # construction, so a doc<->code pair can never be excluded, while docs and
+    # the code they describe co-change constantly (you update the handoff with
+    # the change). Every such pair would enter the report as maximal-confidence
+    # "hidden coupling", and the headline case FOR a temporal tier would be
+    # built out of the one pair class the import graph is RIGHT to omit.
     modules = idx.get("modules", {})
 
     def _linked(a: str, b: str) -> bool:
         return b in edges.get(a, ()) or a in edges.get(b, ())
 
+    def _is_doc(rel: str) -> bool:
+        return is_document(modules.get(rel))
+
     out = []
     for row in pairs:
         a, b = row["a"], row["b"]
         if row["pmi"] < min_pmi or _linked(a, b):
+            continue
+        # A pair is dropped ONLY when a side is a document -- a rel absent from
+        # ``modules`` entirely (deleted, shell, out of scope) keeps its previous
+        # treatment, so this filter is inert on an index built without documents.
+        if _is_doc(a) or _is_doc(b):
             continue
         loc_a = modules.get(a, {}).get("loc", 0)
         loc_b = modules.get(b, {}).get("loc", 0)

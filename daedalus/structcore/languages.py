@@ -259,3 +259,70 @@ def spec_for(path) -> LanguageSpec | None:
     from pathlib import Path
 
     return SPECS.get(Path(path).suffix.lower())
+
+
+# --------------------------------------------------------------------------- #
+# DOCUMENTS — a second node kind, deliberately a SEPARATE registry              #
+# --------------------------------------------------------------------------- #
+# A DocumentSpec is NOT a LanguageSpec and ``.md`` is deliberately NOT added to
+# ``SPECS``. ``spec_for`` is not a lookup table, it is a CLAIM, and thirteen call
+# sites read it as one:
+#
+#   * ``index._collect``          -- non-None decides what enters ``modules``;
+#   * ``provider_router._looks_like_missed_source`` -- non-None + on disk + not a
+#     graph node ⇒ ESCALATE the change-risk tier. Every .md in the repo would
+#     start reading as "a source file the graph should have known about";
+#   * ``eval/harness._whole_repo_text`` / ``_repo_chunks`` -- non-None decides
+#     what the Tier-2 A/B baseline concatenates, i.e. the published denominator;
+#   * ``eval/mint`` -- non-None makes a file an eligible label source, and a
+#     markdown anchor would discard every code label as "cross-language";
+#   * ``eval/ceiling._symbol_defs``, ``slice._skeleton``, ``room._skeleton`` --
+#     non-None means "unit-level ground truth exists here", which for prose is
+#     false.
+#
+# Every one of those reads is CORRECT about a document: prose has no functions,
+# no imports and no clone units. So the honest move is to leave ``spec_for``
+# answering None for documents -- it keeps its meaning, and all thirteen call
+# sites keep theirs -- and to give documents their own registry that only the
+# document path consults.
+@dataclass(frozen=True)
+class DocumentSpec:
+    """Declarative facts about a document format. Same shape of contract as
+    ``LanguageSpec``: adding a format is data, not code."""
+
+    name: str
+    extensions: tuple[str, ...]
+    # Human-readable statement of what the parser is able to derive, carried
+    # into the index so a consumer never has to infer coverage from silence.
+    hierarchy: str = ""
+    unit: str = ""
+
+
+_DOC_SPECS: tuple[DocumentSpec, ...] = (
+    DocumentSpec(
+        name="markdown",
+        # PDF is deliberately absent: no reliable structure, lossy extraction,
+        # and it raises a separate egress question. Out of scope, on purpose.
+        extensions=(".md", ".markdown", ".mdx"),
+        hierarchy="heading levels (H1 -> H2 -> H3)",
+        unit="section (heading + body up to the next heading of equal or higher level)",
+    ),
+)
+
+DOC_SPECS: dict[str, DocumentSpec] = {}
+for _dspec in _DOC_SPECS:
+    for _ext in _dspec.extensions:
+        DOC_SPECS[_ext] = _dspec
+
+DOCUMENT_EXTENSIONS: frozenset[str] = frozenset(DOC_SPECS)
+
+
+def doc_spec_for(path) -> DocumentSpec | None:
+    """Return the DocumentSpec for a path by extension, or None.
+
+    Independent of ``spec_for``: a path answers non-None to exactly one of them
+    (or to neither). Nothing answers both.
+    """
+    from pathlib import Path
+
+    return DOC_SPECS.get(Path(path).suffix.lower())

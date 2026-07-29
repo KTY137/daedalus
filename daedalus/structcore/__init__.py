@@ -19,8 +19,12 @@ a language-agnostic core the rest of Daedalus consumes.
 """
 from __future__ import annotations
 
-from .languages import LanguageSpec, spec_for, SPECS
-from .index import build_index, backend_status, cached_index
+from .languages import (LanguageSpec, spec_for, SPECS,
+                        DocumentSpec, doc_spec_for, DOC_SPECS)
+from .index import build_index, backend_status, cached_index, documents_enabled
+from .markdown import (DOCUMENT_KIND, DocSection, DocSkeleton, DocumentParse,
+                       code_modules, document_modules, document_skeleton,
+                       is_document, parse_document)
 from .forest import (
     ForestEdge,
     ForestHyperedge,
@@ -48,6 +52,11 @@ __all__ = [
     "build_knowledge_forest",
     "ForestHierarchy", "DSSConfig", "ContextPlan", "DSSReceipt", "DSSResult",
     "build_forest_hierarchy", "semantic_super_sample",
+    # documents (opt-in node kind)
+    "DocumentSpec", "doc_spec_for", "DOC_SPECS", "documents_enabled",
+    "DOCUMENT_KIND", "DocSection", "DocSkeleton", "DocumentParse",
+    "parse_document", "document_skeleton", "is_document",
+    "code_modules", "document_modules",
 ]
 
 
