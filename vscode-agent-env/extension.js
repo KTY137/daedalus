@@ -306,6 +306,30 @@ function nonce() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// ===========================================================================
+// UNREACHABLE. MEASURED 2026-07-29: `dashboardHtml` has ZERO callers.
+//
+// Both webview entry points -- the `daedalus.openDashboard` command and the
+// Activity Bar view provider -- go through `bindDashboardWebview`, which
+// assigns `agentOsHtml(project)`: an IFRAME onto the React web app served at
+// 127.0.0.1:8765. Nothing a user can click renders one byte of the ~760 lines
+// below.
+//
+// This matters beyond tidiness, because two test files describe this template
+// as a live product surface. tests/test_ui_contract.py opens with "the VS Code
+// webview and the React webapp must render the SAME dashboard shape", and
+// tests/test_mission_control.py pins "the JSON shapes the Mission Control
+// webview depends on". Both pin `core.get_dashboard`, which is real and worth
+// pinning -- but there are not two rendering surfaces here. There is ONE (the
+// web app) and a window onto it. A reader who trusts those docstrings will
+// believe a panel is shipping that no user has ever seen.
+//
+// Left in place rather than deleted: removing 760 lines is a deliberate act
+// that deserves its own review, not a drive-by at the end of a session. It is
+// labelled instead, and tests/test_ui_governance.py holds this comment to the
+// code -- if anyone wires this template back up, that test fails until the
+// claim here is corrected.
+// ===========================================================================
 function dashboardHtml(n) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -477,6 +501,11 @@ function dashboardHtml(n) {
   .gate-row .g-result { font-weight: 600; }
   .gate-row.pass .g-result { color: var(--mc-success); }
   .gate-row.fail .g-result { color: var(--mc-danger); }
+  /* An unmeasured gate must be visually distinct from a passing one on more
+     than hue, so it survives a greyscale screenshot and a colourblind viewer:
+     amber, a "?" glyph, and the word "unknown" all disagree with "Pass". */
+  .gate-row.warn .glyph { color: var(--mc-warning); }
+  .gate-row.warn .g-result { color: var(--mc-warning); font-style: italic; }
 
   .meter-card { background: var(--mc-surface-card); border: 1px solid var(--mc-border); border-radius: 6px; padding: var(--space-3); }
   .meter-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); font-size: var(--text-small); }
@@ -553,6 +582,11 @@ function dashboardHtml(n) {
 <main>
   <section id="overview" class="page active">
     <div id="warnings"></div>
+    <section class="block">
+      <h2>Promotion</h2>
+      <div class="desc">May this system promote anything right now, and why not?</div>
+      <div id="governanceGrid"></div>
+    </section>
     <section class="block">
       <h2>Status</h2>
       <div class="kpi-row" id="overviewGrid"></div>
@@ -827,20 +861,99 @@ function renderModels() {
     '</div></section>' +
     '<section class="block"><h2>Suggested Pulls</h2><div class="desc">Commands are copied to your clipboard, never run automatically.</div><div class="pull-list">' + (recs || '<div class="desc">No suggestions right now.</div>') + '</div></section>';
 }
+// FIVE states, and they must never collapse into green. "unknown" is rendered
+// as the word "unknown" on purpose: a UI that shows a plausible zero for a
+// number nobody measured is worse than one that admits it does not know.
+// (No backticks anywhere below: this whole block lives inside a template
+// literal, and a stray backtick silently truncates the entire webview.)
+const GOV_STATE_META = {
+  working:  { glyph: '&#10003;', cls: 'pass', label: 'working'  },
+  present:  { glyph: '&#9679;',  cls: 'warn', label: 'present'  },
+  degraded: { glyph: '&#9888;',  cls: 'fail', label: 'degraded' },
+  absent:   { glyph: '&#10007;', cls: 'fail', label: 'absent'   },
+  unknown:  { glyph: '?',        cls: 'warn', label: 'unknown'  }
+};
+function govMeta(s) { return GOV_STATE_META[s] || GOV_STATE_META.unknown; }
+function renderGovernance() {
+  const el = document.getElementById('governanceGrid');
+  if (!el) { return; }
+  const g = state.governance;
+  // No payload is NOT "fine". An older backend that does not serve this block
+  // must read as unknown, never as permission.
+  if (!g) {
+    el.innerHTML = '<div class="banner danger"><span class="glyph">?</span><span>' +
+      'Promotion status is <strong>unknown</strong>: this backend did not report a ' +
+      'governance verdict. Treat it as unproven, not as permission.</span></div>';
+    return;
+  }
+  const allowed = g.promotion_allowed === true;
+  const meta = govMeta(g.state);
+  const head = g.head ? String(g.head).slice(0, 12) : 'unknown';
+  const banner = '<div class="banner' + (allowed ? '' : ' danger') + '">' +
+    '<span class="glyph">' + (allowed ? '&#10003;' : '&#10007;') + '</span><span><strong>' +
+    (allowed ? 'Promotion allowed' : 'Promotion REFUSED') + '</strong> &middot; ' +
+    esc(g.verdict || '') + '</span></div>';
+  const rows = (g.gates || []).map(function (gate) {
+    const m = govMeta(gate.state);
+    return '<div class="gate-row ' + m.cls + '"><span class="glyph">' + m.glyph + '</span>' +
+      '<span class="g-name">' + esc(gate.id || '') + '</span>' +
+      '<span class="g-reason">' + esc(gate.headline || '') + '</span>' +
+      '<span class="g-result">' + esc(m.label) + '</span></div>';
+  }).join('');
+  // Provenance is rendered, not just recorded: an INHERITED verdict is a
+  // measurement of some other tree until proven otherwise.
+  const prov = (g.gates || []).map(function (gate) {
+    return esc(gate.id || '') + ': ' + esc(gate.provenance || 'ASSUMED');
+  }).join(' &middot; ');
+  el.innerHTML = banner +
+    (rows ? '<div class="gate-list" style="margin-top:var(--space-3);">' + rows + '</div>' : '') +
+    '<div class="desc" style="margin-top:var(--space-2);">Aggregate state: <strong>' +
+    esc(meta.label) + '</strong> &middot; HEAD ' + esc(head) + '</div>' +
+    (prov ? '<div class="desc">Provenance &mdash; ' + prov + '</div>' : '');
+}
 function renderQuality() {
   const q = state.quality || {};
+  // MEASURED DEFECT, fixed here: these gates used to negate q.stale_watchers
+  // and q.fallback_alarm directly. When the quality block was missing -- a
+  // failed dashboard fetch, an older backend -- both operands were undefined,
+  // so both negations were TRUE and the panel rendered two green PASSES for
+  // measurements that had never been taken. "We did not ask" was rendering
+  // identically to "we asked and it was fine". A gate whose input is absent is
+  // now UNKNOWN, which is not a pass.
+  const known = k => Object.prototype.hasOwnProperty.call(q, k) && q[k] !== null && q[k] !== undefined;
+  const bgate = (name, key, reason) => ({
+    name: name,
+    state: known(key) ? (q[key] ? 'pass' : 'fail') : 'unknown',
+    reason: reason
+  });
   const gates = [
-    { name: 'schema_non_empty_summary', pass: Boolean(q.schema_non_empty_summary), reason: 'Empty-summary reports are not accepted.' },
-    { name: 'local_only_never_claude', pass: Boolean(q.local_only_never_claude), reason: 'local_only lane must never reach the Claude provider.' },
-    { name: 'empty_reports_fail', pass: Boolean(q.empty_reports_fail), reason: 'Reports with no content must fail, not silently pass.' },
-    { name: 'stale_watchers == 0', pass: !q.stale_watchers, reason: (q.stale_watchers || 0) + ' stale watcher(s) detected.' },
-    { name: 'fallback_alarm == false', pass: !q.fallback_alarm, reason: 'Fallback alarm is active.' }
+    bgate('schema_non_empty_summary', 'schema_non_empty_summary', 'Empty-summary reports are not accepted.'),
+    bgate('local_only_never_claude', 'local_only_never_claude', 'local_only lane must never reach the Claude provider.'),
+    bgate('empty_reports_fail', 'empty_reports_fail', 'Reports with no content must fail, not silently pass.'),
+    { name: 'stale_watchers == 0',
+      state: known('stale_watchers') ? (q.stale_watchers ? 'fail' : 'pass') : 'unknown',
+      reason: (q.stale_watchers || 0) + ' stale watcher(s) detected.' },
+    { name: 'fallback_alarm == false',
+      state: known('fallback_alarm') ? (q.fallback_alarm ? 'fail' : 'pass') : 'unknown',
+      reason: 'Fallback alarm is active.' }
   ];
-  const rows = gates.map(g => '<div class="gate-row ' + (g.pass ? 'pass' : 'fail') + '"><span class="glyph">' + (g.pass ? '&#10003;' : '&#10007;') + '</span><span class="g-name">' + esc(g.name) + '</span>' +
-    (g.pass ? '' : '<span class="g-reason">' + esc(g.reason) + '</span>') + '<span class="g-result">' + (g.pass ? 'Pass' : 'Fail') + '</span></div>').join('');
+  const GLYPH = { pass: '&#10003;', fail: '&#10007;', unknown: '?' };
+  const WORD = { pass: 'Pass', fail: 'Fail', unknown: 'unknown' };
+  const CLS = { pass: 'pass', fail: 'fail', unknown: 'warn' };
+  const UNMEASURED = 'Not measured in this run -- this is NOT a pass.';
+  const rows = gates.map(g => '<div class="gate-row ' + CLS[g.state] + '"><span class="glyph">' + GLYPH[g.state] + '</span><span class="g-name">' + esc(g.name) + '</span>' +
+    (g.state === 'pass' ? '' : '<span class="g-reason">' + esc(g.state === 'unknown' ? UNMEASURED : g.reason) + '</span>') +
+    '<span class="g-result">' + WORD[g.state] + '</span></div>').join('');
+  // Same rule for the meter: an unmeasured rate rendered "0%", which is the
+  // most flattering number it could possibly have invented.
+  const rateKnown = known('fallback_rate');
   const ratePct = Math.round((q.fallback_rate || 0) * 100);
-  const meterCls = q.fallback_alarm ? 'danger' : (ratePct >= 20 ? 'warn' : '');
-  const meter = '<div class="meter-card"><div class="meter-head"><span>Fallback rate</span>' + (q.fallback_alarm ? '<span class="alarm-tag">ALARM</span>' : '') + '</div><div class="meter-track"><div class="meter-fill' + (meterCls ? ' ' + meterCls : '') + '" style="width:' + Math.max(ratePct, 4) + '%">' + ratePct + '%</div></div></div>';
+  const meterCls = q.fallback_alarm ? 'danger' : (rateKnown && ratePct >= 20 ? 'warn' : '');
+  const meter = '<div class="meter-card"><div class="meter-head"><span>Fallback rate</span>' + (q.fallback_alarm ? '<span class="alarm-tag">ALARM</span>' : '') + '</div>' +
+    (rateKnown
+      ? '<div class="meter-track"><div class="meter-fill' + (meterCls ? ' ' + meterCls : '') + '" style="width:' + Math.max(ratePct, 4) + '%">' + ratePct + '%</div></div>'
+      : '<div class="desc">unknown &mdash; no fallback rate was reported, so no rate is shown.</div>') +
+    '</div>';
   const callout = q.recommendation ? '<div class="callout"><span class="glyph">&#128161;</span><span>' + esc(q.recommendation) + '</span></div>' : '';
   document.getElementById('qualityGrid').innerHTML =
     '<section class="block"><h2>Quality Gates</h2><div class="gate-list">' + rows + '</div></section>' +
@@ -969,7 +1082,7 @@ function renderRoleWheel() {
   renderWheelStage();
   renderWheelDetail();
 }
-function renderAll() { renderProjects(); renderOverview(); renderQueue(); renderSquads(); renderModels(); renderQuality(); renderRoleWheel(); }
+function renderAll() { renderProjects(); renderOverview(); renderGovernance(); renderQueue(); renderSquads(); renderModels(); renderQuality(); renderRoleWheel(); }
 function save() {
   const activeAgents = Array.from(document.querySelectorAll('.toggle.on[data-agent]')).map(el => el.dataset.agent);
   vscode.postMessage({ type: 'saveTeam', project: projectEl.value, maxWorkers: workersEl.value, defaultLane: laneEl.value, activeAgents });

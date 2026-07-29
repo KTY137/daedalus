@@ -431,6 +431,395 @@ def routing_summary(project: str | None, watcher: dict[str, Any], models: dict[s
     return {"selected_lane": selected, "recommended_lane": "auto", "reason": "Ollama is unavailable; auto can use trusted fallback with confirmation policy."}
 
 
+# --------------------------------------------------------------------------- #
+# governance: may this system promote anything right now, and WHY NOT?         #
+# --------------------------------------------------------------------------- #
+# Three mechanisms landed in this repo that no surface could show. An operator
+# looking at any screen could not answer the one question that decides whether
+# a candidate patch may be trusted. This block is that answer, and it is
+# deliberately built to be UNABLE to say "green" by accident:
+#
+#   * Every gate carries one of FIVE states -- working / present / degraded /
+#     absent / unknown -- and the aggregate is the WORST of them, never an
+#     average and never a majority vote.
+#   * Every value carries a provenance label (MEASURED / INHERITED / ASSUMED).
+#     A receipt read off disk is INHERITED, not MEASURED, because it was
+#     measured against a revision that may no longer be this one.
+#   * The default for "I could not tell" is `unknown`, which renders as the
+#     word "unknown" to the user. It is never coerced to a zero or a tick.
+#
+# `promotion_allowed` here is DERIVED from spine.bootstrap.gate_discrimination
+# and nothing else, so this surface cannot drift into permitting something the
+# shadow runner would refuse. tests/test_ui_governance.py pins that agreement.
+
+GOVERNANCE_STATES = ("working", "present", "degraded", "absent", "unknown")
+# Worst-first. Aggregation takes the minimum position in this order.
+_GOVERNANCE_SEVERITY = ("unknown", "absent", "degraded", "present", "working")
+
+# A path that is deliberately outside this repo's `write_allow` and is NOT on
+# any generic denylist, so a block can only come from the confinement itself.
+_CONFINEMENT_PROBE_DENIED = "z_governance_probe/probe.py"
+
+
+def _worst_state(states: list[str]) -> str:
+    """The aggregate is the WORST gate, never the average.
+
+    Two working gates and one absent gate is an absent system. Averaging is how
+    a dashboard turns a missing measurement into a passing grade.
+    """
+    if not states:
+        return "unknown"
+    return min(states, key=lambda s: _GOVERNANCE_SEVERITY.index(s)
+               if s in _GOVERNANCE_SEVERITY else 0)
+
+
+def _head_sha_safe(repo_root: str) -> str | None:
+    if not repo_root:
+        return None
+    try:
+        from .spine.picker import _head_sha
+
+        return _head_sha(repo_root)
+    except Exception:                            # noqa: BLE001
+        return None
+
+
+def _gov_discrimination(repo_root: str, head: str | None) -> dict[str, Any]:
+    """Has the gate been SHOWN to separate good patches from bad ones?"""
+    gate = {
+        "id": "discrimination",
+        "question": "Has the test gate been shown to catch planted defects at THIS revision?",
+        "state": "unknown",
+        "headline": "could not be evaluated",
+        "provenance": "ASSUMED",
+        "detail": None,
+    }
+    if not repo_root:
+        gate["headline"] = ("no repo_root is configured for this project, so no "
+                            "receipt can be located")
+        return gate
+    try:
+        from .spine.bootstrap import (DISCRIMINATION_REL_PATH, KILL_RATE_FLOOR,
+                                      gate_discrimination)
+    except Exception as e:                       # noqa: BLE001
+        gate["headline"] = f"the discrimination module is unavailable ({type(e).__name__})"
+        return gate
+    receipt = Path(repo_root) / DISCRIMINATION_REL_PATH
+    try:
+        gd = gate_discrimination(repo_root, head=head)
+    except Exception as e:                       # noqa: BLE001
+        gate["headline"] = f"the discrimination gate raised {type(e).__name__}"
+        return gate
+    gate["detail"] = gd.to_dict()
+    gate["reason"] = gd.reason
+    gate["kill_rate_floor"] = KILL_RATE_FLOOR
+    gate["receipt_path"] = DISCRIMINATION_REL_PATH
+    if gd.proven:
+        # MEASURED, and only here: proven means the receipt was tied to THIS
+        # revision, so the number describes the tree in front of the operator.
+        gate.update(state="working", provenance="MEASURED",
+                    headline=gd.reason)
+        return gate
+    if not receipt.exists():
+        gate.update(state="absent", provenance="MEASURED",
+                    headline="no discrimination measurement exists at all, so a "
+                             "green suite means only that pytest ran")
+        return gate
+    # A receipt exists and was refused. INHERITED: the number on disk was
+    # measured, but against a tree that is not necessarily this one.
+    gate.update(state="degraded", provenance="INHERITED", headline=gd.reason)
+    return gate
+
+
+def _gov_write_confinement(repo_root: str, project: str | None) -> dict[str, Any]:
+    """Is the local write lane confined to a declared allow-list?
+
+    This gate is MEASURED, not inspected. Reading `write_allow` out of the
+    config proves only that somebody typed it; the repo learned that lesson the
+    expensive way when a prose policy claimed to deny 12 paths and 8 of them
+    were writable. So the check actually calls the predicate that guards live
+    writes and confirms it refuses a path outside the list.
+
+    Takes a project NAME rather than a pre-loaded config dict, deliberately:
+    the whole point is to resolve the policy through the same call the live
+    write path makes, and a caller that hands in an already-resolved dict can
+    hand in one the write path would never have chosen.
+    """
+    gate = {
+        "id": "write_confinement",
+        "question": "Is the local write lane confined to a declared allow-list?",
+        "state": "unknown",
+        "headline": "could not be evaluated",
+        "provenance": "ASSUMED",
+        "write_allow": [],
+        "detail": None,
+    }
+    try:
+        from .sensitivity import load_policy, path_write_blocked
+    except Exception as e:                       # noqa: BLE001
+        gate["headline"] = f"the policy module is unavailable ({type(e).__name__})"
+        return gate
+    # ASK THE REAL RESOLVER; DO NOT RE-DERIVE THE POLICY HERE.
+    #
+    # This gate previously read the raw registry file and diffed it against the
+    # raw repo-local file itself. That was wrong twice over. It reimplemented a
+    # safety decision the safety core owns, and -- MEASURED -- it kept reporting
+    # `degraded` for a bypass that commit 8e48783 had already CLOSED, because
+    # the merge that closes it happens inside `config.resolve_project` and this
+    # code never called it. A surface that cries degraded after the defect is
+    # fixed teaches operators to ignore it, which is the same failure mode as a
+    # control that always passes.
+    #
+    # So: resolve exactly the way the live write path does. `offload` does
+    #     pdata = resolve_project(repo_root, project)
+    #     pol   = load_policy(pdata) if pdata and pdata.get("policy") else None
+    # and this mirrors it, with the SAME project name the operator is asking
+    # about. Whatever the safety core decides about precedence, this gate now
+    # inherits automatically instead of holding a stale second opinion.
+    cfg = None
+    repo_local = None
+    if repo_root:
+        try:
+            from .config import resolve_project
+
+            cfg = resolve_project(repo_root, project)
+            # Still read the repo-local file separately, but ONLY to detect a
+            # genuine disagreement below -- never to second-guess precedence.
+            repo_local = resolve_project(repo_root, None)
+        except Exception as e:                   # noqa: BLE001
+            gate["headline"] = f"the project policy could not be resolved ({type(e).__name__})"
+            return gate
+    if not (cfg and cfg.get("policy")):
+        cfg = repo_local or cfg
+    if not (cfg and cfg.get("policy")):
+        gate.update(state="absent", provenance="MEASURED",
+                    headline="no policy is installed for this project, so the "
+                             "local write lane is UNCONFINED")
+        return gate
+    try:
+        pol = load_policy(cfg)
+    except Exception as e:                       # noqa: BLE001
+        gate["headline"] = f"the policy could not be parsed ({type(e).__name__})"
+        return gate
+    allow = list(pol.write_allow)
+    gate["write_allow"] = allow
+    gate["high_risk_paths"] = list(getattr(pol, "high_risk_path_substrings", ()))[:40]
+    # THE PART OF THE OLD CHECK THAT IS STILL MEANINGFUL. The specific
+    # "registry silently unconfines" case is closed (8e48783 intersects the
+    # repo-local write_allow into the named entry). But two policy sources can
+    # still disagree for other reasons, and a confinement that is WIDER for a
+    # named project than for an unnamed one would be the same class of hole.
+    # So the invariant is checked directly, against resolved policies:
+    # naming a project must never grant MORE write permission than not naming
+    # one. This is stated as a property, not as a diff of two files, so it
+    # keeps holding however the safety core chooses to merge them.
+    try:
+        if project and repo_local is not None and cfg is not repo_local:
+            local_allow = set(load_policy(repo_local).write_allow)
+            named_allow = set(allow)
+            widened = named_allow - local_allow if local_allow else set()
+            if local_allow and widened:
+                gate.update(
+                    state="degraded", provenance="MEASURED",
+                    headline=("naming this project WIDENS the write lane: "
+                              + ", ".join(sorted(widened)) + " is writable under "
+                              "--project " + str(project) + " but not under the "
+                              "repo-local policy. Naming a project must never "
+                              "grant more permission than not naming one."),
+                    detail={"named_write_allow": sorted(named_allow),
+                            "repo_local_write_allow": sorted(local_allow),
+                            "widened_by_naming": sorted(widened)})
+                return gate
+    except Exception:                            # noqa: BLE001 - advisory only
+        pass
+    if not allow:
+        gate.update(state="absent", provenance="MEASURED",
+                    headline="a policy is installed but declares no write_allow, "
+                             "so the local write lane is UNCONFINED -- the "
+                             "egress allow-list does NOT gate writes")
+        return gate
+    # The live probe. Anything outside the list must be refused by the same
+    # predicate that guards a real write.
+    try:
+        denied_blocked = bool(path_write_blocked(_CONFINEMENT_PROBE_DENIED, pol))
+        entry = allow[0]
+        permitted = entry + "z_governance_probe.md" if entry.endswith("/") else entry
+        permitted_blocked = bool(path_write_blocked(permitted, pol))
+    except Exception as e:                       # noqa: BLE001
+        gate["headline"] = f"the confinement probe raised {type(e).__name__}"
+        return gate
+    gate["detail"] = {
+        "probe_outside_allow": _CONFINEMENT_PROBE_DENIED,
+        "probe_outside_allow_blocked": denied_blocked,
+        "probe_inside_allow": permitted,
+        "probe_inside_allow_blocked": permitted_blocked,
+    }
+    if not denied_blocked:
+        gate.update(state="degraded", provenance="MEASURED",
+                    headline=(f"write_allow declares {len(allow)} entr"
+                              f"{'y' if len(allow) == 1 else 'ies'} but a path "
+                              f"outside it was still writable -- the confinement "
+                              f"does not hold"))
+        return gate
+    if permitted_blocked:
+        # Confinement holds, but it is narrower than declared: an entry that
+        # permits nothing reads as "I allowed this" while allowing nothing.
+        gate.update(state="degraded", provenance="MEASURED",
+                    headline=(f"writes are confined, but the declared entry "
+                              f"{entry!r} is itself blocked -- the allow-list is "
+                              f"narrower than it claims"))
+        return gate
+    gate.update(state="working", provenance="MEASURED",
+                headline=("writes are confined to " + ", ".join(allow)
+                          + " -- verified by probing the live write predicate"))
+    return gate
+
+
+def _gov_operability_drill(repo_root: str, head: str | None) -> dict[str, Any]:
+    """Was every operability control tripped end-to-end, at this revision?"""
+    gate = {
+        "id": "operability_drill",
+        "question": "Was every operability control tripped end-to-end at THIS revision?",
+        "state": "unknown",
+        "headline": "could not be evaluated",
+        "provenance": "ASSUMED",
+        "controls": [],
+        "detail": None,
+    }
+    rel = "runs/spine/operability_drill.json"
+    gate["receipt_path"] = rel
+    if not repo_root:
+        gate["headline"] = "no repo_root is configured, so no drill receipt can be located"
+        return gate
+    path = Path(repo_root) / rel
+    if not path.exists():
+        gate.update(state="absent", provenance="MEASURED",
+                    headline="the operability drill has never been run in this "
+                             "checkout, so no control is known to hold")
+        return gate
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        gate["headline"] = f"the drill receipt is unreadable ({type(e).__name__})"
+        return gate
+    if not isinstance(doc, dict):
+        gate["headline"] = "the drill receipt is not an object"
+        return gate
+    measured_head = str(doc.get("head") or "").strip() or None
+    passed, failed = doc.get("passed"), doc.get("failed")
+    incomplete = doc.get("incomplete")
+    defensible = bool(doc.get("scheduling_defensible"))
+    controls = doc.get("controls")
+    if isinstance(controls, list):
+        # Bounded on purpose: this payload rides along with every dashboard
+        # poll. Names and effects, never the telemetry blobs.
+        gate["controls"] = [
+            {"name": str(c.get("name") or "")[:120],
+             "status": str(c.get("status") or "UNKNOWN")[:20],
+             "effect": str(c.get("effect") or "")[:240]}
+            for c in controls if isinstance(c, dict)
+        ][:40]
+    gate["detail"] = {"head": measured_head, "passed": passed, "failed": failed,
+                      "incomplete": incomplete,
+                      "scheduling_defensible": defensible,
+                      "measured_at": doc.get("measured_at")}
+    stale = bool(head and measured_head and not head.startswith(measured_head[:12]))
+    if stale:
+        gate.update(state="degraded", provenance="INHERITED",
+                    headline=(f"the last drill ran at {measured_head[:12]}, but "
+                              f"HEAD is {head[:12]} -- these controls were shown "
+                              f"to hold on a tree that is not this one"))
+        return gate
+    if not measured_head:
+        gate.update(state="degraded", provenance="INHERITED",
+                    headline="the drill receipt records no revision, so it cannot "
+                            "be tied to this tree")
+        return gate
+    if failed:
+        gate.update(state="degraded", provenance="INHERITED",
+                    headline=f"{failed} operability control(s) did not hold")
+        return gate
+    if incomplete:
+        # "skipped" is never "pass".
+        gate.update(state="present", provenance="INHERITED",
+                    headline=(f"{incomplete} control(s) could not be exercised, so "
+                              f"the drill is INCOMPLETE, not passing"))
+        return gate
+    if defensible:
+        gate.update(state="working", provenance="INHERITED",
+                    headline=f"all {passed} operability controls were tripped and held")
+        return gate
+    gate.update(state="degraded", provenance="INHERITED",
+                headline="the drill did not declare scheduling defensible")
+    return gate
+
+
+def get_governance(project: str | None = None) -> dict[str, Any]:
+    """May this system promote anything right now, and why not?
+
+    One payload, one shape, consumed identically by the HTTP API, the VS Code
+    Mission Control webview and the web app. Adding a consumer must not add a
+    second opinion, which is why this is computed here and not in any surface.
+    """
+    # RESOLVED THE SAME WAY get_dashboard RESOLVES IT, and that is not a
+    # cosmetic detail. The first version took `project` literally while the
+    # dashboard defaulted to the first registered project, so /api/governance
+    # and dashboard["governance"] answered about DIFFERENT REPOSITORIES and
+    # disagreed about whether writes were confined -- one said `degraded`, the
+    # other `absent`, for the same machine at the same instant. Two surfaces,
+    # two answers, which is the exact defect this whole payload exists to stop.
+    # tests/test_ui_governance.py caught it and now pins it.
+    try:
+        names = list_projects()
+    except OSError:
+        names = []
+    selected = project or (names[0] if names else None)
+    pdata, load_warning = _safe_load_project(selected)
+    repo_root = str(pdata.get("repo_root", "")) if pdata else ""
+    if not repo_root:
+        try:
+            repo_root = str(ROOT)
+        except Exception:                        # noqa: BLE001
+            repo_root = ""
+    head = _head_sha_safe(repo_root)
+    gates = [
+        _gov_discrimination(repo_root, head),
+        _gov_write_confinement(repo_root, selected),
+        _gov_operability_drill(repo_root, head),
+    ]
+    # The headline verdict is DERIVED from the discrimination gate alone,
+    # matching spine.bootstrap.ShadowResult.promotion_allowed exactly. The other
+    # gates inform the operator; they do not get a vote on promotion, because a
+    # second opinion here is how an override sneaks in.
+    disc = gates[0]
+    promotion_allowed = disc["state"] == "working"
+    blockers = [
+        {"gate": g["id"], "state": g["state"], "why": g["headline"]}
+        for g in gates if g["state"] != "working"
+    ]
+    if promotion_allowed:
+        verdict = ("the gate has demonstrated discrimination at this revision; "
+                   "promotion is still a human act")
+    else:
+        verdict = ("promotion is REFUSED: " + disc["headline"])
+    warnings = [load_warning] if load_warning else []
+    if head is None:
+        warnings.append("The current revision could not be read, so every "
+                        "revision-tied claim below is reported as unknown.")
+    return envelope(
+        project,
+        promotion_allowed=promotion_allowed,
+        verdict=verdict,
+        state=_worst_state([g["state"] for g in gates]),
+        head=head,
+        repo_root=repo_root,
+        gates=gates,
+        blockers=blockers,
+        states_vocabulary=list(GOVERNANCE_STATES),
+        warnings=warnings,
+    )
+
+
 def get_dashboard(project: str | None = None) -> dict[str, Any]:
     try:
         names = list_projects()
@@ -459,6 +848,24 @@ def get_dashboard(project: str | None = None) -> dict[str, Any]:
             warnings.append("Harness enforcement is not active for this project.")
     else:
         enf = {}
+    # Rides along with the dashboard ON PURPOSE. Both UI surfaces already poll
+    # this one payload, and test_ui_contract.py pins its top-level keys across
+    # both -- so shipping the promotion verdict here is what makes it
+    # impossible for one surface to show it and the other to quietly not.
+    try:
+        governance = get_governance(selected)
+    except Exception as e:                       # noqa: BLE001
+        # Never let the promotion verdict take the whole dashboard down, and
+        # never let its absence read as "nothing is wrong".
+        governance = envelope(
+            selected, promotion_allowed=False, state="unknown",
+            verdict=(f"promotion status is UNKNOWN: the governance check itself "
+                     f"failed ({type(e).__name__}). Treat this as unproven, not "
+                     f"as permission."),
+            head=None, repo_root=repo_root, gates=[], blockers=[],
+            states_vocabulary=list(GOVERNANCE_STATES), warnings=[])
+        warnings.append("The promotion verdict could not be computed; it is "
+                        "shown as unknown.")
     return envelope(
         selected,
         selected_project=selected,
@@ -475,6 +882,7 @@ def get_dashboard(project: str | None = None) -> dict[str, Any]:
         routing=routing_summary(selected, watcher, models, quality),
         enforcement=enf,
         claude_crew=detect_claude_crew(repo_root),
+        governance=governance,
         categories=get_categories(selected).get("categories", []),
         warnings=list(dict.fromkeys(warnings)),
     )

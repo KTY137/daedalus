@@ -677,6 +677,11 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         path = parsed.path
         if path == "/api/dashboard":
             self._send_json(core.get_dashboard((qs.get("project") or [None])[0]))
+        elif path == "/api/governance":
+            # "May this system promote anything right now, and why not?"
+            # Byte-identical to dashboard["governance"] -- same function, no
+            # second opinion. tests/test_ui_governance.py pins that equality.
+            self._send_json(core.get_governance((qs.get("project") or [None])[0]))
         elif path == "/api/projects":
             self._send_json(_project_list())
         elif path.startswith("/api/projects/") and path.endswith("/hierarchy"):

@@ -38,6 +38,7 @@ import { GraphSpace } from './views/GraphSpace';
 import { KnowledgeSpace } from './views/KnowledgeSpace';
 import { useLoop } from './views/useLoop';
 import { StateBadge } from './views/StateBadge';
+import { coerceState, type HealthState } from './views/health';
 import { assessProvider } from './views/health';
 import {
   ChatBubble,
@@ -1284,6 +1285,40 @@ export default function App() {
         ? 'Every picker source answered. The queue is complete as far as the sources go.'
         : 'The work queue has not been read yet.';
 
+  /* ---- may this system promote anything right now, and why not? ----
+     The single question an operator most needs answered, and until now it was
+     answerable from no surface at all: the discrimination gate, the installed
+     self-policy's write confinement and the operability drill all existed and
+     none of them were rendered anywhere.
+
+     Read off `dashboard.governance`, which the backend computes in ONE place
+     (`core.get_governance`) so this chip cannot become a second, cheerier
+     opinion than the shadow runner's. An ABSENT payload is `unknown`, never
+     green: an older backend that does not serve the block has told us nothing
+     about whether promotion is safe, and "we did not ask" must not render the
+     same as "we asked and it was fine". */
+  const governance = dashboard?.governance;
+  // coerceState, not a cast: an unrecognised state word from a newer backend
+  // must land on `unknown`, not be waved through as whatever it claims to be.
+  const govState: HealthState = governance ? coerceState(governance.state) : 'unknown';
+  const govChipText = !governance
+    ? 'promotion unknown'
+    : governance.promotion_allowed
+      ? 'promotion allowed'
+      : 'promotion refused';
+  const govChipTitle = !governance
+    ? 'This backend did not report a governance verdict, so whether promotion is '
+      + 'allowed is UNKNOWN. Treat that as unproven, not as permission.'
+    : [
+      governance.verdict,
+      '',
+      ...(governance.gates || []).map(
+        g => `${g.state.toUpperCase()} [${g.provenance}] ${g.id}: ${g.headline}`
+      ),
+      '',
+      governance.head ? `HEAD ${governance.head.slice(0, 12)}` : 'HEAD unknown'
+    ].join('\n');
+
   function renderSheet(target: SheetView) {
     if (target === 'network') {
       return (
@@ -1406,6 +1441,13 @@ export default function App() {
             <KeyRound size={12} /> BYOK {byokConfigured}/{envProviders.length}
           </button>
         )}
+        <span
+          className={cx('pill', 'loop-chip', govState === 'degraded' && 'bad', (govState === 'unknown' || govState === 'absent') && 'unknown')}
+          title={govChipTitle}
+          aria-label={`Promotion: ${govChipText}`}
+        >
+          <StateBadge state={govState} compact /> {govChipText}
+        </span>
         <button
           type="button"
           className={cx('pill', 'loop-chip', loopState === 'degraded' && 'bad', loopState === 'unknown' && 'unknown')}

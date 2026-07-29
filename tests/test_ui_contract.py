@@ -22,6 +22,10 @@ from daedalus import core, web_api
 _CONTRACT_KEYS = {
     "ok", "generated_at", "selected_project", "projects", "squads",
     "queue", "metrics", "warnings", "claude_crew", "categories",
+    # The promotion verdict. In the contract rather than in one UI precisely so
+    # that a surface cannot quietly stop showing whether this system is allowed
+    # to promote anything. See tests/test_ui_governance.py.
+    "governance",
 }
 
 

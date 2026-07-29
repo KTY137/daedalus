@@ -38,6 +38,39 @@ export interface HierarchyPayload extends ApiEnvelope {
   policy_flags: Record<string, unknown>;
 }
 
+/** The five health states, and there are five on purpose. Nothing may collapse
+ *  them into a boolean: `unknown` must reach the user as the word "unknown". */
+export type GovernanceState = 'working' | 'present' | 'degraded' | 'absent' | 'unknown';
+
+/** Where a number came from. An unlabelled number is a rumour. */
+export type Provenance = 'MEASURED' | 'INHERITED' | 'ASSUMED';
+
+export interface GovernanceGate {
+  id: string;
+  question: string;
+  state: GovernanceState;
+  headline: string;
+  provenance: Provenance;
+  reason?: string;
+  write_allow?: string[];
+  controls?: Array<{ name: string; status: string; effect: string }>;
+  detail?: Record<string, unknown> | null;
+}
+
+/** "May this system promote anything right now, and why not?"
+ *  Served both standalone at /api/governance and embedded in the dashboard;
+ *  tests/test_ui_governance.py pins that those two never disagree. */
+export interface GovernancePayload extends ApiEnvelope {
+  promotion_allowed: boolean;
+  verdict: string;
+  state: GovernanceState;
+  head: string | null;
+  repo_root?: string;
+  gates: GovernanceGate[];
+  blockers: Array<{ gate: string; state: GovernanceState; why: string }>;
+  states_vocabulary?: string[];
+}
+
 export interface DashboardPayload extends ApiEnvelope {
   selected_project?: string;
   warnings: string[];
@@ -45,6 +78,7 @@ export interface DashboardPayload extends ApiEnvelope {
   provider_health?: { providers?: Array<Record<string, unknown>> };
   metrics?: Record<string, unknown>;
   routing?: Record<string, unknown>;
+  governance?: GovernancePayload;
 }
 
 export interface AgentProfile {

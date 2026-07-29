@@ -1,4 +1,4 @@
-import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload } from './types';
+import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, GovernancePayload, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload } from './types';
 
 /**
  * Why a request failed, kept SEPARATE from the message.
@@ -91,6 +91,12 @@ export function getProjects() {
 
 export function getDashboard(project: string) {
   return request<DashboardPayload>(`/api/dashboard?project=${encodeURIComponent(project)}`);
+}
+
+/** The promotion verdict on its own. Identical to `dashboard.governance` --
+ *  same backend function, no second opinion. */
+export function getGovernance(project: string) {
+  return request<GovernancePayload>(`/api/governance?project=${encodeURIComponent(project)}`);
 }
 
 export function getHierarchy(project: string) {

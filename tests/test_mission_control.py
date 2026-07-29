@@ -67,6 +67,7 @@ class DashboardContractTest(MissionControlContractTest):
             "models", "provider_health", "squads", "queue", "quality",
             "routing", "enforcement", "metrics", "warnings",
             "claude_crew", "categories",   # webview contract: Squads + Role Wheel tabs
+            "governance",                  # webview contract: Promotion panel
         }
         self.assertIsInstance(dashboard, dict)
         missing = expected_keys - dashboard.keys()
