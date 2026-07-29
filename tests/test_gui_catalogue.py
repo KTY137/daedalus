@@ -368,7 +368,7 @@ def test_search_ranks_by_purpose_not_only_by_name(tmp_path):
     assert gc.search(catalogue, "coloured status pip").hits[0].entry.name == "a/Beta"
 
 
-def test_search_respects_limit_and_kind_and_local_filters(tmp_path):
+def test_search_respects_limit_and_kind_and_first_party_filters(tmp_path):
     catalogue = gc.load_catalogue(_write(tmp_path, [
         _good_entry(name="a/One", kind="component", purpose="button widget thing"),
         _good_entry(name="a/Two", kind="hook", purpose="button widget thing"),
@@ -376,7 +376,7 @@ def test_search_respects_limit_and_kind_and_local_filters(tmp_path):
     assert len(gc.search(catalogue, "button widget", limit=1).hits) == 1
     hits = gc.search(catalogue, "button widget", kinds=["hook"]).hits
     assert [h.entry.name for h in hits] == ["a/Two"]
-    assert gc.search(catalogue, "button widget", local_only=True).hits == ()
+    assert gc.search(catalogue, "button widget", first_party_only=True).hits == ()
     with pytest.raises(ValueError, match="unknown kind"):
         gc.search(catalogue, "x", kinds=["registry:ui"])
 
@@ -454,14 +454,14 @@ def test_the_glass_set_is_present_and_ours():
     for name in expected:
         entry = catalogue.by_name(name)
         assert entry.licence == "Apache-2.0"
-        assert entry.is_local, f"{name} should carry an in-repo source_path"
+        assert entry.is_first_party, f"{name} should carry an in-repo source_path"
         assert entry.vendorable
 
 
-def test_every_local_entry_points_at_a_file_that_exists():
+def test_every_first_party_entry_points_at_a_file_that_exists():
     """Provenance that names a path which is not there is a claim, not a
     receipt."""
-    for entry in gc.load_catalogue(SHIPPED).local():
+    for entry in gc.load_catalogue(SHIPPED).first_party():
         path = REPO_ROOT / entry.provenance.source_path
         assert path.exists(), f"{entry.name}: {entry.provenance.source_path} missing"
 

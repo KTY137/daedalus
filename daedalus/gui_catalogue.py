@@ -134,6 +134,8 @@ __all__ = [
     "RejectedEntry",
     "Catalogue",
     "CatalogueError",
+    "SearchHit",
+    "SearchResult",
     "use_mode_for_licence",
     "load_catalogue",
     "parse_entry",
@@ -419,8 +421,14 @@ class CatalogueEntry:
         return self.use_mode == "copy_in"
 
     @property
-    def is_local(self) -> bool:
-        """True when this component's source lives in this repository."""
+    def is_first_party(self) -> bool:
+        """True when this component's source lives in this repository.
+
+        NOT ``is_local``. In this repo "local" is a question about a HOST, and
+        ``sensitivity.lane_for_host`` is its one answer; a property here wearing
+        that name reads like a sixth copy of a safety predicate at a glance, and
+        ``tests/test_host_predicate.py`` flags the shape on purpose.
+        """
         return self.provenance.in_repo
 
     def signature(self) -> str:
@@ -503,9 +511,9 @@ class Catalogue:
     def names(self) -> tuple[str, ...]:
         return tuple(entry.name for entry in self.entries)
 
-    def local(self) -> tuple[CatalogueEntry, ...]:
+    def first_party(self) -> tuple[CatalogueEntry, ...]:
         """Entries whose source is in this repo -- what a build should reach for."""
-        return tuple(entry for entry in self.entries if entry.is_local)
+        return tuple(entry for entry in self.entries if entry.is_first_party)
 
     def vendorable(self) -> tuple[CatalogueEntry, ...]:
         return tuple(entry for entry in self.entries if entry.vendorable)
@@ -760,7 +768,7 @@ def _latent(
     # vector database and no embedder, and importing the store eagerly would
     # make an optional half a hard requirement of the module.
     from .memory import VECTOR_DB_PATH
-    from .memory.embeddings import EMBED_MODEL, EventVectorStore, ProjectionFilter  # noqa: F401
+    from .memory.embeddings import EMBED_MODEL, EventVectorStore
 
     resolved_db = VECTOR_DB_PATH if db_path is None else db_path
     resolved_model = EMBED_MODEL if model is None else model
@@ -872,7 +880,7 @@ def search(
     *,
     limit: int = 8,
     kinds: Sequence[str] | None = None,
-    local_only: bool = False,
+    first_party_only: bool = False,
     use_latent: bool = False,
     vector_db: Any = None,
     embedding_host: str | None = None,
@@ -902,8 +910,8 @@ def search(
         if unknown:
             raise ValueError(f"unknown kind(s) {sorted(unknown)!r}")
         selected = tuple(entry for entry in selected if entry.kind in allowed)
-    if local_only:
-        selected = tuple(entry for entry in selected if entry.is_local)
+    if first_party_only:
+        selected = tuple(entry for entry in selected if entry.is_first_party)
     scoped = Catalogue(selected, catalogue.rejected, catalogue.sources)
 
     lexical, key_to_name = _lexical(scoped, objective, limit=max(limit * 4, 32))
