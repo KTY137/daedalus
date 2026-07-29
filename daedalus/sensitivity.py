@@ -449,6 +449,56 @@ _LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
 ENV_TRUSTED_HOSTS = "DAEDALUS_TRUSTED_HOSTS"
 
 
+def is_loopback_host(host: str | None) -> bool:
+    """Is ``host`` PHYSICALLY this machine? Undeclarable, unwidenable.
+
+    THE SPLIT THIS EXISTS TO MAKE, and it was found by review after the widening
+    below had already shipped. ``lane_for_host`` was answering two questions with
+    one word, and they had the same answer only until ``DAEDALUS_TRUSTED_HOSTS``
+    existed:
+
+      1. *May repository content go to this host?* -- a question about consent.
+         An operator can widen it, and that is the whole point of declaring a
+         private-tunnel bench.
+      2. *Is this host loopback, so an unauthenticated bind is safe?* -- a
+         question about physics. No declaration can make packets to a tailnet
+         address stay on the machine.
+
+    ``web_api._resolve_bind`` asks (2) and was reading the answer to (1): a
+    declared address made ``lane_for_host`` return ``"trusted"``, which returned
+    an empty auth token, which makes ``_authorized()`` always true. Declaring a
+    bench for INFERENCE would therefore have published the control plane --
+    spine ledger, role-rewriting PUTs, model-invoking POSTs -- unauthenticated to
+    everything on that tailnet. The owner consented to the first question. Only
+    the first.
+
+    So the widenable predicate stays widenable and this one cannot be widened at
+    all: no env var reaches it, and it is numeric-literal-only for the same
+    reason ``lane_for_host`` refuses names -- a name that resolves to loopback
+    when checked can resolve elsewhere when connected.
+    """
+    raw = (host or "").strip()
+    if not raw:
+        return False
+    try:
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(raw if "//" in raw else f"//{raw}")
+        name = (parsed.hostname or "").strip().lower()
+    except (ValueError, UnicodeError):
+        return False
+    if not name:
+        return False
+    if name in _LOOPBACK_LITERALS:
+        return True
+    try:
+        import ipaddress
+
+        return bool(ipaddress.ip_address(name).is_loopback)
+    except ValueError:
+        return False
+
+
 def declared_trusted_hosts() -> frozenset[str]:
     """Addresses the operator has DECLARED to be inside their trust boundary.
 

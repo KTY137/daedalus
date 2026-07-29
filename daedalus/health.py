@@ -909,6 +909,122 @@ def _p_embed_bench(ctx: Ctx) -> Report:
 
 
 # --------------------------------------------------------------------------- #
+# 9b -- free disk: the failure NONE of the other probes could see              #
+# --------------------------------------------------------------------------- #
+# MEASURED 2026-07-29. The bench's system volume reached 0.2 GB free of 921 GB
+# because a 68 GB ollama model store sat on it. Large models began returning
+# HTTP 500 on load. Every probe in this file returned green throughout:
+# `/api/tags` lists already-known metadata, needs no free space, and answers 200
+# on a full disk. The one probe that exercises real work (`embed.bench` with
+# --probe-remote) is off by default. So the harness watched a disk fill up and
+# had nothing to say about it.
+#
+# A free-space number is the cheapest possible probe and it is the one that was
+# missing. Below ~1 GB Windows stops behaving predictably at all -- the pagefile
+# cannot grow, services write into nothing -- so this degrades well before zero.
+LOW_DISK_GIB = 5.0
+CRITICAL_DISK_GIB = 1.0
+
+
+@probe("disk.free", asks="can this machine still write anything at all?")
+def _p_disk(ctx: Ctx) -> Report:
+    import shutil as _shutil
+
+    try:
+        usage = _shutil.disk_usage(str(ctx.repo_root))
+    except OSError as exc:
+        return unknown("disk.free",
+                       f"could not read free space for {ctx.repo_root}: "
+                       f"{type(exc).__name__}: {exc}")
+    free_gib = usage.free / (1024 ** 3)
+    total_gib = usage.total / (1024 ** 3)
+    facts = [measured("free GiB", round(free_gib, 1)),
+             measured("total GiB", round(total_gib, 1)),
+             measured("volume", str(ctx.repo_root.anchor or ctx.repo_root))]
+    if free_gib < CRITICAL_DISK_GIB:
+        return degraded(
+            "disk.free", f"{free_gib:.1f} GiB free of {total_gib:.0f} -- "
+                         f"below the point where writes start failing", facts,
+            remedy="free space now; model loads, git operations and the pagefile "
+                   "all fail quietly here, and they fail as HTTP 500s and "
+                   "'slow' rather than as anything naming the disk")
+    if free_gib < LOW_DISK_GIB:
+        return degraded(
+            "disk.free", f"{free_gib:.1f} GiB free of {total_gib:.0f}", facts,
+            remedy=f"below {LOW_DISK_GIB:.0f} GiB; a single model pull or a "
+                   f"worktree checkout can cross the remaining gap")
+    return working("disk.free", f"{free_gib:.1f} GiB free of {total_gib:.0f}",
+                   facts)
+
+
+# --------------------------------------------------------------------------- #
+# 9c -- bench residency: is the model on the GPU, or quietly in system RAM?    #
+# --------------------------------------------------------------------------- #
+# The dangerous bench failure is not the loud one. A model that exceeds VRAM is
+# not refused -- llama.cpp splits layers into system RAM and keeps answering,
+# roughly 20x slower. MEASURED: qwen2.5-coder:32b ran at 6.08 tok/s against
+# 107-160 for models that fit. Nothing errors, so a capacity problem presents as
+# a model-quality problem, and the fix people reach for is buying a GPU.
+#
+# `/api/ps` reports both `size` and `size_vram` per resident model. They are
+# equal when a model is fully on the card and diverge the moment any layer
+# spills. That divergence is the diagnostic, and it costs one HTTP GET.
+#
+# A second, nastier case this catches: MEASURED once, 13,390 MiB of VRAM held
+# while /api/ps reported ZERO models -- orphaned llama-server.exe processes the
+# parent had lost track of. Any capacity measurement taken on top of that is a
+# measurement of a lie.
+@probe("bench.residency",
+       asks="are the bench's models on the GPU, or silently in system RAM?",
+       required=False)
+def _p_bench_residency(ctx: Ctx) -> Report:
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    url = BENCH_OLLAMA.rstrip("/") + "/api/ps"
+    try:
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            payload = _json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
+        return unknown("bench.residency",
+                       f"the bench did not answer /api/ps: {type(exc).__name__}",
+                       remedy="unknown is not absent: the bench may be down, or "
+                              "simply not configured on this machine")
+    models = payload.get("models") or []
+    if not models:
+        return present("bench.residency", "no model resident on the bench",
+                       [measured("resident models", 0)],
+                       remedy="nothing is loaded; this is normal when idle, and "
+                              "indistinguishable here from orphaned engine "
+                              "processes still holding VRAM -- compare against "
+                              "nvidia-smi if a load is expected")
+    facts: list[Fact] = [measured("resident models", len(models))]
+    spilled: list[str] = []
+    for row in models:
+        name = str(row.get("name") or row.get("model") or "?")
+        size = int(row.get("size") or 0)
+        vram = int(row.get("size_vram") or 0)
+        facts.append(measured(f"{name} vram/total GiB",
+                              f"{vram / (1024 ** 3):.1f}/{size / (1024 ** 3):.1f}"))
+        # Exact equality is what "fully resident" means; allow a byte of slack
+        # only for rounding in the server's own accounting.
+        if size and vram < size:
+            spilled.append(f"{name} ({100 * (size - vram) / size:.0f}% off-GPU)")
+    if spilled:
+        return degraded(
+            "bench.residency",
+            "model layers are in system RAM, not VRAM: " + ", ".join(spilled),
+            facts,
+            remedy="this does not error -- it runs ~20x slower and reads as a "
+                   "model-quality problem. Load a smaller model, lower num_ctx, "
+                   "reduce OLLAMA_NUM_PARALLEL (it pre-allocates KV per slot for "
+                   "EVERY resident model), or quantise the KV cache")
+    return working("bench.residency",
+                   f"{len(models)} model(s) fully resident on the GPU", facts)
+
+
+# --------------------------------------------------------------------------- #
 # 10 -- the planner's latent half: is the weight describing a live source?     #
 # --------------------------------------------------------------------------- #
 @probe("context.latent_seed",
@@ -1072,7 +1188,15 @@ CAPABILITY_MODULES = (
     "daedalus.spine.containment",
     "daedalus.spine.cancel",
     "daedalus.semantic_route",
-    "daedalus.compaction",
+    # "daedalus.compaction" was here until 2026-07-29, when it was DELETED
+    # rather than wired. It was not merely uncalled -- it was superseded. The
+    # only place in the repo that accumulates a message list, the Ollama
+    # tool-call loop in daedalus/providers/ollama.py, already bounds context
+    # with the real cl100k tokenizer against the real measured server window
+    # (effective_input_window) and evicts via _forced_report inside a loop
+    # capped at MAX_AGENT_STEPS=6. compaction.py offered chars//4 against a
+    # hardcoded 30_000. Wiring it into the one plausible caller would have
+    # REPLACED a measured guard with a guess. See the deletion commit.
     "daedalus.memory.embeddings",
     "daedalus.context_plan",
 )

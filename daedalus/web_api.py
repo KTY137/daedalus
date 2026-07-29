@@ -1077,10 +1077,23 @@ def _resolve_bind(host: str, allow_remote_clients: bool) -> str:
     means an open port rather than a slightly wrong lane -- would be the worst
     possible place to keep the habit alive.
     """
-    from .sensitivity import lane_for_host
+    # is_loopback_host, NOT lane_for_host. Both live in sensitivity.py and they
+    # answered the same thing until DAEDALUS_TRUSTED_HOSTS existed: an operator
+    # can now DECLARE a private-tunnel host trusted so repository content may be
+    # sent there for inference. That is consent about egress. It is not a claim
+    # that packets to that address stay on this machine -- and this function is
+    # asking exactly that, because returning "" here yields an empty auth token
+    # and _authorized() treats empty as always-authorized.
+    #
+    # Reading the egress answer here would have meant: declaring a bench for
+    # INFERENCE silently publishes the control plane -- spine ledger, the PUTs
+    # that rewrite agent roles, the POSTs that queue work and invoke models --
+    # unauthenticated to everything that can reach that tailnet. Found in review
+    # after the widening shipped, with the declaration already live in .env.
+    from .sensitivity import is_loopback_host
 
     host = str(host or "").strip()
-    if lane_for_host(host) == "trusted":
+    if is_loopback_host(host):
         return ""
 
     if not (allow_remote_clients
