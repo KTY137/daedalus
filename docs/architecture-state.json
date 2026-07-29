@@ -4,7 +4,7 @@
   "repo_state": {
     "branch": "checkpoint/2026-07-20-session",
     "dirty": true,
-    "head": "3f4d4628f9e5fbff118767b3b06d0eacdac6e10a"
+    "head": "eb4604bc970b16f2cf7758bd037012bcad801b06"
   },
   "counts": {
     "dark_switches": 9,
@@ -217,5 +217,5 @@
   "unparsable": [],
   "index_extra_edges": [],
   "acceptances": [],
-  "digest": "sha256:ba9498278a5254dd23be9f6126f5da1bdcfa0edabd9708d39b7212fcaa0b389a"
+  "digest": "sha256:8cc1d5e60ab910e46fee9df2a068edaafd94768ba73eaaef5b62ce5b902f0526"
 }
