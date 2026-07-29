@@ -793,12 +793,26 @@ def _p_vectors(ctx: Ctx) -> Report:
         try:
             tables = {r[0] for r in con.execute(
                 "SELECT name FROM sqlite_master WHERE type='table'")}
+            # THE TABLE NAMES WERE GUESSED, AND THEY WERE WRONG.
+            #
+            # This looked for `agent_event_projections` and `agent_events`.
+            # The schema the projection worker actually writes is
+            # `event_projections` / `projection_sources`, so the probe fell
+            # through both branches and reported n=0. Measured: the file held
+            # 172 projections while this surface said "the index file exists
+            # and holds ZERO projections -- it can answer nothing".
+            #
+            # That is a health surface manufacturing an ABSENT capability out
+            # of a working one, which is the same failure it exists to catch,
+            # pointed the other way. Resolved from the schema instead of from
+            # memory, and a table this does not recognise is reported as such
+            # rather than counted as zero.
+            projection_tables = sorted(
+                t for t in tables if t.endswith("event_projections"))
             n = 0
-            if "agent_event_projections" in tables:
-                n = con.execute(
-                    "SELECT COUNT(*) FROM agent_event_projections").fetchone()[0]
-            elif "agent_events" in tables:
-                n = con.execute("SELECT COUNT(*) FROM agent_events").fetchone()[0]
+            unknown_shape = not projection_tables
+            for t in projection_tables:
+                n += con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
             indexes = 0
             if "embedding_indexes" in tables:
                 indexes = con.execute(
@@ -812,6 +826,14 @@ def _p_vectors(ctx: Ctx) -> Report:
              inherited("db", _rel(VECTOR_DB_PATH), VECTOR_DB_PATH, now=ctx.now),
              assumed("ingestion enabled", enabled,
                      "DAEDALUS_VECTOR_INDEX env var")]
+    if unknown_shape:
+        # "I do not recognise this schema" is not "there is nothing in it".
+        # Reporting zero here is how the previous version turned a populated
+        # index into an ABSENT capability.
+        return unknown("memory.vector_index",
+                       f"the index exists but holds no table this probe "
+                       f"recognises (found: {', '.join(sorted(tables)) or 'none'})",
+                       facts)
     if n == 0:
         return present("memory.vector_index",
                        "the index file exists and holds ZERO projections -- it "
@@ -1112,8 +1134,26 @@ def production_importers(module: str, repo_root: Path,
     """
     leaf = module.rsplit(".", 1)[-1]
     self_rel = module.replace(".", "/") + ".py"
+    # THREE IMPORT FORMS, AND THE FIRST VERSION SAW ONLY TWO.
+    #
+    #   import daedalus.spine.containment        <- leaf in the PATH
+    #   from daedalus.spine.containment import X <- leaf in the PATH
+    #   from daedalus.spine import containment   <- leaf in the NAME LIST
+    #
+    # The old pattern required the leaf inside `[.\w]*`, which cannot span the
+    # space before `import`, so it missed the third form entirely. Measured
+    # consequence: `daedalus/spine/attempt.py:849` does exactly that to reach
+    # containment, and this probe reported the module as having ZERO production
+    # callers -- HOURS AFTER IT WAS WIRED. A health surface that under-reports
+    # wiring sends somebody to fix a thing that is not broken, and it does it
+    # while claiming to be the instrument that catches exactly this.
+    esc = re.escape(leaf)
     pattern = re.compile(
-        rf"(?m)^\s*(?:from|import)\s+[.\w]*\b{re.escape(leaf)}\b")
+        rf"(?m)^\s*(?:"
+        rf"import\s+[.\w]*\b{esc}\b"                       # form 1
+        rf"|from\s+[.\w]*\b{esc}\b\s+import"               # form 2
+        rf"|from\s+[.\w]+\s+import\s+[^\n#]*\b{esc}\b"     # form 3
+        rf")")
     rows = _production_sources(repo_root) if sources is None else sources
     hits = [rel for posix, rel, text in rows
             if not posix.endswith(self_rel) and rel not in _OBSERVERS
