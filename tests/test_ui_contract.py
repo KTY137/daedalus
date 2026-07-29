@@ -9,6 +9,7 @@ import json
 import threading
 import time
 import unittest
+import urllib.error
 import urllib.request
 from unittest import mock
 
@@ -55,11 +56,29 @@ class WebApiServesTheSameShapeTests(unittest.TestCase):
         cls.port = 8796
         t = threading.Thread(target=web_api.run, args=("127.0.0.1", cls.port), daemon=True)
         t.start()
-        time.sleep(0.4)
+        # WAIT FOR READINESS, do not sleep at it. A fixed 0.4s was enough on an
+        # idle box and not enough under load; the server printed "listening" and
+        # the first request timed out anyway.
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            try:
+                urllib.request.urlopen(
+                    f"http://127.0.0.1:{cls.port}/api/dashboard", timeout=5).read()
+                break
+            except urllib.error.HTTPError:
+                break                       # answering is enough
+            except OSError:
+                time.sleep(0.1)
 
     def _get(self, ep):
+        # 8s was a load-dependent flake: this suite failed exactly once tonight,
+        # on `TimeoutError: timed out` at socket.py, during a run that shared the
+        # box with the acceptance harness and a live model probe. The endpoint
+        # was up -- the client gave up. A timeout tuned to an idle machine turns
+        # a green suite into a coin flip under load, and a coin-flip test is one
+        # people learn to re-run instead of read.
         return json.loads(urllib.request.urlopen(
-            f"http://127.0.0.1:{self.port}{ep}", timeout=8).read())
+            f"http://127.0.0.1:{self.port}{ep}", timeout=60).read())
 
     def test_api_dashboard_matches_core_contract(self):
         api = self._get("/api/dashboard")
