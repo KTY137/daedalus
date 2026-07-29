@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "checkpoint/2026-07-20-session",
     "dirty": true,
-    "head": "eb4604bc970b16f2cf7758bd037012bcad801b06"
+    "head": "5ed75b796620d4aac6d1bef63ec6436c8251c171"
   },
   "counts": {
-    "dark_switches": 9,
-    "doc_drift": 15,
+    "dark_switches": 0,
+    "doc_drift": 2,
     "index_extra_edges": 0,
-    "islands": 5,
-    "modules": 138,
+    "islands": 7,
+    "modules": 143,
     "shims": 3,
-    "test_only": 6,
-    "unknown": 2,
+    "test_only": 7,
+    "unknown": 1,
     "unparsable": 0,
-    "unreached": 10
+    "unreached": 11
   },
   "ignore": {
     "env": "",
@@ -60,12 +60,14 @@
     "daedalus/eval/__init__.py",
     "daedalus/eval/__main__.py",
     "daedalus/eval/ceiling.py",
+    "daedalus/eval/correctness.py",
     "daedalus/eval/harness.py",
     "daedalus/eval/mint.py",
     "daedalus/eval/report.py",
     "daedalus/eval/tasks.py",
     "daedalus/fallback.py",
     "daedalus/file_bridge.py",
+    "daedalus/gui_catalogue.py",
     "daedalus/health.py",
     "daedalus/hierarchy.py",
     "daedalus/ikarus.py",
@@ -115,6 +117,7 @@
     "daedalus/selftest.py",
     "daedalus/semantic_route.py",
     "daedalus/sensitivity.py",
+    "daedalus/skills.py",
     "daedalus/spine/__init__.py",
     "daedalus/spine/attempt.py",
     "daedalus/spine/bootstrap.py",
@@ -159,19 +162,22 @@
     "runs/council/stream_hook.py",
     "runs/council/summarize.py",
     "tools/gate_discrimination.py",
+    "tools/gui_check.py",
     "tools/mutation_score.py",
+    "tools/operability_drill.py",
     "tools/system_check.py"
   ],
   "islands": [
     "daedalus/council/publish.py",
+    "daedalus/gui_catalogue.py",
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
     "daedalus/langgraph_adapter.py",
-    "daedalus/memstore.py"
+    "daedalus/memstore.py",
+    "daedalus/skills.py"
   ],
   "unknown": [
-    "daedalus/compaction.py",
-    "daedalus/spine/containment.py"
+    "daedalus/compaction.py"
   ],
   "shims": [
     "daedalus/decompose.py",
@@ -181,41 +187,19 @@
   "test_only": [
     "daedalus/compaction.py",
     "daedalus/council/publish.py",
+    "daedalus/gui_catalogue.py",
     "daedalus/kairos/evolution.py",
     "daedalus/kairos/shadow_shell.py",
     "daedalus/memstore.py",
-    "daedalus/spine/containment.py"
+    "daedalus/skills.py"
   ],
-  "dark_switches": [
-    "CODEX_MODEL",
-    "DAEDALUS_CACHE_DIR",
-    "DAEDALUS_INDEX_DOCUMENTS",
-    "DAEDALUS_KILLSWITCH",
-    "DAEDALUS_LATENT_ROUTE",
-    "DAEDALUS_NVOF_SDK",
-    "DAEDALUS_SCAN_WORKERS",
-    "DAEDALUS_WEB_ALLOW_REMOTE_CLIENTS",
-    "DAEDALUS_WEB_DEBUG"
-  ],
+  "dark_switches": [],
   "doc_drift": [
-    "code-only:CODEX_MODEL",
-    "code-only:DAEDALUS_BUDGET_LEDGER",
-    "code-only:DAEDALUS_BUDGET_ON_UNKNOWN",
-    "code-only:DAEDALUS_BUDGET_PERIOD",
-    "code-only:DAEDALUS_CACHE_DIR",
-    "code-only:DAEDALUS_INDEX_DOCUMENTS",
-    "code-only:DAEDALUS_KILLSWITCH",
-    "code-only:DAEDALUS_LATENT_ROUTE",
-    "code-only:DAEDALUS_MIN_FREE_GIB",
-    "code-only:DAEDALUS_SCAN_WORKERS",
-    "code-only:DAEDALUS_SPINE_DB",
-    "code-only:DAEDALUS_WEB_ALLOW_REMOTE_CLIENTS",
-    "code-only:DAEDALUS_WEB_TOKEN",
     "doc-only:FROZEN_GATE_PATHS",
     "doc-only:OLLAMA_NUM_PARALLEL"
   ],
   "unparsable": [],
   "index_extra_edges": [],
   "acceptances": [],
-  "digest": "sha256:8cc1d5e60ab910e46fee9df2a068edaafd94768ba73eaaef5b62ce5b902f0526"
+  "digest": "sha256:f90a30b1827753e6e8b2e1baf0043f1d6f8b170fc42c2067b7972f429e8e685d"
 }
