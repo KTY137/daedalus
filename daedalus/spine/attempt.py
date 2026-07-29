@@ -606,6 +606,12 @@ class GateResult:
     duration_s: float = 0.0
     cancelled: bool = False
     timed_out: bool = False
+    #: EFFECTIVE containment, not the request -- see
+    #: :class:`daedalus.spine.containment.ContainmentAttestation`. A verdict on
+    #: candidate code is only worth as much as the boundary it ran behind, so
+    #: the boundary that ACTUALLY held travels with the verdict into the ledger.
+    #: ``None`` only for a gate result some other code path constructed.
+    containment: "ContainmentAttestation | None" = None
 
     @property
     def output_sha256(self) -> str:
@@ -626,6 +632,8 @@ class GateResult:
             "output_chars": len(self.output),
             "output_tail": tail,
             "output_truncated": len(tail) < len(self.output),
+            "containment": (self.containment.summary()
+                            if self.containment is not None else None),
         }
 
 
@@ -789,19 +797,109 @@ def _remove_gate_tmpdir(tmpdir: Path) -> str | None:
                 f"{type(e).__name__}: {e}]")
 
 
+def _poll_until_done(proc: Any, ctx: RunnerContext, started: float,
+                     timeout_s: float, poll_s: float) -> tuple[bool, bool, Any]:
+    """Poll one gate child, honouring the cancel token and the deadline.
+
+    Returns ``(cancelled, timed_out, returncode)``.
+
+    POLLING RATHER THAN READING IS WHY OUTPUT GOES TO A FILE. With a pipe this
+    loop would have to drain it; a chatty child fills the pipe buffer and
+    blocks while we are asking the cancel token, so the attempt becomes
+    uncancellable at exactly the moment cancelling matters. Shared by both
+    spawn paths so the contained and uncontained children are cancelled by the
+    same code -- a second copy is a second place for that deadlock to reappear.
+    """
+    cancelled = False
+    timed_out = False
+    deadline = started + float(timeout_s)
+    while proc.poll() is None:
+        if ctx.is_cancelled():
+            proc.cancel()
+            cancelled = True
+            break
+        if time.monotonic() > deadline:
+            proc.cancel()
+            timed_out = True
+            break
+        time.sleep(poll_s)
+    return cancelled, timed_out, proc.returncode
+
+
+def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
+                          tmpdir: Path):
+    """Launch the gate at Low integrity. Raises ``ContainmentUnavailable``.
+
+    Three things are set up, and each is a measured requirement rather than
+    tidiness:
+
+    1. THE WORKTREE IS LABELLED LOW, because a contained child that cannot
+       write the tree it is testing is an outage, not a boundary.
+    2. A LOW-LABELLED TEMP DIRECTORY, inside the gate's own scratch tree and
+       NOT inside the worktree. A Low child cannot write %TEMP% (Medium), and
+       pointing TEMP at the worktree would dirty the tree the gate is judging.
+       The scratch tree is removed afterwards through the guarded walker, which
+       is exactly the delete-against-attacker-reachable-ground that guard is
+       for -- this directory is now writable by candidate code by design.
+    3. THE OUTPUT FILE IS CREATED AND LABELLED BY US, then opened append-only,
+       and exactly that one handle is allowlisted into the child. See
+       :mod:`daedalus.spine.containment` for what was measured about each of
+       those words.
+    """
+    from daedalus.spine import containment
+
+    containment.label_low_integrity(worktree)
+    worktree_label = containment.integrity_label(worktree)
+    low_temp = tmpdir / "lowtemp"
+    low_temp.mkdir()
+    containment.label_low_integrity(low_temp)
+
+    log = containment.open_low_append_log(out_path)
+    try:
+        env = dict(os.environ)
+        env["TEMP"] = env["TMP"] = str(low_temp)
+        proc = containment.spawn_contained(
+            argv, cwd=worktree, env=env, log=log,
+            worktree_label=worktree_label)
+    except BaseException:
+        log.close()
+        raise
+    return proc, log
+
+
 def pytest_gate(paths: Sequence[str] = (), *,
                 timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
                 poll_s: float = 0.25,
-                name: str = "pytest") -> Callable[[RunnerContext], GateResult]:
+                name: str = "pytest",
+                executes_candidate: bool = True
+                ) -> Callable[[RunnerContext], GateResult]:
     """Default gate: run a pytest subset INSIDE the candidate worktree.
 
-    The child runs under :class:`daedalus.spine.cancel.ManagedProcess`, so a
+    THE GATE IS WHERE CANDIDATE CODE ACTUALLY RUNS. Everything else in this
+    module handles the candidate's bytes; ``pytest`` executes them. So by
+    default the child is launched at LOW INTEGRITY through
+    :mod:`daedalus.spine.containment`, and the kernel -- not our path checks --
+    refuses the writes that a Python guard provably cannot close (the "move-in"
+    attack among them).
+
+    THERE IS NO ``contained=False``. A caller whose runner cannot produce
+    candidate code says so with ``executes_candidate=False``, which is a
+    statement about the WORKLOAD and reads as one in a diff. A security toggle
+    would read as a knob, and the first person in a hurry would turn it. When
+    containment cannot be established -- wrong platform, labelling refused, a
+    handle that would not verify -- the gate REFUSES: ``passed=False`` with the
+    reason in the output and in the attestation. It never downgrades to an
+    uncontained run that looks like a contained one.
+
+    Both children run inside a Job Object with ``KILL_ON_JOB_CLOSE``, so a
     cancelled attempt kills the whole process TREE rather than the immediate
     child -- a leaked test process still writing into a worktree that is about
     to be removed is a correctness hazard, not untidiness.
 
     Output goes to a file OUTSIDE the worktree: a pipe would deadlock on a
-    chatty run while we are polling the cancel token instead of reading.
+    chatty run while we are polling the cancel token instead of reading. Under
+    containment that file is the ONE handle inherited by the child, opened
+    append-only on a Low-labelled target and verified on the handle.
 
     That scratch directory is then removed through the GUARDED walker, not
     ``shutil.rmtree`` -- it lives in ``%TEMP%`` under a prefix named in this
@@ -813,6 +911,7 @@ def pytest_gate(paths: Sequence[str] = (), *,
     argv_paths = tuple(str(p) for p in paths)
 
     def _gate(ctx: RunnerContext) -> GateResult:
+        from daedalus.spine import containment
         from daedalus.spine.cancel import CancellationUnavailable, ManagedProcess
 
         argv = pytest_gate_argv(argv_paths)
@@ -822,31 +921,52 @@ def pytest_gate(paths: Sequence[str] = (), *,
         cancelled = False
         timed_out = False
         returncode: int | None = None
+        refusal: str | None = None
+        output = ""
+        attestation = containment.ContainmentAttestation(
+            requested=bool(executes_candidate),
+            executes_candidate=bool(executes_candidate),
+            contained=False, platform=sys.platform, mechanism="none",
+            reason=(None if executes_candidate else
+                    "the caller declared this gate does not execute candidate "
+                    "code, so no containment was requested"))
         try:
-            with open(out_path, "wb") as fh:
+            if executes_candidate:
                 try:
-                    proc = ManagedProcess(argv, cwd=ctx.worktree, stdout=fh,
-                                          stderr=subprocess.STDOUT)
-                except CancellationUnavailable as e:
-                    return GateResult(
-                        passed=False, name=name, command=argv, returncode=None,
-                        output=f"gate refused to launch outside a killable "
-                               f"container: {e}",
-                        duration_s=time.monotonic() - started)
-                with proc:
-                    deadline = started + float(timeout_s)
-                    while proc.poll() is None:
-                        if ctx.is_cancelled():
-                            proc.cancel()
-                            cancelled = True
-                            break
-                        if time.monotonic() > deadline:
-                            proc.cancel()
-                            timed_out = True
-                            break
-                        time.sleep(poll_s)
-                    returncode = proc.returncode
-            output = out_path.read_text(encoding="utf-8", errors="replace")
+                    proc, log = _contained_gate_child(argv, ctx.worktree,
+                                                      out_path, tmpdir)
+                except containment.ContainmentUnavailable as e:
+                    # HARD REFUSAL. A gate that runs candidate code outside the
+                    # boundary makes the boundary decorative, and a green
+                    # verdict from it would be worth nothing.
+                    refusal = (f"gate refused to execute candidate code "
+                               f"without MIC write containment: {e}")
+                    attestation = containment.refusal_attestation(str(e))
+                else:
+                    attestation = proc.attestation
+                    try:
+                        with proc:
+                            cancelled, timed_out, returncode = _poll_until_done(
+                                proc, ctx, started, timeout_s, poll_s)
+                    finally:
+                        # BEFORE the output is read and before the scratch tree
+                        # is deleted: while this handle is open the share mode
+                        # keeps every other opener out, including ours.
+                        log.close()
+            else:
+                with open(out_path, "wb") as fh:
+                    try:
+                        proc = ManagedProcess(argv, cwd=ctx.worktree, stdout=fh,
+                                              stderr=subprocess.STDOUT)
+                    except CancellationUnavailable as e:
+                        refusal = (f"gate refused to launch outside a killable "
+                                   f"container: {e}")
+                    else:
+                        with proc:
+                            cancelled, timed_out, returncode = _poll_until_done(
+                                proc, ctx, started, timeout_s, poll_s)
+            if refusal is None:
+                output = out_path.read_text(encoding="utf-8", errors="replace")
         except OSError as e:
             output = f"gate output could not be captured: {e}"
         finally:
@@ -855,13 +975,33 @@ def pytest_gate(paths: Sequence[str] = (), *,
             # instead of vanishing; it never changes the verdict, because
             # whether the scratch dir survived says nothing about the candidate.
             scratch_error = _remove_gate_tmpdir(tmpdir)
+        if refusal is not None:
+            return GateResult(passed=False, name=name, command=argv,
+                              returncode=None, output=refusal,
+                              duration_s=time.monotonic() - started,
+                              containment=attestation)
+        passed = returncode == 0 and not cancelled and not timed_out
+        # NO EMPTY GREEN. A gate that exits 0 having produced NOTHING has not
+        # judged anything -- something ate the evidence. This is not
+        # hypothetical: with the log handle opened without FILE_READ_ATTRIBUTES
+        # (the first, stricter mask), os.fstat(1) raised, pytest concluded fd 1
+        # was invalid, redirected everything to os.devnull, and exited 0. The
+        # verdict was PASS and the report was zero bytes. The mask was fixed;
+        # this stays, because the next thing to blind the channel will not
+        # announce itself either, and a green with no evidence must fail.
+        if passed and not output.strip():
+            passed = False
+            output = ("gate exited 0 but produced NO output: the evidence "
+                      "channel is broken, so there is no verdict here to "
+                      "trust. Refusing to report a pass nothing was written "
+                      "for.")
         if scratch_error:
             output = f"{output}\n{scratch_error}"
-        passed = returncode == 0 and not cancelled and not timed_out
         return GateResult(passed=passed, name=name, command=argv,
                           returncode=returncode, output=output,
                           duration_s=time.monotonic() - started,
-                          cancelled=cancelled, timed_out=timed_out)
+                          cancelled=cancelled, timed_out=timed_out,
+                          containment=attestation)
 
     return _gate
 
@@ -1073,7 +1213,14 @@ class TaskAttempt:
         # makes the pointer irrelevant. This is not a check-then-use window:
         # the value is captured before the window opens, not validated inside
         # it.
-        self._admin_dir = None
+        #
+        # THIS LINE WAS `self._admin_dir = None` AND THE COMMENT ABOVE STAYED.
+        # That is the whole vector: every test that calls `_git` directly went
+        # on passing, because they supply `git_dir=` themselves, and only the
+        # one test that goes through `run()` could see it. A guard that is
+        # built and not connected is indistinguishable from a guard, right up
+        # until it is measured through the product.
+        self._admin_dir = _read_gitdir_pointer(worktree)
 
         ctx = RunnerContext(worktree=worktree, branch=self.branch,
                             base_revision=base_revision, task=self.task,
