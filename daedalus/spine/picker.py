@@ -2393,7 +2393,14 @@ def review_packet(candidate: Candidate, result: Any, *,
         out.append("  the patch was not persisted (no artifact dir); "
                    "re-run with --artifact-dir to keep the bytes")
     branch = getattr(result, "branch", None)
-    if branch and not empty_patch and artifact is not None:
+    reaped = getattr(result, "reaped", ()) or ()
+    branch_is_gone = any(
+        isinstance(report, Mapping)
+        and report.get("branch") == branch
+        and report.get("action") in {"deleted", "absent"}
+        for report in reaped
+    )
+    if branch and not branch_is_gone and not empty_patch and artifact is not None:
         out.append(f"  inspect : git diff {getattr(result, 'base_revision', 'HEAD')}"
                    f"..{branch}")
     out.append("  discard : do nothing. no ref is merged and no file is "

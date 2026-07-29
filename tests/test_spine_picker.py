@@ -497,6 +497,21 @@ def test_review_packet_reports_a_passing_gate_as_evidence_not_permission():
     assert "EVIDENCE, not permission" in packet
 
 
+def test_review_packet_does_not_offer_a_reaped_branch_for_inspection():
+    class Reaped(FakeResult):
+        reaped = ({
+            "branch": FakeResult.branch,
+            "action": "deleted",
+            "reason": "candidate branch held no unique work",
+        },)
+
+    inv, _ = inventory_candidates(INVENTORY)
+    packet = review_packet(rank(inv)[0], Reaped())
+
+    assert "git diff" not in packet
+    assert f"git apply --index {FakeResult.artifact_path}" in packet
+
+
 def test_review_packet_handles_an_attempt_that_produced_no_patch():
     class NoPatch(FakeResult):
         state = "no_change"
