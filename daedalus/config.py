@@ -46,7 +46,28 @@ STARTER: dict = {
     # and set to the SAME value as verifier.DEFAULT_TEST_TIMEOUT_S so writing
     # the starter file changes no behaviour. Raise it if your suite is slower
     # than this; a suite that overruns is killed and blocks the write.
-    "test_timeout_s": 120
+    "test_timeout_s": 120,
+    # Curated autonomy is opt-in. The picker reports this source as "disabled"
+    # until a repository deliberately enables it; a missing enabled file is a
+    # distinct "absent" source failure, never an empty healthy queue.
+    "work_queue": {
+        "enabled": False,
+        "path": ".agentenv/work-queue.json",
+    },
+    # Enabled sources are required: a missing configured source is reported as
+    # absent, not as a healthy empty result. Repositories that intentionally do
+    # not maintain a legacy source must say "disabled" explicitly.
+    "picker_sources": {
+        "map": "enabled",
+        "inventory": "enabled",
+        "eval_baseline": "enabled",
+    },
+    # Repo-bound by default so an external ``daedalus improve`` run reads and
+    # writes the same attempt memory. Absolute and ``..``-escaping configured
+    # paths are rejected by the picker.
+    "spine": {
+        "ledger_path": "runs/spine/spine.sqlite3",
+    },
 }
 
 

@@ -50,7 +50,7 @@ def test_no_receipt_means_unproven_not_fine(tmp_path):
     """
     got = B.gate_discrimination(tmp_path, head=HEAD)
     assert got.proven is False
-    assert "pytest ran" in got.reason
+    assert "configured gate command ran" in got.reason
 
 
 def test_a_receipt_from_another_revision_does_not_count(tmp_path):

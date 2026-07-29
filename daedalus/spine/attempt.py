@@ -93,7 +93,7 @@ import sys
 import tempfile
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
@@ -564,16 +564,35 @@ class TaskSpec:
     base_revision: str | None = None
     gate_paths: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    # Empty values preserve the original/manual harness: no declared target
+    # scope means the attempt is unconstrained, and no command argv means the
+    # existing pytest gate derived from ``gate_paths`` is used.
+    target_paths: tuple[str, ...] = ()
+    gate_argv: tuple[str, ...] = ()
+    gate_cwd: str = "."
+    gate_timeout_s: float = DEFAULT_GATE_TIMEOUT_S
 
     def body(self) -> dict:
         """The canonical, JSON-safe view -- the thing that gets digested."""
-        return {
+        body = {
             "task_id": str(self.task_id),
             "instruction": str(self.instruction),
             "base_revision": self.base_revision,
             "gate_paths": [str(p) for p in self.gate_paths],
             "metadata": _jsonable(dict(self.metadata)),
         }
+        # Preserve every legacy TaskSpec digest/effect key byte-for-byte.
+        # Curated fields join the canonical body only when that task actually
+        # declares them.
+        if self.target_paths:
+            body["target_paths"] = [str(p) for p in self.target_paths]
+        if self.gate_argv:
+            body["gate"] = {
+                "argv": [str(arg) for arg in self.gate_argv],
+                "cwd": str(self.gate_cwd),
+                "timeout_s": float(self.gate_timeout_s),
+            }
+        return body
 
     @property
     def digest(self) -> str:
@@ -1037,6 +1056,11 @@ def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:
         from daedalus.offload import offload
         kwargs = dict(offload_kwargs)
         kwargs.pop("repo_root", None)
+        if ctx.task.target_paths:
+            # The curated queue's declared scope is not merely ledger
+            # metadata: it must steer routing and context construction too.
+            # A caller-supplied value cannot widen it.
+            kwargs["paths"] = list(ctx.task.target_paths)
         return offload(ctx.task.instruction, str(ctx.worktree), **kwargs)
     return _runner
 
@@ -1057,6 +1081,7 @@ class TaskAttempt:
                  repo_root: str | Path | None = None,
                  gate: Callable[[RunnerContext], Any] | None = None,
                  ledger: SpineLedger | None = None,
+                 ledger_path: str | Path | None = None,
                  cancel: Any = None,
                  worktree_manager: GitWorktreeManager | None = None,
                  keep_worktree: bool = False,
@@ -1068,10 +1093,24 @@ class TaskAttempt:
             raise ValueError(
                 "TaskAttempt requires an explicit runner callable; there is no "
                 "implicit model-backed default (use offload_runner() to opt in)")
+        if ledger is not None and ledger_path is not None:
+            raise ValueError("pass ledger or ledger_path, not both")
+        if task.gate_argv and str(task.gate_cwd) != ".":
+            raise ValueError(
+                "TaskSpec command gates currently require gate_cwd='.'; "
+                "subdirectory execution is not implemented")
         self.task = task
         self.repo_root = Path(repo_root).resolve() if repo_root else ROOT
         self._runner = runner
-        self._gate = gate if gate is not None else pytest_gate(task.gate_paths)
+        if gate is not None:
+            self._gate = gate
+        elif task.gate_argv:
+            self._gate = command_gate(
+                task.gate_argv,
+                timeout_s=float(task.gate_timeout_s),
+                name="queue-command")
+        else:
+            self._gate = pytest_gate(task.gate_paths)
         self._manager = worktree_manager or GitWorktreeManager(self.repo_root)
         self._is_cancelled = _as_predicate(cancel)
         self._keep_worktree = bool(keep_worktree)
@@ -1082,6 +1121,7 @@ class TaskAttempt:
         self._reap_enabled = bool(reap)
         self._artifact_dir = Path(artifact_dir) if artifact_dir else None
         self._ledger = ledger
+        self._ledger_path = Path(ledger_path) if ledger_path is not None else None
         self._owns_ledger = ledger is None
         # Derived from the task, plus a nonce so a retry of the SAME task does
         # not collide with the branch its predecessor left behind (and so
@@ -1280,19 +1320,60 @@ class TaskAttempt:
                     # reported as `clean`.
                     state = STATE_NO_CHANGE
                     error = "the runner produced no change to gate"
-                elif self._is_cancelled():
-                    state = STATE_CANCELLED
-                    error = "cancelled after the patch was captured"
                 else:
-                    # 6. gates, inside the worktree, raw output retained.
-                    gates = self._run_gates(ctx)
-                    if not gates.passed:
+                    allowed = {
+                        str(path).replace("\\", "/").removeprefix("./")
+                        for path in self.task.target_paths
+                    }
+                    escaped = tuple(
+                        path for path in artifact.changed_paths
+                        if self.task.target_paths
+                        and path.replace("\\", "/").removeprefix("./")
+                        not in allowed)
+                    if escaped:
                         state = STATE_GATES_FAILED
-                        if gates.cancelled:
-                            state = STATE_CANCELLED
-                        error = error or (
-                            f"gate {gates.name!r} failed "
-                            f"(exit {gates.returncode})")
+                        error = (
+                            "artifact changed path(s) outside declared "
+                            f"target_paths: {', '.join(escaped)}")
+                        gates = GateResult(
+                            passed=False,
+                            name="target-scope",
+                            command=(),
+                            returncode=None,
+                            output=error)
+                    elif self._is_cancelled():
+                        state = STATE_CANCELLED
+                        error = "cancelled after the patch was captured"
+                    else:
+                        # 6. gates, inside the worktree, raw output retained.
+                        gates = self._run_gates(ctx)
+                        if gates.passed:
+                            try:
+                                stable, binding_detail = (
+                                    self._post_gate_artifact_stable(
+                                        worktree, artifact))
+                            except Exception as exc:
+                                stable = False
+                                binding_detail = (
+                                    "post-gate artifact binding could not be "
+                                    f"verified: {type(exc).__name__}: {exc}. "
+                                    "Refusing the green verdict.")
+                            if not stable:
+                                state = STATE_GATES_FAILED
+                                error = binding_detail
+                                gates = replace(
+                                    gates,
+                                    passed=False,
+                                    output=(
+                                        f"{gates.output}\n{binding_detail}"
+                                        if gates.output else binding_detail))
+                        if not gates.passed and state == STATE_CLEAN:
+                            state = STATE_GATES_FAILED
+                            if gates.cancelled:
+                                state = STATE_CANCELLED
+                            error = error or (
+                                f"gate {gates.name!r} failed "
+                                f"(exit {gates.returncode})")
         finally:
             # 8. cleanup, reported rather than swallowed.
             removed, cleanup_error = self._cleanup(worktree)
@@ -1352,6 +1433,55 @@ class TaskAttempt:
             base_revision=base_revision, diff_bytes=diff,
             diff_sha256=_sha256_bytes(diff), changed_paths=changed,
             created_ts=_now_iso())
+
+    def _post_gate_artifact_stable(
+            self, worktree: Path,
+            artifact: PatchArtifact) -> tuple[bool, str]:
+        """Bind a green verdict to the exact pre-gate patch bytes.
+
+        The artifact is staged before the gate so the gate judges the candidate
+        tree. A gate is still code, however: it can rewrite a tracked file,
+        create a new untracked file, or (without MIC containment) alter the
+        index before returning 0. Without this check, the persisted artifact
+        and its digest could describe bytes the green gate never finished on.
+
+        Ignored outputs are deliberately excluded: dependency installs and
+        builds legitimately create ``node_modules``/``dist``. Tracked,
+        non-ignored untracked, and staged bytes must remain exactly bound.
+        """
+        gd, wt = self._admin_dir, worktree
+        opts = ["--no-color", "--no-ext-diff", "--no-textconv",
+                "--no-renames"]
+        cached = _git(
+            ["diff", "--cached", *opts],
+            cwd=worktree, repo_root=self.repo_root,
+            git_dir=gd, work_tree=wt).stdout
+        cached_sha = _sha256_bytes(cached)
+        unstaged = _git(
+            ["diff", *opts, "--name-only", "-z"],
+            cwd=worktree, repo_root=self.repo_root,
+            git_dir=gd, work_tree=wt).stdout
+        untracked = _git(
+            ["ls-files", "--others", "--exclude-standard", "-z"],
+            cwd=worktree, repo_root=self.repo_root,
+            git_dir=gd, work_tree=wt).stdout
+        if (cached_sha == artifact.diff_sha256
+                and not unstaged and not untracked):
+            return True, ""
+
+        def _paths(raw: bytes) -> str:
+            decoded = [
+                part.decode("utf-8", "replace")
+                for part in raw.split(b"\0") if part]
+            return ", ".join(decoded) if decoded else "-"
+
+        return False, (
+            "post-gate artifact binding failed: the gate changed the "
+            "candidate tree or staged patch after artifact capture "
+            f"(expected_sha256={artifact.diff_sha256}, "
+            f"post_gate_sha256={cached_sha}, "
+            f"unstaged={_paths(unstaged)}, "
+            f"untracked={_paths(untracked)}). Refusing the green verdict.")
 
     def _run_gates(self, ctx: RunnerContext) -> GateResult:
         started = time.monotonic()
@@ -1428,7 +1558,9 @@ class TaskAttempt:
 
     def _get_ledger(self) -> SpineLedger:
         if self._ledger is None:
-            self._ledger = SpineLedger()
+            self._ledger = (
+                SpineLedger(self._ledger_path)
+                if self._ledger_path is not None else SpineLedger())
         return self._ledger
 
 

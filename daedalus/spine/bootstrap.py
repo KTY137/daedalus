@@ -5,9 +5,10 @@ bootstrap. The loop is closed: the picker chooses, an attempt runs, the ledger
 records, the picker re-ranks. What is NOT true is that the resulting candidate
 can be trusted, and the reason is measured rather than felt: the gate's
 rejection rate against the three known-bad changes of a single day was 0/3.
-The gate is ``pytest`` over ``gate_paths``, and this repo's suite has already
-been green over a live repository deletion, a false success, seven gate
-bypasses and a silently dropped task.
+The legacy gate is ``pytest`` over ``gate_paths``; a curated queue may instead
+declare an exact argv command. This repo's suite has already been green over a
+live repository deletion, a false success, seven gate bypasses and a silently
+dropped task.
 
 So the ruling this module implements, taken from the adversarial review:
 
@@ -16,8 +17,9 @@ So the ruling this module implements, taken from the adversarial review:
     gets less human review because it came back green.
 
 Everything here follows from that. A shadow run produces candidates and says
-exactly how much they are worth, which today is: "pytest ran". It refuses to
-render a green gate as evidence of quality, and it refuses to promote.
+exactly how much they are worth, which today is: "the configured gate command
+ran". It refuses to render a green gate as evidence of quality, and it refuses
+to promote.
 
 THREE THINGS IT DOES THAT THE BARE PICKER CANNOT.
 
@@ -143,6 +145,24 @@ def refresh_sources(repo_root: str | Path,
     root = Path(repo_root)
     out: list[SourceRefresh] = []
 
+    # Refresh writes the generated map into the PRIMARY checkout. A repository
+    # that explicitly disabled that source chose the curated queue as its
+    # authority; regenerating map anyway would violate both that declaration
+    # and shadow mode's no-surprise boundary before an attempt even starts.
+    from daedalus.config import resolve_project
+    from daedalus.spine.picker import _picker_source_mode
+
+    config = resolve_project(str(root))
+    map_mode = _picker_source_mode(config, "map")
+    if map_mode == "disabled":
+        return (SourceRefresh(
+            name="map", attempted=False, succeeded=True,
+            detail="disabled by repo-local picker_sources.map; not refreshed"),)
+    if map_mode == "invalid":
+        return (SourceRefresh(
+            name="map", attempted=False, succeeded=False,
+            detail="invalid picker_sources.map; refresh refused"),)
+
     def _run(argv: Sequence[str]) -> tuple[int, str]:
         if runner is not None:
             res = runner(argv, root)
@@ -253,7 +273,7 @@ def gate_discrimination(repo_root: str | Path,
         return GateDiscrimination(
             False,
             "no discrimination measurement exists, so a green gate means only "
-            "that pytest ran")
+            "that the configured gate command ran")
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except Exception as e:                       # noqa: BLE001
@@ -454,11 +474,20 @@ def shadow_run(repo_root: str | Path, *,
         return _finish("sources_unavailable" if degraded else "no_candidate")
 
     top = queue.candidates[0]
-    from daedalus.spine.attempt import run_attempt, TaskSpec
+    from daedalus.spine.attempt import run_attempt
+    from daedalus.spine.picker import resolve_spine_db_path
 
-    task = TaskSpec(task_id=top.task_id, instruction=top.instruction,
-                    gate_paths=tuple(getattr(top, "gate_paths", ()) or ()))
+    task = top.to_task_spec()
+    ledger_path, ledger_error = resolve_spine_db_path(root)
+    if ledger_error or ledger_path is None:
+        notes = notes + (
+            f"repo-bound spine ledger unavailable: {ledger_error}",)
+        return _finish(
+            "sources_unavailable",
+            task_id=top.task_id,
+            source=top.source)
     res = run_attempt(task, runner=runner, repo_root=str(root),
+                      ledger_path=ledger_path,
                       artifact_dir=str(artifact_dir) if artifact_dir else None,
                       keep_worktree=keep_worktree)
     state = "gated" if getattr(res, "ok", False) else getattr(res, "state", "error")
@@ -473,7 +502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="One SHADOW iteration of the self-improvement circle.",
         epilog=("Promotion is refused while the gate's discrimination is "
                 "unproven, and there is no flag to override that. A green gate "
-                "means pytest ran.\n\n"
+                "means the configured gate command ran.\n\n"
                 "--local-only DECLARES availability; it does not force the "
                 "router's choice. Measured: with claude_cli declared "
                 "unavailable the router still selected it, and the run stopped "

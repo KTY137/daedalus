@@ -62,6 +62,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -80,6 +81,9 @@ __all__ = [
     "EXIT_SOURCE_UNAVAILABLE",
     "INVENTORY_REL_PATH",
     "MAP_STATE_REL_PATH",
+    "WORK_QUEUE_SCHEMA",
+    "DEFAULT_WORK_QUEUE_REL_PATH",
+    "DEFAULT_SPINE_DB_REL_PATH",
     "OUTCOME_POLICY",
     "OutcomePolicy",
     "PickedQueue",
@@ -95,6 +99,7 @@ __all__ = [
     "inventory_freshness",
     "load_inventory",
     "load_map_state",
+    "load_work_queue",
     "main",
     "map_candidates",
     "map_state_trustworthy",
@@ -102,11 +107,16 @@ __all__ = [
     "rank",
     "render_queue",
     "review_packet",
+    "resolve_spine_db_path",
+    "work_queue_candidates",
 ]
 
 ROOT = Path(__file__).resolve().parents[2]
 
 INVENTORY_REL_PATH = "docs/FEATURE_INVENTORY.json"
+WORK_QUEUE_SCHEMA = "daedalus-work-queue/1"
+DEFAULT_WORK_QUEUE_REL_PATH = ".agentenv/work-queue.json"
+DEFAULT_SPINE_DB_REL_PATH = "runs/spine/spine.sqlite3"
 
 # A git object name as it appears in HEAD / refs / packed-refs.
 _SHA_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
@@ -126,6 +136,9 @@ _ABBREV_SHA_RE = re.compile(rf"[0-9a-f]{{{_MIN_ABBREV},64}}")
 # and a drift gate. When two sources disagree about the same tree, the one that
 # cannot silently rot is the one to work from.
 SOURCE_BANDS: dict[str, float] = {
+    # An explicitly curated, revision-bound task outranks inferred work. The
+    # queue is an operator decision, not a stronger measurement.
+    "work_queue": 900.0,
     "map_island": 800.0,
     "map_shim": 700.0,
     "inventory_island": 400.0,
@@ -142,7 +155,7 @@ SOURCE_BANDS: dict[str, float] = {
 BAND_SPAN = 50.0
 
 SOURCE_ORDER: tuple[str, ...] = (
-    "map_island", "map_shim",
+    "work_queue", "map_island", "map_shim",
     "inventory_island", "inventory_stale", "eval_miss", "hotspot",
 )
 
@@ -226,6 +239,11 @@ class Candidate:
     score: float
     evidence: Mapping[str, Any] = field(default_factory=dict)
     gate_paths: tuple[str, ...] = ()
+    target_paths: tuple[str, ...] = ()
+    gate_argv: tuple[str, ...] = ()
+    gate_cwd: str = "."
+    gate_timeout_s: float = 900.0
+    base_revision: str | None = None
 
     @property
     def band(self) -> float:
@@ -248,8 +266,12 @@ class Candidate:
         return TaskSpec(
             task_id=self.task_id,
             instruction=self.instruction,
-            base_revision=base_revision,
+            base_revision=base_revision or self.base_revision,
             gate_paths=tuple(self.gate_paths),
+            target_paths=tuple(self.target_paths),
+            gate_argv=tuple(self.gate_argv),
+            gate_cwd=self.gate_cwd,
+            gate_timeout_s=float(self.gate_timeout_s),
             metadata={
                 "picker_source": self.source,
                 "picker_score": self.score,
@@ -268,6 +290,13 @@ class Candidate:
             "reason": self.reason,
             "evidence": dict(self.evidence),
             "gate_paths": list(self.gate_paths),
+            "target_paths": list(self.target_paths),
+            "gate": {
+                "argv": list(self.gate_argv),
+                "cwd": self.gate_cwd,
+                "timeout_s": self.gate_timeout_s,
+            },
+            "base_revision": self.base_revision,
             "instruction": self.instruction,
         }
 
@@ -326,7 +355,12 @@ class NoEvidence(ValueError):
 
 def _candidate(*, task_id: str, source: str, instruction: str, reason: str,
                band_offset: float, evidence: Mapping[str, Any],
-               gate_paths: Sequence[str] = ()) -> Candidate:
+               gate_paths: Sequence[str] = (),
+               target_paths: Sequence[str] = (),
+               gate_argv: Sequence[str] = (),
+               gate_cwd: str = ".",
+               gate_timeout_s: float = 900.0,
+               base_revision: str | None = None) -> Candidate:
     """Construct a candidate, refusing one that carries no evidence.
 
     The refusal is a raise, not a skip: an evidence-free candidate is a bug in
@@ -343,7 +377,364 @@ def _candidate(*, task_id: str, source: str, instruction: str, reason: str,
     return Candidate(
         task_id=task_id, source=source, instruction=instruction, reason=reason,
         score=round(SOURCE_BANDS[source] + offset, 4),
-        evidence=dict(evidence), gate_paths=tuple(str(p) for p in gate_paths))
+        evidence=dict(evidence), gate_paths=tuple(str(p) for p in gate_paths),
+        target_paths=tuple(str(p) for p in target_paths),
+        gate_argv=tuple(str(arg) for arg in gate_argv),
+        gate_cwd=str(gate_cwd), gate_timeout_s=float(gate_timeout_s),
+        base_revision=(str(base_revision) if base_revision else None))
+
+
+# --------------------------------------------------------------------------- #
+# source (0): an explicitly curated, revision-bound work queue                #
+# --------------------------------------------------------------------------- #
+class WorkQueueInvalid(ValueError):
+    """The enabled queue exists, but cannot safely drive an attempt."""
+
+
+def _project_config(repo_root: Path) -> Mapping[str, Any] | None:
+    from daedalus.config import resolve_project
+
+    data = resolve_project(str(repo_root))
+    return data if isinstance(data, Mapping) else None
+
+
+def _confined_path(repo_root: Path, raw: Any, *, label: str) -> Path:
+    """Resolve a configured path and prove it stays under ``repo_root``.
+
+    ``Path.resolve`` follows an existing symlink in any parent component, so a
+    lexically innocent ``.agentenv/link/queue.json`` cannot escape through a
+    junction/symlink. Non-existing leaf files remain valid, which is necessary
+    to distinguish an enabled-but-ABSENT source from an INVALID path.
+    """
+    if not isinstance(raw, (str, Path)) or not str(raw).strip():
+        raise WorkQueueInvalid(f"{label} must be a non-empty path")
+    root = repo_root.resolve()
+    supplied = Path(str(raw))
+    candidate = (supplied if supplied.is_absolute()
+                 else root / supplied).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as exc:
+        raise WorkQueueInvalid(
+            f"{label} escapes repo root {root}: {raw!r}") from exc
+    return candidate
+
+
+def resolve_spine_db_path(
+        repo_root: str | Path | None = None, *,
+        explicit: str | Path | None = None,
+        project_config: Mapping[str, Any] | None = None
+        ) -> tuple[Path | None, str | None]:
+    """The repo-bound attempt ledger path, without creating it.
+
+    The historical default lived under agent_env even when ``repo_root`` named
+    another repository. That split the loop: the writer recorded PnP attempts
+    while the picker remembered agent_env attempts. The default is now
+    ``<repo>/runs/spine/spine.sqlite3`` and a configured override is accepted
+    only when its resolved target remains inside that same repository.
+    """
+    root = Path(repo_root).resolve() if repo_root else ROOT
+    cfg = project_config if project_config is not None else _project_config(root)
+    raw: Any = explicit
+    if raw is None:
+        spine = cfg.get("spine") if isinstance(cfg, Mapping) else None
+        if spine is None:
+            raw = DEFAULT_SPINE_DB_REL_PATH
+        elif not isinstance(spine, Mapping):
+            return None, "spine config must be an object"
+        else:
+            raw = spine.get("ledger_path", DEFAULT_SPINE_DB_REL_PATH)
+    try:
+        return _confined_path(root, raw, label="spine.ledger_path"), None
+    except WorkQueueInvalid as exc:
+        return None, str(exc)
+
+
+def _picker_source_mode(config: Mapping[str, Any] | None,
+                        name: str) -> str:
+    """Return ``enabled``, ``disabled`` or ``legacy`` for a picker source."""
+    if config is None:
+        return "legacy"
+    declared = config.get("picker_sources")
+    if declared is None:
+        return "enabled"
+    if not isinstance(declared, Mapping):
+        return "invalid"
+    value = declared.get(name, "enabled")
+    if value is False or str(value).strip().lower() == "disabled":
+        return "disabled"
+    if value is True or str(value).strip().lower() == "enabled":
+        return "enabled"
+    return "invalid"
+
+
+def load_work_queue(
+        repo_root: str | Path | None = None, *,
+        project_config: Mapping[str, Any] | None = None
+        ) -> tuple[Mapping[str, Any] | None, dict[str, Any]]:
+    """Read the configured queue and report one exact source state.
+
+    States are deliberately not booleans:
+
+    ``disabled`` -- the repo did not opt in (healthy and intentional)
+    ``absent``   -- enabled, but the configured file is missing
+    ``invalid``  -- path escape, unreadable bytes, JSON/schema-shape error
+    ``valid``    -- bytes parsed as an object; task validation follows below
+    """
+    root = Path(repo_root).resolve() if repo_root else ROOT
+    cfg = project_config if project_config is not None else _project_config(root)
+    setting = cfg.get("work_queue") if isinstance(cfg, Mapping) else None
+    if setting is None or setting is False:
+        return None, {
+            "state": "disabled",
+            "enabled": False,
+            "reason": "no enabled repo-local work_queue configuration",
+        }
+
+    if isinstance(setting, str):
+        enabled, raw_path = True, setting
+    elif isinstance(setting, Mapping):
+        enabled_value = setting.get("enabled", True)
+        if not isinstance(enabled_value, bool):
+            return None, {
+                "state": "invalid", "enabled": False,
+                "error": "work_queue.enabled must be boolean",
+            }
+        enabled = enabled_value
+        raw_path = setting.get("path", DEFAULT_WORK_QUEUE_REL_PATH)
+    else:
+        return None, {
+            "state": "invalid", "enabled": False,
+            "error": "work_queue must be a path string, object, or false",
+        }
+
+    if not enabled:
+        return None, {
+            "state": "disabled", "enabled": False,
+            "reason": "disabled by repo-local work_queue.enabled",
+        }
+    try:
+        path = _confined_path(root, raw_path, label="work_queue.path")
+    except WorkQueueInvalid as exc:
+        return None, {
+            "state": "invalid", "enabled": True, "path": str(raw_path),
+            "error": str(exc),
+        }
+    base = {"enabled": True, "path": str(path)}
+    if not path.exists():
+        return None, {
+            **base, "state": "absent",
+            "error": "enabled work queue file does not exist",
+        }
+    if not path.is_file():
+        return None, {
+            **base, "state": "invalid",
+            "error": "enabled work queue path is not a file",
+        }
+    try:
+        raw = path.read_bytes()
+        data = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, {
+            **base, "state": "invalid",
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    if not isinstance(data, Mapping):
+        return None, {
+            **base, "state": "invalid",
+            "error": "work queue JSON root must be an object",
+        }
+    return data, {
+        **base,
+        "state": "valid",
+        "schema": data.get("schema"),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "byte_length": len(raw),
+    }
+
+
+def _queue_repo_path(repo_root: Path, raw: Any, *, field_name: str) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise WorkQueueInvalid(f"{field_name} must contain non-empty strings")
+    if raw != raw.strip() or "\\" in raw:
+        raise WorkQueueInvalid(
+            f"{field_name} must use canonical repo-relative '/' paths: {raw!r}")
+    path = Path(raw)
+    if any(part in {".", ".."} for part in path.parts):
+        raise WorkQueueInvalid(
+            f"{field_name} must not contain '.' or '..' segments: {raw!r}")
+    if path.as_posix() != raw:
+        raise WorkQueueInvalid(
+            f"{field_name} is not a canonical repo-relative path: {raw!r}")
+    if path.is_absolute() or raw.startswith("/") or re.match(r"^[A-Za-z]:", raw):
+        raise WorkQueueInvalid(f"{field_name} path must be repo-relative: {raw!r}")
+    resolved = _confined_path(repo_root, path, label=field_name)
+    return resolved.relative_to(repo_root.resolve()).as_posix()
+
+
+def work_queue_candidates(
+        queue: Mapping[str, Any], *,
+        repo_root: str | Path,
+        source: Mapping[str, Any],
+        project_config: Mapping[str, Any] | None = None
+        ) -> tuple[tuple[Candidate, ...], tuple[str, ...], dict[str, Any]]:
+    """Validate an entire ``daedalus-work-queue/1`` source, then admit work.
+
+    Validation is whole-file and fail-closed: one malformed ready task makes
+    the source ``invalid`` instead of silently shortening the operator's queue.
+    Non-ready tasks are valid records but are not candidates.
+    """
+    root = Path(repo_root).resolve()
+    if queue.get("schema") != WORK_QUEUE_SCHEMA:
+        raise WorkQueueInvalid(
+            f"schema must be {WORK_QUEUE_SCHEMA!r}, got {queue.get('schema')!r}")
+    repo_state = queue.get("repo_state")
+    if not isinstance(repo_state, Mapping):
+        raise WorkQueueInvalid("repo_state must be an object")
+    base_revision = str(repo_state.get("head") or "").strip().lower()
+    if not _SHA_RE.fullmatch(base_revision):
+        raise WorkQueueInvalid(
+            "repo_state.head must be a full 40- or 64-hex candidate base "
+            "revision")
+    tasks = queue.get("tasks")
+    if not isinstance(tasks, list):
+        raise WorkQueueInvalid("tasks must be an array")
+
+    cfg = project_config if project_config is not None else _project_config(root)
+    policy_block = cfg.get("policy") if isinstance(cfg, Mapping) else None
+    policy = None
+    if isinstance(policy_block, Mapping) and policy_block:
+        from daedalus.sensitivity import load_policy
+        policy = load_policy(dict(cfg))
+
+    seen: set[str] = set()
+    candidates: list[Candidate] = []
+    notes: list[str] = []
+    non_ready = 0
+    blocked = 0
+    observed_head = _head_sha(root)
+    queue_sha = str(source.get("sha256") or "")
+    queue_path = str(source.get("path") or "")
+    for index, raw_task in enumerate(tasks):
+        where = f"tasks[{index}]"
+        if not isinstance(raw_task, Mapping):
+            raise WorkQueueInvalid(f"{where} must be an object")
+        task_id = str(raw_task.get("id") or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", task_id):
+            raise WorkQueueInvalid(f"{where}.id is missing or not a stable id")
+        if task_id in seen:
+            raise WorkQueueInvalid(f"duplicate task id {task_id!r}")
+        seen.add(task_id)
+        state = str(raw_task.get("state") or "").strip().lower()
+        if state not in {"ready", "blocked", "done", "disabled"}:
+            raise WorkQueueInvalid(
+                f"{where}.state must be ready, blocked, done, or disabled")
+        if state != "ready":
+            non_ready += 1
+            continue
+
+        instruction = str(raw_task.get("instruction") or "").strip()
+        if not instruction:
+            raise WorkQueueInvalid(f"{where}.instruction is required")
+        authority_refs = raw_task.get("authority_refs")
+        if (not isinstance(authority_refs, list) or not authority_refs
+                or any(not isinstance(ref, str) or not ref.strip()
+                       for ref in authority_refs)):
+            raise WorkQueueInvalid(
+                f"{where}.authority_refs must be a non-empty string array")
+        raw_targets = raw_task.get("target_paths")
+        if not isinstance(raw_targets, list) or not raw_targets:
+            raise WorkQueueInvalid(
+                f"{where}.target_paths must be a non-empty array")
+        targets = tuple(
+            _queue_repo_path(root, path,
+                             field_name=f"{where}.target_paths")
+            for path in raw_targets)
+        if len(set(targets)) != len(targets):
+            raise WorkQueueInvalid(f"{where}.target_paths contains duplicates")
+
+        gate = raw_task.get("gate")
+        if not isinstance(gate, Mapping):
+            raise WorkQueueInvalid(f"{where}.gate must be an object")
+        argv = gate.get("argv")
+        if (not isinstance(argv, list) or not argv
+                or any(not isinstance(arg, str) or not arg
+                       or "\x00" in arg for arg in argv)):
+            raise WorkQueueInvalid(
+                f"{where}.gate.argv must be a non-empty string array")
+        gate_cwd = gate.get("cwd", ".")
+        if gate_cwd != ".":
+            raise WorkQueueInvalid(
+                f"{where}.gate.cwd must be '.'; subdirectory execution is "
+                "not implemented")
+        timeout = gate.get("timeout_s")
+        if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+                or not math.isfinite(float(timeout)) or float(timeout) <= 0):
+            raise WorkQueueInvalid(
+                f"{where}.gate.timeout_s must be a positive finite number")
+        priority = raw_task.get("priority", 0.0)
+        if (isinstance(priority, bool)
+                or not isinstance(priority, (int, float))
+                or not math.isfinite(float(priority))
+                or not 0.0 <= float(priority) <= BAND_SPAN):
+            raise WorkQueueInvalid(
+                f"{where}.priority must be between 0 and {BAND_SPAN}")
+
+        blocked_paths = list(targets) if policy is None else []
+        if policy is not None:
+            from daedalus.sensitivity import path_write_blocked
+            blocked_paths.extend(
+                path for path in targets if path_write_blocked(path, policy))
+        if blocked_paths:
+            blocked += 1
+            notes.append(
+                f"WORK QUEUE TASK {task_id} SUPPRESSED: write policy blocks "
+                f"{', '.join(blocked_paths)}")
+            continue
+
+        evidence = {
+            "measurement": f"{WORK_QUEUE_SCHEMA} curated priority",
+            "queue_path": queue_path,
+            "queue_sha256": queue_sha,
+            "queue_schema": WORK_QUEUE_SCHEMA,
+            "candidate_base_revision": base_revision,
+            "picker_observed_head": observed_head,
+            "authority_refs": list(authority_refs),
+            "target_paths": list(targets),
+            "gate": {
+                "argv": list(argv),
+                "cwd": gate_cwd,
+                "timeout_s": float(timeout),
+            },
+            "policy_feasible": True,
+            "curated_priority": float(priority),
+        }
+        candidates.append(_candidate(
+            task_id=task_id,
+            source="work_queue",
+            instruction=instruction,
+            reason=(
+                f"repo-curated ready task at candidate base "
+                f"{base_revision[:12]} with {len(targets)} policy-feasible "
+                f"target path(s)"),
+            band_offset=float(priority),
+            evidence=evidence,
+            target_paths=targets,
+            gate_argv=tuple(argv),
+            gate_cwd=gate_cwd,
+            gate_timeout_s=float(timeout),
+            base_revision=base_revision))
+
+    detail = {
+        "tasks": len(tasks),
+        "ready": len(candidates),
+        "non_ready": non_ready,
+        "policy_blocked": blocked,
+        "candidate_base_revision": base_revision,
+        "picker_observed_head": observed_head,
+        "suppressed": blocked > 0,
+    }
+    return tuple(candidates), tuple(notes), detail
 
 
 # --------------------------------------------------------------------------- #
@@ -1251,6 +1642,50 @@ def instruction_fingerprint(instruction: str) -> str:
     return hashlib.sha256(str(instruction).encode("utf-8")).hexdigest()
 
 
+def _definition_fingerprint(
+        instruction: str, *,
+        base_revision: Any = None,
+        target_paths: Sequence[Any] = (),
+        gate: Mapping[str, Any] | None = None) -> str:
+    """Retry identity for curated work; byte-compatible for legacy tasks.
+
+    A queue task is not the same work merely because its prose stayed the same:
+    a new candidate base, target scope, or executable gate changes the
+    proposition being attempted. Legacy tasks declare none of these fields and
+    retain the historical instruction-only fingerprint exactly.
+    """
+    targets = tuple(str(path) for path in (target_paths or ()))
+    gate_map = dict(gate) if isinstance(gate, Mapping) else {}
+    if not base_revision and not targets and not gate_map:
+        return instruction_fingerprint(instruction)
+    body = {
+        "instruction": str(instruction),
+        "base_revision": str(base_revision) if base_revision else None,
+        "target_paths": list(targets),
+        "gate": {
+            "argv": [str(arg) for arg in (gate_map.get("argv") or ())],
+            "cwd": str(gate_map.get("cwd", ".")),
+            "timeout_s": gate_map.get("timeout_s"),
+        } if gate_map else {},
+    }
+    encoded = json.dumps(
+        body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _candidate_definition_fingerprint(candidate: Candidate) -> str:
+    gate = ({
+        "argv": list(candidate.gate_argv),
+        "cwd": candidate.gate_cwd,
+        "timeout_s": candidate.gate_timeout_s,
+    } if candidate.gate_argv else None)
+    return _definition_fingerprint(
+        candidate.instruction,
+        base_revision=candidate.base_revision,
+        target_paths=candidate.target_paths,
+        gate=gate)
+
+
 def attempt_history(db_path: str | Path | None = None, *,
                     task_ids: Sequence[str] = ()) -> tuple[
                         dict[str, dict], str | None]:
@@ -1301,11 +1736,29 @@ def attempt_history(db_path: str | Path | None = None, *,
             continue
         rec = history.setdefault(
             task_id, {"n_attempts": 0, "last_state": None, "last_ts": None,
-                      "last_outcome": None, "by_instruction": {}})
+                      "last_outcome": None, "by_instruction": {},
+                      "by_definition": {}})
         rec["n_attempts"] += 1
-        fingerprint = instruction_fingerprint(payload.get("instruction") or "")
+        fingerprint = _definition_fingerprint(
+            payload.get("instruction") or "",
+            base_revision=payload.get("base_revision"),
+            target_paths=payload.get("target_paths") or (),
+            gate=payload.get("gate") if isinstance(
+                payload.get("gate"), Mapping) else None)
         rec["by_instruction"][fingerprint] = (
             rec["by_instruction"].get(fingerprint, 0) + 1)
+        definition = rec["by_definition"].setdefault(
+            fingerprint,
+            {"n_attempts": 0, "last_state": None, "last_ts": None,
+             "last_outcome": None})
+        definition["n_attempts"] += 1
+        if definition["last_state"] is None:
+            definition["last_state"] = intent.state
+            definition["last_ts"] = intent.resolved_ts or intent.created_ts
+            outcome = intent.result if isinstance(
+                intent.result, Mapping) else {}
+            definition["last_outcome"] = (
+                str(outcome.get("state") or "") or None)
         # Newest-first, so the FIRST row seen for a task is its latest attempt.
         if rec["last_state"] is None:
             rec["last_state"] = intent.state
@@ -1339,33 +1792,51 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
     sunk = 0
     held = 0
     redefined = 0
+    redefined_instruction = 0
+    redefined_definition = 0
     by_outcome: dict[str, int] = {}
     for cand in candidates:
         rec = history.get(cand.task_id)
         if not rec:
             out.append(cand)
             continue
-        fingerprint = instruction_fingerprint(cand.instruction)
-        same = int(rec.get("by_instruction", {}).get(fingerprint, 0))
+        fingerprint = _candidate_definition_fingerprint(cand)
+        definition_label = (
+            "task definition"
+            if cand.base_revision or cand.target_paths or cand.gate_argv
+            else "instruction")
+        definition = rec.get("by_definition", {}).get(fingerprint)
+        same = int(
+            definition.get("n_attempts", 0)
+            if isinstance(definition, Mapping) else
+            rec.get("by_instruction", {}).get(fingerprint, 0))
         evidence = dict(cand.evidence)
         evidence["prior_attempts"] = int(rec.get("n_attempts") or 0)
         evidence["prior_attempts_same_instruction"] = same
-        evidence["last_attempt_state"] = rec.get("last_state")
-        evidence["last_attempt_outcome"] = rec.get("last_outcome")
-        evidence["last_attempt_ts"] = rec.get("last_ts")
+        evidence["prior_attempts_same_definition"] = same
+        matched = definition if isinstance(definition, Mapping) else rec
+        evidence["last_attempt_state"] = matched.get("last_state")
+        evidence["last_attempt_outcome"] = matched.get("last_outcome")
+        evidence["last_attempt_ts"] = matched.get("last_ts")
 
         if not same:
             # LINEAGE matched, DEFINITION did not: the id is stable across
-            # instruction rewrites, so this is genuinely different work wearing
+            # definition changes, so this is genuinely different work wearing
             # a familiar name. Record the lineage, do not sink it -- penalising
             # it would be evidence about a task nobody is proposing any more.
             redefined += 1
-            evidence["memory"] = ("same task_id, different instruction -- "
+            curated_definition = bool(
+                cand.base_revision or cand.target_paths or cand.gate_argv)
+            if curated_definition:
+                redefined_definition += 1
+            else:
+                redefined_instruction += 1
+            evidence["memory"] = ("same task_id, different task definition -- "
                                   "not treated as already attempted")
             out.append(replace(cand, evidence=evidence))
             continue
 
-        policy = outcome_policy(rec.get("last_outcome"))
+        policy = outcome_policy(matched.get("last_outcome"))
         ceiling = policy.ceiling(same)
         offset = _clamp(min(cand.offset, ceiling), 0.0, BAND_SPAN)
         by_outcome[policy.outcome] = by_outcome.get(policy.outcome, 0) + 1
@@ -1390,8 +1861,8 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
             score=round(SOURCE_BANDS[cand.source] + offset, 4),
             evidence=evidence,
             reason=(f"{cand.reason}; already attempted "
-                    f"{same}x with this exact instruction (last: "
-                    f"{rec.get('last_outcome') or rec.get('last_state')}) -- "
+                    f"{same}x with this exact {definition_label} (last: "
+                    f"{matched.get('last_outcome') or matched.get('last_state')}) -- "
                     f"{policy.meaning}, so it may stand no higher than "
                     f"{ceiling:.2f} in its band")))
 
@@ -1401,13 +1872,19 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
         breakdown = ", ".join(f"{n}x {name}"
                               for name, n in sorted(by_outcome.items()))
         notes.append(f"attempt memory: {remembered} candidate(s) match a prior "
-                     f"attempt at the same instruction ({breakdown}); {sunk} "
+                     f"attempt at the same task definition ({breakdown}); {sunk} "
                      f"sank to their outcome's ceiling, {held} already stood at "
                      f"or below it")
-    if redefined:
-        notes.append(f"attempt memory: {redefined} candidate(s) share a task_id "
-                     f"with a prior attempt but their instruction changed, so "
-                     f"they were NOT penalised")
+    if redefined_instruction:
+        notes.append(
+            f"attempt memory: {redefined_instruction} candidate(s) share a "
+            "task_id with a prior attempt but their instruction changed, so "
+            "they were NOT penalised")
+    if redefined_definition:
+        notes.append(
+            f"attempt memory: {redefined_definition} candidate(s) share a "
+            "task_id with a prior attempt but their task definition changed, "
+            "so they were NOT penalised")
     if not notes:
         notes.append("attempt memory: the ledger has attempts recorded, but "
                      "none for a candidate currently in the queue")
@@ -1489,111 +1966,259 @@ def build_queue(repo_root: str | Path | None = None, *,
     candidates: list[Candidate] = []
     notes: list[str] = []
     sources: dict[str, Any] = {}
+    project_config = _project_config(root)
 
-    map_state = load_map_state(repo_root=root) if map_snapshot is None else map_snapshot
-    map_trust = map_state_trustworthy(map_state, repo_root=root)
-    map_cands, map_notes = map_candidates(map_state)
-    if map_trust["trusted"]:
-        candidates.extend(map_cands)
-        notes.extend(map_notes)
-    else:
-        # A hand-edited generated file is worse than a missing one: it looks
-        # authoritative. Withheld for the same reason the inventory is, and
-        # said out loud for the same reason.
+    queue_data, queue_source = load_work_queue(
+        root, project_config=project_config)
+    if queue_data is not None:
+        try:
+            queue_cands, queue_notes, queue_detail = work_queue_candidates(
+                queue_data, repo_root=root, source=queue_source,
+                project_config=project_config)
+        except WorkQueueInvalid as exc:
+            queue_source = {
+                **queue_source,
+                "state": "invalid",
+                "error": str(exc),
+            }
+            notes.append(f"WORK QUEUE INVALID: {exc}")
+        else:
+            candidates.extend(queue_cands)
+            notes.extend(queue_notes)
+            queue_source = {**queue_source, **queue_detail}
+    elif queue_source.get("state") in {"absent", "invalid"}:
         notes.append(
-            f"MAP SUPPRESSED ({len(map_cands)} candidate(s) withheld): "
-            f"{map_trust['reason']}")
-    sources["map"] = {
-        "path": str(Path(root) / MAP_STATE_REL_PATH),
-        "read": bool(map_state),
-        "candidates": len(map_cands) if map_trust["trusted"] else 0,
-        "suppressed": not map_trust["trusted"],
-        "trust": map_trust,
-    }
+            f"WORK QUEUE {str(queue_source.get('state')).upper()}: "
+            f"{queue_source.get('error')}")
+    sources["work_queue"] = queue_source
 
-    inv = load_inventory(repo_root=root) if inventory is None else inventory
-    inv_candidates, inv_notes = inventory_candidates(inv)
-    notes.extend(inv_notes)
-    freshness = inventory_freshness(inv, repo_root=root)
-    if freshness["fresh"] or not enforce_inventory_freshness:
-        candidates.extend(inv_candidates)
+    map_mode = _picker_source_mode(project_config, "map")
+    if map_mode == "disabled":
+        sources["map"] = {
+            "state": "disabled", "read": False, "candidates": 0,
+            "reason": "disabled by repo-local picker_sources.map",
+        }
+    elif map_mode == "invalid":
+        sources["map"] = {
+            "state": "invalid", "read": False, "candidates": 0,
+            "error": "picker_sources.map must be enabled or disabled",
+        }
     else:
-        # FAIL CLOSED. These are the two highest bands; letting a snapshot of a
-        # different tree drive them means the loop works from a description of
-        # a repo that no longer exists. Suppressed LOUDLY -- an empty queue with
-        # a stated reason is a truthful answer, a confidently-ranked stale one
-        # is not.
-        notes.append(
-            f"INVENTORY SUPPRESSED ({len(inv_candidates)} candidate(s) "
-            f"withheld): {freshness['reason']}. Regenerate "
-            f"{INVENTORY_REL_PATH}, or pass --stale-inventory to rank it anyway.")
-    sources["inventory"] = {
-        "path": str(Path(root) / INVENTORY_REL_PATH),
-        "read": bool(inv),
-        "candidates": len(inv_candidates) if (
-            freshness["fresh"] or not enforce_inventory_freshness) else 0,
-        "suppressed": (not freshness["fresh"]) and enforce_inventory_freshness,
-        "freshness": freshness,
-        "repo_state": inv.get("repo_state") if isinstance(inv, Mapping) else None,
-    }
+        map_path = Path(root) / MAP_STATE_REL_PATH
+        if (project_config is not None and map_snapshot is None
+                and not map_path.exists()):
+            sources["map"] = {
+                "state": "absent", "path": str(map_path), "read": False,
+                "candidates": 0,
+                "error": "enabled map source file does not exist",
+            }
+            notes.append(f"MAP ABSENT: {map_path}")
+        else:
+            map_state = (
+                load_map_state(repo_root=root)
+                if map_snapshot is None else map_snapshot)
+            map_trust = map_state_trustworthy(map_state, repo_root=root)
+            map_cands, map_notes = map_candidates(map_state)
+            if map_trust["trusted"]:
+                candidates.extend(map_cands)
+                notes.extend(map_notes)
+            else:
+                # A hand-edited generated file is worse than a missing one: it
+                # looks authoritative. Withheld for the same reason the
+                # inventory is, and said out loud for the same reason.
+                notes.append(
+                    f"MAP SUPPRESSED ({len(map_cands)} candidate(s) withheld): "
+                    f"{map_trust['reason']}")
+            sources["map"] = {
+                "state": "valid" if map_trust["trusted"] else "invalid",
+                "path": str(map_path),
+                "read": bool(map_state),
+                "candidates": len(map_cands) if map_trust["trusted"] else 0,
+                "suppressed": not map_trust["trusted"],
+                "trust": map_trust,
+            }
 
-    if baseline is None:
-        baseline, base_error = _load_baseline()
-        if base_error:
-            notes.append(f"eval baseline unavailable: {base_error}")
-    base_candidates, base_notes = eval_baseline_candidates(baseline)
-    candidates.extend(base_candidates)
-    notes.extend(base_notes)
-    sources["eval_baseline"] = {"candidates": len(base_candidates),
-                                "cheap": True}
+    inventory_mode = _picker_source_mode(project_config, "inventory")
+    if inventory_mode == "disabled":
+        sources["inventory"] = {
+            "state": "disabled", "read": False, "candidates": 0,
+            "reason": "disabled by repo-local picker_sources.inventory",
+        }
+    elif inventory_mode == "invalid":
+        sources["inventory"] = {
+            "state": "invalid", "read": False, "candidates": 0,
+            "error": "picker_sources.inventory must be enabled or disabled",
+        }
+    else:
+        inv_path = Path(root) / INVENTORY_REL_PATH
+        if (project_config is not None and inventory is None
+                and not inv_path.exists()):
+            sources["inventory"] = {
+                "state": "absent", "path": str(inv_path), "read": False,
+                "candidates": 0,
+                "error": "enabled inventory source file does not exist",
+            }
+            notes.append(f"INVENTORY ABSENT: {inv_path}")
+        else:
+            inv = (
+                load_inventory(repo_root=root)
+                if inventory is None else inventory)
+            inv_candidates, inv_notes = inventory_candidates(inv)
+            notes.extend(inv_notes)
+            freshness = inventory_freshness(inv, repo_root=root)
+            if freshness["fresh"] or not enforce_inventory_freshness:
+                candidates.extend(inv_candidates)
+            else:
+                # FAIL CLOSED. Letting a snapshot of a different tree drive
+                # these bands means working from a repo that no longer exists.
+                notes.append(
+                    f"INVENTORY SUPPRESSED ({len(inv_candidates)} candidate(s) "
+                    f"withheld): {freshness['reason']}. Regenerate "
+                    f"{INVENTORY_REL_PATH}, or pass --stale-inventory to rank "
+                    "it anyway.")
+            sources["inventory"] = {
+                "state": "valid" if (
+                    freshness["fresh"] or not enforce_inventory_freshness
+                ) else "invalid",
+                "path": str(inv_path),
+                "read": bool(inv),
+                "candidates": len(inv_candidates) if (
+                    freshness["fresh"] or not enforce_inventory_freshness) else 0,
+                "suppressed": (
+                    not freshness["fresh"]) and enforce_inventory_freshness,
+                "freshness": freshness,
+                "repo_state": (
+                    inv.get("repo_state")
+                    if isinstance(inv, Mapping) else None),
+            }
 
-    if include_eval:
+    baseline_mode = _picker_source_mode(project_config, "eval_baseline")
+    if baseline_mode == "disabled":
+        sources["eval_baseline"] = {
+            "state": "disabled", "candidates": 0, "cheap": True,
+            "reason": "disabled by repo-local picker_sources.eval_baseline",
+        }
+    elif baseline_mode == "invalid":
+        sources["eval_baseline"] = {
+            "state": "invalid", "candidates": 0, "cheap": True,
+            "error": (
+                "picker_sources.eval_baseline must be enabled or disabled"),
+        }
+    else:
+        base_error = None
+        if baseline is None:
+            baseline, base_error = _load_baseline()
+            if base_error:
+                notes.append(f"eval baseline unavailable: {base_error}")
+        base_candidates, base_notes = eval_baseline_candidates(baseline)
+        candidates.extend(base_candidates)
+        notes.extend(base_notes)
+        sources["eval_baseline"] = {
+            "state": "invalid" if base_error else "valid",
+            "candidates": len(base_candidates),
+            "cheap": True,
+            **({"error": base_error} if base_error else {}),
+        }
+
+    eval_gate_mode = _picker_source_mode(project_config, "eval_gate")
+    if eval_gate_mode == "disabled":
+        sources["eval_gate"] = {
+            "state": "disabled", "ran": False,
+            "reason": "disabled by repo-local picker_sources.eval_gate",
+        }
+    elif eval_gate_mode == "invalid":
+        sources["eval_gate"] = {
+            "state": "invalid", "ran": False,
+            "error": "picker_sources.eval_gate must be enabled or disabled",
+        }
+    elif include_eval:
         gate, err = _run_eval_gate()
         if gate is None:
             notes.append(f"eval gate did not run: {err}")
-            sources["eval_gate"] = {"ran": False, "error": err}
+            sources["eval_gate"] = {
+                "state": "invalid", "ran": False, "error": err}
         else:
             gate_candidates, gate_notes = eval_gate_candidates(gate)
             candidates.extend(gate_candidates)
             notes.extend(gate_notes)
-            sources["eval_gate"] = {"ran": True, "passed": gate.get("passed"),
-                                    "n_checked": gate.get("n_checked"),
-                                    "candidates": len(gate_candidates)}
+            sources["eval_gate"] = {
+                "state": "valid", "ran": True,
+                "passed": gate.get("passed"),
+                "n_checked": gate.get("n_checked"),
+                "candidates": len(gate_candidates)}
     else:
-        sources["eval_gate"] = {"ran": False,
-                                "reason": "opt-in (--eval); a full Tier-1 replay"}
+        sources["eval_gate"] = {
+            "state": "disabled", "ran": False,
+            "reason": "opt-in (--eval); a full Tier-1 replay"}
 
-    if include_hotspots:
+    hotspot_mode = _picker_source_mode(project_config, "hotspots")
+    if hotspot_mode == "disabled":
+        sources["hotspots"] = {
+            "state": "disabled", "ran": False,
+            "reason": "disabled by repo-local picker_sources.hotspots",
+        }
+    elif hotspot_mode == "invalid":
+        sources["hotspots"] = {
+            "state": "invalid", "ran": False,
+            "error": "picker_sources.hotspots must be enabled or disabled",
+        }
+    elif include_hotspots:
         idx, err = _load_index(root)
         if idx is None:
             notes.append(f"structural index did not build: {err}")
-            sources["hotspots"] = {"ran": False, "error": err}
+            sources["hotspots"] = {
+                "state": "invalid", "ran": False, "error": err}
         else:
             hot_candidates, hot_notes = hotspot_candidates(idx)
             candidates.extend(hot_candidates)
             notes.extend(hot_notes)
-            sources["hotspots"] = {"ran": True,
-                                   "candidates": len(hot_candidates)}
+            sources["hotspots"] = {
+                "state": "valid", "ran": True,
+                "candidates": len(hot_candidates)}
     else:
-        sources["hotspots"] = {"ran": False,
-                               "reason": "opt-in (--hotspots); builds the "
-                                         "whole-repo structural index"}
+        sources["hotspots"] = {
+            "state": "disabled", "ran": False,
+            "reason": "opt-in (--hotspots); builds the "
+                      "whole-repo structural index"}
 
+    db_path, db_path_error = resolve_spine_db_path(
+        root, explicit=spine_db, project_config=project_config)
+    enriched_memory_source = (
+        project_config is not None
+        or any(candidate.source == "work_queue" for candidate in candidates))
     if use_attempt_memory:
-        history, hist_error = attempt_history(
-            spine_db, task_ids=[c.task_id for c in candidates])
-        if hist_error:
-            notes.append(f"attempt memory unavailable: {hist_error}")
-            sources["attempt_memory"] = {"read": False, "error": hist_error}
+        if db_path_error:
+            notes.append(f"attempt memory path invalid: {db_path_error}")
+            sources["attempt_memory"] = {
+                "state": "invalid", "read": False, "error": db_path_error,
+            }
         else:
-            candidates_t, mem_notes = apply_attempt_memory(candidates, history)
-            candidates = list(candidates_t)
-            notes.extend(mem_notes)
-            sources["attempt_memory"] = {"read": True,
-                                         "tasks_remembered": len(history)}
+            history, hist_error = attempt_history(
+                db_path, task_ids=[c.task_id for c in candidates])
+            if hist_error:
+                notes.append(f"attempt memory unavailable: {hist_error}")
+                sources["attempt_memory"] = {
+                    "state": "invalid", "path": str(db_path),
+                    "read": False, "error": hist_error,
+                }
+            else:
+                candidates_t, mem_notes = apply_attempt_memory(
+                    candidates, history)
+                candidates = list(candidates_t)
+                notes.extend(mem_notes)
+                sources["attempt_memory"] = (
+                    {
+                        "state": "valid", "path": str(db_path), "read": True,
+                        "tasks_remembered": len(history),
+                    } if enriched_memory_source else {
+                        "read": True,
+                        "tasks_remembered": len(history),
+                    })
     else:
-        sources["attempt_memory"] = {"read": False,
-                                     "reason": "disabled by caller (--forget)"}
+        sources["attempt_memory"] = {
+            "state": "disabled", "read": False,
+            "path": str(db_path) if db_path is not None else None,
+            "reason": "disabled by caller (--forget)"}
 
     return PickedQueue(candidates=rank(candidates, limit),
                        sources=sources, notes=tuple(notes))
@@ -1625,8 +2250,13 @@ def render_queue(queue: PickedQueue, *, verbose: bool = False) -> str:
         out.append(f"{i:>3}. {c.score:>8.2f}  [{c.source}]  {c.task_id}")
         out.append(f"     why : {c.reason}")
         out.append(f"     band: {c.band:.0f} + measured {c.offset:.2f}")
-        gate = ", ".join(c.gate_paths) or "(whole suite)"
+        gate = (
+            "argv: " + json.dumps(list(c.gate_argv))
+            if c.gate_argv else
+            (", ".join(c.gate_paths) or "(whole suite)"))
         out.append(f"     gate: {gate}")
+        if c.target_paths:
+            out.append(f"     target: {', '.join(c.target_paths)}")
         if verbose:
             out.extend(_evidence_lines(c.evidence, indent="     ev  "))
             out.append(f"     task: {c.instruction}")
@@ -1786,10 +2416,15 @@ def _default_attempt(candidate: Candidate, args: Any) -> Any:
     from daedalus.spine.attempt import offload_runner, run_attempt
 
     spec = candidate.to_task_spec()
+    ledger_path, ledger_error = resolve_spine_db_path(args.repo_root)
+    if ledger_error or ledger_path is None:
+        raise RuntimeError(
+            f"repo-bound spine ledger is unavailable: {ledger_error}")
     return run_attempt(
         spec,
         runner=offload_runner(live=bool(args.live)),
         repo_root=args.repo_root,
+        ledger_path=ledger_path,
         artifact_dir=args.artifact_dir,
         keep_worktree=bool(args.keep_worktree))
 
