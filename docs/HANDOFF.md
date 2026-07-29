@@ -1,7 +1,309 @@
-# Daedalus — Current Claude Handoff (2026-07-29, session 4 — READ THIS FIRST)
+# Daedalus — Current Claude Handoff (2026-07-29, session 8 — READ THIS FIRST)
 
-This section supersedes everything below it. The rest of the file is history; do
-not treat its arc claims, test counts or open items as current.
+This section supersedes everything below it, including the session-7 block.
+The rest of the file is history; do not treat its arc claims, test counts or
+open items as current.
+
+## SESSION 8 — FEATURE HARVEST (Mnemosyne, 2026-07-29)
+
+Documentation sync pass: captured 39 session features in docs/FEATURE_INVENTORY.json.
+
+**Changed:** 27 annotations created (24 module + 3 env), 63 narrative features (55 original + 8 cross-cutting), 0 unmatched. Inventory digest consistency check passed; `unmatched: 0` validated.
+
+**Features captured (39 total):**
+
+*Safety/Fences (9):*
+
+- `daedalus/sensitivity.py` — split `is_loopback_host` (physics, undeclarable) from `declared_trusted_hosts` via `DAEDALUS_TRUSTED_HOSTS` (policy, narrows-on-typo).
+- `daedalus/web_api.py` — auth bind via `is_loopback_host`, never the widenable predicate (fixed CRITICAL: unauthenticated control-plane to tailnet).
+- `daedalus/budget.py` — `DAEDALUS_SUBSCRIPTION_VENDORS` (free-tier policy); loopback-only `free_local` vs declared `trusted_remote`.
+- `daedalus/dotenv.py` NEW — fail-closed .env loader, loaded BEFORE process guard.
+- `daedalus/primary_tree.py` NEW — clone-invariant fence (numeric st_dev/st_ino identity).
+- `daedalus/spine/attempt.py` — `_persist` fences `artifact_dir` (candidate bytes cannot land in primary).
+- `daedalus/spine/containment.py` — Job-Object 96-process/4-GiB caps with kernel READ-BACK verification.
+- `tests/conftest.py` — operator declarations cleared before every test (14 tests went red in full, green alone).
+- Spend guard installed in 5 more entry points + `tests/test_spend_coverage.py`.
+
+*Self-Improvement Loop (5):*
+
+- `daedalus/loop.py` NEW — pick→attempt→gate→promote→re-pick; four bounds; LoopLedger admission; stop-marker fail-closed.
+- KillSwitch threaded through promote chain (asked-to-stop != candidate-failed).
+- `daedalus/kairos/gated_writes.py` Phase 3 — `run_write_wave` with three policies (never/low_risk/always).
+- `daedalus/config.py` — `resolve_write_wave_policy` (fails closed).
+- `daedalus/build_exec.py` NEW — `WaveExecutor` for wave planning; gated outcomes never coarse.
+
+*Docref/Verifier Lane (4):*
+
+- `daedalus/spine/docrefs.py` — `overrides` + `check_denominator` structurally first.
+- `daedalus/spine/docref_gate.py` NEW — gate IS the re-scan (exit 0/1/2); replaced pytest-on-markdown.
+- `daedalus/spine/picker.py` — band 500, one per document, worst-first; per-document denominator.
+- `daedalus/verifier.py` + `daedalus/offload.py` — prose-preservation from rollback backups (git-show-HEAD on dirty tree).
+
+*Evolution/Ariadne (3):*
+
+- `daedalus/kairos/evolution.py` — bare pytest wrong-tree fix: sys.executable -m pytest + 600s timeout.
+- `daedalus/kairos/archive.py` NEW — inspiration archive from OpenEvolve (Apache-2.0, digest-only).
+- `daedalus/mapping/spectral.py` NEW — leak_rate conductance, Newman modularity; picker enrichment opt-in.
+
+*Ikarus (2):*
+
+- `daedalus/conversation.py` NEW — ConversationStore with bounded resumable history.
+- `daedalus/progress.py` + `daedalus/progress_sources.py` NEW — fact-based progress with stall detection.
+
+*Bench/RTX (2):*
+
+- `daedalus/providers/ollama.py` — schema-constrained decoding: MEASURED 0→100% structured calls on 4.5GB model.
+- `daedalus/health.py` — new probes: `disk.free`, `bench.residency`, `bench.scheduled_task`, `bench.engine_crashes`.
+- `daedalus/accelerators.py` — RTX SSH lanes with compute-capability floors (tensor 7.0 / RT 7.5).
+
+*Infra/Misc (9):*
+
+- `pyproject.toml` — `daedalus.mapping` packaged; verified by real wheel build.
+- `daedalus/cli.py` — 77 CLI commands; loads .env BEFORE process guard.
+- `tools/bootstrap_receipt.py` — artifact deposit moved from fenced attempt to tool itself.
+- `daedalus/spine/envelope.py` NEW — trace_id contract threading (contextvars + DAEDALUS_TRACE_ID).
+- `references/openevolve/` NEW — dissection plate with 5 core .py.txt files + LICENSE + PROVENANCE.md.
+- README rewritten with live-measured numbers and provenance section.
+- ~250 new tests across 12 new test files (test_prose_gate, test_loop, test_primary_tree_fence, test_gate_containment_job_caps, test_mapping_spectral, test_picker_spectral_enrichment, test_kairos_archive, test_envelope_join, test_envelope_coverage, test_dotenv, test_bootstrap_receipt, test_host_predicate additions).
+- IN FLIGHT (agent running): eval hardening — F1 measurement, coverage-guided mutant selection.
+- IN FLIGHT (agent running): three-shell Ikarus architecture with Momus corrections.
+
+**Narrative features:** 8 cross-cutting stories added (two-predicates disease, wrong-tree fix, clone invariant, self-improvement loop, bench swarm, docref lane, envelope+trace threading, eval hardening). All carry IN FLIGHT markers where appropriate.
+
+**Inventory state:** 159 modules (148 wired, 6 island, 3 shim, 1 unknown, 1 stale), 77 CLI, 35 API, 5 bus, 47 env (19 dark), 0 packaging gaps. Created no new commits; only updated docs/FEATURE_INVENTORY.json.
+
+## SESSION 7 — THREE MORE COMMITS, TOGETHER THEY CLOSE THE SESSION-6 HEDGE
+
+Provenance/doc-sync pass only (Mnemosyne), not a re-audit of the mechanism.
+Numbers below are stamped by source; none were re-run this pass. This entry
+was corrected mid-pass — see the CORRECTION note at the end before trusting
+the "not yet reviewed" language anywhere else in this file.
+
+**`390f75e` IS NOW CLOSED — CORRECTED FROM AN EARLIER DRAFT OF THIS ENTRY.**
+An earlier version of this section, written before `3c74716` existed in this
+tree, carried the session-6 hedge forward as still-open: "`390f75e`'s own
+commit message says NOT YET REVIEWED BY CERBERUS ... do not read `e282dab` as
+closing that flag." That was correct *at the time it was written* — no commit
+recorded a review, and the discipline here is to flag rather than assume. It
+is now stale: `3c74716` (`harden(egress): a trust declaration must name one
+machine, not a wildcard`, on top of `b22b7a8`) records, in its own commit
+message, that the review happened. **Verified by reading `3c74716` directly**
+(`git show -s 3c74716`), not taken on the coordinator's word alone:
+
+- **One CRITICAL, blocking, fixed in `e282dab`** — the shared-predicate bind
+  hole documented below. This is the half already correctly attributed to
+  Cerberus in the original version of this entry.
+- **Cleared**: the `DAEDALUS_TRUSTED_HOSTS` mechanics themselves —
+  numeric-only, exact-match, empty-default preserving the prior fail-closed
+  behaviour, `urlsplit`+`ipaddress` normalisation strips scheme/port
+  correctly, unparseable entries drop rather than guess.
+- **Cleared, reasoning worth keeping**: the content-egress relaxation via
+  `slice_egress_rule` for trusted lanes is pre-existing, deliberate behaviour,
+  not a new widening introduced by `390f75e`.
+- **Cleared**: the budget dollar/call axis — traced to every route that can
+  reach `usd == 0` and found safe.
+- **One non-blocking hardening, closed in `3c74716` itself**:
+  `declared_trusted_hosts()` accepted the bind wildcards `0.0.0.0` and `::`,
+  not addresses of any specific machine — one declared entry could have meant
+  every host. Rejected now, along with multicast and reserved ranges.
+  Verified per the commit: `0.0.0.0`, `::`, `224.0.0.1` all drop out; a mixed
+  declaration keeps only the valid unicast entry (a bad entry narrows the
+  list rather than poisoning the good one beside it); `lane_for_host
+  ('0.0.0.0')` stays untrusted even when declared; 274 tests green.
+
+All of the above (this bulleted verdict) is **INHERITED from `3c74716`'s
+commit message and the coordinator's relay of it — not independently re-run
+by this pass.** What this pass DID independently verify: that `3c74716`
+exists, is a real commit on this branch (`git log --oneline -- daedalus/
+sensitivity.py`), sits after `b22b7a8`, and its message says what is quoted
+above. The mechanism itself (does the wildcard rejection actually work) was
+not re-tested here.
+
+**THE FINDING WORTH RECORDING ON ITS OWN, per the coordinator:** the review
+existed only inside an agent transcript for some period between `390f75e`
+landing and `3c74716` landing. Nothing in the tree recorded that it had
+happened. That is why the first draft of this entry was right to refuse to
+assume it and to flag it as unverified rather than close it — and it is the
+same shape as a stale doc one layer up: a real event with no durable
+artifact. It will recur every time a review or a gate runs outside the repo
+(an agent transcript, a chat, a verbal sign-off) instead of landing as a
+commit message, a test, or a receipt file. Treat "reviewed" as unproven until
+something in `git log` says so, the same rule this file applies to every
+other claim.
+
+**`e282dab` — `fix(egress): CRITICAL -- split the loopback predicate from the
+trust predicate`.** `daedalus/sensitivity.py` now exports two predicates where
+the docs and the module's own prior docstring described one — Cerberus found
+this reviewing `390f75e`, live at the time (the tailnet address was already
+declared in `.env`):
+
+- `lane_for_host(host) -> "trusted"/"untrusted"` — **consent**: may repo bytes
+  go to this host? Widenable by `DAEDALUS_TRUSTED_HOSTS`. Unchanged in shape.
+- `is_loopback_host(host) -> bool`, **new** — **physics**: is this the same
+  machine? No environment variable reaches it; numeric-literal-only; nothing
+  widens it.
+
+The reason it is a CRITICAL and not a refactor: `web_api._resolve_bind` was
+asking the consent question (`lane_for_host`) to decide whether the
+control-plane HTTP server may bind **without authentication**. Declaring a
+bench trusted (for inference, via `DAEDALUS_TRUSTED_HOSTS`) would therefore
+have published the spine ledger, the role-rewriting PUTs and the
+model-invoking POSTs unauthenticated to that tailnet. Fixed by pointing
+`_resolve_bind` at `is_loopback_host` instead. See
+`docs/ENV_SWITCHES.md`'s `DAEDALUS_TRUSTED_HOSTS` row for the corrected
+consequence statement — it previously did not distinguish these two
+questions and needed the same fix.
+
+Any doc claiming `lane_for_host` is "the only implementation" of the host
+question (the module's own docstring still says this, of itself correctly —
+it IS the only implementation of the *consent* question) now needs the
+one-sentence addition: there are two questions, `web_api` asks the physics
+one, everything egress-related asks the consent one.
+
+Same commit added two health probes to `daedalus/health.py` (was 14 probes,
+now 16 — **INHERITED from the commit message, not independently counted this
+pass**):
+
+- `disk.free` — none of the previous 14 probes read free disk space. MEASURED
+  by the committing session: the bench reached 0.2 GB free of 921 GB and
+  every existing probe stayed green, because Ollama's `/api/tags` answers
+  200 regardless of disk headroom.
+- `bench.residency` — compares `size` against `size_vram` from `/api/ps`, the
+  diagnostic for silent CPU offload. A model that exceeds VRAM is not
+  refused; it keeps running, ~20x slower, and reads as a model-quality
+  problem rather than a placement one if nothing surfaces it.
+
+**`b22b7a8` — `feat(picker): a candidate source the write policy actually
+permits`.** `daedalus/spine/picker.py` gained a fifth candidate source,
+`docref`, at band 500 (between `map_shim` 700 and `inventory_island` 400).
+This is the fix for the empty-intersection problem session 5 recorded below
+(picker §3, "the picker's queue and the write permission do not intersect")
+and that session 6 did not touch:
+
+- MEASURED before (session 5, carried forward, not re-run this pass):
+  `build_queue` returned 17 candidates, every one surgery under `daedalus/`,
+  while the installed self-policy (`docs/`, `tests/`, `README.md`) permitted
+  none of them — the intersection was empty.
+- MEASURED after, cited in the `b22b7a8` commit message (**INHERITED, not
+  independently re-run this pass**): `docrefs.scan` reads 52 docs, 537
+  resolving references, 4 broken; the picker turns that into 3 `docref`
+  candidates; `path_write_blocked` permits 3 of 3.
+
+Docs that currently say the self-write loop is blocked by the
+write-policy/candidate-source intersection (session 5's finding, still
+accurate as *history*) need the follow-on sentence: as of `b22b7a8` it is no
+longer blocked on the free lane — a `docref` candidate is real,
+policy-permitted work, not yet a run of it. **Not verified this pass:**
+whether a live `daedalus improve` has actually picked and attempted a
+`docref` candidate; the 3/3 permits number above is a policy-function result,
+not an executed write.
+
+Same commit also fixed a hole in the subscription axis (`daedalus/budget.py`
+per `DAEDALUS_SUBSCRIPTION_VENDORS`, landed `390f75e`): the host check ran
+first but only reassigned an *untrusted* host's vendor to `remote_inference`;
+the subscription lookup then priced that reassigned vendor at $0.00.
+`remote_inference` is the catch-all for "we cannot tell whose GPU this is",
+so the bug declared every unrecognised remote endpoint free. Not
+independently re-measured this pass — carried from the commit message.
+
+**`daedalus/spine/docrefs.py`** was untracked with zero importers as of the
+session-6 entry below (`daedalus.mapping` gap list); `b22b7a8` commits and
+wires it (the picker's `docref_candidates()` imports it directly, `daedalus/
+spine/picker.py:2186`). Any doc still calling it new-and-unwired is stale as
+of this commit.
+
+**Files owned by this pass:** `docs/ENV_SWITCHES.md` (`DAEDALUS_TRUSTED_HOSTS`
+row corrected), this file (including a mid-pass self-correction once `3c74716`
+was found — see above). `docs/architecture-narrative.md` and `README.md`
+were checked by grep for `lane_for_host`, `docref`, and picker-candidate
+claims — no contradicted claim found in either; `architecture-narrative.md`
+is an explicitly dated 2026-07-28 snapshot ("MOVED, not written... kept
+unedited") and was left as history rather than rewritten to the current
+tense. `docs/architecture-state.json` was deliberately NOT re-baselined — a
+reviewed act, and other agents were committing concurrently with this pass.
+
+**RESOLVED, was flagged as unverified earlier in this same pass:** whether
+Cerberus (or anyone) had independently reviewed the *egress-widening* half of
+`390f75e`. Answer: yes — see `3c74716` above, which records the verdict and
+was found by exactly the check this note originally recommended
+(`git log --oneline -- daedalus/sensitivity.py` after `e282dab`/`b22b7a8`).
+Left in place, corrected rather than deleted, as the record of how the
+question was actually closed.
+
+## SESSION 6 — THREE COMMITS TODAY THAT CHANGE INTERFACES AND NUMBERS THIS DOC QUOTES
+
+Not yet reviewed for correctness by this pass — Mnemosyne's job here is
+provenance and doc sync, not re-auditing the mechanism. Read as: what changed,
+what is MEASURED vs INHERITED vs ASSUMED, and one open flag that has not been
+closed.
+
+**NOT CLOSED, CARRY THIS FORWARD:** `390f75e` (`DAEDALUS_TRUSTED_HOSTS`,
+subscription vendors, 5 unmetered spawn sites) touches the egress fence and its
+own commit message says so: **"NOT YET REVIEWED BY CERBERUS. This touches the
+egress fence and per the crew doctrine wants an independent look before it is
+relied on."** That hedge travels with this entry; do not cite the trust-boundary
+widening as settled until that review lands. See `docs/ENV_SWITCHES.md` for the
+full consequence statement on `DAEDALUS_TRUSTED_HOSTS`.
+
+**What landed (`git log`, all three same day):**
+
+- `7612c99` — tool-call decisions now go through grammar-constrained `format`
+  (a JSON schema), not just the content. MEASURED 2026-07-29 on the bench, 3
+  trials × 2 tasks per model, native `tools` array vs schema-constrained
+  `format`: qwen2.5-coder 1.5b/7b/14b and devstral:latest went 0% → 100%;
+  qwen3.6:latest was 100% → 100% (unaffected, was already correct). SCOPE,
+  stated in the commit: this only affects the EXPLORATORY (`_run_agentic`) path;
+  at ≤3 declared paths `run()` takes `_run_rewrite`, which never used tool calls
+  at all and is unaffected.
+- `390f75e` — declared trust boundary (`DAEDALUS_TRUSTED_HOSTS`), a subscription
+  dollar-axis (`DAEDALUS_SUBSCRIPTION_VENDORS`), and closed 5 spend-guard-free
+  process entry points (`claude_bridge`, room, room server, `run_arm`,
+  `summarize` each had their own `__main__` and never installed the budget
+  guard). MEASURED 2026-07-29, cited in the commit: an uncapped `claude -p` arm
+  ran $1.43–$1.85; `codex --version` was refused at estimate=$0.0000 against a
+  fictional spent=$24.00 (worst-case reservations a flat-rate plan had already
+  paid for) before the `estimate.usd > 0` fix.
+- `68921f0` — `.env` is now actually read at CLI start (`daedalus/dotenv.py`);
+  accelerator reporting now probes the bench over ssh for compute-unit ground
+  truth instead of reporting the local machine's (CC 6.1, no tensor/RT cores)
+  as if it were the only card that mattered; `daedalus.mapping` added to
+  `pyproject.toml`'s explicit package list, closing the non-editable-install gap
+  the OPEN list below used to name.
+
+**Numbers MEASURED 2026-07-29 on the bench (RTX 5080, 16303 MiB, CC 12.0),
+reported to this doc by the launching session and not independently re-run
+here — stamped MEASURED because they carry a workload and a warm/cold state,
+not because this pass reproduced them:**
+
+- Concurrency, qwen2.5-coder:7b, warm: N=1 137 tok/s, N=2 232, N=4 367, N=8 394,
+  N=16 409 — knee at N=4, matching server-side `OLLAMA_NUM_PARALLEL=4`, zero
+  errors through N=16. CAVEAT the reporting session itself raised and this doc
+  preserves: the two **cold-load** figures quoted alongside this run (14b
+  52.1 s, 32b 109.7 s) may be contaminated by a silent crash-retry and should
+  not be quoted as clean until re-measured.
+- qwen2.5-coder:32b: 6.08 tok/s, 109.7 s load — **exceeds VRAM on this bench and
+  is unusable, not merely slow.** Do not route to it expecting degraded-but-
+  working performance.
+- Served weights: 7b 4,466 MiB, 14b 8,572 MiB, devstral 13,670 MiB. KV per slot
+  at ctx=6144: 7b 336 MiB, 14b 1,152 MiB.
+
+**`daedalus map --check` drift, current count is 2 `doc_drift` entries** —
+`FROZEN_GATE_PATHS` (long-standing, see `docs/ENV_SWITCHES.md`'s closing note)
+and `OLLAMA_NUM_PARALLEL`. The second is now documented in
+`docs/ENV_SWITCHES.md` with the reason it will likely stay flagged: the
+variable is read by the `ollama serve` Go binary on the bench, not by this
+Python client, so the drift gate is correctly reporting "documented, nothing in
+THIS tree reads it" — that is not a doc error to fix by deleting the entry.
+
+**`README.md` (rewritten in `68921f0`, same commit as the `.env` change):
+still holds.** It does not mention `.env` sourcing, the tool-call mechanism, or
+the trust-boundary switch, so none of today's changes leave it stating a
+removed mechanism. Checked by grep, not by a full re-read against every claim.
+
+**Not verified this pass, flagged rather than assumed:** whether Cerberus's
+independent review of `390f75e` has since landed — check `git log` for a
+commit touching `daedalus/sensitivity.py` or `daedalus/budget.py` dated after
+this entry before treating the egress widening as reviewed.
 
 ## SESSION 5 — THE SELF-POLICY IS INSTALLED, AND WHAT IT TAUGHT
 

@@ -57,3 +57,7 @@ runs/council/.stream_seen
 runs/council/cursors.json
 runs/spine/
 runs/canary/
+.serena/
+runs/ikarus/
+runs/progress/
+tests/_looptmp/

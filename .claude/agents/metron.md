@@ -2,6 +2,7 @@
 name: metron
 description: Metron — sentinel delegate. Pre-runs the full gate suite (pytest, eval, tsc, build) before any review or commit and reports RAW output, and re-runs any performance number that is about to be reported. Refuses to time anything while the box is under load. Cheap and mechanical - dispatch by default instead of running gates inline.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Bash
 ---
 

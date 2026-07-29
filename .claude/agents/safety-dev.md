@@ -2,6 +2,7 @@
 name: safety-dev
 description: Minos — owns the fail-closed safety core (sensitivity.py, enforce.py, verifier/quality gates, provider_router lane guards). Use for write-guard, secret/device-path protection, enforcement, and "never spend / never write" logic. The one premium role — bugs here cost money or break safety.
 model: opus
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write, Agent
 ---
 

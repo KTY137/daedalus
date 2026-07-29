@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git blame:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git stash list:*)",
+      "Bash(git worktree list:*)",
+
+      "Bash(python -m pytest:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m unittest:*)",
+      "Bash(python -m mypy:*)",
+      "Bash(python -m ruff:*)",
+      "Bash(ruff:*)",
+      "Bash(npx tsc:*)",
+
+      "Bash(python --version)",
+      "Bash(python -c:*)",
+      "Bash(uv pip list:*)",
+      "Bash(pip list:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(rm -rf /:*)"
+    ]
+  },
+
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "teammateMode": "in-process",
+
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/docs-drift-reminder.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking docs drift..."
+          }
+        ]
+      }
+    ]
+  }
+}

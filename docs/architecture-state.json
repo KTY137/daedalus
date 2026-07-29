@@ -4,19 +4,19 @@
   "repo_state": {
     "branch": "checkpoint/2026-07-20-session",
     "dirty": true,
-    "head": "d96ebaeffa05232ddc09aa2151f40ad89bde340f"
+    "head": "7955317284ec6ce72d050bc54ca3408221f5c91d"
   },
   "counts": {
     "dark_switches": 0,
     "doc_drift": 2,
     "index_extra_edges": 0,
-    "islands": 7,
-    "modules": 143,
+    "islands": 8,
+    "modules": 144,
     "shims": 3,
     "test_only": 7,
     "unknown": 1,
     "unparsable": 0,
-    "unreached": 11
+    "unreached": 12
   },
   "ignore": {
     "env": "",
@@ -98,6 +98,7 @@
     "daedalus/mission_control.py",
     "daedalus/offload.py",
     "daedalus/orchestrate.py",
+    "daedalus/preservation.py",
     "daedalus/projects.py",
     "daedalus/provider_router.py",
     "daedalus/providers/__init__.py",
@@ -174,6 +175,7 @@
     "daedalus/kairos/shadow_shell.py",
     "daedalus/langgraph_adapter.py",
     "daedalus/memstore.py",
+    "daedalus/preservation.py",
     "daedalus/skills.py"
   ],
   "unknown": [
@@ -201,5 +203,5 @@
   "unparsable": [],
   "index_extra_edges": [],
   "acceptances": [],
-  "digest": "sha256:8af41c1962bccd43886db1eb872e17b591d566bc49ab404918228a4bbe45c055"
+  "digest": "sha256:69e470035ff2a20f96187251800e73efb7061ff07fec828372a257c9ea7d4ace"
 }

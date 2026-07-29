@@ -1,5 +1,5 @@
 {
-  "calls": 2,
+  "calls": 15,
   "entries": [
     {
       "at": 1785292575.147584,
@@ -44,11 +44,297 @@
       "reason": "",
       "usd": 2.0,
       "vendor": "openai_cli"
+    },
+    {
+      "at": 1785324484.6381986,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "e0cc85eb9fea432ebbd3fb0af2b1bcb0",
+      "kind": "reserve",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785324484.6689847,
+      "estimate_usd": 2.0,
+      "id": "e0cc85eb9fea432ebbd3fb0af2b1bcb0",
+      "kind": "settle",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785324484.704056,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "c6267b757a0a41159dafd769dba719b6",
+      "kind": "reserve",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785324484.7280605,
+      "estimate_usd": 3.0,
+      "id": "c6267b757a0a41159dafd769dba719b6",
+      "kind": "settle",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785324484.7641091,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "c6962fd920dc42eab3dd6ef76a370417",
+      "kind": "reserve",
+      "label": "subprocess.Popen: ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes Administrator@100.119.126.9 -- agy -p - --effort medium --output-format json",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "google_agy"
+    },
+    {
+      "at": 1785324484.7885048,
+      "estimate_usd": 2.0,
+      "id": "c6962fd920dc42eab3dd6ef76a370417",
+      "kind": "settle",
+      "label": "subprocess.Popen: ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes Administrator@100.119.126.9 -- agy -p - --effort medium --output-format json",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "google_agy"
+    },
+    {
+      "at": 1785325858.6121402,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "a1f36c0ecfa7475091d597e4fc681a31",
+      "kind": "reserve",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785325858.6426125,
+      "estimate_usd": 3.0,
+      "id": "a1f36c0ecfa7475091d597e4fc681a31",
+      "kind": "settle",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785325858.6752152,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "91cb4dd5ec2a48a2a95f6fc75eac9599",
+      "kind": "reserve",
+      "label": "subprocess.Popen: ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes Administrator@100.119.126.9 -- agy -p - --effort medium --output-format json",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "google_agy"
+    },
+    {
+      "at": 1785325858.7060215,
+      "estimate_usd": 2.0,
+      "id": "91cb4dd5ec2a48a2a95f6fc75eac9599",
+      "kind": "settle",
+      "label": "subprocess.Popen: ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes Administrator@100.119.126.9 -- agy -p - --effort medium --output-format json",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "google_agy"
+    },
+    {
+      "at": 1785325858.737158,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "8a55bc741a824c1faf72d0498a2f10c5",
+      "kind": "reserve",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785325858.8151748,
+      "estimate_usd": 2.0,
+      "id": "8a55bc741a824c1faf72d0498a2f10c5",
+      "kind": "settle",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785327811.3271267,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "390f3c89e47a4c74891d2badc45a17ca",
+      "kind": "reserve",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785327811.369615,
+      "estimate_usd": 2.0,
+      "id": "390f3c89e47a4c74891d2badc45a17ca",
+      "kind": "settle",
+      "label": "subprocess.Popen: codex --ask-for-approval never exec --sandbox read-only --skip-git-repo-check -",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785327811.399261,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "10858b7aa23c4e07ab4772776f2987b8",
+      "kind": "reserve",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785327811.4357555,
+      "estimate_usd": 3.0,
+      "id": "10858b7aa23c4e07ab4772776f2987b8",
+      "kind": "settle",
+      "label": "subprocess.Popen: claude -p --output-format json --disallowed-tools=Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit,TodoWrite,SlashCommand,KillShell,BashOutput --strict-mcp-config",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785332956.7232652,
+      "basis": "subscription",
+      "calls": 1,
+      "id": "200c407162e249e8b64b65eececfdcbd",
+      "kind": "reserve",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD --version",
+      "model": "",
+      "usd": 0.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785332960.4745302,
+      "estimate_usd": 0.0,
+      "id": "200c407162e249e8b64b65eececfdcbd",
+      "kind": "settle",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD --version",
+      "model": "",
+      "reason": "",
+      "usd": 0.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785332960.515179,
+      "basis": "subscription",
+      "calls": 1,
+      "id": "0f7e72b7629e4d9490e75db9403bd143",
+      "kind": "reserve",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD login status",
+      "model": "",
+      "usd": 0.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785332961.003653,
+      "estimate_usd": 0.0,
+      "id": "0f7e72b7629e4d9490e75db9403bd143",
+      "kind": "settle",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD login status",
+      "model": "",
+      "reason": "",
+      "usd": 0.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785334527.6914442,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "adc0f8da6b6a4278a0bd39832b8fdb14",
+      "kind": "reserve",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
+    },
+    {
+      "at": 1785334528.2211888,
+      "estimate_usd": 0.05,
+      "id": "adc0f8da6b6a4278a0bd39832b8fdb14",
+      "kind": "settle",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "reason": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
+    },
+    {
+      "at": 1785334548.6911132,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "749c1e55e9cb4e6892f65b347bc7562a",
+      "kind": "reserve",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
+    },
+    {
+      "at": 1785334549.209336,
+      "estimate_usd": 0.05,
+      "id": "749c1e55e9cb4e6892f65b347bc7562a",
+      "kind": "settle",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "reason": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
+    },
+    {
+      "at": 1785334578.9489713,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "d7cacebbcae0483e8074bb9e23abc7ed",
+      "kind": "reserve",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
+    },
+    {
+      "at": 1785334579.469832,
+      "estimate_usd": 0.05,
+      "id": "d7cacebbcae0483e8074bb9e23abc7ed",
+      "kind": "settle",
+      "label": "urlopen: https://api.deepseek.com/chat/completions",
+      "model": "",
+      "reason": "",
+      "usd": 0.05,
+      "vendor": "deepseek"
     }
   ],
   "open": {},
   "period": "day",
   "period_key": "2026-07-29",
-  "spent_usd": 5.0,
+  "spent_usd": 24.150000000000002,
   "version": 1
 }

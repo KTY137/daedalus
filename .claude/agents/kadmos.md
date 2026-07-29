@@ -2,6 +2,7 @@
 name: kadmos
 description: Kadmos — haiku scribe delegate for the Claude crew building Daedalus (NOT a harness/Ollama persona). Executes mechanical, precisely-specified writes a crew agent fans out in parallel - boilerplate, repetitive multi-file edits, renames, formatting, fixtures. Crew agents may run up to two delegates (argus/kadmos) at once.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Edit, Write, Bash
 ---
 

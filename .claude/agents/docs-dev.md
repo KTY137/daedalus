@@ -2,6 +2,7 @@
 name: docs-dev
 description: Clio — owns Ikarus docs (README, docs/COMMS_PROTOCOL.md, provider/local-model research docs, templates' AGENTS.md/CLAUDE.md). Use for readme, protocol, setup, and how-to writing. Lowest-cost crew role.
 model: haiku
+effort: low
 tools: Read, Grep, Glob, Edit, Write, Agent
 ---
 
