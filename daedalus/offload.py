@@ -342,6 +342,12 @@ def offload(
     # asked for the check gets a byte-identical result dict (matches as_dict()).
     if decision.reachability is not None:
         result["reachability"] = decision.reachability
+    # Same argument for stage 1: WHICH role ran this task, and whether an
+    # embedding or a keyword guess picked it, is invisible from `owner` alone.
+    # Carries the lane-guard verdict too, so an overruled latent re-route is
+    # visible here rather than only in the logs of the process that made it.
+    if decision.latent_route is not None:
+        result["latent_route"] = decision.latent_route
 
     def _escalate(note: str, provider: str = "claude_cli") -> dict:
         result["action"] = "escalate_to_claude" if eligible else "senior"

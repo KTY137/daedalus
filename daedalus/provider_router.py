@@ -23,11 +23,35 @@ by a write-capable, trusted provider. A free model can propose; never merge.
 
 from __future__ import annotations
 
+import logging
+import os
 from dataclasses import dataclass
 
 from .providers import available_providers
 from .providers.personas import culture, persona_for
+from .semantic_route import FALLBACK, LATENT, semantic_route_explained
 from .sensitivity import Policy, change_risk, classify_data
+
+logger = logging.getLogger(__name__)
+
+#: Operator kill switch for the latent (embedding) stage-1 route. Absent or any
+#: non-off value = ON. The latent route is wired ON by default because an
+#: opt-in flag that nothing sets is indistinguishable from the dead module this
+#: replaced; the switch exists so a box with a sick embedder can be pinned to
+#: keyword routing without an edit.
+LATENT_ENV = "DAEDALUS_LATENT_ROUTE"
+_LATENT_OFF = {"0", "false", "no", "off", ""}
+
+#: Mechanism recorded when the operator switched the latent route off. This is
+#: deliberately NOT ``FALLBACK``: "told not to run" and "tried and could not
+#: run" are different operator situations, and collapsing them is the exact
+#: defect the provenance rebuild exists to remove.
+LATENT_DISABLED = "disabled"
+
+#: The latent route RAN, produced a role, and was overruled because that role
+#: would have moved the task to a different provider lane or write mode. A
+#: fourth distinct situation: not a failure, not a design skip, not a route.
+LATENT_OVERRULED = "latent_overruled_lane_change"
 
 _REVIEW_ONLY_TERMS = (
     "review", "audit", "summar", "draft", "docstring", "comment", "changelog",
@@ -90,6 +114,15 @@ class ProviderDecision:
     # Defaulted + omitted from as_dict() when absent so a caller that never asked
     # for the check gets a byte-identical dict to before it existed.
     reachability: dict | None = None
+    # HOW stage 1 picked the role: embedding, path-ownership skip, or a keyword
+    # fallback and the reason it fell back. Set only by :func:`route_and_select`,
+    # which is the function that actually routes; ``select_provider`` is HANDED a
+    # role and has no provenance to report, so it leaves this None and its dict
+    # stays byte-identical. Without this the whole latent route is invisible one
+    # layer up -- "chose by embedding" and "embedding never ran, keyword guessed"
+    # would read the same to every caller, which is how the capability went quiet
+    # the first time.
+    latent_route: dict | None = None
 
     @property
     def culture(self) -> str:
@@ -107,6 +140,8 @@ class ProviderDecision:
         }
         if self.reachability is not None:
             out["reachability"] = self.reachability
+        if self.latent_route is not None:
+            out["latent_route"] = self.latent_route
         return out
 
 
@@ -358,6 +393,176 @@ def select_provider(
     return decide("codex_cli", "non-sensitive low/mid -> Codex CLI (bench down)")
 
 
+def _latent_enabled(explicit: bool | None) -> bool:
+    """Explicit argument beats the environment; absent env means ON."""
+    if explicit is not None:
+        return bool(explicit)
+    raw = os.environ.get(LATENT_ENV)
+    if raw is None:
+        return True
+    return raw.strip().lower() not in _LATENT_OFF
+
+
+def _latent_receipt(agent_name: str, mechanism: str, reason: str, *,
+                    attempted: bool = False, error_kind: str | None = None,
+                    detail: str | None = None) -> dict:
+    """A receipt with EXACTLY the keys of ``LatentRouteResult.to_dict()``, plus
+    :data:`lane_guard`.
+
+    One shape whether the latent module answered, was switched off, or never
+    got the chance -- a reader must never have to interpret a missing key, and
+    "no ``mechanism`` field" must never be a third way of saying nothing ran.
+    ``lane_guard`` is therefore always present and ``None`` when the guard did
+    not fire, rather than appearing only on the runs where it did.
+    """
+    return {
+        "agent": agent_name, "mechanism": mechanism, "ran": False,
+        "attempted": attempted, "reason": reason, "error_kind": error_kind,
+        "detail": detail, "host": None, "model": None, "scores": [],
+        "margin": None, "dimension": None, "embed_calls": 0, "lane_guard": None,
+    }
+
+
+def _lane(decision: ProviderDecision, agent: dict) -> dict:
+    """The part of a decision a role is allowed to move: where it runs and
+    whether it may write. ``external_ok`` is carried for the reader -- it is the
+    only role property ``select_provider`` consults, so it is the mechanism by
+    which a stage-1 re-route moves a lane at all."""
+    return {"provider": decision.provider, "mode": decision.mode,
+            "external_ok": bool(agent.get("external_ok", False))}
+
+
+def _apply_lane_guard(latent_agent: dict, latent_decision: ProviderDecision,
+                      keyword_agent: dict, receipt: dict,
+                      select) -> tuple[dict, ProviderDecision, dict]:
+    """A LATENT DECISION MAY NEVER CHANGE THE LANE.
+
+    Within a lane the embedding may steer freely -- that is where its value is
+    and it costs nothing. Across a lane boundary the keyword router wins.
+
+    The rule is principled rather than numeric on purpose. The measured trigger
+    was ``the graph is hard to read``, where the live backend scored
+    data-analysis-dev 0.4735 / docs-dev 0.4666 / ui-ux-dev 0.4638 -- a margin of
+    0.0069, a three-way tie in all but name -- and that flipped the task from
+    the trusted lane (qa-critic -> claude_cli) onto a local WRITE lane
+    (data-analysis-dev -> ollama, mode=write). A margin that small is not
+    evidence, and ``external_ok``/``write`` are not properties to gamble on. A
+    confidence floor would have needed a number nobody had measured; this needs
+    none, because it asks the question that actually matters -- did the lane
+    move? -- instead of a proxy for it.
+
+    The comparison is EMPIRICAL: both roles are run through the real
+    ``select_provider``, so the guard cannot drift away from the policy it is
+    guarding. Inferring the lane from ``external_ok`` alone would silently stop
+    covering any future role property that reaches the decision.
+
+    Never silent: an overrule gets its own ``mechanism`` and records both roles,
+    both lanes and the margin. A filtered sample that does not announce itself
+    would corrupt the very margin measurement this guard is waiting on.
+    """
+    if latent_agent.get("name") == keyword_agent.get("name"):
+        return latent_agent, latent_decision, receipt
+
+    keyword_decision = select(keyword_agent)
+    latent_lane = _lane(latent_decision, latent_agent)
+    keyword_lane = _lane(keyword_decision, keyword_agent)
+    if (latent_lane["provider"], latent_lane["mode"]) == \
+       (keyword_lane["provider"], keyword_lane["mode"]):
+        return latent_agent, latent_decision, receipt        # steer freely
+
+    guard = {
+        "overruled": True,
+        "latent_agent": latent_agent.get("name", ""),
+        "latent_lane": latent_lane,
+        "keyword_agent": keyword_agent.get("name", ""),
+        "keyword_lane": keyword_lane,
+        "margin": receipt.get("margin"),
+        "reason": (
+            f"the latent route chose {latent_agent.get('name','')!r} "
+            f"({latent_lane['provider']}/{latent_lane['mode']}) but the keyword "
+            f"router chose {keyword_agent.get('name','')!r} "
+            f"({keyword_lane['provider']}/{keyword_lane['mode']}); a latent "
+            "decision may not move the lane, so the keyword role stands"),
+    }
+    logger.warning("stage-1 route: LANE GUARD overruled the latent route -- %s "
+                   "(margin=%s)", guard["reason"], receipt.get("margin"))
+    # scores/margin/dimension are KEPT: they are real measurements, and the next
+    # person measuring latent quality has to be able to see what was filtered.
+    overruled = {**receipt, "agent": keyword_agent.get("name", ""),
+                 "mechanism": LATENT_OVERRULED, "ran": False,
+                 "reason": guard["reason"], "lane_guard": guard}
+    return keyword_agent, keyword_decision, overruled
+
+
+def _route_role(objective: str, paths: list[str], repo_root: str | None,
+                active_agents: list[str] | None,
+                latent: bool | None) -> tuple[dict, dict, dict]:
+    """Stage 1: pick the role, and return ``(agent, keyword_agent, receipt)``.
+
+    ``keyword_agent`` is what the keyword router would have returned on its own,
+    which is what :func:`_apply_lane_guard` needs to compare lanes against. On
+    every non-latent path the two are the same object, because the keyword
+    router is what produced the agent there.
+
+    FAIL SOFT, LOUDLY. The latent route reaches a network service, so it has
+    failure modes routing itself must not inherit: an embedder that is down, a
+    model that was never pulled, or a defect in the latent module itself. None
+    of those may take routing down with them -- the keyword router is always
+    the floor -- but none of them may be silent either, because a capability
+    that degrades quietly reads as a working capability forever. Every path out
+    of here therefore produces both an agent AND a receipt saying which path it
+    was.
+
+    The broad ``except`` is deliberate and is the fail-soft half: an unforeseen
+    exception from the latent module (or anything it imports) must cost this
+    call its embedding, not its ability to route. Note that the keyword retry
+    is NOT wrapped -- a genuinely unroutable task, e.g. an empty roster, still
+    raises exactly the error it raised before this was wired.
+    """
+    from .router import route_task
+
+    def _keyword() -> dict:
+        return route_task(objective, paths, repo_root=repo_root,
+                          active_agents=active_agents)
+
+    if not _latent_enabled(latent):
+        agent = _keyword()
+        receipt = _latent_receipt(
+            agent.get("name", ""), LATENT_DISABLED,
+            f"latent route switched off by the operator ({LATENT_ENV}); "
+            "the keyword router chose this role")
+        logger.info("stage-1 route: latent route DISABLED; keyword router chose %r",
+                    agent.get("name", ""))
+        return agent, agent, receipt
+
+    try:
+        result = semantic_route_explained(objective, paths, repo_root=repo_root,
+                                          active_agents=active_agents)
+    except Exception as exc:                     # noqa: BLE001 - see docstring
+        agent = _keyword()
+        detail = f"{type(exc).__name__}: {exc}"
+        logger.warning(
+            "stage-1 route: the latent route RAISED (%s); fell back to the "
+            "keyword router, which chose %r", detail, agent.get("name", ""))
+        return agent, agent, _latent_receipt(
+            agent.get("name", ""), FALLBACK,
+            "the latent route raised an exception", attempted=True,
+            error_kind="latent_route_crashed", detail=detail)
+
+    # The module reports its own mechanism honestly; escalate the one case an
+    # operator can act on (the backend could not be used) to WARNING.
+    if result.mechanism == FALLBACK:
+        logger.warning("stage-1 route: %s", result.explain())
+    else:
+        logger.info("stage-1 route: %s", result.explain())
+    receipt = {**result.to_dict(), "lane_guard": None}
+    # Only the latent path can diverge from the keyword router; on the others
+    # semantic_route produced its agent BY calling route_task, so re-running it
+    # would cost a roster read to learn what we already hold.
+    keyword_agent = _keyword() if result.mechanism == LATENT else result.agent
+    return result.agent, keyword_agent, receipt
+
+
 def route_and_select(
     objective: str,
     paths: list[str] | None = None,
@@ -365,6 +570,7 @@ def route_and_select(
     policy: Policy | None = None,
     active_agents: list[str] | None = None,
     repo_root: str | None = None,
+    latent: bool | None = None,
 ) -> tuple[dict, ProviderDecision]:
     """Convenience: pick both the role and the provider in one call.
 
@@ -374,11 +580,30 @@ def route_and_select(
     lives entirely in its own ``.agentenv`` cannot route at all. It ALSO reaches
     :func:`select_provider`, which is what puts the live mutate path
     (``offload`` -> here) behind the blast-radius fence rather than leaving the
-    check available but unwired."""
-    from .router import route_task
+    check available but unwired.
 
-    agent = route_task(objective, paths or [], repo_root=repo_root,
-                       active_agents=active_agents)
-    decision = select_provider(agent, objective, paths, availability, policy,
+    Stage 1 is the LATENT route (embedding similarity) with the keyword router
+    underneath it; ``latent=False`` (or ``DAEDALUS_LATENT_ROUTE=0``) pins it to
+    keywords. Both ``repo_root`` and ``active_agents`` are threaded into it so
+    the embeddings score the SAME roster this caller would accept -- scoring the
+    global crew and returning a role the caller excluded is a routing bug, not a
+    near miss. Whichever way it went is on ``decision.latent_route``.
+
+    Stage 1 decides ``external_ok``, so a latent re-route CAN move a task
+    between the trusted-only and external-eligible lanes -- which is why
+    :func:`_apply_lane_guard` forbids exactly that. The embedding may steer
+    within a lane; it may not move one. Everything downstream still fences the
+    result as before."""
+    agent, keyword_agent, latent_receipt = _route_role(
+        objective, paths or [], repo_root, active_agents, latent)
+
+    def _select(role: dict) -> ProviderDecision:
+        return select_provider(role, objective, paths, availability, policy,
                                repo_root=repo_root)
+
+    decision = _select(agent)
+    if latent_receipt["mechanism"] == LATENT:
+        agent, decision, latent_receipt = _apply_lane_guard(
+            agent, decision, keyword_agent, latent_receipt, _select)
+    decision.latent_route = latent_receipt
     return agent, decision
