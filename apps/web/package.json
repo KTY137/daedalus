@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc && vite build",
+    "test:motion": "node src/motion/run-spec.mjs",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
     "sigma": "^3.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "typescript": "^5.7.2",

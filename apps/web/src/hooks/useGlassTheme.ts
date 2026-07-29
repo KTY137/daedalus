@@ -80,12 +80,48 @@ function loadSettings(): GlassSettings {
   }
 }
 
-function persistSettings(settings: GlassSettings) {
+function writeSettings(settings: GlassSettings) {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(settings));
   } catch {
     /* private mode / storage disabled — settings still apply for the session */
   }
+}
+
+/**
+ * Persistence is deferred; application is not.
+ *
+ * Every one of these settings is a live material knob, and dragging a slider
+ * fires `input` on every frame the pointer moves. Applying the CSS custom
+ * property per frame is the point — that is what makes the glass feel live.
+ * Serialising the whole settings object to JSON and writing it to
+ * localStorage per frame is not: localStorage is synchronous, so it lands on
+ * the main thread in the middle of a drag, next to a full-surface
+ * backdrop-filter repaint. At 60fps that is ~60 stringify + write pairs per
+ * second of drag, all of them but the last one immediately superseded.
+ *
+ * So the write coalesces to one, IDLE_MS after the knob stops moving, with a
+ * flush on pagehide so nothing is lost if the tab goes away mid-drag.
+ */
+const PERSIST_IDLE_MS = 250;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingSettings: GlassSettings | null = null;
+
+function flushSettings() {
+  if (persistTimer !== null) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  if (pendingSettings) {
+    writeSettings(pendingSettings);
+    pendingSettings = null;
+  }
+}
+
+function persistSettings(settings: GlassSettings) {
+  pendingSettings = settings;
+  if (persistTimer !== null) clearTimeout(persistTimer);
+  persistTimer = setTimeout(flushSettings, PERSIST_IDLE_MS);
 }
 
 function applyScene(settings: GlassSettings, theme: Theme) {
@@ -124,11 +160,21 @@ export function useGlassTheme(theme: Theme) {
   const [settings, setSettings] = useState<GlassSettings>(loadSettings);
 
   // Apply + persist whenever the settings change, and re-apply the scene when
-  // the light/dark theme flips (scenes carry per-theme tones).
+  // the light/dark theme flips (scenes carry per-theme tones). The apply is
+  // immediate (it is the live preview); the persist coalesces — see above.
   useEffect(() => {
     applyGlass(settings, theme);
     persistSettings(settings);
   }, [settings, theme]);
+
+  // A drag that is still pending when the tab goes away must not be lost.
+  useEffect(() => {
+    window.addEventListener('pagehide', flushSettings);
+    return () => {
+      window.removeEventListener('pagehide', flushSettings);
+      flushSettings();
+    };
+  }, []);
 
   const update = useCallback((patch: Partial<GlassSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));

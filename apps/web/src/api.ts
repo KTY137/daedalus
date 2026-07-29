@@ -1,25 +1,85 @@
 import type { ApiEnvelope, BootstrapPayload, ControlPlanePayload, DashboardPayload, DistillPayload, EffortLevel, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, LiveEventName, ProjectRow, RuntimeStatusPayload, RuntimeTestPayload, StructurePayload } from './types';
 
+/**
+ * Why a request failed, kept SEPARATE from the message.
+ *
+ * "the server said no" and "there is no server" are different facts and they
+ * were previously the same thrown `Error` — which is exactly the collapse this
+ * project keeps removing everywhere else. A UI that cannot tell them apart
+ * renders "loading…" forever at a dead backend, or renders a 404 as an outage.
+ *
+ *   network   nothing answered on the loopback port — the API is not running
+ *   timeout   something is there and did not answer in time — NOT proof of health
+ *   notfound  the backend answered 404: this build talks to an older server
+ *   http      the server answered with a non-2xx status
+ *   app       HTTP 200 with `ok:false` — the endpoint ran and refused
+ */
+export type ApiFailure = 'network' | 'timeout' | 'notfound' | 'http' | 'app';
+
+export class ApiError extends Error {
+  readonly kind: ApiFailure;
+  readonly status: number;
+  readonly url: string;
+
+  constructor(kind: ApiFailure, message: string, url: string, status = 0) {
+    super(message);
+    this.name = 'ApiError';
+    this.kind = kind;
+    this.status = status;
+    this.url = url;
+  }
+}
+
+/** True when nothing answered at all — the "start the backend" case. */
+export function isBackendDown(error: unknown): boolean {
+  return error instanceof ApiError && error.kind === 'network';
+}
+
 async function request<T>(url: string, init?: RequestInit, timeoutMs = 20_000): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-      ...init,
-      signal: controller.signal
-    });
-    const data = await res.json();
-    if (!res.ok || data.ok === false) {
-      throw new Error(data.error || `Request failed: ${res.status}`);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+        ...init,
+        signal: controller.signal
+      });
+    } catch (error) {
+      // fetch only rejects on a transport failure or an abort. Anything the
+      // server actually answered — including 500 — resolves.
+      if (controller.signal.aborted) {
+        throw new ApiError(
+          'timeout',
+          `No answer within ${Math.round(timeoutMs / 1000)}s from ${url}. The request was abandoned; this says nothing about whether the work succeeded.`,
+          url
+        );
+      }
+      throw new ApiError(
+        'network',
+        `Could not reach the Daedalus API at ${location.origin}${url.startsWith('/') ? url : `/${url}`}.`,
+        url
+      );
     }
-    return data;
-  } catch (error) {
-    if (controller.signal.aborted) {
-      throw new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s: ${url}`);
+
+    let data: (Record<string, unknown> & { ok?: boolean; error?: string }) | undefined;
+    try {
+      data = await res.json();
+    } catch {
+      data = undefined;
     }
-    throw error;
+    if (res.status === 404) {
+      throw new ApiError('notfound', data?.error || `This backend has no ${url}`, url, 404);
+    }
+    if (!res.ok) {
+      throw new ApiError('http', data?.error || `Request failed: HTTP ${res.status}`, url, res.status);
+    }
+    if (data && data.ok === false) {
+      throw new ApiError('app', data.error || 'The endpoint ran and refused.', url, res.status);
+    }
+    return data as T;
   } finally {
     window.clearTimeout(timer);
   }
@@ -325,6 +385,162 @@ export function applyDraft(id: string) {
 
 export function dismissDraft(id: string) {
   return request(`/api/drafts/${encodeURIComponent(id)}/dismiss`, { method: 'POST', body: '{}' });
+}
+
+/* ------------------------------------------------------------------ *
+ * The self-improvement loop — three READ-ONLY endpoints (web_api.py).
+ *
+ * These three payloads all carry `degraded_sources` / `incomplete`, and that
+ * is the field the rest of this app is built around: an EMPTY list and a
+ * FAILED source produce the same short answer, and only these flags keep them
+ * apart. Nothing in `views/` is allowed to render one of these payloads
+ * without rendering that flag.
+ * ------------------------------------------------------------------ */
+
+/** One ranked candidate, WITH the measurement that put it in the queue.
+ *
+ * `score = band + measured_offset`. The BAND is a stated priority (a prior,
+ * per source); only the OFFSET is measured. `evidence` is the audit trail and
+ * is open-ended by design — the backend bounds it, never allowlists it — so it
+ * is typed as an open record and rendered generically. */
+export interface LoopCandidate {
+  task_id: string;
+  source: string;
+  score: number | null;
+  band: number | null;
+  measured_offset: number | null;
+  reason: string;
+  instruction: string;
+  gate_paths: unknown;
+  evidence: Record<string, unknown>;
+}
+
+export interface LoopQueueBlock {
+  candidates: LoopCandidate[];
+  n_candidates: number;
+  limit: number;
+  /** Per-source detail. Shapes differ per source ON PURPOSE — see views/health.ts. */
+  sources: Record<string, unknown>;
+  notes: string[];
+  /** Sources that could NOT be consulted. An empty queue with a non-empty
+   * `degraded_sources` is NOT evidence that there is no work. */
+  degraded_sources: string[];
+  incomplete: boolean;
+  opt_in_sources_available: boolean;
+  returned?: number;
+  dropped_for_size?: number;
+  response_bytes?: number;
+}
+
+export interface LoopQueuePayload extends ApiEnvelope {
+  queue: LoopQueueBlock;
+}
+
+export interface LoopAttempt {
+  intent_id: number;
+  kind: string;
+  state: string;
+  created_ts: string;
+  resolved_ts: string | null;
+  effect_key: string;
+  task_id: string;
+  instruction: string;
+  source: string;
+  score: number | null;
+  reason: string;
+  outcome: string | null;
+  gates_passed: boolean | null;
+  changed_paths: number | null;
+  error: string | null;
+}
+
+export interface LoopAttemptsBlock {
+  intents: LoopAttempt[];
+  limit: number;
+  kind: string;
+  task_id: string | null;
+  ledger: {
+    path: string;
+    /** A ledger that does not exist yet and one that will not OPEN are
+     * different facts: the first is a fresh checkout, the second is a source
+     * that failed. `exists:false` + `error:null` is the first. */
+    exists: boolean;
+    read_only: boolean;
+    error: string | null;
+    note: string | null;
+  };
+  degraded_sources: string[];
+  incomplete: boolean;
+  attempt_intent_kind: string;
+  returned?: number;
+  dropped_for_size?: number;
+  response_bytes?: number;
+}
+
+export interface LoopAttemptsPayload extends ApiEnvelope {
+  attempts: LoopAttemptsBlock;
+}
+
+/** The snapshot's own verdict on itself: integrity (does the digest cover the
+ * contents) AND freshness (was it written against this HEAD) are separate
+ * questions, and the endpoint returns the whole verdict rather than a boolean
+ * precisely because the predicate grew a second question after shipping. */
+export interface LoopTrust {
+  trusted?: boolean;
+  reason?: string;
+  integrity?: boolean;
+  freshness?: {
+    fresh?: boolean;
+    reason?: string;
+    recorded_head?: string;
+    actual_head?: string;
+    dirty?: boolean;
+  };
+  [key: string]: unknown;
+}
+
+export interface LoopArchitectureBlock {
+  path: string;
+  read: boolean;
+  schema: number | null;
+  digest: string;
+  note: string;
+  counts: Record<string, number>;
+  measured_lengths: Record<string, number>;
+  count_disagreements: Record<string, { recorded: number | null; measured: number }>;
+  trusted: boolean;
+  trust_reason: string;
+  trust: LoopTrust;
+  degraded_sources: string[];
+  incomplete: boolean;
+}
+
+export interface LoopArchitecturePayload extends ApiEnvelope {
+  architecture: LoopArchitectureBlock;
+}
+
+/** Ranked work queue + which sources spoke. `project` omitted = this checkout. */
+export function getLoopQueue(project?: string, limit = 10) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (project) qs.set('project', project);
+  return request<LoopQueuePayload>(`/api/loop/queue?${qs.toString()}`, undefined, 45_000);
+}
+
+/** Attempt history from the spine ledger (opened read-only server-side). */
+export function getLoopAttempts(limit = 20, kind?: string, taskId?: string) {
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (kind) qs.set('kind', kind);
+  if (taskId) qs.set('task_id', taskId);
+  return request<LoopAttemptsPayload>(`/api/loop/attempts?${qs.toString()}`, undefined, 30_000);
+}
+
+/** Counts + digest + the full trust verdict of the architecture snapshot. */
+export function getLoopArchitecture(project?: string) {
+  const qs = new URLSearchParams();
+  if (project) qs.set('project', project);
+  const suffix = qs.toString();
+  return request<LoopArchitecturePayload>(
+    `/api/loop/architecture${suffix ? `?${suffix}` : ''}`, undefined, 30_000);
 }
 
 /**

@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { ReactNode } from 'react';
 import {
   Activity,
+  AlertTriangle,
   Bot,
   Boxes,
   BrainCircuit,
@@ -12,6 +13,7 @@ import {
   GitBranch,
   Inbox,
   KeyRound,
+  Library,
   MessageSquare,
   Moon,
   Network,
@@ -31,6 +33,12 @@ import {
 import { useTheme } from './hooks/useTheme';
 import { useEventSource } from './hooks/useEventSource';
 import { ThemeEditor } from './components/ThemeEditor';
+import './views/spaces.css';
+import { GraphSpace } from './views/GraphSpace';
+import { KnowledgeSpace } from './views/KnowledgeSpace';
+import { useLoop } from './views/useLoop';
+import { StateBadge } from './views/StateBadge';
+import { assessProvider } from './views/health';
 import {
   ChatBubble,
   Composer,
@@ -64,6 +72,7 @@ import {
   getProviderStatus,
   getRuntimeStatus,
   getStructure,
+  isBackendDown,
   queueTask,
   testRuntime,
   updateAutonomy,
@@ -74,12 +83,23 @@ import {
 } from './api';
 import type { AgentProfile, BootstrapPayload, ControlPlanePayload, DashboardPayload, EffortLevel, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, ProjectRow, RuntimeRow, RuntimeTestPayload, StructurePayload } from './types';
 
-type SheetView = 'network' | 'claude' | 'codex' | 'providers' | 'queue' | 'inbox' | 'structure' | 'map';
+/**
+ * THREE SPACES. Chat is home.
+ *
+ *   chat       the assistant is the primary surface — you talk to the OS
+ *   graph      the distilled codebase graph: the skeleton of everything
+ *   knowledge  what the system has established about itself, and what it has NOT
+ *
+ * The dock's remaining entries are TOOLS, not spaces: they open as overlay
+ * sheets over whichever space you are in, and closing one returns you to it.
+ */
+type Space = 'chat' | 'graph' | 'knowledge';
+
+type SheetView = 'network' | 'claude' | 'codex' | 'providers' | 'queue' | 'inbox' | 'structure';
 
 // The structure explorer pulls in Sigma, Graphology and a layout worker. Keep
 // that WebGL stack off the chat-first startup path and load it only on demand.
 const StructureSheet = lazy(() => import('./components/StructureSheet').then((module) => ({ default: module.StructureSheet })));
-const CodeMap = lazy(() => import('./components/CodeMap').then((module) => ({ default: module.CodeMap })));
 const NetworkSheet = lazy(() => import('./components/NetworkSheet').then((module) => ({ default: module.NetworkSheet })));
 
 function FeatureFallback({ label }: { label: string }) {
@@ -901,10 +921,15 @@ function RuntimeCenter({ runtimes }: { runtimes: RuntimeRow[] }) {
   );
 }
 
+const SPACES: Array<{ key: Space; label: string; icon: ReactNode }> = [
+  { key: 'chat', label: 'Chat · home', icon: <MessageSquare size={20} /> },
+  { key: 'graph', label: 'Graph · the skeleton', icon: <Waypoints size={20} /> },
+  { key: 'knowledge', label: 'Knowledge · what is established', icon: <Library size={20} /> }
+];
+
 const DOCK_VIEWS: Array<{ key: SheetView; label: string; icon: ReactNode }> = [
   { key: 'network', label: 'Agent Network', icon: <Network size={20} /> },
   { key: 'structure', label: 'Structure', icon: <Boxes size={20} /> },
-  { key: 'map', label: 'Code Map', icon: <Waypoints size={20} /> },
   { key: 'queue', label: 'Mission Feed', icon: <GitBranch size={20} /> },
   { key: 'providers', label: 'Connections', icon: <KeyRound size={20} /> },
   { key: 'inbox', label: 'Draft Inbox', icon: <Inbox size={20} /> },
@@ -915,7 +940,6 @@ const DOCK_VIEWS: Array<{ key: SheetView; label: string; icon: ReactNode }> = [
 const SHEET_META: Record<SheetView, { title: string; subtitle: string }> = {
   network: { title: 'Agent Network', subtitle: 'A useful map, not the whole product — talk to Ikarus to change it.' },
   structure: { title: 'Structure', subtitle: 'Code-health across languages: hotspots, duplication and distillation.' },
-  map: { title: 'Code Map', subtitle: 'The living dependency graph — hot means complex and changing.' },
   queue: { title: 'Mission Feed', subtitle: 'Every runtime talks through the queue, reports and memory.' },
   providers: { title: 'Connections', subtitle: 'CLI-first, BYOK. The platform never holds your paid key.' },
   inbox: { title: 'Draft Inbox', subtitle: 'Advisory proposals from the free bench — it proposes, never merges.' },
@@ -935,6 +959,9 @@ export default function App() {
   const [providerStatus, setProviderStatus] = useState<ProviderStatusRow[]>([]);
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | undefined>();
   const [selectedName, setSelectedName] = useState('');
+  // Chat is the home surface: the app opens into the assistant, never into a
+  // dashboard.
+  const [space, setSpace] = useState<Space>('chat');
   const [view, setView] = useState<SheetView>('network');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(true);
@@ -943,6 +970,10 @@ export default function App() {
   const [objective, setObjective] = useState('');
   const [lane, setLane] = useState('local_only');
   const [error, setError] = useState('');
+  /** Set only when NOTHING answered on the loopback port. A dead backend is a
+   * different fact from a slow one or a refusing one, and it gets its own
+   * banner with the command that fixes it — never an endless spinner. */
+  const [offline, setOffline] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [fastMode, setFastMode] = useState(loadPerformanceMode);
   // Lightweight live counters pushed by the SSE stream — updated instantly on
@@ -971,6 +1002,7 @@ export default function App() {
     try {
       const projectPayload = await getProjects();
       if (serial !== refreshSerial.current) return;
+      setOffline(false);
       setProjects(projectPayload.projects);
       const chosen = nextProject || queryProject || projectPayload.projects[0]?.name || '';
       if (!chosen) return;
@@ -1013,10 +1045,14 @@ export default function App() {
       const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
       if (failures.length > 0) {
         const first = failures[0].reason instanceof Error ? failures[0].reason.message : String(failures[0].reason);
-        setError(`${failures.length} data source${failures.length === 1 ? '' : 's'} did not respond. Available panels are still usable. ${first}`);
+        // Naming the count matters: "some panels are stale" and "everything is
+        // fine" look identical once the stale panels keep rendering old data.
+        setError(`${failures.length} data source${failures.length === 1 ? '' : 's'} did not respond — the panels they feed are showing nothing, not "nothing to show". ${first}`);
       }
     } catch (err) {
-      if (serial === refreshSerial.current) setError(err instanceof Error ? err.message : String(err));
+      if (serial !== refreshSerial.current) return;
+      setOffline(isBackendDown(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (serial === refreshSerial.current) setRefreshing(false);
     }
@@ -1088,15 +1124,34 @@ export default function App() {
     }
   }, [project]);
 
-  // The Structure sheet and the Code Map read the SAME `/api/structure`
-  // payload (the map consumes `structure.graph`), so opening either one warms
-  // the index for both — we never pay for that scan twice.
+  // The Structure sheet and the Graph space read the SAME `/api/structure`
+  // payload (the graph consumes `structure.graph`), so opening either one
+  // warms the index for both — we never pay for that scan twice.
   useEffect(() => {
-    if (!sheetOpen || !project) return;
-    if (view !== 'structure' && view !== 'map') return;
+    if (!project) return;
+    const wantsStructure = space === 'graph' || (sheetOpen && view === 'structure');
+    if (!wantsStructure) return;
     if (structureFetchedFor.current === project) return;
     loadStructure(false);
-  }, [sheetOpen, view, project, loadStructure]);
+  }, [sheetOpen, view, space, project, loadStructure]);
+
+  /**
+   * The self-improvement loop's three read-only surfaces.
+   *
+   * Fetched immediately rather than lazily on the Knowledge tab, for one
+   * reason: `degraded_sources` has to be visible from the CHAT home surface. A
+   * source that failed while you were talking to Ikarus is exactly the fact
+   * that must not wait for you to go looking for it.
+   *
+   * UNCONDITIONALLY enabled, including before a project resolves. All three
+   * endpoints default to this checkout, and gating on `project` had a measured
+   * failure mode: with the API down, `getProjects()` fails, no project ever
+   * resolves, the loop is never CALLED — and "not called" rendered as
+   * `present` ("the endpoint exists and nothing ran it"), which is a far
+   * gentler claim than the truth. Calling it always means a dead API reports
+   * `unknown` with "start the backend", which is what actually happened.
+   */
+  const loop = useLoop(project, true);
 
   const loadHierarchy = useCallback(async (force = false) => {
     if (!project || (!force && hierarchyFetchedFor.current === project)) return;
@@ -1130,7 +1185,10 @@ export default function App() {
         const target = event.target as HTMLElement | null;
         if (target?.matches('input, textarea, select, [contenteditable="true"]')) return;
         event.preventDefault();
+        // Ctrl+K is "take me to the assistant" — it must cross a space
+        // boundary, not just close a sheet, now that chat is one of three.
         setSheetOpen(false);
+        setSpace('chat');
         requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('[data-ikarus-composer]')?.focus());
       }
     };
@@ -1183,6 +1241,48 @@ export default function App() {
   function closeSheet() {
     setSheetOpen(false);
   }
+
+  /** Switching space always closes any tool sheet: a sheet is an overlay ON a
+   * space, so leaving it open across a switch would hide the space you asked
+   * for behind the tool you were done with. */
+  function goSpace(next: Space) {
+    setSpace(next);
+    setSheetOpen(false);
+  }
+
+  /* ---- the loop, summarised for the top bar ----
+     `degraded_sources` is the one fact that must be reachable from every
+     space, including the chat home surface. It is rendered with the same five
+     state words as everything else: a failed source is DEGRADED, an
+     unreachable API is UNKNOWN (we learned nothing), and only a queue whose
+     sources all answered is allowed to be green. */
+  const loopBlock = loop.queue.data?.queue;
+  const loopDegraded = loopBlock?.degraded_sources || [];
+  const loopState = loop.queue.error
+    ? (loop.queue.error.kind === 'notfound' ? 'absent' as const
+      : loop.queue.error.kind === 'app' || loop.queue.error.kind === 'http' ? 'degraded' as const
+        : 'unknown' as const)
+    : loop.queue.loading && !loopBlock
+      ? 'unknown' as const
+      : !loopBlock
+        ? 'present' as const
+        : loopDegraded.length > 0
+          ? 'degraded' as const
+          : 'working' as const;
+  const loopChipText = loop.queue.error
+    ? 'loop unread'
+    : !loopBlock
+      ? 'loop …'
+      : loopDegraded.length > 0
+        ? `${loopDegraded.length} source${loopDegraded.length === 1 ? '' : 's'} failed`
+        : `${loopBlock.n_candidates} queued`;
+  const loopChipTitle = loop.queue.error
+    ? `The work queue could not be read: ${loop.queue.error.message}\nThis says nothing about whether there is work.`
+    : loopDegraded.length > 0
+      ? `INCOMPLETE — these sources could not be consulted:\n${loopDegraded.join('\n')}\n\nA short or empty queue is NOT evidence that there is no work.`
+      : loopBlock
+        ? 'Every picker source answered. The queue is complete as far as the sources go.'
+        : 'The work queue has not been read yet.';
 
   function renderSheet(target: SheetView) {
     if (target === 'network') {
@@ -1249,21 +1349,6 @@ export default function App() {
       );
     }
 
-    if (target === 'map') {
-      return (
-        <Suspense fallback={<FeatureFallback label="Code Map" />}>
-          <CodeMap
-            project={project}
-            data={structure}
-            loading={structureLoading}
-            error={structureError}
-            onRefresh={() => loadStructure(true)}
-            theme={theme}
-          />
-        </Suspense>
-      );
-    }
-
     if (target === 'providers') return <RuntimeCenter runtimes={runtimes} />;
 
     if (target === 'inbox') return <InboxTray drafts={drafts} onChange={() => refresh(project)} />;
@@ -1321,6 +1406,15 @@ export default function App() {
             <KeyRound size={12} /> BYOK {byokConfigured}/{envProviders.length}
           </button>
         )}
+        <button
+          type="button"
+          className={cx('pill', 'loop-chip', loopState === 'degraded' && 'bad', loopState === 'unknown' && 'unknown')}
+          onClick={() => goSpace('knowledge')}
+          title={loopChipTitle}
+          aria-label={`Self-improvement loop: ${loopChipText}`}
+        >
+          <StateBadge state={loopState} compact /> {loopChipText}
+        </button>
         <span
           className="pill livechip"
           title={streamLive ? 'Live event stream connected' : 'Stream down — falling back to polling'}
@@ -1359,10 +1453,23 @@ export default function App() {
         </button>
       </header>
 
-      <div className={cx('app-body', !railOpen && 'rail-collapsed')}>
+      <div className={cx('app-body', (!railOpen || space === 'graph') && 'rail-collapsed')}>
         <Dock>
+          {/* The three spaces. A separate group with a rule under it, because
+              a space and a tool sheet are different kinds of thing. */}
           <DockGroup>
-            <DockItem icon={<MessageSquare size={20} />} label="Ikarus chat" active={!sheetOpen} onClick={closeSheet} />
+            <div className="space-group">
+              {SPACES.map((item) => (
+                <DockItem
+                  key={item.key}
+                  icon={item.icon}
+                  label={item.label}
+                  active={space === item.key && !sheetOpen}
+                  badge={item.key === 'knowledge' && loopDegraded.length > 0}
+                  onClick={() => goSpace(item.key)}
+                />
+              ))}
+            </div>
             {DOCK_VIEWS.map((item) => (
               <DockItem
                 key={item.key}
@@ -1381,8 +1488,33 @@ export default function App() {
         </Dock>
 
         <div className="spine-wrap">
-          {error && <div className="error-banner">{error}</div>}
-          <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
+          {/* A dead backend says so, with the command that fixes it. It never
+              renders as an empty panel and it never spins. */}
+          {offline && (
+            <div className="error-banner" role="alert">
+              <AlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: 6 }} />
+              The Daedalus API is not answering on this port. Nothing on screen was read from it —
+              that is not the same as there being nothing to show. Start it with{' '}
+              <code>python -m daedalus.web_api</code> (loopback only), then Refresh.
+            </div>
+          )}
+          {!offline && error && <div className="error-banner">{error}</div>}
+
+          {space === 'chat' && (
+            <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
+          )}
+          {space === 'graph' && (
+            <GraphSpace
+              project={project}
+              structure={structure}
+              loading={structureLoading}
+              error={structureError}
+              onRefresh={() => loadStructure(true)}
+              theme={theme}
+              loop={loop}
+            />
+          )}
+          {space === 'knowledge' && <KnowledgeSpace loop={loop} project={project} />}
         </div>
 
         <LiveRail>
@@ -1397,25 +1529,71 @@ export default function App() {
             </div>
           </RailCard>
 
+          {/* The loop, on the home surface. `degraded_sources` must not require
+              navigating to a tab: a source that failed while you were talking
+              to Ikarus is exactly the fact you would otherwise never look for. */}
+          <RailCard
+            title="Self-improvement loop"
+            icon={<Library size={15} />}
+            badge={<StateBadge state={loopState} compact />}
+          >
+            {loop.queue.error ? (
+              <div className="conn"><div className="l"><span className="sub">{loop.queue.error.message}</span></div></div>
+            ) : loopBlock ? (
+              <>
+                <div className="kpi">
+                  {loopBlock.n_candidates}{' '}
+                  <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>ranked candidate(s)</span>
+                </div>
+                {loopDegraded.length > 0 ? (
+                  <p style={{ fontSize: 11, color: 'var(--bad)', lineHeight: 1.5, marginTop: 6 }}>
+                    <b>{loopDegraded.join(', ')}</b> could not be consulted. This number is what
+                    survived, not what there is.
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.5, marginTop: 6 }}>
+                    Every picker source answered.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="pill"
+                  style={{ marginTop: 8, cursor: 'pointer' }}
+                  onClick={() => goSpace('knowledge')}
+                >
+                  Open Knowledge
+                </button>
+              </>
+            ) : (
+              <div className="conn"><div className="l"><span className="sub">not read yet</span></div></div>
+            )}
+          </RailCard>
+
+          {/* CONFIGURED and REACHABLE are two facts, and the old connected/offline
+              dot collapsed them. Nothing here is ever `working`: a runtime being
+              on PATH and answering a probe is not a billable call succeeding, so
+              the honest ceiling for a lane is `present`. */}
           <RailCard title="Connections" icon={<KeyRound size={15} />} badge={<span className="pill">BYOK</span>}>
             {runtimes.length === 0 && <div className="conn"><div className="l"><span className="sub">No runtimes detected yet.</span></div></div>}
-            {runtimes.map((r) => (
-              <div className="conn" key={r.id}>
-                <div className="l">
-                  <span className="cdot" style={{ background: r.available ? 'var(--good)' : 'var(--dim)' }} />
-                  <div>{r.label}<div className="sub">{r.mode} · {r.auth_status}</div></div>
+            {runtimes.map((r) => {
+              const row = providerStatus.find((p) => p.name === (RUNTIME_TO_PROVIDER[r.id] || r.id));
+              const item = assessProvider({
+                label: r.label,
+                configured: row ? row.configured : undefined,
+                available: r.available && (row ? row.available : true),
+                requiresKey: row?.requires_key,
+                detail: `${r.mode} · ${r.auth_status}`,
+                lastError: r.last_error || row?.last_error
+              });
+              return (
+                <div className="conn" key={r.id} title={`${item.headline}${item.remedy ? `\n→ ${item.remedy}` : ''}`}>
+                  <div className="l">
+                    <div>{r.label}<div className="sub">{r.mode} · {r.auth_status}</div></div>
+                  </div>
+                  <StateBadge state={item.state} compact title={item.headline} />
                 </div>
-                <span
-                  className="pill"
-                  style={{
-                    color: r.available ? 'var(--good)' : 'var(--muted)',
-                    borderColor: r.available ? 'color-mix(in srgb, var(--good) 45%, transparent)' : undefined
-                  }}
-                >
-                  {r.available ? 'connected' : 'offline'}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </RailCard>
 
           <RailCard title="Watcher" icon={<Activity size={15} />}>

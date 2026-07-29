@@ -1,0 +1,175 @@
+/* =========================================================================
+   Motion ownership handover.
+
+   styles.css already transitions transform/opacity on several of these
+   nodes, and animates `.msg` outright. Once framer-motion writes an inline
+   transform, two things go wrong:
+
+     1. A CSS transition on `transform` re-interpolates every inline value
+        framer-motion writes, so the JS animation smears through a second,
+        slower curve. It looks like lag, and it profiles like lag.
+     2. A CSS @keyframes animation beats inline styles in the cascade
+        (animations sit above inline declarations), and `.msg` uses
+        `animation-fill-mode: both` — its final frame pins transform/opacity
+        forever, so the framer-motion animation would never be visible at
+        all.
+
+   So every node framer-motion drives carries `data-motion`, and this file
+   hands transform/opacity ownership to JS on exactly those nodes. Nothing
+   here changes a value; it only decides which engine is allowed to move it.
+
+   This file is loaded from src/motion/index.ts, which every motion-driven
+   glass primitive imports. It never edits styles.css.
+   ========================================================================= */
+
+/* Doubling the attribute lifts specificity to (0,2,0) so this beats the
+   single-class rules in styles.css regardless of stylesheet order. Only the
+   transition PROPERTY list is narrowed — colour, border and shadow
+   acknowledgements keep their CSS transitions, which is where they belong. */
+[data-motion][data-motion] {
+  transition-property: background-color, background, border-color, color, box-shadow, filter;
+}
+
+/* ---- sheet + scrim ---- */
+.sheet[data-motion],
+.scrim[data-motion] {
+  transition: none;
+}
+
+/* ---- transcript bubbles: retire the CSS `rise` keyframe ---- */
+.msg[data-motion] {
+  animation: none;
+}
+
+/* ---- dock: the active pill is now a real element that travels ----
+   The doubled attribute puts this at (0,4,0) so it beats a view-lane rule
+   like `.dockbtn.space-btn.active` (0,3,0) instead of tying with it and
+   resolving on stylesheet order. The motion pill owns background, border and
+   box-shadow of an active dock button; extra decoration from a view should
+   go on a pseudo-element rather than on those three properties, or the glow
+   blinks in place while the pill is still travelling. */
+.dockbtn[data-motion][data-motion].active {
+  /* colour stays in styles.css; the surface moves to the motion pill so it
+     can slide between buttons instead of blinking from one to the next */
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+.dockbtn[data-motion] > .motion-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: 0 6px 16px var(--accent-glow);
+  pointer-events: none;
+  z-index: 0;
+}
+/* the icon is unpositioned, so a positioned sibling would paint over it */
+.dockbtn[data-motion] > svg {
+  position: relative;
+  z-index: 1;
+}
+.dockbtn[data-motion] > .dot {
+  z-index: 2;
+}
+
+/* ---- segmented control: same idea, horizontal ---- */
+.segmented[data-motion] > button {
+  position: relative;
+}
+.segmented[data-motion] > button.active {
+  background: transparent;
+  border-color: var(--edge-soft);
+  color: var(--text);
+}
+.segmented[data-motion] .motion-thumb {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+.segmented[data-motion] .seg-label {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- composer: one owner for the focus ring ---- */
+.composer[data-motion] .inputwrap {
+  position: relative;
+}
+/* styles.css paints a :focus-within ring; the motion ring below replaces it
+   so the field does not wear two. */
+.composer[data-motion] .inputwrap:focus-within {
+  border-color: var(--edge-soft);
+  box-shadow: none;
+}
+.composer[data-motion] .motion-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--r-lg) + 1px);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  pointer-events: none;
+  z-index: 0;
+}
+.composer[data-motion] .inputwrap > textarea,
+.composer[data-motion] .inputwrap > .send {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- live dot: box-shadow spread -> composited transform ----
+   The shipped `breathe` keyframe animated `box-shadow` spread on an infinite
+   loop. Box-shadow is a paint property: every frame repainted the dot and its
+   surrounding halo, on up to four dots at once, forever. Same look, expressed
+   as scale + opacity on a pseudo-element, which the compositor can run
+   without touching layout or paint. */
+.live-dot[data-motion] {
+  position: relative;
+  animation: none;
+}
+.live-dot[data-motion].good::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--good);
+  pointer-events: none;
+  transform: scale(1);
+  opacity: 0;
+  animation: motion-dot-ring 2.4s var(--ease) infinite;
+}
+@keyframes motion-dot-ring {
+  0% { transform: scale(1); opacity: 0.5; }
+  70% { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* =========================================================================
+   Reduced motion.
+
+   styles.css already zeroes CSS durations globally. These are the gaps that
+   rule does not close: an infinite keyframe whose duration is zeroed still
+   ticks, `scroll-behavior` is not a transition, and the JS half is handled
+   in useMotion.ts / variants.ts rather than here.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  /* animation-name: none removes the animation outright — the global rule
+     only shortens its duration, which leaves it running at 0.001ms forever. */
+  .live-dot[data-motion].good::after {
+    animation: none;
+    opacity: 0;
+  }
+  /* the transcript auto-scrolls on every new message; smooth scrolling is
+     large-area travel and is exactly what the setting is asking to remove */
+  .transcript {
+    scroll-behavior: auto;
+  }
+  [data-motion][data-motion] {
+    transition: none;
+  }
+}
