@@ -278,13 +278,30 @@ def _within_write_allow(path: str, allow: tuple[str, ...]) -> bool:
     the confinement would leak in exactly the direction it exists to stop.
 
     Semantics: an entry ending in ``/`` names a subtree; any other entry names
-    that one file. Both are anchored at the repo root, so ``readme.md`` permits
-    ``/readme.md`` and not ``/vendor/readme.md``.
+    THAT ONE FILE and nothing under it. Both are anchored at the repo root, so
+    ``readme.md`` permits ``/readme.md`` and neither ``/vendor/readme.md`` nor
+    ``/readme.md/payload.py``.
+
+    THE SECOND HALF OF THAT SENTENCE WAS PROSE, NOT CODE, FOR ONE HOUR. The
+    first version read::
+
+        anchored == e or anchored.startswith(e if e.endswith("/") else e + "/")
+
+    which admits every DESCENDANT of a file entry -- ``README.md/payload.py``
+    passed the confinement while the docstring above it said file entries name
+    one file. Found by Codex in review, on the same day the same defect was
+    found in a document describing this very fence. A confinement list is the
+    one place in this module where a loose match errs toward PERMITTING, so the
+    non-directory case must be equality and nothing else.
     """
     anchored = "/" + _norm(path).lstrip("/")
     for entry in allow:
         e = "/" + entry.lstrip("/")
-        if anchored == e or anchored.startswith(e if e.endswith("/") else e + "/"):
+        if anchored == e:
+            return True
+        # ONLY a directory entry extends to descendants. No `else` branch here
+        # on purpose: a file entry that is not an exact match is a miss.
+        if e.endswith("/") and anchored.startswith(e):
             return True
     return False
 

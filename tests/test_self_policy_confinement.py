@@ -69,6 +69,32 @@ class WriteAllowSemanticsTests(unittest.TestCase):
         # ...and not a same-named file somewhere else in the tree.
         self.assertTrue(path_write_blocked("vendor/README.md", self.pol))
 
+    def test_file_entries_do_not_extend_to_descendants(self):
+        """REGRESSION, found by Codex in review one hour after shipping.
+
+        The first `_within_write_allow` matched a file entry with
+        `anchored.startswith(e + "/")`, so every DESCENDANT of a file entry
+        passed -- `README.md/payload.py` was writable while the docstring
+        directly above the code said file entries name exactly one file.
+
+        This test is the whole reason the sibling test above is not enough:
+        `vendor/README.md` probes the wrong direction (a same-named file
+        ELSEWHERE) and stayed green through the entire bug. Only a descendant
+        probes the semantics that were actually claimed.
+        """
+        for rel in ("README.md/payload.py", "README.md/nested/deep.py",
+                    "README.md/.agentenv/agentenv.json"):
+            with self.subTest(path=rel):
+                self.assertTrue(path_write_blocked(rel, self.pol), rel)
+        # The directory entries must still extend, or the fix over-corrected.
+        self.assertFalse(path_write_blocked("docs/nested/deep/x.md", self.pol))
+
+    def test_within_write_allow_file_entry_is_equality_only(self):
+        # Same claim at the helper level, where it is unambiguous.
+        self.assertTrue(_within_write_allow("readme.md", ("readme.md",)))
+        self.assertFalse(_within_write_allow("readme.md/x.py", ("readme.md",)))
+        self.assertTrue(_within_write_allow("docs/x.py", ("docs/",)))
+
     def test_confinement_is_not_substring_matching(self):
         # THE BUG THIS PREVENTS: `"docs/" in "evildocs/payload.py"` is True.
         # A substring confinement would have admitted an attacker-named
