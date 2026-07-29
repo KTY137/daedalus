@@ -67,6 +67,7 @@ is pointed at. The room is read only if room.md already exists, because
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -77,6 +78,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from collections import namedtuple
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -117,6 +119,19 @@ PROBE_TEXT = "daedalus health probe"
 LOCAL_OLLAMA = "http://127.0.0.1:11434"
 BENCH_OLLAMA = os.environ.get("DAEDALUS_RTX_OLLAMA_HOST", "http://100.119.126.9:11434")
 EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+
+#: The bench's ssh endpoint, for the two diagnostics Ollama's own HTTP API
+#: cannot answer -- there is no /api free-space and no /api crash-history
+#: call: is the auto-start task configured to survive a headless reboot, and
+#: is llama-server.exe crash-looping. Read-only `Get-ScheduledTask` /
+#: `Get-WinEvent` on the far end; nothing here stops or restarts anything.
+BENCH_SSH_HOST = os.environ.get("DAEDALUS_RTX_SSH_HOST", "Administrator@100.119.126.9")
+BENCH_TASK_NAME = os.environ.get("DAEDALUS_RTX_TASK_NAME", "DaedalusOllamaServe")
+#: Wall-clock ceiling for the WHOLE ssh round trip (connect + remote query).
+#: Kept short on purpose: this module is also a 10s VS Code status-bar
+#: shell-out (see Ctx.deep), and an unreachable bench must fail FAST, not
+#: spend that budget finding out.
+BENCH_SSH_TIMEOUT_S = 9.0
 
 
 class ProvenanceError(ValueError):
@@ -364,6 +379,7 @@ def assess(only: str | None = None, *, repo_root: str | Path | None = None,
     ctx = Ctx(repo_root=Path(repo_root).resolve() if repo_root else ROOT,
               probe_remote=probe_remote, deep=deep, timeout_s=timeout_s)
     _SOURCE_CACHE.clear()
+    _SSH_CACHE.clear()
     out: list[Report] = []
     for spec in PROBES:
         if only and only not in spec.name:
@@ -1022,6 +1038,453 @@ def _p_bench_residency(ctx: Ctx) -> Report:
                    "EVERY resident model), or quantise the KV cache")
     return working("bench.residency",
                    f"{len(models)} model(s) fully resident on the GPU", facts)
+
+
+# --------------------------------------------------------------------------- #
+# 9d/9e -- the two bench failures that are invisible to everything but ssh     #
+# --------------------------------------------------------------------------- #
+# MEASURED 2026-07-29, on the RTX bench. Two failures share one property: NO
+# local HTTP probe can see them, because Ollama exposes no free-space and no
+# crash-history endpoint, and both live entirely in Windows' own machinery.
+#
+#   1. the auto-start task was `LogonType=InteractiveToken` with only a Logon
+#      trigger -- a reboot with nobody at the console or over RDP is not a
+#      crash and not a delay, it is a PERMANENT no-op. Nothing polls for
+#      this; it looks identical to "the bench is simply idle" until someone
+#      needs it and it has been off since the last Windows Update.
+#
+#   2. llama-server.exe crashes 0xc0000409 in ucrtbase.dll at the SAME offset
+#      every time (a second, rarer signature: 0xc0000005 in libllama.dll).
+#      Ollama's own server.log shows NOTHING -- the parent process swallows
+#      the child's death and silently relaunches it, so Task Scheduler's own
+#      restart policy never even fires on this. Only Windows Error Reporting
+#      catches it, in the Application log, and nothing before this read it.
+#
+#   3. MEASURED after the two probes below first shipped, by a sibling agent
+#      (Metron) exercising this same bench under concurrent load: `ollama.exe`
+#      ITSELF -- not merely the llama-server.exe child -- died mid-run with NO
+#      WER record, no crash dump, and NO Application-log entry at all.
+#      `Get-Process ollama` came back empty. Reproduced twice. A probe that
+#      only scans crash records would have reported "0 crashes" over a dead
+#      server -- true about what it measured, false about what a reader would
+#      conclude, the exact shape of escape this whole module exists to catch,
+#      one level up. `bench.engine_crashes` below therefore never reads
+#      "no crash records" as `working` on its own -- it is corroborated
+#      against `_bench_ollama_alive`, a live HTTP check, every time.
+#
+# Both ssh answers require ssh -- Get-ScheduledTask and Get-WinEvent have no
+# HTTP equivalent -- so both probes below share the rule the rest of this
+# file enforces everywhere else: a check that cannot run is `unknown`, never
+# `absent`. Only a query that ACTUALLY REACHED the bench and came back
+# empty-handed (the task genuinely is not there) may report `absent`; an ssh
+# timeout, a missing client, or a remote exception all mean "this machine
+# could not ask", which is a different fact from "the answer is no".
+#
+# ONE ssh round trip serves both probes; they are cached per :func:`assess`
+# run (:data:`_SSH_CACHE`) so an unreachable bench costs one timeout, not two.
+_SSH_CACHE: dict[str, tuple[bool, Any]] = {}
+
+
+def _ps_quote(value: str) -> str:
+    """Escape a value for embedding inside a PowerShell single-quoted string."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _ssh_powershell(host: str, script: str, timeout: float) -> tuple[bool, Any]:
+    """Run ``script`` on ``host`` non-interactively, quoting-proof.
+
+    The remote default shell here is cmd.exe, which tokenises on the ``|``
+    and ``&`` that any nontrivial PowerShell script is full of -- the first
+    version of this probe learned that the hard way (``findstr`` receiving
+    ``echo``, ``reg``, ``add`` as literal filenames because a `;`-joined
+    command line was never a cmd.exe separator). ``-EncodedCommand`` sends
+    the script as base64 instead: nothing is left for cmd.exe, ssh's own
+    argv-join, or anything in between to misparse.
+
+    Returns ``(ok, payload)``. ``ok=False`` means the SSH CALL ITSELF could
+    not be trusted -- no client, unreachable, timed out, or the reply was not
+    JSON -- and the caller MUST report ``unknown``, never ``absent``, for
+    that case. ``ok=True`` means ssh worked and ``payload`` is the remote
+    script's own JSON, which may separately carry ``{"ok": false, ...}`` for
+    a remote-side failure that DID get reported cleanly (e.g. the Task
+    Scheduler RPC service unreachable) -- still not the same fact as "the
+    task does not exist", so callers must keep that distinction too.
+    """
+    ssh = shutil.which("ssh")
+    if not ssh:
+        return False, "no ssh client on PATH"
+    b64 = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+    try:
+        p = subprocess.run(
+            [ssh, "-o", "BatchMode=yes", "-o", "ConnectTimeout=4",
+             "-o", "ConnectionAttempts=1", host,
+             "powershell", "-NoProfile", "-NonInteractive",
+             "-EncodedCommand", b64],
+            capture_output=True, text=True, timeout=timeout, check=False,
+            encoding="utf-8", errors="replace")
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if p.returncode != 0:
+        return False, (f"ssh exited {p.returncode}: "
+                       f"{(p.stderr or p.stdout or '').strip()[:200]}")
+    out = (p.stdout or "").strip()
+    if not out:
+        return False, "ssh produced no output"
+    try:
+        return True, json.loads(out)
+    except ValueError as exc:
+        return False, f"remote output was not JSON: {exc} ({out[:200]!r})"
+
+
+# Two read-only PowerShell queries in one round trip.
+#
+# Task facts come from `Get-ScheduledTask` with NO name filter, then a
+# `Where-Object` match -- deliberately not `-TaskName X -ErrorAction
+# SilentlyContinue`, because that collapses "the Task Scheduler RPC service
+# is unreachable" and "no task by that name" into the same $null. The
+# unfiltered call still THROWS on the former (-> ok=false -> unknown) while a
+# `Where-Object` miss is a clean, measured "not found" (-> taskFound=false ->
+# absent).
+#
+# Crash facts come from the event's own `ToXml()`, never the localised
+# `.Message` text -- this box reports in German ("Fehlerhafter
+# Anwendungsname"), and matching the schema's stable `Data Name=` attributes
+# instead of the rendered string is what keeps the probe working regardless
+# of the box's display language. VERIFIED live against this bench: `$d.
+# '#text'` on each `<Data Name="AppName">llama-server.exe</Data>` node is
+# what actually recovers the value; a bare `$d.AppName` does not exist.
+_BENCH_SNAPSHOT_SCRIPT = """
+$ErrorActionPreference = 'Stop'
+
+function Get-TaskFacts {
+    try {
+        $t = Get-ScheduledTask | Where-Object { $_.TaskName -eq __TASK_NAME__ } |
+            Select-Object -First 1
+        if (-not $t) { return @{ ok = $true; taskFound = $false } }
+        $info = $t | Get-ScheduledTaskInfo
+        $triggerTypes = @($t.Triggers | ForEach-Object { $_.CimClass.CimClassName })
+        $bootCapable = @($triggerTypes | Where-Object {
+            $_ -notmatch 'MSFT_TaskLogonTrigger|MSFT_TaskSessionStateChangeTrigger'
+        }).Count -gt 0
+        $headlessLogon = $t.Principal.LogonType.ToString() -in @('S4U', 'Password', 'ServiceAccount')
+        $restartIv = $null
+        if ($t.Settings.RestartInterval) {
+            $restartIv = [Xml.XmlConvert]::ToTimeSpan($t.Settings.RestartInterval).TotalMinutes
+        }
+        return @{
+            ok = $true; taskFound = $true
+            enabled = [bool]$t.Settings.Enabled
+            state = $t.State.ToString()
+            logonType = $t.Principal.LogonType.ToString()
+            runLevel = $t.Principal.RunLevel.ToString()
+            triggerTypes = $triggerTypes
+            bootCapableTrigger = [bool]$bootCapable
+            headlessLogon = [bool]$headlessLogon
+            lastRunTime = $info.LastRunTime.ToUniversalTime().ToString('o')
+            lastTaskResult = $info.LastTaskResult
+            restartCount = $t.Settings.RestartCount
+            restartIntervalMinutes = $restartIv
+        }
+    } catch {
+        return @{ ok = $false; error = $_.Exception.Message }
+    }
+}
+
+function Get-CrashFacts {
+    try {
+        try {
+            $events = @(Get-WinEvent -FilterHashtable @{
+                LogName = 'Application'; ProviderName = 'Application Error'
+            } -MaxEvents 300 -ErrorAction Stop)
+        } catch {
+            if ($_.Exception.Message -match 'No events were found') { $events = @() }
+            else { throw }
+        }
+        $rows = New-Object System.Collections.ArrayList
+        foreach ($e in $events) {
+            $xml = [xml]$e.ToXml()
+            $data = @{}
+            foreach ($d in $xml.Event.EventData.Data) { $data[$d.Name] = $d.'#text' }
+            if ($data['AppName'] -like 'llama-server.exe*' -or $data['AppName'] -like 'ollama.exe*') {
+                [void]$rows.Add(@{
+                    time = $e.TimeCreated.ToUniversalTime().ToString('o')
+                    binary = $data['AppName']
+                    moduleName = $data['ModuleName']
+                    exceptionCode = $data['ExceptionCode']
+                    faultingOffset = $data['FaultingOffset']
+                })
+            }
+        }
+        return @{
+            ok = $true; scanned = $events.Count; matches = $rows.Count
+            records = @($rows | Select-Object -First 20)
+        }
+    } catch {
+        return @{ ok = $false; error = $_.Exception.Message }
+    }
+}
+
+@{ task = (Get-TaskFacts); crashes = (Get-CrashFacts) } | ConvertTo-Json -Compress -Depth 6
+""".replace("__TASK_NAME__", _ps_quote(BENCH_TASK_NAME))
+
+
+def _ssh_bench_snapshot(ctx: Ctx) -> tuple[bool, Any]:
+    """The one ssh round trip both bench probes below need, cached per run."""
+    if BENCH_SSH_HOST in _SSH_CACHE:
+        return _SSH_CACHE[BENCH_SSH_HOST]
+    result = _ssh_powershell(BENCH_SSH_HOST, _BENCH_SNAPSHOT_SCRIPT,
+                             BENCH_SSH_TIMEOUT_S)
+    _SSH_CACHE[BENCH_SSH_HOST] = result
+    return result
+
+
+def _bench_task_report(payload: dict) -> Report:
+    t = payload.get("task") or {}
+    if not t.get("ok"):
+        return unknown("bench.scheduled_task",
+                       f"ssh reached the bench but the task query failed: "
+                       f"{t.get('error')}",
+                       remedy="unknown is not absent: this proves the QUERY "
+                              "failed, not that the task is gone")
+    if not t.get("taskFound"):
+        return absent("bench.scheduled_task",
+                      f"no scheduled task named {BENCH_TASK_NAME!r} on the "
+                      f"bench -- Ollama only starts if someone runs it by hand",
+                      [measured("ssh host", BENCH_SSH_HOST)],
+                      remedy="recreate the DaedalusOllamaServe task")
+    facts = [
+        measured("enabled", t.get("enabled")),
+        measured("state", t.get("state")),
+        measured("logon type", t.get("logonType")),
+        measured("run level", t.get("runLevel")),
+        measured("trigger types",
+                 ", ".join(t.get("triggerTypes") or []) or "none"),
+        measured("boot-capable trigger", t.get("bootCapableTrigger")),
+        measured("headless-capable logon", t.get("headlessLogon")),
+        measured("last run (UTC)", t.get("lastRunTime")),
+        measured("last task result", t.get("lastTaskResult")),
+        measured("restart policy",
+                 f"{t.get('restartCount')}x / "
+                 f"{t.get('restartIntervalMinutes')}min"),
+    ]
+    if not t.get("enabled"):
+        return degraded("bench.scheduled_task",
+                        "the task exists but is DISABLED -- Ollama will "
+                        "never auto-start", facts,
+                        remedy=f"Enable-ScheduledTask -TaskName {BENCH_TASK_NAME}")
+    survives = t.get("bootCapableTrigger") and t.get("headlessLogon")
+    if not survives:
+        missing = []
+        if not t.get("bootCapableTrigger"):
+            missing.append("every trigger requires an interactive logon "
+                           "(no boot/time trigger present)")
+        if not t.get("headlessLogon"):
+            missing.append(f"LogonType={t.get('logonType')} needs an active "
+                           f"session token to run the action")
+        return degraded("bench.scheduled_task",
+                        "a reboot with no console/RDP logon will NOT start "
+                        "Ollama -- " + "; ".join(missing), facts,
+                        remedy="add a boot trigger and set the principal's "
+                               "LogonType to S4U (or Password/ServiceAccount)")
+    return working("bench.scheduled_task",
+                   f"present, enabled, and survives a headless reboot "
+                   f"(logon type {t.get('logonType')})", facts)
+
+
+@probe("bench.scheduled_task",
+       asks="will the Ollama auto-start task survive a headless reboot?",
+       required=False)
+def _p_bench_task(ctx: Ctx) -> Report:
+    ok, payload = _ssh_bench_snapshot(ctx)
+    if not ok:
+        return unknown("bench.scheduled_task",
+                       f"could not reach the bench over ssh: {payload}",
+                       remedy="unknown is not absent: this only proves THIS "
+                              "machine could not ask")
+    return _bench_task_report(payload)
+
+
+def _ollama_alive(host: str, timeout_s: float) -> tuple[bool, str, str]:
+    """Does the Ollama HTTP endpoint at ``host`` answer, right now?
+
+    THE ONE LIVENESS PREDICATE. Both callers below bind it to a host —
+    :func:`_bench_ollama_alive` to the RTX bench, :func:`hand_state` to whatever
+    endpoint the tool-bearing executor will actually be dispatched to. This
+    repo's recurring disease is two predicates for one question, each drifting
+    until "is it up" has two different answers; there is deliberately no second
+    implementation to drift from.
+
+    Returns ``(alive, detail, exc_kind)``. ``exc_kind`` names the underlying
+    failure (``ConnectionRefusedError``, ``TimeoutError``, …) so a caller that
+    must distinguish "definitively not there" from "the check could not run"
+    can, without re-parsing ``detail``. It is ``""`` on success.
+    """
+    try:
+        _http_json(host.rstrip("/") + "/api/version", timeout_s)
+        return True, "answered", ""
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        reason = getattr(exc, "reason", None) or exc
+        kind = "TimeoutError" if isinstance(reason, TimeoutError) else type(reason).__name__
+        return False, f"{type(exc).__name__}: {exc}", kind
+
+
+#: The endpoint the tool-bearing local executor ("the Hand") is dispatched to.
+#: Read from the environment at call time, NOT at import, because it is the same
+#: ``OLLAMA_HOST`` the provider resolves per request — a liveness answer about a
+#: different host than the one that will be called is worse than no answer.
+def _hand_host(host: str | None = None) -> str:
+    return host or os.environ.get("OLLAMA_HOST", LOCAL_OLLAMA)
+
+
+#: (state, detail, host) — ``state`` is one of this module's five words.
+HandState = namedtuple("HandState", "state detail host")
+
+
+def hand_state(host: str | None = None, timeout_s: float = 4.0) -> HandState:
+    """Is the tool-bearing local executor there, in the five-word vocabulary?
+
+    Composed from :func:`_ollama_alive`, never a second liveness check.
+
+      ``working``  it answered ``/api/version`` just now — MEASURED, this call
+      ``absent``   a definitive rejection from a known endpoint (refused,
+                   unreachable, no route). That is evidence, not an absence of
+                   evidence, exactly as ``_embed_probe`` already treats a failed
+                   ``/api/tags``.
+      ``unknown``  the check itself could not conclude — a timeout says nothing
+                   about whether the executor exists, only that we did not find
+                   out. ``unknown`` is never ``absent`` and never green.
+
+    ``present``/``degraded`` are not producible here on purpose: this asks one
+    yes/no question and has no way to observe a half-working executor.
+    """
+    resolved = _hand_host(host)
+    alive, detail, kind = _ollama_alive(resolved, timeout_s)
+    if alive:
+        return HandState(WORKING, detail, resolved)
+    if kind in ("TimeoutError", "socket.timeout"):
+        return HandState(UNKNOWN, detail, resolved)
+    return HandState(ABSENT, detail, resolved)
+
+
+# NOT named "hand.local". The host comes from OLLAMA_HOST, an environment
+# variable, so the tool-bearing executor is local only until someone points that
+# at a bench across a tailnet -- the same trap `_local_lane` in ikarus_os.py
+# documents. The probe therefore names the HOST it actually reached in its
+# facts, and claims nothing about where that host is.
+@probe("hand.executor",
+       asks="does the host the tool-bearing executor is dispatched to answer right now?",
+       required=False)
+def _p_hand_executor(ctx: Ctx) -> Report:
+    st = hand_state(timeout_s=ctx.timeout_s)
+    facts = [measured("host", st.host), measured("/api/version", st.detail)]
+    if st.state == WORKING:
+        return working("hand.executor", f"the executor answers at {st.host}", facts)
+    if st.state == UNKNOWN:
+        return unknown("hand.executor",
+                       f"the check could not conclude: {st.detail}", facts,
+                       remedy="a timeout is not an absence: retry, or raise the "
+                              "timeout before concluding anything")
+    return absent("hand.executor", f"nothing answers at {st.host}: {st.detail}", facts,
+                  remedy=f"start it:  OLLAMA_HOST={st.host} ollama serve  "
+                         "(absent here is legitimate on a machine that only "
+                         "chats; it means act-cleared work has nowhere to run)")
+
+
+def _bench_ollama_alive(ctx: Ctx) -> tuple[bool, str]:
+    """Does the bench's Ollama HTTP endpoint answer, right now?
+
+    THE FACT THAT CLOSES THE BLIND SPOT. MEASURED: `ollama.exe` itself died
+    mid-run under concurrent load with NO WER record, no crash dump, and NO
+    Application-log entry at all -- `Get-Process ollama` came back empty.
+    "Zero crash records" and "the server is alive" are DIFFERENT FACTS, and
+    :func:`_bench_crash_report` must never infer the second from the first.
+    A live GET is the only thing that can tell them apart, so it is always
+    performed, never skipped as an optimisation.
+
+    Returns ``(alive, detail)``. Any failure -- refused, timed out, or a
+    reply that is not the JSON `/api/version` returns -- is treated as "not
+    answering", the same way ``_embed_probe`` already treats a failed
+    `/api/tags` as ``degraded`` rather than ``unknown``: a definitive
+    rejection from a specific, known endpoint is evidence, not an absence of
+    evidence. The caller (:func:`_bench_crash_report`) is structured so that
+    an exception here can only ever push the verdict toward ``degraded``,
+    never toward ``working`` -- uncertainty about liveness must never read
+    as health.
+    """
+    alive, detail, _kind = _ollama_alive(BENCH_OLLAMA, ctx.timeout_s)
+    return alive, detail
+
+
+def _bench_crash_report(payload: dict, *, alive: bool, alive_detail: str) -> Report:
+    c = payload.get("crashes") or {}
+    if not c.get("ok"):
+        return unknown("bench.engine_crashes",
+                       f"ssh reached the bench but the event log query "
+                       f"failed: {c.get('error')}")
+    n = int(c.get("matches") or 0)
+    scanned = int(c.get("scanned") or 0)
+    records = c.get("records") or []
+    facts = [measured("Application-log entries scanned", scanned),
+             measured("engine crash records found", n),
+             measured("Ollama HTTP endpoint answers right now", alive
+                      if alive else f"NO ({alive_detail})")]
+    if records:
+        sigs = sorted({f"{r.get('binary')}: {r.get('moduleName')} "
+                       f"{r.get('exceptionCode')}@{r.get('faultingOffset')}"
+                       for r in records})
+        facts.append(measured("most recent crash (UTC)", records[0].get("time")))
+        facts.append(measured("distinct signatures", "; ".join(sigs)))
+    if n > 0:
+        return degraded("bench.engine_crashes",
+                        f"{n} engine crash record(s) in the last {scanned} "
+                        f"Application-log entries -- Ollama's own server.log "
+                        f"shows none of this; only Windows Error Reporting "
+                        f"caught it" + ("" if alive else
+                        f"; AND it is NOT answering right now ({alive_detail})"),
+                        facts,
+                        remedy="Ollama is being updated on the bench to address "
+                               "this; if the signature above still appears "
+                               "afterward, that is the starting point, not a "
+                               "fresh investigation")
+    # n == 0 FROM HERE. This is the exact point the blind spot lived: a crash
+    # scan finding nothing is NOT evidence of health on its own -- it is only
+    # evidence that THIS failure mode did not leave a record. It must be
+    # corroborated against a live signal before it is allowed to read as
+    # `working`, or `ollama.exe` can die with no WER entry, no dump, and no
+    # Application-log line, and this probe would report "0 crashes" over a
+    # dead server -- true about what it measured, false about what a reader
+    # would conclude.
+    if alive:
+        return working("bench.engine_crashes",
+                       f"0 engine crash records in the last {scanned} "
+                       f"Application-log entries, AND the server answers "
+                       f"right now", facts)
+    return degraded("bench.engine_crashes",
+                    f"0 engine crash records in the last {scanned} "
+                    f"Application-log entries, but the server is NOT "
+                    f"answering ({alive_detail}) -- it died WITHOUT LEAVING "
+                    f"A RECORD, which is worse than crashing loudly: nothing "
+                    f"short of a live check would ever have caught it",
+                    facts,
+                    remedy="check `Get-Process ollama` on the bench by hand; "
+                           "this failure mode leaves no WER entry and no "
+                           "Application-log record for any log-only probe "
+                           "to find")
+
+
+@probe("bench.engine_crashes",
+       asks="is the engine crash-looping, or dead without a trace, where "
+            "only a live check would see it?",
+       required=False)
+def _p_bench_crashes(ctx: Ctx) -> Report:
+    ok, payload = _ssh_bench_snapshot(ctx)
+    if not ok:
+        return unknown("bench.engine_crashes",
+                       f"could not reach the bench over ssh: {payload}",
+                       remedy="unknown is not absent: this only proves THIS "
+                              "machine could not ask")
+    alive, alive_detail = _bench_ollama_alive(ctx)
+    return _bench_crash_report(payload, alive=alive, alive_detail=alive_detail)
 
 
 # --------------------------------------------------------------------------- #

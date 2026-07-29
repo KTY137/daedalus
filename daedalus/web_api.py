@@ -6,6 +6,8 @@ import hmac
 import json
 import mimetypes
 import os
+import re
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,7 @@ from .context_plan import plan_context
 from .env import env_status, load_env
 from .projects import list_projects, resolve_repo_root
 from .file_bridge import stream_state
+from . import file_bridge
 from . import ikarus_os
 from .structcore.index import cached_index
 from .structcore.churn import co_change_pairs
@@ -455,6 +458,433 @@ def _loop_architecture(project: str | None) -> dict[str, Any]:
     })
 
 
+# --------------------------------------------------------------------------- #
+# task lifecycle: start work, get an id, watch it, collect what it produced    #
+# --------------------------------------------------------------------------- #
+# POST /api/queue already starts work (core.queue_task -> file_bridge.enqueue).
+# What was missing for an assistant to actually DRIVE that -- rather than fire
+# a request and never look at it again -- is a way to address ONE piece of
+# queued work afterwards. file_bridge already has the id: enqueue() names its
+# request file ``{stamp}-{slug}-{uuid8}.json``, and that filename STEM is the
+# idempotency key the bridge itself uses to find the eventual report
+# (``inbox/{key}.report.json``) and the archived request (``runs/processed/
+# {key}.json``). Nothing new is minted below -- ``id`` IS that stem.
+#
+# THE HONESTY RULE THIS SECTION IS BUILT TO: a status of "done" must mean
+# something OBSERVED, not something started, and it must say its own age.
+# Concretely:
+#
+#   * every snapshot carries ``observed_at`` + ``age_s`` -- the mtime of the
+#     file actually read, not "now". A caller polling this is reading a
+#     photograph, not a live feed, and the payload says so on every response.
+#   * ``bridge_status: "done"`` is NOT ``applied: true``. The bridge's "done"
+#     means the pipeline finished and produced a report -- it says nothing by
+#     itself about whether the change survived on disk. The lanes disagree
+#     sharply on that:
+#       - local/ikarus (offload()) verifies a before/after disk diff and
+#         either keeps the write (``action: "offloaded"``) or ROLLS IT BACK
+#         (``action: "escalated_after_verify_fail"``, offload.py ~490-559).
+#         Advisory mode writes nothing at all -- it saves a draft instead
+#         (kairos/drafts.py) for a human/Claude to apply later.
+#       - the codex lane is advisory-only BY CONSTRUCTION and says so on its
+#         own report (``mutation_blocked``, core.py ``_codex_report``).
+#       - the direct claude lane (claude_bridge.ask_claude) writes with NO
+#         verify/rollback wrapper at all, so there is no on-disk signal to
+#         confirm from here -- it is reported as unknown, never assumed true.
+#     ``_derive_applied`` below reads whichever of these signals a report
+#     actually carries and returns ``None`` (not ``True``) when it cannot
+#     tell -- the same discipline health.py applies to its own five-state
+#     vocabulary, at this layer.
+#
+# SEAM NOTE, ikarus-progress (the honest-progress-event-model work): the
+# state vocabulary here (queued/running/done/failed/quarantined/unknown) and
+# the per-event observed_at/age_s stamping are THIS endpoint's own, built
+# straight off the file bus (outbox/heartbeat/inbox) because no richer event
+# model existed yet when this shipped. If/when one lands, reconcile the
+# vocabulary here against it; the endpoint SHAPE (GET /api/queue/<id>/events,
+# SSE, one-shot, terminal-closes -- same contract as /api/ikarus/stream)
+# should not need to change even if what feeds it does.
+#
+# SEAM NOTE, ikarus-conversation (the conversation-state work): daedalus/
+# conversation.py landed while this section was being written (see the
+# "conversation seam" section below, right after _task_artifacts) --
+# POST /api/ikarus/ask, GET /api/ikarus/stream, POST /api/queue and
+# GET /api/queue/<id> are now wired to it, additively, exactly as that
+# module's own ask()/ask_stream() kwarg makes possible: omit
+# conversation_id anywhere below and every one of these endpoints behaves
+# byte-for-byte as it did before this landed.
+#
+# SEAM NOTE, progress_sources (the honest-progress-event-model work): also
+# landed mid-write. _task_snapshot below now LAYERS ON
+# daedalus.progress_sources.snapshot_from_bridge for "is it found" and the
+# coarse lifecycle stage, rather than keeping this section's own file-bus
+# reader as a second, disagreeing state machine -- see that function's
+# docstring for exactly where this section's own reading still adds
+# something progress_sources does not yet do (the applied/lane/summary
+# decomposition of a landed report).
+
+_TASK_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,160}\Z")  # \Z, not $: "$" also matches before a trailing newline
+_TASK_TERMINAL_SOURCES = ("inbox_report", "archive")
+_TASK_EVENTS_MAX_S = 1800      # give up holding the SSE socket open after 30 min
+_TASK_EVENTS_GRACE_S = 10.0    # tolerate the enqueue -> first-poll race before
+                               # reporting a fresh id as "not found"
+_TASK_EVENTS_PERIOD_S = 3.0    # minimum gap between two non-terminal SSE events
+
+
+def _safe_bus_path(base_dir: Path, task_id: str, suffix: str) -> Path | None:
+    """Resolve a URL-supplied task id to a path under ``base_dir``, or ``None``
+    if the id is not a plain filename stem or would resolve outside
+    ``base_dir`` (rejects traversal, separators, absolute paths). Same shape
+    as ``kairos.drafts._safe_path`` -- reimplemented locally because that one
+    is bound to a single directory and this module addresses three (outbox /
+    inbox / archive)."""
+    if not isinstance(task_id, str) or not _TASK_ID_RE.match(task_id):
+        return None
+    p = base_dir / f"{task_id}{suffix}"
+    try:
+        p.resolve().relative_to(base_dir.resolve())
+    except (ValueError, OSError):
+        return None
+    return p
+
+
+def _read_json_or_none(path: Path) -> dict[str, Any] | None:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def _task_report_fields(report: dict[str, Any]) -> tuple[str | None, str]:
+    """(report_status, summary) read across every lane shape the bus carries:
+    a top-level agent_report_v1 (claude / codex lanes), or -- for the
+    local/ikarus lane, which nests one report per dispatched assignment --
+    the first assignment that has one. Best-effort only; NEVER the source of
+    truth for whether anything was applied (see _derive_applied)."""
+    inner = report.get("report") if isinstance(report.get("report"), dict) else {}
+    if inner:
+        return inner.get("status"), str(inner.get("summary") or "")
+    result = report.get("result") if isinstance(report.get("result"), dict) else {}
+    for a in (result.get("assignments") or []):
+        if not isinstance(a, dict):
+            continue
+        ar = a.get("result") if isinstance(a.get("result"), dict) else {}
+        ar_report = ar.get("report") if isinstance(ar.get("report"), dict) else {}
+        if ar_report:
+            return ar_report.get("status"), str(ar_report.get("summary") or "")
+    return None, str(report.get("error") or "")
+
+
+def _derive_applied(report: dict[str, Any]) -> tuple[bool | None, str]:
+    """Whether the work this report describes actually landed on disk, and
+    the evidence for saying so. Returns ``None`` (not ``True``) whenever the
+    report does not carry enough to tell -- see the section docstring above
+    for why the three lanes need three different readings."""
+    if not isinstance(report, dict):
+        return None, "no report to inspect"
+    bridge_status = report.get("bridge_status")
+    if bridge_status in ("failed", "quarantined"):
+        return False, f"bridge_status={bridge_status}: the run did not complete"
+    mutation_blocked = report.get("mutation_blocked")
+    if mutation_blocked:
+        return False, _clip(str(mutation_blocked), LOOP_VALUE_CHARS)
+    result = report.get("result") if isinstance(report.get("result"), dict) else {}
+    assignments = result.get("assignments") if isinstance(result.get("assignments"), list) else []
+    verdicts: list[bool | None] = []
+    reasons: list[str] = []
+    for a in assignments:
+        if not isinstance(a, dict):
+            continue
+        status = a.get("status")
+        ar = a.get("result") if isinstance(a.get("result"), dict) else {}
+        owner = str(a.get("owner") or "?")
+        if status == "escalated_after_verify_fail":
+            verdicts.append(False)
+            reasons.append(f"{owner}: verification failed, changes rolled back")
+        elif status == "offloaded":
+            if ar.get("draft"):
+                verdicts.append(False)
+                reasons.append(f"{owner}: saved as advisory draft {ar['draft']}, not applied")
+            else:
+                verdicts.append(True)
+                reasons.append(f"{owner}: verified before/after disk diff, kept")
+        else:
+            verdicts.append(None)
+            reasons.append(f"{owner}: status={status!r}, no verify signal")
+    if verdicts:
+        reason = _clip("; ".join(reasons), LOOP_VALUE_CHARS)
+        if any(v is False for v in verdicts):
+            return False, reason
+        if all(v is True for v in verdicts):
+            return True, reason
+        return None, reason
+    if bridge_status == "done":
+        return None, ("no verify/rollback signal in this report -- this lane "
+                      "(e.g. the direct Claude path) does not produce one, so "
+                      "whether the change actually landed on disk cannot be "
+                      "confirmed from here")
+    return None, "insufficient information to determine whether anything was applied"
+
+
+def _task_snapshot(task_id: str) -> dict[str, Any]:
+    """This task's OBSERVED state, right now -- a photograph, not a promise.
+
+    LAYERED ON :func:`daedalus.progress_sources.snapshot_from_bridge`, this
+    repo's shared, cross-source honest-progress model (QUEUED / CLAIMED /
+    DONE, Fact-based MEASURED/INHERITED provenance, stall detection) -- used
+    here for "is it found" and the coarse lifecycle stage, rather than a
+    second file-bus reader kept in parallel. Two disagreeing readers of the
+    same outbox/inbox files is the exact bug class ``daedalus.health`` exists
+    to catch; this function does not add a second instance of it. Its full
+    ``UnitProgress`` rides along under the ``progress`` key.
+
+    On top of that shared model, this function decomposes the raw file-bridge
+    report itself once one has landed -- bridge_status / applied / lane /
+    summary -- because ``snapshot_from_bridge`` deliberately treats the
+    report as opaque past ``bridge_status`` (it does not walk the nested
+    per-assignment shape ``offload()`` produces), and the applied-vs-merely-
+    finished distinction this whole section exists to make needs that walk.
+    The two are complementary, never contradictory: ``progress["applied"]``
+    is the shared model's own answer (currently always ``None`` for a landed
+    bridge report -- it does not attempt this decomposition), while the
+    top-level ``applied``/``applied_reason`` here is this endpoint's more
+    specific one, for this one lane.
+
+    ``found=False`` covers both a wrong id and a genuinely unknown one; nothing
+    here raises to tell those apart, because a filesystem check cannot.
+    """
+    from . import progress as progress_mod
+    from . import progress_sources
+
+    now = time.time()
+    prog = progress_sources.snapshot_from_bridge(task_id, now=now)
+    if prog is None:
+        return {
+            "id": task_id, "found": False, "state": "unknown", "source": "none",
+            "observed_at": core.now_iso(), "age_s": None,
+            "lane": None, "project": None, "objective": None,
+            "bridge_status": None, "report_status": None, "summary": None,
+            "error": None, "applied": None,
+            "applied_reason": ("no task with this id was found on the file bus "
+                              "(wrong id, or the archive has since been cleared)"),
+            "busy_for_s": None, "stalled": False, "progress": None,
+        }
+
+    progress_dict = prog.to_dict()
+    report_path = _safe_bus_path(file_bridge.INBOX, task_id, ".report.json")
+    report = (_read_json_or_none(report_path)
+             if report_path is not None and report_path.exists() else None)
+
+    if report is not None:
+        request = report.get("request") if isinstance(report.get("request"), dict) else {}
+        bridge_status = report.get("bridge_status")
+        report_status, summary = _task_report_fields(report)
+        applied, applied_reason = _derive_applied(report)
+        return {
+            "id": task_id, "found": True,
+            "state": bridge_status or ("done" if prog.terminal else "unknown"),
+            "source": "inbox_report",
+            "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
+            "lane": report.get("lane") or request.get("lane"),
+            "project": request.get("project"),
+            "objective": _clip(request.get("objective") or "", 400) or None,
+            "bridge_status": bridge_status,
+            "report_status": report_status,
+            "summary": _clip(summary, LOOP_VALUE_CHARS) or None,
+            "error": _clip(str(report.get("error") or ""), LOOP_VALUE_CHARS) or None,
+            "applied": applied, "applied_reason": applied_reason,
+            "busy_for_s": None, "stalled": prog.stalled, "progress": progress_dict,
+        }
+
+    if prog.terminal:
+        # progress_sources considers this finished (archived) but no report
+        # could be read back -- degraded, not a verdict worth guessing at.
+        return {
+            "id": task_id, "found": True, "state": "unknown", "source": "archive",
+            "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
+            "lane": None, "project": None, "objective": None,
+            "bridge_status": None, "report_status": None,
+            "summary": ("the request is archived but its report is missing -- "
+                       "state cannot be determined from the file bus"),
+            "error": None, "applied": None,
+            "applied_reason": "no report found for this id",
+            "busy_for_s": None, "stalled": prog.stalled, "progress": progress_dict,
+        }
+
+    outbox_path = _safe_bus_path(file_bridge.OUTBOX, task_id, ".json")
+    payload = (_read_json_or_none(outbox_path)
+              if outbox_path is not None and outbox_path.exists() else None) or {}
+    running_here = prog.latest_kind == progress_mod.CLAIMED
+    return {
+        "id": task_id, "found": True,
+        "state": "running" if running_here else "queued",
+        "source": "outbox",
+        "observed_at": progress_dict["observed_at"], "age_s": progress_dict["age_s"],
+        "lane": payload.get("lane"), "project": payload.get("project"),
+        "objective": _clip(payload.get("objective") or "", 400) or None,
+        "bridge_status": None, "report_status": None, "summary": None,
+        "error": None, "applied": None, "applied_reason": "not finished yet",
+        "busy_for_s": progress_dict.get("claimed_age_s") if running_here else None,
+        "stalled": prog.stalled, "progress": progress_dict,
+    }
+
+
+def _task_artifacts(task_id: str) -> dict[str, Any]:
+    """What a completed task produced, or an honest 'not yet' when it has not
+    finished. Never 'found but empty' for a run still in flight -- callers
+    must check ``available`` before reading anything else."""
+    snap = _task_snapshot(task_id)
+    if not snap["found"]:
+        return {"found": False}
+    if snap["source"] not in _TASK_TERMINAL_SOURCES:
+        return {"found": True, "available": False, "task": snap,
+               "reason": "the run has not finished yet"}
+    report_path = _safe_bus_path(file_bridge.INBOX, task_id, ".report.json")
+    report = _read_json_or_none(report_path) if report_path is not None else None
+    if report is None:
+        return {"found": True, "available": False, "task": snap,
+               "reason": "no readable report exists for this id"}
+    inner = report.get("report") if isinstance(report.get("report"), dict) else {}
+    result = report.get("result") if isinstance(report.get("result"), dict) else {}
+    files_changed = [str(p) for p in (inner.get("files_changed") or [])]
+    rolled_back: list[str] = []
+    wrote: list[str] = []
+    draft_ids: list[str] = []
+    for a in (result.get("assignments") or []):
+        if not isinstance(a, dict):
+            continue
+        ar = a.get("result") if isinstance(a.get("result"), dict) else {}
+        rolled_back.extend(str(p) for p in (ar.get("rolled_back") or []))
+        wrote.extend(str(p) for p in (a.get("wrote") or []))
+        if ar.get("draft"):
+            draft_ids.append(str(ar["draft"]))
+        ar_report = ar.get("report") if isinstance(ar.get("report"), dict) else {}
+        files_changed.extend(str(p) for p in (ar_report.get("files_changed") or []))
+    return {
+        "found": True, "available": True, "task": snap,
+        "applied": snap["applied"], "applied_reason": snap["applied_reason"],
+        "files_changed": _loop_shape(sorted(set(files_changed))),
+        "rolled_back": _loop_shape(sorted(set(rolled_back))),
+        "wrote": _loop_shape(sorted(set(wrote))),
+        "draft_ids": _loop_shape(sorted(set(draft_ids))),
+        "tests_run": _loop_shape(inner.get("tests_run") or []),
+        "risks": _loop_shape(inner.get("risks") or []),
+        "todos": _loop_shape(inner.get("todos") or []),
+        "handoff": _loop_shape(inner.get("handoff") or {}),
+        # Bounded full dump for anything the allowlist above missed -- same
+        # philosophy as _loop_shape's own docstring: bound, never drop silently.
+        "report": _loop_shape(report),
+    }
+
+
+# --------------------------------------------------------------------------- #
+# conversation + progress seam                                                #
+# --------------------------------------------------------------------------- #
+# Both sibling modules landed while the section above was being written.
+# ``daedalus/conversation.py`` gives the Ikarus assistant seam (ask/ask_stream)
+# a durable multi-turn identity: a conversation_id, an append-only turn log,
+# and dispatch attribution (a turn caused work; that work is a caller-supplied
+# ref, e.g. a file-bridge task id, that a later report can be found under).
+# ``daedalus/progress.py`` + ``progress_sources.py`` give a single unit of work
+# (a chat generation, an offload call, a spine attempt) an honest, closed-
+# vocabulary event trail -- queued/claimed/generating/.../done, never a
+# fabricated percentage, never "running" read as "progressing".
+#
+# What is wired below, and what is deliberately left for the modules' own
+# owners: this file starts conversations, appends turns via ikarus_os's
+# opt-in ``conversation_id`` kwarg, links a queued task to the turn that
+# proposed it, and reads all of that back. It does NOT call
+# ``conversation.record_dispatch_event`` anywhere -- the module's own
+# docstring is explicit that the call site for "a report landed" belongs to
+# whoever owns that path (file_bridge.py's ``process_request``, not this
+# file), and calling it speculatively from inside a GET handler here would
+# make this file a second writer racing that eventual real one. So
+# GET /api/conversations/<id> can legitimately show a dispatch stuck at
+# "dispatched" even after the underlying task is long finished --
+# GET /api/queue/<id> (this section's own endpoint, above) is what still
+# tells the truth about that, read straight from the file bus every time,
+# whether or not any conversation ever linked it.
+_CONVERSATION_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,160}\Z")  # \Z, not $: see _TASK_ID_RE
+
+
+def _dataclass_or_none(value: Any) -> Any:
+    """``dataclasses.asdict`` recurses into nested dataclasses on its own, but
+    raises on ``None`` -- and conversation.py's reads legitimately return
+    ``None`` for "no last turn yet" / "no report yet". One guarded call site
+    instead of an ``if x is None else asdict(x)`` at every call site below."""
+    from dataclasses import asdict, is_dataclass
+
+    if value is None:
+        return None
+    return asdict(value) if is_dataclass(value) else value
+
+
+def _conversation_view(conversation_id: str, limit: int = LOOP_MAX_LIMIT) -> dict[str, Any] | None:
+    """Everything GET /api/conversations/<id> serves: the resumable summary
+    (``ConversationStore.resume`` -- a narrative built only from closed
+    vocabularies, per that module's own docstring, so it cannot claim more
+    than the rows prove) plus the bounded raw turn list. ``None`` when the
+    conversation has never had a turn appended -- ``append_turn`` is what
+    creates the row; there is no separate "create conversation" write to be
+    missing."""
+    from . import conversation as conv
+
+    store = conv.default_store()
+    if not store.conversation_exists(conversation_id):
+        return None
+    resumed = store.resume(conversation_id)
+    turns = store.turns(conversation_id, limit=limit)
+
+    def _turn_dict(t: Any) -> dict[str, Any]:
+        d = _dataclass_or_none(t) or {}
+        d["user_message"] = _clip(d.get("user_message") or "")
+        d["assistant_text"] = _clip(d.get("assistant_text") or "") or None
+        d["envelope"] = _loop_shape(d.get("envelope") or {})
+        d["proposed_action"] = _loop_shape(d.get("proposed_action")) if d.get("proposed_action") else None
+        return d
+
+    def _dispatch_dict(d: dict[str, Any]) -> dict[str, Any]:
+        return {"link": _dataclass_or_none(d.get("link")),
+               "latest": _dataclass_or_none(d.get("latest"))}
+
+    return {
+        "conversation_id": conversation_id,
+        "exists": resumed["exists"],
+        "turn_count": resumed["turn_count"],
+        "narrative": resumed["narrative"],
+        "last_turn": _turn_dict(resumed["last_turn"]) if resumed["last_turn"] else None,
+        "turns": [_turn_dict(t) for t in turns],
+        "turns_returned": len(turns),
+        "dispatches": [_dispatch_dict(d) for d in resumed["dispatches"]],
+        "open_dispatches": [_dispatch_dict(d) for d in resumed["open_dispatches"]],
+    }
+
+
+def _dispatch_status_view(task_id: str) -> dict[str, Any] | None:
+    """The conversation timeline's OWN record for this dispatch, if any turn
+    ever linked it (POST /api/queue's optional ``conversation_id``). ``None``
+    when this id was never linked -- most tasks, including everything queued
+    before this shipped, and every task queued without a conversation_id.
+
+    NOT a live status feed -- see the section docstring above on why nothing
+    here calls ``record_dispatch_event``. For the live ground truth, this
+    response's sibling field (``task``, from :func:`_task_snapshot`) always
+    reflects the file bus directly, whether or not a conversation link
+    exists."""
+    from . import conversation as conv
+
+    try:
+        status = conv.default_store().dispatch_status(task_id)
+    except Exception:
+        return None
+    if status is None:
+        return None
+    return {"link": _dataclass_or_none(status["link"]),
+           "events": [_dataclass_or_none(e) for e in status["events"]],
+           "latest": _dataclass_or_none(status["latest"])}
+
+
 def _read_body(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     length = int(handler.headers.get("Content-Length") or 0)
     if not length:
@@ -628,6 +1058,22 @@ class DaedalusHandler(BaseHTTPRequestHandler):
 
         Additive — POST /api/ikarus/ask is unchanged and still the right call
         for non-streaming clients.
+
+        Two more additive, opt-in wires, both able to fail silently into the
+        plain unwired stream rather than take the chat down:
+
+          ``conversation_id`` (query param) is passed straight through to
+          ``ikarus_os.ask_stream`` -- see daedalus/conversation.py. Omitted,
+          this endpoint is byte-for-byte what it was before that module
+          landed.
+
+          A ``daedalus.progress`` unit is opened for this turn and the
+          stream is tee'd through ``progress_sources.watch_stream`` so a
+          SEPARATE caller can poll ``GET /api/progress/<id>`` and see
+          claimed/generating/done for THIS generation while it runs -- the
+          id rides on the ``start`` event as ``progress_unit_id``. Best-
+          effort: if opening a unit fails, the stream runs exactly as it did
+          before this existed.
         """
         project = (qs.get("project") or [""])[0]
         message = (qs.get("message") or [""])[0].strip()
@@ -637,6 +1083,17 @@ class DaedalusHandler(BaseHTTPRequestHandler):
         provider = (qs.get("provider") or [""])[0] or None
         model = (qs.get("model") or [""])[0] or None
         effort = (qs.get("effort") or [""])[0] or None
+        conversation_id = (qs.get("conversation_id") or [""])[0] or None
+
+        unit_id: str | None = None
+        try:
+            from . import progress as progress_mod
+
+            unit_id = progress_mod.open_unit(
+                source="web_api.ikarus_stream",
+                detail={"project": project, "message_chars": len(message)})
+        except Exception:
+            unit_id = None  # progress tracking is best-effort; the chat is not
 
         self.close_connection = True  # one-shot: do not hold the socket open
         try:
@@ -655,9 +1112,23 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
 
         try:
-            for event, payload in ikarus_os.ask_stream(
-                project, message, provider=provider, model=model, effort=effort
-            ):
+            stream = ikarus_os.ask_stream(
+                project, message, provider=provider, model=model, effort=effort,
+                conversation_id=conversation_id,
+            )
+            if unit_id:
+                from . import progress_sources
+
+                # Transparent tee (see that function's own docstring): every
+                # item passes through UNCHANGED, in the same order; recording
+                # is a side effect only, and a bug in it cannot alter what
+                # this loop sees, only what a separate GET /api/progress/<id>
+                # caller can observe about it meanwhile.
+                stream = progress_sources.watch_stream(
+                    unit_id, stream, source="web_api.ikarus_stream")
+            for event, payload in stream:
+                if event == "start" and unit_id:
+                    payload = {**payload, "progress_unit_id": unit_id}
                 emit(event, payload)
         except (BrokenPipeError, ConnectionResetError, OSError):
             return  # client navigated away mid-stream
@@ -668,6 +1139,84 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 emit("final", core.envelope(project, intent="error",
                                             assistant=f"I hit a snag: {exc}",
                                             provider_used="deterministic"))
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                return
+
+    def _handle_task_events(self, task_id: str) -> None:
+        """Server-Sent Events: progress of ONE task, addressed by the id
+        POST /api/queue handed back. Built from the same file-bridge bus
+        GET /api/queue/<id> reads (outbox/heartbeat/inbox) -- this is that
+        same snapshot, pushed on a timer instead of pulled once.
+
+        ONE-SHOT, like /api/ikarus/stream: closes once the task reaches a
+        terminal state (a report exists, or the id is archived with no
+        report) or after ``_TASK_EVENTS_MAX_S``, and says which in the
+        'final' event's own fields. An EventSource client MUST call
+        ``es.close()`` on 'final' -- auto-reconnect would just reopen onto an
+        already-finished task and replay the same 'final' forever.
+
+        A fresh id that is not found YET (the enqueue -> first-poll race) is
+        tolerated for ``_TASK_EVENTS_GRACE_S`` before being reported as
+        final/not-found -- see ``_task_snapshot``'s docstring on why "not
+        found" cannot be told apart from "wrong id" by a filesystem check
+        alone.
+        """
+        if not _TASK_ID_RE.match(task_id):
+            self._send_json({"ok": False, "error": "invalid task id"}, status=400)
+            return
+        self.close_connection = True  # one-shot: do not hold the socket open
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+        except OSError:
+            return
+
+        def emit(event: str, data: Any) -> None:
+            msg = f"event: {event}\ndata: {json.dumps(data, default=str)}\n\n"
+            self.wfile.write(msg.encode("utf-8"))
+            self.wfile.flush()
+
+        try:
+            start = time.time()
+            last_state: str | None = None
+            last_stalled = False
+            last_emit = 0.0
+            while True:
+                snap = _task_snapshot(task_id)
+                now = time.time()
+                if not snap["found"]:
+                    if now - start > _TASK_EVENTS_GRACE_S:
+                        emit("final", snap)
+                        return
+                    time.sleep(1.0)
+                    continue
+                terminal = snap["source"] in _TASK_TERMINAL_SOURCES
+                if terminal:
+                    emit("final", snap)
+                    return
+                if now - start > _TASK_EVENTS_MAX_S:
+                    emit("final", {**snap, "timed_out": True,
+                                   "applied_reason": snap["applied_reason"] +
+                                   f" (subscription open >{_TASK_EVENTS_MAX_S:.0f}s; "
+                                   "poll GET /api/queue/<id> to keep checking)"})
+                    return
+                stalled = bool(snap.get("stalled"))
+                if (snap["state"] != last_state or stalled != last_stalled
+                        or now - last_emit >= _TASK_EVENTS_PERIOD_S):
+                    emit("hello" if last_state is None else "progress", snap)
+                    last_emit = now
+                last_state = snap["state"]
+                last_stalled = stalled
+                time.sleep(1.0)
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return  # client navigated away mid-stream
+        except Exception as exc:
+            try:
+                emit("error", {"ok": False, "error": str(exc)})
             except (BrokenPipeError, ConnectionResetError, OSError):
                 return
 
@@ -919,6 +1468,99 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             d = drafts.get_draft(draft_id)
             self._send_json(core.envelope(None, draft=d) if d else
                             {"ok": False, "error": f"unknown draft {draft_id}"}, status=200 if d else 404)
+        elif path.startswith("/api/queue/"):
+            # /api/queue/<id>              GET  -> one snapshot (see _task_snapshot)
+            # /api/queue/<id>/artifacts    GET  -> what a finished run produced
+            # /api/queue/<id>/events       GET  -> SSE progress, one-shot
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) not in (3, 4):
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            task_id = parts[2]
+            if not _TASK_ID_RE.match(task_id):
+                self._send_json({"ok": False, "error": "invalid task id"}, status=400)
+                return
+            if len(parts) == 3:
+                snap = _task_snapshot(task_id)
+                if snap["found"]:
+                    # Read-only, additive: what a conversation turn recorded
+                    # about this dispatch, if any ever linked it. None is the
+                    # normal case for anything queued without a
+                    # conversation_id. See the "conversation + progress
+                    # seam" section for why this can lag the `task` block
+                    # above, which stays the live ground truth regardless.
+                    snap["conversation_dispatch"] = _dispatch_status_view(task_id)
+                self._send_json(
+                    core.envelope(None, task=snap) if snap["found"] else
+                    {"ok": False, "error": f"unknown task id {task_id}", "task": snap},
+                    status=200 if snap["found"] else 404)
+                return
+            sub = parts[3]
+            if sub == "artifacts":
+                art = _task_artifacts(task_id)
+                if not art.get("found"):
+                    self._send_json({"ok": False, "error": f"unknown task id {task_id}"}, status=404)
+                    return
+                self._send_json(core.envelope(None, artifacts=art))
+                return
+            if sub == "events":
+                self._handle_task_events(task_id)
+                return
+            self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+        elif path.startswith("/api/conversations/"):
+            # GET /api/conversations/<id>[?limit=] -> resumable summary +
+            # bounded turn list (see _conversation_view).
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 3:
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            conversation_id = parts[2]
+            if not _CONVERSATION_ID_RE.match(conversation_id):
+                self._send_json({"ok": False, "error": "invalid conversation id"}, status=400)
+                return
+            try:
+                limit = _loop_limit(qs, LOOP_MAX_LIMIT)
+            except ValueError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=400)
+                return
+            try:
+                view = _conversation_view(conversation_id, limit=limit)
+            except Exception as exc:
+                self._send_json(
+                    {"ok": False,
+                     "error": f"the conversation store failed: {type(exc).__name__}: {exc}"},
+                    status=500)
+                return
+            self._send_json(
+                core.envelope(None, conversation=view) if view is not None else
+                {"ok": False, "error": f"unknown conversation id {conversation_id}"},
+                status=200 if view is not None else 404)
+        elif path.startswith("/api/progress/"):
+            # GET /api/progress/<unit_id> -> daedalus.progress_sources
+            # .snapshot_any: this endpoint's own event log first, then the
+            # spine ledger, then the file bridge -- whichever recognises the
+            # id. Always 200: `found` inside the payload carries the honest
+            # "nobody has heard of this id" answer, matching how
+            # snapshot_any itself is designed to be read (see its docstring).
+            parts = [unquote(p) for p in path.strip("/").split("/")]
+            if len(parts) != 3:
+                self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
+                return
+            unit_id = parts[2]
+            if not _CONVERSATION_ID_RE.match(unit_id):
+                self._send_json({"ok": False, "error": "invalid unit id"}, status=400)
+                return
+            try:
+                from . import progress_sources
+
+                prog = progress_sources.snapshot_any(unit_id)
+                self._send_json(core.envelope(None, progress=prog.to_dict()))
+            except Exception as exc:
+                self._send_json(
+                    {"ok": False,
+                     "error": f"the progress source failed: {type(exc).__name__}: {exc}"},
+                    status=500)
+            return
         elif path.startswith("/api/"):
             self._send_json({"ok": False, "error": f"unknown endpoint {path}"}, status=404)
         else:
@@ -953,14 +1595,58 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             if not project or not objective:
                 self._send_json({"ok": False, "error": "project and objective are required"}, status=400)
                 return
-            self._send_json(core.queue_task(
+            result = core.queue_task(
                 project,
                 objective,
                 lane=str(body.get("lane") or "local_only"),
                 source=str(body.get("source") or "webapp"),
                 strategy=str(body.get("strategy") or "single"),
                 paths=[str(p) for p in body.get("paths") or []],
-            ))
+            )
+            # `queued` is a filesystem path -- an implementation detail. `id`
+            # is that same request's filename stem: the exact key file_bridge
+            # itself uses to find the eventual report, and the only id
+            # GET /api/queue/<id> (and its /artifacts, /events siblings)
+            # accept. Purely additive: `queued` is unchanged, so existing
+            # callers see no difference.
+            task_id = Path(str(result.get("queued") or "")).stem or None
+            result["id"] = task_id
+            # Optional: attribute this dispatch to the conversation turn that
+            # proposed it (daedalus.conversation.ConversationStore
+            # .link_dispatch). Additive and best-effort, same fail-open
+            # posture as ikarus_os._persist_turn: a caller that never sends
+            # conversation_id sees nothing here, and a link failure (unknown
+            # conversation, unknown turn_id) is REPORTED on the response, not
+            # allowed to fail an enqueue that has already, actually happened.
+            conversation_id = body.get("conversation_id")
+            if task_id and conversation_id:
+                turn_id = body.get("turn_id")
+                try:
+                    from . import conversation as conv
+
+                    link = conv.default_store().link_dispatch(
+                        str(conversation_id), task_id,
+                        turn_id=(int(turn_id) if turn_id is not None else None),
+                        kind="queue_task")
+                    result["conversation_link"] = {
+                        "conversation_id": link.conversation_id,
+                        "turn_id": link.turn_id, "dispatch_ref": link.dispatch_ref,
+                        "linked": True}
+                except Exception as exc:
+                    result["conversation_link"] = {
+                        "conversation_id": str(conversation_id), "linked": False,
+                        "error": f"{type(exc).__name__}: {exc}"}
+            self._send_json(result)
+            return
+        if path == "/api/conversations":
+            # Mint only -- see daedalus.conversation.new_conversation_id: pure
+            # id generation, no store write. The row is created lazily by the
+            # FIRST append_turn (via POST /api/ikarus/ask's conversation_id),
+            # so this never leaves a conversation-shaped id with no turns
+            # behind it that GET /api/conversations/<id> would 404 on forever.
+            from . import conversation as conv
+
+            self._send_json(core.envelope(None, conversation_id=conv.new_conversation_id()))
             return
         if path == "/api/ikarus/chat":
             project = str(body.get("project") or "")
@@ -979,11 +1665,13 @@ class DaedalusHandler(BaseHTTPRequestHandler):
             provider = body.get("provider")
             model = body.get("model")
             effort = body.get("effort")
+            conversation_id = body.get("conversation_id")
             self._send_json(ikarus_os.ask(
                 project, message,
                 provider=str(provider) if provider else None,
                 model=str(model) if model else None,
                 effort=str(effort) if effort else None,
+                conversation_id=str(conversation_id) if conversation_id else None,
             ))
             return
         if path.startswith("/api/drafts/") and (path.endswith("/apply") or path.endswith("/dismiss")):

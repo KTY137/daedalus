@@ -158,6 +158,43 @@ class NativeChatBodyTests(unittest.TestCase):
         self.assertEqual(srv.requests[0]["format"], "json")
         self.assertNotIn("format", srv.requests[1])
 
+    def test_force_json_true_sends_the_bare_string_never_a_schema(self):
+        """Every existing bool caller must stay byte-identical: True means the
+        literal string "json", never dict-shaped, even though the isinstance
+        check that picks between them lives right next to the schema branch."""
+        with FakeOllama([(200, _resp("{}"))]) as srv:
+            native_chat(host=srv.url, model="m",
+                        messages=[{"role": "user", "content": "x"}], force_json=True)
+        self.assertEqual(srv.requests[0]["format"], "json")
+        self.assertIsInstance(srv.requests[0]["format"], str)
+
+    def test_force_json_dict_is_sent_as_the_schema_verbatim(self):
+        """A dict opts the call into schema-constrained decoding: the whole
+        object must reach Ollama's `format` field unchanged, not collapsed to
+        the bare "json" string a bool would send."""
+        schema = {
+            "type": "object",
+            "properties": {"answer": {"type": "string"}},
+            "required": ["answer"],
+        }
+        with FakeOllama([(200, _resp("{}"))]) as srv:
+            native_chat(host=srv.url, model="m",
+                        messages=[{"role": "user", "content": "x"}], force_json=schema)
+        self.assertEqual(srv.requests[0]["format"], schema)
+
+    def test_force_json_empty_dict_is_falsy_and_sends_no_format_key(self):
+        """VERIFIED against the source, not assumed: the outer dispatch is
+        `if force_json:` (truthiness), evaluated BEFORE the `isinstance(...,
+        dict)` check that picks the schema branch. An empty dict is falsy in
+        Python, so it never reaches that branch at all -- no "format" key is
+        sent, the same as `force_json=False`. Pinned so a future change from
+        `if force_json:` to `if force_json is not None:` is a visible,
+        deliberate decision rather than a silent behavior change."""
+        with FakeOllama([(200, _resp("{}"))]) as srv:
+            native_chat(host=srv.url, model="m",
+                        messages=[{"role": "user", "content": "x"}], force_json={})
+        self.assertNotIn("format", srv.requests[0])
+
     def test_keep_alive_and_tools_passthrough(self):
         tools = [{"type": "function", "function": {"name": "x", "parameters": {}}}]
         with FakeOllama([(200, _resp("ok"))]) as srv:

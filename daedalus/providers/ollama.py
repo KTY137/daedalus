@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from collections import namedtuple
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,24 @@ from .personas import persona_for
 # it only writes when the router grants write mode, and it is confined to repo_root.
 DEFAULT_HOST = "http://127.0.0.1:11434"  # not "localhost" -- avoids IPv6 (::1) miss on Windows
 DEFAULT_MODEL = "qwen2.5-coder:7b"  # per docs/PROVIDERS_RESEARCH.md
+# BEFORE CHANGING THIS, KNOW WHAT THE AXIS ACTUALLY IS. Measured 2026-07-29 on
+# an RTX 5080, 3 trials x 2 agent-shaped tasks per model, native `tools` array:
+#
+#     qwen2.5-coder 1.5b / 7b / 14b     0% structured tool_calls
+#     devstral:latest                   0%
+#     qwen3.6 (36B MoE)                 100%
+#
+# Size is not the axis. Doubling 7b to 14b bought exactly nothing, and every one
+# of those models ADVERTISES the `tools` capability -- Ollama's badge is
+# necessary and not sufficient. The three that scored zero decided correctly and
+# narrated the decision in prose, which `_run_agentic` read as a finished report:
+# a successful turn that changed nothing.
+#
+# This default is defensible only BECAUSE of `_schema_rescue` below, which
+# re-asks with the call shape constrained at the sampler and takes all three to
+# 100%. A future maintainer picking a different default on size or benchmark
+# score alone, without checking structured-output reliability, will reintroduce
+# the silent-no-op failure this file spent a day removing.
 
 # How long Ollama keeps the model resident in VRAM after a request. Ollama's
 # default is 5 minutes; past that the next chat turn pays a full reload (measured
@@ -40,6 +59,22 @@ MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation
 # Marker appended when a tool result is head-truncated to make the forced final
 # report call fit the local context window (visible so the model knows it lost tail).
 _TOOL_TRUNC_MARKER = "\n[...tool output truncated to fit the local context window]"
+
+# --------------------------------------------------------------------------- #
+# what a schema rescue actually produced -- three worlds, not one empty list    #
+# --------------------------------------------------------------------------- #
+#: The model named a tool: `calls` is non-empty and `detail` is the tool name.
+RESCUE_CALLS = "calls"
+#: The model looked at the work and said it is done. The ONLY empty outcome that
+#: means "done"; everything below is a failure wearing the same empty list.
+RESCUE_FINISHED = "finished"
+#: The transport failed -- refused, timed out, HTTP error. Nothing was asked, so
+#: nothing was answered, and "no tool calls" says nothing about the work.
+RESCUE_UNREACHABLE = "unreachable"
+#: It answered, but not with the json shape the sampler was constrained to.
+RESCUE_MALFORMED = "malformed"
+
+RescueOutcome = namedtuple("RescueOutcome", "calls kind detail")
 
 # Elision markers (per docs/RESEARCH_LOCAL_EDITING.md): a rewrite containing one
 # of these almost certainly dropped code instead of returning the whole file.
@@ -190,6 +225,12 @@ class OllamaProvider(Provider):
         self._backups: dict[str, bytes | None] = {}
         self._created_dirs: list[str] = []
         self.rollback_failures: list[str] = []
+        # GROUND TRUTH for run()'s own report: repo-relative paths THIS
+        # instance has actually written to disk (never the model's
+        # self-report). Populated only at the two places a real
+        # target.write_text() succeeds (_dispatch's write_file branch and
+        # _run_rewrite's write loop); reset per call at the top of run().
+        self._written: list[str] = []
 
     def available(self) -> bool:
         return server_reachable(self.host, path="/api/tags")
@@ -303,6 +344,7 @@ class OllamaProvider(Provider):
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(str(args.get("content", "")), encoding="utf-8")
                 changed.append(rel)
+                self._written.append(rel)  # ground truth, survives a later exception
                 return f"OK: wrote {rel}."
             except OSError as exc:
                 return f"ERROR: cannot write '{rel}': {exc}"
@@ -332,17 +374,24 @@ class OllamaProvider(Provider):
             "required": ["action"],
         }
 
-    def _schema_rescue(self, messages, model, tools, timeout_s) -> list:
+    def _schema_rescue(self, messages, model, tools, timeout_s) -> RescueOutcome:
         """Re-ask the last turn with the call SHAPE constrained.
 
-        Returns tool_calls in the same shape the loop already handles, or ``[]``
-        when the model says it is finished -- so the caller's existing
-        "no calls -> read the report" path stays the fall-through and nothing
-        downstream needs to know this happened.
+        Returns a :class:`RescueOutcome`, NOT a bare list. It used to return
+        ``[]`` for every outcome, which made three different worlds
+        indistinguishable to the caller:
 
-        Failures here are deliberately silent-and-empty: this is a rescue
-        attempt on a turn that was already going to be treated as finished, so a
-        broken rescue must degrade to the old behaviour, never to an exception.
+          * the bench is not answering at all,
+          * it answered with something that is not the json we forced,
+          * the model looked at the work and said it is finished.
+
+        Only the third means "done". Collapsing the first two into it produced
+        the exact failure this whole rescue exists to prevent -- a write task
+        that wrote nothing, reported as a finished turn -- just one level up.
+        The caller must be able to tell them apart, so it is handed the reason.
+
+        Still never raises: a broken rescue degrades to a NAMED empty result,
+        which is the point. Empty-and-nameless was the bug.
         """
         schema = self._decision_schema(tools)
         nudge = list(messages) + [{
@@ -355,14 +404,27 @@ class OllamaProvider(Provider):
             msg = native_chat(host=self.host, model=model or self.model, messages=nudge,
                               force_json=schema, keep_alive=keep_alive_value(),
                               timeout_s=timeout_s)
+        except (ProviderHTTPError, OSError) as exc:
+            # The transport failed: nothing was asked, so nothing was answered.
+            return RescueOutcome([], RESCUE_UNREACHABLE, f"{type(exc).__name__}: {exc}")
+        try:
             obj = json.loads((msg.get("content") or "").strip())
-        except (ProviderHTTPError, json.JSONDecodeError, ValueError, TypeError, OSError):
-            return []
+        except (json.JSONDecodeError, ValueError, TypeError) as exc:
+            # It answered, just not with the shape we constrained it to. That is
+            # a statement about the MODEL, not about the bench, and the two get
+            # different remedies -- so they get different reasons.
+            return RescueOutcome([], RESCUE_MALFORMED, f"{type(exc).__name__}: {exc}")
+        if not isinstance(obj, dict):
+            return RescueOutcome([], RESCUE_MALFORMED,
+                                 f"expected a json object, got {type(obj).__name__}")
         action = str(obj.get("action") or "").strip()
         if not action or action == "finish":
-            return []
+            return RescueOutcome([], RESCUE_FINISHED,
+                                 "the model reports the work is complete")
         args = {k: obj[k] for k in ("path", "content") if isinstance(obj.get(k), str)}
-        return [{"function": {"name": action, "arguments": json.dumps(args)}}]
+        return RescueOutcome(
+            [{"function": {"name": action, "arguments": json.dumps(args)}}],
+            RESCUE_CALLS, action)
 
     def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy,
                      writable, slice_texts=None):
@@ -435,7 +497,23 @@ class OllamaProvider(Provider):
                 # Gated on ``writable and not changed`` on purpose: models that
                 # emit calls natively (qwen3.6 scored 100%) reach here only when
                 # genuinely finished, and pay nothing.
-                calls = self._schema_rescue(messages, model, tools, timeout_s)
+                rescue = self._schema_rescue(messages, model, tools, timeout_s)
+                calls = rescue.calls
+                if not calls and rescue.kind != RESCUE_FINISHED:
+                    # FAIL LOUD, NEVER EMPTY. A write task that wrote nothing,
+                    # whose constrained re-ask could not even be delivered (or
+                    # came back as something other than the shape it was forced
+                    # into), is not a finished turn. Reading the model's prose as
+                    # a report here is precisely how "unreachable bench" and
+                    # "model chose finish" became the same observable outcome.
+                    report = blocked_report(
+                        f"the local executor did not complete the turn "
+                        f"({rescue.kind}): {rescue.detail}",
+                        "unreachable -> check the Ollama server is up and the "
+                        "model is pulled; malformed -> the model ignored the "
+                        "constrained shape, route this task to a stronger one.",
+                        rescue_kind=rescue.kind, rescue_detail=rescue.detail)
+                    break
             if not calls:
                 report = coerce_report(extract_json(msg.get("content") or "{}"))
                 break
@@ -605,6 +683,7 @@ class OllamaProvider(Provider):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(content, encoding="utf-8")
             changed.append(rel)
+            self._written.append(rel)  # ground truth, mirrors the tool-loop write site
 
         summary = (f"Applied full-file rewrite to: {', '.join(changed)}."
                    if changed else "Rewrite produced no applicable change.")
@@ -645,8 +724,25 @@ class OllamaProvider(Provider):
         # this machine.
         refusal = self._refuse_if_remote()
         if refusal is not None:
-            return {**refusal, "persona": persona_for(self.caps.name, agent.get("name"))}
+            return {**refusal, "persona": persona_for(self.caps.name, agent.get("name")),
+                    "wrote": [], "did_work": False}
 
+        # GROUND TRUTH for THIS call. Reset here (not only in __init__) so an
+        # instance reused across more than one run() never reports a PRIOR
+        # call's writes as this one's. _dispatch's write_file branch and
+        # _run_rewrite's write loop both append to self._written the moment a
+        # real target.write_text() succeeds -- never from the model's own
+        # self-reported files_changed. Being on self (not a local var) means
+        # it also survives an exception raised mid-_run_agentic, so the
+        # exception-fallback branch below still reports honestly instead of
+        # losing track of writes that already landed on disk before the model
+        # call that follows them failed.
+        #
+        # NOTE: this key does NOT go inside `report` -- schemas.REPORT_KEYS is
+        # a closed set (validate_report rejects unknown keys, and that
+        # validation runs again downstream in verifier.verify), so "wrote"/
+        # "did_work" live only on this outer dict, as siblings of "report".
+        self._written = []
         persona = persona_for(self.caps.name, agent.get("name"))
         try:
             if writable and paths and len(paths) <= MAX_REWRITE_FILES:
@@ -670,9 +766,13 @@ class OllamaProvider(Provider):
                                   timeout_s=timeout_s, temperature=0.0)
                 report = coerce_report(extract_json(msg.get("content") or "{}"))
             except (ProviderHTTPError, ValueError):
+                wrote = list(dict.fromkeys(self._written))
                 return {"provider": self.caps.name, "persona": persona, "agent": agent.get("name"),
                         "report": blocked_report(
                             f"Ollama call failed: {exc}",
-                            "Ensure the local server is up and the model is pulled, or use Claude.")}
+                            "Ensure the local server is up and the model is pulled, or use Claude."),
+                        "wrote": wrote, "did_work": bool(wrote)}
+        wrote = list(dict.fromkeys(self._written))
         return {"provider": self.caps.name, "persona": persona,
-                "agent": agent.get("name"), "report": report}
+                "agent": agent.get("name"), "report": report,
+                "wrote": wrote, "did_work": bool(wrote)}

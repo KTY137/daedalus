@@ -13,6 +13,67 @@ construction:
 So "hooking Ikarus onto a CLI" adds language understanding without moving the
 safety rails: the model advises, Daedalus acts (behind confirmation + the
 verify-or-rollback gate).
+
+
+THREE SHELLS, SPLIT BY CAPABILITY
+---------------------------------
+One classifier, three executors. What separates them is not which model is
+behind them but WHAT THEY ARE ALLOWED TO DO:
+
+  ``deterministic``  status / distill / design. Computed here, locally. No
+                     spend, no egress, no model.
+  ``hand``           the tool-bearing shell. Reached only for work the SEPARATE
+                     capability predicate (:mod:`daedalus.ikarus_act`) cleared.
+                     Inside this module the Hand shell only ever PROPOSES a
+                     confirm-gated task -- the executor itself runs later,
+                     asynchronously, via the bridge into
+                     ``providers/ollama.py``. Nothing here calls a tool.
+                     A CONFIRMED route additionally requires the executor to be
+                     MEASURED ``working`` (see :func:`_enqueue`): confirming is
+                     the moment the system commits work to the Hand, and it
+                     refuses in words rather than committing on "I don't know".
+                     An unconfirmed proposal commits nothing, so it proposes
+                     regardless -- reporting the executor's state when it
+                     happens to know it, and claiming nothing when it does not.
+  ``voice``          conversational, NO tools, text out and nothing else. Every
+                     branch of :func:`_llm` lives here.
+
+Every ``start`` event, every envelope, and every persisted turn carries the
+shell that answered, so "which one of the three spoke" is a recorded fact and
+not an inference from the provider name.
+
+
+THE PROVIDER FENCE — chat is the client's choice of voice, action is the
+system's choice of hand
+-----------------------------------------------------------------------
+For ``chat`` intents the client-supplied ``provider`` parameter REMAINS
+honored, exactly as before. It is a live capability -- local Ollama, the user's
+Claude CLI, DeepSeek, Codex -- and which voice answers you is a preference,
+paid for by the person expressing it. Removing that is a product decision this
+code is not entitled to make on its own.
+
+For any intent the capability predicate clears for tools, THE EXECUTOR IS
+CHOSEN BY THE SYSTEM. ``provider`` is not consulted, not defaulted from, and
+not echoed into the proposed action: :func:`_enqueue` does not take it as an
+argument, so a client cannot name its way onto the tool-bearing path. The lane
+is fixed at ``local_only`` here and re-derived downstream by the router, which
+owns the lane decision; naming "claude" in a chat request must never become a
+way to select who executes.
+
+The fence exists because the two parameters look alike and are not: one selects
+who TALKS TO YOU, the other selects who TOUCHES YOUR FILES.
+
+
+CLASSIFY ONCE
+-------------
+:func:`classify` runs exactly once per request. Both entry points derive
+``(intent, act)`` at the top and thread the labels down; nothing below
+re-derives them. :func:`_route` folds the intent answer and the capability
+answer into ONE effective label, which is what the streaming ``start`` event
+announces and what every ``final`` is built from -- so a client that has
+already committed to an affordance (or, later, to speech) cannot be handed a
+``final`` that contradicts it. :func:`_reconcile_final` is the tripwire for the
+case that should now be unreachable.
 """
 from __future__ import annotations
 
@@ -26,7 +87,8 @@ import time as _time
 from collections import namedtuple
 from pathlib import Path
 
-from . import core
+from . import core, ikarus_act
+from .ikarus_act import ActDecision
 from .projects import resolve_repo_root
 from .providers._openai_compat import chat_completion
 
@@ -88,9 +150,45 @@ _EMPTY_CTX = _Ctx("", 0, None, 0, 0, False)
 
 
 # --------------------------------------------------------------------------- #
+# The three shells (capability, not vendor)                                    #
+# --------------------------------------------------------------------------- #
+SHELL_DETERMINISTIC = "deterministic"
+SHELL_HAND = "hand"
+SHELL_VOICE = "voice"
+
+#: Which shell answers which effective route. One table, so the ``start`` event
+#: and the envelope cannot label the same turn differently.
+_SHELL_BY_ROUTE = {
+    "status": SHELL_DETERMINISTIC,
+    "distill": SHELL_DETERMINISTIC,
+    "design": SHELL_DETERMINISTIC,
+    "enqueue": SHELL_HAND,
+    "chat": SHELL_VOICE,
+    "error": SHELL_DETERMINISTIC,
+}
+
+
+def _shell_for(route: str) -> str:
+    return _SHELL_BY_ROUTE.get(route, SHELL_DETERMINISTIC)
+
+
+# --------------------------------------------------------------------------- #
 # Intent classification (deterministic, keyword rules)                         #
 # --------------------------------------------------------------------------- #
 def classify(message: str) -> str:
+    """WHICH INTENT IS THIS -- for UI affordances. Nothing else.
+
+    This answers the same question with the same substring table it always has,
+    and its answer is deliberately NOT a capability decision. The capability
+    question ("may this message reach a tool-bearing executor") is answered by
+    :func:`daedalus.ikarus_act.may_act`, which is a different function with a
+    different return type, a different error budget and its own test suite.
+    See that module's docstring for why the two must never be merged, and for
+    the worked divergences (e.g. "fix the clone detector" lands here in
+    ``distill`` while may_act would clear the sentence).
+
+    Two answers, and a message needs BOTH before a Hand ever sees it.
+    """
     t = message.lower()
     if any(k in t for k in ("agent network", "squad", "add agent", "team roster", "roles network")):
         return "design"
@@ -107,27 +205,182 @@ def classify(message: str) -> str:
 
 
 def ask(project: str, message: str, provider: str | None = None,
-        model: str | None = None, effort: str | None = None) -> dict:
+        model: str | None = None, effort: str | None = None,
+        conversation_id: str | None = None, *,
+        intent: str | None = None, act: ActDecision | None = None) -> dict:
     """Route one chat turn. Always returns a chat-shaped envelope; never raises
     up to the caller for an expected failure. ``effort`` (low/medium/high,
     default low) + ``model`` tune the freeform brain — it's an interface chatbot,
-    so keep it cheap by default."""
+    so keep it cheap by default.
+
+    ``conversation_id`` is OPT-IN and purely additive: omitted (the default),
+    this is byte-for-byte the old stateless call. Passed, the turn is appended
+    durably via :mod:`daedalus.conversation` (a conversation has an id; turns
+    survive a restart) AFTER the reply is computed, so a store hiccup can never
+    turn a good reply into a failed one — see :func:`_persist_turn`, which
+    records its own failure on the envelope instead of raising.
+
+    ``intent`` / ``act`` are the ALREADY-DERIVED labels, threaded in by a caller
+    that has classified this exact message once (the streaming path does). Both
+    are keyword-only and default to None, so every existing call site is
+    unchanged; passing them is what makes "classify exactly once per request"
+    true rather than merely likely. A caller that passes them is asserting they
+    describe THIS message — never a cached label from a different one.
+    """
+    envelope = _ask_inner(project, message, provider, model, effort,
+                          intent=intent, act=act, conversation_id=conversation_id)
+    if conversation_id:
+        _persist_turn(conversation_id, project, message, provider, envelope)
+    return envelope
+
+
+def _prior_turn(conversation_id: str | None):
+    """The last persisted turn of this conversation, or None.
+
+    Best-effort and never raises: :func:`may_act` degrades to its stateless
+    rules when the store is unavailable, and that degrade can only make it MORE
+    restrictive (a bare confirmation stops clearing anything), never less. The
+    fail direction is the whole reason this is allowed to be best-effort.
+    """
+    if not conversation_id:
+        return None
+    try:
+        from . import conversation
+
+        return conversation.default_store().last_turn(conversation_id)
+    except Exception:
+        return None
+
+
+def _decide(message: str, intent: str, conversation_id: str | None) -> ActDecision:
+    """Ask the CAPABILITY question, once, fail-closed.
+
+    A predicate that raises must not become a predicate that permits, so the
+    exception path returns a refusal rather than propagating.
+    """
+    try:
+        return ikarus_act.may_act(message, intent, _prior_turn(conversation_id))
+    except Exception as exc:
+        return ActDecision(False, f"the capability check failed: {exc}", intent=intent)
+
+
+def _route(intent: str, act: ActDecision) -> str:
+    """Fold the INTENT answer and the CAPABILITY answer into one effective label.
+
+    Called exactly once per request, by whoever derived the two answers, and
+    then threaded. This is what makes a ``start``/``final`` disagreement
+    structurally impossible instead of merely unobserved: both are built from
+    the value this returns.
+
+    The capability answer WINS DOWNWARD only. It can pull a message off the
+    tool-bearing route ("does that make sense" classifies as ``enqueue``
+    because of a substring, and is refused here), and it can put a confirmed
+    offer back ON it — but a confirmation is itself a cleared act decision, so
+    nothing reaches ``enqueue`` that ``may_act`` did not allow.
+    """
+    if act.allowed and act.confirmation_of:
+        return "enqueue"
+    if intent == "enqueue" and not act.allowed:
+        return "chat"
+    return intent
+
+
+def _ask_inner(project: str, message: str, provider: str | None = None,
+               model: str | None = None, effort: str | None = None, *,
+               intent: str | None = None, act: ActDecision | None = None,
+               conversation_id: str | None = None) -> dict:
+    """The stateless routing body of :func:`ask`.
+
+    ``conversation_id`` is read-only here: it is used to look up the previous
+    turn for :func:`_decide` and nothing else. Persistence stays in
+    :func:`ask` / :func:`ask_stream`, so there is still exactly one place a
+    turn is written.
+    """
     message = (message or "").strip()
     if not message:
-        return core.envelope(project, intent="chat", assistant="Say the word — I can report status, distill code, propose a task, or design an agent network.", provider_used="deterministic")
+        return core.envelope(project, intent="chat", shell=SHELL_DETERMINISTIC, assistant="Say the word — I can report status, distill code, propose a task, or design an agent network.", provider_used="deterministic")
     try:
-        intent = classify(message)
-        if intent == "status":
+        if intent is None:
+            intent = classify(message)
+        if act is None:
+            act = _decide(message, intent, conversation_id)
+        route = _route(intent, act)
+
+        if route == "status":
             return _status(project, message)
-        if intent == "distill":
+        if route == "distill":
             return _distill(project, message)
-        if intent == "design":
+        if route == "design":
             return _design(project, message)
-        if intent == "enqueue":
-            return _enqueue(project, message)
+        if route == "enqueue":
+            # THE ONLY DOOR TO THE HAND SHELL, and `act.allowed` is true on
+            # every path that reaches it (see _route). `provider` is not passed:
+            # the executor is the system's choice, not the request's.
+            return _enqueue(project, act.objective or message, act=act)
+        if act.suspected:
+            # The Voice REPORTING what may_act said, not the Voice judging.
+            return _act_offer(project, message, act)
         return _chat(project, message, provider, model, effort)
     except Exception as exc:  # never 500 the chat on an internal hiccup
-        return core.envelope(project, intent="error", assistant=f"I hit a snag: {exc}", provider_used="deterministic")
+        return core.envelope(project, intent="error", shell=SHELL_DETERMINISTIC, assistant=f"I hit a snag: {exc}", provider_used="deterministic")
+
+
+# --------------------------------------------------------------------------- #
+# Durable conversation state (opt-in) -- see daedalus/conversation.py          #
+# --------------------------------------------------------------------------- #
+def _turn_status(envelope: dict):
+    """Map a chat envelope's ``intent`` to conversation.py's closed turn-status
+    vocabulary. A separate, tiny function so the mapping is one place and is
+    unit-testable without a real store."""
+    from . import conversation
+
+    intent = envelope.get("intent")
+    if intent == "error":
+        return conversation.STATUS_ERROR
+    # "proposed" means an action is sitting there waiting for a confirmation.
+    # An enqueue turn that REFUSED to propose (the Hand is absent) has nothing
+    # to confirm, so recording it as proposed would leave a phantom pending
+    # action in the conversation's history. The envelope's own `action` key is
+    # the ground truth for that, not the intent label.
+    if intent == "enqueue" and envelope.get("action"):
+        return conversation.STATUS_PROPOSED
+    return conversation.STATUS_ANSWERED
+
+
+def _persist_turn(conversation_id: str, project: str, message: str,
+                  provider: str | None, envelope: dict) -> None:
+    """Best-effort durable append of one turn. NEVER raises into the caller:
+    conversation state is purely additive to the chat response, so a store
+    hiccup (disk full, locked file, WAL error) must not turn a good reply into
+    a 500 -- the same fail-open ethos this module already applies to context
+    building (see ``_project_context``). Unlike that silent degrade, failure
+    HERE is recorded on the envelope (``conversation_persisted=False`` +
+    ``conversation_error``) rather than swallowed, because a caller that asked
+    for durable state has a right to know it didn't get it this turn.
+    """
+    try:
+        from . import conversation
+
+        turn = conversation.default_store().append_turn(
+            conversation_id,
+            user_message=message,
+            intent=str(envelope.get("intent") or "chat"),
+            status=_turn_status(envelope),
+            assistant_text=envelope.get("assistant"),
+            provider_used=envelope.get("provider_used") or provider,
+            model_used=envelope.get("model_used"),
+            project=project,
+            proposed_action=envelope.get("action"),
+            envelope=envelope,
+        )
+        envelope["conversation_id"] = conversation_id
+        envelope["turn_id"] = turn.id
+        envelope["turn_seq"] = turn.seq
+        envelope["conversation_persisted"] = True
+    except Exception as exc:
+        envelope["conversation_id"] = conversation_id
+        envelope["conversation_persisted"] = False
+        envelope["conversation_error"] = str(exc)
 
 
 # --------------------------------------------------------------------------- #
@@ -143,7 +396,7 @@ def _status(project: str, message: str) -> dict:
         f"Watcher: {watcher}. {st.get('unread_count', 0)} unread reports, "
         f"{st.get('reports_total', 0)} total."
     )
-    return core.envelope(project, intent="status", assistant=reply, status=st, provider_used="deterministic")
+    return core.envelope(project, intent="status", shell=SHELL_DETERMINISTIC, assistant=reply, status=st, provider_used="deterministic")
 
 
 def _distill(project: str, message: str) -> dict:
@@ -162,7 +415,7 @@ def _distill(project: str, message: str) -> dict:
             f"Included {res['n_included']} files (the focus plus its dependency/caller neighborhood)."
         )
         res.pop("slice_text", None)
-        return core.envelope(project, intent="distill", assistant=reply, distill=res, provider_used="deterministic")
+        return core.envelope(project, intent="distill", shell=SHELL_DETERMINISTIC, assistant=reply, distill=res, provider_used="deterministic")
 
     summ = structure_summary(idx)
     top = summ["clones"][:5]
@@ -176,7 +429,7 @@ def _distill(project: str, message: str) -> dict:
         )
     else:
         reply = "No clone clusters detected yet. Point me at a file to distill and I'll show the token saving."
-    return core.envelope(project, intent="distill", assistant=reply, structure=summ, provider_used="deterministic")
+    return core.envelope(project, intent="distill", shell=SHELL_DETERMINISTIC, assistant=reply, structure=summ, provider_used="deterministic")
 
 
 def _extract_target(message: str, idx: dict) -> str | None:
@@ -220,8 +473,105 @@ def _resolve_target(message: str, idx: dict) -> tuple[str | None, bool]:
     return None, False
 
 
-def _enqueue(project: str, message: str) -> dict:
+# --------------------------------------------------------------------------- #
+# The Hand's liveness — ONE predicate, borrowed, never a second one            #
+# --------------------------------------------------------------------------- #
+#: Seconds a liveness answer is reused. A chat turn must not pay a network
+#: round trip per keystroke-sized request, and the Hand's state does not
+#: meaningfully change inside one exchange. Short enough that "I just started
+#: Ollama" is true again almost immediately.
+_HAND_TTL_S = 5.0
+_HAND_CACHE: dict[str, tuple[float, object]] = {}
+
+
+def _hand_state(probe: bool = True):
+    """Is the tool-bearing executor there? In the five-word vocabulary.
+
+    Delegates to :func:`daedalus.health.hand_state`, which is composed from the
+    SAME ``_ollama_alive`` the bench probes use. Deliberately not reimplemented
+    here: this repo's recurring disease is two predicates for one question, and
+    a chat path that disagrees with the health surface about whether the bench
+    is up is exactly that disease.
+
+    Fails to ``unknown`` if health itself cannot be consulted — never to
+    ``working``, because uncertainty about liveness must not read as health.
+
+    ``probe=False`` answers FROM THE CACHE ONLY and returns ``None`` rather than
+    making a network call. MEASURED 2026-07-29 on this box: a local port with
+    nothing listening does not refuse, it TIMES OUT -- 2.0s for 127.0.0.1:11435,
+    :49999 and :1 alike -- so a liveness check on every turn would tax exactly
+    the machines that have no executor to show for it. The advisory paths (a
+    proposal, which commits nothing) therefore look but do not knock, and say
+    nothing at all when they do not know; only the paths where the answer
+    CHANGES THE OUTCOME pay for it. Returning None is the honest shape: this
+    module does not get to report a state it did not measure.
+    """
+    now = _time.monotonic()
+    hit = _HAND_CACHE.get("hand")
+    if hit and (now - hit[0]) < _HAND_TTL_S:
+        return hit[1]
+    if not probe:
+        return None
+    try:
+        from . import health
+
+        # Shorter than health's own default: a chat turn must never hang on a
+        # liveness question. A host that has not answered in 2s is `unknown`,
+        # which is honest -- and `unknown` is not clearance (see _enqueue).
+        state = health.hand_state(timeout_s=2.0)
+    except Exception as exc:
+        from collections import namedtuple as _nt
+
+        state = _nt("HandState", "state detail host")(
+            "unknown", f"the liveness check could not run: {exc}", "")
+    _HAND_CACHE["hand"] = (now, state)
+    return state
+
+
+def _hand_block(state) -> dict:
+    return {"state": state.state, "detail": state.detail, "host": state.host}
+
+
+def _enqueue(project: str, message: str, act: ActDecision | None = None) -> dict:
+    """Propose a confirm-gated task on the Hand's lane.
+
+    Takes NO ``provider``: see the module docstring's provider fence. The
+    executor for act-cleared work is the system's choice, and there is no
+    argument here through which a request could express one.
+    """
     objective = message.strip()
+    confirmed = bool(act is not None and act.confirmation_of)
+    # Only the confirmed route knocks: see _hand_state's MEASURED note on cost.
+    hand = _hand_state(probe=confirmed)
+
+    if confirmed and (hand is None or hand.state != "working"):
+        # THE REFUSAL, IN WORDS. The user has confirmed; this is the moment the
+        # system would otherwise commit work to something that is not there.
+        # Saying "queued!" here, or letting the Voice answer as though it had
+        # done the work, is the failure mode this branch exists to prevent.
+        #
+        # It refuses on ANYTHING BUT `working`, not only on `absent`. That is a
+        # deliberate widening, forced by measurement rather than by taste: on
+        # Windows a local port with nothing listening TIMES OUT instead of
+        # refusing, so `absent` is nearly unreachable here and a guard keyed to
+        # it would have been a guard in name only. The vocabulary is unchanged
+        # -- `unknown` still is not `absent`, and the wording below says which
+        # of the two we got -- but neither is CLEARANCE. Committing confirmed
+        # work on "I could not find out" is the Voice pretending, one level up.
+        state = "unknown" if hand is None else hand.state
+        detail = "the liveness check did not run" if hand is None else hand.detail
+        head = ("the local executor is unreachable" if state == "absent"
+                else "I could not confirm the local executor is up")
+        return core.envelope(
+            project, intent="enqueue", shell=SHELL_HAND,
+            assistant=(f"I can't route that: {head}: {detail}"
+                       f"{f' (host {hand.host})' if hand is not None and hand.host else ''}. "
+                       "Nothing was queued and nothing ran. Start the local bench "
+                       "and confirm again."),
+            hand={"state": state, "detail": detail,
+                  "host": hand.host if hand is not None else ""},
+            act=act.to_dict(), provider_used="deterministic")
+
     action = {
         "kind": "queue_task",
         "args": {"project": project, "objective": objective, "lane": "local_only"},
@@ -232,7 +582,48 @@ def _enqueue(project: str, message: str) -> dict:
         f"zero spend): “{objective[:140]}”. Confirm to run, or tell me to route it to a "
         "frontier lane."
     )
-    return core.envelope(project, intent="enqueue", assistant=reply, action=action, provider_used="deterministic")
+    extra = {"act": act.to_dict()} if act is not None else {}
+    if hand is not None:
+        extra["hand"] = _hand_block(hand)
+        if hand.state != "working":
+            # Loud, but not a refusal: nothing has been committed yet, and the
+            # bench may well be up by the time the user confirms. What is not
+            # allowed is proposing into the void SILENTLY.
+            reply += (f" Note: the local executor is {hand.state} right now "
+                      f"({hand.detail}) — it will need to be up before this can run.")
+    return core.envelope(project, intent="enqueue", shell=SHELL_HAND, assistant=reply,
+                         action=action, provider_used="deterministic", **extra)
+
+
+def _act_offer(project: str, message: str, act: ActDecision) -> dict:
+    """The Voice REPORTING a refusal it did not make.
+
+    A message that reads like an act request but does not meet the allow rule
+    (the German "kannst du das mal bauen" carries no English keyword, so
+    ``classify`` says chat and ``may_act`` refuses it) must not be answered as
+    if nothing had been asked. This says what happened, in words, and offers
+    the confirm path — whose confirmation re-enters :func:`may_act` and then
+    the ordinary enqueue path, never a path around either.
+
+    Deterministic on purpose: it must read the same whether or not a brain is
+    configured, and it must cost nothing.
+    """
+    objective = (act.objective or message).strip()
+    reply = (
+        "That reads like a request to build something, but I can't queue it from "
+        f"here: {act.reason} ({act.signal}). Say “yes” and I'll route it the normal "
+        "way — a confirm-gated task on the free local bench (lane local_only, "
+        "verify-or-rollback, zero spend)."
+    )
+    return core.envelope(
+        project, intent="chat", shell=SHELL_VOICE, assistant=reply,
+        provider_used="deterministic", model_used=None,
+        act=act.to_dict(),
+        # Read back by ikarus_act.pending_offer on the NEXT turn. This is the
+        # only thing that lets a bare "yes" mean anything, and it names the
+        # objective explicitly so the confirmation can never clear something
+        # other than what was offered.
+        act_offer={"objective": objective, "reason": act.reason, "signal": act.signal})
 
 
 def _design(project: str, message: str) -> dict:
@@ -240,6 +631,7 @@ def _design(project: str, message: str) -> dict:
 
     res = ikarus_chat.chat(project, message, apply=False)
     res["intent"] = "design"
+    res.setdefault("shell", SHELL_DETERMINISTIC)
     res.setdefault("provider_used", "deterministic")
     return res
 
@@ -337,10 +729,10 @@ def _chat(project: str, message: str, provider: str | None,
     if reply:
         block = _ctx_envelope_block(ctx)
         extra = {"context": block} if block else {}
-        return core.envelope(project, intent="chat", assistant=reply,
+        return core.envelope(project, intent="chat", shell=SHELL_VOICE, assistant=reply,
                              provider_used=(provider or "").lower(),
                              model_used=model_used, **extra)
-    return core.envelope(project, intent="chat", assistant=_help_text(),
+    return core.envelope(project, intent="chat", shell=SHELL_VOICE, assistant=_help_text(),
                          provider_used="deterministic", model_used=None)
 
 
@@ -556,8 +948,56 @@ def _codex(message: str, effort: str | None = None, model: str | None = None,
 # Streaming brain — same routing as ask(), tokens pushed as they are produced   #
 # --------------------------------------------------------------------------- #
 def ask_stream(project: str, message: str, provider: str | None = None,
-               model: str | None = None, effort: str | None = None):
-    """Streaming twin of :func:`ask`. Yields ``(event, payload)`` tuples:
+               model: str | None = None, effort: str | None = None,
+               conversation_id: str | None = None):
+    """Streaming twin of :func:`ask`, including its ``conversation_id`` opt-in.
+
+    A thin tap around :func:`_ask_stream_inner`: every event is passed through
+    unchanged, and the moment a ``"final"`` envelope is produced (there is
+    exactly one, from whichever branch of the inner generator emitted it), the
+    turn is persisted exactly like the blocking :func:`ask` does — one
+    persistence code path for both entry points, via :func:`_persist_turn`.
+    """
+    for event, payload in _ask_stream_inner(project, message, provider, model, effort,
+                                            conversation_id=conversation_id):
+        if event == "final" and conversation_id:
+            _persist_turn(conversation_id, project, message, provider, payload)
+        yield event, payload
+
+
+def _reconcile_final(started: str, envelope: dict) -> dict:
+    """THE TRIPWIRE on ``start``/``final`` disagreement. Should be unreachable.
+
+    ``start`` is a COMMITMENT. A client has already rendered an affordance from
+    it, and a voice UI will already have begun speaking from it — there is no
+    un-speaking. So a ``final`` whose intent contradicts it cannot be allowed to
+    smuggle a capability past the announcement: the historic shape of this bug is
+    a Confirm button rendered from a ``final`` whose ``start`` said "chat".
+
+    Now that :func:`_route` is computed once and threaded, the only label that
+    may legitimately supersede the announcement is ``error`` — a failure must
+    always be able to speak. Anything else is a defect, and this handles it by
+    FAILING CLOSED rather than by papering over it: the announced label stands,
+    anything capability-bearing (``action``) is DROPPED, and the disagreement is
+    recorded on the envelope so it is loud instead of silent. The worst outcome
+    of a divergence is then a lost proposal, which the user recovers by asking
+    again — never an unannounced Confirm button.
+    """
+    final_intent = str(envelope.get("intent") or "")
+    if final_intent == started or final_intent == "error":
+        return envelope
+    dropped = envelope.pop("action", None)
+    envelope["intent"] = started
+    envelope["shell"] = _shell_for(started)
+    envelope["intent_mismatch"] = {"start": started, "final": final_intent,
+                                   "dropped_action": dropped is not None}
+    return envelope
+
+
+def _ask_stream_inner(project: str, message: str, provider: str | None = None,
+                      model: str | None = None, effort: str | None = None, *,
+                      conversation_id: str | None = None):
+    """Streaming twin of :func:`_ask_inner`. Yields ``(event, payload)`` tuples:
 
       ``("start", {...})``  once, before any text
       ``("delta", {"text": ...})``  zero or more, as tokens arrive
@@ -568,24 +1008,58 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     they emit start+final with no deltas; only the freeform brain streams. That
     keeps ONE endpoint correct for every message the UI sends.
 
+    CLASSIFIES EXACTLY ONCE. ``(intent, act)`` are derived here, folded into one
+    effective ``route``, and then THREADED into every ``ask()`` call below —
+    which is why those calls pass ``intent=``/``act=``. This used to classify
+    here and again inside ``ask()``, with the ``start`` event committing to the
+    first answer and the ``final`` envelope built independently from the second.
+    Both were pure and deterministic, so they always agreed; the moment either
+    consulted conversation state (as ``act`` now does) they would not have, and
+    the disagreement would have surfaced as a client rendering a Confirm button
+    under a turn it had announced as chat.
+
+    ``conversation_id`` is READ-ONLY here — it reaches :func:`_decide` so a
+    confirmation can be recognised. Persistence stays in :func:`ask_stream`.
+
     Fail-closed: any streaming failure (unsupported flag, dead runtime, mid-
     stream error) degrades to the blocking path rather than erroring the chat.
     """
     message = (message or "").strip()
     if not message:
-        yield "start", {"intent": "chat", "provider_used": "deterministic"}
-        yield "final", ask(project, message, provider, model, effort)
+        yield "start", {"intent": "chat", "shell": SHELL_DETERMINISTIC,
+                        "provider_used": "deterministic"}
+        yield "final", _reconcile_final(
+            "chat", ask(project, message, provider, model, effort))
         return
 
     try:
         intent = classify(message)
     except Exception:
         intent = "chat"
+    act = _decide(message, intent, conversation_id)
+    route = _route(intent, act)
 
     # Deterministic lanes: no token stream to give, just compute and finish.
-    if intent != "chat":
-        yield "start", {"intent": intent, "provider_used": "deterministic"}
-        yield "final", ask(project, message, provider, model, effort)
+    # ``route``, not ``intent`` — an enqueue-classified message the capability
+    # predicate refused belongs to the Voice, and announcing "enqueue" here
+    # would commit the client to an affordance the final will not carry.
+    if route != "chat":
+        yield "start", {"intent": route, "shell": _shell_for(route),
+                        "provider_used": "deterministic"}
+        yield "final", _reconcile_final(
+            route, ask(project, message, provider, model, effort,
+                       intent=intent, act=act))
+        return
+
+    # A suspected act request is answered deterministically (the Voice reporting
+    # may_act's refusal + the confirm offer), so there is nothing to stream and
+    # no brain to pay for — regardless of which provider the client named.
+    if act.suspected:
+        yield "start", {"intent": "chat", "shell": SHELL_VOICE,
+                        "provider_used": "deterministic"}
+        yield "final", _reconcile_final(
+            "chat", ask(project, message, provider, model, effort,
+                        intent=intent, act=act))
         return
 
     p = (provider or "").lower()
@@ -619,13 +1093,16 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     # function duplicating it.
 
     yield "start", {"intent": "chat",
+                    "shell": SHELL_VOICE,
                     "provider_used": p or "deterministic",
                     "model_used": model_used}
 
     if streamer is None:
         # No streaming brain selected (deterministic/auto, or an unwired slot
         # like codex/gemini) — identical outcome to ask().
-        yield "final", ask(project, message, provider, model, effort)
+        yield "final", _reconcile_final(
+            route, ask(project, message, provider, model, effort,
+                       intent=intent, act=act))
         return
 
     chunks: list[str] = []
@@ -641,13 +1118,16 @@ def ask_stream(project: str, message: str, provider: str | None = None,
     text = "".join(chunks).strip()
     if failed or not text:
         # Nothing usable streamed -> blocking fallback keeps the chat alive.
-        yield "final", ask(project, message, provider, model, effort)
+        yield "final", _reconcile_final(
+            route, ask(project, message, provider, model, effort,
+                       intent=intent, act=act))
         return
 
     block = _ctx_envelope_block(ctx)
     extra = {"context": block} if block else {}
-    yield "final", core.envelope(project, intent="chat", assistant=text,
-                                 provider_used=p, model_used=model_used, **extra)
+    yield "final", _reconcile_final(route, core.envelope(
+        project, intent="chat", shell=SHELL_VOICE, assistant=text,
+        provider_used=p, model_used=model_used, **extra))
 
 
 def _ollama_stream(message: str, model: str, effort: str | None, context: str = ""):

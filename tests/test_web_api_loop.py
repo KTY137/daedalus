@@ -38,7 +38,7 @@ from pathlib import Path
 from unittest import mock
 
 from daedalus import web_api
-from daedalus.sensitivity import lane_for_host
+from daedalus.sensitivity import ENV_TRUSTED_HOSTS, is_loopback_host, lane_for_host
 from daedalus.spine.ledger import SpineLedger
 
 ATTEMPT_KIND = "attempt.candidate"
@@ -95,6 +95,26 @@ class LoopApiTestCase(unittest.TestCase):
         with mock.patch.object(web_api, "resolve_repo_root",
                                lambda _root, project: str(repo)):
             return self.get(path)
+
+
+def _picker_ledger_path(repo: Path) -> Path:
+    """The ledger path the PICKER will actually open for ``repo``.
+
+    The queue's attempt-memory source resolves its ledger REPO-LOCALLY
+    (``<repo>/runs/spine/spine.sqlite3`` or ``spine.ledger_path`` in project
+    config) and deliberately does NOT read ``DAEDALUS_SPINE_DB`` -- that env
+    var belongs to the process-global LEDGER surface (``/api/loop/attempts``),
+    not to the repo-confined picker (ruling by the resolver's author,
+    2026-07-29, in the room; the picker's confinement is itself pinned by
+    ``tests/test_picker_work_queue.py``). Three tests here used to set the env
+    var and silently fall through to the REAL ledger -- red in the full suite,
+    green alone, measuring this developer's machine instead of the fixture.
+    Queue tests write the fixture database HERE; ledger-surface tests keep
+    using the env var, correctly.
+    """
+    p = Path(repo) / "runs" / "spine" / "spine.sqlite3"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
 
 
 def _seed_ledger(path: Path, n: int = 2,
@@ -410,26 +430,23 @@ class LedgerIsNotMutatedByAReadTest(LoopApiTestCase):
             # consulted. With an empty queue the picker never opens the ledger
             # at all and this test would prove nothing.
             repo = _trusted_map_repo(tmp)
-            healthy = Path(tmp) / "healthy.sqlite3"
+            healthy = _picker_ledger_path(repo)
             _seed_ledger(healthy, n=2)
             before = _sha256(healthy)
-            with mock.patch.dict(os.environ,
-                                 {"DAEDALUS_SPINE_DB": str(healthy)}):
-                status, _, body = self.get_in(
-                    "/api/loop/queue?limit=10&project=fake", repo)
+            status, _, body = self.get_in(
+                "/api/loop/queue?limit=10&project=fake", repo)
             self.assertEqual(status, 200)
             self.assertGreater(body["queue"]["returned"], 0)
             self.assertTrue(body["queue"]["sources"]["attempt_memory"]["read"])
             self.assertEqual(_sha256(healthy), before,
                              "the spine ledger's bytes changed during a GET")
 
-            foreign = Path(tmp) / "foreign.sqlite3"
+            healthy.unlink()
+            foreign = _picker_ledger_path(repo)
             self._foreign_sqlite(foreign)
             before, tables_before = _sha256(foreign), self._tables(foreign)
-            with mock.patch.dict(os.environ,
-                                 {"DAEDALUS_SPINE_DB": str(foreign)}):
-                _, _, body = self.get_in(
-                    "/api/loop/queue?limit=10&project=fake", repo)
+            _, _, body = self.get_in(
+                "/api/loop/queue?limit=10&project=fake", repo)
             self.assertEqual(_sha256(foreign), before,
                              "the GET wrote to the database it was reading")
             self.assertEqual(self._tables(foreign), tables_before)
@@ -475,11 +492,10 @@ class DegradedSourceIsVisibleTest(LoopApiTestCase):
     def test_an_unreadable_ledger_is_reported_not_swallowed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = _trusted_map_repo(tmp)
-            bad = Path(tmp) / "spine.sqlite3"
+            bad = _picker_ledger_path(repo)
             bad.write_bytes(b"this is not a sqlite database" * 32)
-            with mock.patch.dict(os.environ, {"DAEDALUS_SPINE_DB": str(bad)}):
-                _, raw, body = self.get_in(
-                    "/api/loop/queue?limit=5&project=fake", repo)
+            _, raw, body = self.get_in(
+                "/api/loop/queue?limit=5&project=fake", repo)
 
         queue = body["queue"]
         self.assertIn("attempt_memory", queue["degraded_sources"])
@@ -493,13 +509,13 @@ class DegradedSourceIsVisibleTest(LoopApiTestCase):
         self.assertGreater(queue["returned"], 0)
 
     def test_a_healthy_ledger_is_not_reported_as_degraded(self) -> None:
+        # Repo-local like the failing cases above -- with the env var this
+        # passed VACUOUSLY (the picker never opened the fixture at all).
         with tempfile.TemporaryDirectory() as tmp:
             repo = _trusted_map_repo(tmp)
-            db = Path(tmp) / "spine.sqlite3"
-            _seed_ledger(db, n=1)
-            with mock.patch.dict(os.environ, {"DAEDALUS_SPINE_DB": str(db)}):
-                _, _, body = self.get_in(
-                    "/api/loop/queue?limit=5&project=fake", repo)
+            _seed_ledger(_picker_ledger_path(repo), n=1)
+            _, _, body = self.get_in(
+                "/api/loop/queue?limit=5&project=fake", repo)
         self.assertGreater(body["queue"]["returned"], 0)
         self.assertEqual(body["queue"]["degraded_sources"], [])
 
@@ -622,10 +638,9 @@ class BoundedResponseTest(LoopApiTestCase):
         is more work" makes property 2 a coincidence."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = _trusted_map_repo(tmp)
-            bad = Path(tmp) / "spine.sqlite3"
+            bad = _picker_ledger_path(repo)
             bad.write_bytes(b"not a database" * 64)
-            with mock.patch.dict(os.environ, {"DAEDALUS_SPINE_DB": str(bad)}), \
-                 mock.patch.object(web_api, "LOOP_RESPONSE_MAX_BYTES", 4000):
+            with mock.patch.object(web_api, "LOOP_RESPONSE_MAX_BYTES", 4000):
                 _, raw, body = self.get_in(
                     "/api/loop/queue?limit=25&project=fake", repo)
 
@@ -928,6 +943,42 @@ class NonLoopbackBindIsRefusedTest(unittest.TestCase):
             with mock.patch.dict(os.environ, {web_api.ALLOW_REMOTE_ENV: "1"}):
                 self.assertEqual(web_api._resolve_bind("192.168.1.24", False),
                                  token)
+
+    # -- the split: a declared-trusted host is a consent, not a location ----- #
+    def test_a_declared_trusted_host_is_still_refused_without_the_remote_opt_in(
+            self) -> None:
+        """THE CRITICAL THIS PREVENTS. An operator can declare a private-
+        tunnel bench trusted for INFERENCE EGRESS (DAEDALUS_TRUSTED_HOSTS)
+        without that declaration also granting an unauthenticated
+        control-plane bind. lane_for_host says "trusted" for this host --
+        _resolve_bind must ask is_loopback_host instead and refuse exactly as
+        it would for any other non-loopback address.
+
+        MEASURED: before is_loopback_host existed, _resolve_bind read
+        lane_for_host directly, so this same declaration returned an empty
+        auth token and _authorized() treated every request as authorized --
+        publishing the spine ledger, the role-rewriting PUTs and the
+        model-invoking POSTs, unauthenticated, to the tailnet.
+        """
+        with mock.patch.dict(os.environ, {ENV_TRUSTED_HOSTS: "100.119.126.9"}):
+            self.assertEqual(lane_for_host("100.119.126.9"), "trusted")
+            self.assertFalse(is_loopback_host("100.119.126.9"))
+            with self.assertRaises(web_api.NonLoopbackBindRefused) as caught:
+                web_api._resolve_bind("100.119.126.9", False)
+            message = str(caught.exception)
+            self.assertIn("100.119.126.9", message)
+            self.assertIn("REFUSED", message)
+
+    def test_a_declared_trusted_host_still_needs_the_SAME_opt_in_as_any_other(
+            self) -> None:
+        """The control: the declaration does not lock the host out either --
+        it reaches the ordinary opt-in+token door, the same one every other
+        non-loopback address must use. Consent about egress is not consent
+        about the bind; it also is not a *veto* on the bind."""
+        token = "d" * web_api.MIN_AUTH_TOKEN_CHARS
+        with mock.patch.dict(os.environ, {ENV_TRUSTED_HOSTS: "100.119.126.9",
+                                          web_api.AUTH_TOKEN_ENV: token}):
+            self.assertEqual(web_api._resolve_bind("100.119.126.9", True), token)
 
     def test_the_loop_endpoints_are_401_on_an_authenticated_bind(self) -> None:
         """The escape hatch does not reopen the hole. Bound to loopback (so the

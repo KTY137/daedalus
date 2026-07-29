@@ -419,17 +419,36 @@ class ProbesReportBadNews(unittest.TestCase):
         self.assertNotEqual(rep.state, WORKING)
 
     def test_a_module_with_no_production_caller_is_an_island(self):
-        # Was pinned to `daedalus.spine.containment`, which STOPPED being an
-        # island the moment it was wired into the gate -- so the test went red
-        # for a good change. A test nailed to a fact rots when the fact does;
-        # `daedalus.compaction` is the standing example (a capability nobody
-        # reaches), and if it is ever wired or deleted this should be pointed at
-        # whatever `wiring.islands` then reports rather than kept alive by hand.
-        with mock.patch.object(health, "CAPABILITY_MODULES",
-                               ("daedalus.compaction",)):
-            rep = health._p_islands(Ctx())
+        # THIRD pinning, and the last one that should ever be needed.
+        #
+        # It was pinned to `daedalus.spine.containment`, which stopped being an
+        # island the moment it was wired into the gate. It was then re-pinned to
+        # `daedalus.compaction` -- which was DELETED on 2026-07-29 (superseded by
+        # the token-accurate eviction already in providers/ollama.py), and the
+        # test went red again, this time reporting "do not exist" rather than
+        # "ZERO callers".
+        #
+        # A test nailed to a fact in the live tree rots every time the fact does.
+        # So this one now BUILDS the condition it is about: a module that exists
+        # on disk and that nothing in the product imports. No repo fact can
+        # falsify it, and no future wiring or deletion can rot it.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            pkg = root / "daedalus"
+            pkg.mkdir()
+            (pkg / "lonely_capability.py").write_text(
+                "def capability():\n    return 42\n", encoding="utf-8")
+            # A production file that exists and imports something ELSE, proving
+            # the scanner did run and simply found no importer of the island.
+            (pkg / "caller.py").write_text(
+                "from daedalus import os_shim\n", encoding="utf-8")
+            health._SOURCE_CACHE.pop(str(root.resolve()), None)
+            with mock.patch.object(health, "CAPABILITY_MODULES",
+                                   ("daedalus.lonely_capability",)):
+                rep = health._p_islands(Ctx(repo_root=root))
         self.assertEqual(rep.state, DEGRADED)
         self.assertIn("ZERO", rep.headline)
+        self.assertIn("lonely_capability", rep.headline)
 
     def test_every_import_FORM_counts_as_a_caller(self):
         """The regression this file did not catch, pinned directly.
