@@ -23,6 +23,7 @@ import types
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 for p in (str(ROOT), str(ROOT / "tools")):
@@ -430,6 +431,337 @@ class ReceiptBootstrapContractTests(unittest.TestCase):
             gd.write_receipt(receipt, repo / "runs" / "spine" / "gate_discrimination.json")
             verdict = bootstrap_verdict(repo, head="b" * 40)
             self.assertFalse(verdict.proven)
+
+
+# --------------------------------------------------------------------------- #
+# coverage-guided mutant selection (docs/ABSORPTION.md I4) -- fast, no real   #
+# coverage.py run except in the one class marked REAL below.                  #
+# --------------------------------------------------------------------------- #
+class AnchorLinesTests(unittest.TestCase):
+
+    def test_single_line_anchor(self):
+        text = "a\nb\nTARGET\nc\n"
+        self.assertEqual(gd._anchor_lines(text, "TARGET"), {3})
+
+    def test_multi_line_anchor_spans_every_line_it_covers(self):
+        text = "a\nSTART\nMID\nEND\nz\n"
+        self.assertEqual(gd._anchor_lines(text, "START\nMID\nEND"), {2, 3, 4})
+
+    def test_absent_anchor_is_the_empty_set(self):
+        self.assertEqual(gd._anchor_lines("a\nb\nc\n", "NOPE"), set())
+
+    def test_only_the_first_occurrence_is_measured(self):
+        # Mirrors str.replace(..., 1) / apply_mutation's first-occurrence rule.
+        text = "DUP\nx\nDUP\n"
+        self.assertEqual(gd._anchor_lines(text, "DUP"), {1})
+
+
+class FilterByCoverageTests(unittest.TestCase):
+
+    def _mut(self, mut_id="m1", file="f.py", find="TARGET"):
+        return gd.Mutation(mut_id, "logic", file, find, "MUTATED", "incident")
+
+    def test_coverage_none_returns_every_mutation_unfiltered(self):
+        muts = (self._mut(),)
+        applicable, skipped = gd.filter_by_coverage(Path("."), muts, None)
+        self.assertEqual(applicable, muts)
+        self.assertEqual(skipped, [])
+
+    def test_uncovered_anchor_is_skipped_and_named(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "f.py").write_text("before\nTARGET\nafter\n", encoding="utf-8")
+            mut = self._mut()
+            # Line 2 (the anchor) is NOT in the covered set for f.py.
+            applicable, skipped = gd.filter_by_coverage(
+                repo, (mut,), {"f.py": {1, 3}})
+            self.assertEqual(applicable, ())
+            self.assertEqual(len(skipped), 1)
+            self.assertEqual(skipped[0]["status"], gd.STATUS_UNCOVERED)
+            self.assertEqual(skipped[0]["id"], "m1")
+            self.assertIn("not executed", skipped[0]["detail"])
+
+    def test_covered_anchor_stays_applicable(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "f.py").write_text("before\nTARGET\nafter\n", encoding="utf-8")
+            mut = self._mut()
+            applicable, skipped = gd.filter_by_coverage(
+                repo, (mut,), {"f.py": {2}})
+            self.assertEqual(applicable, (mut,))
+            self.assertEqual(skipped, [])
+
+    def test_backslash_and_forward_slash_paths_are_the_same_key(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "sub").mkdir()
+            (repo / "sub" / "f.py").write_text("TARGET\n", encoding="utf-8")
+            mut = self._mut(file="sub/f.py")
+            applicable, skipped = gd.filter_by_coverage(
+                repo, (mut,), {"sub\\f.py": {1}})   # coverage.py's own Windows spelling
+            self.assertEqual(applicable, (mut,))
+            self.assertEqual(skipped, [])
+
+    def test_missing_anchor_is_left_applicable_for_apply_mutation_to_judge(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "f.py").write_text("no such anchor here\n", encoding="utf-8")
+            mut = self._mut()
+            applicable, skipped = gd.filter_by_coverage(repo, (mut,), {"f.py": set()})
+            self.assertEqual(applicable, (mut,))
+            self.assertEqual(skipped, [])
+
+    def test_unreadable_file_is_left_applicable(self):
+        mut = self._mut(file="does/not/exist.py")
+        applicable, skipped = gd.filter_by_coverage(
+            Path("."), (mut,), {"does/not/exist.py": set()})
+        self.assertEqual(applicable, (mut,))
+        self.assertEqual(skipped, [])
+
+
+class SortByDiffRelevanceTests(unittest.TestCase):
+
+    def _mut(self, mut_id, file):
+        return gd.Mutation(mut_id, "logic", file, "x", "y", "incident")
+
+    def test_touched_files_come_first_and_nothing_is_dropped(self):
+        a = self._mut("a", "untouched.py")
+        b = self._mut("b", "touched.py")
+        c = self._mut("c", "also_untouched.py")
+        ordered = gd.sort_by_diff_relevance((a, b, c), frozenset({"touched.py"}))
+        self.assertEqual([m.id for m in ordered], ["b", "a", "c"])
+        self.assertEqual(set(ordered), {a, b, c})
+
+    def test_no_touched_files_preserves_original_order(self):
+        a = self._mut("a", "x.py")
+        b = self._mut("b", "y.py")
+        ordered = gd.sort_by_diff_relevance((a, b), frozenset())
+        self.assertEqual([m.id for m in ordered], ["a", "b"])
+
+    def test_backslash_touched_path_matches_forward_slash_mutation_file(self):
+        a = self._mut("a", "sub/f.py")
+        ordered = gd.sort_by_diff_relevance((a,), frozenset({"sub\\f.py"}))
+        self.assertEqual([m.id for m in ordered], ["a"])
+
+
+class DiffTouchedFilesTests(unittest.TestCase):
+    """Real, throwaway two-commit git repo -- same style as HeadOnlySandboxTests.
+    Never this repository, never a network call."""
+
+    def _git(self, *args, cwd):
+        proc = subprocess.run(["git", *args], cwd=str(cwd), capture_output=True,
+                              text=True, timeout=30)
+        self.assertEqual(proc.returncode, 0, f"git {args} failed: {proc.stderr}")
+        return proc.stdout
+
+    def test_names_files_changed_since_a_ref(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self._git("init", "-q", cwd=repo)
+            self._git("config", "user.email", "t@example.com", cwd=repo)
+            self._git("config", "user.name", "t", cwd=repo)
+            (repo / "a.py").write_text("1\n", encoding="utf-8")
+            self._git("add", "a.py", cwd=repo)
+            self._git("commit", "-q", "-m", "first", cwd=repo)
+            base = self._git("rev-parse", "HEAD", cwd=repo).strip()
+
+            (repo / "b.py").write_text("2\n", encoding="utf-8")
+            self._git("add", "b.py", cwd=repo)
+            self._git("commit", "-q", "-m", "second", cwd=repo)
+
+            touched = gd.diff_touched_files(repo, base)
+            self.assertEqual(touched, frozenset({"b.py"}))
+
+    def test_a_bad_ref_returns_none_not_empty(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            self._git("init", "-q", cwd=repo)
+            touched = gd.diff_touched_files(repo, "not-a-real-ref")
+            self.assertIsNone(touched)
+
+
+class CoveredLinesUnavailableTests(unittest.TestCase):
+    """The degrade-gracefully path -- forces _coverage_available() False so
+    this never depends on whether `coverage` happens to be installed."""
+
+    def test_none_when_coverage_is_not_available(self):
+        original = gd._coverage_available
+        gd._coverage_available = lambda: False
+        try:
+            result = gd.covered_lines(Path("."), (), timeout_s=5)
+        finally:
+            gd._coverage_available = original
+        self.assertIsNone(result)
+
+
+class CoveredLinesRealTests(unittest.TestCase):
+    """REAL coverage.py + REAL pytest, on a two-line throwaway fixture --
+    sub-second, never this repository's own suite. Same shape as
+    DefaultGateRunnerTests below: prove the subprocess/JSON plumbing actually
+    works rather than trusting a mock of it. Skipped (not failed) if
+    `coverage` is genuinely absent from this interpreter.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        if not gd._coverage_available():
+            raise unittest.SkipTest("coverage.py is not installed in this interpreter")
+
+    def test_covered_and_uncovered_lines_are_distinguished(self):
+        with TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "sub").mkdir()
+            (repo / "sub" / "__init__.py").write_text("", encoding="utf-8")
+            (repo / "sub" / "mod.py").write_text(
+                "def covered_fn(x):\n"
+                "    return x + 1\n"
+                "\n"
+                "def uncovered_fn(x):\n"
+                "    return x * 2\n",
+                encoding="utf-8")
+            (repo / "test_mod.py").write_text(
+                "from sub.mod import covered_fn\n"
+                "def test_it():\n"
+                "    assert covered_fn(1) == 2\n",
+                encoding="utf-8")
+            covered = gd.covered_lines(repo, (), timeout_s=60)
+            self.assertIsNotNone(covered)
+            mod_covered = covered.get("sub/mod.py", set())
+            self.assertIn(2, mod_covered)          # covered_fn's body ran
+            self.assertNotIn(5, mod_covered)       # uncovered_fn's body never ran
+
+    def test_end_to_end_run_corpus_skips_a_provably_uncovered_mutation(self):
+        """The exact scenario I4 describes: a mutant on a line no test in the
+        selection executes is a guaranteed survivor. Build a tiny corpus with
+        one covered and one uncovered mutation and confirm coverage_guided=True
+        skips only the uncovered one, WITHOUT ever invoking the (scripted, fast)
+        gate_runner for it."""
+        with TemporaryDirectory() as tmp:
+            # `never_reached`'s BODY returns a value distinct from `reached`'s
+            # (not just a distinct function name) on purpose: a `def` line
+            # always executes at import time regardless of whether the
+            # function is ever CALLED, so an anchor spanning the `def` line
+            # would read as "covered" even for a function nothing calls. Both
+            # mutation anchors below are scoped to a body line only, and each
+            # body string is unique in the file so `_anchor_lines`'
+            # first-occurrence search lands on the right function.
+            files = {
+                "pkg/mod.py": (
+                    "def reached(x):\n"
+                    "    if x:\n"
+                    "        return True\n"
+                    "    return False\n"
+                    "\n"
+                    "def never_reached(x):\n"
+                    "    if x:\n"
+                    "        return 'NEVER'\n"
+                    "    return False\n"
+                ),
+                "pkg/__init__.py": "",
+                "test_pkg.py": (
+                    "from pkg.mod import reached\n"
+                    "def test_it():\n"
+                    "    assert reached(1) is True\n"
+                ),
+            }
+
+            class _Sandbox:
+                def __init__(self):
+                    self.repo = None
+                    self.error = None
+
+                def build(self):
+                    self.repo = Path(tmp) / "sandbox"
+                    for rel, content in files.items():
+                        p = self.repo / rel
+                        p.parent.mkdir(parents=True, exist_ok=True)
+                        p.write_text(content, encoding="utf-8")
+                    return True
+
+                def head(self):
+                    return "f" * 40
+
+                def destroy(self):
+                    pass
+
+            reached_mut = gd.Mutation(
+                "reached_guard", "logic", "pkg/mod.py",
+                "        return True", "        return False", "covered")
+            never_mut = gd.Mutation(
+                "never_reached_guard", "logic", "pkg/mod.py",
+                "        return 'NEVER'", "        return 'MUTATED'", "uncovered")
+
+            calls: list[str] = []
+
+            def scripted_runner(repo, paths, timeout_s):
+                calls.append("gate_run")
+                # baseline, then one call per mutant actually applied
+                return (len(calls) == 1), 0, "output"
+
+            with mock.patch.object(gd, "MUTATIONS", (reached_mut, never_mut)):
+                result = gd.run_corpus(
+                    gate_runner=scripted_runner,
+                    sandbox_factory=_Sandbox,
+                    coverage_guided=True)
+
+        self.assertEqual(result["state"], "measured")
+        self.assertEqual(result["coverage_state"], "measured")
+        # Only ONE mutant actually ran the gate after the baseline: the
+        # uncovered one was skipped before ever reaching scripted_runner.
+        self.assertEqual(calls.count("gate_run"), 2)  # baseline + reached_mut
+        statuses = {r["id"]: r["status"] for r in result["results"]}
+        self.assertEqual(statuses["never_reached_guard"], gd.STATUS_UNCOVERED)
+        self.assertIn(statuses["reached_guard"], (gd.STATUS_CAUGHT, gd.STATUS_SURVIVED))
+        excluded_ids = {r["id"] for r in result["excluded"]}
+        self.assertIn("never_reached_guard", excluded_ids)
+
+
+class RunCorpusCoverageWiringTests(unittest.TestCase):
+    """Fast, fully faked: coverage_runner is injected so no real coverage.py
+    or pytest run happens here -- only the wiring inside run_corpus."""
+
+    def _files_for(self, mut_id: str) -> dict:
+        mut = next(m for m in gd.MUTATIONS if m.id == mut_id)
+        return {mut.file: f"before\n{mut.find}\nafter\n"}, mut
+
+    def test_coverage_runner_returning_none_runs_every_mutant(self):
+        files, mut = self._files_for("attempt_reap_unwired")
+        result = gd.run_corpus(
+            only=mut.id,
+            gate_runner=scripted_gate_runner([True, False]),
+            sandbox_factory=lambda: FakeSandbox(files),
+            coverage_guided=True,
+            coverage_runner=lambda repo, paths, timeout: None)
+        self.assertEqual(result["coverage_state"], "unavailable")
+        self.assertEqual(result["planted"], 1)
+        self.assertEqual(result["results"][0]["status"], gd.STATUS_CAUGHT)
+
+    def test_coverage_guided_false_never_calls_the_coverage_runner(self):
+        files, mut = self._files_for("attempt_reap_unwired")
+        probe_calls = []
+
+        def probe(repo, paths, timeout):
+            probe_calls.append(1)
+            return {}
+
+        result = gd.run_corpus(
+            only=mut.id,
+            gate_runner=scripted_gate_runner([True, False]),
+            sandbox_factory=lambda: FakeSandbox(files),
+            coverage_guided=False,
+            coverage_runner=probe)
+        self.assertEqual(result["coverage_state"], "not_requested")
+        self.assertEqual(probe_calls, [])
+
+    def test_prefer_diff_touched_reorders_without_dropping(self):
+        result = gd.run_corpus(
+            gate_runner=scripted_gate_runner([True] + [True] * len(gd.MUTATIONS)),
+            sandbox_factory=lambda: FakeSandbox(
+                {m.file: f"before\n{m.find}\nafter\n" for m in gd.MUTATIONS}),
+            prefer_diff_touched=frozenset({"daedalus/offload.py"}))
+        ids = [r["id"] for r in result["results"]]
+        self.assertEqual(set(ids), {m.id for m in gd.MUTATIONS})
+        self.assertEqual(ids[0], "offload_escalation_gate_disabled")
 
 
 if __name__ == "__main__":

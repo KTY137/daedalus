@@ -306,5 +306,30 @@ only a red baseline at one earlier revision (§8.1). `read_inlined_context_
 inverted_skip` and `picker_abbrev_sha_guard_disabled` against a gate that
 actually includes their covering files, if any exist. `daedalus/eval/
 correctness.py` (FAIL_TO_PASS/PASS_TO_PASS) as a corpus source, flagged by a
-coordinator mid-build as a real specimen of the gate failing to discriminate,
-not yet incorporated.
+coordinator mid-build as a real specimen of the gate failing to discriminate
+-- now wired to `daedalus.spine.attempt.TaskAttempt` (see `TaskSpec.fail_to_pass`
+/ `pass_to_pass`), still not incorporated as a `tools/gate_discrimination.py`
+corpus *entry*.
+
+### 9.1 A second, coverage-guided whole-suite attempt — still red, but honestly
+
+MEASURED 2026-07-29, after `tools/gate_discrimination.py` gained
+coverage-guided mutant selection (`--coverage-guided`, docs/ABSORPTION.md I4):
+
+```bash
+python tools/gate_discrimination.py --head-only --coverage-guided --timeout 1200
+```
+
+at HEAD `51b9caaf0d9ffe6defcede448fb89633180403c`. Result: `state: "baseline_red"`,
+`baseline pytest exit 1`, exit code **2** (never a false "proven" -- §1's
+distinction held). This is a DIFFERENT reason than §8.1's: not a timeout, and
+not disk. The whole-suite baseline is genuinely red at this revision because of
+the three pre-existing `tests/test_web_api_loop.py` failures (`DAEDALUS_SPINE_DB`
+divergence) tracked separately and out of scope for the agent who ran this. The
+practical consequence is the same one this section already names -- no
+whole-suite discrimination number exists -- but the CAUSE has changed from
+"too expensive to complete" to "the precondition (a green baseline) is not
+currently met", which is a different, and more immediately actionable, blocker.
+Coverage-guided selection was not exercised past the baseline step because the
+run never got that far; it remains unproven at whole-suite width for lack of a
+green baseline to measure against, not for lack of trying.

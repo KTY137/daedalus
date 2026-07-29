@@ -85,6 +85,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -151,6 +152,12 @@ STATUS_CAUGHT = "CAUGHT"
 STATUS_SURVIVED = "SURVIVED"
 STATUS_NOT_APPLICABLE = "NOT_APPLICABLE"
 STATUS_ERROR = "ERROR"
+#: A mutant whose anchor line is provably NOT executed by the gate's own test
+#: selection -- a guaranteed SURVIVED that a full ~20-minute gate run would
+#: only prove is uninformative (docs/ABSORPTION.md I4: "a mutant on a line no
+#: test executes is a survivor by construction"). Excluded from the score
+#: exactly like NOT_APPLICABLE/ERROR -- never a survivor, never hidden.
+STATUS_UNCOVERED = "SKIPPED_UNCOVERED"
 
 
 def _now_iso() -> str:
@@ -642,17 +649,253 @@ def check_anchors(repo_root: Path,
 
 
 # --------------------------------------------------------------------------- #
+# coverage-guided mutant selection (docs/ABSORPTION.md I4)                     #
+# --------------------------------------------------------------------------- #
+# mutmut's idea, stolen rather than depended on (ABSORPTION.md R7 refuses
+# mutmut itself as a dependency; I4 says take the mechanism). "Can use
+# coverage data to only do mutation testing on covered lines" -- a mutant on a
+# line no test executes is a SURVIVED by construction, and finding that out by
+# running the full ~20-minute frozen gate is the expensive way to learn
+# nothing. coverage.py is sanctioned as a dependency (ABSORPTION.md D2), used
+# exactly the way D2 specifies: "Subprocess and a file. Never an import" --
+# nothing in this module imports `coverage`, and its absence degrades this
+# step to a no-op (every mutant still runs) rather than an error.
+#
+# THIS DOES NOT CHANGE WHAT THE RECEIPT MEANS. `head`, `planted`, `killed` and
+# `surviving_classes` are computed exactly as before, over exactly the mutants
+# that were actually run -- a coverage-skipped mutant is excluded from that
+# count the same way a NOT_APPLICABLE one always has been (see `run_corpus`).
+# This changes only WHICH of the 12 corpus entries spend a gate run, never the
+# SHA a receipt is bound to or how CAUGHT/SURVIVED is decided for the ones
+# that do.
+def _coverage_available() -> bool:
+    """Cheap probe, not a assumption: is ``python -m coverage`` runnable at all."""
+    try:
+        proc = subprocess.run([PY, "-m", "coverage", "--version"],
+                              capture_output=True, timeout=30)
+        return proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
+def _coverage_env() -> dict[str, str]:
+    """The subprocess env for a coverage-instrumented run.
+
+    Pops ``COVERAGE_PROCESS_START`` -- ABSORPTION.md D2 hazard (ii): that
+    variable auto-starts a SECOND, uncontrolled tracer (coverage's own ``.pth``
+    hook) in every subprocess the instrumented run spawns, which could
+    double-instrument and write to whatever data file a stray inherited config
+    names. Same move ``daedalus.spine.attempt._git_env`` already makes for
+    ``GIT_EXTERNAL_DIFF`` and friends -- an inherited environment variable is
+    candidate-adjacent state, not a thing to trust silently.
+    """
+    env = dict(os.environ)
+    env.pop("COVERAGE_PROCESS_START", None)
+    return env
+
+
+def _write_external_coverage_rc(data_file: Path) -> Path:
+    """An rc file OUTSIDE the sandbox being measured.
+
+    ABSORPTION.md D2 hazard (i): coverage reads ``.coveragerc`` /
+    ``pyproject.toml`` / ``setup.cfg`` from INSIDE the tree it measures by
+    default, so a candidate patch could change how its own coverage is
+    computed -- the ``tsc --noEmit`` disease one level up. ``--rcfile`` pointed
+    here disables that discovery entirely rather than merely overriding it.
+    """
+    rc = data_file.parent / "coverage_external.rc"
+    rc.write_text(
+        "[run]\n"
+        f"data_file = {data_file.as_posix()}\n"
+        "relative_files = True\n"
+        "branch = False\n"
+        "[json]\n"
+        "show_contexts = False\n",
+        encoding="utf-8")
+    return rc
+
+
+def covered_lines(repo: Path, gate_paths: tuple[str, ...],
+                  timeout_s: float = DEFAULT_TIMEOUT_S
+                  ) -> dict[str, set[int]] | None:
+    """Line-level coverage of ``repo`` under the SAME test selection about to
+    judge the corpus, keyed by forward-slashed repo-relative path.
+
+    Returns ``None`` -- deliberately not ``{}`` -- when coverage could not be
+    measured (package absent, the instrumented run could not start, the JSON
+    report could not be produced). Every caller must treat ``None`` as "skip
+    this step, run every mutant", never as "nothing is covered": the latter
+    would silently empty the whole corpus the moment ``coverage`` is missing
+    from an interpreter, which is the opposite of what an optional floor is
+    for. A run that merely went RED under coverage (tests failed, but pytest
+    itself started and finished) still yields real per-line data and is not
+    treated as unavailable -- red/green is the baseline gate's decision, not
+    this one's.
+    """
+    if not _coverage_available():
+        return None
+    import tempfile
+    tmp = Path(tempfile.mkdtemp(prefix="daedalus-coverage-"))
+    try:
+        data_file = tmp / ".coverage.gate_discrimination"
+        rc = _write_external_coverage_rc(data_file)
+        run_argv = [PY, "-m", "coverage", f"run", f"--rcfile={rc}",
+                   "-m", "pytest", *[str(p) for p in gate_paths],
+                   "-q", "-p", "no:cacheprovider"]
+        try:
+            subprocess.run(run_argv, cwd=str(repo), capture_output=True,
+                           text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout_s, env=_coverage_env())
+        except subprocess.TimeoutExpired:
+            return None
+        out_json = tmp / "coverage.json"
+        try:
+            proc2 = subprocess.run(
+                [PY, "-m", "coverage", "json", f"--rcfile={rc}", "-o", str(out_json)],
+                cwd=str(repo), capture_output=True, text=True, timeout=120,
+                env=_coverage_env())
+        except subprocess.TimeoutExpired:
+            return None
+        if proc2.returncode != 0 or not out_json.exists():
+            return None
+        try:
+            data = json.loads(out_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return {
+            rel.replace("\\", "/"): set(info.get("executed_lines") or [])
+            for rel, info in (data.get("files") or {}).items()
+        }
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _anchor_lines(text: str, find: str) -> set[int]:
+    """1-based line numbers spanned by the FIRST occurrence of ``find``.
+
+    Mirrors ``str.replace(..., 1)``'s semantics (the same first-occurrence
+    rule ``apply_mutation`` uses), so the lines checked against coverage are
+    exactly the lines that would actually be rewritten.
+    """
+    idx = text.find(find)
+    if idx < 0:
+        return set()
+    start_line = text.count("\n", 0, idx) + 1
+    span_lines = find.count("\n") + 1
+    return set(range(start_line, start_line + span_lines))
+
+
+def filter_by_coverage(repo: Path, mutations: tuple[Mutation, ...],
+                       covered: dict[str, set[int]] | None
+                       ) -> tuple[tuple[Mutation, ...], list[dict]]:
+    """Split ``mutations`` into (still to run, excluded-as-provably-uncovered).
+
+    ``covered is None`` returns ``mutations`` unfiltered and ``[]`` skipped --
+    see :func:`covered_lines`. A mutation whose anchor cannot even be found in
+    the CURRENT sandbox text is left in the applicable set rather than judged
+    here: :func:`apply_mutation` already has the correct, tested classification
+    for that case (``NOT_APPLICABLE``), and duplicating it here would be a
+    second place for that rule to drift from the first.
+    """
+    if covered is None:
+        return mutations, []
+    # Normalised once, defensively: `covered_lines()` already returns
+    # forward-slashed keys, but this function's `covered` parameter is public
+    # enough that a future caller (or a test) may hand it a raw coverage.py
+    # JSON mapping straight through, and that mapping is backslash-keyed on
+    # Windows even with `relative_files = True` (measured -- see
+    # covered_lines's docstring). Trusting the caller's spelling here would be
+    # exactly the kind of silent, unfalsifiable narrowing this feature exists
+    # to avoid.
+    covered = {k.replace("\\", "/"): v for k, v in covered.items()}
+    applicable: list[Mutation] = []
+    skipped: list[dict] = []
+    for m in mutations:
+        rel = m.file.replace("\\", "/")
+        try:
+            text = (repo / m.file).read_text(encoding="utf-8")
+        except OSError:
+            applicable.append(m)
+            continue
+        anchors = _anchor_lines(text, m.find)
+        if not anchors:
+            applicable.append(m)   # anchor missing entirely -> let apply_mutation say so
+            continue
+        if not (anchors & covered.get(rel, set())):
+            skipped.append({
+                "id": m.id, "defect_class": m.defect_class,
+                "status": STATUS_UNCOVERED, "file": m.file,
+                "incident": m.incident,
+                "detail": (
+                    f"anchor line(s) {sorted(anchors)} of {m.file} are not "
+                    f"executed by this gate's test selection -- a mutant here "
+                    f"is a guaranteed SURVIVED that proves nothing "
+                    f"(docs/ABSORPTION.md I4). Skipped rather than spending a "
+                    f"full gate run to learn that."),
+            })
+            continue
+        applicable.append(m)
+    return tuple(applicable), skipped
+
+
+def sort_by_diff_relevance(mutations: tuple[Mutation, ...],
+                           touched_files: frozenset[str]
+                           ) -> tuple[Mutation, ...]:
+    """Stable-reorder ``mutations`` so ones in a file the diff touched run first.
+
+    PREFERENCE, not filtering: every mutation in ``mutations`` is still
+    returned, exactly once, only reordered -- so a run interrupted partway has
+    already spent its time on the code most likely to matter today, and a
+    receipt produced from this order still covers the whole corpus, same as
+    before. ``sorted`` is stable, so within "touched" and "not touched" the
+    original corpus order (id order) is preserved.
+    """
+    touched = {f.replace("\\", "/") for f in touched_files}
+    return tuple(sorted(
+        mutations,
+        key=lambda m: 0 if m.file.replace("\\", "/") in touched else 1))
+
+
+def diff_touched_files(repo_root: Path, base_ref: str, *,
+                       timeout_s: float = 60.0) -> frozenset[str] | None:
+    """Repo-relative, forward-slashed paths changed since ``base_ref``.
+
+    ``None`` -- not ``frozenset()`` -- when the diff could not be computed (bad
+    ref, git failure, timeout). Callers must treat that as "no preference",
+    never as "nothing changed": the latter would silently reorder toward a
+    diff of nothing rather than admit the question could not be answered.
+    """
+    try:
+        proc = subprocess.run(
+            ["git", "diff", "--name-only", base_ref],
+            cwd=str(repo_root), capture_output=True, text=True,
+            timeout=timeout_s)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    return frozenset(
+        line.strip().replace("\\", "/")
+        for line in proc.stdout.splitlines() if line.strip())
+
+
+# --------------------------------------------------------------------------- #
 # running the corpus                                                           #
 # --------------------------------------------------------------------------- #
 GateRunner = Callable[[Path, tuple, float], tuple]
 SandboxFactory = Callable[[], Any]
+CoverageRunner = Callable[[Path, tuple, float], "dict[str, set[int]] | None"]
 
 
 def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
               keep_sandbox: bool = False,
               gate_paths: tuple[str, ...] = FROZEN_GATE_PATHS,
               gate_runner: GateRunner | None = None,
-              sandbox_factory: SandboxFactory | None = None) -> dict:
+              sandbox_factory: SandboxFactory | None = None,
+              coverage_guided: bool = False,
+              coverage_runner: CoverageRunner | None = None,
+              prefer_diff_touched: frozenset[str] | None = None) -> dict:
     """Build ONE disposable sandbox, run the frozen gate on the clean tree,
     then on each mutant in turn (revert-and-reapply, one file at a time).
 
@@ -661,9 +904,22 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
     is passed is recorded verbatim in the receipt via ``freeze_gate_config``
     -- there is no code path that measures one scope and reports another.
 
-    ``gate_runner`` / ``sandbox_factory`` are injectable so a unit test can
-    drive this without a real clone or a real multi-minute pytest run -- the
-    product path (``main()``) leaves both at their real defaults.
+    ``gate_runner`` / ``sandbox_factory`` / ``coverage_runner`` are injectable
+    so a unit test can drive this without a real clone, a real multi-minute
+    pytest run, or a real coverage.py invocation -- the product path
+    (``main()``) leaves all three at their real defaults.
+
+    ``coverage_guided``: after a green baseline, measure line coverage of
+    ``gate_paths`` ONCE (see :func:`covered_lines`) and exclude any mutation
+    whose anchor line is not executed by it -- see :func:`filter_by_coverage`.
+    Excluded mutants are reported with ``STATUS_UNCOVERED``, in ``excluded``,
+    exactly like a NOT_APPLICABLE mutant always has been: never counted as a
+    survivor, never silently dropped. If coverage cannot be measured (package
+    missing, instrumented run failed) this is a NO-OP -- every mutant still
+    runs, at the pre-existing cost, never a smaller corpus than before.
+
+    ``prefer_diff_touched``: reorder (never filter) the corpus so mutants in a
+    file the set names run first -- see :func:`sort_by_diff_relevance`.
 
     The baseline MUST be green before any mutant counts (the same rule
     ``tools/self_test.py`` enforces): a red baseline makes every subsequent
@@ -671,6 +927,7 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
     reporting a number.
     """
     gate_runner = gate_runner or _default_gate_runner
+    coverage_runner = coverage_runner or covered_lines
     build_sandbox = sandbox_factory or sc.Sandbox
 
     sandbox = build_sandbox()
@@ -689,10 +946,27 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
                     "measured_at": _now_iso(), "head": head,
                     "detail": f"baseline pytest exit {b_rc}", "output_tail": b_tail}
 
-        print(f"[baseline OK] {len(_mutation_by_filter(only))} mutation(s) queued, "
-             f"gate_paths={list(gate_paths) or 'WHOLE SUITE'}", flush=True)
         mutations = _mutation_by_filter(only)
         results: list[dict] = []
+        coverage_state = "not_requested"
+        if coverage_guided:
+            cov = coverage_runner(sandbox.repo, gate_paths, timeout_s)
+            if cov is None:
+                coverage_state = "unavailable"
+            else:
+                coverage_state = "measured"
+                mutations, coverage_skipped = filter_by_coverage(
+                    sandbox.repo, mutations, cov)
+                results.extend(coverage_skipped)
+                for row in coverage_skipped:
+                    print(f"  [cov ] {row['id']} -- anchor not covered, skipped",
+                         flush=True)
+        if prefer_diff_touched is not None:
+            mutations = sort_by_diff_relevance(mutations, prefer_diff_touched)
+
+        print(f"[baseline OK] {len(mutations)} mutation(s) queued "
+             f"({len(results)} pre-excluded by coverage), "
+             f"gate_paths={list(gate_paths) or 'WHOLE SUITE'}", flush=True)
         for m in mutations:
             try:
                 original = apply_mutation(sandbox.repo, m)
@@ -745,6 +1019,8 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
             "frozen_gate": frozen,
             "results": results,
             "excluded": excluded,
+            "coverage_guided": coverage_guided,
+            "coverage_state": coverage_state,
             "hold_back": (
                 "one agent authored both the frozen gate config and the "
                 "corpus in one sitting; see the module docstring of "
@@ -792,6 +1068,20 @@ def main(argv: list[str] | None = None) -> int:
                         "real, product-supported gate_paths configuration, "
                         "NOT the whole-suite default -- the receipt records "
                         "gate_scope so a reader can tell which was measured.")
+    p.add_argument("--coverage-guided", action="store_true",
+                   help="measure line coverage of gate_paths once (via "
+                        "coverage.py, invoked as a subprocess -- see "
+                        "docs/ABSORPTION.md D2/I4) and skip any mutant whose "
+                        "anchor line is not executed by it: a guaranteed "
+                        "SURVIVED that a full gate run would only prove is "
+                        "uninformative. Falls back to running every mutant, "
+                        "unchanged, if coverage.py is not available -- never "
+                        "silently narrows the corpus.")
+    p.add_argument("--prefer-diff", metavar="BASE_REF", default=None,
+                   help="reorder the corpus so mutants in files changed since "
+                        "BASE_REF (git diff --name-only BASE_REF) run first. "
+                        "Preference only: every mutant in the corpus still "
+                        "runs, unless also narrowed by --only.")
     p.add_argument("--out", default=str(ROOT / DEFAULT_OUT_REL))
     args = p.parse_args(argv)
 
@@ -807,10 +1097,16 @@ def main(argv: list[str] | None = None) -> int:
 
     sandbox_factory = (lambda: HeadOnlySandbox(ROOT)) if args.head_only else None
     gate_paths = SCOPED_GATE_PATHS if args.scoped else FROZEN_GATE_PATHS
+    prefer = diff_touched_files(ROOT, args.prefer_diff) if args.prefer_diff else None
+    if args.prefer_diff and prefer is None:
+        print(f"[warn] --prefer-diff {args.prefer_diff!r} could not be diffed; "
+             f"running in corpus order", file=sys.stderr)
     receipt = run_corpus(only=args.only, timeout_s=args.timeout,
                          keep_sandbox=args.keep_sandbox,
                          gate_paths=gate_paths,
-                         sandbox_factory=sandbox_factory)
+                         sandbox_factory=sandbox_factory,
+                         coverage_guided=args.coverage_guided,
+                         prefer_diff_touched=prefer)
     state = receipt.get("state")
     if state != "measured":
         print(f"COULD NOT MEASURE: {state} -- {receipt.get('error') or receipt.get('detail')}")
@@ -826,10 +1122,12 @@ def main(argv: list[str] | None = None) -> int:
     planted, killed = receipt["planted"], receipt["killed"]
     rate = (killed / planted) if planted else 0.0
     print(f"gate measured: {scope_note}")
+    if args.coverage_guided:
+        print(f"coverage-guided: {receipt['coverage_state']}")
     print(f"planted {planted}, killed {killed} ({rate:.0%})")
     for r in receipt["results"]:
-        mark = {"CAUGHT": "ok  ", "SURVIVED": "MISS",
-                "NOT_APPLICABLE": "n/a ", "ERROR": "err "}[r["status"]]
+        mark = {"CAUGHT": "ok  ", "SURVIVED": "MISS", "NOT_APPLICABLE": "n/a ",
+                "ERROR": "err ", STATUS_UNCOVERED: "cov "}[r["status"]]
         crit = " [CRITICAL]" if r["defect_class"] in CRITICAL_DEFECT_CLASSES else ""
         print(f"  [{mark}] {r['id']:38s} {r['defect_class']}{crit}")
     if receipt["surviving_classes"]:

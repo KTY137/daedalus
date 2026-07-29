@@ -794,6 +794,115 @@ def test_pytest_gate_is_a_thin_command_gate_wrapper(monkeypatch):
     )]
 
 
+def test_gate_selection_wires_correctness_gate_when_fail_to_pass_is_set(
+        monkeypatch, repo, worktree_root):
+    """No explicit gate=, no gate_argv: fail_to_pass/pass_to_pass on the
+    TaskSpec must select daedalus.eval.correctness.correctness_gate, called
+    with a minimal task dict built from exactly those fields plus
+    base_revision/correctness_before_state -- never re-derived, never
+    silently ignored. Imported lazily inside __init__ (see the comment
+    there), so it is monkeypatched on the SOURCE module, not attempt_mod.
+    """
+    import daedalus.eval.correctness as correctness_mod
+
+    sentinel = object()
+    calls = []
+
+    def _correctness_gate(task, repo_root, **kwargs):
+        calls.append((task, repo_root, kwargs))
+        return sentinel
+
+    monkeypatch.setattr(correctness_mod, "correctness_gate", _correctness_gate)
+
+    task = spec(
+        base_revision="deadbeef",
+        fail_to_pass=("tests/test_a.py::test_x",),
+        pass_to_pass=("tests/test_b.py::test_y",),
+        correctness_before_state={"verified": True, "base_revision": "deadbeef",
+                                  "selection_digest": "abc123"},
+        gate_timeout_s=42.0,
+    )
+    at = TaskAttempt(task, runner=writing_runner({"a.txt": "a\n"}), repo_root=repo)
+
+    assert at._gate is sentinel
+    assert len(calls) == 1
+    called_task, called_repo_root, called_kwargs = calls[0]
+    assert called_task == {
+        "id": "demo-task",
+        "base_revision": "deadbeef",
+        "fail_to_pass": ["tests/test_a.py::test_x"],
+        "pass_to_pass": ["tests/test_b.py::test_y"],
+        "before_state": {"verified": True, "base_revision": "deadbeef",
+                         "selection_digest": "abc123"},
+    }
+    assert called_repo_root == Path(repo).resolve()
+    assert called_kwargs == {"timeout_s": 42.0}
+
+
+def test_gate_argv_still_wins_over_fail_to_pass_when_both_are_set(
+        monkeypatch, repo, worktree_root):
+    """Precedence is explicit gate > gate_argv > correctness > pytest_gate --
+    a TaskSpec that (perhaps by accident) carries both gate_argv and
+    fail_to_pass gets the explicit command, never a silent correctness
+    substitution."""
+    import daedalus.eval.correctness as correctness_mod
+
+    correctness_calls = []
+
+    def _correctness_gate(*a, **k):
+        correctness_calls.append(1)
+        return object()
+
+    monkeypatch.setattr(correctness_mod, "correctness_gate", _correctness_gate)
+
+    sentinel = object()
+    command_calls = []
+
+    def _command_gate(argv, **kwargs):
+        command_calls.append((argv, kwargs))
+        return sentinel
+
+    monkeypatch.setattr(attempt_mod, "command_gate", _command_gate)
+
+    task = spec(gate_argv=("echo", "hi"),
+               fail_to_pass=("tests/test_a.py::test_x",))
+    at = TaskAttempt(task, runner=writing_runner({"a.txt": "a\n"}), repo_root=repo)
+
+    assert at._gate is sentinel
+    assert command_calls and command_calls[0][0] == ("echo", "hi")
+    assert correctness_calls == []
+
+
+def test_absent_fail_to_pass_leaves_the_plain_pytest_gate_untouched(
+        monkeypatch, repo, worktree_root):
+    """The regression check: a TaskSpec that never mentions fail_to_pass/
+    pass_to_pass (every candidate before this feature existed, and every one
+    after it that does not opt in) must select pytest_gate(gate_paths) exactly
+    as before -- correctness_gate must not even be consulted."""
+    import daedalus.eval.correctness as correctness_mod
+
+    def _must_not_be_called(*a, **k):
+        raise AssertionError("correctness_gate must not be consulted when "
+                             "fail_to_pass/pass_to_pass are both empty")
+
+    monkeypatch.setattr(correctness_mod, "correctness_gate", _must_not_be_called)
+
+    sentinel = object()
+    calls = []
+
+    def _pytest_gate(paths, **kwargs):
+        calls.append((paths, kwargs))
+        return sentinel
+
+    monkeypatch.setattr(attempt_mod, "pytest_gate", _pytest_gate)
+
+    task = spec(gate_paths=("tests/test_a.py",))
+    at = TaskAttempt(task, runner=writing_runner({"a.txt": "a\n"}), repo_root=repo)
+
+    assert at._gate is sentinel
+    assert calls == [(("tests/test_a.py",), {})]
+
+
 def test_gate_returning_a_bare_bool_is_accepted_and_says_so(repo, worktree_root,
                                                             ledger):
     head = head_of(repo)

@@ -15,8 +15,9 @@ docstring calls itself *"the enforcement point"* — and which **no test in this
 repository calls at all**.
 
 Do not read those numbers as trust. Three of the five falsification criteria in
-§7 are green, one cannot be measured yet, and **the one that decides the
-question (F1) is unmeasured.** See
+§7 are green, one cannot be measured yet, and **F1 — the one that decides the
+question — is now partially measured, on the `worktree.py` arm, and it
+confirmed the predicted blind spot rather than refuting it.** See
 [Falsification](#7-falsification-under-what-measurement-would-this-signal-also-be-untrustworthy)
 before wiring this to anything.
 
@@ -450,6 +451,63 @@ sufficient is repeating the `tsc --noEmit` mistake with better tooling. If it
 were somehow green on the *queue collision* too — a defect that IS a
 single-token guard — that would be far worse, and would kill the proposal.
 
+**MEASURED, 2026-07-29, the `worktree.py` arm.** `1b629af` ("fix(kairos): close
+three measured deletion paths in worktree cleanup") is the fix; its own message
+records four adversarial review rounds, the first of which — "Round 1 shipped
+with 29 green tests; the reviewer deleted the primary repository through it,
+3/3" — is the repository-deletion escape this criterion is about. `1b629af`'s
+sole parent, `b2de339` ("feat(kairos): add isolated candidate worktrees"), is
+the commit that shipped it: at that commit `daedalus/kairos/worktree.py` has no
+`_refuse_if_the_primary_checkout_moved` method, no allocation bookkeeping, no
+reparse-point detection, and no identity check of any kind — `cleanup_worktree`
+is nine lines, `git worktree remove --force` then a bare `shutil.rmtree`
+fallback, and it opens with `path = Path(path).resolve()`, which *follows* a
+junction before anything is checked. Confirmed textually: `grep -c
+_refuse_if_the_primary_checkout_moved` against `b2de339`'s copy of the file
+returns `0`.
+
+Reproduced:
+
+```bash
+tmp=$(mktemp -d) && git archive b2de339 | tar -x -C "$tmp"
+python tools/mutation_score.py --repo "$tmp" \
+    --module daedalus/kairos/worktree.py --tests tests/test_worktree.py \
+    --json f1_prefix_score.json
+```
+
+| | |
+| --- | --- |
+| baseline | GREEN — 9 tests (`tests/test_worktree.py` as of `b2de339`), 5.6 s |
+| seeded | **8** mutants (the entire population `generate_mutations` finds in this 124-line, pre-fix file) |
+| caught | 4 |
+| **survived** | 4 |
+| **mutation score** | **50.0 %** |
+
+Not a clean 100 %, so the prediction as literally worded ("it will be green")
+is not what ran. **The result confirms the underlying claim anyway, more
+precisely than a flat green would have.** All 8 mutants are in code that has
+nothing to do with the vulnerability: `_run_git`'s `cwd or self.repo_path`
+(boolop), three `subprocess.run` boolean keyword arguments
+(`capture_output`/`text`/`check`), `mkdir`'s `parents`/`exist_ok` flags, and the
+two `git_error is not None` checks around the `shutil.rmtree` fallback. Zero of
+the 8 — not one — touch worktree identity, reparse-point detection, or
+checkout containment, because **no such code exists at this commit for an
+operator to mutate.** A reviewer reading this exact report (50 %, four named
+survivors, all in argument plumbing) would get precisely zero signal, positive
+or negative, about the defect that actually shipped: fixing every survivor
+listed here to 100 % would not have touched the moved-checkout attack, because
+that attack was never represented in the seeded population to begin with. That
+is the sharper form of "you cannot mutate a guard that was never written" —
+not "the score lies", but "the score has nothing to say", which is more
+dangerous because a non-zero, partially-red report reads as due diligence
+already done.
+
+The out-of-tree delete, the seven gate bypasses, and the `file_bridge.py` queue
+collision arms of this criterion are **not yet measured** — this run covers only
+the named `worktree.py` case. F1 is therefore **partially measured**: decisive
+evidence on the one arm that was run, in the predicted direction, not yet run on
+the other three.
+
 ### F2 — The Goodhart test
 
 **Measurement.** After N promotion cycles under diff-scoped admission, track two
@@ -518,27 +576,39 @@ covering test was removed, with the baseline green in both runs.
 
 | | criterion | status |
 | --- | --- | --- |
-| F1 | escape test — would it have caught this repo's real escapes? | **UNMEASURED — and this is the one that decides it** |
+| F1 | escape test — would it have caught this repo's real escapes? | **PARTIALLY MEASURED — `worktree.py` arm confirmed blind (50.0%, 4/8 survived, none touching the actual defect); 3 arms (out-of-tree delete, gate bypasses, queue collision) still unmeasured** |
 | F2 | Goodhart — is the score being farmed? | unmeasured; needs N promotion cycles, so it cannot be measured yet |
 | F3 | equivalent-mutant rate | partially measured: 20 % and ~27 %, n<20, single adjudicator |
 | F4 | stability | measured n=10, passing |
 | F5 | the scorer's own control | **measured on real code, passing** |
 
-Note what that table says about §4. Three green criteria do not make the signal
-trustworthy — that is the exact inference this whole document exists to refuse.
-F1 is unmeasured, and F1 is the one that asks whether the signal detects the
-defect class that has actually escaped in this repository. Until it has been
-run, the honest summary is:
+Note what that table says about §4. Three (now four) green-or-confirmed
+criteria do not make the signal trustworthy — that is the exact inference this
+whole document exists to refuse. F1's `worktree.py` arm is measured, and it
+asked whether the signal detects the defect class that has actually escaped in
+this repository. It does not, on that arm, and the honest summary is:
 
 > Mutation survival is the best-evidenced fitness input available in this
 > repository, it is the only one with a one-command self-check, it separates
-> two green-suite modules by 31 points and hands back file:line pairs — and it
-> is *not yet known* whether it detects the defect class that has actually
-> escaped here. My recorded prediction is that it does not, for the
-> `worktree.py` deletion, because you cannot mutate a guard that was never
-> written. That question has a cheap answer and it has not been paid for.
+> two green-suite modules by 31 points and hands back file:line pairs — and on
+> the one escape it has been checked against, it produced a report (50.0%,
+> four named survivors) that contained no signal at all about the defect that
+> actually shipped, because that defect was a missing guard and no operator
+> can mutate a line that does not exist. The prediction was recorded in
+> advance, for exactly this case, and it held: not as a clean "green", which
+> would have been the easier finding to explain away, but as a populated,
+> partially-red report that was structurally incapable of representing the
+> vulnerability. **That is the stronger and more uncomfortable version of the
+> same conclusion.** Three arms of this criterion — the out-of-tree delete, the
+> seven gate bypasses, and the `file_bridge.py` queue collision — remain
+> unmeasured, and the queue collision is the one arm where a GREEN result would
+> still kill the proposal (it IS a single-token guard, so mutation testing has
+> no excuse to miss it).
 
-Nothing in this repository should gate on this signal before F1 has been run.
+Nothing in this repository should gate on this signal on the strength of F1
+alone. It should gate even less on the strength of F1 being incomplete: one
+confirmed arm is not three, and this document should not be read as though the
+question were closed.
 
 ---
 
