@@ -291,8 +291,40 @@ class ShadowResult:
         """
         return bool(self.discrimination and self.discrimination.proven)
 
+    @property
+    def routed_lane(self) -> str | None:
+        """Which provider the router actually chose, read off the runner's own
+        result rather than off the request.
+
+        Surfaced because `--local-only` DECLARES availability and does not force
+        the choice: measured, the router still selected `claude_cli` with that
+        lane declared unavailable, and the run stopped only because offload
+        refuses to execute a non-free lane. Nothing was billed, but a run that
+        ends in `no_change` for that reason looks identical to one where the
+        model simply had no idea -- and those are completely different problems.
+        """
+        detail = getattr(self.attempt, "runner_detail", None)
+        if isinstance(detail, Mapping):
+            value = detail.get("provider")
+            return str(value) if value else None
+        return None
+
     def verdict(self) -> str:
         """One line a human can act on, with the caveat welded to the result."""
+        if self.state == "no_change":
+            lane = self.routed_lane
+            action = None
+            detail = getattr(self.attempt, "runner_detail", None)
+            if isinstance(detail, Mapping):
+                action = detail.get("action")
+            if action in ("escalate_to_claude", "senior"):
+                return (f"no_change: the runner proposed nothing because the "
+                        f"router sent this work to {lane!r}, which offload "
+                        f"refuses to execute, so it escalated instead. Nothing "
+                        f"was billed. This is NOT evidence that the task is hard "
+                        f"or that a model tried and failed -- no model was asked.")
+            return (f"no_change: a model was asked (lane {lane!r}) and proposed "
+                    f"nothing to gate")
         if self.state != "gated":
             return f"{self.state}: no candidate is waiting"
         if not self.promotion_allowed:
@@ -310,6 +342,7 @@ class ShadowResult:
             "verdict": self.verdict(),
             "task_id": self.task_id,
             "source": self.source,
+            "routed_lane": self.routed_lane,
             "refreshed": [r.to_dict() for r in self.refreshed],
             "discrimination": (self.discrimination.to_dict()
                                if self.discrimination else None),
@@ -389,7 +422,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="One SHADOW iteration of the self-improvement circle.",
         epilog=("Promotion is refused while the gate's discrimination is "
                 "unproven, and there is no flag to override that. A green gate "
-                "means pytest ran."))
+                "means pytest ran.\n\n"
+                "--local-only DECLARES availability; it does not force the "
+                "router's choice. Measured: with claude_cli declared "
+                "unavailable the router still selected it, and the run stopped "
+                "only because offload refuses to execute a non-free lane and "
+                "escalated instead. Nothing was billed -- but the flag's name "
+                "promised more than it delivers, so the run now says out loud "
+                "which lane it was actually routed to."))
     p.add_argument("--repo-root", default=str(ROOT))
     p.add_argument("--no-refresh", action="store_true",
                    help="skip source regeneration (they will likely be stale)")
@@ -397,8 +437,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     p.add_argument("--live", action="store_true",
                    help="let the runner actually invoke a model")
     p.add_argument("--local-only", action="store_true",
-                   help="pin availability to the local lane so the run cannot "
-                        "select a paid vendor")
+                   help="declare only the local lane available. NOTE: this does "
+                        "NOT force the router's choice -- see the epilog")
     p.add_argument("--artifact-dir", default=None)
     p.add_argument("--keep-worktree", action="store_true")
     p.add_argument("--json", action="store_true")
