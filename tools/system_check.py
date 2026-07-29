@@ -354,6 +354,29 @@ def _map_check(sb: Sandbox) -> Result:
 @check("picker.ranks_with_evidence", stage="3 pick",
        proves="every queued candidate carries measured evidence, never opinion")
 def _picker_evidence(sb: Sandbox) -> Result:
+    # STEP ZERO, HERE TOO. The picker's sources are derived artefacts stamped
+    # with the revision they describe, so EVERY commit makes them stale -- and
+    # this harness clones at HEAD. The consequence, measured across three runs
+    # tonight: the live picker had 10 candidates while this check reported "the
+    # queue is EMPTY -- the loop has nothing to work on" and dragged two core
+    # checks to INCOMPLETE behind it. The only way it could have passed was if
+    # the map happened to be regenerated in the very last commit.
+    #
+    # That is not a property of the product, it is an artefact of when the
+    # snapshot was taken, so the harness regenerates first for the same reason
+    # `spine/bootstrap.py::refresh_sources` does: a loop that must be
+    # hand-reseeded after every success is not a loop, and a harness that only
+    # passes on a freshly-seeded tree is measuring the seeding.
+    #
+    # Regeneration FAILING is reported rather than swallowed -- if `map` cannot
+    # run, an empty queue afterwards says nothing about the picker.
+    gen_rc, gen_out = sb.py("-m", "daedalus.cli", "map", timeout=1800)
+    if gen_rc != 0:
+        return Result("picker.ranks_with_evidence", UNAVAILABLE,
+                      f"the sources could not be regenerated (rc={gen_rc}), so "
+                      f"an empty queue would say nothing about the picker: "
+                      f"{gen_out[-300:]!r}", {"returncode": gen_rc})
+
     rc, out = sb.py("-m", "daedalus.spine.picker", "--dry-run", "--json",
                     "--limit", "10", timeout=1800)
     queue = _json_tail(out)
@@ -363,7 +386,8 @@ def _picker_evidence(sb: Sandbox) -> Result:
     cands = queue.get("candidates") or []
     if not cands:
         return Result("picker.ranks_with_evidence", FAIL,
-                      "the queue is EMPTY -- the loop has nothing to work on",
+                      "the queue is EMPTY AFTER a successful regeneration -- "
+                      "the loop has nothing to work on",
                       {"degraded_sources": queue.get("degraded_sources")})
     naked = [c["task_id"] for c in cands
              if not c.get("evidence") or not str(c.get("reason") or "").strip()]
