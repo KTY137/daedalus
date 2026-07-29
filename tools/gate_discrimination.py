@@ -112,8 +112,32 @@ from daedalus.spine.bootstrap import (  # noqa: E402
 PY = sys.executable
 
 #: The whole suite. See the module docstring -- this is production's default,
-#: not a parameter chosen for this measurement.
+#: not a parameter chosen for this measurement. Costs ~18-20 minutes per gate
+#: invocation on a loaded box, which made 13 invocations (1 baseline + 12
+#: mutants) impractical to complete -- see SCOPED_GATE_PATHS below.
 FROZEN_GATE_PATHS: tuple[str, ...] = ()
+
+#: A NARROWER, still-real gate configuration: the covering test files named
+#: in each Mutation's ``covering_tests`` (deduplicated to file paths). This is
+#: not an invented shortcut -- ``TaskSpec.gate_paths`` is a real field, and
+#: the picker fills it from a candidate's OWN test list, so this is what
+#: ``gate_paths`` would actually hold for a candidate touching exactly the
+#: files this corpus mutates. It was chosen because it is the covering-test
+#: scope, not tuned by running it and seeing which mutants it caught -- it
+#: was fixed by reading MUTATIONS' covering_tests fields, before any scoped
+#: run happened. A run using this MUST record ``gate_paths`` in the receipt
+#: (freeze_gate_config already does) and MUST NOT be described as
+#: "the gate" in any report -- it is A gate, one production actually runs,
+#: narrower than the whole suite.
+SCOPED_GATE_PATHS: tuple[str, ...] = (
+    "tests/test_worktree.py",
+    "tests/test_cascade.py",
+    "tests/test_room_wiring.py",
+    "tests/test_host_predicate.py",
+    "tests/test_git_is_a_process_launcher.py",
+    "tests/test_bridge_signals.py",
+    "tests/test_spine_attempt.py",
+)
 
 #: Informational grouping alongside CRITICAL_DEFECT_CLASSES (imported from
 #: bootstrap, never redefined here -- the two lists must never be able to
@@ -512,16 +536,32 @@ def frozen_argv(paths: tuple[str, ...] = FROZEN_GATE_PATHS) -> tuple[str, ...]:
     return pytest_gate_argv(paths)
 
 
-def freeze_gate_config(head: str) -> dict:
-    """The gate configuration under measurement, recorded before any mutant runs."""
+def freeze_gate_config(head: str, gate_paths: tuple[str, ...] = FROZEN_GATE_PATHS) -> dict:
+    """The gate configuration under measurement, recorded before any mutant runs.
+
+    ``gate_paths`` defaults to the whole suite but a caller may freeze a
+    narrower, still-real configuration (see ``SCOPED_GATE_PATHS``). The
+    receipt always states exactly which was used -- this function's whole
+    job is to make "the gate" vs "a gate" unambiguous to a reader, never to
+    assert one is the other.
+    """
+    scope = "whole-suite" if not gate_paths else "scoped"
     return {
-        "argv": list(frozen_argv()),
-        "gate_paths": list(FROZEN_GATE_PATHS),
+        "argv": list(frozen_argv(gate_paths)),
+        "gate_paths": list(gate_paths),
+        "gate_scope": scope,
         "head": head,
         "frozen_at": _now_iso(),
-        "note": ("FROZEN_GATE_PATHS is the whole suite, matching the production "
-                 "default recorded in docs/adrs/016-autonomy-preconditions.md "
-                 "(P3): every live candidate carries gate_paths=[]."),
+        "note": (
+            "gate_paths=[] is the whole suite, the production default "
+            "recorded in docs/adrs/016-autonomy-preconditions.md (P3): every "
+            "live candidate carries gate_paths=[]. A non-empty list here "
+            "means this receipt measured A gate TaskSpec.gate_paths supports "
+            "-- the picker fills gate_paths from a candidate's own test "
+            "list, so a scoped gate is a real, product-supported "
+            "configuration -- but it is NOT the whole-suite default, and "
+            "must not be read as though it were."
+        ),
     }
 
 
@@ -610,10 +650,16 @@ SandboxFactory = Callable[[], Any]
 
 def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
               keep_sandbox: bool = False,
+              gate_paths: tuple[str, ...] = FROZEN_GATE_PATHS,
               gate_runner: GateRunner | None = None,
               sandbox_factory: SandboxFactory | None = None) -> dict:
     """Build ONE disposable sandbox, run the frozen gate on the clean tree,
     then on each mutant in turn (revert-and-reapply, one file at a time).
+
+    ``gate_paths`` defaults to the whole suite (``FROZEN_GATE_PATHS``); pass
+    ``SCOPED_GATE_PATHS`` for the narrower, still-real configuration. Whatever
+    is passed is recorded verbatim in the receipt via ``freeze_gate_config``
+    -- there is no code path that measures one scope and reports another.
 
     ``gate_runner`` / ``sandbox_factory`` are injectable so a unit test can
     drive this without a real clone or a real multi-minute pytest run -- the
@@ -635,14 +681,16 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
 
     try:
         head = sandbox.head()
-        frozen = freeze_gate_config(head)
+        frozen = freeze_gate_config(head, gate_paths)
 
-        b_passed, b_rc, b_tail = gate_runner(sandbox.repo, FROZEN_GATE_PATHS, timeout_s)
+        b_passed, b_rc, b_tail = gate_runner(sandbox.repo, gate_paths, timeout_s)
         if not b_passed:
             return {"state": "baseline_red", "frozen_gate": frozen,
                     "measured_at": _now_iso(), "head": head,
                     "detail": f"baseline pytest exit {b_rc}", "output_tail": b_tail}
 
+        print(f"[baseline OK] {len(_mutation_by_filter(only))} mutation(s) queued, "
+             f"gate_paths={list(gate_paths) or 'WHOLE SUITE'}", flush=True)
         mutations = _mutation_by_filter(only)
         results: list[dict] = []
         for m in mutations:
@@ -653,15 +701,17 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
                                 "status": STATUS_NOT_APPLICABLE,
                                 "detail": f"{type(e).__name__}: {e}",
                                 "incident": m.incident, "file": m.file})
+                print(f"  [n/a ] {m.id}", flush=True)
                 continue
             try:
-                passed, rc, tail = gate_runner(sandbox.repo, FROZEN_GATE_PATHS, timeout_s)
+                passed, rc, tail = gate_runner(sandbox.repo, gate_paths, timeout_s)
             except Exception as e:                 # noqa: BLE001
                 results.append({"id": m.id, "defect_class": m.defect_class,
                                 "status": STATUS_ERROR,
                                 "detail": f"{type(e).__name__}: {e}",
                                 "incident": m.incident, "file": m.file})
                 restore_mutation(sandbox.repo, m, original)
+                print(f"  [err ] {m.id}", flush=True)
                 continue
             restore_mutation(sandbox.repo, m, original)
             status = STATUS_SURVIVED if passed else STATUS_CAUGHT
@@ -671,6 +721,8 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
                 "predicted_survive": m.predicted_survive,
                 "output_tail": tail[-800:],
             })
+            mark = "MISS" if status == STATUS_SURVIVED else "ok  "
+            print(f"  [{mark}] {m.id} ({m.defect_class})", flush=True)
 
         conclusive = [r for r in results
                      if r["status"] in (STATUS_CAUGHT, STATUS_SURVIVED)]
@@ -734,6 +786,12 @@ def main(argv: list[str] | None = None) -> int:
                         "is being concurrently edited (see HeadOnlySandbox's "
                         "docstring) and would not produce a green, "
                         "interpretable baseline.")
+    p.add_argument("--scoped", action="store_true",
+                   help="freeze SCOPED_GATE_PATHS (the covering-test files "
+                        "for this corpus) instead of the whole suite. A "
+                        "real, product-supported gate_paths configuration, "
+                        "NOT the whole-suite default -- the receipt records "
+                        "gate_scope so a reader can tell which was measured.")
     p.add_argument("--out", default=str(ROOT / DEFAULT_OUT_REL))
     args = p.parse_args(argv)
 
@@ -748,8 +806,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if bad else 0
 
     sandbox_factory = (lambda: HeadOnlySandbox(ROOT)) if args.head_only else None
+    gate_paths = SCOPED_GATE_PATHS if args.scoped else FROZEN_GATE_PATHS
     receipt = run_corpus(only=args.only, timeout_s=args.timeout,
                          keep_sandbox=args.keep_sandbox,
+                         gate_paths=gate_paths,
                          sandbox_factory=sandbox_factory)
     state = receipt.get("state")
     if state != "measured":
@@ -759,8 +819,13 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.out)
     write_receipt(receipt, out_path)
 
+    scope = receipt["frozen_gate"]["gate_scope"]
+    scope_note = ("THE WHOLE SUITE" if scope == "whole-suite"
+                 else f"A SCOPED GATE ({receipt['frozen_gate']['gate_paths']})"
+                      " -- NOT the whole suite")
     planted, killed = receipt["planted"], receipt["killed"]
     rate = (killed / planted) if planted else 0.0
+    print(f"gate measured: {scope_note}")
     print(f"planted {planted}, killed {killed} ({rate:.0%})")
     for r in receipt["results"]:
         mark = {"CAUGHT": "ok  ", "SURVIVED": "MISS",

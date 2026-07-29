@@ -237,18 +237,74 @@ defaults to running against.
 
 ## 9. Results
 
-MEASURED. Head: see `runs/spine/gate_discrimination.json`'s `head` field
-(a `HeadOnlySandbox` clone of `daedalus/spine/attempt.py`'s commit `3f4d462`
-or later — check the file directly, since this document is not
-regenerated automatically when the receipt is). Gate: FROZEN_GATE_PATHS=()
-per §3, unchanged from the design above. Corpus: the 12 mutations in §4.
+**MEASURED, not the whole suite — a SCOPED gate.** After the whole-suite gate
+(§3, `FROZEN_GATE_PATHS=()`) proved impractical to complete (~18-20 minutes
+per invocation × 13 invocations, and its one completed baseline attempt came
+back RED even against a clean, HEAD-only clone — see §8.1's disk-and-churn
+history), the measurement actually taken and written to
+`runs/spine/gate_discrimination.json` used **`SCOPED_GATE_PATHS`**: the 7
+covering-test files named in §4's table. This is disclosed as loudly as
+possible because §3 and this section describe two DIFFERENT gates and a
+reader must not average them together.
 
-**Read `runs/spine/gate_discrimination.json` and the accompanying report for
-the authoritative per-class breakdown.** In summary form: `planted`,
-`killed`, and `surviving_classes` are the three fields that answer "does
-this gate discriminate" — `killed/planted` is the headline rate, and ANY
-class from `CRITICAL_DEFECT_CLASSES` appearing in `surviving_classes` means
-`gate_discrimination()` returns `proven=False` regardless of how high the
-overall rate is, by design (§1). Whether that happened, and for which
-class, is the single most important sentence in the accompanying report —
-more important than the rate itself.
+```text
+head:        b3bcee73e919c4fd80af63d3caeff9897ed27df9
+gate_scope:  scoped  (tests/test_worktree.py, test_cascade.py,
+             test_room_wiring.py, test_host_predicate.py,
+             test_git_is_a_process_launcher.py, test_bridge_signals.py,
+             test_spine_attempt.py -- 306 tests, baseline 94.96s, GREEN)
+planted:     12
+killed:      10
+kill rate:   83% (floor: 80%)
+```
+
+**All four CRITICAL classes: killed, both instances each.**
+
+| class | mutations | result |
+| --- | --- | --- |
+| deletes-outside-the-worktree | `worktree_moved_checkout_unguarded`, `worktree_drain_skips_reachability` | **CAUGHT, CAUGHT** |
+| spends-money-without-a-gate | `offload_escalation_gate_disabled`, `free_lanes_includes_claude` | **CAUGHT, CAUGHT** |
+| sends-bytes-off-the-machine | `room_ssh_rce_reintroduced`, `lane_for_host_accepts_localhost` | **CAUGHT, CAUGHT** |
+| reports-failure-as-success | `room_verify_always_passes`, `attempt_capture_patch_drops_no_textconv` | **CAUGHT, CAUGHT** |
+
+**Two non-critical survivors, both explained by scope, not by a stronger
+claim than the evidence supports:**
+
+- `read_inlined_context_inverted_skip` (logic) — **predicted to survive in
+  advance** (§4). Confirmed: `306 passed` even with the defect planted. Its
+  `covering_tests` field was already empty before this run — no file in
+  `SCOPED_GATE_PATHS` was ever going to catch it, whole-suite or not, because
+  no test anywhere in the repository was found exercising this line.
+- `picker_abbrev_sha_guard_disabled` (boundary) — recorded as genuinely open
+  in §4, and it survived, but the honest caveat is stronger here: its only
+  plausible covering tests live in `tests/test_spine_picker.py` /
+  `tests/test_spine_map_source.py`, and **neither file is in
+  `SCOPED_GATE_PATHS`.** This survival is evidence the SCOPED gate cannot see
+  this defect; it is NOT evidence the whole-suite gate cannot.
+
+**`gate_discrimination()`, called for real, twice:**
+
+```text
+at the receipt's own revision (b3bcee7):
+  proven: True
+  reason: "kill rate 83% at b3bcee7…, no critical class survived"
+
+at the live primary checkout's HEAD, moments later:
+  proven: False
+  reason: "the gate was last shown to discriminate at b3bcee7…, but HEAD is f91a0e3…"
+```
+
+Both are correct simultaneously. The second is not a defect in the
+measurement — it is the revision-staleness check (§1) doing exactly its job
+in a repository where commits landed faster than this run completed. A
+receipt is a claim about one revision, not a standing property, and
+promotion at any LATER revision needs a fresh receipt.
+
+**What remains unmeasured, named rather than implied:** the whole-suite gate
+(§3) itself — no completed discrimination number exists for `gate_paths=[]`,
+only a red baseline at one earlier revision (§8.1). `read_inlined_context_
+inverted_skip` and `picker_abbrev_sha_guard_disabled` against a gate that
+actually includes their covering files, if any exist. `daedalus/eval/
+correctness.py` (FAIL_TO_PASS/PASS_TO_PASS) as a corpus source, flagged by a
+coordinator mid-build as a real specimen of the gate failing to discriminate,
+not yet incorporated.
