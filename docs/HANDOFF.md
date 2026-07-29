@@ -1,149 +1,144 @@
 # Daedalus — Current Claude Handoff (2026-07-29, session 4 — READ THIS FIRST)
 
-This section supersedes everything below it, including the session-3 block.
-The rest of the file is history; do not treat its arc claims, test counts or
-open items as current.
+This section supersedes everything below it. The rest of the file is history; do
+not treat its arc claims, test counts or open items as current.
 
-## THE ONE SENTENCE
+## THE TWO SENTENCES
 
-The self-improvement circle now runs end to end on a clean clone and is
-fail-closed at every step — and it may not promote anything, because the gate's
-ability to tell a good patch from a bad one is **measured at 0 of 3** and has
-not improved.
+The self-improvement circle runs end to end on a clean clone and is fail-closed
+at every step, and an operability drill trips all seven controls and holds. It
+may still promote nothing, because the gate's ability to tell a good patch from
+a bad one is **measured at 0 of 3** and no discrimination receipt exists.
 
-## THE PATTERN THIS SESSION FOUND, EIGHT TIMES
+## THE PATTERN, NINE TIMES
 
-Every major finding was the same defect wearing a different costume:
-**code that exists was reported as capability that works.**
+Every major finding was one defect in different clothes: **code that exists was
+reported as capability that works.**
 
-| what claimed to work | what was true |
+| claimed | true |
 |---|---|
-| `semantic_route`, listed as a present feature | unwired **and** broken if wired — embed model absent, an `lru_cache` froze one startup failure for the whole process |
-| `context_plan`'s `latent_weight: 0.35` | described a source that had **never spoken**; `memory/vectors.db` had never existed |
-| `spine/containment.py`, 11 vectors measured, committed | **zero production callers** — mine, from this same session |
-| `kairos/evolution.py`, ADR-009's "Best-of-N baseline" | no pipeline; its fitness function has zero callers; if called it scores the **primary checkout**, not the candidate |
-| `docs/FEATURE_INVENTORY.json`, 136 features | hand-written, stamped 30 commits stale, driving the two highest picker bands |
-| `daedalus/budget.py`, a spend ceiling | nothing called `install_process_guard()` |
-| `daedalus council` / `daedalus canary` | launched **paid vendor binaries from an invocation with no flags** |
-| five host predicates | three different answers for `[::1]`, two more permissive than the safety core |
+| `semantic_route`, a listed feature | unwired **and** broken if wired |
+| `latent_weight: 0.35` in every context receipt | described a source that had never spoken |
+| `spine/containment.py`, 11 vectors measured, committed | **zero production callers** |
+| `kairos/evolution.py`, ADR-009's baseline | no pipeline; would score the **primary checkout**, not the candidate |
+| `FEATURE_INVENTORY.json`, 136 features | hand-written, 30 commits stale, driving the two highest bands |
+| `budget.py`, a spend ceiling | nothing called `install_process_guard()` |
+| `council` / `canary` | launched **paid binaries from an invocation with no flags** |
+| five host predicates | three different answers for `[::1]` |
+| **my own commit `efd0ed6`** | **shipped one of my own mutations** — see below |
 
-The instruments that make this class of defect visible are the session's real
-output: the map now stamps the tree it scanned, the health surface has five
-states that cannot collapse into green, every receipt carries MEASURED /
-INHERITED / ASSUMED, and the picker reports which sources it could not consult.
+## THE THREE STRUCTURAL FINDINGS
 
-## THE STRUCTURAL FINDING
+**1. The loop invalidates its own inputs every time it succeeds.** Both picker
+sources are derived artefacts stamped with the revision they describe. Every
+commit makes them stale. Demonstrated three times: a clean clone produced ZERO
+candidates; after eleven commits the live picker went 13 → 0; and the acceptance
+harness reported "the queue is EMPTY" while the live picker had ten. Regeneration
+is now **step zero** in `spine/bootstrap.py::refresh_sources` AND in
+`tools/system_check.py`. "The generator exited 0" is explicitly NOT the success
+criterion — the criterion is that the artefact stamps a revision its consumer
+can check.
 
-> **The loop invalidates its own inputs every time it succeeds.**
+**2. Quality and damage are different questions, answered by different
+mechanisms.** The correctness evaluator covers none of the four CRITICAL defect
+classes: a patch that fixes the bug and also deletes a repository outside the
+worktree scores `fixed`. That is the design, not a hole — promotion must fail on
+**independent containment** anyway. Measured in the drill: a contained child
+**exits 0**, a success code, and still cannot delete the canary outside its
+worktree. The bound does not depend on the verdict.
 
-Both of the picker's sources are derived artefacts stamped with the revision
-they describe. Every commit the loop lands makes them stale. Demonstrated live,
-twice: a clean clone produced **zero** candidates until the map learned to stamp
-`repo_state`; and after eleven of my own commits the picker went from 13
-candidates back to **0** until `daedalus map` was re-run.
+**3. A guard verified through its own function is not verified.** `efd0ed6` — my
+own commit — replaced `self._admin_dir = _read_gitdir_pointer(worktree)` with
+`= None`, leaving the six-line comment explaining why the pointer must be
+captured sitting above it. Thirteen of fourteen tests stayed green because they
+call `_git` directly. Only the end-to-end test through `TaskAttempt.run` was red,
+and I did not re-run it after committing. The vector was committed and open.
+Found by the drill on its first run.
 
-So regeneration is **step zero** of the circle, in
-`daedalus/spine/bootstrap.py::refresh_sources` — and "the generator exited 0" is
-explicitly NOT the success criterion. The criterion is that the artefact now
-stamps a revision its consumer can check.
+## WHAT NOW EXISTS
 
-## WHAT A SHADOW RUN DOES, AND WHY IT IS CALLED THAT
+* **`tools/operability_drill.py`** — seven controls, each deliberately tripped,
+  passing only when EFFECT and TELEMETRY are both visible. Promotion refused on
+  a gated candidate; 6 vendor spawns under a 1-call ceiling with 0 reaching the
+  binary; child **and grandchild** dead 0.36 s after cancel against a 3 s SLO,
+  pids checked individually; the git-filter vector refused; damage bounded
+  independently of the verdict; the primary checkout untouched; and every proof
+  tied to the current revision. `INCOMPLETE` is never a pass.
+* **`daedalus/eval/correctness.py`** — FAIL_TO_PASS / PASS_TO_PASS. It
+  discriminates where the existing gate does not:
 
-Ruling from the adversarial reviewer, implemented verbatim:
+  | candidate | correctness evaluator | the repo's `pytest_gate` |
+  |---|---|---|
+  | plausible **wrong** fix | `not_fixed`, 1/2 green | **exit 0 — "19 passed"** |
+  | correct fix + sabotage | `regressed`, 3 P2P broken | — |
 
-> With 0/3, the gate is a hard block on **promotion**, not on candidate
-> **generation**. Let the run collect, but call it a shadow run; no candidate
-> gets less human review because it came back green.
+  3 of 4 real fix commits admitted, 22 of 41 nodes. One of the four shipped **no
+  test at all** — a real fix nothing can witness, refused rather than invented
+  around.
+* **Containment wired into the gate**, one bounded handle via
+  `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`. `APPEND|SYNCHRONIZE` alone **blinds the
+  gate**: `os.fstat(1)` needs `FILE_READ_ATTRIBUTES`, and without it pytest sends
+  every byte to devnull — exit 0, zero bytes, `passed=True`. An empty green, in
+  the gate. Mask is now `APPEND|READ_ATTRIBUTES|SYNCHRONIZE` plus a
+  no-empty-green guard. **On non-win32 the default gate hard-refuses.**
+* **A spend cap installed at the CLI entry point.** There is no chokepoint —
+  four subsystems, 17 sites, three invisible to any text scan — so one is
+  manufactured at the syscall boundary.
+* **A kill switch**: permit-not-stop-file, latching, measured 186–260 ms to
+  latch and 514–643 ms to a dead process tree.
+* **A health surface with five states that cannot collapse into green**, served
+  at `/api/health`, and three spaces in the web UI that render them on four
+  distinguishable axes.
+* **Browser acceptance**: 18 Playwright specs, every red demonstrated, a missing
+  browser is `INCOMPLETE`.
+* **A GUI component catalogue** where `use_mode` is derived from the licence in
+  code and never read from the entry.
 
-`gate_discrimination()` reads a receipt and fails closed four ways — absent,
-unparseable, measured against a different revision, or clean overall **while a
-critical class survived**. The class check runs BEFORE the rate check on
-purpose: 98 % with "deletes-outside-the-worktree" surviving is not a working
-gate, and one number is exactly what hides that. `promotion_allowed` is a single
-unconditional return with no override, asserted structurally via the AST.
+## TRAPS PAID FOR — DO NOT RE-LEARN THESE
 
-**First full run, clean clone, nothing billed:**
+* A guard test that matches its own prose stays green after the guard is
+  deleted. Assert on the **AST**, not on source text.
+* A guard reached only through its own function is untested wiring.
+* A refusal test with no control proves nothing.
+* `assert <set> == []` is vacuously true on a clean tree.
+* A **collection error is not a red test** — an `IndentationError` from a
+  botched mutation looks like a failure and proves nothing.
+* Hardening git removed `core.autocrlf`; on Windows every text file then looks
+  modified and an idle runner reports `clean` instead of `no_change`.
+* A mutation harness that rewrites whole files while other work is in flight
+  will eventually commit one of its own mutations. It did.
+* `git add <path>` then `git commit` without reading the **staged set** sweeps up
+  other work. Twice tonight; two commits carry `git notes` corrections, one of
+  them for 41 files under a message about one endpoint. Use
+  `git diff --cached --name-only` before every commit.
+* The island metric is gameable: deleting a test moves a module to `unknown` and
+  the count falls with the dead code untouched. Read `unreached` instead.
 
-```
-ok map: regenerated and stamped
-no_change: the runner proposed nothing because the router sent this work to
-'claude_cli', which offload refuses to execute, so it escalated instead.
-```
+## OPEN, WITH OWNERS
 
-## THE THREE THINGS THAT BLOCK AUTONOMY, IN ORDER
-
-1. **The gate cannot discriminate.** 0/3 against the day's known-bad changes.
-   `daedalus/eval/harness.py:183` — `_recall` is `m not in slice_text`, i.e.
-   substring containment in a context slice. It is an honest RETRIEVAL metric
-   and it never looks at a patch. There is no correctness evaluator at all.
-   Two instruments are in flight: `tools/mutation_score.py` (grades the tests —
-   `sensitivity.py` 75.8 %, `token_monitor.py` 45.0 %, and **8 of 15 survivors
-   sit in `read_inlined_context`, which its own docstring calls "the enforcement
-   point" and which NO test file mentions**), and a FAIL_TO_PASS / PASS_TO_PASS
-   evaluator (grades the change).
-2. **No model can do the work in a trusted lane on this machine.** The only
-   trusted lane is a local 7B; the router sends real work to `claude_cli`;
-   `offload.py:358` refuses to execute a non-free lane and escalates. Nothing
-   is billed — that is the safety net working — but the circle cannot complete.
-   Three ways out, all with a price: a stronger local model, the paid lane under
-   the new spend cap, or a policy decision about the bench.
-3. **Containment is not wired.** See the ruling below.
-
-## THE CONTAINMENT RULING (act on this, it is decided)
-
-The gate is NOT the only place candidate code executes. `_capture_patch` was
-launching candidate-selected programs via git filters — measured: rc 0, empty
-stderr, ~1.6 kB of plausible diff, `STATE_CLEAN`, no error field. Closed in
-3f4d462 with `--git-dir`/`--work-tree` pinned from a pointer read **before** the
-runner, a hardened environment, `-c` pins for every config key that names a
-program, and `--no-textconv` (which `--no-ext-diff` does not imply).
-
-Wiring containment into the **gate** hits the inherited-handle rule. The ruling:
-
-> Bounded inheritance, not a wrapper. Inherit EXACTLY ONE handle via
-> `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`, on the Low-labelled output file, with
-> APPEND | SYNCHRONIZE only. The invariant is: **no capability crosses the
-> boundary that the Low child could not have obtained itself.** Check target and
-> rights on the OPENED HANDLE, not the path, or reparse and swap races remain.
-> A wrapper only moves inheritance from parent to wrapper. An uncontained gate
-> makes the boundary worthless.
-
-## TRAPS THIS SESSION PAID FOR — DO NOT RE-LEARN THESE
-
-* **A guard test that matches its own prose stays green after the guard is
-  deleted.** Happened four times. Assert on the AST, not on source text.
-* **A guard verified through its own function is not verified through the
-  product.** `self._admin_dir = None` broke nothing because every test called
-  `_git` directly and none went through `TaskAttempt.run`. The wiring was
-  untested.
-* **A refusal test with no control proves nothing.** "The marker file is absent"
-  looks identical whether the guard worked or the probe was broken.
-* **`assert <set> == []` is vacuously true on a clean tree** — five budget
-  guards survived their own deletion that way.
-* **Hardening git removed `core.autocrlf`**, so on Windows every text file
-  looked modified and an idle runner reported `clean` instead of `no_change`.
-  Caught by an existing test, not by review.
-* **`git add <whole file>` sweeps up another agent's uncommitted work.** One
-  commit carries a `git notes` correction for exactly that.
-* **The island metric is gameable**: deleting a test moves a module to
-  `unknown` and the island count falls with the dead code untouched. Read
-  `unreached` (islands ∪ shims ∪ unknown) instead.
-
-## OPEN, NAMED, WITH OWNERS
-
-* `wiring.islands` reports **2 modules with zero production callers**:
-  `daedalus.compaction` and `daedalus.spine.containment`.
-* `room.chain` does not verify: 83 turns in the markdown, 11 attested.
-* The bridge watcher has been **dead for 12 days** over a queued task.
-* `repo_state` is inside the map's digest; a strict `xfail` in
-  `tests/test_spine_map_source.py` goes RED the day that changes.
-* `.md` is in `GENERIC_ALLOW_SUBSTRINGS`, so with `documents=True` design docs
-  and the council room become egressable on the untrusted lane — pinned as a
-  characterisation test that records a finding, not an endorsement.
-* `daedalus.mapping` is absent from `pyproject.toml`'s explicit package list; a
-  non-editable install ships no mapping engine.
-* Free disk hit **0.49 GB** during the session and `require_storage` demands 2 GB
-  — 42 worktree tests failed on it. pip and npm caches were purged (3 GB).
+* **No discrimination receipt.** `runs/spine/gate_discrimination.json` does not
+  exist; a scoped run (306 tests, ~95 s per gate invocation) was in flight at the
+  session end. Until it lands, promotion is correctly `unproven`.
+* **The whole-suite gate was red at `c5dfb52`** on a clean committed checkout.
+* `daedalus.compaction` is the one remaining capability module with zero
+  production callers.
+* **Two room implementations**: the skill's (`~/.claude/skills/room/room.py`,
+  703 lines, no chaining) writes the transcript actually used; the project's
+  (`runs/council/room.py`, 1271 lines, 44 chain-related lines) writes a
+  different, older one. Choosing which is canonical is a decision.
+* A bridge task from 2026-07-20 sits queued with a dead watcher: *"how is
+  daedalus currently build and how does it function?"*, targeting `project_tct`,
+  lane `local_only`.
+* `daedalus/web_api.py:1040` — `AUTH_TOKEN_ENV = "DAEDALUS_WEB_TOKEN"` trips the
+  secret floor's credential-assignment pattern. A false positive in the safe
+  direction; the floor stays, and the eval reports the withholding rather than
+  scoring the task.
+* `daedalus.mapping` is missing from `pyproject.toml`'s explicit package list.
+* `runs/spine/` is gitignored, so drill and discrimination receipts do **not**
+  travel with the repo — every machine must measure for itself, which is
+  defensible given containment is win32-only, but it is a choice worth knowing.
+* The import graph and the reachability snapshot disagree ~8×; the UI reports
+  the disagreement rather than painting ~70 false islands.
 
 ---
 
