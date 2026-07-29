@@ -483,7 +483,16 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
         attempt_kwargs: dict[str, Any] = {
             "runner": runner,
             "repo_root": str(target),
-            "artifact_dir": str(artifact_dir) if artifact_dir else None,
+            # NOT handed to the attempt. `TaskAttempt._persist` now refuses any
+            # caller-chosen path inside the attempt's own checkout (the
+            # primary-tree fence, and rightly: candidate bytes landing in the
+            # tree under improvement is how a later `git add -A` commits them).
+            # This tool's contract is the OPPOSITE and deliberate: for an
+            # external target the whole receipt bundle -- receipt, ledger,
+            # artifact -- lives under the target, self-contained. Both stand:
+            # the attempt deposits nothing, and the TOOL writes the patch bytes
+            # below, beside the receipt it already writes there unfenced.
+            "artifact_dir": None,
             "keep_worktree": keep_worktree,
             "ledger": ledger,
         }
@@ -502,6 +511,21 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
     changed = tuple(res.artifact.changed_paths) if res.artifact else ()
     if res.artifact is not None and not res.artifact.is_empty:
         diff_text = res.artifact.diff
+
+    # The tool's own deposit (see the attempt_kwargs comment above): patch
+    # bytes land beside the receipt, written by the same hand that writes the
+    # receipt. A failure to deposit is reported, never fatal -- the patch text
+    # itself is already embedded in the receipt under "patch".
+    artifact_path: str | None = None
+    artifact_note: str | None = None
+    if artifact_dir and res.artifact is not None and not res.artifact.is_empty:
+        try:
+            dep = Path(artifact_dir) / f"{res.artifact.diff_sha256}.patch"
+            dep.parent.mkdir(parents=True, exist_ok=True)
+            dep.write_bytes(res.artifact.diff_bytes)
+            artifact_path = str(dep)
+        except OSError as e:
+            artifact_note = f"artifact could not be deposited: {e}"
     leak = _leak_check(before, after, changed)
     gate_kind = "custom-command" if gate_command is not None else "pytest"
     gate_scope = (
@@ -538,6 +562,8 @@ def run_single(*, repo_root: Path, task_id: str, instruction: str,
         "storage": {
             "ledger_path": str(ledger_path),
             "artifact_dir": str(artifact_dir) if artifact_dir else None,
+            "artifact_path": artifact_path,
+            "artifact_note": artifact_note,
             "receipt_path": None,
         },
         "promotion": {

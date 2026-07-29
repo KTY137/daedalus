@@ -23,6 +23,11 @@ Routine categories go local by tagging their category ``lane`` as ``local``.
 
 Nothing here writes to a repo, drives a provider, or bypasses a lane gate; a
 build session is planning *state around* the harness, not a replacement for it.
+
+Execution is a separate concern, deliberately: see :mod:`daedalus.build_exec`
+for the wave executor that takes a saved :class:`BuildSession` and actually
+runs its waves through :class:`daedalus.kairos.scheduler.KairosScheduler`,
+collecting results back onto each :class:`BuildTask`.
 """
 
 from __future__ import annotations
@@ -78,6 +83,25 @@ class BuildTask:
     frontier: bool             # True -> frontier lane; False -> local bench
     paths: list[str] = field(default_factory=list)
     status: str = "planned"    # planned | dispatched | landed | bounced
+    # The raw per-task result dict from the last KairosScheduler.dispatch()
+    # call that touched this task (worker/lane/mode/status/wrote/reason -- see
+    # dispatch()'s docstring in daedalus/kairos/scheduler.py for the shape).
+    # `status` above intentionally stays a coarse 4-word lifecycle; nothing
+    # more specific ("escalated_after_verify_fail" vs "escalate_to_claude" vs
+    # a bench bounce) is lost -- it rides here instead. Populated only by
+    # daedalus.build_exec.WaveExecutor; empty for a plan that never ran.
+    last_result: dict[str, Any] = field(default_factory=dict)
+
+    def mark(self, status: str, last_result: dict[str, Any] | None = None) -> None:
+        """Advance this task's lifecycle in place. ``status`` should be one of
+        planned|dispatched|landed|bounced. Pass the raw dispatch result dict
+        as ``last_result`` to keep the full-fidelity detail alongside the
+        coarse status -- never called with a mismatched pair by
+        :mod:`daedalus.build_exec`, but nothing here enforces that; it is a
+        plain setter, not a state machine."""
+        self.status = status
+        if last_result is not None:
+            self.last_result = last_result
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,6 +114,7 @@ class BuildTask:
             "frontier": self.frontier,
             "paths": list(self.paths),
             "status": self.status,
+            "last_result": dict(self.last_result),
         }
 
     @classmethod
@@ -104,6 +129,7 @@ class BuildTask:
             frontier=bool(d.get("frontier", True)),
             paths=list(d.get("paths", [])),
             status=d.get("status", "planned"),
+            last_result=dict(d.get("last_result", {})),
         )
 
 
@@ -203,12 +229,58 @@ def load_session(path: str | Path) -> BuildSession:
 
 def _chunk_waves(tasks: list[BuildTask], max_workers: int) -> list[Wave]:
     """Bounded wave sizing, mirroring ``Ikarus.plan``: at most ``max_workers``
-    tasks per wave, order preserved."""
+    tasks per wave, order preserved.
+
+    NOTE what this does NOT do: nothing here checks that tasks landing in the
+    same wave target disjoint paths -- see :func:`wave_path_conflicts` for a
+    read-only diagnostic over the result. Harmless today (advisory-only
+    concurrent execution touches no files); see that function's docstring for
+    why it stops mattering less, not more, once concurrent writes exist.
+    """
     size = max(1, max_workers)
     waves: list[Wave] = []
     for i in range(0, len(tasks), size):
         waves.append(Wave(index=len(waves), tasks=tasks[i:i + size]))
     return waves
+
+
+def wave_path_conflicts(wave: Wave) -> list[dict[str, Any]]:
+    """Diagnostic ONLY -- pairs of tasks within one wave whose declared
+    ``paths`` overlap. Mirrors the caveat already on
+    ``daedalus.kairos.scheduler._paths_overlap``: an agentic worker is not
+    bound by the paths string it was handed, so disjoint declared paths are
+    not proof two tasks stay out of each other's way, and an overlap here is
+    not proof they collide -- this is a planning-time smell, nothing load-
+    bearing.
+
+    Harmless for advisory (read-only) work, which is the only thing this
+    session's waves run concurrently today (see ``daedalus.build_exec``).
+    It would matter more, not less, for writes: two tasks in the SAME wave
+    both declaring the same path is exactly the shared-file clobber
+    ``KairosScheduler.dispatch`` refuses to risk even for merely CONCURRENT
+    writes in general (see its ``can_parallel`` comment) -- and per-task
+    worktree isolation (``KairosScheduler.gate_concurrent_writes``) fixes the
+    ROLLBACK-clobber hazard by giving each write its own checkout, but does
+    not by itself make two tasks editing the same file semantically
+    compatible; that is what ``promote_candidates``'s cumulative re-gating
+    and re-attempt-on-stale-base logic is for. Returns one entry per repeat
+    sighting of a path (first owner only), not every pairwise combination.
+    """
+    conflicts: list[dict[str, Any]] = []
+    first_owner: dict[str, int] = {}
+    for i, task in enumerate(wave.tasks):
+        for p in task.paths:
+            key = str(p).replace("\\", "/")
+            if key in first_owner:
+                j = first_owner[key]
+                conflicts.append({
+                    "path": key,
+                    "task_indices": [j, i],
+                    "objectives": [wave.tasks[j].objective, task.objective],
+                })
+            else:
+                first_owner[key] = i
+    return conflicts
 
 
 def plan_build(

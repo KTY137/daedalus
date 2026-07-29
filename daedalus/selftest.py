@@ -39,6 +39,21 @@ _FILE = "src/hello.py"
 _SEED = "def greet(name):\n    return 'hi ' + name\n"
 _OBJECTIVE = "Add a one-line docstring to the greet function; keep the code identical."
 
+# FORCE THE LOCAL LANE. This command's entire reason to exist is proving the
+# LOCAL Ollama write round-trip -- if offload() is left free to route (its
+# default), an external key present in the environment wins the router's
+# normal cost-ordered preference (provider_router.select_provider tries
+# DeepSeek before Ollama at equal risk), and DeepSeek is ADVISORY BY DESIGN
+# (untrusted lane, never writes). MEASURED: with a DeepSeek key set, this used
+# to route provider=deepseek, its own "mode is write" check FAILED,
+# before_bytes == after_bytes, and the command still printed a result as if
+# it had exercised the thing it is named for. Passing an explicit
+# availability dict with every lane but ollama forced off makes offload()'s
+# own routing (unchanged here) land on ollama or fail outright -- it can no
+# longer silently substitute a different lane.
+_LOCAL_ONLY_AVAILABILITY = {"claude_cli": False, "ollama": True,
+                            "deepseek": False, "codex_cli": False}
+
 
 def _build_repo() -> str:
     tmp = tempfile.mkdtemp(prefix="daedalus-selftest-")
@@ -119,12 +134,38 @@ def run() -> dict:
         target = Path(repo) / _FILE
         before = target.read_text(encoding="utf-8")
         t0 = time.time()
-        res = offload(_OBJECTIVE, repo, [_FILE], live=True)
+        res = offload(_OBJECTIVE, repo, [_FILE], live=True,
+                      availability=_LOCAL_ONLY_AVAILABILITY)
         dt = round(time.time() - t0, 1)
         after = target.read_text(encoding="utf-8")
 
+        # FAIL LOUD, never silently substitute. `doctor` just said the local
+        # bench was ready and every other lane was forced off above, so a
+        # decision that still isn't "ollama" means either the bench went down
+        # in the gap between that check and this call, or the router did not
+        # honor the forced availability (a router bug) -- either way the
+        # LOCAL write round-trip this command exists to prove was NOT
+        # exercised. Returning here instead of falling into the checks list
+        # below matters: an unrelated entry ("mode is write") would go red
+        # for a reason that does not name the real problem, and the old
+        # lenient "routed to a free lane" check (the historic bug this
+        # replaces) would have let this pass outright.
+        if res.get("provider") != "ollama":
+            result = {
+                "ok": False, "skipped": False, "routing_failed": True,
+                "seconds": dt, "provider": res.get("provider"), "action": res.get("action"),
+                "reason": (
+                    f"local lane forced (deepseek/codex_cli/claude_cli disabled) but routing "
+                    f"produced provider={res.get('provider')!r} action={res.get('action')!r} -- "
+                    "the local Ollama write round-trip was NOT exercised. `daedalus doctor` "
+                    "reported the bench ready; either it went down between that check and this "
+                    "call, or the router did not honor the forced availability."),
+                "before_bytes": len(before), "after_bytes": len(after),
+            }
+            return result
+
         checks = [
-            ("routed to a free lane", res.get("provider") in ("ollama", "deepseek", "codex_cli")),
+            ("routed to local Ollama", res.get("provider") == "ollama"),
             ("mode is write", res.get("mode") == "write"),
             ("accepted (offloaded)", res.get("action") == "offloaded"),
             ("verifier passed", bool((res.get("verify") or {}).get("ok"))),
@@ -158,8 +199,15 @@ def _emit(result: dict, json_out: bool) -> None:
     if result.get("skipped"):
         print(f"SELFTEST SKIPPED: {result['reason']}")
         return
-    mark = "PASS" if result["ok"] else "FAIL"
     print(f"daedalus live selftest -- real Ollama write round-trip\n{'=' * 52}")
+    if result.get("routing_failed"):
+        # Loud and distinct on purpose -- see the comment at the call site in
+        # run(). Does not assume "checks"/"wrote" exist: this shape is
+        # returned before either is computed.
+        print(f"provider={result['provider']}  action={result['action']}  ({result['seconds']}s)")
+        print(f"{'=' * 52}\nVERDICT: FAIL -- local lane not exercised\n  {result['reason']}")
+        return
+    mark = "PASS" if result["ok"] else "FAIL"
     print(f"provider={result['provider']}  action={result['action']}  "
           f"wrote={result['wrote']}  ({result['seconds']}s)")
     for c in result["checks"]:

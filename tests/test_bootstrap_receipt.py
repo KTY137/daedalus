@@ -495,7 +495,15 @@ class TheExternalTargetReceipt(unittest.TestCase):
             self.assertEqual(Path(storage["receipt_path"]).resolve(),
                              receipt.resolve())
             self.assertTrue(Path(storage["ledger_path"]).is_file())
-            artifact_path = Path(doc["attempt"]["artifact_path"])
+            # The deposit moved from the ATTEMPT to the TOOL: TaskAttempt's
+            # _persist now refuses caller-chosen paths inside the attempt's own
+            # checkout (the primary-tree fence), so the attempt reports no
+            # artifact_path -- and the tool, which already writes the receipt
+            # into the target unfenced by design, deposits the patch bytes
+            # itself and records them under storage. Same bytes, same place,
+            # honest attribution of who wrote them.
+            self.assertIsNone(doc["attempt"]["artifact_path"])
+            artifact_path = Path(storage["artifact_path"])
             self.assertTrue(artifact_path.is_file())
             self.assertTrue(artifact_path.resolve().is_relative_to(target.resolve()))
 
