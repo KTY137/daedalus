@@ -872,6 +872,28 @@ def main() -> None:
     cmd, rest = argv[0], argv[1:]
     sys.argv = [f"daedalus {cmd}", *rest]   # so sub-parsers see a clean argv
 
+    # THE SPEND CEILING, INSTALLED BEFORE ANY SUBCOMMAND CAN SPEND.
+    #
+    # There is no chokepoint to put it at. Paid calls leave this repo from four
+    # subsystems that share no dispatch path -- providers/, council/,
+    # ikarus_os.py and runs/ -- across 17 sites, three of which no text scan can
+    # even see (one builds the argv while another spawns it; one takes the
+    # vendor as a base_url). daedalus/budget.py therefore MANUFACTURES a
+    # chokepoint at the syscall boundary, and every one of those 17 sites bottoms
+    # out in it.
+    #
+    # Non-vendor spawns are classified and passed straight through untouched, so
+    # git and pytest are not affected -- asserted by a test, because a spend cap
+    # that broke ordinary subprocesses would be removed within the hour and then
+    # there would be no cap at all.
+    #
+    # Installed here rather than inside each subcommand for the reason that
+    # matters: a cap you have to remember to install is a cap that is missing
+    # exactly where somebody forgot.
+    from .budget import install_process_guard
+
+    install_process_guard()
+
     if cmd == "doctor":
         from .doctor import main as m; m()
     elif cmd == "offload":
