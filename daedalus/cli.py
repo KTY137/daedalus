@@ -22,13 +22,18 @@
                                         plan budgeted hybrid DSS context
     daedalus agents list|show|add|edit|rm   manage agent-role definitions at runtime
     daedalus categories list|show|set   manage role-category presets (icon/color/lane/tier)
-    daedalus council "<question>" [--patch F] [--file P] [--rounds N] [--vendors a,b]
+    daedalus council "<question>" --dry-run|--live [--patch F] [--file P]
                                         convene the cross-vendor council over a
-                                        patch/file; ADVISORY -- it promotes nothing
-    daedalus canary [--quick] [--vendors a,b] [--dry-run]
+                                        patch/file; ADVISORY -- it promotes nothing.
+                                        --live is REQUIRED to call any vendor: it
+                                        spends real money; --dry-run calls nothing
+    daedalus canary --dry-run|--live [--quick] [--vendors a,b]
                                         health-check every vendor lane with a
                                         small REAL task that has a checkable
-                                        answer; "unavailable" is NOT failure
+                                        answer; "unavailable" is NOT failure.
+                                        --live is REQUIRED to call any lane: a
+                                        REAL task costs real money; --dry-run
+                                        names the lanes and calls nothing
     daedalus claude-crew --project NAME     detect Claude Code subagents in .claude/agents/
     daedalus drafts list|show|apply|dismiss|rm   advisory drafts (free-lane proposals)
     daedalus selftest [--json]          live Ollama write round-trip (real, repeatable)
@@ -516,12 +521,32 @@ def _council(argv: list[str]) -> None:
                         help="whole-council cap in seconds")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the plan and vendor availability; call NO model")
+    parser.add_argument("--live", action="store_true",
+                        help="AUTHORISE REAL VENDOR CALLS: spends money and sends "
+                             "the evidence to every seated vendor. Without this "
+                             "flag no model is called.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     if not args.question.strip():
         if not args.dry_run:
             parser.error("a question is required unless --dry-run is given")
         args.question = "(no question given -- plan only)"
+
+    # THE SPEND GATE, before a single adapter is built. `--dry-run` is a
+    # different question from `--live`, and asking both at once is ambiguous
+    # about intent, so it is refused rather than settled by a precedence rule
+    # nobody will remember at 2am. cs.convene has the same gate independently:
+    # this one only makes the refusal legible to the operator.
+    if args.live and args.dry_run:
+        parser.error("--live and --dry-run contradict each other: one calls every "
+                     "vendor for real, the other calls none. Pick one.")
+    if not args.live and not args.dry_run:
+        parser.error("refusing to convene: without --live this command calls NO "
+                     "model. A live council spends real money at every seated "
+                     "vendor and ships the evidence off this machine, so it must "
+                     "be asked for explicitly. Use --dry-run to see exactly who "
+                     "would be seated and what would be sent, then --live to run "
+                     "it.")
 
     models: dict[str, str] = {}
     for pair in args.model:
@@ -592,6 +617,14 @@ def _council(argv: list[str]) -> None:
         print("\nThe council's output is ADVISORY. It carries no majority and no "
               "score, and\npromotes nothing: run the checks it emits through the "
               "gate.")
+        # Say the price out loud in the plan, so --live is never a surprise.
+        live_seats = cs.live_egress_seats(participants)
+        if live_seats:
+            print(f"\nNO MODEL WAS CALLED. Re-running this with --live would call "
+                  f"{len(live_seats)} real\nvendor seat(s) and send the evidence "
+                  f"above to each of them:")
+            for seat in live_seats:
+                print(f"  - {seat}")
         return
 
     # A vendor answer is arbitrary Unicode and a Windows console is cp1252; an
@@ -604,7 +637,8 @@ def _council(argv: list[str]) -> None:
     record = cs.convene(
         args.question, evidence, participants, rounds=args.rounds,
         per_call_timeout_s=args.timeout, wall_clock_s=args.wall_clock,
-        trusted_vendors=[v.strip() for v in args.trust.split(",") if v.strip()])
+        trusted_vendors=[v.strip() for v in args.trust.split(",") if v.strip()],
+        live=args.live)
     if args.json:
         import dataclasses
         print(json.dumps(dataclasses.asdict(record), indent=2, default=str))
@@ -698,9 +732,34 @@ def _canary(argv: list[str]) -> int:
     parser.add_argument("--no-record", action="store_true",
                         help="compare against history but do not append this run")
     parser.add_argument("--dry-run", action="store_true",
-                        help="print the plan and call NOTHING")
+                        help="print the plan, name the lanes --live would call, "
+                             "and call NOTHING")
+    parser.add_argument("--live", action="store_true",
+                        help="AUTHORISE REAL VENDOR CALLS: every probe is a small "
+                             "REAL task run at a real lane, so this spends real "
+                             "money. Without this flag no model is called.")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+
+    # THE SPEND GATE, before a lane is built, before the history file is read or
+    # written, before a probe body exists. `--dry-run` was only ever an OPT-OUT,
+    # and an opt-out protects the operator who already knew to type it: a bare
+    # `daedalus canary` spawned `claude` and `codex` for real. `--dry-run` is a
+    # different question from `--live`, and asking both at once is ambiguous
+    # about intent, so it is refused rather than settled by a precedence rule
+    # nobody will remember at 2am. cn.run_canary has the same gate independently;
+    # this one only makes the refusal legible to the operator.
+    if args.live and args.dry_run:
+        parser.error("--live and --dry-run contradict each other: one runs a real "
+                     "task at every lane and bills you for it, the other calls "
+                     "none. Pick one.")
+    if not args.live and not args.dry_run:
+        parser.error("refusing to run the canary: without --live this command "
+                     "calls NO model. Every probe here is a small REAL task sent "
+                     "to a real vendor lane, so it spends real money and its "
+                     "payload leaves this machine for every non-loopback lane. "
+                     "Use --dry-run to see exactly which lanes would be called "
+                     "and what would be sent, then --live to run it.")
 
     names = [v.strip() for v in args.vendors.split(",") if v.strip()]
     probe_names = [p.strip() for p in args.probes.split(",") if p.strip()]
@@ -743,6 +802,13 @@ def _canary(argv: list[str]) -> int:
         for p in plan["probes"]:
             print(f"  {p['name']:<14} {p['severity']:<9} {p['prompt_chars']:<6} {p['blurb']}")
         print("\nUnavailable is not failure. Nothing was asked and nothing was billed.")
+        # Say the price out loud in the plan, so --live is never a surprise.
+        if plan["live_seats"]:
+            print(f"\nNO MODEL WAS CALLED. Re-running this with --live would call "
+                  f"{len(plan['live_seats'])} real\nvendor lane(s) with "
+                  f"{plan['calls']} billable probe(s):")
+            for seat in plan["live_seats"]:
+                print(f"  - {seat}")
         return 0
 
     # A vendor answer is arbitrary Unicode and a Windows console is cp1252; an
@@ -755,7 +821,8 @@ def _canary(argv: list[str]) -> int:
     history = cn.load_history(args.history)
     run = cn.run_canary(lanes, probes, per_probe_timeout_s=args.timeout,
                         wall_clock_s=args.wall_clock,
-                        max_parallel=args.max_parallel, history=history)
+                        max_parallel=args.max_parallel, history=history,
+                        live=args.live)
     if not args.no_record:
         cn.append_history(run, args.history)
 

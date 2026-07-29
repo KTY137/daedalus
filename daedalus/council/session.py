@@ -77,8 +77,8 @@ FALSIFICATION PROTOCOL (stated before this is wired into anything)
 ------------------------------------------------------------------
 The premise -- independent vendors have independent blind spots, so cross-vendor
 disagreement is informative -- is plausible and UNTESTED.  It is refuted as
-follows, and NO LIVE WIRING into a real review workflow happens before the
-number exists:
+follows, and no AUTOMATED review workflow may depend on this module before the
+number exists (the hand-typed ``--live`` path is described below):
 
 * ARM A: the 4-vendor council, distinct ``independence_class`` each.
 * CONTROL ARM B: ONE vendor asked twice under two different role prompts.
@@ -94,8 +94,37 @@ number exists:
   That is not enough for a significance claim.  Report effect sizes and the N,
   never a bare percentage.
 
-Until then the offline replay harness (``tests/test_council_session.py``, fake
-adapters, no network, no vendor CLI) is the only thing that runs this.
+LIVE WIRING IS OFF BY DEFAULT, AND THAT IS A CONTROL NOW, NOT A COMMENT
+-----------------------------------------------------------------------
+This paragraph used to say the offline replay harness was "the only thing that
+runs this".  That was FALSE from the day ``daedalus council`` shipped:
+:func:`default_participants` builds the real ``ClaudeAdapter`` /
+``CodexAdapter`` / ``AntigravityAdapter`` / ``OllamaAdapter`` and the CLI handed
+them straight to :func:`convene` -- four paid vendor calls, real egress, on a
+bare ``daedalus council "q"``.  A documented lock nobody implemented is worse
+than no lock, because it is READ AS ONE.  So the lock exists now:
+
+* :func:`convene` takes ``live`` and it DEFAULTS TO FALSE.  Seating any adapter
+  that still carries a SHIPPED transport -- the code that spawns ``claude``,
+  ``codex`` or ``ssh ... agy``, or opens the Ollama socket -- raises
+  :class:`LiveCouncilRefused` before the roster is chained and before a single
+  byte is dispatched.  Nothing is written, so there is nothing to clean up.
+* The classification (:func:`live_egress_seats`) FAILS CLOSED: a seat counts as
+  live unless the caller can be SHOWN to have replaced the transport (its own
+  ``_dispatch`` defined outside :mod:`daedalus.council.vendors`, or an injected
+  ``runner``/``chat``).  An adapter nobody recognises is assumed to spend money.
+* The operator's form of the same opt-in is ``daedalus council --live``.
+  Without it the CLI refuses and points at ``--dry-run``; ``--dry-run`` prints
+  the plan and calls nothing.  ``--live --dry-run`` together is REFUSED as
+  ambiguous rather than resolved by a precedence rule nobody would remember.
+
+So the honest statement is: the offline replay harness
+(``tests/test_council_session.py``, fake adapters, no network, no vendor CLI) is
+what runs in CI and in every test, and a live multi-vendor council runs ONLY on
+an invocation where a human typed ``--live``.  ``tests/test_council_livewire.py``
+holds that line by driving the gate, not by reading this comment.  The
+falsification measurement above is still UNRUN: ``--live`` buys transcripts, not
+evidence.
 """
 
 from __future__ import annotations
@@ -119,7 +148,19 @@ from .bus import (
     transcript_head,
     verify_chain,
 )
+from . import vendors as _vendors
 from .vendors import CouncilAdapter, VendorReply, floor_check
+
+#: The shipped transport callables, SNAPSHOTTED AT IMPORT so the live-wire gate
+#: cannot be disarmed by rebinding ``vendors.run_managed`` after the fact.  An
+#: adapter holding one of these is holding the code that really spawns a vendor
+#: CLI or opens the Ollama socket; an adapter holding anything else was handed a
+#: substitute by its constructor and cannot reach a vendor through it.
+_SHIPPED_TRANSPORTS: tuple[Any, ...] = tuple(
+    fn for fn in (getattr(_vendors, "run_managed", None),
+                  getattr(_vendors, "native_chat", None))
+    if fn is not None
+)
 
 __all__ = [
     "MAX_ROUNDS_CAP",
@@ -140,6 +181,8 @@ __all__ = [
     "new_council_id",
     "VENDOR_KEYS",
     "default_participants",
+    "LiveCouncilRefused",
+    "live_egress_seats",
 ]
 
 
@@ -935,6 +978,64 @@ def default_participants(
 
 
 # --------------------------------------------------------------------------- #
+# the live-wire gate                                                           #
+# --------------------------------------------------------------------------- #
+class LiveCouncilRefused(RuntimeError):
+    """A seat that can reach a real vendor was offered without ``live=True``.
+
+    Deliberately NOT a ``ValueError``: every other refusal in :func:`convene` is
+    a malformed-roster complaint, and "you were about to spend money" must be
+    catchable on its own.
+    """
+
+
+def live_egress_seats(participants: Sequence[CouncilAdapter]) -> tuple[str, ...]:
+    """Name every seat that could actually reach a vendor.  FAIL-CLOSED.
+
+    The question is not "is this class from :mod:`vendors`" -- it is "if
+    ``ask()`` runs, does SHIPPED transport code execute".  A seat is therefore
+    counted as LIVE unless one of these is demonstrably true:
+
+    * it is not one of the shipped concrete adapters at all (the base
+      ``CouncilAdapter._dispatch`` raises ``NotImplementedError``, so a class
+      defined elsewhere is the caller's own code and the caller owns it);
+    * its ``_dispatch`` -- the transport seam -- is defined OUTSIDE
+      :mod:`daedalus.council.vendors`, i.e. the test/host replaced it;
+    * its ``runner`` / ``chat`` hook is not one of :data:`_SHIPPED_TRANSPORTS`,
+      i.e. a substitute was injected at construction.
+
+    Everything else -- including an adapter shape this function has never seen
+    -- is assumed able to spend money.  If :data:`_SHIPPED_TRANSPORTS` ever
+    resolves empty (vendors renamed something), the hook test is SKIPPED rather
+    than trivially satisfied, so the failure lands on the safe side.
+    """
+    shipped_classes = tuple(
+        cls for cls in (getattr(_vendors, name, None) for name in
+                        ("ClaudeAdapter", "CodexAdapter",
+                         "AntigravityAdapter", "OllamaAdapter"))
+        if isinstance(cls, type)
+    )
+    live: list[str] = []
+    for adapter in participants:
+        if shipped_classes and not isinstance(adapter, shipped_classes):
+            continue
+        dispatch = getattr(adapter, "_dispatch", None)
+        if getattr(dispatch, "__module__", "") != _vendors.__name__:
+            continue
+        substituted = False
+        if _SHIPPED_TRANSPORTS:
+            for hook_name in ("_runner", "_chat"):
+                hook = getattr(adapter, hook_name, None)
+                if hook is not None and not any(hook is fn for fn in _SHIPPED_TRANSPORTS):
+                    substituted = True
+                    break
+        if substituted:
+            continue
+        live.append(f"{type(adapter).__name__}[{adapter.actor}] -> {adapter.endpoint}")
+    return tuple(live)
+
+
+# --------------------------------------------------------------------------- #
 # convene                                                                      #
 # --------------------------------------------------------------------------- #
 def convene(question: str, evidence: Evidence,
@@ -946,7 +1047,8 @@ def convene(question: str, evidence: Evidence,
             per_call_timeout_s: float = DEFAULT_PER_CALL_TIMEOUT_S,
             wall_clock_s: float = DEFAULT_WALL_CLOCK_S,
             token_ceiling: int = DEFAULT_TOKEN_CEILING,
-            trusted_vendors: Sequence[str] = ()) -> CouncilRecord:
+            trusted_vendors: Sequence[str] = (),
+            live: bool = False) -> CouncilRecord:
     """Run the council and return the (advisory) :class:`CouncilRecord`.
 
     ``participants`` are :class:`vendors.CouncilAdapter` instances -- read-only,
@@ -959,9 +1061,34 @@ def convene(question: str, evidence: Evidence,
     untrusted allow-list for this council only.  It is recorded per participant,
     because deciding OpenAI or Google is trusted with this repo's IP is a policy
     decision and a default argument must not make it.
+
+    ``live`` is the SPEND OPT-IN and defaults to False.  Any seat that still
+    carries a shipped vendor transport (:func:`live_egress_seats`) raises
+    :class:`LiveCouncilRefused` here -- before the council id, before the store,
+    before the roster is chained, before one byte is dispatched.  Offline
+    adapters (fakes, injected runners) are unaffected, so the replay harness
+    never has to ask for permission it does not need.
     """
+    # Materialised ONCE, before anything inspects it: the live-wire gate below
+    # iterates the roster, and a one-shot iterator would arrive here full, be
+    # drained by the gate, and reach `sorted()` empty -- a council of nobody,
+    # chained as if it were real.
+    participants = tuple(participants)
     if not participants:
         raise ValueError("a council with no participants is not a council")
+    if not live:
+        # FIRST, above every other check: a refusal that happened after the
+        # roster was chained would leave an open council on disk that nobody
+        # closed, and a refusal that happened after dispatch would not be one.
+        seats = live_egress_seats(participants)
+        if seats:
+            raise LiveCouncilRefused(
+                "refusing to convene: " + str(len(seats)) + " seat(s) would call a "
+                "REAL vendor and spend real money -- " + "; ".join(seats) + ". "
+                "This is not a dry run and nothing here is faked. Pass live=True "
+                "(CLI: `daedalus council --live`) to authorise the spend for this "
+                "one invocation, or `--dry-run` to see the plan without calling "
+                "anything.")
     rounds_requested = max(1, min(int(rounds), MAX_ROUNDS_CAP))
     council_id = council_id or new_council_id()
     store = Path(store_path) if store_path else council_store_path(council_id)
