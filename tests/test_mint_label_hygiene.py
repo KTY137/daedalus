@@ -35,10 +35,21 @@ from unittest import mock
 from daedalus.eval import harness, mint, report
 
 
+class _NonRepoMintRoot(unittest.TestCase):
+    """Give pure mint tests a root that is not the verifier's linked worktree."""
+
+    def setUp(self):
+        self._mint_root_tmp = tempfile.TemporaryDirectory()
+        self.repo_root = self._mint_root_tmp.name
+
+    def tearDown(self):
+        self._mint_root_tmp.cleanup()
+
+
 # --------------------------------------------------------------------------- #
 # 1. JUNK FILTER                                                              #
 # --------------------------------------------------------------------------- #
-class JunkLabelFilterTest(unittest.TestCase):
+class JunkLabelFilterTest(_NonRepoMintRoot):
     """Isolates the JUNK FILTER by mocking ``_diffed_symbols`` directly: real
     extractors CAN legitimately hand back ``<anonymous>`` (inline JS/TS arrow,
     parse.py's ``_ANON``) or a bare keyword-shaped node text on some grammar
@@ -58,7 +69,7 @@ class JunkLabelFilterTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, diag = mint._mint_from_diffs(
                 {"a.py": ("old", "new"), "b.py": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"a.py", "b.py"}),
             )
         self.assertIsNotNone(task)
@@ -112,7 +123,7 @@ class JunkLabelFilterTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 2. CROSS-LANGUAGE FILTER                                                    #
 # --------------------------------------------------------------------------- #
-class CrossLanguageLabelFilterTest(unittest.TestCase):
+class CrossLanguageLabelFilterTest(_NonRepoMintRoot):
     """A label may only come from a file whose ``languages.spec_for`` language
     FAMILY matches the TARGET's -- a TypeScript symbol co-committed alongside
     a Python target measures nothing about the Python slicer being graded."""
@@ -130,7 +141,7 @@ class CrossLanguageLabelFilterTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, _ = mint._mint_from_diffs(
                 {"a.py": ("old", "new"), "b.py": ("old", "new"), "c.ts": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"a.py", "b.py", "c.ts"}),
             )
         self.assertIsNotNone(task)
@@ -153,7 +164,7 @@ class CrossLanguageLabelFilterTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, _ = mint._mint_from_diffs(
                 {"a.py": ("old", "new"), "b.pyi": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"a.py", "b.pyi"}),
             )
         self.assertIsNotNone(task)
@@ -164,7 +175,7 @@ class CrossLanguageLabelFilterTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 2b. LANGUAGE FAMILY (A1 repair, MEDIUM #2)                                  #
 # --------------------------------------------------------------------------- #
-class LanguageFamilyCrossFileTest(unittest.TestCase):
+class LanguageFamilyCrossFileTest(_NonRepoMintRoot):
     """Regression: the cross-language filter used to compare
     ``LanguageSpec.name`` by exact equality, so a C++ file's own header
     (spec "c" vs spec "cpp") or a TypeScript file's own imported JS module
@@ -187,7 +198,7 @@ class LanguageFamilyCrossFileTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, _ = mint._mint_from_diffs(
                 {"main.cpp": ("old", "new"), "util.h": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"main.cpp", "util.h"}),
             )
         self.assertIsNotNone(task)
@@ -206,7 +217,7 @@ class LanguageFamilyCrossFileTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, _ = mint._mint_from_diffs(
                 {"app.ts": ("old", "new"), "helper.js": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"app.ts", "helper.js"}),
             )
         self.assertIsNotNone(task)
@@ -233,7 +244,7 @@ class LanguageFamilyCrossFileTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, _ = mint._mint_from_diffs(
                 {"main.py": ("old", "new"), "b.py": ("old", "new"), "util.h": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"main.py", "b.py", "util.h"}),
             )
         self.assertIsNotNone(task)
@@ -245,7 +256,7 @@ class LanguageFamilyCrossFileTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 3. FLOOR-TRIPPING LABEL SOURCE EXCLUSION                                    #
 # --------------------------------------------------------------------------- #
-class FloorTrippingAnchorExclusionTest(unittest.TestCase):
+class FloorTrippingAnchorExclusionTest(_NonRepoMintRoot):
     """A file whose current content trips the unconditional secret floor can
     never be a meaningful slice target (semantic_slice's FOCUS GATE fails it
     closed) -- excluded from the ANCHOR POOL, per the module docstring. A1
@@ -288,7 +299,7 @@ class FloorTrippingAnchorExclusionTest(unittest.TestCase):
             ),
         }
         task, diag = mint._mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"cred.py", "other.py", "clean.py"}),
         )
         self.assertIsNotNone(task)
@@ -318,7 +329,7 @@ class FloorTrippingAnchorExclusionTest(unittest.TestCase):
             "other.py": (self._OTHER_V1, self._OTHER_V2),
         }
         task, diag = mint._mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"cred.py", "other.py"}),
         )
         self.assertIsNone(task)
@@ -335,7 +346,7 @@ class FloorTrippingAnchorExclusionTest(unittest.TestCase):
             ),
         }
         task, diag = mint._mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"cred_a.py", "cred_b.py"}),
         )
         self.assertIsNone(task)
@@ -346,13 +357,13 @@ class FloorTrippingAnchorExclusionTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 4. Determinism                                                              #
 # --------------------------------------------------------------------------- #
-class MintDeterminismTest(unittest.TestCase):
+class MintDeterminismTest(_NonRepoMintRoot):
     def test_repeated_mint_of_same_diff_is_identical(self):
         files = {
             "a.py": ("def f():\n    return 1\n", "def f():\n    return 2\n"),
             "b.py": ("def g():\n    return 1\n", "def g():\n    return 3\n"),
         }
-        kwargs = dict(repo_root=".", minted_at_sha="deadbeef", source="commit",
+        kwargs = dict(repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                       in_scope=frozenset({"a.py", "b.py"}))
         task1, diag1 = mint._mint_from_diffs(dict(files), **kwargs)
         task2, diag2 = mint._mint_from_diffs(dict(files), **kwargs)
@@ -363,7 +374,7 @@ class MintDeterminismTest(unittest.TestCase):
 # --------------------------------------------------------------------------- #
 # 5. Regression: a clean diff mints byte-identically to before this lane      #
 # --------------------------------------------------------------------------- #
-class CleanMintByteIdenticalRegressionTest(unittest.TestCase):
+class CleanMintByteIdenticalRegressionTest(_NonRepoMintRoot):
     """A diff with zero junk names, zero cross-language labels, and zero
     secret-floor-tripping candidates must mint EXACTLY what mint.py minted
     before these three filters existed -- the same fixture values as
@@ -382,7 +393,7 @@ class CleanMintByteIdenticalRegressionTest(unittest.TestCase):
             ),
         }
         task, _ = mint._mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"mod.py", "other.py"}))
         self.assertIsNotNone(task)
         self.assertEqual(task["target"], "mod.py::target_func")
@@ -399,7 +410,7 @@ class CleanMintByteIdenticalRegressionTest(unittest.TestCase):
 # 5b. Regression: label hygiene emptying every cross-file candidate mints     #
 #     NOTHING, never a vacuous must_include=[] task (A1 repair, HIGH #1)      #
 # --------------------------------------------------------------------------- #
-class EmptyMustIncludeGuardTest(unittest.TestCase):
+class EmptyMustIncludeGuardTest(_NonRepoMintRoot):
     """Before this fix, ``_mint_from_diffs`` re-checked non-emptiness of
     ``per_file`` BEFORE label hygiene filtering but never AFTER -- so a
     commit whose only cross-file symbols were all junk, all cross-language,
@@ -423,7 +434,7 @@ class EmptyMustIncludeGuardTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, diag = mint._mint_from_diffs(
                 {"a.py": ("old", "new"), "b.py": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"a.py", "b.py"}),
             )
         self.assertIsNone(task)
@@ -443,7 +454,7 @@ class EmptyMustIncludeGuardTest(unittest.TestCase):
         with mock.patch("daedalus.eval.mint._diffed_symbols", side_effect=fake_diffed_symbols):
             task, diag = mint._mint_from_diffs(
                 {"a.py": ("old", "new"), "c.ts": ("old", "new")},
-                repo_root=".", minted_at_sha="deadbeef", source="commit",
+                repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
                 in_scope=frozenset({"a.py", "c.ts"}),
             )
         self.assertIsNone(task)
