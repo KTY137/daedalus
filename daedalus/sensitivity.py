@@ -515,7 +515,34 @@ def read_inlined_context(
 
     When ``allow_sensitive`` is False (untrusted external provider) sensitive
     files are skipped by both path and content — this is the enforcement point.
-    When True (local/trusted provider) everything readable is inlined."""
+    When True (local/trusted provider) everything readable is inlined, EXCEPT
+    what the secret floor refuses.
+
+    THE FLOOR RUNS HERE TOO, AND IT DID NOT USED TO. This function is the second
+    enforcement point in this module, and it was consulting only
+    :func:`classify_data`, which is a weaker predicate than
+    :func:`secret_floor_rule`. Two predicates for "is this a secret", and the
+    enforcement point used the weaker one — the same shape as the five host
+    predicates that returned three different answers for ``[::1]``.
+
+    Measured, before the fix::
+
+        docs/notes.md containing "use `AKIA...` as the key"
+          classify_data(extra_text=...)  -> sensitive=False   (crossed)
+          secret_floor_rule(path, text)  -> "secret content: AWS access key id"
+
+    `.md` is in ``GENERIC_ALLOW_SUBSTRINGS``, so prose passes the PATH check and
+    the content check was the only thing left — and it did not recognise a bare
+    AWS key id, a GitHub PAT, a Slack or Stripe token, a JWT or a private key
+    block. With markdown indexable as context, a design document or the council
+    transcript could carry a live key to an external provider.
+
+    The floor is applied on BOTH lanes because that is what it is: this module
+    documents it as "the UNCONDITIONAL secret floor -- runs in EVERY lane, no
+    bypass", and ``allow_sensitive=True`` is a statement about SOURCE
+    sensitivity, never about credentials. A local model has no more need of a
+    live key than a remote one does.
+    """
     policy = policy or DEFAULT_POLICY
     chunks: list[str] = []
     skipped: list[str] = []
@@ -531,6 +558,10 @@ def read_inlined_context(
         try:
             data = candidate.read_text(encoding="utf-8", errors="replace")
         except OSError:
+            skipped.append(raw)
+            continue
+        # TIER 1, unconditional, before the lane-dependent check below.
+        if secret_floor_rule(raw, data) is not None:
             skipped.append(raw)
             continue
         if not allow_sensitive and classify_data([], extra_text=data, policy=policy).sensitive:
