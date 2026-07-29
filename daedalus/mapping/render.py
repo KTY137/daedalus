@@ -615,7 +615,8 @@ def build(repo_root, *, index=None, narrative_path=None, snapshot_path=None,
     drift_report = drift_mod.check(root, snap_path, today=today, index=index,
                                    write_missing=False,
                                    reach_report=reach_report,
-                                   switch_report=switch_report)
+                                   switch_report=switch_report,
+                                   probe_dirty=probe_dirty)
     narrative = load_narrative(narr_path)
     scanned = [m.module for m in reach_report.modules]
     the_stamp = stamp or git_stamp(root, probe_dirty=probe_dirty, scanned=scanned)
@@ -1594,10 +1595,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     # The SAME analysis the page was rendered from. Re-scanning here would
     # bank a tree that is a few seconds older than the one just published.
     drift_mod.refresh(root, snap_path, reach_report=reports[0],
-                      switch_report=reports[1])
+                      switch_report=reports[1],
+                      probe_dirty=not args.no_git)
+    # The feature census, from the SAME reports, for the same reason: it used
+    # to be typed by hand and it was thirty commits stale while the picker read
+    # it as the top of the work queue. Generating it here is what makes "it
+    # cannot be older than the run that produced it" true rather than intended.
+    from . import inventory as inventory_mod
+    inv_result = inventory_mod.refresh(root, root / inventory_mod.INVENTORY_REL,
+                                       reports=reports,
+                                       probe_dirty=not args.no_git)
     print(_render_text_summary(data, out_path))
     print(f"  re-baselined {snap_path}"
           f" -- review its git diff; that diff is the whole gate")
+    print(f"  re-generated {inv_result['path']}"
+          f" -- mechanical fields rewritten, annotations carried forward")
     return 0
 
 

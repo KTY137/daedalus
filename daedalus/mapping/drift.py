@@ -211,7 +211,7 @@ import sys
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 SNAPSHOT_REL = "docs/architecture-state.json"
 # 2: single-engine state. Adds test_only/unparsable/ignore/digest and re-derives
@@ -223,6 +223,12 @@ SNAPSHOT_REL = "docs/architecture-state.json"
 # records where the two engines disagree about the import graph. A schema-2
 # baseline has no place to put any of that, so it is refused rather than
 # read as "those lists are empty".
+#
+# Within 3, additively: ``repo_state`` records WHICH TREE was scanned and is
+# covered by the digest. Not a version bump, because the lists still mean what
+# they meant -- a schema-3 baseline without it simply cannot answer the
+# freshness question, which :func:`snapshot_freshness` reports as "not fresh"
+# rather than pretending otherwise.
 SCHEMA_VERSION = 3
 
 # The teeth. An acceptance may not be written further out than this, so no
@@ -485,8 +491,102 @@ def _drift_key(entry) -> str:
     return f"{prefix}:{entry.documented or entry.read}"
 
 
+# A git object name, and the shortest abbreviation that is an identifier
+# rather than a coincidence. git's own floor is 7; a 1-character "prefix"
+# matches roughly one HEAD in sixteen, and a check that passes by accident is
+# worse than no check because it is believed.
+_MIN_ABBREV = 7
+_SHA_RE = re.compile(rf"[0-9a-f]{{{_MIN_ABBREV},64}}")
+
+
+def repo_state(repo_root, *, probe_dirty: bool = True) -> dict:
+    """WHICH TREE this scan looked at: ``head``, ``branch``, ``dirty``.
+
+    The digest proves nobody hand-edited the snapshot. It says NOTHING about
+    when the snapshot was taken -- a baseline generated thirty commits ago
+    verifies its own digest perfectly, and that gap was measured doing real
+    damage: the self-improvement loop suppressed the stale hand-written
+    inventory (which has a freshness gate) while trusting a stale generated
+    snapshot (which had none), and acted on a description of a tree that no
+    longer existed.
+
+    ``head`` is the authority and is covered by the digest (see
+    :func:`_digest`). There is deliberately NO ``generated_at``: a clock
+    reading answers "when did the generator run", which is the weaker question,
+    and it would destroy the byte-identity this artifact is built on -- see
+    :func:`snapshot_bytes`.
+
+    ``dirty`` is probed only when there is a ``.git`` to probe, so a scan of a
+    tree that is not a checkout costs no subprocess and still answers honestly:
+    ``None`` means "could not tell", never "clean".
+    """
+    from . import render as render_mod
+
+    root = Path(repo_root)
+    head, branch = render_mod._head(root)
+    dirty: bool | None = None
+    if probe_dirty and head != "unknown":
+        verdict, _count = render_mod._dirty(root)
+        dirty = True if verdict == "dirty" else (False if verdict == "clean"
+                                                 else None)
+    return {"head": head, "branch": branch, "dirty": dirty}
+
+
+def snapshot_freshness(snapshot, repo_root=None, *, actual_head=None) -> dict:
+    """Does this snapshot describe the tree we are actually standing in?
+
+    FAILS CLOSED on the artifact's own defects -- an absent, non-string or
+    malformed ``repo_state.head`` means the snapshot cannot say what it
+    scanned, and a snapshot that cannot say what it scanned is not evidence
+    about this tree. That is the opposite of the map's digest rule, and
+    deliberately so: the digest asks "did a human edit this", where a missing
+    field is a plausible degradation; this asks "does this describe me", where
+    a missing field is the whole failure.
+
+    FAILS OPEN when the recorded head is well-formed and git cannot answer at
+    all: a tarball checkout with no ``.git`` is not evidence of staleness, and
+    turning "I cannot tell" into "refuse everything" is a worse failure than
+    ranking. Same rule, same reasoning, as
+    ``daedalus.spine.picker.inventory_freshness``.
+    """
+    state = snapshot.get("repo_state") if isinstance(snapshot, Mapping) else None
+    recorded = state.get("head") if isinstance(state, Mapping) else None
+    if not isinstance(recorded, str) or not recorded.strip():
+        return {"fresh": False, "recorded_head": None, "actual_head": None,
+                "reason": ("the snapshot records no repo_state.head, so it "
+                           "cannot say which tree it scanned. Regenerate it "
+                           "with `daedalus map`")}
+    recorded = recorded.strip()
+    if not _SHA_RE.fullmatch(recorded):
+        return {"fresh": False, "recorded_head": recorded, "actual_head": None,
+                "reason": (f"the snapshot's recorded head {recorded!r} is not a "
+                           f"git object name (at least {_MIN_ABBREV} hex "
+                           f"characters), so it cannot be checked against the "
+                           f"tree it describes")}
+    if actual_head is None and repo_root is not None:
+        from . import render as render_mod
+
+        actual_head = render_mod._head(Path(repo_root))[0]
+    if not actual_head or actual_head == "unknown":
+        return {"fresh": True, "recorded_head": recorded, "actual_head": None,
+                "reason": "git could not report HEAD; freshness unknown, "
+                          "failing open"}
+    # ONE direction: the file may record an abbreviation of the full sha git
+    # stores, so ``actual.startswith(recorded)`` is the containment that can be
+    # true. Testing the reverse would let a shorter actual satisfy a longer
+    # recorded value, which is not a relationship any git abbreviation produces.
+    if actual_head.startswith(recorded):
+        return {"fresh": True, "recorded_head": recorded,
+                "actual_head": actual_head[:len(recorded)],
+                "reason": "snapshot matches HEAD"}
+    return {"fresh": False, "recorded_head": recorded,
+            "actual_head": actual_head[:len(recorded)],
+            "reason": (f"the snapshot was generated against {recorded[:12]} but "
+                       f"HEAD is {actual_head[:12]}")}
+
+
 def scan(repo_root, *, index=None, reach_report=None,
-         switch_report=None) -> ScanResult:
+         switch_report=None, probe_dirty: bool = True) -> ScanResult:
     """Derive the current architecture state. Pure: no writes, no clock, no
     network.
 
@@ -495,6 +595,12 @@ def scan(repo_root, *, index=None, reach_report=None,
     and the gate are then provably looking at the same analysis, not at two
     that happen to agree). ``index`` is only forwarded to reach for its
     structural cross-check.
+
+    The state also records WHICH TREE it was derived from
+    (:func:`repo_state`). It belongs here rather than in the writer because it
+    is a property of the scan, and because a state that cannot say what it
+    scanned is the exact hole this module spent a release closing on the
+    hand-written side.
     """
     from . import reach as reach_mod
     from . import switches as switches_mod
@@ -556,6 +662,7 @@ def scan(repo_root, *, index=None, reach_report=None,
 
     state = {
         "schema": SCHEMA_VERSION,
+        "repo_state": repo_state(root, probe_dirty=probe_dirty),
         "counts": {
             "modules": len(modules),
             # The honest total: every module on disk that no entry point
@@ -721,6 +828,12 @@ class DriftReport:
     state: dict = field(default_factory=dict)
     snapshot: dict = field(default_factory=dict)
     wrote_snapshot: bool = False
+    # Which tree the SNAPSHOT was generated against, versus the one just
+    # scanned. Reported, never blocking: a baseline taken one commit ago is not
+    # a defect, and a gate that goes red on every commit is a gate people
+    # switch off. The consumers that RANK WORK out of these lists are the ones
+    # that must fail closed on it -- see :func:`snapshot_freshness`.
+    freshness: dict = field(default_factory=dict)
 
     @property
     def blocking(self) -> list[DriftItem]:
@@ -775,6 +888,10 @@ class DriftReport:
         status = "OK" if self.ok else "FAILED"
         lines.append(f"architecture drift: {status} -- {self.snapshot_path}")
         lines.append(f"  now: {head}")
+        if self.freshness and not self.freshness.get("fresh"):
+            lines.append(f"  baseline freshness: {self.freshness.get('reason')}")
+            lines.append("    (advisory here; a consumer that ranks work out of "
+                         "this snapshot must treat it as untrusted)")
         if not self.items:
             lines.append("  no drift against the snapshot.")
             return "\n".join(lines)
@@ -822,13 +939,13 @@ class DriftReport:
 
 _SNAPSHOT_NOTE = (
     "GENERATED by daedalus.mapping.drift -- do not hand-edit anything except "
-    "'acceptances'; every other list is covered by 'digest'. Regenerate with: "
-    "python -m daedalus.mapping.drift --refresh"
+    "'acceptances'; every other field, INCLUDING repo_state, is covered by "
+    "'digest'. Regenerate with: python -m daedalus.mapping.drift --refresh"
 )
 
 DIGEST_KEY = "digest"
-_MECHANICAL_KEYS = ("schema", "counts", "ignore", "modules", "islands",
-                    "unknown", "shims", "test_only", "dark_switches",
+_MECHANICAL_KEYS = ("schema", "repo_state", "counts", "ignore", "modules",
+                    "islands", "unknown", "shims", "test_only", "dark_switches",
                     "doc_drift", "unparsable", "index_extra_edges")
 
 
@@ -839,6 +956,12 @@ def _digest(doc: dict) -> str:
     to write; ``note`` because it is a constant. Canonical JSON with sorted
     keys, so the digest is a function of the values and not of the writer's
     key order -- two runs over an unchanged tree still produce identical bytes.
+
+    ``repo_state`` is INSIDE, and that is not an accident. It is the field that
+    says which tree was scanned, and a freshness stamp anybody can rewrite
+    without invalidating the signature is decorative. The cost is that the
+    digest changes on every commit even when no list moved -- which is correct:
+    the snapshot really does describe a different tree.
     """
     body = {k: doc.get(k) for k in _MECHANICAL_KEYS}
     blob = json.dumps(body, sort_keys=True, ensure_ascii=False,
@@ -863,10 +986,19 @@ def digest_ok(doc) -> bool:
 def snapshot_bytes(state: dict, acceptances: Sequence[Acceptance]) -> str:
     """The exact text of the snapshot. Sorted, no timestamps, trailing newline:
     two runs over an unchanged tree must produce byte-identical output or the
-    git diff -- the thing a human actually reads -- becomes noise."""
+    git diff -- the thing a human actually reads -- becomes noise.
+
+    ``repo_state`` comes out of ``state``, not out of a probe taken here, so
+    this stays a pure function of its arguments. A clock reading would not:
+    ``generated_at`` is absent from this artifact on purpose, because the
+    question worth answering is "which tree" (``repo_state.head``, stable
+    across a no-op regeneration) and not "at what o'clock" (different on every
+    run, and therefore a diff on every run).
+    """
     doc = {
         "schema": SCHEMA_VERSION,
         "note": _SNAPSHOT_NOTE,
+        "repo_state": dict(sorted((state.get("repo_state") or {}).items())),
         "counts": dict(sorted(state.get("counts", {}).items())),
         "ignore": dict(sorted((state.get("ignore") or {}).items())),
         "modules": sorted(state.get("modules", [])),
@@ -999,7 +1131,7 @@ def _remedy(kind: str, subject: str) -> str:
 
 def check(repo_root, snapshot_path=None, *, today: date | None = None,
           index=None, write_missing: bool = False, reach_report=None,
-          switch_report=None) -> DriftReport:
+          switch_report=None, probe_dirty: bool = True) -> DriftReport:
     """Compare the generated state against the committed snapshot.
 
     A missing snapshot FAILS unless ``write_missing`` is set, which is the
@@ -1013,7 +1145,7 @@ def check(repo_root, snapshot_path=None, *, today: date | None = None,
     today = today or date.today()
 
     result = scan(root, index=index, reach_report=reach_report,
-                  switch_report=switch_report)
+                  switch_report=switch_report, probe_dirty=probe_dirty)
     state = result.state
 
     snapshot = load_snapshot(snap_path)
@@ -1353,17 +1485,20 @@ def check(repo_root, snapshot_path=None, *, today: date | None = None,
 
     ok = not any(i.blocking for i in items)
     return DriftReport(ok=ok, first_run=False, snapshot_path=str(snap_path),
-                       items=items, state=state, snapshot=snapshot)
+                       items=items, state=state, snapshot=snapshot,
+                       freshness=snapshot_freshness(
+                           snapshot,
+                           actual_head=(state.get("repo_state") or {}).get("head")))
 
 
 def refresh(repo_root, snapshot_path=None, *, index=None, reach_report=None,
-            switch_report=None) -> str:
+            switch_report=None, probe_dirty: bool = True) -> str:
     """Re-baseline. Acceptances are carried forward verbatim -- refreshing is
     never a way to quietly drop somebody's stated reason."""
     root = Path(repo_root).resolve()
     snap_path = Path(snapshot_path) if snapshot_path else root / SNAPSHOT_REL
     result = scan(root, index=index, reach_report=reach_report,
-                  switch_report=switch_report)
+                  switch_report=switch_report, probe_dirty=probe_dirty)
     old = load_snapshot(snap_path) or {}
     acceptances = parse_acceptances(old.get("acceptances"))
     return write_snapshot(snap_path, result.state, acceptances)
