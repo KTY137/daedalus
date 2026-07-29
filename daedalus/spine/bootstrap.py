@@ -370,8 +370,7 @@ def shadow_run(repo_root: str | Path, *,
         return _finish("sources_unavailable" if degraded else "no_candidate")
 
     top = queue.candidates[0]
-    from daedalus.spine.attempt import run_attempt
-    from daedalus.spine.tasks import TaskSpec
+    from daedalus.spine.attempt import run_attempt, TaskSpec
 
     task = TaskSpec(task_id=top.task_id, instruction=top.instruction,
                     gate_paths=tuple(getattr(top, "gate_paths", ()) or ()))

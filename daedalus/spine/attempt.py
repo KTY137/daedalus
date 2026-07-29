@@ -340,7 +340,80 @@ def _overlap_reason(cwd_path: Path, repo_path: Path) -> str | None:
     return None
 
 
+#: Config keys git will consult that name a program to EXECUTE. Every one of
+#: them is pinned empty on the command line, where no config file can override
+#: it. See :func:`_git` for the measurement that made this necessary.
+_GIT_EXEC_CONFIG = (
+    "core.attributesFile=",     # a global attributes file selecting a filter
+    "core.hooksPath=",          # hooks, for any verb that fires them
+    "core.fsmonitor=",          # git runs this to ask what changed
+    "core.sshCommand=",
+    "diff.external=",           # belt to --no-ext-diff's braces
+    "protocol.ext.allow=never",  # ext:: URLs are a shell command by design
+    "credential.helper=",
+    "uploadpack.packObjectsHook=",
+)
+
+
+def _read_gitdir_pointer(worktree: str | Path) -> Path | None:
+    """The real admin directory of a linked worktree, read from its ``.git``.
+
+    A linked worktree's ``.git`` is a FILE containing ``gitdir: <abs path>``.
+    Read once, before any candidate code exists, so later git invocations can
+    name the directory explicitly instead of re-resolving a pointer the
+    candidate may since have rewritten.
+
+    Returns ``None`` when the shape is not the expected one -- a plain
+    directory (an ordinary clone rather than a linked worktree), a missing
+    file, or an unreadable one. ``None`` means "do not pin", which leaves git's
+    normal discovery in place; it is the pre-existing behaviour, so a caller is
+    never worse off than before this existed. It is emphatically NOT a claim
+    that the worktree is safe.
+    """
+    p = Path(worktree) / ".git"
+    try:
+        if p.is_dir():
+            return p
+        text = p.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return None
+    if not text.startswith("gitdir:"):
+        return None
+    target = text.split(":", 1)[1].strip()
+    return Path(target) if target else None
+
+
+def _git_env() -> dict:
+    """The environment git is spawned with: no config it did not get from us.
+
+    ``GIT_CONFIG_NOSYSTEM`` and an empty ``GIT_CONFIG_GLOBAL`` remove the system
+    and per-user config files from the lookup, which is where a ``filter.*``
+    definition would otherwise live. On this box that is not hypothetical --
+    ``git config --list --show-origin`` shows ``filter.lfs.*`` in BOTH the
+    system and the user config, so a candidate that writes ``* filter=lfs``
+    into ``.gitattributes`` makes ``git add`` spawn ``git-lfs`` with no config
+    of its own at all.
+
+    ``GIT_EXTERNAL_DIFF`` and friends are dropped rather than emptied: an empty
+    value for some of these is a *valid command*, not an absence.
+    """
+    env = dict(os.environ)
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env["GIT_CONFIG_GLOBAL"] = os.devnull
+    env["GIT_ATTR_NOSYSTEM"] = "1"
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    for leaky in ("GIT_EXTERNAL_DIFF", "GIT_DIR", "GIT_WORK_TREE",
+                  "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                  "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_ATTR_SYSTEM",
+                  "GIT_CONFIG", "GIT_CONFIG_COUNT", "GIT_SSH", "GIT_SSH_COMMAND",
+                  "GIT_PROXY_COMMAND", "GIT_ASKPASS"):
+        env.pop(leaky, None)
+    return env
+
+
 def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
+         git_dir: str | Path | None = None,
+         work_tree: str | Path | None = None,
          timeout: float = DEFAULT_GIT_TIMEOUT_S,
          check: bool = True) -> subprocess.CompletedProcess:
     """Run git and return the RAW BYTES it produced.
@@ -351,6 +424,36 @@ def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
 
     Output is not decoded: a patch digest must be taken over the bytes git
     emitted, so a lossy decode can never change what was hashed.
+
+    GIT IS A PROCESS LAUNCHER, AND THE CANDIDATE CHOOSES WHAT IT LAUNCHES.
+    This was measured on this box (git 2.38.1.windows.1), not reasoned about.
+    ``<worktree>/.gitattributes`` is plain candidate content; it selects a
+    ``filter.<name>.clean`` program, and ``git add -A`` runs it. In a probe
+    reproducing this module's exact call shape the spawned program executed and
+    wrote its marker, and ``git add`` returned 0 with empty stderr. Worse, the
+    two follow-up diffs also returned 0 and produced ~1.6 kB of plausible diff,
+    so the attempt continued to ``STATE_CLEAN`` and returned an ordinary
+    ``AttemptResult`` with no error field. Nothing would have been noticed.
+
+    Three properties close it, and all three are needed:
+
+    1. ``--git-dir``/``--work-tree`` ON THE COMMAND LINE. A candidate can
+       rewrite ``<worktree>/.git`` -- ``open(p, "w")`` fails on the hidden file
+       but ``open(p, "r+")`` succeeds -- to point at a gitdir it authored,
+       whose config then supplies arbitrary filter commands. Measured: a
+       from-scratch static gitdir is enough, so the attack needs NO prior code
+       execution, only bytes a patch can carry. Naming the real admin directory
+       explicitly makes that pointer irrelevant, and the caller reads it BEFORE
+       any candidate code has run.
+    2. :func:`_git_env`, so the system and user config cannot supply a filter.
+    3. :data:`_GIT_EXEC_CONFIG` pinned with ``-c``, which no config file can
+       override, for the keys that name a program directly.
+
+    WHY NOT CONTAINMENT INSTEAD. This runs in the PARENT process, before the
+    gate, and the plan of containing only the gate leaves it entirely open. The
+    attack also needs only worktree-local writes plus reads, and
+    ``daedalus.spine.containment`` states ``CONFIDENTIALITY: NONE`` -- a
+    write-contained candidate can still read and still plant these bytes.
     """
     args = [str(a) for a in args]
     if not args:
@@ -369,8 +472,16 @@ def _git(args: Sequence[str], *, cwd: str | Path, repo_root: str | Path,
                 f"only read there. Candidate changes belong in the isolated "
                 f"worktree; promotion is a human act outside this module."
             )
-    proc = subprocess.run(["git", *args], cwd=str(cwd_path),
-                          capture_output=True, timeout=timeout)
+    pre: list[str] = []
+    if git_dir is not None:
+        pre += [f"--git-dir={Path(git_dir)}"]
+    if work_tree is not None:
+        pre += [f"--work-tree={Path(work_tree)}"]
+    for kv in _GIT_EXEC_CONFIG:
+        pre += ["-c", kv]
+    proc = subprocess.run(["git", *pre, *args], cwd=str(cwd_path),
+                          capture_output=True, timeout=timeout,
+                          env=_git_env())
     if check and proc.returncode != 0:
         detail = proc.stderr.decode("utf-8", "replace").strip()
         raise GitCommandError(
@@ -760,6 +871,10 @@ class TaskAttempt:
         self.branch = (f"{BRANCH_PREFIX}-{_slug(task.task_id)}-"
                        f"{task.digest[:8]}-{uuid.uuid4().hex[:6]}")
         self.effect_key = self.branch
+        # Filled in by run() from the fresh worktree, BEFORE the runner is
+        # invoked. None until then, and None afterwards for a worktree whose
+        # `.git` was not the expected pointer file.
+        self._admin_dir: Path | None = None
 
     # -- entry point -------------------------------------------------------- #
     def run(self) -> AttemptResult:
@@ -889,6 +1004,16 @@ class TaskAttempt:
                 base_revision=base_revision,
                 error=f"worktree creation failed: {e}")
 
+        # READ THE ADMIN POINTER NOW, WHILE NO CANDIDATE CODE HAS RUN.
+        # `<worktree>/.git` is a file saying `gitdir: <path>`, and a candidate
+        # can rewrite it to point at a gitdir it authored, whose config then
+        # names arbitrary programs for git to execute (measured; see _git).
+        # Reading it here and passing --git-dir explicitly afterwards is what
+        # makes the pointer irrelevant. This is not a check-then-use window:
+        # the value is captured before the window opens, not validated inside
+        # it.
+        self._admin_dir = _read_gitdir_pointer(worktree)
+
         ctx = RunnerContext(worktree=worktree, branch=self.branch,
                             base_revision=base_revision, task=self.task,
                             is_cancelled=self._is_cancelled)
@@ -971,15 +1096,30 @@ class TaskAttempt:
         asked to commit.
 
         ``--no-renames`` is pinned so the digest does not move with git's
-        rename-detection heuristics, and ``--no-ext-diff`` so a developer's
-        configured external differ cannot rewrite the bytes we hash.
+        rename-detection heuristics, ``--no-ext-diff`` so a developer's
+        configured external differ cannot rewrite the bytes we hash, and
+        ``--no-textconv`` because IT IS NOT IMPLIED BY ``--no-ext-diff``.
+        ``--no-ext-diff`` suppresses ``diff.external`` and a driver's
+        ``command``; a ``diff.<driver>.textconv`` is a separate program, chosen
+        by the same candidate-authored ``.gitattributes``, and it was still
+        being spawned here. That was demonstrated by execution, not inferred:
+        appending this flag to the exact option list below suppressed every
+        spawn.
+
+        THIS RUNS AFTER CANDIDATE CODE AND BEFORE THE GATE, in the parent
+        process, so every git invocation here is pinned to the admin directory
+        captured before the runner ran. See :func:`_git` for what a candidate
+        does to an unpinned one.
         """
-        _git(["add", "-A"], cwd=worktree, repo_root=self.repo_root)
-        opts = ["--cached", "--no-color", "--no-ext-diff", "--no-renames"]
-        diff = _git(["diff", *opts], cwd=worktree,
-                    repo_root=self.repo_root).stdout
+        gd, wt = self._admin_dir, worktree
+        _git(["add", "-A"], cwd=worktree, repo_root=self.repo_root,
+             git_dir=gd, work_tree=wt)
+        opts = ["--cached", "--no-color", "--no-ext-diff", "--no-textconv",
+                "--no-renames"]
+        diff = _git(["diff", *opts], cwd=worktree, repo_root=self.repo_root,
+                    git_dir=gd, work_tree=wt).stdout
         names = _git(["diff", *opts, "--name-only", "-z"], cwd=worktree,
-                     repo_root=self.repo_root).stdout
+                     repo_root=self.repo_root, git_dir=gd, work_tree=wt).stdout
         changed = tuple(p.decode("utf-8", "replace")
                         for p in names.split(b"\0") if p)
         return PatchArtifact(
