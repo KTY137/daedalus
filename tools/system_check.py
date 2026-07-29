@@ -565,6 +565,8 @@ def _eval(sb: Sandbox) -> Result:
         "    row = harness.eval_task_tier1(tasks[0])\n"
         "    print(json.dumps({'task': tasks[0].get('id') or tasks[0].get('target'),\n"
         "                      'recall': row.get('recall'), 'error': row.get('error'),\n"
+        "                      'withheld': row.get('focus_withheld')\n"
+        "                                  or row.get('withheld_reason'),\n"
         "                      'keys': sorted(row)[:8]}))\n",
         encoding="utf-8")
     rc, out = sb.py(str(probe), timeout=1800, env={"ACC_REPO": str(sb.repo)})
@@ -579,9 +581,29 @@ def _eval(sb: Sandbox) -> Result:
         return Result("eval.replays_a_task_and_scores_it", FAIL,
                       f"the task errored: {got['error']}", got)
     recall = got.get("recall")
-    ok = isinstance(recall, (int, float))
-    return Result("eval.replays_a_task_and_scores_it", PASS if ok else FAIL,
-                  "" if ok else "the replay produced no recall number", got)
+    if isinstance(recall, (int, float)):
+        return Result("eval.replays_a_task_and_scores_it", PASS, "", got)
+    # "THE SECRET FLOOR WITHHELD THE FOCUS FILE" AND "THE HARNESS IS BROKEN"
+    # ARE DIFFERENT FACTS, and this check used to report both as FAIL.
+    #
+    # Measured: `daedalus/web_api.py` trips the floor on the single line
+    # `AUTH_TOKEN_ENV = "DAEDALUS_WEB_TOKEN"` -- a credential-assignment shape
+    # whose value is the NAME of an environment variable. A false positive, in
+    # the safe direction, and the floor stays: weakening a security pattern to
+    # make a measurement convenient is the trade this project refuses.
+    #
+    # But the consequence is that the task cannot be scored, and calling that a
+    # broken harness sends the next person to debug the eval instead of reading
+    # the withholding notice the eval already prints. UNAVAILABLE is the honest
+    # state -- the property was not checked, and it is NOT counted as working.
+    if got.get("withheld"):
+        return Result("eval.replays_a_task_and_scores_it", UNAVAILABLE,
+                      f"the focus file was withheld by the secret floor "
+                      f"({got['withheld']}), so this task cannot be scored -- "
+                      f"the harness was not exercised, which is not the same "
+                      f"as broken", got)
+    return Result("eval.replays_a_task_and_scores_it", FAIL,
+                  "the replay produced no recall number and gave no reason", got)
 
 
 @check("web.serves_and_terminates", stage="6 web",
