@@ -119,6 +119,12 @@ def test_a_control_that_raises_is_INCOMPLETE_and_says_so(monkeypatch):
 
     monkeypatch.setattr(drill, "CONTROLS",
                         (("probe.explodes", "nothing", explodes),))
+    # Isolate the exception verdict from the real checkout's deliberately stale
+    # discrimination receipt. A genuine FAIL correctly outranks INCOMPLETE, but
+    # that is a different test above.
+    monkeypatch.setattr(
+        drill, "staleness",
+        lambda head: _c(drill.PASS, "proofs.are_for_THIS_revision"))
     monkeypatch.setattr(drill, "RECEIPT_REL_PATH", "runs/spine/drill-test.json")
     code = drill.run(json_out=True)
     assert code == drill.EXIT_INCOMPLETE

@@ -272,6 +272,18 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
     no indexer -- isolating exactly the scope-filtering / cross-file-only /
     cap rules from the git plumbing already covered above."""
 
+    def setUp(self):
+        # Do not use "." here.  The production verifier runs the suite inside
+        # a linked git worktree, and _mint_from_diffs correctly refuses such a
+        # repo root because a persisted task would point at an ephemeral path.
+        # These tests exercise only diff scoping/labels, so give them the
+        # non-repo temporary root their class contract claims.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo_root = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
     @staticmethod
     def _module(names: list[str], variant: int) -> str:
         return "".join(f"def {n}():\n    return {variant}\n\n" for n in names)
@@ -288,7 +300,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
         # changed symbols), so must_include can only be b.py's symbol(s).
         files = self._files_ab()
         task, diag = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"a.py", "b.py"}))
         self.assertIsNotNone(task)
         self.assertEqual(task["target"], "a.py")
@@ -301,7 +313,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
         files = self._files_ab()
         files["dist/bundle.js"] = (None, "var x=1;")
         task, diag = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"a.py", "b.py"}))  # dist/bundle.js deliberately absent
         self.assertIsNotNone(task)
         self.assertEqual(task["target"], "a.py")
@@ -312,7 +324,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
     def test_only_out_of_scope_file_changed_mints_nothing_with_reason(self):
         files = {"dist/bundle.js": (None, "var x=1;")}
         task, diag = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset())
         self.assertIsNone(task)
         self.assertEqual(diag["skipped_out_of_scope"], ["dist/bundle.js"])
@@ -321,7 +333,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
     def test_single_in_scope_file_mints_nothing_with_reason(self):
         files = {"a.py": (self._module(["f"], 1), self._module(["f"], 2))}
         task, diag = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"a.py"}))
         self.assertIsNone(task)
         self.assertEqual(diag["skipped_out_of_scope"], [])
@@ -336,7 +348,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
             "aaa.py": (self._module(["a_sym"], 1), self._module(["a_sym"], 2)),
         }
         task, _ = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"zzz.py", "aaa.py"}))
         self.assertIsNotNone(task)
         self.assertEqual(task["target"], "aaa.py::a_sym")
@@ -354,7 +366,7 @@ class MintFromDiffsScopeAndLabelTest(unittest.TestCase):
             "b.py": (self._module(b_names, 1), self._module(b_names, 2)),
         }
         task, _ = _mint_from_diffs(
-            files, repo_root=".", minted_at_sha="deadbeef", source="commit",
+            files, repo_root=self.repo_root, minted_at_sha="deadbeef", source="commit",
             in_scope=frozenset({"a.py", "b.py"}))
         self.assertIsNotNone(task)
         self.assertEqual(task["target"], "a.py")
