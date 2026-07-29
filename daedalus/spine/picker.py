@@ -33,6 +33,11 @@ entrypoint counts for inventory features, recall shortfall for eval misses,
 normalised churn x complexity for hotspots. Two candidates from the same source
 are ordered by evidence and nothing else.
 
+Once a candidate has been ATTEMPTED, the ledger's record of how that attempt
+ended puts a CEILING on its offset (:data:`OUTCOME_POLICY`). That is still a
+measurement -- the loop's own return path -- and it obeys the band like every
+other one: memory reorders inside a priority and can never leave it.
+
 Cross-band comparison is therefore NOT a claim that one island beats one
 hotspot on evidence. It is the stated priority order. Do not read the ranking
 as a measurement of importance; read it as "this source first, and within it,
@@ -75,9 +80,12 @@ __all__ = [
     "EXIT_SOURCE_UNAVAILABLE",
     "INVENTORY_REL_PATH",
     "MAP_STATE_REL_PATH",
+    "OUTCOME_POLICY",
+    "OutcomePolicy",
     "PickedQueue",
     "SOURCE_BANDS",
     "SOURCE_ORDER",
+    "UNKNOWN_OUTCOME",
     "build_queue",
     "eval_baseline_candidates",
     "eval_gate_candidates",
@@ -90,6 +98,7 @@ __all__ = [
     "main",
     "map_candidates",
     "map_state_trustworthy",
+    "outcome_policy",
     "rank",
     "render_queue",
     "review_packet",
@@ -426,17 +435,19 @@ def _head_sha(repo_root: str | Path) -> str | None:
     return None
 
 
-def inventory_freshness(inventory: Mapping[str, Any],
-                        repo_root: str | Path | None = None) -> dict:
-    """Does the inventory describe the tree we are actually standing in?
+def _repo_state_freshness(doc: Mapping[str, Any], label: str,
+                          repo_root: str | Path | None = None) -> dict:
+    """Does ``doc`` describe the tree we are actually standing in?
 
-    ``docs/FEATURE_INVENTORY.json`` is HAND-WRITTEN -- nothing in this repo
-    generates it -- and it drives the two highest bands, so a stale one steers
-    the whole loop toward work that may no longer exist. It stamps the revision
-    it was written against in ``repo_state.head``; this compares that to real
-    HEAD by PREFIX, because the file records a short sha and git reports a long
-    one, and a mismatch (or an unreadable stamp) means the picker is reasoning
-    about a different tree.
+    ONE implementation, shared by every source that stamps the revision it was
+    written against in ``repo_state.head``. It is a shared function rather than
+    a rule each source re-states because this repo has already paid for the
+    other design: five separate host predicates drifted apart here, two of them
+    ending up MORE permissive than the safety core they were supposed to mirror.
+
+    The comparison is by PREFIX, because these files record a short sha and git
+    reports a long one, and a mismatch (or an unreadable stamp) means the
+    caller is reasoning about a different tree.
 
     A ``dirty: true`` snapshot is NOT treated as stale on its own: this repo is
     almost always dirty mid-session, and refusing to rank work whenever an
@@ -448,17 +459,17 @@ def inventory_freshness(inventory: Mapping[str, Any],
     checkout with no git is not evidence of staleness, and turning "I cannot
     tell" into "refuse everything" would be a worse failure than ranking.
     """
-    state = inventory.get("repo_state") if isinstance(inventory, Mapping) else None
+    state = doc.get("repo_state") if isinstance(doc, Mapping) else None
     recorded = (str(state.get("head") or "").strip()
                 if isinstance(state, Mapping) else "")
     dirty = bool(state.get("dirty")) if isinstance(state, Mapping) else False
 
-    if not isinstance(inventory, Mapping) or not inventory:
-        return {"fresh": True, "reason": "no inventory to check",
+    if not isinstance(doc, Mapping) or not doc:
+        return {"fresh": True, "reason": f"no {label} to check",
                 "recorded_head": None, "actual_head": None, "dirty": dirty}
     if not recorded:
         return {"fresh": False,
-                "reason": "the inventory records no repo_state.head, so it "
+                "reason": f"the {label} records no repo_state.head, so it "
                           "cannot be checked against the tree it describes",
                 "recorded_head": None, "actual_head": None, "dirty": dirty}
     # A prefix comparison is only meaningful against a real abbreviated sha.
@@ -467,7 +478,7 @@ def inventory_freshness(inventory: Mapping[str, Any],
     # than no check, because it is believed.
     if not _ABBREV_SHA_RE.fullmatch(recorded):
         return {"fresh": False,
-                "reason": (f"the inventory's recorded head {recorded!r} is not "
+                "reason": (f"the {label}'s recorded head {recorded!r} is not "
                            f"an abbreviated git sha (expected at least "
                            f"{_MIN_ABBREV} hex characters), so it cannot be "
                            f"checked against the tree it describes"),
@@ -486,14 +497,24 @@ def inventory_freshness(inventory: Mapping[str, Any],
     # longer recorded value, which is not a prefix relationship any git
     # abbreviation produces.
     if actual.startswith(recorded):
-        return {"fresh": True, "reason": "inventory matches HEAD",
+        return {"fresh": True, "reason": f"{label} matches HEAD",
                 "recorded_head": recorded, "actual_head": actual[:len(recorded)],
                 "dirty": dirty}
     return {"fresh": False,
-            "reason": (f"the inventory was written against {recorded} but HEAD "
+            "reason": (f"the {label} was written against {recorded} but HEAD "
                        f"is {actual[:len(recorded)]}"),
             "recorded_head": recorded, "actual_head": actual[:len(recorded)],
             "dirty": dirty}
+
+
+def inventory_freshness(inventory: Mapping[str, Any],
+                        repo_root: str | Path | None = None) -> dict:
+    """Does the inventory describe the tree we are actually standing in?
+
+    ``docs/FEATURE_INVENTORY.json`` drives the two highest bands, so a stale one
+    steers the whole loop toward work that may no longer exist.
+    """
+    return _repo_state_freshness(inventory, "inventory", repo_root)
 
 
 # --------------------------------------------------------------------------- #
@@ -521,19 +542,35 @@ def load_map_state(path: str | Path | None = None,
     return data if isinstance(data, dict) else {}
 
 
-def map_state_trustworthy(state: Mapping[str, Any]) -> dict:
-    """Does the snapshot's own digest still cover its own mechanical lists?
+def map_state_trustworthy(state: Mapping[str, Any],
+                          repo_root: str | Path | None = None) -> dict:
+    """May the loop rank work out of this snapshot? Two questions, both required.
 
-    ``daedalus.mapping.drift`` states the rule this implements: *any verb that
-    INHERITS lists from an existing snapshot rather than rescanning has to ask
-    this first and refuse on a mismatch* -- otherwise a hand-edit that the drift
-    gate would have caught silently becomes the thing the loop picks work from.
+    INTEGRITY -- has anyone hand-edited the generated file? ``daedalus.mapping.drift``
+    states the rule: *any verb that INHERITS lists from an existing snapshot
+    rather than rescanning has to ask this first and refuse on a mismatch*.
     Ranking work out of those lists is exactly such a verb.
 
-    This is a DIFFERENT question from the inventory's freshness check. That one
-    asks "was this written against the tree I am standing in", because a
-    hand-written file has no other defence. This one asks "has anyone edited the
-    generated file by hand", because a generated file's defence is its digest.
+    FRESHNESS -- does the snapshot describe the tree we are standing in? This
+    question used to be missing, and its absence was justified in this very
+    docstring with the sentence "a generated file's defence is its digest".
+    That was wrong, and it cost something measurable. A digest proves nobody
+    tampered with the file; it says NOTHING about which tree was scanned. A
+    snapshot generated thirty commits ago verifies its digest perfectly.
+
+    What that bought: an agent executed the loop's top recommendation, which
+    asserted ``daedalus/compaction.py`` was an unreachable island. On the live
+    tree it was not an island at all -- it was ``unknown``, because of a string
+    literal in a smoke-test prompt. The picker had SUPPRESSED the stale
+    inventory (which has a freshness gate) while TRUSTING the stale map (which
+    had none), and acted on a description of a tree that no longer existed.
+
+    So both questions are asked, and both must pass. A snapshot that records no
+    ``repo_state.head`` cannot answer the second one and is therefore NOT
+    trusted -- fail closed, the same rule the inventory follows. Until the
+    generator stamps the revision it scanned, that is the honest verdict, and
+    reporting "I have no trustworthy map" beats ranking work from a tree that
+    is gone.
     """
     if not state:
         return {"trusted": True, "reason": "no map snapshot to check"}
@@ -544,12 +581,20 @@ def map_state_trustworthy(state: Mapping[str, Any]) -> dict:
     except Exception as e:  # mapping unavailable -> cannot verify -> do not trust
         return {"trusted": False,
                 "reason": f"could not verify the snapshot digest ({type(e).__name__}: {e})"}
-    if ok:
-        return {"trusted": True, "reason": "snapshot digest verifies"}
-    return {"trusted": False,
-            "reason": ("the snapshot's mechanical lists do not match the digest "
-                       "written with them -- it has been hand-edited. Regenerate "
-                       "with `daedalus map`")}
+    if not ok:
+        return {"trusted": False,
+                "integrity": False,
+                "reason": ("the snapshot's mechanical lists do not match the digest "
+                           "written with them -- it has been hand-edited. Regenerate "
+                           "with `daedalus map`")}
+
+    fresh = _repo_state_freshness(state, "map snapshot", repo_root)
+    if not fresh["fresh"]:
+        return {"trusted": False, "integrity": True, "freshness": fresh,
+                "reason": (f"the snapshot's digest verifies, but {fresh['reason']}. "
+                           f"Regenerate with `daedalus map`")}
+    return {"trusted": True, "integrity": True, "freshness": fresh,
+            "reason": f"snapshot digest verifies and {fresh['reason']}"}
 
 
 def _map_island_instruction(module: str, test_only: bool) -> str:
@@ -1022,12 +1067,174 @@ def _load_index(repo_root: str | Path) -> tuple[Mapping[str, Any] | None, str | 
 # silently -- which is the only reason a copy is acceptable here at all.
 ATTEMPT_INTENT_KIND = "attempt.candidate"
 
-# How far an already-attempted candidate sinks. Deliberately >= BAND_SPAN so the
-# penalty always drives the measured offset to the band floor: "I have tried
-# this" outranks every within-band measurement, but -- because the result is
-# re-clamped into [0, BAND_SPAN] -- it can still never push a candidate out of
-# its stated band. Memory reorders within a priority; it does not overrule one.
+# The deepest sink memory can express: the whole span, which lands a candidate
+# exactly on its band FLOOR. Deliberately equal to BAND_SPAN and never larger --
+# "I have tried this and it is finished with me" outranks every within-band
+# measurement, but it can still never push a candidate out of its stated band.
+# Memory reorders within a priority; it does not overrule one.
 ATTEMPT_MEMORY_PENALTY = BAND_SPAN
+
+
+# --------------------------------------------------------------------------- #
+# the OUTCOME POLICY                                                           #
+# --------------------------------------------------------------------------- #
+# Memory first shipped sinking EVERY attempted candidate by the same amount.
+# That made three very different facts indistinguishable in the SCORE -- a run
+# that produced a CLEAN gated patch now waiting on a human, a run whose gates
+# REJECTED the diff, and a run where the worktree never even came up -- and left
+# the difference visible only in the reason TEXT, which nothing sorts by. A
+# distinction that only exists in prose is a distinction the loop does not have.
+#
+# The table below is the missing argument, written as DATA so a reviewer can
+# disagree with a number instead of with a paragraph. The question it answers is
+# not "did the attempt succeed". It is:
+#
+#     given that we already ran this exact instruction and it ended in state S,
+#     how much of this candidate's measured standing should survive?
+#
+# Two axes decide it:
+#
+#   1. Did the attempt teach us something about the TASK, or only about the
+#      MACHINE? A rejected diff is evidence about the work. A worktree that
+#      would not build is evidence about the box -- and sinking work for it is
+#      how one bad afternoon buries a real task at the bottom of the queue.
+#   2. Is a HUMAN already holding the output? A ``clean`` attempt has produced a
+#      gated patch waiting on a review decision. Model time cannot advance that,
+#      and a second attempt does not merely waste a lane: it hands the reviewer
+#      two patches for one instruction and makes them choose.
+#
+# RESIDUAL is the fraction of BAND_SPAN an attempted candidate may KEEP, and it
+# is applied as a CEILING, not as a subtraction. A subtraction made the
+# outcome's effect depend on where the measurement happened to sit -- the same
+# ``no_change`` sank a well-measured island by half a band and a bare one not at
+# all -- so identical outcomes got incomparable treatment. A ceiling states one
+# claim per outcome ("attempted work of this kind may stand no higher than
+# here"), and because it is a ``min()`` it can only ever lower a candidate.
+# Memory never promotes.
+#
+# SEVERITY exists because the band floor is a HARD BOTTOM. ``clean`` and
+# ``gates_failed`` both belong at it, and there is nothing below it that does
+# not leave the band -- which is not memory's to do. So that last distinction is
+# carried as a tie-break in :func:`rank`, exactly as ``prior_attempts`` already
+# is, and for exactly the same reason: the score cannot express an order the
+# band forbids, and a tie-break can.
+#
+# Still a PENALTY, never a filter. Every attempted candidate stays in the queue
+# at every residual, including 0.0. One transient failure must not be able to
+# delete real work.
+@dataclass(frozen=True)
+class OutcomePolicy:
+    """What one recorded attempt outcome means for picking that work again.
+
+    ``residual``  fraction of :data:`BAND_SPAN` an attempted candidate may keep.
+    ``severity``  floor tie-break, 0..1; HIGHER means re-pick this one LAST.
+    ``meaning``   what the outcome says about the task, for the reason line.
+    ``verdict``   why that residual -- one sentence a human can refuse.
+    """
+
+    outcome: str
+    residual: float
+    severity: float
+    meaning: str
+    verdict: str
+
+    def ceiling(self, n_same: int = 1) -> float:
+        """The highest offset this candidate may keep after ``n_same`` attempts.
+
+        Repeats COMPOUND. One worktree failure is an accident; five in a row is
+        a broken task, and a policy that treated them alike would leave the loop
+        re-picking a candidate it cannot even check out -- the original defect,
+        reintroduced through the outcomes that were judged harmless. ``residual
+        ** n`` is monotone, bounded, and never actually reaches the floor while
+        ``residual > 0``, so a compounding sink is still a penalty and still
+        never a filter.
+        """
+        n = max(1, int(n_same))
+        return round(BAND_SPAN * (self.residual ** n), 4)
+
+
+OUTCOME_POLICY: dict[str, OutcomePolicy] = {
+    # A patch PASSED the gates and is sitting in the review queue. The bottleneck
+    # is a human, and no amount of model time moves a human.
+    "clean": OutcomePolicy(
+        outcome="clean", residual=0.0, severity=0.95,
+        meaning="a gated patch already exists and is waiting on a human",
+        verdict="re-attempting is close to pointless and worse than idle: the "
+                "blocker is a review decision, and a second patch for one "
+                "instruction makes the reviewer choose between two"),
+    # A diff existed and the gates refused it. Unlike `clean`, more model time
+    # CAN still move this -- so it sinks to the same floor but is picked back up
+    # before `clean` is (see severity).
+    "gates_failed": OutcomePolicy(
+        outcome="gates_failed", residual=0.0, severity=0.90,
+        meaning="the runner produced a diff and the gates rejected it",
+        verdict="real evidence about this task: the instruction as written "
+                "leads somewhere the gates do not accept, so re-running it "
+                "unchanged is a re-roll of dice we have already seen land"),
+    # The advisory / nothing-proposed case. Says the least of any outcome that
+    # actually reached a model.
+    "no_change": OutcomePolicy(
+        outcome="no_change", residual=0.5, severity=0.50,
+        meaning="the runner ran and proposed nothing",
+        verdict="weak evidence either way -- an advisory lane, a vague "
+                "instruction and a genuinely finished feature all look like "
+                "this -- but a lane was spent, so it sinks to half its band",
+    ),
+    # From here down: the machine failed, not the work. Sinking hard here is how
+    # one flaky provider call buries a real task.
+    "runner_failed": OutcomePolicy(
+        outcome="runner_failed", residual=0.8, severity=0.30,
+        meaning="the runner itself raised",
+        verdict="infrastructure, not evidence: nothing was learned about the "
+                "task, and a hard sink would let one flaky provider call bury "
+                "real work"),
+    "worktree_failed": OutcomePolicy(
+        outcome="worktree_failed", residual=0.9, severity=0.20,
+        meaning="no isolated checkout could be produced; no model was reached",
+        verdict="the attempt never got far enough to learn anything at all, so "
+                "it barely moves -- and compounding handles the case where the "
+                "checkout is broken for this task specifically"),
+    "cancelled": OutcomePolicy(
+        outcome="cancelled", residual=0.9, severity=0.15,
+        meaning="a human or the cancel token stopped the attempt",
+        verdict="says nothing about the work's merit and often means the "
+                "operator intends to resume, so it is very nearly a no-op"),
+    "storage_unavailable": OutcomePolicy(
+        outcome="storage_unavailable", residual=0.95, severity=0.10,
+        meaning="the storage guard refused before anything ran",
+        verdict="the furthest an outcome gets from evidence about the task: a "
+                "condition of the box that will clear on its own"),
+}
+
+# The outcome is missing or is a string nobody has classified. FAIL CLOSED to
+# the flat behaviour this policy replaced, for two independent reasons:
+#
+#   * an intent with NO result is an attempt still IN FLIGHT. Re-picking it
+#     races a run that is already holding this task, in the same worktree
+#     branch. That is the one case where a soft sink is actively unsafe.
+#   * an unrecognised state is a state nobody has argued about yet, and an
+#     unargued state must not become the escape hatch that makes memory WEAKER
+#     than it was before the policy existed.
+#
+# A drift test pins OUTCOME_POLICY's keys against attempt.ATTEMPT_STATES, so a
+# newly added state is a RED test rather than a silent fall through to here.
+UNKNOWN_OUTCOME = OutcomePolicy(
+    outcome="unknown", residual=0.0, severity=1.0,
+    meaning="the ledger records an attempt with no recognised result state",
+    verdict="fail closed: an attempt with no result is still in flight, and "
+            "re-picking it races the run that already holds this task")
+
+
+def outcome_policy(outcome: Any) -> OutcomePolicy:
+    """The policy row for a recorded outcome; :data:`UNKNOWN_OUTCOME` if unknown.
+
+    Never raises and never returns ``None``: the caller is on the ranking path,
+    where a missing row must degrade to the safest reading rather than to a
+    traceback or -- far worse -- to no penalty at all.
+    """
+    key = str(outcome or "").strip()
+    return OUTCOME_POLICY.get(key, UNKNOWN_OUTCOME)
+
 
 def instruction_fingerprint(instruction: str) -> str:
     """The DEFINITION half of a candidate's retry identity.
@@ -1119,12 +1326,20 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
     attached. The operator (and ``--once``) still sees every candidate; what
     changes is the order, and every moved candidate carries the evidence that
     moved it.
+
+    HOW FAR it sinks is :data:`OUTCOME_POLICY`'s decision, not a constant: the
+    outcome is applied as a CEILING on the measured offset, so the score itself
+    distinguishes "a patch is waiting for you" from "the gates said no" from
+    "the worktree would not build". Before this, all three sank identically and
+    the difference survived only in the reason text.
     """
     if not history:
         return tuple(candidates), ()
     out: list[Candidate] = []
-    moved = 0
+    sunk = 0
+    held = 0
     redefined = 0
+    by_outcome: dict[str, int] = {}
     for cand in candidates:
         rec = history.get(cand.task_id)
         if not rec:
@@ -1150,21 +1365,45 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
             out.append(replace(cand, evidence=evidence))
             continue
 
-        moved += 1
-        offset = _clamp(cand.offset - ATTEMPT_MEMORY_PENALTY, 0.0, BAND_SPAN)
+        policy = outcome_policy(rec.get("last_outcome"))
+        ceiling = policy.ceiling(same)
+        offset = _clamp(min(cand.offset, ceiling), 0.0, BAND_SPAN)
+        by_outcome[policy.outcome] = by_outcome.get(policy.outcome, 0) + 1
+        if offset < cand.offset:
+            sunk += 1
+        else:
+            # Remembered, but the measurement already had it at or below its
+            # outcome's ceiling. Counted separately because "memory moved 4
+            # candidates" would otherwise be a claim about work that did not
+            # move, and the note is the only place an operator sees this.
+            held += 1
+        # The audit trail for the number above: the ceiling, what it was applied
+        # to, and the argument for that ceiling -- so a human reading the review
+        # packet can re-derive the score and refuse the policy, not just the sort.
+        evidence["memory_outcome_residual"] = policy.residual
+        evidence["memory_outcome_severity"] = policy.severity
+        evidence["memory_offset_ceiling"] = ceiling
+        evidence["memory_offset_before"] = cand.offset
+        evidence["memory_policy"] = policy.verdict
         out.append(replace(
             cand,
             score=round(SOURCE_BANDS[cand.source] + offset, 4),
             evidence=evidence,
             reason=(f"{cand.reason}; already attempted "
                     f"{same}x with this exact instruction (last: "
-                    f"{rec.get('last_outcome') or rec.get('last_state')})")))
+                    f"{rec.get('last_outcome') or rec.get('last_state')}) -- "
+                    f"{policy.meaning}, so it may stand no higher than "
+                    f"{ceiling:.2f} in its band")))
 
     notes: list[str] = []
-    if moved:
-        notes.append(f"attempt memory: {moved} candidate(s) sank to their band "
-                     f"floor because the spine ledger records a prior attempt "
-                     f"at the same instruction")
+    remembered = sunk + held
+    if remembered:
+        breakdown = ", ".join(f"{n}x {name}"
+                              for name, n in sorted(by_outcome.items()))
+        notes.append(f"attempt memory: {remembered} candidate(s) match a prior "
+                     f"attempt at the same instruction ({breakdown}); {sunk} "
+                     f"sank to their outcome's ceiling, {held} already stood at "
+                     f"or below it")
     if redefined:
         notes.append(f"attempt memory: {redefined} candidate(s) share a task_id "
                      f"with a prior attempt but their instruction changed, so "
@@ -1177,7 +1416,8 @@ def apply_attempt_memory(candidates: Sequence[Candidate],
 
 def rank(candidates: Sequence[Candidate],
          limit: int | None = None) -> tuple[Candidate, ...]:
-    """Deterministic ranking: score desc, untried first, source order, task_id.
+    """Deterministic ranking: score desc, mildest outcome, fewest attempts,
+    source order, task_id.
 
     The tie-breaks are not decoration. Scores collide constantly (two islands
     with the same test count are genuinely equal on evidence), and a queue whose
@@ -1185,14 +1425,22 @@ def rank(candidates: Sequence[Candidate],
     reproducible -- which would make "measurement picks the next task"
     unfalsifiable, since two runs could disagree with no cause to point at.
 
-    ``prior_attempts`` ranks ahead of the other tie-breaks because the score
-    alone cannot express memory at the bottom of a band. ``apply_attempt_memory``
-    drives an attempted candidate's offset to the band FLOOR, and the floor is
-    also where every candidate with no measured evidence already sits -- so a
-    tried candidate and an untried one collide on score exactly when the
-    distinction matters most. Expressing it as a tie-break rather than a bigger
-    penalty is deliberate: a penalty large enough to separate them would have to
-    leave the band, and the stated priority is not memory's to overrule.
+    The memory tie-breaks rank ahead of the rest because the score alone cannot
+    express memory at the bottom of a band. ``apply_attempt_memory`` drives a
+    fully-sunk candidate's offset to the band FLOOR, and the floor is also where
+    every candidate with no measured evidence already sits -- so tried and
+    untried, and ``clean`` and ``gates_failed``, all collide on score exactly
+    when the distinction matters most. Expressing it as a tie-break rather than
+    a bigger penalty is deliberate: a penalty large enough to separate them
+    would have to leave the band, and the stated priority is not memory's to
+    overrule.
+
+    OUTCOME SEVERITY is checked BEFORE the attempt count, because the count is
+    the weaker fact. A task attempted once and returned ``clean`` has a patch
+    waiting on a human; a task attempted three times whose worktree never built
+    has taught us nothing at all. The second is the better next pick despite
+    having been tried more often. Untried candidates carry no severity and read
+    as ``0.0``, so they still come first at any given score.
     """
     order = {name: i for i, name in enumerate(SOURCE_ORDER)}
 
@@ -1202,10 +1450,19 @@ def rank(candidates: Sequence[Candidate],
         except (TypeError, ValueError):
             return 0
 
+    def _severity(c: Candidate) -> float:
+        # Set only by apply_attempt_memory, and only on candidates it actually
+        # sank -- a candidate whose INSTRUCTION was rewritten keeps its lineage
+        # in prior_attempts but must not inherit the old outcome's severity.
+        try:
+            return float(c.evidence.get("memory_outcome_severity") or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
     ranked = sorted(
         candidates,
-        key=lambda c: (-c.score, _tried(c), order.get(c.source, len(order)),
-                       c.task_id))
+        key=lambda c: (-c.score, _severity(c), _tried(c),
+                       order.get(c.source, len(order)), c.task_id))
     if limit is not None and limit >= 0:
         ranked = ranked[:limit]
     return tuple(ranked)
@@ -1234,7 +1491,7 @@ def build_queue(repo_root: str | Path | None = None, *,
     sources: dict[str, Any] = {}
 
     map_state = load_map_state(repo_root=root) if map_snapshot is None else map_snapshot
-    map_trust = map_state_trustworthy(map_state)
+    map_trust = map_state_trustworthy(map_state, repo_root=root)
     map_cands, map_notes = map_candidates(map_state)
     if map_trust["trusted"]:
         candidates.extend(map_cands)
