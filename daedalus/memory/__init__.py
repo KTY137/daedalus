@@ -7,7 +7,10 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Mapping
+
+if TYPE_CHECKING:  # pragma: no cover - import cost stays off the append path
+    from .embeddings import AgentEvent
 
 
 # ``memory.py`` became a package so vector-index helpers can live beside it.
@@ -68,37 +71,60 @@ def append_event(event: MemoryEvent) -> dict[str, Any]:
     return record
 
 
+def projection_event_from_record(record: Mapping[str, Any]) -> "AgentEvent":
+    """Derive the projection input for one journal record.
+
+    This is the single definition of "what a memory event embeds as", shared by
+    the synchronous bridge below and by
+    :mod:`daedalus.memory.projection_worker`.  It has to be shared: the index is
+    content-addressed on a hash of exactly these fields, so two writers that
+    derive an event differently would write two rows for one journal line
+    instead of one, and neither would be able to tell the other's work had
+    already been done.
+    """
+
+    from .embeddings import AgentEvent
+
+    paths = [str(path) for path in (record.get("paths") or []) if str(path).strip()]
+    content = str(record.get("summary", ""))
+    if paths:
+        # Keep explicit path evidence in both the human-readable projection
+        # input and structured metadata.  The context compiler may map a
+        # latent memory hit back into the Forest only when such evidence is
+        # present; semantic similarity alone must never invent a file.
+        content += "\n\nPaths:\n" + "\n".join(paths)
+    return AgentEvent(
+        event_id=f"{record.get('time', '')}_{record.get('kind', '')}",
+        event_type=record.get("kind", "memory"),
+        content=content,
+        timestamp=record.get("time", ""),
+        metadata={
+            "source": record.get("source", ""),
+            "task_id": record.get("task_id", ""),
+            "repo_root": record.get("repo_root"),
+            "project": record.get("project"),
+            "trust": record.get("trust"),
+            "status": record.get("status"),
+            "paths": paths,
+        },
+    )
+
+
 def _try_vector_index(record: dict[str, Any]) -> None:
-    """Best-effort forwarding to EventVectorStore. Never raises."""
+    """Best-effort forwarding to EventVectorStore. Never raises.
+
+    This bridge does NOT record a journal watermark -- it sees one record at a
+    time and has no idea where that record sits in the journal file.  Indexes it
+    builds alone therefore report ``freshness == "unanchored"``.  Run
+    ``python -m daedalus.memory.projection_worker`` to anchor them; it costs no
+    embedding calls for entries the bridge already projected.
+    """
     store = None
     try:
-        from .embeddings import AgentEvent as VectorEvent, EventVectorStore
+        from .embeddings import EventVectorStore
         store = EventVectorStore(VECTOR_DB_PATH)
-        paths = [str(path) for path in (record.get("paths") or []) if str(path).strip()]
-        content = str(record.get("summary", ""))
-        if paths:
-            # Keep explicit path evidence in both the human-readable projection
-            # input and structured metadata.  The context compiler may map a
-            # latent memory hit back into the Forest only when such evidence is
-            # present; semantic similarity alone must never invent a file.
-            content += "\n\nPaths:\n" + "\n".join(paths)
-        ve = VectorEvent(
-            event_id=f"{record.get('time', '')}_{record.get('kind', '')}",
-            event_type=record.get("kind", "memory"),
-            content=content,
-            timestamp=record.get("time", ""),
-            metadata={
-                "source": record.get("source", ""),
-                "task_id": record.get("task_id", ""),
-                "repo_root": record.get("repo_root"),
-                "project": record.get("project"),
-                "trust": record.get("trust"),
-                "status": record.get("status"),
-                "paths": paths,
-            },
-        )
         report = store.ingest_events_report(
-            [ve],
+            [projection_event_from_record(record)],
             model_revision=(
                 os.environ.get("OLLAMA_EMBED_MODEL_REVISION", "").strip() or None
             ),

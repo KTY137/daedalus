@@ -15,6 +15,12 @@ memory/*.local.json
 memory/*.status.json
 memory/*status.local.json
 memory/receipts/
+# Derived vector projection index. The journal is authoritative; this is
+# rebuilt from it by `python -m daedalus.memory.projection_worker`.
+memory/vectors.db
+memory/vectors.db-journal
+memory/vectors.db-wal
+memory/vectors.db-shm
 outbox/*.json
 inbox/*.json
 .env
@@ -37,3 +43,17 @@ target/
 build/
 runs/validation_wheels/
 .daedalus_worktrees/
+
+# Council/room runtime state: transcripts, chained mirrors, per-turn sidecars
+# and the hook's own log. The TOOLING under runs/council/ is source and is
+# committed; everything below is produced by running it.
+runs/council/*.jsonl
+runs/council/*.jsonl.anchor.json
+runs/council/session/
+runs/council/.stream_hook.log*
+runs/council/.codex_prompt.txt
+runs/council/.agy_prompt.txt
+runs/council/.stream_seen
+runs/council/cursors.json
+runs/spine/
+runs/canary/
