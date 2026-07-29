@@ -1,0 +1,262 @@
+{
+  "$comment": "IGNORED BY THE LOADER. External sources of React components, at LIBRARY granularity and BY REFERENCE ONLY. No third party's component source is stored here, and no `files`/`content` field exists in this schema to store it in. Each entry carries what you need to CHOOSE a source and to know what you may do with it: a name, a URL, a licence, and what it is for. Every licence below was verified on 2026-07-29 by reading the project's own LICENSE file or licence page; the URLs are in the provenance blocks and the evidence is in docs/GUI_CATALOGUE.md. Three of these are licence traps -- read `use_mode` before copying anything.",
+  "entries": [
+    {
+      "name": "ext/shadcn-ui",
+      "kind": "library",
+      "title": "shadcn/ui",
+      "purpose": "The reference copy-in component collection for React and Tailwind: accordion, button, dialog, form, table and about sixty more primitives you paste into your own repo and then own. Also the publisher of registry.json / registry-item.json, the only widely-adopted machine-readable schema for describing available components. Reach for this first when you need a conventional, accessible, unopinionated widget.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/shadcn-ui/ui/blob/main/LICENSE.md",
+      "provenance": {
+        "origin": "shadcn-ui/ui",
+        "url": "https://ui.shadcn.com",
+        "retrieved": "2026-07-29",
+        "note": "LICENSE.md read raw: 'MIT License / Copyright (c) 2023 shadcn'. One repo-root licence covers docs, CLI and the component source served in files[].content. Registry index https://ui.shadcn.com/r/index.json fetched: HTTP 200, no auth, 62 registry:ui items, metadata only, no source."
+      },
+      "tags": ["shadcn", "registry", "copy-in", "tailwind", "radix", "accessible", "primitives", "schema", "components"],
+      "dependencies": [],
+      "usage": "npx shadcn@latest add button    # copies source into YOUR repo; nothing is vendored here",
+      "notes": "The FORMAT this catalogue's schema is modelled on. Two things its registry-item schema provably lacks, verified by fetching https://ui.shadcn.com/schema/registry-item.json: no props/API field anywhere (only a meta.links.*.api URL to somebody's prose docs), and no licence or provenance field at all. Both are mandatory here. Per-item URLs (/r/styles/<style>/<name>.json) DO embed full component source in files[].content -- fetching those is how you would accidentally vendor."
+    },
+    {
+      "name": "ext/react-bits",
+      "kind": "library",
+      "title": "React Bits",
+      "purpose": "A large collection of animated, eye-catching React components -- text effects, backgrounds, scroll and hover animations. Visually the closest match to a 'wow' brief. USE IT AS INSPIRATION AND REFERENCE ONLY: its licence forbids redistributing the components, so its source may not be copied into a repository that is itself redistributed.",
+      "licence": "MIT-with-Commons-Clause",
+      "licence_url": "https://github.com/DavidHDev/react-bits/blob/main/LICENSE.md",
+      "provenance": {
+        "origin": "DavidHDev/react-bits",
+        "url": "https://reactbits.dev",
+        "retrieved": "2026-07-29",
+        "note": "LICENSE.md read raw: 'MIT + Commons Clause License Condition v1.0 -- Copyright (c) 2026 David Haz ... so long as you do not sell, sublicense, or redistribute the components themselves -- whether alone, in a bundle, or as a ported version.' GitHub's own detector reports key 'other', spdx 'NOASSERTION'."
+      },
+      "tags": ["animated", "effects", "text animation", "background", "scroll", "hover", "showcase", "wow", "inspiration"],
+      "dependencies": [],
+      "notes": "THE LICENCE TRAP THIS CATALOGUE EXISTS TO CATCH. The string starts with 'MIT'; the licence is not MIT. The Commons Clause removes exactly the right this repo would need. There is no official registry.json and no official MCP server -- the MCP servers on npm are third-party wrappers, unaffiliated with the author. Separately: the npm package literally named `react-bits` is an UNRELATED project by Doug Miller and is not this."
+    },
+    {
+      "name": "ext/aceternity-ui",
+      "kind": "library",
+      "title": "Aceternity UI",
+      "purpose": "Elaborate motion-heavy React and Tailwind components -- 3D cards, spotlight and aurora backgrounds, animated beams. Serves a similar brief to React Bits with a heavier framer-motion dependency. Reference only: the licence permits building and selling end products but forbids redistributing the source files.",
+      "licence": "Aceternity-License",
+      "licence_url": "https://ui.aceternity.com/licence",
+      "provenance": {
+        "origin": "Aceternity UI",
+        "url": "https://ui.aceternity.com",
+        "retrieved": "2026-07-29",
+        "note": "Licence page read: custom 'Aceternity License' -- permits building and selling end-products, prohibits 're-distributing the Item or source files' and selling derivative products on marketplaces. Live shadcn-format registry confirmed at https://ui.aceternity.com/registry/<name>.json (returns full .tsx source, no auth). Whether paid components are gated in the same registry was NOT confirmed."
+      },
+      "tags": ["animated", "3d", "spotlight", "aurora", "background", "motion", "tailwind", "marketing", "landing page"],
+      "dependencies": [],
+      "notes": "Serves a live shadcn-format registry that embeds source and needs no auth. Being fetchable is not being licensed: the registry works, the licence still forbids redistribution. Do not let the CLI's success be read as permission."
+    },
+    {
+      "name": "ext/magic-ui",
+      "kind": "library",
+      "title": "Magic UI",
+      "purpose": "Around 150 animated copy-in components in the shadcn registry format -- marquees, shimmer buttons, number tickers, animated beams and grids. MIT, so unlike React Bits and Aceternity its source genuinely may be copied. Reach for it when a landing page or a marketing surface needs motion the glass set does not cover.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/magicuidesign/magicui/blob/main/LICENSE.md",
+      "provenance": {
+        "origin": "magicuidesign/magicui",
+        "url": "https://magicui.design",
+        "retrieved": "2026-07-29",
+        "note": "LICENSE.md confirmed MIT. registry.json present at repo root (HTTP 200 on raw.githubusercontent.com) and listed in shadcn's registry directory as @magicui -> https://magicui.design/r/{name}."
+      },
+      "tags": ["animated", "marquee", "shimmer", "beams", "ticker", "landing page", "marketing", "motion", "copy-in", "registry"],
+      "dependencies": [],
+      "usage": "npx shadcn@latest add @magicui/marquee",
+      "notes": "Copy-in, not npm-installable. Individual components commonly require `motion` (framer-motion); the per-component dependency list was NOT verified entry by entry."
+    },
+    {
+      "name": "ext/radix-primitives",
+      "kind": "primitive",
+      "title": "Radix UI Primitives",
+      "purpose": "Unstyled, accessible behaviour primitives: dialog, popover, dropdown menu, tooltip, select, tabs. It supplies focus trapping, keyboard interaction, ARIA wiring and collision-aware positioning -- the hard parts the glass set deliberately does not implement. Reach for it when a glass component needs real modal or menu semantics rather than a styled div.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/radix-ui/primitives/blob/main/LICENSE",
+      "provenance": {
+        "origin": "radix-ui/primitives",
+        "url": "https://www.radix-ui.com/primitives",
+        "retrieved": "2026-07-29",
+        "note": "LICENSE read raw from the repo: MIT."
+      },
+      "tags": ["headless", "unstyled", "accessible", "a11y", "focus trap", "keyboard", "aria", "dialog", "popover", "menu", "select", "primitives"],
+      "dependencies": ["@radix-ui/react-dialog", "@radix-ui/react-popover", "@radix-ui/react-dropdown-menu"],
+      "notes": "A REAL npm RUNTIME DEPENDENCY, not copy-in -- the one entry here that would add packages to apps/web/package.json. Relevant because glass/GlassSheet sets role=\"dialog\" and aria-modal but does NOT trap focus; Radix Dialog is the standard way to close that gap. Adding it is a dependency decision for a human, not something a build skill may take on its own."
+    },
+    {
+      "name": "ext/base-ui",
+      "kind": "primitive",
+      "title": "Base UI",
+      "purpose": "Unstyled accessible React primitives from the MUI and Floating UI authors; the same brief as Radix and increasingly what shadcn/ui's own components link to for API documentation. An alternative headless layer when Radix is not preferred.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/mui/base-ui/blob/master/LICENSE",
+      "provenance": {
+        "origin": "Base UI",
+        "url": "https://base-ui.com",
+        "retrieved": "2026-07-29",
+        "note": "MIT; npm package @base-ui/react."
+      },
+      "tags": ["headless", "unstyled", "accessible", "a11y", "primitives", "floating ui", "mui"],
+      "dependencies": ["@base-ui/react"],
+      "notes": "npm runtime dependency. shadcn/ui's registry index links Base UI docs from meta.links.base.api for several components."
+    },
+    {
+      "name": "ext/headless-ui",
+      "kind": "primitive",
+      "title": "Headless UI",
+      "purpose": "Tailwind Labs' unstyled accessible components: menu, listbox, combobox, dialog, disclosure, transitions. Smaller surface than Radix, and the natural pairing if a project is already all-in on Tailwind.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/tailwindlabs/headlessui/blob/main/LICENSE",
+      "provenance": {
+        "origin": "Tailwind Labs",
+        "url": "https://headlessui.com",
+        "retrieved": "2026-07-29",
+        "note": "MIT; npm package @headlessui/react."
+      },
+      "tags": ["headless", "unstyled", "accessible", "tailwind", "combobox", "listbox", "dialog", "transition"],
+      "dependencies": ["@headlessui/react"],
+      "notes": "npm runtime dependency."
+    },
+    {
+      "name": "ext/ark-ui",
+      "kind": "primitive",
+      "title": "Ark UI",
+      "purpose": "Headless, state-machine-driven components (Zag.js underneath) for React, Vue and Solid. Reach for it when a component's interaction is genuinely stateful -- a multi-step date picker, a complex combobox -- and an explicit state machine is worth the weight.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/chakra-ui/ark/blob/main/LICENSE",
+      "provenance": {
+        "origin": "Ark UI (Chakra org)",
+        "url": "https://ark-ui.com",
+        "retrieved": "2026-07-29",
+        "note": "MIT; npm package @ark-ui/react."
+      },
+      "tags": ["headless", "state machine", "zag", "cross-framework", "datepicker", "combobox", "accessible"],
+      "dependencies": ["@ark-ui/react"],
+      "notes": "npm runtime dependency. Park UI is the styled layer built on top of it."
+    },
+    {
+      "name": "ext/tremor",
+      "kind": "library",
+      "title": "Tremor",
+      "purpose": "React components for dashboards and analytics: charts, KPI cards, bar lists, spark charts, data tables. The obvious source when a built GUI needs real data visualisation, which the glass set does not cover at all.",
+      "licence": "Apache-2.0",
+      "licence_url": "https://github.com/tremorlabs/tremor/blob/main/LICENSE",
+      "provenance": {
+        "origin": "tremorlabs/tremor",
+        "url": "https://tremor.so",
+        "retrieved": "2026-07-29",
+        "note": "LICENSE read raw: Apache-2.0, with named subcomponents noted as MIT-adapted from Radix, shadcn and Medusa. The Jan-2025 Vercel acquisition changed pricing/access for paid templates, NOT the code licence."
+      },
+      "tags": ["charts", "dashboard", "analytics", "kpi", "data visualisation", "graph", "metrics", "table", "sparkline"],
+      "dependencies": ["@tremor/react"],
+      "notes": "Two distributions: `@tremor/react` (npm dependency) and 'Tremor Raw' (copy-in). Apache-2.0 requires the notice be preserved -- which this repo is already set up for, being Apache-2.0 itself."
+    },
+    {
+      "name": "ext/origin-ui",
+      "kind": "library",
+      "title": "Origin UI",
+      "purpose": "A large collection of copy-in Tailwind and React components, heavy on form inputs and field variations. Useful as reference for input patterns. CHECK THE LICENCE PER DIRECTORY before copying anything -- the repository default is AGPL-3.0.",
+      "licence": "AGPL-3.0",
+      "licence_url": "https://github.com/origin-space/originui/blob/main/LICENSING.md",
+      "provenance": {
+        "origin": "origin-space/originui",
+        "url": "https://originui.com",
+        "retrieved": "2026-07-29",
+        "note": "Repository default licence is AGPL-3.0 (full text read raw). LICENSING.md carves out apps/origin/ and apps/ui/ as MIT. Recorded here at the REPOSITORY DEFAULT -- the conservative reading -- because a per-directory carve-out is a per-file question a table lookup must not answer."
+      },
+      "tags": ["forms", "inputs", "fields", "tailwind", "copy-in", "select", "checkbox", "validation"],
+      "dependencies": [],
+      "notes": "SPLIT LICENCE. Recorded as AGPL-3.0 so use_mode comes out 'reciprocal' and a human is forced to look. The MIT carve-out is real but is scoped to two directories; resolving which files it covers is not a decision this catalogue may make."
+    },
+    {
+      "name": "ext/21st-dev",
+      "kind": "library",
+      "title": "21st.dev",
+      "purpose": "A marketplace and registry aggregating community-published shadcn-compatible components, with a search API and an MCP server for retrieving component code. Useful for DISCOVERY -- finding that a pattern exists and who published it. Not a source you may copy from without checking each component's own terms.",
+      "licence": "Proprietary",
+      "licence_url": "https://21st.dev/terms",
+      "provenance": {
+        "origin": "21st Labs Inc",
+        "url": "https://21st.dev",
+        "retrieved": "2026-07-29",
+        "note": "Terms read: component 'code, content, and materials ... are the sole and exclusive property of their respective authors and 21st Labs Inc', with uncredited redistribution prohibited. The PLATFORM repos (serafimcloud/21st, 21st-dev/registry) are MIT -- that covers the tooling, not the marketplace content."
+      },
+      "tags": ["marketplace", "registry", "discovery", "community", "search", "mcp", "aggregator"],
+      "dependencies": [],
+      "notes": "The MIT badge on the platform repository does NOT license the components. This is the second shape of the same trap as React Bits: a permissive licence attached to a neighbouring artifact. Per-component terms must be checked individually."
+    },
+    {
+      "name": "ext/motion-primitives",
+      "kind": "library",
+      "title": "Motion Primitives",
+      "purpose": "Copy-in animated React components and motion patterns built on framer-motion -- text effects, transitions, disclosure animations. Closest external match to this repo's own motion vocabulary, and MIT, so its patterns may genuinely be adapted.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/ibelick/motion-primitives",
+      "provenance": {
+        "origin": "ibelick/motion-primitives",
+        "url": "https://motion-primitives.com",
+        "retrieved": "2026-07-29",
+        "note": "MIT. Listed in shadcn's registry directory; items served at /c/{name}.json."
+      },
+      "tags": ["motion", "animation", "framer-motion", "transitions", "text effects", "copy-in", "registry"],
+      "dependencies": [],
+      "notes": "Requires `motion` (framer-motion), which apps/web already depends on."
+    },
+    {
+      "name": "ext/mui",
+      "kind": "library",
+      "title": "MUI (Material UI)",
+      "purpose": "The large, mature Material Design component kit for React: full widget coverage, theming, data grid, date pickers. Reach for it only when a project wants Material Design as its identity -- it is stylistically the opposite of the glass set and will not blend with it.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/mui/material-ui/blob/master/LICENSE",
+      "provenance": {
+        "origin": "MUI",
+        "url": "https://mui.com",
+        "retrieved": "2026-07-29",
+        "note": "@mui/material core is MIT. MUI X Pro/Premium packages (@mui/x-data-grid-pro and siblings) ship a separate 'Commercial License / Copyright (c) 2020 Material-UI SAS' file and are governed by the EULA at https://mui.com/legal/mui-x-eula."
+      },
+      "tags": ["material design", "component kit", "npm", "theming", "data grid", "date picker", "enterprise"],
+      "dependencies": ["@mui/material"],
+      "notes": "MIXED LICENSING WITHIN ONE BRAND. The MIT here covers the CORE only. MUI X Pro and Premium are commercial and are NOT covered by this entry; treat any @mui/x-*-pro or -premium package as a separate, paid decision."
+    },
+    {
+      "name": "ext/mantine",
+      "kind": "library",
+      "title": "Mantine",
+      "purpose": "A broad MIT component and hooks library for React with strong form handling, notifications, modals and a large hooks collection. A conventional npm alternative to assembling primitives by hand.",
+      "licence": "MIT",
+      "licence_url": "https://github.com/mantinedev/mantine/blob/master/LICENSE",
+      "provenance": {
+        "origin": "mantinedev/mantine",
+        "url": "https://mantine.dev",
+        "retrieved": "2026-07-29",
+        "note": "MIT."
+      },
+      "tags": ["component kit", "hooks", "forms", "notifications", "modals", "npm", "typescript"],
+      "dependencies": ["@mantine/core", "@mantine/hooks"],
+      "notes": "npm runtime dependency."
+    },
+    {
+      "name": "ext/skiper-ui",
+      "kind": "library",
+      "title": "Skiper UI",
+      "purpose": "Copy-in animated shadcn-compatible components. Listed in shadcn's registry directory. ITS LICENCE COULD NOT BE ESTABLISHED, so nothing may be copied from it until a human reads one.",
+      "licence": "NOASSERTION",
+      "licence_url": "",
+      "provenance": {
+        "origin": "Skiper UI",
+        "url": "https://skiper-ui.com",
+        "retrieved": "2026-07-29",
+        "note": "No LICENSE file was located for the canonical repository on 2026-07-29. Recorded as NOASSERTION -- an explicit 'we looked and could not establish it', which is a finding, not an absence."
+      },
+      "tags": ["animated", "copy-in", "registry", "shadcn", "unverified licence"],
+      "dependencies": [],
+      "notes": "PRESENT DELIBERATELY, as the worked example of the honest third state. A missing licence FIELD is a refusal -- such an entry never loads. An explicitly recorded NOASSERTION loads and resolves to reference_only, so the library stays discoverable while its source stays uncopyable. Reopen when someone reads a licence."
+    }
+  ]
+}

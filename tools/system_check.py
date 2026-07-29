@@ -629,6 +629,50 @@ def _web(sb: Sandbox) -> Result:
                 pass
 
 
+@check("gui.a_human_can_operate_the_cockpit", stage="6 web",
+       proves="the BUILT webapp loads in a REAL BROWSER against the real server, "
+              "its three spaces are reachable, the health states are "
+              "distinguishable, and a degraded source is VISIBLE rather than "
+              "rendering as 'no work'")
+def _gui(sb: Sandbox) -> Result:
+    """Drives the cockpit with Playwright. See ``tools/gui_check.py``.
+
+    WHY THIS IS NOT COVERED BY ``web.serves_and_terminates``. That check proves
+    the SERVER answers. A server that answers 200 on every route is
+    indistinguishable, from outside, from one whose bundle throws on module
+    evaluation and hands the user a white screen -- and the whole reason this
+    file exists is that a suite which cannot see that difference goes green over
+    it.
+
+    THE INSTRUMENT COMES FROM THE WORKING TREE, THE SPECIMEN IS THE CLONE.
+    ``node_modules`` is gitignored, so the disposable clone carries no
+    Playwright and no browser. The specs and the browser therefore live in
+    ``apps/web`` HERE, while the server being driven is started from the clone.
+
+    UNAVAILABLE, NOT PASS, when the browser or the built bundle is missing --
+    ``gui_check.py`` owns that distinction and reports it as its own exit code.
+    """
+    gui = Path(__file__).resolve().parent / "gui_check.py"
+    if not gui.exists():
+        return Result("gui.a_human_can_operate_the_cockpit", UNAVAILABLE,
+                      "tools/gui_check.py is not present", {})
+    rc, out = sb.py(str(gui), "--repo-root", str(sb.repo),
+                    "--web-root", str(ROOT / "apps" / "web"), "--json",
+                    timeout=1800)
+    payload = _json_tail(out)
+    if payload is None:
+        return Result("gui.a_human_can_operate_the_cockpit", FAIL,
+                      f"the GUI check produced no receipt (rc={rc}): {out[-400:]!r}",
+                      {"returncode": rc})
+    ev = payload.get("evidence") or {}
+    evidence = {k: ev.get(k) for k in
+                ("server_entry", "specs", "passed", "failed", "skipped",
+                 "documented_entry_error", "browser") if k in ev}
+    outcome = {"PASS": PASS, "INCOMPLETE": UNAVAILABLE}.get(payload.get("outcome"), FAIL)
+    return Result("gui.a_human_can_operate_the_cockpit", outcome,
+                  payload.get("detail") or "", evidence)
+
+
 @check("bridge.enqueue_watch_report_archive", stage="6 bridge",
        proves="a queued task is picked up by the REAL watcher, answered into "
               "the inbox, and the request archived -- exactly once")

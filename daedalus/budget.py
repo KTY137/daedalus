@@ -992,6 +992,53 @@ def _guarded_spawn(original: Callable[..., Any], kind: str) -> Callable[..., Any
     return wrapper
 
 
+def _guarded_popen(original: type) -> type:
+    """Guard `subprocess.Popen` AS A CLASS, because things subclass it.
+
+    MEASURED, and it broke the CLI outright. Replacing Popen with a plain
+    function made every later `import asyncio` fail:
+
+        File "asyncio/windows_utils.py", line 125, in <module>
+            class Popen(subprocess.Popen):
+        TypeError: function() argument 'code' must be code, not str
+
+    asyncio derives a class from `subprocess.Popen` at import time, and a
+    function cannot be a base class. The guard installs at the CLI entry point,
+    so any subcommand that reaches asyncio afterwards -- `daedalus web` does,
+    through context_plan -> memory.embeddings -> adapters -> asyncio -- died
+    with a traceback instead of doing its job.
+
+    That is the exact failure the wiring commit warned about in the abstract:
+    "if a non-vendor spawn were charged or mangled, every git and pytest call
+    would break, and the fix somebody reaches for at 3am is to delete the
+    guard. Then there is no cap." The test for it only exercised
+    `subprocess.run`, so it did not see this.
+
+    A subclass keeps isinstance, subclassing, and every classmethod intact
+    while still reserving before the process starts.
+    """
+    class GuardedPopen(original):                     # type: ignore[misc,valid-type]
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            argv = kwargs.get("args", args[0] if args else None)
+            vendor = None if _inside_explicit() else classify_argv(argv)
+            if vendor is None:
+                super().__init__(*args, **kwargs)
+                return
+            res = reserve(vendor, label=f"subprocess.Popen: {_render(argv)}")
+            _enter_explicit()
+            try:
+                super().__init__(*args, **kwargs)
+            finally:
+                _exit_explicit()
+                res.settle()
+
+    GuardedPopen.__name__ = original.__name__
+    GuardedPopen.__qualname__ = original.__qualname__
+    GuardedPopen.__wrapped__ = original               # type: ignore[attr-defined]
+    GuardedPopen.__daedalus_budget__ = True           # type: ignore[attr-defined]
+    return GuardedPopen
+
+
 def _guarded_urlopen(original: Callable[..., Any]) -> Callable[..., Any]:
     def wrapper(*args: Any, **kwargs: Any) -> Any:
         url = kwargs.get("url", args[0] if args else None)
@@ -1040,7 +1087,7 @@ def install_process_guard() -> Callable[[], None]:
     _INSTALLED["subprocess.Popen"] = subprocess.Popen
     _INSTALLED["urllib.request.urlopen"] = urllib.request.urlopen
     subprocess.run = _guarded_spawn(subprocess.run, "subprocess.run")            # type: ignore[assignment]
-    subprocess.Popen = _guarded_spawn(subprocess.Popen, "subprocess.Popen")      # type: ignore[assignment]
+    subprocess.Popen = _guarded_popen(subprocess.Popen)                          # type: ignore[assignment]
     urllib.request.urlopen = _guarded_urlopen(urllib.request.urlopen)            # type: ignore[assignment]
     return uninstall_process_guard
 

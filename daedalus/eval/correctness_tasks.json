@@ -1,0 +1,285 @@
+{
+  "schema": 1,
+  "tasks": [
+    {
+      "base_revision": "75166af44210c05cac41688f1f3576dad8fa14c7",
+      "before_state": {
+        "base_revision": "75166af44210c05cac41688f1f3576dad8fa14c7",
+        "duration_s": 5.203,
+        "fail_to_pass": {
+          "tests/test_git_is_a_process_launcher.py::test_CONTROL_a_filter_in_the_USER_config_fires_from_gitattributes": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_CONTROL_an_attributesFile_in_the_admin_config_fires": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_CONTROL_no_ext_diff_alone_still_spawns_a_textconv": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_CONTROL_the_attack_works_against_an_unpinned_git": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_a_real_attempt_does_not_execute_the_candidates_filter": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_an_ordinary_patch_is_still_captured_correctly": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_naming_the_admin_directory_defeats_the_rewritten_pointer": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_no_textconv_suppresses_it": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_env_drops_variables_whose_empty_value_is_a_valid_command": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_env_is_actually_passed_to_the_process": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_exec_config_keys_are_pinned_empty_on_the_command_line": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_pointer_is_read_before_the_candidate_can_move_it": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_product_pins_no_textconv_in_the_option_list": "collect_error",
+          "tests/test_git_is_a_process_launcher.py::test_the_user_and_system_config_are_removed_from_the_lookup": "collect_error"
+        },
+        "invalid": false,
+        "pass_to_pass": {},
+        "reasons": [],
+        "selection": {
+          "argv_shape": [
+            "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+            "-m",
+            "pytest",
+            "<node>",
+            "-v",
+            "--tb=no",
+            "-p",
+            "no:cacheprovider"
+          ],
+          "base_revision": "75166af44210c05cac41688f1f3576dad8fa14c7",
+          "digest": "4831ce4bc38ef768",
+          "fail_to_pass": [
+            "tests/test_git_is_a_process_launcher.py::test_CONTROL_a_filter_in_the_USER_config_fires_from_gitattributes",
+            "tests/test_git_is_a_process_launcher.py::test_CONTROL_an_attributesFile_in_the_admin_config_fires",
+            "tests/test_git_is_a_process_launcher.py::test_CONTROL_no_ext_diff_alone_still_spawns_a_textconv",
+            "tests/test_git_is_a_process_launcher.py::test_CONTROL_the_attack_works_against_an_unpinned_git",
+            "tests/test_git_is_a_process_launcher.py::test_a_real_attempt_does_not_execute_the_candidates_filter",
+            "tests/test_git_is_a_process_launcher.py::test_an_ordinary_patch_is_still_captured_correctly",
+            "tests/test_git_is_a_process_launcher.py::test_naming_the_admin_directory_defeats_the_rewritten_pointer",
+            "tests/test_git_is_a_process_launcher.py::test_no_textconv_suppresses_it",
+            "tests/test_git_is_a_process_launcher.py::test_the_env_drops_variables_whose_empty_value_is_a_valid_command",
+            "tests/test_git_is_a_process_launcher.py::test_the_env_is_actually_passed_to_the_process",
+            "tests/test_git_is_a_process_launcher.py::test_the_exec_config_keys_are_pinned_empty_on_the_command_line",
+            "tests/test_git_is_a_process_launcher.py::test_the_pointer_is_read_before_the_candidate_can_move_it",
+            "tests/test_git_is_a_process_launcher.py::test_the_product_pins_no_textconv_in_the_option_list",
+            "tests/test_git_is_a_process_launcher.py::test_the_user_and_system_config_are_removed_from_the_lookup"
+          ],
+          "gate": "pytest",
+          "pass_to_pass": [],
+          "test_overlay": [
+            "tests/test_git_is_a_process_launcher.py"
+          ],
+          "test_revision": "3f4d4628f9e5fbff118767b3b06d0eacdac6e10a",
+          "timeout_s": 900.0
+        },
+        "selection_digest": "4831ce4bc38ef768",
+        "unrunnable": false,
+        "verified": true
+      },
+      "dropped_candidates": {},
+      "fail_to_pass": [
+        "tests/test_git_is_a_process_launcher.py::test_CONTROL_a_filter_in_the_USER_config_fires_from_gitattributes",
+        "tests/test_git_is_a_process_launcher.py::test_CONTROL_an_attributesFile_in_the_admin_config_fires",
+        "tests/test_git_is_a_process_launcher.py::test_CONTROL_no_ext_diff_alone_still_spawns_a_textconv",
+        "tests/test_git_is_a_process_launcher.py::test_CONTROL_the_attack_works_against_an_unpinned_git",
+        "tests/test_git_is_a_process_launcher.py::test_a_real_attempt_does_not_execute_the_candidates_filter",
+        "tests/test_git_is_a_process_launcher.py::test_an_ordinary_patch_is_still_captured_correctly",
+        "tests/test_git_is_a_process_launcher.py::test_naming_the_admin_directory_defeats_the_rewritten_pointer",
+        "tests/test_git_is_a_process_launcher.py::test_no_textconv_suppresses_it",
+        "tests/test_git_is_a_process_launcher.py::test_the_env_drops_variables_whose_empty_value_is_a_valid_command",
+        "tests/test_git_is_a_process_launcher.py::test_the_env_is_actually_passed_to_the_process",
+        "tests/test_git_is_a_process_launcher.py::test_the_exec_config_keys_are_pinned_empty_on_the_command_line",
+        "tests/test_git_is_a_process_launcher.py::test_the_pointer_is_read_before_the_candidate_can_move_it",
+        "tests/test_git_is_a_process_launcher.py::test_the_product_pins_no_textconv_in_the_option_list",
+        "tests/test_git_is_a_process_launcher.py::test_the_user_and_system_config_are_removed_from_the_lookup"
+      ],
+      "id": "hist-3f4d462",
+      "pass_to_pass": [],
+      "provenance": "git_history",
+      "reference_revision": "3f4d4628f9e5fbff118767b3b06d0eacdac6e10a",
+      "reference_validation": {
+        "n_fixed": 14,
+        "n_regressed": 0,
+        "outcome": "fixed",
+        "reason": "every FAIL_TO_PASS test (14) passes after the change and no PASS_TO_PASS test broke",
+        "seconds": 15.8
+      },
+      "repo": "agent_env",
+      "subject": "fix(spine): capturing the candidate's patch executed the candidate's code",
+      "test_overlay": [
+        "tests/test_git_is_a_process_launcher.py"
+      ],
+      "test_revision": "3f4d4628f9e5fbff118767b3b06d0eacdac6e10a",
+      "tier": "primary"
+    },
+    {
+      "base_revision": "46b33ba0460a1d3c77456685795593b9305cc8b1",
+      "before_state": {
+        "base_revision": "46b33ba0460a1d3c77456685795593b9305cc8b1",
+        "duration_s": 9.703,
+        "fail_to_pass": {
+          "tests/test_spine_map_source.py::test_a_STALE_snapshot_is_refused_even_though_its_digest_verifies": "failed",
+          "tests/test_spine_map_source.py::test_a_snapshot_that_records_no_head_is_refused_not_assumed_fresh": "failed",
+          "tests/test_spine_map_source.py::test_integrity_and_freshness_are_reported_separately": "failed"
+        },
+        "invalid": false,
+        "pass_to_pass": {
+          "tests/test_gate_judges_the_candidate.py::test_bare_pytest_does_NOT__which_is_why_the_argv_is_shaped_this_way": "passed",
+          "tests/test_gate_judges_the_candidate.py::test_the_gate_argv_is_built_from_this_interpreter": "passed",
+          "tests/test_gate_judges_the_candidate.py::test_the_gate_imports_the_candidates_code": "passed",
+          "tests/test_spine_map_source.py::test_a_dirty_tree_does_not_suppress_the_map": "passed",
+          "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_refused": "passed",
+          "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_withheld_from_the_queue_loudly": "passed"
+        },
+        "reasons": [],
+        "selection": {
+          "argv_shape": [
+            "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+            "-m",
+            "pytest",
+            "<node>",
+            "-v",
+            "--tb=no",
+            "-p",
+            "no:cacheprovider"
+          ],
+          "base_revision": "46b33ba0460a1d3c77456685795593b9305cc8b1",
+          "digest": "5aaff7dd3f301a2f",
+          "fail_to_pass": [
+            "tests/test_spine_map_source.py::test_a_STALE_snapshot_is_refused_even_though_its_digest_verifies",
+            "tests/test_spine_map_source.py::test_a_snapshot_that_records_no_head_is_refused_not_assumed_fresh",
+            "tests/test_spine_map_source.py::test_integrity_and_freshness_are_reported_separately"
+          ],
+          "gate": "pytest",
+          "pass_to_pass": [
+            "tests/test_gate_judges_the_candidate.py::test_bare_pytest_does_NOT__which_is_why_the_argv_is_shaped_this_way",
+            "tests/test_gate_judges_the_candidate.py::test_the_gate_argv_is_built_from_this_interpreter",
+            "tests/test_gate_judges_the_candidate.py::test_the_gate_imports_the_candidates_code",
+            "tests/test_spine_map_source.py::test_a_dirty_tree_does_not_suppress_the_map",
+            "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_refused",
+            "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_withheld_from_the_queue_loudly"
+          ],
+          "test_overlay": [
+            "tests/test_gate_judges_the_candidate.py",
+            "tests/test_spine_map_source.py"
+          ],
+          "test_revision": "41b94a9ad08ce4d4a46438e048a269ccb038013b",
+          "timeout_s": 900.0
+        },
+        "selection_digest": "5aaff7dd3f301a2f",
+        "unrunnable": false,
+        "verified": true
+      },
+      "dropped_candidates": {
+        "tests/test_spine_map_source.py::test_a_forged_head_is_caught_as_a_hand_edit": "failed before AND failed after the reference fix: the known-good change does not turn it green, so it cannot witness a fix"
+      },
+      "fail_to_pass": [
+        "tests/test_spine_map_source.py::test_a_STALE_snapshot_is_refused_even_though_its_digest_verifies",
+        "tests/test_spine_map_source.py::test_a_snapshot_that_records_no_head_is_refused_not_assumed_fresh",
+        "tests/test_spine_map_source.py::test_integrity_and_freshness_are_reported_separately"
+      ],
+      "id": "hist-41b94a9",
+      "pass_to_pass": [
+        "tests/test_gate_judges_the_candidate.py::test_bare_pytest_does_NOT__which_is_why_the_argv_is_shaped_this_way",
+        "tests/test_gate_judges_the_candidate.py::test_the_gate_argv_is_built_from_this_interpreter",
+        "tests/test_gate_judges_the_candidate.py::test_the_gate_imports_the_candidates_code",
+        "tests/test_spine_map_source.py::test_a_dirty_tree_does_not_suppress_the_map",
+        "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_refused",
+        "tests/test_spine_map_source.py::test_a_hand_edited_snapshot_is_withheld_from_the_queue_loudly"
+      ],
+      "provenance": "git_history",
+      "reference_revision": "41b94a9ad08ce4d4a46438e048a269ccb038013b",
+      "reference_validation": {
+        "n_fixed": 3,
+        "n_regressed": 0,
+        "outcome": "fixed",
+        "reason": "every FAIL_TO_PASS test (3) passes after the change and no PASS_TO_PASS test broke",
+        "seconds": 22.0
+      },
+      "repo": "agent_env",
+      "subject": "fix(spine): the map source was trusted stale, and the gate's -m is load-bearing",
+      "test_overlay": [
+        "tests/test_gate_judges_the_candidate.py",
+        "tests/test_spine_map_source.py"
+      ],
+      "test_revision": "41b94a9ad08ce4d4a46438e048a269ccb038013b",
+      "tier": "primary"
+    },
+    {
+      "base_revision": "c005047233e74bcfd8c99543bd57d61709d48c99",
+      "before_state": {
+        "base_revision": "c005047233e74bcfd8c99543bd57d61709d48c99",
+        "duration_s": 7.984,
+        "fail_to_pass": {
+          "tests/test_bridge_signals.py::test_a_third_collision_also_gets_its_own_name": "failed",
+          "tests/test_bridge_signals.py::test_two_enqueues_in_the_same_second_do_not_overwrite": "failed"
+        },
+        "invalid": false,
+        "pass_to_pass": {
+          "tests/test_bridge_signals.py::BridgeStatusTests::test_print_status_smoke": "passed",
+          "tests/test_bridge_signals.py::BridgeStatusTests::test_status_counts_queue_and_unread": "passed",
+          "tests/test_bridge_signals.py::BridgeStatusTests::test_status_project_filter": "passed",
+          "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_enqueue_emits_warning_to_stderr_but_still_enqueues": "passed",
+          "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_long_codex_objective_without_queue_ref_warns": "passed",
+          "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_queue_reference_silences_warning": "passed"
+        },
+        "reasons": [],
+        "selection": {
+          "argv_shape": [
+            "C:\\Users\\nukei\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\python.exe",
+            "-m",
+            "pytest",
+            "<node>",
+            "-v",
+            "--tb=no",
+            "-p",
+            "no:cacheprovider"
+          ],
+          "base_revision": "c005047233e74bcfd8c99543bd57d61709d48c99",
+          "digest": "e5274930b6cb1870",
+          "fail_to_pass": [
+            "tests/test_bridge_signals.py::test_a_third_collision_also_gets_its_own_name",
+            "tests/test_bridge_signals.py::test_two_enqueues_in_the_same_second_do_not_overwrite"
+          ],
+          "gate": "pytest",
+          "pass_to_pass": [
+            "tests/test_bridge_signals.py::BridgeStatusTests::test_print_status_smoke",
+            "tests/test_bridge_signals.py::BridgeStatusTests::test_status_counts_queue_and_unread",
+            "tests/test_bridge_signals.py::BridgeStatusTests::test_status_project_filter",
+            "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_enqueue_emits_warning_to_stderr_but_still_enqueues",
+            "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_long_codex_objective_without_queue_ref_warns",
+            "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_queue_reference_silences_warning"
+          ],
+          "test_overlay": [
+            "tests/test_bridge_signals.py"
+          ],
+          "test_revision": "cae7aec123f795ab1bfeae23c255d3e6f2d96fee",
+          "timeout_s": 900.0
+        },
+        "selection_digest": "e5274930b6cb1870",
+        "unrunnable": false,
+        "verified": true
+      },
+      "dropped_candidates": {},
+      "fail_to_pass": [
+        "tests/test_bridge_signals.py::test_a_third_collision_also_gets_its_own_name",
+        "tests/test_bridge_signals.py::test_two_enqueues_in_the_same_second_do_not_overwrite"
+      ],
+      "id": "hist-cae7aec",
+      "pass_to_pass": [
+        "tests/test_bridge_signals.py::BridgeStatusTests::test_print_status_smoke",
+        "tests/test_bridge_signals.py::BridgeStatusTests::test_status_counts_queue_and_unread",
+        "tests/test_bridge_signals.py::BridgeStatusTests::test_status_project_filter",
+        "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_enqueue_emits_warning_to_stderr_but_still_enqueues",
+        "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_long_codex_objective_without_queue_ref_warns",
+        "tests/test_bridge_signals.py::CodexInlineBriefWarningTests::test_queue_reference_silences_warning"
+      ],
+      "provenance": "git_history",
+      "reference_revision": "cae7aec123f795ab1bfeae23c255d3e6f2d96fee",
+      "reference_validation": {
+        "n_fixed": 2,
+        "n_regressed": 0,
+        "outcome": "fixed",
+        "reason": "every FAIL_TO_PASS test (2) passes after the change and no PASS_TO_PASS test broke",
+        "seconds": 14.6
+      },
+      "repo": "agent_env",
+      "subject": "fix(bridge): a queue that silently dropped a task, found by the acceptance run",
+      "test_overlay": [
+        "tests/test_bridge_signals.py"
+      ],
+      "test_revision": "cae7aec123f795ab1bfeae23c255d3e6f2d96fee",
+      "tier": "primary"
+    }
+  ]
+}

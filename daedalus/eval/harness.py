@@ -59,7 +59,7 @@ except Exception:  # pragma: no cover - structcore is a hard dep, but be safe
         return "chars/4 (heuristic)"
 
 from .mint import load_minted_tasks
-from .tasks import TASKS, resolve_task_repo, task_project_label
+from .tasks import TASKS, is_correctness_task, resolve_task_repo, task_project_label
 
 # Directories the whole-repo concat (context B) skips -- mirrors structcore.
 _IGNORE_DIRS = {
@@ -149,6 +149,30 @@ def _task_error_row(task: dict, exc: Exception) -> dict:
     }
 
 
+def _correctness_task_row(task: dict) -> dict:
+    """Shared shape for a task that is NOT scorable by slice recall.
+
+    A FAIL_TO_PASS/PASS_TO_PASS task (see ``daedalus.eval.tasks``'s docstring
+    and ``daedalus.eval.correctness``) grades a CHANGE by running tests. It
+    carries no ``must_include``, so handing it to ``_recall`` would return the
+    vacuous 1.0 -- a task that cannot fail, inflating the go/no-go number with
+    a measurement that never happened. That is the precise failure the tier
+    machinery exists to prevent, so it is refused here rather than averaged in.
+
+    Refused as an ERRORED row (``error`` key present, no ``recall``/
+    ``compression`` key at all) so it takes every existing path for a degraded
+    measurement: excluded from all aggregates, listed in ``errored``, never
+    silently dropped, and LOUD in ``run_gate`` when its tier is primary.
+    """
+    row = _task_error_row(
+        task,
+        ValueError("correctness task (fail_to_pass/pass_to_pass): graded by "
+                   "running tests, not by slice recall -- run it through "
+                   "daedalus.eval.correctness, never through this harness"))
+    row["correctness_task"] = True
+    return row
+
+
 def _is_focus_withheld(res: dict) -> bool:
     """True iff ``semantic_slice`` fail-closed on the task's OWN focus file
     (see slice.py's FOCUS GATE): the withheld block contains a role=="focus"
@@ -200,7 +224,12 @@ def eval_task_tier1(task: dict, idx: dict | None = None) -> dict:
     ERRORED row (``_task_error_row``) instead of propagating. See
     ``run_tier1``/``run_gate`` for how ERRORED rows are aggregated (excluded),
     reported (never silently dropped) and gated (primary tier fails loudly,
-    quarantine tier is reported-only)."""
+    quarantine tier is reported-only).
+
+    A CORRECTNESS task is refused here before anything is sliced -- see
+    ``_correctness_task_row``."""
+    if is_correctness_task(task):
+        return _correctness_task_row(task)
     try:
         repo = resolve_task_repo(task["repo"])
         idx = idx if idx is not None else cached_index(repo)
@@ -273,6 +302,13 @@ def run_tier1(tasks: list[dict] | None = None) -> dict:
     idx_cache: dict[str, dict] = {}
     per_task: list[dict] = []
     for task in tasks:
+        # Refused BEFORE the repo is resolved, not only inside eval_task_tier1:
+        # this loop does its own resolution for the index cache, and a
+        # correctness task is not required to carry anything this harness can
+        # resolve. The refusal must not depend on the task being sliceable.
+        if is_correctness_task(task):
+            per_task.append(_correctness_task_row(task))
+            continue
         try:
             repo = resolve_task_repo(task["repo"])
             if repo not in idx_cache:
@@ -484,8 +520,13 @@ def eval_task_arms(task: dict, idx: dict | None = None,
 
     NEVER RAISES: same per-task resolution guard as ``eval_task_tier1`` -- a
     ``ValueError``/``OSError`` resolving the repo or slicing the target
-    returns an ERRORED row (``_task_error_row``) instead of propagating.
+    returns an ERRORED row (``_task_error_row``) instead of propagating. A
+    CORRECTNESS task is likewise refused (``_correctness_task_row``) rather
+    than scored: all three arms here go through ``_recall``, so a task with no
+    ``must_include`` would read as a perfect 1.0 in every arm at once.
     """
+    if is_correctness_task(task):
+        return _correctness_task_row(task)
     try:
         repo = resolve_task_repo(task["repo"])
         idx = idx if idx is not None else cached_index(repo)
@@ -566,6 +607,9 @@ def run_arms(tasks: list[dict] | None = None) -> dict:
     chunks_cache: dict[str, list[tuple[str, str]]] = {}
     per_task: list[dict] = []
     for task in tasks:
+        if is_correctness_task(task):   # see run_tier1's loop for why it is here
+            per_task.append(_correctness_task_row(task))
+            continue
         try:
             repo = resolve_task_repo(task["repo"])
             if repo not in idx_cache:

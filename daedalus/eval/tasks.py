@@ -46,6 +46,41 @@ recall number):
 excludes them from every headline/aggregate and reports them separately so
 the labelling flywheel (mint -> quarantine -> confirm -> primary) stays
 observable instead of silently inflating (or deflating) the real number.
+
+THE SECOND TASK FORMAT: CORRECTNESS (FAIL_TO_PASS / PASS_TO_PASS)
+-----------------------------------------------------------------
+Everything above grades the SLICER: ``must_include`` is scored by substring
+containment in a distilled context slice (``harness._recall``). That measures
+retrieval, and it is honest about it -- but it never looks at a patch, so no
+number derived from it can say whether a CHANGE is correct, and an empty
+``must_include`` scores 1.0 vacuously.
+
+``daedalus.eval.correctness`` adds a second, disjoint format that grades the
+CHANGE, on the SWE-bench pattern, using this repo's own pytest as the oracle::
+
+    {
+      "id":                 short unique id,
+      "repo":               repo label -- resolved by ``resolve_task_repo``,
+      "base_revision":      the revision the change is built ON,
+      "reference_revision": the known-good fix (optional; validates the task),
+      "test_revision":      revision the test files are taken from,
+      "test_overlay":       ["tests/test_x.py", ...]  # SWE-bench's test patch
+      "fail_to_pass":       ["tests/test_x.py::test_y", ...]  # RED -> GREEN
+      "pass_to_pass":       ["tests/test_z.py::test_w", ...]  # GREEN -> GREEN
+      "before_state":       receipt written by --verify (see correctness.py),
+      "provenance":         "git_history" | ...,
+      "tier":               "primary" | "quarantine",
+    }
+
+THE TWO FORMATS MUST NOT BE MIXED IN ONE CORPUS, and that is enforced rather
+than asked for: a correctness task carries no ``must_include``, so scoring one
+with ``harness._recall`` would return the vacuous 1.0 -- a task that cannot
+fail, silently inflating the very number the tier machinery exists to keep
+honest. ``is_correctness_task`` below is the single predicate that decides,
+and ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly
+(an ERRORED row, which ``run_gate`` reports and fails on for a primary tier)
+instead of grading it. Correctness tasks live in their own store
+(``correctness.DEFAULT_CORPUS_PATH``) and never enter ``harness.all_tasks()``.
 """
 from __future__ import annotations
 
@@ -74,9 +109,39 @@ def resolve_task_repo(repo: str) -> str:
     raise ValueError(f"cannot resolve task repo label: {repo!r}")
 
 
+#: The keys that make a task a CORRECTNESS task rather than a slice-recall one.
+#: Either one is enough: a task carrying a test list is claiming its grade comes
+#: from running tests, not from substring containment, and half a claim is
+#: still a claim.
+CORRECTNESS_KEYS = ("fail_to_pass", "pass_to_pass")
+
+
+def is_correctness_task(task: dict) -> bool:
+    """True iff ``task`` uses the FAIL_TO_PASS/PASS_TO_PASS format.
+
+    Deliberately keyed on the PRESENCE of the field, not on its truthiness: a
+    task with ``"fail_to_pass": []`` is a correctness task with an empty (and
+    therefore invalid, see ``correctness.validate_task``) test list, NOT a
+    slice-recall task -- and it must never be handed to ``_recall``, which
+    would score its absent ``must_include`` as a vacuous 1.0. That is the exact
+    shape of the failure this predicate exists to make impossible.
+    """
+    return isinstance(task, dict) and any(k in task for k in CORRECTNESS_KEYS)
+
+
 def task_project_label(task: dict) -> str:
-    """The project bucket a task belongs to, for --project filtering."""
-    repo = task["repo"]
+    """The project bucket a task belongs to, for --project filtering.
+
+    A task with NO ``repo`` key labels as ``"<unknown>"`` rather than raising
+    ``KeyError``. That is not defensive padding: this function is called from
+    ``harness._task_error_row``, i.e. on the REPORTING path for a task that is
+    already known to be malformed, so a raise here turned "one bad task is
+    reported as a degraded row" into "the whole eval run dies on it" -- the
+    exact failure ``_task_error_row`` exists to prevent. Found by a test, not
+    by reading."""
+    repo = task.get("repo")
+    if repo is None:
+        return "<unknown>"
     if repo == "agent_env" or repo == AGENT_ENV_ROOT:
         return "agent_env"
     return repo

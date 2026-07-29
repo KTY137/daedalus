@@ -1,0 +1,54 @@
+{
+  "calls": 2,
+  "entries": [
+    {
+      "at": 1785292575.147584,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "7c2e303f3b564aa9982cf4d69e55a71b",
+      "kind": "reserve",
+      "label": "subprocess.run: C:\\Users\\nukei\\.local\\bin\\claude.EXE --version",
+      "model": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785292575.55038,
+      "estimate_usd": 3.0,
+      "id": "7c2e303f3b564aa9982cf4d69e55a71b",
+      "kind": "settle",
+      "label": "subprocess.run: C:\\Users\\nukei\\.local\\bin\\claude.EXE --version",
+      "model": "",
+      "reason": "",
+      "usd": 3.0,
+      "vendor": "anthropic_cli"
+    },
+    {
+      "at": 1785292575.5953765,
+      "basis": "worst_case",
+      "calls": 1,
+      "id": "f691f9c1fca142338a4a5da262d6783b",
+      "kind": "reserve",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD --version",
+      "model": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    },
+    {
+      "at": 1785292575.9260008,
+      "estimate_usd": 2.0,
+      "id": "f691f9c1fca142338a4a5da262d6783b",
+      "kind": "settle",
+      "label": "subprocess.run: C:\\Users\\nukei\\AppData\\Roaming\\npm\\codex.CMD --version",
+      "model": "",
+      "reason": "",
+      "usd": 2.0,
+      "vendor": "openai_cli"
+    }
+  ],
+  "open": {},
+  "period": "day",
+  "period_key": "2026-07-29",
+  "spent_usd": 5.0,
+  "version": 1
+}

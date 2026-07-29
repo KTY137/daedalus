@@ -102,6 +102,49 @@ def test_installing_it_does_NOT_break_an_ordinary_subprocess():
     assert git.returncode == 0, git.stderr
 
 
+def test_things_can_still_SUBCLASS_Popen_while_the_guard_is_installed():
+    """The regression this test exists for, and it broke the CLI outright.
+
+    The first version of the guard replaced `subprocess.Popen` with a plain
+    function. asyncio derives a class from it at import time:
+
+        class Popen(subprocess.Popen):
+        TypeError: function() argument 'code' must be code, not str
+
+    So `daedalus web` -- which reaches asyncio through context_plan ->
+    memory.embeddings -> adapters -- died with a traceback instead of refusing
+    a non-loopback bind, and the guard test that caught it was a WEB test, not
+    a budget one. The budget test only exercised `subprocess.run`.
+
+    Asserted three ways, because a class that merely exists is not enough:
+    it must be derivable, `isinstance` must still work, and a real import of
+    asyncio must succeed in a fresh interpreter with the guard installed.
+    """
+    budget.install_process_guard()
+    assert isinstance(subprocess.Popen, type), "Popen is no longer a class"
+
+    class Derived(subprocess.Popen):                 # must not raise
+        pass
+
+    proc = subprocess.Popen([sys.executable, "-c", "pass"],
+                            stdout=subprocess.PIPE)
+    proc.communicate()
+    assert isinstance(proc, subprocess.Popen)
+
+    # ...and end to end, in a child that installs the guard and THEN imports
+    # asyncio, which is the exact order the CLI produces.
+    probe = subprocess.run(
+        [sys.executable, "-c",
+         "from daedalus.budget import install_process_guard;"
+         "install_process_guard();"
+         "import asyncio;"
+         "print('asyncio ok')"],
+        cwd=str(Path(__file__).resolve().parents[1]),
+        capture_output=True, text=True, timeout=120)
+    assert probe.returncode == 0, probe.stderr[-800:]
+    assert "asyncio ok" in probe.stdout
+
+
 def test_the_guard_is_idempotent_and_reversible():
     """`main()` may run more than once in a test session, and a double install
     that wrapped the wrapper would charge twice for one call."""

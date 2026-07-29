@@ -873,6 +873,38 @@ class DaedalusHandler(BaseHTTPRequestHandler):
                 self._send_json(_loop_architecture(project))
             except ValueError as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=400)
+        elif path == "/api/health":
+            # The health surface has fourteen probes and a five-state vocabulary
+            # that deliberately cannot collapse into green, plus a MEASURED /
+            # INHERITED / ASSUMED tag on every fact. None of it was reachable
+            # from the UI, so the browser was re-deriving a weaker version of
+            # the same judgement from other payloads. One endpoint, and the
+            # provenance travels with the verdict.
+            #
+            # `deep` and `probe_remote` are OFF unless asked for: the first
+            # calls the latent route (~7s cold) and the second embeds against a
+            # host that is not this machine. A browser tab must not be able to
+            # start either by accident, and the response says which were skipped
+            # rather than letting `present` read as `working`.
+            try:
+                from . import health as _health
+
+                deep = (qs.get("deep") or ["0"])[0] in ("1", "true", "yes")
+                remote = (qs.get("probe_remote") or ["0"])[0] in ("1", "true", "yes")
+                only = _clip((qs.get("only") or [""])[0], 100) or None
+                payload = _health.to_payload(
+                    _health.assess(only, deep=deep, probe_remote=remote))
+                payload["asked"] = {"deep": deep, "probe_remote": remote,
+                                    "only": only}
+                self._send_json(core.envelope(None, health=payload))
+            except Exception as exc:                 # noqa: BLE001
+                # A health surface that 500s tells the operator nothing about
+                # the system and everything about itself -- so say which.
+                self._send_json(
+                    {"ok": False,
+                     "error": f"the health surface itself failed: "
+                              f"{type(exc).__name__}: {exc}",
+                     "health": None}, status=500)
         elif path == "/api/drafts":
             rows = drafts.list_drafts()
             pending = [d for d in rows if d.get("status") == "pending"]
