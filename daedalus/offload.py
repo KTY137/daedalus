@@ -25,7 +25,7 @@ from pathlib import Path
 from . import metrics
 from .kairos.scheduler import FREE_LANES
 from .provider_router import route_and_select
-from .verifier import VerifyResult, verify
+from .verifier import DEFAULT_TEST_TIMEOUT_S, VerifyResult, verify
 
 _ALL = {"claude_cli": True, "ollama": True, "deepseek": True, "codex_cli": True}
 
@@ -465,14 +465,30 @@ def offload(
     result["wrote"] = list(disk_changed or [])
 
     # For live writes, run the project test suite in the gate when we have it.
+    #
+    # ARMED BY DISK TRUTH, not by the self-report. This used to key off
+    # ``report["files_changed"]``, which is the model's own claim -- the exact
+    # field the did_work gate above refuses to trust. That let a worker DODGE
+    # the test gate entirely: write files to disk, report ``files_changed: []``,
+    # and the suite never ran while did_work still passed on the disk diff. In
+    # write mode ``disk_changed`` is always the before/after content-hash diff,
+    # so use it; advisory runs (``disk_changed is None``) keep the old
+    # self-report fallback, since they legitimately write nothing.
     test_command = test_cwd = None
-    if pdata and (run_tests or report.get("files_changed")):
+    test_timeout_s = DEFAULT_TEST_TIMEOUT_S
+    changed_for_tests = disk_changed if disk_changed is not None else report.get("files_changed")
+    if pdata and (run_tests or changed_for_tests):
         test_command, test_cwd = pdata.get("test_command"), pdata.get("test_cwd")
+        # Per-project budget; absent -> the 120 s default, so repos that never
+        # declare one are timed exactly as they were before this key existed.
+        if pdata.get("test_timeout_s") is not None:
+            test_timeout_s = pdata["test_timeout_s"]
 
     # Write-mode work MUST actually change files -- otherwise it's a silent no-op
     # that would fake acceptance (zero Claude tokens, zero work done). Advisory
     # work legitimately produces no writes (Claude applies the draft later).
     vr = verify(report, repo_root, test_command=test_command, test_cwd=test_cwd,
+                timeout_s=test_timeout_s,
                 require_changes=(decision.mode == "write"), disk_changed=disk_changed)
 
     # POST-WRITE BLAST-RADIUS FENCE. The routing-time reachability check in
@@ -543,9 +559,20 @@ def offload(
         if dirty:
             result["dirty_unreverted"] = dirty   # could not be reverted -- needs manual attention
         result["report"] = report
+        # Label the recorded reason with the tests check's machine-readable
+        # status. Without this the metrics DB stores a bare "tests" for BOTH a
+        # genuinely red suite and a suite we killed for overrunning its budget,
+        # so the lane statistics that decide future routing would blame the
+        # local lane for a timeout we configured. Only "tests" is annotated;
+        # every other check name is recorded exactly as before.
+        note = ",".join(
+            f"tests:{c.get('status')}" if c["name"] == "tests" and c.get("status")
+            else c["name"]
+            for c in vr.checks if not c["ok"]
+        )
         metrics.record(provider=decision.provider, action="escalated_after_verify_fail",
                        owner=agent["name"], risk=decision.risk, eligible=True,
-                       note=",".join(vr.failed))
+                       note=note)
 
     # THE FLYWHEEL SEAM (closed here): a landed write mints its own eval task.
     # Stamped on every write-mode run -- including the ones that did NOT mint --

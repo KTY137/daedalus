@@ -21,6 +21,7 @@ across repos. Generic secret/allow defaults ship here; project-specific rules
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -304,6 +305,44 @@ def _within_write_allow(path: str, allow: tuple[str, ...]) -> bool:
         if e.endswith("/") and anchored.startswith(e):
             return True
     return False
+
+
+def intersect_write_allow(a: Sequence[str], b: Sequence[str]) -> tuple[str, ...]:
+    """The confinement that admits a path only if BOTH lists admit it.
+
+    Exists because a write confinement can be declared in two places at once --
+    a repo's own ``.agentenv/agentenv.json`` and a registry entry named on the
+    command line -- and MEASURED, naming a project silently dropped the repo's
+    own confinement entirely::
+
+        resolve_project(root, None)         -> write_allow ('docs/','tests/','readme.md')
+        resolve_project(root, "agent_env")  -> write_allow ()  == UNCONFINED
+
+    With `--project agent_env`, `daedalus/sensitivity.py`, `daedalus/config.py`
+    and `.agentenv/agentenv.json` itself all became writable. The invariant this
+    restores: **naming a project must never grant more write permission than
+    not naming one.**
+
+    An empty list means "unconfined", so it contributes no restriction and the
+    other list wins outright. When both confine, the result is their
+    intersection -- computed by keeping whichever entries are the MORE SPECIFIC,
+    since entries are root-anchored prefixes: ``docs/sub/`` survives an
+    intersection with ``docs/``, and ``docs/`` does not survive one with
+    ``docs/sub/``.
+    """
+    a = tuple(a or ())
+    b = tuple(b or ())
+    if not a:
+        return b
+    if not b:
+        return a
+    kept = [e for e in a if _within_write_allow(e, b)]
+    kept += [e for e in b if _within_write_allow(e, a)]
+    # dict.fromkeys keeps first-seen order; an empty result is CORRECT and means
+    # the two confinements do not overlap, i.e. nothing may be written. That is
+    # the fail-closed direction, so it is deliberately not special-cased into
+    # "unconfined" -- which is exactly the bug this function exists to stop.
+    return tuple(dict.fromkeys(kept))
 
 
 def _path_is_sensitive(norm_path: str, policy: Policy) -> str | None:

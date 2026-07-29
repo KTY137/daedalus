@@ -21,6 +21,14 @@ from pathlib import Path
 
 from .schemas import validate_report
 
+# How long the project suite may run before we kill it. This is a RUNAWAY
+# guard, not a performance budget: its job is to stop a wedged test process
+# from pinning the harness forever, not to express an opinion about how fast a
+# repo's suite ought to be. Repos whose suite legitimately needs longer declare
+# ``test_timeout_s`` in their project config; the default must stay 120 so that
+# adding that knob does not silently re-time every other repo's gate.
+DEFAULT_TEST_TIMEOUT_S = 120
+
 
 @dataclass
 class VerifyResult:
@@ -132,16 +140,59 @@ def _config_check(repo_root: str, rel: str) -> tuple[bool, str]:
         return False, f"invalid yaml: {exc}"[:200]
 
 
-def _run_tests(test_command: str, cwd: str, timeout_s: int) -> tuple[bool, str]:
+def _effective_timeout(timeout_s: object) -> int | float:
+    """Coerce a project-declared ``test_timeout_s`` to a usable positive budget.
+
+    Fail-SAFE, not fail-open: a junk or non-positive value falls back to the
+    default rather than to "no timeout". ``subprocess.run(timeout=None)`` waits
+    forever, so treating a malformed config as "unlimited" would turn a typo
+    into a wedged harness -- the one outcome a runaway guard exists to prevent.
+    A ``0`` is likewise not honoured literally: it would expire instantly and
+    make every gate report a timeout, silently disabling the local lane.
+
+    A positive value is passed through EXACTLY, never truncated to int:
+    ``int(0.5)`` is ``0``, which would quietly convert a small fractional
+    budget into the instant-expiry case this function exists to reject.
+    ``subprocess.run`` accepts a float timeout, so there is nothing to gain by
+    rounding. ``bool`` is excluded because ``True`` is an ``int`` of value 1 and
+    a config that says ``true`` means a typo, not a one-second suite.
+    """
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, (int, float)):
+        return DEFAULT_TEST_TIMEOUT_S
+    return timeout_s if timeout_s > 0 else DEFAULT_TEST_TIMEOUT_S
+
+
+def _run_tests(test_command: str, cwd: str, timeout_s: int) -> tuple[bool, str, str]:
+    """Run the project suite. Returns ``(ok, detail, status)``.
+
+    ``status`` is the MACHINE-READABLE outcome and is deliberately finer than
+    ``ok``: ``pass`` / ``fail`` / ``timeout`` / ``error``.
+
+    Why it must not collapse into ``ok``: a red suite means the write under
+    verification is bad, whereas a timeout means *we* set the budget too low
+    for a suite that never got to finish. Both must block the write -- but they
+    are opposite diagnoses, and the escalation they trigger is recorded against
+    the local lane's routing metrics. Reporting a budget shortfall as "the
+    local model broke the tests" teaches the router to distrust a lane that did
+    nothing wrong. Every non-``pass`` status is ``ok=False``; nothing here may
+    ever read a timeout as a pass.
+    """
     try:
         proc = subprocess.run(
             shlex.split(test_command), cwd=cwd, capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout_s
         )
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        return False, f"could not run tests: {exc}"[:300]
+    except subprocess.TimeoutExpired:
+        return False, (
+            f"tests did not finish within the {timeout_s}s budget and were killed. "
+            f"This is NOT a test failure -- the suite never reported a verdict. "
+            f"Raise 'test_timeout_s' in the project config or narrow 'test_command'."
+        )[:300], "timeout"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"could not run tests: {exc}"[:300], "error"
     tail = (proc.stdout + proc.stderr).strip().splitlines()[-3:]
-    return proc.returncode == 0, " | ".join(tail)[:300]
+    ok = proc.returncode == 0
+    return ok, " | ".join(tail)[:300], ("pass" if ok else "fail")
 
 
 def verify(
@@ -150,7 +201,7 @@ def verify(
     *,
     test_command: str | None = None,
     test_cwd: str | None = None,
-    timeout_s: int = 120,
+    timeout_s: int = DEFAULT_TEST_TIMEOUT_S,
     require_changes: bool = False,
     disk_changed: list[str] | None = None,
 ) -> VerifyResult:
@@ -205,7 +256,12 @@ def verify(
         import os
         # test_cwd is relative to the TARGET repo, not the offload process cwd.
         cwd = repo_root if test_cwd in (None, "", ".") else os.path.join(repo_root, test_cwd)
-        ok, detail = _run_tests(test_command, cwd, timeout_s)
-        checks.append({"name": "tests", "ok": ok, "detail": detail})
+        budget = _effective_timeout(timeout_s)
+        ok, detail, status = _run_tests(test_command, cwd, budget)
+        # ``status`` rides alongside ``ok`` so a consumer can tell a red suite
+        # from a budget shortfall without string-matching English out of a
+        # 300-char-truncated ``detail``. ``ok`` keeps its exact old meaning.
+        checks.append({"name": "tests", "ok": ok, "status": status,
+                       "timeout_s": budget, "detail": detail})
 
     return VerifyResult(ok=all(c["ok"] for c in checks), checks=checks)
