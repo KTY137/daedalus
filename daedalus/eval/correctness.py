@@ -114,6 +114,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from daedalus.kairos.worktree import GitWorktreeManager
+from daedalus.primary_tree import PrimaryCheckoutWrite, assert_write_allowed
 from daedalus.spine.attempt import READ_ONLY_REPO_VERBS
 
 from .tasks import resolve_task_repo
@@ -192,29 +193,30 @@ def _refuse_primary_checkout(path: str | Path, repo_root: str | Path,
                              what: str = "path") -> Path:
     """GUARD: ``path`` must be neither the primary checkout nor inside it.
 
-    Checked lexically AND by file identity, because ``Path.resolve()`` does not
-    canonicalise DOS-device or UNC admin-share spellings on Windows (measured
-    in ``spine/attempt.py::_identity``, whose finding this reuses rather than
-    re-discovers). Every pytest invocation and every overlay write in this
-    module goes through here first.
+    NOW A THIN SHELL OVER ``daedalus.primary_tree``. It used to be a second
+    implementation, and its own docstring claimed it "reuses rather than
+    re-discovers" the finding in ``spine/attempt.py::_identity``. It reused the
+    FINDING and not the CODE, and the two copies had already diverged on the
+    case that matters most: this one returned the path on ``OSError``
+    ("cannot compare identities; the lexical test stands") while attempt.py
+    refused it. A guard that fails OPEN where its twin fails CLOSED is the
+    ``lane_for_host`` disease -- one question, two predicates, agreeing until
+    the day they do not. Measured 2026-07-29: a non-existent target under a DOS
+    device or UNC-admin-share spelling passed here and was refused there.
+
+    ``assert_write_allowed`` also resolves symlinks and ``..``, which the
+    lexical ``abspath``/``normpath`` pair above never did.
+
+    Every pytest invocation and every overlay write in this module goes through
+    here first, so the exception type is preserved: callers and tests catch
+    ``PrimaryCheckoutTouch``, and that contract predates the shared fence.
     """
-    p = Path(os.path.normpath(os.path.abspath(str(path))))
-    repo = Path(os.path.normpath(os.path.abspath(str(repo_root))))
-    if _key(p) == _key(repo) or _key(p).startswith(_key(repo) + os.sep):
-        raise PrimaryCheckoutTouch(
-            f"refusing to use {p} as the {what}: it is the primary checkout "
-            f"{repo}, or inside it. A base revision is only ever checked out "
-            f"in a disposable worktree.")
     try:
-        p_id = os.stat(p)
-        repo_id = os.stat(repo)
-    except OSError:
-        return p            # cannot compare identities; the lexical test stands
-    if (p_id.st_dev, p_id.st_ino) == (repo_id.st_dev, repo_id.st_ino):
+        return assert_write_allowed(path, repo_root, what=what)
+    except PrimaryCheckoutWrite as exc:
         raise PrimaryCheckoutTouch(
-            f"refusing to use {p} as the {what}: it is the primary checkout "
-            f"{repo} under a different spelling")
-    return p
+            f"{exc} A base revision is only ever checked out in a disposable "
+            f"worktree.") from exc
 
 
 def _safe_join(worktree: str | Path, rel: str) -> Path:

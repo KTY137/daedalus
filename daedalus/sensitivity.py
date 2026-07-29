@@ -17,6 +17,18 @@ have **different defaults**; do not describe one using the other's rule.
   data-loss / architecture / auth / prod)? This gates whether a free model may
   do more than *review*.
 
+A FOURTH GATE EXISTS AND IS DELIBERATELY NOT HERE: **which TREE do the bytes
+land in?** -- :mod:`daedalus.primary_tree`, which refuses writes that land in
+the primary checkout so that Daedalus only ever modifies a clone of itself.
+It is not in this module because it is not the same kind of predicate: every
+gate here matches substrings/regexes against a normalised path under
+per-project config, and that one compares numeric device/inode identity on
+resolved paths and takes no config at all. They are orthogonal and they
+COMPOSE -- a write must clear both -- but neither is derivable from the other,
+and under :func:`path_write_blocked` every repo-relative path is trivially "in
+the repo", which is meaningless here and load-bearing there. Do not answer the
+tree question with ``_norm``/``_within_write_allow``; import the fence.
+
 The egress axis's allow-list has never been consulted by the write axis. Prose
 that said otherwise once made 8 of 12 supposedly-denied paths writable,
 including ``daedalus/config.py``, which *loads the policy* — see the long note
@@ -558,7 +570,8 @@ def declared_trusted_hosts() -> frozenset[str]:
             # CRITICAL in this commit's sibling; dormant today because the only
             # declared address is a unicast tailnet host, and dormant is not the
             # same as absent.
-            if addr.is_unspecified or addr.is_multicast or addr.is_reserved:
+            if (addr.is_unspecified or addr.is_multicast or addr.is_reserved
+                    or addr.is_link_local):
                 continue
             out.add(str(addr))
         except (ValueError, UnicodeError):

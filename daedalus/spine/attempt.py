@@ -16,7 +16,7 @@ window (see :mod:`daedalus.spine.ledger`).
 
 WHY THIS CAN NOT WRITE THE PRIMARY CHECKOUT
 -------------------------------------------
-Not a convention, not a review rule -- three structural properties:
+Not a convention, not a review rule -- four structural properties:
 
 1. ONE git choke point. Every git invocation in this module goes through
    :func:`_git`, which raises :class:`PrimaryCheckoutWrite` if the working
@@ -41,6 +41,25 @@ Not a convention, not a review rule -- three structural properties:
    :data:`READ_ONLY_REPO_VERBS` makes adding one fail loudly rather than
    quietly work. Promotion is a separate, human-invoked act, and that is the
    whole point: an unvalidated metric must never gate autonomy.
+4. THE ONE CALLER-CHOSEN OUTPUT PATH IS FENCED. Properties 1-3 hold because
+   every path this module writes is one it CONSTRUCTS -- the worktree under
+   ``%LOCALAPPDATA%``, the gate's scratch tree under ``%TEMP%``. ``artifact_dir``
+   is the exception: a plain constructor argument naming a directory to deposit
+   patch bytes into, and it was unchecked, so ``artifact_dir=<repo>/runs/patches``
+   wrote candidate bytes into the primary checkout and created the directories
+   to do it. :meth:`TaskAttempt._persist` now clears
+   :func:`daedalus.primary_tree.assert_write_allowed` BEFORE ``mkdir``, and a
+   refusal is reported on the result rather than raised, because failing to
+   save a file must not throw away a gated candidate.
+
+WHAT IS DELIBERATELY *NOT* FENCED, because it is not the attempt writing itself:
+the SPINE LEDGER. ``SpineLedger()`` defaults to ``<repo>/runs/spine/spine.sqlite3``
+(MEASURED), inside the primary checkout, and that is correct -- a durable record
+that an attempt happened is the opposite of the attempt leaking into the tree,
+and moving it outside the repo would put the crash-recovery evidence somewhere
+the developer does not look. It writes only under ``runs/``, never a tracked
+source file, so ``git status --porcelain`` is unaffected. Stated here so the
+list of primary-checkout writes is deliberate rather than discovered later.
 
 What this DOES write in the primary repo's ``.git``: a branch ref and a
 worktree registration, created by ``git worktree add -b`` via
@@ -100,6 +119,19 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 from daedalus.kairos.worktree import GitWorktreeManager, remove_tree_no_follow
+# THE FENCE LIVES IN ONE MODULE, and this file no longer owns a copy of it.
+# `_identity` and `_overlap_reason` were defined here; `eval/correctness.py`
+# then grew a SECOND answer to the same question that fails OPEN where this one
+# fails closed (see :mod:`daedalus.primary_tree` for the measurement). Importing
+# rather than re-deriving is the whole point -- a caller that needs the
+# comparison must get THIS one.
+from daedalus.primary_tree import (
+    PrimaryCheckoutWrite,
+    _identity,
+    assert_write_allowed,
+    nearest_existing,
+    overlap_reason as _overlap_reason,
+)
 from daedalus.spine.ledger import SpineLedger, canonical_json
 from daedalus.storage import StorageUnavailable, require_storage
 
@@ -169,13 +201,10 @@ DEFAULT_GIT_TIMEOUT_S = 120.0
 BRANCH_PREFIX = "daedalus-attempt"
 
 
-class PrimaryCheckoutWrite(RuntimeError):
-    """A mutating git command was aimed at the primary checkout.
-
-    This is a bug in this module, never a runtime condition, so it is a raised
-    error rather than a result state -- silently degrading it would defeat the
-    guard.
-    """
+#: Re-exported from :mod:`daedalus.primary_tree`, which now owns it. It is the
+#: SAME class object, so every existing ``except PrimaryCheckoutWrite`` and
+#: ``pytest.raises(PrimaryCheckoutWrite)`` against this module keeps working.
+PrimaryCheckoutWrite = PrimaryCheckoutWrite
 
 
 class GitCommandError(RuntimeError):
@@ -218,21 +247,18 @@ def _jsonable(value: Any) -> Any:
     return repr(value)
 
 
-def _existing_ancestor(path: Path) -> Path:
-    """The nearest existing directory at or above ``path``.
-
-    ``shutil.disk_usage`` raises on a missing path, so checking the worktree
-    root directly would report ``storage_unavailable`` on a first run purely
-    because the directory has not been created yet. Walking up asks the
-    question that was actually meant: does the VOLUME have room -- and it asks
-    it without creating anything, so the storage check stays side-effect free.
-    """
-    p = Path(path)
-    while not p.exists():
-        if p.parent == p:
-            break
-        p = p.parent
-    return p
+#: The nearest existing directory at or above a path.
+#:
+#: ``shutil.disk_usage`` raises on a missing path, so checking the worktree
+#: root directly would report ``storage_unavailable`` on a first run purely
+#: because the directory has not been created yet. Walking up asks the question
+#: that was actually meant: does the VOLUME have room -- and it asks it without
+#: creating anything, so the storage check stays side-effect free.
+#:
+#: This was a third private copy of the same walk (the fence needs it to find
+#: the GROUND a not-yet-created file will land on). Same function, same
+#: semantics, so it is an alias rather than a reimplementation.
+_existing_ancestor = nearest_existing
 
 
 def _as_predicate(cancel: Any) -> Callable[[], bool]:
@@ -263,83 +289,15 @@ def _as_predicate(cancel: Any) -> Callable[[], bool]:
     raise TypeError("cancel must be None, a callable, or expose is_set()")
 
 
-def _identity(path: Path) -> tuple | None:
-    """``(volume, file-index)`` for ``path``, or ``None`` if it cannot be read.
-
-    The comparison key for "are these two names the same directory?".
-    ``Path.resolve()`` is NOT that key: it canonicalises neither DOS-device
-    (``\\\\?\\C:\\x``, ``\\\\?\\UNC\\host\\share\\x``) nor UNC admin-share
-    (``\\\\localhost\\C$\\x``, ``\\\\127.0.0.1\\C$\\x``) spellings into the
-    drive-letter form. Measured: four such spellings of the primary checkout
-    compared UNEQUAL under ``resolve()`` and EQUAL under ``st_dev``/``st_ino``.
-
-    ``os.stat`` follows reparse points on purpose here -- the question is which
-    directory a name lands on, and a junction that lands on the checkout is
-    exactly as dangerous as the checkout's own name.
-    """
-    try:
-        st = os.stat(path)
-    except OSError:
-        return None
-    return (st.st_dev, st.st_ino)
-
-
-def _overlap_reason(cwd_path: Path, repo_path: Path) -> str | None:
-    """Why ``cwd_path`` touches the primary checkout, or ``None`` if it does not.
-
-    Overlap is checked in BOTH directions and by TWO independent means.
-
-    Both directions, because asking only "is cwd inside the repo?" leaves a
-    geometric hole: an ANCESTOR of the checkout is not inside it, so a
-    worktree_manager that handed back ``repo_root.parent`` would pass -- and
-    whenever the checkout is nested inside an outer repo (a workspace, a
-    vendored clone), a mutating verb run there stages the developer's tree.
-
-    Both means, because the lexical test is only as good as the spelling. It
-    correctly refuses equal paths, different case and 8.3 short names, and it
-    is the only test available for a path that does not exist yet; but it was
-    measured ALLOWING ``git add -A`` to run in the primary checkout, and stage
-    files there, when the directory was named ``\\\\localhost\\C$\\...`` or
-    ``\\\\?\\C:\\...``. File identity closes every alias at once, including
-    ones nobody has thought of, because it stops comparing names.
-
-    Fail-closed: a path whose identity cannot be established is REFUSED for
-    mutating verbs rather than assumed innocent.
-
-    NOTE ON THE TEXT COMPARISON BELOW: it is a fast path, NOT a guard, and it
-    is labelled that way because a comment that reads like a guard gets trusted
-    like one. Deleting it was mutation-tested and changed no verdict in the
-    suite -- the identity comparison catches every case it catches, including
-    a path that does not exist (unexaminable, therefore refused). It is kept
-    only because it answers the common cases without touching the filesystem
-    and gives a more specific refusal message.
-    """
-    if cwd_path == repo_path:
-        return "it is the primary checkout"
-    if repo_path in cwd_path.parents:
-        return "it is inside the primary checkout"
-    if cwd_path in repo_path.parents:
-        return "it contains the primary checkout"
-
-    repo_id = _identity(repo_path)
-    if repo_id is None:
-        return ("the primary checkout could not be examined, so overlap with "
-                "it cannot be ruled out")
-    cwd_id = _identity(cwd_path)
-    if cwd_id is None:
-        return ("this directory could not be examined, so overlap with the "
-                "primary checkout cannot be ruled out")
-    if cwd_id == repo_id:
-        return "it is the primary checkout under a different spelling"
-    for ancestor in cwd_path.parents:
-        if _identity(ancestor) == repo_id:
-            return (f"it is inside the primary checkout, which it reaches "
-                    f"through {ancestor}")
-    for ancestor in repo_path.parents:
-        if _identity(ancestor) == cwd_id:
-            return (f"it contains the primary checkout, which is reached "
-                    f"through {ancestor}")
-    return None
+# `_identity` and `_overlap_reason` USED TO BE DEFINED HERE, ~90 lines of
+# identity-vs-lexical path comparison. They now live in
+# :mod:`daedalus.primary_tree` and are imported at the top of this file under
+# the same names, so `attempt_mod._overlap_reason` still resolves and the git
+# choke point below is unchanged in behaviour. The move is not tidying: a
+# second copy of this comparison had already appeared in `eval/correctness.py`
+# and had already diverged on the fail-closed case, which is the failure mode
+# this codebase keeps re-living. There is now one comparison, asked in one
+# direction for a write and in both for a working directory.
 
 
 #: Config keys git will consult that name a program to EXECUTE. Every one of
@@ -571,6 +529,27 @@ class TaskSpec:
     gate_argv: tuple[str, ...] = ()
     gate_cwd: str = "."
     gate_timeout_s: float = DEFAULT_GATE_TIMEOUT_S
+    # SWE-bench's FAIL_TO_PASS / PASS_TO_PASS schema (docs/ABSORPTION.md F1),
+    # a per-task discrimination criterion instead of "the whole suite is
+    # green": node ids that must go from failing to passing, and node ids that
+    # must stay passing. Empty (the default) means no correctness task is
+    # declared and the gate falls through to gate_argv/gate_paths exactly as
+    # before -- see the precedence note on TaskAttempt.__init__.
+    #
+    # ``correctness_before_state`` is the FROZEN, PRE-VERIFIED receipt these
+    # lists were measured under (the shape ``daedalus.eval.correctness.
+    # seed_task_from_commit``/the correctness corpus already produces:
+    # ``verified``, ``base_revision``, ``selection_digest``, per-node status
+    # maps). It is carried here, not re-derived, because the candidate's
+    # worktree already has the patch applied by the time a gate runs -- the
+    # before-state CANNOT be measured there, only checked against a receipt
+    # made earlier. Present but unverified/mismatched is refused at gate time
+    # by ``daedalus.eval.correctness.correctness_gate`` itself, never treated
+    # as passing; that fail-closed behaviour is the existing, tested one, not
+    # reimplemented here.
+    fail_to_pass: tuple[str, ...] = ()
+    pass_to_pass: tuple[str, ...] = ()
+    correctness_before_state: Mapping[str, Any] = field(default_factory=dict)
 
     def body(self) -> dict:
         """The canonical, JSON-safe view -- the thing that gets digested."""
@@ -591,6 +570,12 @@ class TaskSpec:
                 "argv": [str(arg) for arg in self.gate_argv],
                 "cwd": str(self.gate_cwd),
                 "timeout_s": float(self.gate_timeout_s),
+            }
+        if self.fail_to_pass or self.pass_to_pass:
+            body["correctness"] = {
+                "fail_to_pass": [str(t) for t in self.fail_to_pass],
+                "pass_to_pass": [str(t) for t in self.pass_to_pass],
+                "before_state": _jsonable(dict(self.correctness_before_state)),
             }
         return body
 
@@ -1109,6 +1094,29 @@ class TaskAttempt:
                 task.gate_argv,
                 timeout_s=float(task.gate_timeout_s),
                 name="queue-command")
+        elif task.fail_to_pass or task.pass_to_pass:
+            # FAIL_TO_PASS/PASS_TO_PASS beats the plain pytest_gate default but
+            # loses to an explicit gate/gate_argv override, matching the
+            # existing "explicit beats implicit" precedence above. Lazy import:
+            # daedalus.eval.correctness imports daedalus.spine.attempt
+            # (READ_ONLY_REPO_VERBS) at ITS module top level, so importing it
+            # from THIS module's top level would be circular; by the time
+            # __init__ actually runs, both modules are already fully loaded.
+            # correctness_gate is the existing, tested instrument (its own
+            # docstring: "Signature and return type match the attempt's gate
+            # contract exactly") -- this wires it rather than re-deriving its
+            # fail-closed-on-an-unverified-receipt behaviour here.
+            from daedalus.eval.correctness import correctness_gate as _correctness_gate
+            self._gate = _correctness_gate(
+                {
+                    "id": task.task_id,
+                    "base_revision": task.base_revision,
+                    "fail_to_pass": list(task.fail_to_pass),
+                    "pass_to_pass": list(task.pass_to_pass),
+                    "before_state": dict(task.correctness_before_state),
+                },
+                self.repo_root,
+                timeout_s=float(task.gate_timeout_s))
         else:
             self._gate = pytest_gate(task.gate_paths)
         self._manager = worktree_manager or GitWorktreeManager(self.repo_root)
@@ -1505,12 +1513,35 @@ class TaskAttempt:
 
         Off by default: the artifact is returned to the caller, and writing it
         anywhere is a decision about somebody else's disk.
+
+        THE ONE PLACE THIS MODULE WRITES A CALLER-CHOSEN PATH, and until now it
+        wrote it unchecked. Everything else here is fenced by construction --
+        the worktree lives under ``%LOCALAPPDATA%``, the gate's scratch tree
+        under ``%TEMP%``, and every git invocation goes through :func:`_git`.
+        ``artifact_dir`` is a plain constructor argument, so
+        ``TaskAttempt(..., artifact_dir=repo_root / "runs" / "patches")``
+        deposited candidate bytes straight into the primary checkout, created
+        the intermediate directories to do it, and reported the path on a
+        ``clean`` result as if that were the intended outcome. The module
+        docstring's claim that this class cannot write the primary checkout was
+        true of every path except this one.
+
+        So the fence runs BEFORE ``mkdir``: refusing after the directory tree
+        exists would still have left a mark on the checkout. The refusal is
+        reported, not raised, because persistence is a side errand -- losing a
+        gated candidate to a bad output directory would be strictly worse than
+        not writing the file.
         """
         try:
-            self._artifact_dir.mkdir(parents=True, exist_ok=True)
-            path = self._artifact_dir / f"{artifact.diff_sha256}.patch"
-            path.write_bytes(artifact.diff_bytes)
-            return str(path), None
+            target = assert_write_allowed(
+                Path(self._artifact_dir) / f"{artifact.diff_sha256}.patch",
+                self.repo_root, what="to persist a candidate patch to")
+        except PrimaryCheckoutWrite as e:
+            return None, str(e)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(artifact.diff_bytes)
+            return str(target), None
         except OSError as e:
             return None, f"artifact could not be persisted: {e}"
 

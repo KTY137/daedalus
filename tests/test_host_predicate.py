@@ -41,7 +41,12 @@ from pathlib import Path
 import pytest
 
 import daedalus.council.vendors as V
-from daedalus.sensitivity import lane_for_host
+from daedalus.sensitivity import (
+    ENV_TRUSTED_HOSTS,
+    declared_trusted_hosts,
+    is_loopback_host,
+    lane_for_host,
+)
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -213,6 +218,156 @@ def test_NARROWED_names_the_council_used_to_call_local(host):
     """
     assert lane_for_host(host) == "untrusted"
     assert V.OllamaAdapter(host=host, chat=lambda **kw: {}).local is False
+
+
+# --------------------------------------------------------------------------- #
+# declared_trusted_hosts -- the operator-declared trust boundary               #
+# --------------------------------------------------------------------------- #
+# DAEDALUS_TRUSTED_HOSTS lets an operator assert that a specific NUMERIC
+# address (typically a private-tunnel bench) is inside their trust boundary,
+# without reopening the DNS indirection or the CIDR-creep the loopback rule
+# was hardened against. Every property below was a DELIBERATE hardening
+# carried over from that rule -- see daedalus.sensitivity.declared_trusted_hosts.
+
+
+def test_unset_env_reproduces_the_old_fail_closed_default(monkeypatch):
+    """No declaration at all: the tailnet bench stays untrusted, exactly the
+    behaviour this module had before DAEDALUS_TRUSTED_HOSTS existed."""
+    monkeypatch.delenv(ENV_TRUSTED_HOSTS, raising=False)
+    assert declared_trusted_hosts() == frozenset()
+    assert lane_for_host("100.119.126.9") == "untrusted"
+    assert lane_for_host("http://100.119.126.9:11434") == "untrusted"
+
+
+def test_empty_env_is_the_same_as_unset(monkeypatch):
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "")
+    assert declared_trusted_hosts() == frozenset()
+    assert lane_for_host("100.119.126.9") == "untrusted"
+
+
+@pytest.mark.parametrize("host", [
+    "100.119.126.9",
+    "http://100.119.126.9",
+    "http://100.119.126.9:11434",
+    "100.119.126.9:11434",
+], ids=["bare", "scheme-no-port", "scheme-and-port", "port-no-scheme"])
+def test_a_declared_numeric_address_is_trusted_with_or_without_scheme_or_port(
+        monkeypatch, host):
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9")
+    assert declared_trusted_hosts() == frozenset({"100.119.126.9"})
+    assert lane_for_host(host) == "trusted"
+
+
+def test_declaring_one_address_does_not_trust_its_neighbour(monkeypatch):
+    """EXACT address equality only -- no CIDR, no prefix. Declaring .9 must
+    never trust .99; a trust list that grows by arithmetic is a trust list
+    nobody can audit."""
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9")
+    assert lane_for_host("100.119.126.99") == "untrusted"
+    assert lane_for_host("100.119.126.90") == "untrusted"
+
+
+def test_a_declared_hostname_is_dropped_never_resolved(monkeypatch):
+    """Numeric literals only, even in the declaration itself. This is the same
+    reason `localhost` is refused as a CHECKED host: a name that resolves to
+    the bench when checked can resolve elsewhere when connected, and the
+    predicate cannot see the difference -- so a declared name is dropped
+    rather than trusted."""
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "localhost")
+    assert declared_trusted_hosts() == frozenset()
+    assert lane_for_host("localhost") == "untrusted"
+
+
+def test_an_unparseable_entry_narrows_rather_than_widens(monkeypatch):
+    """A typo must shrink the declared set to nothing, never expand it to
+    match everything -- an unparseable entry is dropped, not guessed at."""
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "not a valid host!!!")
+    assert declared_trusted_hosts() == frozenset()
+    assert lane_for_host("100.119.126.9") == "untrusted"
+
+
+def test_a_bad_entry_does_not_poison_a_good_one_in_the_same_list(monkeypatch):
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9, not a valid host!!!")
+    assert declared_trusted_hosts() == frozenset({"100.119.126.9"})
+    assert lane_for_host("100.119.126.9") == "trusted"
+
+
+def test_multiple_declared_addresses_are_all_honoured(monkeypatch):
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9,10.0.0.5")
+    assert declared_trusted_hosts() == frozenset({"100.119.126.9", "10.0.0.5"})
+    assert lane_for_host("100.119.126.9") == "trusted"
+    assert lane_for_host("10.0.0.5") == "trusted"
+    assert lane_for_host("10.0.0.6") == "untrusted"
+
+
+def test_a_scheme_and_port_on_the_declaration_itself_are_stripped(monkeypatch):
+    """The declaration is normalised the same way a checked host is: a scheme
+    or port left on the env value by accident must not produce an entry that
+    matches nothing."""
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "http://100.119.126.9:11434")
+    assert declared_trusted_hosts() == frozenset({"100.119.126.9"})
+    assert lane_for_host("100.119.126.9") == "trusted"
+
+
+# --------------------------------------------------------------------------- #
+# is_loopback_host -- physics, not consent; the split that closed a CRITICAL   #
+# --------------------------------------------------------------------------- #
+# lane_for_host answers "may repository content go to this host" -- consent,
+# widenable via DAEDALUS_TRUSTED_HOSTS. is_loopback_host answers "is this host
+# PHYSICALLY this machine" -- never widenable; no env var reaches it. Found by
+# review: web_api._resolve_bind was asking the second question but reading the
+# first predicate's answer, so declaring a bench trusted for INFERENCE egress
+# also handed out an unauthenticated control-plane bind (spine ledger,
+# role-rewriting PUTs, model-invoking POSTs) to anything on that tailnet. The
+# divergence between the two predicates on a declared address is now a
+# security property, pinned here.
+
+@pytest.mark.parametrize("host", [
+    "127.0.0.1", "http://127.0.0.1", "http://127.0.0.1:11434",
+    "127.0.0.1:11434", "127.0.0.2", "127.5.5.5", "127.255.255.254",
+    "[::1]", "http://[::1]:11434",
+])
+def test_is_loopback_host_true_for_numeric_loopback_only(host):
+    assert is_loopback_host(host) is True
+
+
+@pytest.mark.parametrize("host", [
+    "localhost", "http://localhost:11434",   # a name -- DNS indirection
+    "::1",                                   # unbracketed: not host-parseable
+    "100.119.126.9", "10.0.0.5", "192.168.1.20",   # other machines
+    "0.0.0.0",                               # a bind address, not a promise
+    "", None, "!!!", "://",                  # fails closed
+])
+def test_is_loopback_host_false_for_everything_else(host):
+    assert is_loopback_host(host) is False
+
+
+def test_is_loopback_host_stays_false_for_a_declared_trusted_host(monkeypatch):
+    """THE SECURITY PROPERTY. Declaring an address trusted makes
+    lane_for_host return "trusted" for it -- that is the whole point of
+    DAEDALUS_TRUSTED_HOSTS. is_loopback_host must disagree with it on that
+    SAME address: a private-tunnel bench does not become physically this
+    machine because an operator consented to sending it inference bytes.
+    This is exactly the divergence web_api._resolve_bind now depends on."""
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9")
+    assert lane_for_host("100.119.126.9") == "trusted"
+    assert is_loopback_host("100.119.126.9") is False
+
+
+def test_is_loopback_host_ignores_the_declared_trust_list_entirely(monkeypatch):
+    """No env var reaches this predicate at all. Unlike lane_for_host, which
+    consults declared_trusted_hosts(), is_loopback_host must answer identically
+    for a host whether or not it is declared trusted -- undeclarable is the
+    whole design."""
+    monkeypatch.delenv(ENV_TRUSTED_HOSTS, raising=False)
+    before = is_loopback_host("100.119.126.9")
+    monkeypatch.setenv(ENV_TRUSTED_HOSTS, "100.119.126.9")
+    after = is_loopback_host("100.119.126.9")
+    assert before is False and after is False
+
+
+def test_is_loopback_host_none_fails_closed():
+    assert is_loopback_host(None) is False
 
 
 # --------------------------------------------------------------------------- #

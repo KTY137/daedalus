@@ -95,10 +95,56 @@ THE CLAIM, AND ITS EXACT LIMITS:
     exfiltration and no caller may read it that way.
   * NOT a write allowlist. ``AppData\\LocalLow`` and other Low-labelled objects
     stay writable. This is damage limitation.
-  * NETWORK: unrestricted. A Low process still has a network stack.
+  * NETWORK: unrestricted. A Low process still has a network stack, and NO Job
+    Object limit can change that -- see :data:`JOB_LIMITS_DO_NOT_COVER`.
   * NAMED PIPES: UNMEASURED. Review declined to call MIC a reliable IPC boundary
     and so does this module -- see :func:`unmeasured_vectors`, which GREW when
     bounded inheritance landed and must never shrink silently.
+
+THE JOB OBJECT: A RESOURCE BOUND, NOT A SECOND SECURITY BOUNDARY
+----------------------------------------------------------------
+MIC bounds what the child may WRITE. It says nothing about how much the child
+may CONSUME, and a gate that a candidate can wedge by forking is a denial of
+service against the loop even though not one byte escaped. So the job carries
+caps as well as a lifetime (:func:`_create_job`):
+
+  * ``KILL_ON_JOB_CLOSE`` -- the tree dies with the last handle, so a leaked
+    test process cannot outlive the attempt and keep writing into a worktree
+    that is about to be removed.
+  * ``ACTIVE_PROCESS`` -- :data:`JOB_ACTIVE_PROCESS_LIMIT` concurrent
+    processes. Past it ``CreateProcess`` IN THE CHILD fails with
+    ``ERROR_NOT_ENOUGH_QUOTA`` (1816); the job is not killed, so a fork bomb
+    stalls instead of taking the box.
+  * ``JOB_MEMORY`` -- :data:`JOB_MEMORY_LIMIT_BYTES` of committed memory across
+    the WHOLE tree, not per process, because per-process caps compose badly
+    with a process cap: N children each just under the line is still N times
+    the line.
+  * ``DIE_ON_UNHANDLED_EXCEPTION`` -- a crashing candidate dies instead of
+    raising a Windows Error Reporting dialog that no one is there to dismiss,
+    which on an unattended gate is an infinite hang dressed as a slow test.
+  * BREAKAWAY IS DENIED BY OMISSION. Neither ``BREAKAWAY_OK`` nor
+    ``SILENT_BREAKAWAY_OK`` is set, so ``CREATE_BREAKAWAY_FROM_JOB`` in the
+    child fails. That is the default, and defaults are exactly what drift, so
+    the read-back below ASSERTS their absence rather than assuming it.
+
+EVERY ONE OF THOSE IS READ BACK out of the kernel with
+``QueryInformationJobObject`` and compared before a child is allowed to start.
+``SetInformationJobObject`` returning TRUE is a claim; ``LimitFlags`` coming
+back out of the kernel is a fact, and only facts reach the attestation.
+
+WHAT CONTAINMENT DOES *NOT* COVER, STATED SO SILENCE IS NOT MISTAKEN FOR COVER
+-----------------------------------------------------------------------------
+Only the GATE CHILD is contained. The harness process that spawns it, the git
+calls it makes, and ``attempt.py``'s ``_persist`` all run at the invoking user's
+full integrity, by construction -- something has to hold the Medium handles.
+
+That matters for one race in particular. ``daedalus.primary_tree``'s fence
+resolves a path and then writes to it, and a junction swapped in between those
+two steps is NOT closed by Python; nothing written in Python can close it. MIC
+containment of the child is the mechanism that actually bounds that class,
+because the swap only buys the attacker a write the KERNEL will still refuse at
+Low integrity. It bounds it; it does not close it, and it does nothing at all
+for the uncontained harness code on the other side of the boundary.
 
 An AppContainer or a restricted token with its own SID would bound network, IPC,
 capabilities and confidentiality. That belongs in its own ADR with its own
@@ -118,10 +164,15 @@ __all__ = [
     "ContainedProcess",
     "ContainmentAttestation",
     "ContainmentUnavailable",
+    "JOB_ACTIVE_PROCESS_LIMIT",
+    "JOB_LIMITS_DO_NOT_COVER",
+    "JOB_MEMORY_LIMIT_BYTES",
+    "JobLimits",
     "LOW_APPEND_ACCESS",
     "LOW_INTEGRITY_SID",
     "LowIntegrityLog",
     "integrity_label",
+    "job_accounting",
     "label_low_integrity",
     "label_low_integrity_file",
     "open_low_append_log",
@@ -162,6 +213,39 @@ LOW_APPEND_ACCESS = (_FILE_APPEND_DATA | _FILE_READ_ATTRIBUTES
 #: have obtained itself" -- and blinding our own evidence channel to avoid it
 #: would have been the worse trade. Measured with the mask below: reading and
 #: truncating through the handle are still refused.
+#: Concurrent processes allowed inside the gate's job. MEASURED, not guessed: a
+#: real contained ``python -m pytest`` of this repo's own tests was run with the
+#: job's accounting counters read back afterwards, and the number below is that
+#: measured peak with a wide margin over it. See ``JobLimits.measured_note``.
+#:
+#: The cap is a CEILING ON DAMAGE, not a scheduling policy. Set it near a real
+#: run's peak and an unlucky-but-honest candidate fails its gate for a reason
+#: that has nothing to do with its patch -- which this repo has already shipped
+#: once, with ``pytest docs/THAT.md``, and calls fail-closed-but-useless.
+JOB_ACTIVE_PROCESS_LIMIT = 96
+
+#: Committed memory for the WHOLE job, in bytes. Same reasoning: far above a
+#: measured real run, far below "this box stops responding".
+JOB_MEMORY_LIMIT_BYTES = 4 * 1024 * 1024 * 1024
+
+#: What the job caps DO NOT do. Named because a resource limit reads, to a
+#: hurried reader, like a security boundary, and these three are the ones
+#: somebody will assume are covered.
+JOB_LIMITS_DO_NOT_COVER = (
+    "network egress: there is no Job Object limit for it. Codex CLI's Windows "
+    "sandbox closes network with a FIREWALL RULE SCOPED TO A DEDICATED USER "
+    "PRINCIPAL, not with the job -- a different mechanism with its own "
+    "privileged setup step. Unimplemented here, and so still unrestricted",
+    "confidentiality: the caps bound consumption, not reads. MIC is a write-up "
+    "barrier and the job is a resource bound; neither stops a Low child "
+    "reading the checkout or the user profile",
+    "disk: JOB_OBJECT_LIMIT_JOB_MEMORY is COMMITTED MEMORY. A candidate that "
+    "fills the volume inside its own Low-labelled worktree or temp directory "
+    "is bounded by neither the job nor MIC",
+    "the harness itself: only the gate CHILD is in the job. This process, its "
+    "git calls and attempt.py's _persist are uncontained by construction",
+)
+
 WHY_READ_ATTRIBUTES = (
     "FILE_READ_ATTRIBUTES is granted because os.fstat(1) needs it and pytest "
     "silently redirects all output to os.devnull when it fails -- measured: "
@@ -297,6 +381,10 @@ if os.name == "nt":  # pragma: no cover - exercised on win32 only
     _kernel32.SetInformationJobObject.argtypes = [
         wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
     _kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    _kernel32.QueryInformationJobObject.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD)]
+    _kernel32.QueryInformationJobObject.restype = wintypes.BOOL
     _kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE,
                                                    wintypes.HANDLE]
     _kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
@@ -329,8 +417,20 @@ if os.name == "nt":  # pragma: no cover - exercised on win32 only
 
     _PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x00020002
 
+    _JobObjectBasicAccountingInformation = 1
     _JobObjectExtendedLimitInformation = 9
+    _JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008
+    _JOB_OBJECT_LIMIT_JOB_MEMORY = 0x00000200
+    _JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION = 0x00000400
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+
+    # NEVER SET. Named so that the read-back can assert their ABSENCE: with
+    # either of these a child may call CreateProcess with
+    # CREATE_BREAKAWAY_FROM_JOB and step outside every limit above, which would
+    # make the whole job decorative. Absence is the Windows default, and a
+    # default is precisely the kind of thing that changes without telling you.
+    _JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
+    _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK = 0x00001000
 
     _FILE_SHARE_READ = 0x00000001
     _READ_CONTROL = 0x00020000
@@ -433,6 +533,16 @@ if os.name == "nt":  # pragma: no cover - exercised on win32 only
                     ("Affinity", ctypes.POINTER(ctypes.c_ulong)),
                     ("PriorityClass", wintypes.DWORD),
                     ("SchedulingClass", wintypes.DWORD)]
+
+    class _JOBOBJECT_BASIC_ACCOUNTING_INFORMATION(ctypes.Structure):
+        _fields_ = [("TotalUserTime", ctypes.c_longlong),
+                    ("TotalKernelTime", ctypes.c_longlong),
+                    ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+                    ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+                    ("TotalPageFaultCount", wintypes.DWORD),
+                    ("TotalProcesses", wintypes.DWORD),
+                    ("ActiveProcesses", wintypes.DWORD),
+                    ("TotalTerminatedProcesses", wintypes.DWORD)]
 
     class _JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
         _fields_ = [("BasicLimitInformation",
@@ -888,6 +998,11 @@ class ContainmentAttestation:
     log_granted_access: int | None = None
     inherited_handle_count: int = 0
     reason: str | None = None
+    #: The job's limits AS THE KERNEL REPORTS THEM, or None for a run that had
+    #: no job (a refusal, or a caller that declared it executes no candidate
+    #: code). Never the constants at the top of this file: those are what was
+    #: asked for, and this dataclass only carries what was confirmed.
+    job_limits: "JobLimits | None" = None
 
     @property
     def low_token_obtained(self) -> bool:
@@ -913,6 +1028,8 @@ class ContainmentAttestation:
                                    else f"{self.log_granted_access:#010x}"),
             "inherited_handle_count": int(self.inherited_handle_count),
             "reason": self.reason,
+            "job_limits": (self.job_limits.summary()
+                           if self.job_limits is not None else None),
         }
 
 
@@ -1009,6 +1126,18 @@ class ContainedProcess:
     def poll(self) -> int | None:
         return self.returncode
 
+    def job_accounting(self) -> dict | None:
+        """How many processes this job has seen. ``None`` once closed.
+
+        The point of measuring rather than asserting: the process cap is only
+        an honest ceiling if somebody has looked at what a REAL gate run costs,
+        and this is how that number is obtained. Must be read before
+        :meth:`close`, which destroys the job along with its counters.
+        """
+        if self._closed or self._job is None:
+            return None
+        return job_accounting(self._job)
+
     def wait(self, timeout_s: float = 900.0) -> int:
         _kernel32.WaitForSingleObject(self.handle, int(timeout_s * 1000))
         code = self.returncode
@@ -1083,18 +1212,149 @@ class ContainedProcess:
         self.close()
 
 
-def _create_job() -> int:
+@dataclass(frozen=True)
+class JobLimits:
+    """What the kernel SAYS is armed on a job, read back out of it.
+
+    Not what was requested. :func:`_create_job` asks, then queries, then
+    compares, and this object is built from the query -- so an attestation
+    carrying it is reporting a fact about the running job rather than repeating
+    the constant at the top of this file.
+    """
+
+    limit_flags: int
+    active_process_limit: int
+    job_memory_limit_bytes: int
+
+    @property
+    def kill_on_close(self) -> bool:
+        return bool(self.limit_flags & _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
+
+    @property
+    def breakaway_denied(self) -> bool:
+        """True when NEITHER breakaway flag is present.
+
+        Phrased as a positive property because ``not breakaway_ok`` is the kind
+        of double negative a reader skims past, and this is the flag whose
+        accidental arrival would silently void every other limit here.
+        """
+        return not (self.limit_flags & (_JOB_OBJECT_LIMIT_BREAKAWAY_OK
+                                        | _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK))
+
+    def summary(self) -> dict:
+        return {
+            "limit_flags": f"{self.limit_flags:#010x}",
+            "kill_on_close": self.kill_on_close,
+            "breakaway_denied": self.breakaway_denied,
+            "active_process_limit": self.active_process_limit,
+            "job_memory_limit_bytes": self.job_memory_limit_bytes,
+        }
+
+
+def _query_job_limits(job: int) -> JobLimits:
+    """The job's ACTUAL limits, from ``QueryInformationJobObject``."""
+    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    returned = wintypes.DWORD()
+    if not _kernel32.QueryInformationJobObject(
+            wintypes.HANDLE(job), _JobObjectExtendedLimitInformation,
+            ctypes.byref(info), ctypes.sizeof(info), ctypes.byref(returned)):
+        raise _win_error("QueryInformationJobObject(ExtendedLimitInformation)")
+    return JobLimits(
+        limit_flags=int(info.BasicLimitInformation.LimitFlags),
+        active_process_limit=int(info.BasicLimitInformation.ActiveProcessLimit),
+        job_memory_limit_bytes=int(info.JobMemoryLimit))
+
+
+def job_accounting(job: int) -> dict:
+    """``TotalProcesses``/``ActiveProcesses`` for a job. For MEASUREMENT.
+
+    Exists so the process cap can be set from a number that was observed rather
+    than picked: run a real gate, read ``total_processes``, and the margin
+    between that and :data:`JOB_ACTIVE_PROCESS_LIMIT` is visible instead of
+    asserted. ``total_processes`` is cumulative over the job's life, so it is an
+    upper bound on peak concurrency, which is the safe direction to be wrong in
+    when choosing a ceiling.
+    """
+    _require_win32("job accounting")
+    info = _JOBOBJECT_BASIC_ACCOUNTING_INFORMATION()
+    returned = wintypes.DWORD()
+    if not _kernel32.QueryInformationJobObject(
+            wintypes.HANDLE(job), _JobObjectBasicAccountingInformation,
+            ctypes.byref(info), ctypes.sizeof(info), ctypes.byref(returned)):
+        raise _win_error("QueryInformationJobObject(BasicAccounting)")
+    return {
+        "total_processes": int(info.TotalProcesses),
+        "active_processes": int(info.ActiveProcesses),
+        "total_terminated_processes": int(info.TotalTerminatedProcesses),
+    }
+
+
+def _create_job(active_process_limit: int = JOB_ACTIVE_PROCESS_LIMIT,
+                job_memory_limit_bytes: int = JOB_MEMORY_LIMIT_BYTES
+                ) -> tuple[int, JobLimits]:
+    """A job with a lifetime AND caps, every one of them verified by read-back.
+
+    The parameters exist for MEASUREMENT and for the tests that prove the caps
+    bite -- a test that had to allocate four gigabytes or fork ninety-six times
+    to show the limit works would be a test nobody runs. They are NOT a
+    loosening knob: there is no path from a gate to a call site that raises
+    them, and :func:`spawn_contained` does not accept them.
+
+    Raises :class:`ContainmentUnavailable` if the kernel hands back limits that
+    are not the ones asked for, including the case where a breakaway flag
+    appeared that was never set. A job whose limits could not be confirmed is
+    not a bounded job, and this module does not ship an unbounded one under a
+    bounded name.
+    """
+    if active_process_limit < 1:
+        raise ContainmentUnavailable(
+            f"an active-process limit of {active_process_limit} would refuse "
+            f"the gate child itself")
+    if job_memory_limit_bytes < 1:
+        raise ContainmentUnavailable(
+            f"a job memory limit of {job_memory_limit_bytes} bytes is not a "
+            f"limit, it is an outage")
     job = _kernel32.CreateJobObjectW(None, None)
     if not job:
         raise _win_error("CreateJobObjectW")
-    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-    info.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-    if not _kernel32.SetInformationJobObject(
-            job, _JobObjectExtendedLimitInformation, ctypes.byref(info),
-            ctypes.sizeof(info)):
+    try:
+        info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+        wanted = (_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+                  | _JOB_OBJECT_LIMIT_ACTIVE_PROCESS
+                  | _JOB_OBJECT_LIMIT_JOB_MEMORY
+                  | _JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION)
+        info.BasicLimitInformation.LimitFlags = wanted
+        info.BasicLimitInformation.ActiveProcessLimit = int(active_process_limit)
+        info.JobMemoryLimit = ctypes.c_size_t(int(job_memory_limit_bytes))
+        if not _kernel32.SetInformationJobObject(
+                job, _JobObjectExtendedLimitInformation, ctypes.byref(info),
+                ctypes.sizeof(info)):
+            raise _win_error("SetInformationJobObject")
+
+        # THE READ-BACK. Everything above is a request; this is the fact.
+        limits = _query_job_limits(job)
+        if limits.limit_flags != wanted:
+            raise ContainmentUnavailable(
+                f"the job reports LimitFlags {limits.limit_flags:#010x}, not "
+                f"the {wanted:#010x} that was set; refusing to run candidate "
+                f"code in a job whose limits could not be confirmed")
+        if not limits.breakaway_denied:
+            raise ContainmentUnavailable(
+                "the job permits breakaway, which would let the child leave "
+                "every limit above; refusing")
+        if limits.active_process_limit != int(active_process_limit):
+            raise ContainmentUnavailable(
+                f"the job reports an active-process limit of "
+                f"{limits.active_process_limit}, not {active_process_limit}")
+        if limits.job_memory_limit_bytes != int(job_memory_limit_bytes):
+            raise ContainmentUnavailable(
+                f"the job reports a memory limit of "
+                f"{limits.job_memory_limit_bytes} bytes, not "
+                f"{job_memory_limit_bytes}")
+    except BaseException:
         _kernel32.CloseHandle(wintypes.HANDLE(job))
-        raise _win_error("SetInformationJobObject")
-    return int(job)
+        raise
+    return int(job), limits
 
 
 class _HandleAllowlist:
@@ -1144,8 +1404,20 @@ class _HandleAllowlist:
 
 def spawn_contained(argv, cwd: str | Path, env: dict | None = None, *,
                     log: LowIntegrityLog | None = None,
-                    worktree_label: str | None = None) -> ContainedProcess:
+                    worktree_label: str | None = None,
+                    max_processes: int | None = None,
+                    max_job_memory_bytes: int | None = None
+                    ) -> ContainedProcess:
     """Start ``argv`` at Low integrity with ``cwd`` as its working directory.
+
+    ``max_processes`` and ``max_job_memory_bytes`` TIGHTEN the job's caps and
+    cannot loosen them: each is combined with the module ceiling by ``min()``,
+    written as one expression so there is no state in which a caller asked for
+    more and got it. They exist because proving a cap bites should not require
+    forking ninety-six times or committing four gigabytes, and a proof nobody
+    can afford to run is not a proof. Passing ``None`` -- what every production
+    caller does -- gets :data:`JOB_ACTIVE_PROCESS_LIMIT` and
+    :data:`JOB_MEMORY_LIMIT_BYTES`.
 
     HANDLE INHERITANCE IS BOUNDED, NOT CONFIGURABLE. There is no ``inherit``
     parameter, no ``close_fds``, and no way to pass a raw handle: ``log`` is
@@ -1206,7 +1478,15 @@ def spawn_contained(argv, cwd: str | Path, env: dict | None = None, *,
         startup.StartupInfo.hStdOutput = wintypes.HANDLE(log.handle)
         startup.StartupInfo.hStdError = wintypes.HANDLE(log.handle)
 
-    job = _create_job()
+    # TIGHTENING ONLY. min() with the module ceiling is the whole mechanism:
+    # there is no argument that makes the blast radius larger than the constant
+    # at the top of this file, so this pair can never become the loosening knob
+    # that "there is no contained=False" exists to prevent.
+    processes = (JOB_ACTIVE_PROCESS_LIMIT if max_processes is None
+                 else min(int(max_processes), JOB_ACTIVE_PROCESS_LIMIT))
+    job_memory = (JOB_MEMORY_LIMIT_BYTES if max_job_memory_bytes is None
+                  else min(int(max_job_memory_bytes), JOB_MEMORY_LIMIT_BYTES))
+    job, job_limits = _create_job(processes, job_memory)
     try:
         # THE ONE PLACE INHERITANCE IS DECIDED. `inherit` is literally
         # "is there an allowlist?", so there is no reachable state in which
@@ -1246,12 +1526,19 @@ def spawn_contained(argv, cwd: str | Path, env: dict | None = None, *,
     attestation = ContainmentAttestation(
         requested=True, executes_candidate=True, contained=True,
         platform=sys.platform,
+        # THE LABEL IS DELIBERATELY UNCHANGED by the arrival of the caps. It is
+        # a coarse name, and the caps are not a coarse fact: `job_limits` below
+        # carries the LimitFlags the kernel handed back, which is what a reader
+        # comparing two ledger entries actually needs. An old record has
+        # `job_limits: null` and a capped one does not, so the two are still
+        # told apart -- by a measurement rather than by a string.
         mechanism="mic-low+job" + ("+bounded-inherit" if log else ""),
         token_integrity_sid=token_sid,
         worktree_label=worktree_label,
         log_label=log.integrity_label if log else None,
         log_granted_access=log.granted_access if log else None,
-        inherited_handle_count=(allowlist.count if allowlist else 0))
+        inherited_handle_count=(allowlist.count if allowlist else 0),
+        job_limits=job_limits)
     return ContainedProcess(handle=info.hProcess, thread=info.hThread,
                             pid=int(info.dwProcessId), job=job,
                             attestation=attestation)

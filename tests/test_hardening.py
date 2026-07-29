@@ -353,7 +353,7 @@ class FileBridgeRequestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             with patch.object(file_bridge, "OUTBOX", Path(d)), \
                     patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"):
-                path = file_bridge.enqueue(objective, "/r", ["a.py"])
+                path = file_bridge.enqueue(objective, "/r", ["a.py"], require_watcher=False)
                 payload = json.loads(path.read_text(encoding="utf-8"))
         return path.name, payload
 
@@ -405,8 +405,8 @@ class FileBridgeRequestTests(unittest.TestCase):
             outbox = Path(d)
             with patch.object(file_bridge, "OUTBOX", outbox), \
                     patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"):
-                first = file_bridge.enqueue("same objective", "/r", [])
-                second = file_bridge.enqueue("same objective", "/r", [])
+                first = file_bridge.enqueue("same objective", "/r", [], require_watcher=False)
+                second = file_bridge.enqueue("same objective", "/r", [], require_watcher=False)
             self.assertNotEqual(first.name, second.name)
             self.assertEqual(len(list(outbox.glob("*.json"))), 2)
 
@@ -426,14 +426,15 @@ class FileBridgeRequestTests(unittest.TestCase):
             with patch.object(file_bridge, "OUTBOX", Path(d)), \
                     patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"), \
                     patch.object(file_bridge.os, "replace", spy):
-                file_bridge.enqueue("atomic", "/r", [])
+                file_bridge.enqueue("atomic", "/r", [], require_watcher=False)
         self.assertEqual(seen, [[]], "a consumer's glob saw the request mid-write")
 
     def test_enqueue_preserves_project(self):
         with tempfile.TemporaryDirectory() as d:
             with patch.object(file_bridge, "OUTBOX", Path(d)), \
                     patch.object(file_bridge, "_stamp", lambda: "20260705T000000Z"):
-                path = file_bridge.enqueue("review", "/r", [], project="project_tct")
+                path = file_bridge.enqueue("review", "/r", [], project="project_tct",
+                                       require_watcher=False)
                 payload = json.loads(path.read_text(encoding="utf-8"))
         self.assertEqual(payload["project"], "project_tct")
 
