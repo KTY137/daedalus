@@ -412,7 +412,30 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
     frameworks = _framework_rows(deep=deep)
     gpu = bool(hardware["available"])
 
-    tensor_ready = gpu and any(
+    # THE LOCAL BRANCH HAS TO ASK THE SAME QUESTION THE REMOTE ONE DOES.
+    # ``hardware["available"]`` only means nvidia-smi found a device -- it says
+    # nothing about what that device can host. This machine's MX330 reports
+    # compute capability 6.1: Pascal, which has no tensor cores at all. torch
+    # installs there and reports cuda_ready, so `gpu and cuda_ready` was True
+    # for a lane the silicon cannot run.
+    #
+    # capability_lanes() was written today to fix exactly this and was wired
+    # into _remote_compute_status() only -- not back into the local branch that
+    # motivated it. Found by Aristaeus surveying the tree afterwards, which is
+    # the correct outcome and an uncomfortable one: the docstring of the
+    # function names this scenario as its reason to exist.
+    #
+    # The distinction that matters is 'missing' versus 'impossible here'. The
+    # first invites an operator to go install something; the second tells them
+    # to stop. Reporting the first when the second is true is how an afternoon
+    # gets spent against the wrong silicon.
+    local_caps = [capability_lanes(str(dev.get("compute_capability") or ""))
+                  for dev in (hardware.get("devices") or [])]
+    hosts_tensor_cores = any(
+        cap.get("supports", {}).get("tensor_cores") for cap in local_caps)
+    architecturally_incapable = gpu and local_caps and not hosts_tensor_cores
+
+    tensor_ready = gpu and hosts_tensor_cores and any(
         frameworks[name]["cuda_ready"] is True for name in ("torch", "cupy")
     )
     def _unverified(name: str) -> bool:
@@ -426,7 +449,18 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
     tensor_missing = []
     if not gpu:
         tensor_missing.append("NVIDIA CUDA device")
-    if not tensor_ready:
+    elif architecturally_incapable:
+        # Named, not silently folded into the runtime line below: no install
+        # fixes this, and saying "CUDA-capable PyTorch" here would send someone
+        # to pip for a card that predates the hardware entirely.
+        names = ", ".join(sorted({str(d.get("name") or "?")
+                                  for d in (hardware.get("devices") or [])}))
+        tensor_missing.append(
+            f"tensor cores (this device is pre-Volta: {names}, "
+            f"compute capability "
+            f"{', '.join(sorted({c.get('compute_capability', '?') for c in local_caps}))}"
+            f") -- not installable, the silicon does not have them")
+    if not tensor_ready and not architecturally_incapable:
         tensor_missing.append("CUDA-capable PyTorch or CuPy runtime")
 
     graph_ready = gpu and (
@@ -451,7 +485,14 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
         ComputeLane(
             id="tensor_inference",
             label="CUDA tensor inference",
-            state="ready" if tensor_ready else ("unverified" if tensor_unverified else "missing"),
+            # "unsupported" before "missing": the vocabulary already carries the
+            # right word (dlss uses it below), and the difference is the whole
+            # point of the capability check above. A pre-Volta card is not
+            # missing a library somebody could install -- it is missing silicon.
+            state=("ready" if tensor_ready
+                   else "unsupported" if architecturally_incapable
+                   else "unverified" if tensor_unverified
+                   else "missing"),
             applicable_to=("embedding batches", "learned DSS residuals", "rerankers"),
             evidence=tuple(
                 name for name in ("torch", "cupy")
