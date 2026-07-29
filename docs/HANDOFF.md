@@ -33,7 +33,61 @@ the suite cannot.
 The whole-suite number is unmeasured; its one finished attempt came back
 baseline-red at an earlier revision and the cause was never established.
 
-To re-prove at the current tip: `python tools/gate_discrimination.py` (~20 min).
+RE-MEASURED AT THE SESSION'S FINAL REVISION `ee8bff8`, complete:
+
+    planted 12, killed 10 (83%)   all 8 CRITICAL mutants killed
+    gate_discrimination() -> proven=True, "no critical class survived"
+
+    ok  worktree_moved_checkout_unguarded       deletes-outside-the-worktree
+    ok  worktree_drain_skips_reachability       deletes-outside-the-worktree
+    ok  offload_escalation_gate_disabled        spends-money-without-a-gate
+    ok  free_lanes_includes_claude              spends-money-without-a-gate
+    ok  room_ssh_rce_reintroduced               sends-bytes-off-the-machine
+    ok  lane_for_host_accepts_localhost         sends-bytes-off-the-machine
+    ok  room_verify_always_passes               reports-failure-as-success
+    ok  attempt_capture_patch_drops_no_textconv reports-failure-as-success
+    MISS read_inlined_context_inverted_skip     logic      (predicted; scope)
+    MISS picker_abbrev_sha_guard_disabled       boundary   (covering tests
+                                                            outside the scope)
+
+AND A PARTIAL WHOLE-SUITE RUN, which is STRONGER evidence for what it covered:
+a run against `gate_paths=[]` was cut off by its timeout after five mutants and
+killed **5 of 5**, spanning three of the four critical classes. The whole-suite
+number as a whole is still unmeasured; those five are not.
+
+WITH THAT RECEIPT IN PLACE THE DRILL READS:
+
+    promotion.a_gated_candidate_is_still_refused
+      effect   : promotion is PERMITTED, and the receipt says why
+      telemetry: a candidate patch is waiting and the gate has demonstrated
+                 discrimination at this revision; promotion is still a human act
+
+    7 pass / 0 FAIL / 0 incomplete
+
+**The receipt is now ONE COMMIT BEHIND**, because committing this document moved
+the tip. That is the property, not a defect: re-prove with
+`python tools/gate_discrimination.py --scoped --head-only` (~20 min), and read
+the drill afterwards.
+
+## WHAT NEEDS A HUMAN DECISION, AND IT IS NOT MEASUREMENT
+
+The reviewer's closing correction, and it is a correction to my own framing:
+
+> The scoped gate is solid evidence; the whole suite stays unproven. I disagree
+> with "everything after this is just measurement" — after a fresh receipt, the
+> self-policy and a write-shadow remain their own APPROVAL step. I cannot judge
+> the policy without the diff and file:line; Kaya should decide exactly that
+> diff before any self-write run starts.
+
+So the remaining sequence is not three measurements, it is two measurements and
+one decision:
+
+1. re-measure discrimination at the tip (mechanical, ~20 min)
+2. **decide the self-policy diff** — `docs/PROPOSED_SELF_POLICY.md`, one JSON
+   block, undone by deleting one file. This is the approval step.
+3. one write-shadow against a `docs/` candidate, read by hand
+
+Nothing in step 2 is implied by step 1 going green.
 
 ## THE PATTERN, NINE TIMES
 
