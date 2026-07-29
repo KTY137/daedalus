@@ -1,4 +1,153 @@
-# Daedalus — Current Claude Handoff (2026-07-28, session 3 — READ THIS FIRST)
+# Daedalus — Current Claude Handoff (2026-07-29, session 4 — READ THIS FIRST)
+
+This section supersedes everything below it, including the session-3 block.
+The rest of the file is history; do not treat its arc claims, test counts or
+open items as current.
+
+## THE ONE SENTENCE
+
+The self-improvement circle now runs end to end on a clean clone and is
+fail-closed at every step — and it may not promote anything, because the gate's
+ability to tell a good patch from a bad one is **measured at 0 of 3** and has
+not improved.
+
+## THE PATTERN THIS SESSION FOUND, EIGHT TIMES
+
+Every major finding was the same defect wearing a different costume:
+**code that exists was reported as capability that works.**
+
+| what claimed to work | what was true |
+|---|---|
+| `semantic_route`, listed as a present feature | unwired **and** broken if wired — embed model absent, an `lru_cache` froze one startup failure for the whole process |
+| `context_plan`'s `latent_weight: 0.35` | described a source that had **never spoken**; `memory/vectors.db` had never existed |
+| `spine/containment.py`, 11 vectors measured, committed | **zero production callers** — mine, from this same session |
+| `kairos/evolution.py`, ADR-009's "Best-of-N baseline" | no pipeline; its fitness function has zero callers; if called it scores the **primary checkout**, not the candidate |
+| `docs/FEATURE_INVENTORY.json`, 136 features | hand-written, stamped 30 commits stale, driving the two highest picker bands |
+| `daedalus/budget.py`, a spend ceiling | nothing called `install_process_guard()` |
+| `daedalus council` / `daedalus canary` | launched **paid vendor binaries from an invocation with no flags** |
+| five host predicates | three different answers for `[::1]`, two more permissive than the safety core |
+
+The instruments that make this class of defect visible are the session's real
+output: the map now stamps the tree it scanned, the health surface has five
+states that cannot collapse into green, every receipt carries MEASURED /
+INHERITED / ASSUMED, and the picker reports which sources it could not consult.
+
+## THE STRUCTURAL FINDING
+
+> **The loop invalidates its own inputs every time it succeeds.**
+
+Both of the picker's sources are derived artefacts stamped with the revision
+they describe. Every commit the loop lands makes them stale. Demonstrated live,
+twice: a clean clone produced **zero** candidates until the map learned to stamp
+`repo_state`; and after eleven of my own commits the picker went from 13
+candidates back to **0** until `daedalus map` was re-run.
+
+So regeneration is **step zero** of the circle, in
+`daedalus/spine/bootstrap.py::refresh_sources` — and "the generator exited 0" is
+explicitly NOT the success criterion. The criterion is that the artefact now
+stamps a revision its consumer can check.
+
+## WHAT A SHADOW RUN DOES, AND WHY IT IS CALLED THAT
+
+Ruling from the adversarial reviewer, implemented verbatim:
+
+> With 0/3, the gate is a hard block on **promotion**, not on candidate
+> **generation**. Let the run collect, but call it a shadow run; no candidate
+> gets less human review because it came back green.
+
+`gate_discrimination()` reads a receipt and fails closed four ways — absent,
+unparseable, measured against a different revision, or clean overall **while a
+critical class survived**. The class check runs BEFORE the rate check on
+purpose: 98 % with "deletes-outside-the-worktree" surviving is not a working
+gate, and one number is exactly what hides that. `promotion_allowed` is a single
+unconditional return with no override, asserted structurally via the AST.
+
+**First full run, clean clone, nothing billed:**
+
+```
+ok map: regenerated and stamped
+no_change: the runner proposed nothing because the router sent this work to
+'claude_cli', which offload refuses to execute, so it escalated instead.
+```
+
+## THE THREE THINGS THAT BLOCK AUTONOMY, IN ORDER
+
+1. **The gate cannot discriminate.** 0/3 against the day's known-bad changes.
+   `daedalus/eval/harness.py:183` — `_recall` is `m not in slice_text`, i.e.
+   substring containment in a context slice. It is an honest RETRIEVAL metric
+   and it never looks at a patch. There is no correctness evaluator at all.
+   Two instruments are in flight: `tools/mutation_score.py` (grades the tests —
+   `sensitivity.py` 75.8 %, `token_monitor.py` 45.0 %, and **8 of 15 survivors
+   sit in `read_inlined_context`, which its own docstring calls "the enforcement
+   point" and which NO test file mentions**), and a FAIL_TO_PASS / PASS_TO_PASS
+   evaluator (grades the change).
+2. **No model can do the work in a trusted lane on this machine.** The only
+   trusted lane is a local 7B; the router sends real work to `claude_cli`;
+   `offload.py:358` refuses to execute a non-free lane and escalates. Nothing
+   is billed — that is the safety net working — but the circle cannot complete.
+   Three ways out, all with a price: a stronger local model, the paid lane under
+   the new spend cap, or a policy decision about the bench.
+3. **Containment is not wired.** See the ruling below.
+
+## THE CONTAINMENT RULING (act on this, it is decided)
+
+The gate is NOT the only place candidate code executes. `_capture_patch` was
+launching candidate-selected programs via git filters — measured: rc 0, empty
+stderr, ~1.6 kB of plausible diff, `STATE_CLEAN`, no error field. Closed in
+3f4d462 with `--git-dir`/`--work-tree` pinned from a pointer read **before** the
+runner, a hardened environment, `-c` pins for every config key that names a
+program, and `--no-textconv` (which `--no-ext-diff` does not imply).
+
+Wiring containment into the **gate** hits the inherited-handle rule. The ruling:
+
+> Bounded inheritance, not a wrapper. Inherit EXACTLY ONE handle via
+> `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`, on the Low-labelled output file, with
+> APPEND | SYNCHRONIZE only. The invariant is: **no capability crosses the
+> boundary that the Low child could not have obtained itself.** Check target and
+> rights on the OPENED HANDLE, not the path, or reparse and swap races remain.
+> A wrapper only moves inheritance from parent to wrapper. An uncontained gate
+> makes the boundary worthless.
+
+## TRAPS THIS SESSION PAID FOR — DO NOT RE-LEARN THESE
+
+* **A guard test that matches its own prose stays green after the guard is
+  deleted.** Happened four times. Assert on the AST, not on source text.
+* **A guard verified through its own function is not verified through the
+  product.** `self._admin_dir = None` broke nothing because every test called
+  `_git` directly and none went through `TaskAttempt.run`. The wiring was
+  untested.
+* **A refusal test with no control proves nothing.** "The marker file is absent"
+  looks identical whether the guard worked or the probe was broken.
+* **`assert <set> == []` is vacuously true on a clean tree** — five budget
+  guards survived their own deletion that way.
+* **Hardening git removed `core.autocrlf`**, so on Windows every text file
+  looked modified and an idle runner reported `clean` instead of `no_change`.
+  Caught by an existing test, not by review.
+* **`git add <whole file>` sweeps up another agent's uncommitted work.** One
+  commit carries a `git notes` correction for exactly that.
+* **The island metric is gameable**: deleting a test moves a module to
+  `unknown` and the island count falls with the dead code untouched. Read
+  `unreached` (islands ∪ shims ∪ unknown) instead.
+
+## OPEN, NAMED, WITH OWNERS
+
+* `wiring.islands` reports **2 modules with zero production callers**:
+  `daedalus.compaction` and `daedalus.spine.containment`.
+* `room.chain` does not verify: 83 turns in the markdown, 11 attested.
+* The bridge watcher has been **dead for 12 days** over a queued task.
+* `repo_state` is inside the map's digest; a strict `xfail` in
+  `tests/test_spine_map_source.py` goes RED the day that changes.
+* `.md` is in `GENERIC_ALLOW_SUBSTRINGS`, so with `documents=True` design docs
+  and the council room become egressable on the untrusted lane — pinned as a
+  characterisation test that records a finding, not an endorsement.
+* `daedalus.mapping` is absent from `pyproject.toml`'s explicit package list; a
+  non-editable install ships no mapping engine.
+* Free disk hit **0.49 GB** during the session and `require_storage` demands 2 GB
+  — 42 worktree tests failed on it. pip and npm caches were purged (3 GB).
+
+---
+
+# Daedalus — Handoff (2026-07-28, session 3 — SUPERSEDED, kept as history)
 
 This section supersedes everything below it, including the session-2 block.
 The rest of the file is history; do not treat its arc claims, test counts or
