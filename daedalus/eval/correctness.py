@@ -221,8 +221,19 @@ def _safe_join(worktree: str | Path, rel: str) -> Path:
     """GUARD: join ``rel`` under ``worktree`` or refuse.
 
     A task's ``test_overlay`` is data. ``../../daedalus/spine/attempt.py`` is a
-    perfectly ordinary-looking string, and writing it would put candidate-chosen
+    perfectly ordinary-looking string, and writing it would put task-chosen
     bytes into the developer's checkout.
+
+    THE ABSOLUTE-PATH BRANCH BELOW IS A FAST PATH, NOT A GUARD, and it is
+    labelled that way because a comment that reads like a guard gets trusted
+    like one. Measured by disabling it: the containment comparison underneath
+    catches every case it catches, so no test changed verdict --
+    ``os.path.join`` lets an absolute right-hand side win, and the result then
+    fails the "is it under the worktree" test anyway (``C:/x/y`` -> outside;
+    ``/etc/passwd`` -> ``C:\\etc\\passwd``, outside; ``C:relative.py``, which is
+    drive-RELATIVE, joins to a path INSIDE the worktree and is harmless). It is
+    kept only because it answers the common case with a more specific message.
+    The containment comparison is the thing actually holding the line.
     """
     root = Path(os.path.normpath(os.path.abspath(str(worktree))))
     if os.path.isabs(rel) or (len(rel) > 1 and rel[1] == ":"):
@@ -249,7 +260,7 @@ def _git_read(repo_root: str | Path, *args: str,
     if not args:
         raise ValueError("_git_read requires at least a verb")
     verb = args[0]
-    if False:
+    if verb not in READ_ONLY_REPO_VERBS:
         raise PrimaryCheckoutTouch(
             f"refusing to run 'git {verb}' in the primary checkout "
             f"{repo_root}: only {sorted(READ_ONLY_REPO_VERBS)} may be aimed "
@@ -1260,14 +1271,29 @@ def load_correctness_tasks(path: str | None = None) -> list[dict]:
     return sorted(data.get("tasks", []), key=lambda t: t["id"])
 
 
+CORPUS_NOTE = (
+    "FAIL_TO_PASS / PASS_TO_PASS correctness corpus for daedalus.eval.correctness. "
+    "Seeded from this repo's own fix commits with --seed; every task's lists were "
+    "MEASURED (run on the base revision, then again under the commit's own fix), "
+    "never taken from the diff on trust. 'before_state' is the receipt of that "
+    "measurement and 'selection_digest' freezes what was declared -- the gate "
+    "refuses a task whose lists no longer digest to it. 'dropped_candidates' "
+    "records every node that did not survive, and why. Verify with "
+    "'python -m daedalus.eval.correctness --verify'; re-measure every task "
+    "against its own reference fix with '--run'. These tasks are NOT in "
+    "harness.all_tasks(): slice recall cannot grade them (they have no "
+    "must_include and would score a vacuous 1.0), and the harness refuses them."
+)
+
+
 def save_correctness_tasks(tasks: list[dict], path: str | None = None) -> str:
     """Overwrite the corpus. Deterministic formatting, same contract as
     ``harness.write_baseline`` / ``mint.save_minted_tasks``."""
     p = path or DEFAULT_CORPUS_PATH
     ordered = sorted(tasks, key=lambda t: t["id"])
     with open(p, "w", encoding="utf-8") as fh:
-        json.dump({"schema": CORPUS_SCHEMA, "tasks": ordered}, fh, indent=2,
-                  sort_keys=True)
+        json.dump({"schema": CORPUS_SCHEMA, "note": CORPUS_NOTE, "tasks": ordered},
+                  fh, indent=2, sort_keys=True)
         fh.write("\n")
     return p
 

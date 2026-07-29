@@ -1,4 +1,5 @@
 {
+  "note": "FAIL_TO_PASS / PASS_TO_PASS correctness corpus for daedalus.eval.correctness. Seeded from this repo's own fix commits with --seed; every task's lists were MEASURED (run on the base revision, then again under the commit's own fix), never taken from the diff on trust. 'before_state' is the receipt of that measurement and 'selection_digest' freezes what was declared -- the gate refuses a task whose lists no longer digest to it. 'dropped_candidates' records every node that did not survive, and why. Verify with 'python -m daedalus.eval.correctness --verify'; re-measure every task against its own reference fix with '--run'. These tasks are NOT in harness.all_tasks(): slice recall cannot grade them (they have no must_include and would score a vacuous 1.0), and the harness refuses them.",
   "schema": 1,
   "tasks": [
     {

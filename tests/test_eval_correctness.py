@@ -11,9 +11,14 @@ tests are deliberately end-to-end against a real throwaway git repository with
 a real bug, a real fix and a real pytest run, because a judgement layered on a
 parser that was never pointed at real output is a judgement about nothing.
 
-RED COUNTS -- guard -> the test that goes red when the guard is disabled:
+RED COUNTS: 19 of the 20 disable points turned a test red. The one that did not
+is ``_safe_join``'s absolute-path branch, which is DOMINATED by the containment
+comparison beside it (measured, not reasoned) and is documented in the source as
+a fast path rather than counted as a guard.
+
+  guard -> the test that goes red when the guard is disabled:
   G1  _refuse_primary_checkout        PrimaryCheckoutGuardTests (x3)
-  G2  _safe_join overlay escape       OverlayEscapeTests (x2)
+  G2  _safe_join containment          OverlayEscapeTests.test_a_relative_escape_*
   G3  empty fail_to_pass is invalid   SchemaTests.test_empty_fail_to_pass_*
   G4  F2P passing on base -> invalid  BeforeStateTests.test_a_fail_to_pass_that_passes_*
   G5  P2P failing on base -> invalid  BeforeStateTests.test_a_pass_to_pass_that_fails_*
@@ -423,6 +428,12 @@ class OverlayEscapeTests(unittest.TestCase):
                 C._safe_join(tmp, "../../daedalus/spine/attempt.py")
 
     def test_an_absolute_path_is_refused(self):
+        """NOT a second guard: measured by disabling the ``isabs`` branch, this
+        test still passes, because the containment comparison catches an
+        absolute path on its own. Kept as a behaviour test of the refusal, and
+        the branch is documented as a fast path rather than claimed as tested --
+        an untested branch presented as a guard is how the previous round of
+        ``kairos/worktree.py`` shipped green over a live bug."""
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(C.OverlayEscape):
                 C._safe_join(tmp, os.path.join(AGENT_ENV_ROOT, "daedalus", "cli.py"))
