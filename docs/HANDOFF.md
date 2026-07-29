@@ -114,6 +114,51 @@ Found by the drill on its first run.
 * The island metric is gameable: deleting a test moves a module to `unknown` and
   the count falls with the dead code untouched. Read `unreached` instead.
 
+## THE LAST BOOTSTRAP BLOCKER IS A POLICY DECISION, NOT CODE
+
+A shadow run in a clean clone picks real work, routes it to a FREE LOCAL LANE in
+WRITE mode, and stops on one line:
+
+    routed to : ollama  mode=write  action=escalate_to_claude
+    note      : refusing live write: no project policy loaded (guards off)
+
+Correct: without a loaded policy the write guards run under `DEFAULT_POLICY`,
+whose deny-list is empty, so the safety core itself would be writable.
+`resolve_project("agent_env")` returns `None` and there is no `.agentenv/` --
+Daedalus can improve other projects and not itself.
+
+`docs/PROPOSED_SELF_POLICY.md` drafts the file and deliberately does NOT install
+it. `allow` is `docs/`, `tests/`, `README` and nothing else; the safety core is
+named separately in `high_risk_paths` so a future widening has to delete a line
+reading "the egress fence". Installing is copying one JSON block; undoing is
+deleting one file.
+
+Related and worth knowing: `availability` does NOT fully gate the router's
+choice. With `claude_cli: False` some objectives still resolve to `claude_cli`
+(the island instruction does) while others correctly move to ollama. The
+`--local-only` flag on the shadow runner therefore DECLARES a lane rather than
+forcing one, and its help now says so.
+
+## VERIFICATION AS OF THE SESSION END
+
+    tools/system_check.py     17 pass / 0 FAIL / 1 unavailable   exit 2
+                              (the one unavailable: the eval's focus file is
+                               withheld by the secret floor, so that task cannot
+                               be scored -- not a pass, not a failure)
+    tools/operability_drill.py  7 pass / 0 FAIL / 0 incomplete   exit 0
+    pytest tests/            2838 passed, 1 failed, 2 xfailed
+                              (the one failure was a load-dependent socket
+                               timeout, since fixed with a readiness loop)
+
+Four commands reach the new capabilities, and `daedalus status` propagates its
+verdict for the first time -- it previously exited 0 even while reporting a
+degraded subsystem:
+
+    daedalus drill            0    every control tripped and held
+    daedalus health           1    subsystems degraded (correct)
+    daedalus status           1    correct now; was silently 0
+    daedalus project-memory   0    dry run
+
 ## OPEN, WITH OWNERS
 
 * **No discrimination receipt.** `runs/spine/gate_discrimination.json` does not
