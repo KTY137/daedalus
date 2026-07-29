@@ -50,10 +50,23 @@ RE-MEASURED AT THE SESSION'S FINAL REVISION `ee8bff8`, complete:
     MISS picker_abbrev_sha_guard_disabled       boundary   (covering tests
                                                             outside the scope)
 
-AND A PARTIAL WHOLE-SUITE RUN, which is STRONGER evidence for what it covered:
-a run against `gate_paths=[]` was cut off by its timeout after five mutants and
-killed **5 of 5**, spanning three of the four critical classes. The whole-suite
-number as a whole is still unmeasured; those five are not.
+AND THEN THE WHOLE SUITE, COMPLETE, at the same revision:
+
+    gate measured: THE WHOLE SUITE
+    planted 12, killed 12 -> 100%
+
+Every mutant caught, including BOTH that survived the scoped gate. That settles
+what the two survivors were: `read_inlined_context_inverted_skip` dies to
+`tests/test_inlined_context_enforcement.py` and `picker_abbrev_sha_guard_disabled`
+to `tests/test_spine_picker.py` / `test_spine_map_source.py` -- neither is in
+`SCOPED_GATE_PATHS`. They were scope artefacts, exactly as predicted, and not
+holes in the suite.
+
+Written to `runs/spine/gate_discrimination.whole_suite.json` via `--out`, so the
+scoped receipt the reader consults was left untouched. `gate_discrimination()`
+therefore still reports the CONSERVATIVE 83% -- the number a scheduled run would
+be judged against is the one measured against the gate a candidate actually
+gets, not the best number available.
 
 WITH THAT RECEIPT IN PLACE THE DRILL READS:
 
