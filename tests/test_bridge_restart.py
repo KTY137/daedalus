@@ -51,7 +51,12 @@ class _Bridge:
 
     # -- inputs ------------------------------------------------------------
     def enqueue(self, objective: str = "the task", lane: str = "claude") -> Path:
-        return fb.enqueue(objective, "/repo", [], lane=lane, source="user")
+        # require_watcher=False: these tests manufacture request files to drive
+        # process_request/restart recovery directly. There is deliberately no
+        # watcher -- the test IS the consumer. The liveness guard that enqueue()
+        # applies by default is exercised in tests/test_bridge_enqueue_guard.py.
+        return fb.enqueue(objective, "/repo", [], lane=lane, source="user",
+                          require_watcher=False)
 
     def drop_raw(self, name: str, text: str) -> Path:
         path = self.outbox / name

@@ -85,10 +85,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
+# canonical_json/canonical_sha MOVED to envelope.py and are imported back here.
+# The definition is unchanged and both names are still re-exported from this
+# module (and from daedalus.spine), so every existing import path resolves.
+# The move was forced by direction: this module is a CONSUMER of the envelope
+# (rows carry a trace id, and Intent projects to an ITE-6 statement), so the
+# shared serialiser has to sit on the envelope side or the import is a cycle.
+from .envelope import (  # noqa: F401  (re-exported for backward compatibility)
+    PREDICATE_SPINE_INTENT,
+    canonical_json,
+    canonical_sha,
+    current_trace_id,
+    statement,
+    subject_for,
+)
+
 # --------------------------------------------------------------------------- #
 # constants                                                                    #
 # --------------------------------------------------------------------------- #
-SCHEMA_VERSION = 1
+# v2 added the nullable ``intents.trace_id`` column. The bump is recorded in
+# spine_meta but nothing GATES on it: a v1 database is migrated in place and a
+# v1 row (trace_id NULL) stays readable forever, which is the whole backward
+# compatibility contract. See _migrate_columns.
+SCHEMA_VERSION = 2
 
 STATE_INTENDED = "INTENDED"
 STATE_COMPLETED = "COMPLETED"
@@ -115,31 +134,6 @@ class IntentAlreadyResolved(SpineError):
     """The intent already carries a terminal event; resolution is once-only."""
 
 
-# --------------------------------------------------------------------------- #
-# canonical JSON -- the one serialisation, so digests are stable               #
-# --------------------------------------------------------------------------- #
-def canonical_json(obj: Any) -> str:
-    """The single serialisation used for every stored blob.
-
-    ``sort_keys`` makes two dicts built in different insertion orders produce
-    byte-identical text; ``separators`` strips the whitespace a pretty-printer
-    would vary; ``ensure_ascii`` pins the bytes so a digest does not depend on
-    the reader's encoding. Mirrors ``memstore._body_sha``'s discipline: one
-    place, one answer to "what bytes did we hash?".
-    """
-    try:
-        return json.dumps(obj, sort_keys=True, separators=(",", ":"),
-                          ensure_ascii=True)
-    except (TypeError, ValueError) as e:
-        raise ValueError(
-            f"spine ledger stores JSON-serialisable values only: {e}") from e
-
-
-def canonical_sha(obj: Any) -> str:
-    """sha256 over :func:`canonical_json` -- stable across insertion order."""
-    return hashlib.sha256(canonical_json(obj).encode("ascii")).hexdigest()
-
-
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -156,7 +150,13 @@ def _uri_path(path: Path) -> str:
 
 def default_db_path() -> Path:
     """Where the ledger lives. ``DAEDALUS_SPINE_DB`` overrides it (tests and
-    isolated worktrees point this away from the real runs/ directory)."""
+    isolated worktrees point this away from the real runs/ directory).
+
+    PROCESS-GLOBAL by design -- the counterpart, and deliberately NOT the
+    same question, is :func:`daedalus.spine.picker.resolve_spine_db_path`,
+    which is repo-confined and ignores this env var so that picking for a
+    foreign repository can never be redirected by inherited environment.
+    See its docstring for the ruling and the incident that pinned it."""
     env = os.environ.get("DAEDALUS_SPINE_DB", "").strip()
     return Path(env) if env else DEFAULT_DB_PATH
 
@@ -183,10 +183,41 @@ class Intent:
     effect_id: str | None = None
     result: Any = None
     error: str | None = None
+    #: The run this intent belongs to, or ``None`` for a v1 row written before
+    #: the column existed and for any intent recorded outside a traced scope.
+    #: Last field and defaulted, so every existing keyword construction of
+    #: ``Intent`` still type-checks and still runs.
+    trace_id: str | None = None
 
     @property
     def is_open(self) -> bool:
         return self.state == STATE_INTENDED
+
+    def to_statement(self) -> dict[str, Any]:
+        """This intent as an in-toto ITE-6 statement. A PROJECTION, not storage.
+
+        The row remains the source of truth and the ``payload`` column is never
+        wrapped -- callers reach ``intent.payload`` and
+        ``intents_matching_payload``'s substring search both depend on the
+        stored text staying exactly what it was. Building the envelope on READ
+        gives the interchange shape for free and keeps one dialect on disk.
+
+        The subject digest is the STORED ``payload_sha``, not a recomputation:
+        re-hashing here would silently repair the one disagreement worth
+        surfacing -- a stored digest that no longer matches its stored payload.
+        """
+        return statement(
+            subject=subject_for(f"spine-intent/{self.id}",
+                                sha256=self.payload_sha),
+            predicate_type=PREDICATE_SPINE_INTENT,
+            predicate={
+                "intent_id": self.id, "kind": self.kind,
+                "effect_key": self.effect_key, "payload": self.payload,
+                "created_ts": self.created_ts, "state": self.state,
+                "resolved_ts": self.resolved_ts, "effect_id": self.effect_id,
+                "result": self.result, "error": self.error,
+            },
+            trace_id=self.trace_id)
 
 
 @dataclass(frozen=True)
@@ -208,13 +239,18 @@ _SCHEMA = (
 
     # Written once, never updated. Everything that changes lives in the events
     # table, so the decision as recorded stays readable forever.
+    # ``trace_id`` is NULLABLE and always will be. An intent recorded outside a
+    # traced scope is not an error and must not become one; NULL is the honest
+    # record of "no run was in scope", and a NOT NULL column would have forced
+    # a sentinel that reads like a real trace in a join.
     "CREATE TABLE IF NOT EXISTS intents ("
     " id INTEGER PRIMARY KEY AUTOINCREMENT,"
     " kind TEXT NOT NULL,"
     " effect_key TEXT,"
     " payload TEXT NOT NULL,"
     " payload_sha TEXT NOT NULL,"
-    " created_ts TEXT NOT NULL)",
+    " created_ts TEXT NOT NULL,"
+    " trace_id TEXT)",
 
     "CREATE TABLE IF NOT EXISTS intent_events ("
     " id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -231,6 +267,11 @@ _SCHEMA = (
     # that can end a life so that probe stays a lookup.
     "CREATE INDEX IF NOT EXISTS idx_intent_events_terminal"
     " ON intent_events(intent_id) WHERE state IN ('COMPLETED','FAILED')",
+    # The join this whole feature exists to make possible. Partial, because
+    # every untraced row shares the value NULL and indexing them would be a
+    # scan wearing an index's name.
+    "CREATE INDEX IF NOT EXISTS idx_intents_trace"
+    " ON intents(trace_id) WHERE trace_id IS NOT NULL",
 )
 
 
@@ -299,11 +340,44 @@ class SpineLedger:
         c.execute(f"PRAGMA busy_timeout={self.busy_timeout_ms}")
         c.execute("PRAGMA foreign_keys=ON")
 
+    @staticmethod
+    def _add_missing_columns(conn: sqlite3.Connection) -> list[str]:
+        """Bring a pre-v2 ``intents`` table up to the current column set.
+
+        Runs BEFORE the ``_SCHEMA`` statements, and the ordering is load-
+        bearing: ``idx_intents_trace`` names ``trace_id``, so on a v1 database
+        the index creation fails outright unless the column exists first.
+
+        Driven off ``PRAGMA table_info`` rather than off the recorded
+        ``schema_version``, because the two can disagree -- a database created
+        by a newer checkout and then opened by an older one has the column
+        without the version, and a version number is a claim about the file
+        while ``table_info`` is the file. Ask the file.
+
+        On a FRESH database ``table_info`` returns nothing (no table yet), so
+        this is a no-op and ``CREATE TABLE`` installs the full v2 shape.
+        """
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(intents)")}
+        if not cols:
+            return []
+        added = []
+        if "trace_id" not in cols:
+            # Nullable with no default: every pre-existing row becomes
+            # trace_id NULL, which is the truth about it -- it was written
+            # before any run had a correlation id.
+            conn.execute("ALTER TABLE intents ADD COLUMN trace_id TEXT")
+            added.append("trace_id")
+        return added
+
     def _migrate(self) -> None:
         with self._txn() as c:
+            self._add_missing_columns(c)
             for stmt in _SCHEMA:
                 c.execute(stmt)
-            c.execute("INSERT OR IGNORE INTO spine_meta (key, value) VALUES (?,?)",
+            # REPLACE, not INSERT OR IGNORE: a v1 file that has just been
+            # migrated in place still carries "1" here, and leaving it would
+            # make spine_meta lie about the schema the file now has.
+            c.execute("INSERT OR REPLACE INTO spine_meta (key, value) VALUES (?,?)",
                       ("schema_version", str(SCHEMA_VERSION)))
         found = self.pragmas()
         if found["journal_mode"].lower() != "wal":
@@ -347,28 +421,38 @@ class SpineLedger:
 
     # -- writes ------------------------------------------------------------- #
     def record_intent(self, kind: str, payload: Any = None, *,
-                      effect_key: str | None = None) -> Intent:
+                      effect_key: str | None = None,
+                      trace_id: str | None = None) -> Intent:
         """Record an intent and COMMIT it. Call this BEFORE the effect.
 
         ``effect_key`` is the caller's after-the-fact identifier for the effect
         (see the module docstring). It is NOT unique-constrained: a retried
         intent legitimately reuses the key, and the ledger records both attempts
         rather than hiding one.
+
+        ``trace_id`` defaults to the AMBIENT one
+        (:func:`envelope.current_trace_id`), which is why converting this
+        producer required editing no caller. The sole in-tree caller lives in
+        ``spine/attempt.py``; a run that opens ``envelope.trace_context()``
+        anywhere above it gets its intents correlated without that module
+        knowing this feature exists. Outside a traced scope the value is NULL
+        and the row is byte-for-byte what v1 wrote.
         """
         kind = str(kind or "").strip()
         if not kind:
             raise ValueError("record_intent requires a non-empty kind")
         if effect_key is not None:
             effect_key = str(effect_key)
+        trace = str(trace_id) if trace_id else current_trace_id()
         payload_json = canonical_json(payload)
         payload_sha = hashlib.sha256(payload_json.encode("ascii")).hexdigest()
         ts = _now_iso()
         with self._txn() as c:
             cur = c.execute(
                 "INSERT INTO intents"
-                " (kind, effect_key, payload, payload_sha, created_ts)"
-                " VALUES (?,?,?,?,?)",
-                (kind, effect_key, payload_json, payload_sha, ts))
+                " (kind, effect_key, payload, payload_sha, created_ts, trace_id)"
+                " VALUES (?,?,?,?,?,?)",
+                (kind, effect_key, payload_json, payload_sha, ts, trace))
             intent_id = int(cur.lastrowid)
             self._append_event(c, intent_id, STATE_INTENDED, ts,
                                {"payload_sha": payload_sha})
@@ -379,7 +463,8 @@ class SpineLedger:
         return Intent(
             id=intent_id, kind=kind, effect_key=effect_key,
             payload=json.loads(payload_json), payload_json=payload_json,
-            payload_sha=payload_sha, created_ts=ts, state=STATE_INTENDED)
+            payload_sha=payload_sha, created_ts=ts, state=STATE_INTENDED,
+            trace_id=trace)
 
     def mark_completed(self, intent_id: int, effect_id: str | None = None,
                        result: Any = None) -> Intent:
@@ -545,6 +630,33 @@ class SpineLedger:
                 (str(effect_key),)).fetchall()
             return [self._hydrate(r) for r in rows]
 
+    def intents_for_trace(self, trace_id: str) -> list[Intent]:
+        """Every intent recorded under one ``trace_id``, oldest first.
+
+        THE JOIN. This is the ledger's half of "what did that run actually
+        do" -- the other halves are the loop ledger's ``trace_id`` and the
+        bridge records', and all three carry the same value so one grep spans
+        them.
+
+        Returns ``[]`` rather than raising on a pre-v2 database that has no
+        such column. That is the correct answer, not a swallowed error: a v1
+        file provably contains no traced rows, so "no intents under this
+        trace" is true, and making a status reader crash on an old ledger
+        would punish exactly the reader that most needs to keep working.
+        """
+        if not str(trace_id or "").strip():
+            return []
+        with self._lock:
+            try:
+                rows = self._conn.execute(
+                    "SELECT * FROM intents WHERE trace_id = ? ORDER BY id",
+                    (str(trace_id),)).fetchall()
+            except sqlite3.OperationalError as e:
+                if "no such column" not in str(e).lower():
+                    raise
+                return []
+            return [self._hydrate(r) for r in rows]
+
     def events(self, intent_id: int) -> list[IntentEvent]:
         """The full append-only transition history for one intent."""
         with self._lock:
@@ -594,4 +706,10 @@ def _row_to_intent(row: sqlite3.Row, *, state: str, ts: str | None = None,
         effect_id=detail.get("effect_id"),
         result=detail.get("result"),
         error=detail.get("error"),
+        # DEFENSIVE, and not merely belt-and-braces: a read_only ledger skips
+        # _migrate entirely (mode=ro cannot ALTER), so a reader opened against
+        # an un-migrated v1 file gets rows with no trace_id column at all.
+        # Asking the ROW what it has keeps that reader working instead of
+        # turning "this database is older than you" into an IndexError.
+        trace_id=(row["trace_id"] if "trace_id" in row.keys() else None),
     )

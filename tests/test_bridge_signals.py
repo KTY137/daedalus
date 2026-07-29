@@ -211,7 +211,8 @@ class CodexInlineBriefWarningTests(unittest.TestCase):
             err = io.StringIO()
             with patch.object(file_bridge, "OUTBOX", Path(d)), \
                     contextlib.redirect_stderr(err):
-                path = file_bridge.enqueue(self.LONG, "/r", [], lane="codex")
+                path = file_bridge.enqueue(self.LONG, "/r", [], lane="codex",
+                                           require_watcher=False)
             self.assertTrue(path.exists())
             self.assertIn("WARNING", err.getvalue())
             self.assertIn("CODEX_QUEUE.md", err.getvalue())
@@ -240,8 +241,8 @@ def test_two_enqueues_in_the_same_second_do_not_overwrite(tmp_path, monkeypatch)
     # instead of hoping they do.
     monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
 
-    first = fb.enqueue("identical objective", str(tmp_path), [])
-    second = fb.enqueue("identical objective", str(tmp_path), [])
+    first = fb.enqueue("identical objective", str(tmp_path), [], require_watcher=False)
+    second = fb.enqueue("identical objective", str(tmp_path), [], require_watcher=False)
 
     assert first != second, "the second enqueue overwrote the first"
     assert first.exists() and second.exists()
@@ -255,7 +256,7 @@ def test_a_third_collision_also_gets_its_own_name(tmp_path, monkeypatch):
 
     monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
-    paths = [fb.enqueue("same", str(tmp_path), []) for _ in range(3)]
+    paths = [fb.enqueue("same", str(tmp_path), [], require_watcher=False) for _ in range(3)]
     assert len({p.name for p in paths}) == 3, [p.name for p in paths]
 
 
@@ -266,7 +267,7 @@ def test_distinct_objectives_still_get_readable_names(tmp_path, monkeypatch):
 
     monkeypatch.setattr(fb, "OUTBOX", tmp_path / "outbox")
     monkeypatch.setattr(fb, "_stamp", lambda: "20260101T000000Z")
-    p = fb.enqueue("wire the compaction module", str(tmp_path), [])
+    p = fb.enqueue("wire the compaction module", str(tmp_path), [], require_watcher=False)
     assert p.name.startswith("20260101T000000Z-wire-the-compaction-module")
 
 
@@ -292,7 +293,7 @@ def test_PARALLEL_producers_do_not_collide(tmp_path, monkeypatch):
     def worker():
         try:
             start.wait(timeout=10)
-            made.append(fb.enqueue("same objective", str(tmp_path), []))
+            made.append(fb.enqueue("same objective", str(tmp_path), [], require_watcher=False))
         except Exception as exc:  # noqa: BLE001
             errors.append(exc)
 
@@ -328,7 +329,7 @@ def test_a_request_is_published_atomically(tmp_path, monkeypatch):
         return result
 
     monkeypatch.setattr(Path, "write_text", spy)
-    path = fb.enqueue("atomic probe", str(tmp_path), [])
+    path = fb.enqueue("atomic probe", str(tmp_path), [], require_watcher=False)
 
     assert path.exists()
     # At the moment the body was written, no *.json was visible yet.

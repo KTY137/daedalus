@@ -13,6 +13,7 @@ from typing import Any
 
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
+from .spine import envelope
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +51,51 @@ MAX_ATTEMPTS = 3
 # does publish atomically), and destroying that would lose a perfectly good
 # request whose only fault was being slow.
 SETTLE_GRACE_S = 5.0
+
+
+class WatcherNotRunning(RuntimeError):
+    """Raised by enqueue() when no watcher is alive to consume the request.
+
+    MEASURED 2026-07-29, and the reason this exception exists: the watcher's
+    last heartbeat was 2026-07-16T22:51:51Z (pid 9536, dead). The owner's own
+    question -- "how is daedalus currently build and how does it function?" --
+    was enqueued 2026-07-20T12:11:42Z, three and a half days AFTER the only
+    consumer had stopped, and sat in the outbox for nine days. Nothing in the
+    system objected: `enqueue` wrote the file, returned a path, and the caller
+    had every reason to believe work had been queued.
+
+    `daedalus doctor` did report the dead watcher -- correctly, and with the
+    restart command -- but doctor is a thing you run when you already suspect
+    something. The producer never ran it. A queue that accepts work no consumer
+    will ever take is not a queue; it is a wastebasket with a receipt printer.
+
+    So the check moved to the moment of the mistake. It carries the state, the
+    age, and the exact restart command, because an error that does not say what
+    to do next just relocates the confusion.
+    """
+
+    def __init__(self, hb: dict[str, Any], objective: str) -> None:
+        self.hb = hb
+        self.state = hb.get("state", "unknown")
+        self.restart = hb.get("restart", "python -m daedalus.file_bridge watch --project <project>")
+        if self.state == "stale":
+            age = hb.get("age_s")
+            why = (f"the bridge watcher is DEAD -- its last heartbeat was {age}s ago "
+                   f"(> {STALE_AFTER_S:.0f}s)")
+        else:  # "none"
+            why = ("no bridge watcher has ever recorded a heartbeat here -- "
+                   "none is running")
+        super().__init__(
+            f"REFUSED to enqueue: {why}.\n"
+            f"  objective : {objective[:120]}\n"
+            f"  Nothing would consume this task. It would sit in the outbox\n"
+            f"  indefinitely while looking successfully queued.\n"
+            f"  -> start the consumer:  {self.restart}\n"
+            f"  -> or run the queue once, in the foreground:  "
+            f"python -m daedalus.file_bridge once --project <project>\n"
+            f"  -> or, if you are deliberately queueing ahead of a watcher you\n"
+            f"     will start later:  enqueue(..., require_watcher=False)  /  --force"
+        )
 
 
 def _stamp() -> str:
@@ -244,8 +290,24 @@ def codex_inline_brief_warning(objective: str, lane: str) -> str | None:
 def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonnet",
             lane: str = "auto", project: str | None = None,
             source: str = "unknown", strategy: str = "single",
-            category: str | None = None) -> Path:
+            category: str | None = None, require_watcher: bool = True,
+            trace_id: str | None = None) -> Path:
     """Drop one task request into the outbox for the watcher to dispatch.
+
+    CARRIES THE RUN'S TRACE ACROSS THE PROCESS BOUNDARY. ``trace_id`` defaults
+    to the ambient one, and it is written INTO THE REQUEST -- over the file
+    bus, like everything else here, never a side channel. The watcher is a
+    different process that may start hours later; the request file is the only
+    thing that reaches it, so it is the only honest place to put the id. See
+    :func:`process_request`, which re-binds it before dispatching so the
+    watcher's own records land under the trace of whoever queued the work.
+
+    REFUSES BY DEFAULT WHEN NOTHING IS LISTENING (see WatcherNotRunning).
+    `require_watcher=False` is the deliberate "queue ahead, I will start the
+    watcher myself" escape hatch -- it still prints the warning, because
+    queueing into a dead queue on purpose is rare enough to be worth seeing.
+    A `wedged` watcher is ALLOWED (a consumer exists, it is just slow) but
+    warns loudly, since the queue behind it may not drain for a while.
 
     CODEX-LANE PROTOCOL (learned 2026-07-11, cost ~2 h of bounced tasks):
     the codex lane executes best from a *queue-file task*, not an inline
@@ -260,6 +322,22 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
     warning = codex_inline_brief_warning(objective, lane)
     if warning:
         print(f"WARNING: {warning}", file=sys.stderr)
+
+    # CONSUMER CHECK BEFORE THE WRITE, never after: a refusal must leave no
+    # file behind, or we would have invented a third state ("queued, but we
+    # told you not to count on it") that no reader of the outbox can see.
+    hb = heartbeat_status()
+    if hb["state"] in ("stale", "none"):
+        if require_watcher:
+            raise WatcherNotRunning(hb, objective)
+        print(f"WARNING: queueing with NO live watcher (state={hb['state']}); "
+              f"this task will sit until you run:  {hb['restart']}", file=sys.stderr)
+    elif hb["state"] == "wedged":
+        cur = (hb.get("current") or {}).get("file", "?")
+        print(f"WARNING: the watcher is WEDGED on {cur} "
+              f"({hb.get('busy_for_s')}s > {BUSY_BUDGET_S:.0f}s budget); this task is "
+              f"queued behind it and may not run soon.", file=sys.stderr)
+
     OUTBOX.mkdir(parents=True, exist_ok=True)
     slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in objective)[:48].strip("-")
     # UNIQUENESS FROM THE NAME ITSELF, not from looking first.
@@ -301,6 +379,11 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
         # agent, carried through for the UI/bus/reports. Never consulted by
         # the lane gate in core.process_bridge_payload.
         payload["category"] = category
+    # Additive, and OMITTED when there is no run in scope -- an untraced
+    # enqueue writes byte-for-byte the request it always wrote, so every
+    # existing reader of the outbox (including a watcher from an older
+    # checkout) is unaffected in both directions.
+    payload = envelope.stamp(payload, trace_id=trace_id)
     # PUBLISH ATOMICALLY. `write_text` is not one operation to a reader: the
     # watcher polls this directory, and a plain write lets it glob a file that
     # is half a JSON document. Writing to a name the watcher's `*.json` glob
@@ -344,6 +427,12 @@ def _note_report_arrival(result_path: Path, report: dict[str, Any],
     call) it appends unconditionally, as it always did."""
     lane = report.get("lane") or (report.get("request") or {}).get("lane") or "?"
     marker = f" key={key}" if key else ""
+    # Appended LAST and only when present, so the line an existing reader
+    # already parses is unchanged up to the point it stops caring. This is the
+    # cheapest surface the join gets: one tail-able file where a trace id shows
+    # up next to the report that carries it.
+    tid = envelope.trace_of(report)
+    marker += f" trace={tid}" if tid else ""
     line = (f"{_now_iso()} {result_path.name} "
             f"status={report.get('bridge_status', '?')} lane={lane}{marker}\n")
     try:
@@ -378,11 +467,18 @@ def quarantine_request(path: Path, reason: str, detail: str) -> Path:
         "quarantined_at": _now_iso(),
         "quarantine_path": str(dest),
     }
+    # THE TRACE COMES FROM THE JOURNAL, not from the request. A quarantine is
+    # exactly the case where the request may be unreadable (poison) or already
+    # moved, so the only surviving record of which run asked for this work is
+    # the journal entry process_request wrote BEFORE dispatching. A give-up is
+    # the report a human most wants to trace back, so it is worth the extra
+    # read.
+    entry = _read_journal(key)
+    report = envelope.stamp(report, trace_id=entry.get(envelope.TRACE_KEY))
     result_path = INBOX / f"{key}.report.json"
     _write_json_atomic(result_path, report)
     _note_report_arrival(result_path, report, key=key)
     _write_json_atomic(_quarantine_dir() / f"{key}.error.json", report)
-    entry = _read_journal(key)
     entry["state"] = "quarantined"
     entry["key"] = key
     entry["reason"] = reason
@@ -449,13 +545,35 @@ def process_request(path: Path, default_repo_root: str | None = None) -> Path:
         entry["attempts"] = attempts + 1
         entry["state"] = "in_flight"
         entry["lane"] = payload.get("lane")
+        # The journal is a crash-recovery record of THIS request, so it gets
+        # the trace too -- a request that died in flight is exactly the one a
+        # human will be tracing.
+        entry[envelope.TRACE_KEY] = payload.get(envelope.TRACE_KEY)
         _write_journal(key, entry)  # durable BEFORE the work: survives a kill
 
         from .core import process_bridge_payload
-        report = process_bridge_payload(payload)
+        # THE CROSS-PROCESS HOP. The trace was minted in the ENQUEUER'S
+        # process, possibly hours ago and possibly on the other side of a
+        # crash; re-binding it here is what makes the watcher's own downstream
+        # records (spine intents, memory events, anything Ikarus writes) land
+        # under the run that ASKED for the work rather than under nothing.
+        # Binding around the dispatch and not wider keeps a request's trace
+        # from leaking onto the next request in the same watcher process.
+        # adopt_trace, NOT trace_context: an untraced request must stay
+        # untraced. Minting here would give every legacy/hand-dropped request a
+        # private id nothing else shares -- the field would look fully
+        # populated while joining nothing.
+        with envelope.adopt_trace(payload.get(envelope.TRACE_KEY)) as tid:
+            report = process_bridge_payload(payload)
         # The idempotency key, carried on the artifact itself, so the memory
         # log can be asked "did this request's record already land?".
         report["request_file"] = key
+        # Stamp the REPORT with the REQUEST's trace, not the ambient one: the
+        # report is a statement about that request, and the join a human wants
+        # is request -> report. envelope.stamp lets a report that already named
+        # its own trace keep it.
+        if payload.get(envelope.TRACE_KEY):
+            report = envelope.stamp(report, trace_id=tid)
 
         _write_json_atomic(result_path, report)
         steps["report"] = True
@@ -840,6 +958,9 @@ def main() -> None:
                            help="who queued the request")
     enqueue_p.add_argument("--strategy", default="single", choices=["single", "spawn"],
                            help="single routes one task; spawn lets Ikarus decompose and fan out")
+    enqueue_p.add_argument("--force", action="store_true",
+                           help="queue even though no watcher is alive to run it "
+                                "(default: REFUSE, because such a task just sits)")
 
     once_p = sub.add_parser("once", help="Process current outbox requests once.")
     once_p.add_argument("--repo-root")
@@ -860,9 +981,17 @@ def main() -> None:
         watch(resolve_repo_root(args.repo_root, args.project), args.interval_s,
               project=args.project)
     elif args.command == "enqueue":
-        print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
-                      args.paths, args.model, args.lane, args.project,
-                      args.source, args.strategy))
+        try:
+            print(enqueue(args.objective, resolve_repo_root(args.repo_root, args.project),
+                          args.paths, args.model, args.lane, args.project,
+                          args.source, args.strategy,
+                          require_watcher=not args.force))
+        except WatcherNotRunning as exc:
+            # A refusal is a normal, expected outcome here -- report it as a
+            # message and a non-zero exit, not as an unhandled traceback that
+            # buries the remedy under a stack.
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(2)
     elif args.command == "once":
         OUTBOX.mkdir(parents=True, exist_ok=True)
         repo_root = resolve_repo_root(args.repo_root, args.project) if (args.repo_root or args.project) else None

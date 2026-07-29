@@ -20,6 +20,7 @@ import argparse
 import json
 from dataclasses import dataclass, field
 from itertools import cycle
+from typing import Any
 
 from ..provider_router import route_and_select
 from ..providers import get_provider
@@ -75,6 +76,17 @@ class KairosScheduler:
     policy: Policy | None = None
     project: str | None = None                 # loads the safety policy for live writes
     active_agents: list[str] | None = None
+    # Concurrency cap SPECIFICALLY for gate_concurrent_writes (see that
+    # method and daedalus/kairos/gated_writes.py), independent of
+    # max_workers. Deliberately conservative and separately configurable:
+    # every concurrent write-mode offload() triggers a FULL structcore
+    # re-index (offload.py's post-write blast-radius fence, cached_index(...,
+    # refresh=True)), and that cache's single-flight lock is keyed by
+    # RESOLVED ROOT (structcore/index.py::cached_index) -- so N worktrees, N
+    # distinct roots, N UNSHARED full re-index builds competing for CPU/RAM
+    # at once. NOT MEASURED on this box for N>1 -- the default stays low
+    # until someone measures the real cost and raises it deliberately.
+    max_parallel_writes: int = 2
     _bench: cycle = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
@@ -91,6 +103,11 @@ class KairosScheduler:
             except (TypeError, ValueError):
                 configured_workers = self.max_workers
             self.max_workers = max(1, configured_workers)
+            try:
+                configured_writes = int(team.get("max_parallel_writes", self.max_parallel_writes))
+            except (TypeError, ValueError):
+                configured_writes = self.max_parallel_writes
+            self.max_parallel_writes = max(1, configured_writes)
             active = team.get("active_agents")
             if isinstance(active, list):
                 self.active_agents = [str(a) for a in active if str(a).strip()]
@@ -189,20 +206,35 @@ class KairosScheduler:
         # Separate checkouts remove that by construction rather than by
         # convention: `isolate_paths` and disjoint declared paths never could,
         # because an agentic writer is not bound by the strings it was handed.
-        # NOT YET: the isolation that would make this safe (GitWorktreeManager,
-        # already built and hardened in kairos/worktree.py) is wired into
-        # shadow_shell.py and not into this dispatch path. Until it is, writes
-        # stay sequential -- and the serialized PROMOTION step that N worktrees
-        # would then need does not exist either, so flipping this flag alone
-        # would move the race from the files to the landing rather than remove it.
+        #
+        # STILL sequential here, but the reason changed: the isolation now
+        # EXISTS -- see gate_concurrent_writes() below, which runs each write
+        # through daedalus.spine.attempt.TaskAttempt (its own worktree, its
+        # own hardened patch capture) fanned out concurrently, and
+        # daedalus.kairos.gated_writes.promote_candidates(), which lands
+        # gated candidates one at a time behind a cross-process lock with
+        # cumulative re-gating. What THAT path returns is not what this one
+        # returns, though: a gated PatchArtifact the primary checkout never
+        # saw, not a live write already sitting in repo_root's working tree.
+        # dispatch() keeps its existing auto-land contract for a single write
+        # (offload() has always auto-landed a sequential one), and does not
+        # silently switch write-mode dispatch to the gated-candidate shape --
+        # that is a product decision (does concurrent dispatch keep
+        # auto-landing, or become review-then-promote like the rest of the
+        # spine?) for whoever owns that contract to make, not something to
+        # decide by which code path happened to run. Call
+        # gate_concurrent_writes()/promote_candidates() explicitly when that
+        # decision says to.
         can_parallel = parallel and not has_writes
 
         if parallel and not can_parallel and live_tasks:
             results.append({"status": "note", "objective": "parallel disabled",
                             "reason": (
-                                "writable attempts require separate Forge "
-                                "workcells; ran sequentially with whole-repo "
-                                "change attribution"
+                                "writable attempts ran sequentially with whole-repo "
+                                "change attribution; see gate_concurrent_writes() for "
+                                "isolated, concurrent write gating (returns gated "
+                                "candidates, not live writes -- promotion is a "
+                                "separate, explicit step)"
                             )})
 
         if can_parallel and len(live_tasks) > 1:
@@ -225,6 +257,49 @@ class KairosScheduler:
             bp = _bounced_or_planned(a)
             results.append(bp if bp is not None else _run_one(a, isolate=False))
         return results
+
+    def gate_concurrent_writes(self, repo_root: str, tasks: list[dict],
+                               ledger_path=None, cancel: Any = None) -> list:
+        """Safe concurrent WRITE dispatch: PHASE 1 only (gating, not landing).
+
+        Every write task in ``tasks`` runs CONCURRENTLY, each through
+        :class:`daedalus.spine.attempt.TaskAttempt` in its own worktree
+        (``offload()`` as the runner -- its verify+rollback cascade stays the
+        authority for per-task correctness; see
+        ``daedalus.kairos.gated_writes._relay_gate``). Returns one
+        :class:`daedalus.kairos.gated_writes.GatedCandidate` per accepted
+        write task: a gate verdict plus a ``PatchArtifact`` when clean. The
+        primary checkout at ``repo_root`` is NEVER touched by this call --
+        that is ``TaskAttempt``'s own structural guarantee (see
+        ``tests/test_spine_attempt.py::test_happy_path_artifact_and_primary_untouched``).
+
+        Advisory-only tasks are bounced (this method only accepts write-mode
+        work; use :meth:`plan`/:meth:`accept` for the routing verdict on the
+        rest of a mixed task list, or :meth:`dispatch` to actually run them).
+
+        ``cancel``, when given, is forwarded unchanged to
+        :func:`daedalus.kairos.gated_writes.gate_candidates` -- added here so
+        this wrapper does not silently strip a capability that module already
+        supports; see that function's own docstring for exactly what it
+        covers (every ``TaskAttempt`` in this batch) and does not (the
+        cumulative re-gate inside ``promote_candidates``, a separate, filed
+        follow-up, not this method's concern since it never promotes).
+
+        Landing a candidate this returns into ``repo_root`` is a SEPARATE,
+        explicit act -- see :func:`daedalus.kairos.gated_writes.promote_candidates`
+        and the comment on ``can_parallel`` in :meth:`dispatch` for why this
+        method does not do that itself.
+        """
+        from .gated_writes import gate_candidates
+        avail = self.availability or DEFAULT_AVAILABILITY
+        accepted = self.accept(tasks, repo_root=repo_root)
+        writes = [a for a in accepted if a.accepted and a.mode == "write"]
+        if not writes:
+            return []
+        return gate_candidates(
+            repo_root, writes, project=self.project, availability=avail,
+            max_workers=min(self.max_parallel_writes, self.max_workers),
+            ledger_path=ledger_path, cancel=cancel)
 
     def spawn(self, objective: str, repo_root: str, dry_run: bool = True) -> dict:
         """One-shot entry: decompose a single objective into subtasks, then plan

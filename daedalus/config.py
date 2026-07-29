@@ -16,6 +16,15 @@ key existed -- a silent re-timing of every other repo's gate is not acceptable.
 Declare it when the repo's suite genuinely needs longer than 120 s; a suite that
 cannot finish inside the budget is killed and the gate reports ``status:
 "timeout"``, which blocks the write but is NOT a test failure.
+
+``write_wave_policy`` (``"never" | "low_risk" | "always"``, default
+``"never"`` when the key is absent or unrecognized) controls whether a
+build-session write wave's gated candidates auto-promote -- see
+:func:`resolve_write_wave_policy` and
+:func:`daedalus.kairos.gated_writes.run_write_wave`. It is read from a
+per-repo config file the same way every other policy knob here is, so the
+setting travels with the repo and is reviewable in version control, not an
+environment variable a shell session can silently override.
 """
 
 from __future__ import annotations
@@ -25,6 +34,60 @@ from pathlib import Path
 
 REPO_CONFIG = ".agentenv/agentenv.json"
 TEMPLATE_DIR = Path(__file__).resolve().parents[1] / "templates"
+
+# --------------------------------------------------------------------------- #
+# write_wave_policy: does a build-session write wave promote its own gated    #
+# candidates, or wait for a human?                                            #
+# --------------------------------------------------------------------------- #
+# Three levels, not a boolean, because "automatic" means different things:
+#
+#   never     -- always human promote. `daedalus.kairos.gated_writes
+#                .promote_candidates` is never called automatically; every
+#                clean candidate sits gated (isolated worktree, never the
+#                primary checkout) until a human promotes it explicitly.
+#   low_risk  -- auto-promote only a candidate whose task classifies as
+#                change_risk=='low' (`daedalus.sensitivity.change_risk`, the
+#                SAME pure classifier `provider_router` already routes on --
+#                not a new label with nothing behind it). Anything 'mid' or
+#                'high' is held for a human exactly like `never`.
+#   always    -- any clean gated candidate is promoted, regardless of risk.
+#
+# IN EVERY CASE this is ANDed against `daedalus.core.get_governance()`'s
+# `promotion_allowed` (itself derived solely from
+# `daedalus.spine.bootstrap.gate_discrimination` -- has the test gate been
+# SHOWN to catch a bad patch at this revision?). `write_wave_policy` decides
+# whether a HUMAN must click promote; it never substitutes for the PROOF that
+# the gate can discriminate. A fresh repo has no discrimination receipt, so
+# `promotion_allowed` is False there by construction -- auto-promotion is
+# armed but inert until an operator runs `tools/gate_discrimination.py` (or
+# equivalent) and the receipt is fresh against HEAD. See
+# `daedalus.kairos.gated_writes.run_write_wave`, the one call site this knob
+# reaches. "Promoted" here also never means "merged to the primary checkout":
+# `promote_candidates` lands into a disposable integration worktree/branch
+# only -- merging that into the primary repo stays a human `git merge`, at
+# every level of this setting, including `always`.
+WRITE_WAVE_POLICY_LEVELS = ("never", "low_risk", "always")
+#: Fail-closed default for a project config that omits the key, or sets an
+#: unrecognized value -- e.g. a typo, or a value from a future level this
+#: version of the code does not know about. Absence (or garbage) must never
+#: be read as permission.
+DEFAULT_WRITE_WAVE_POLICY = "never"
+
+
+def resolve_write_wave_policy(pdata: dict | None) -> str:
+    """The write-wave auto-promotion level a resolved project config declares.
+
+    ``pdata`` is a project dict as returned by :func:`resolve_project` (or
+    ``None``). Reads the top-level ``write_wave_policy`` key. Anything other
+    than one of :data:`WRITE_WAVE_POLICY_LEVELS` -- missing, ``None``, a typo,
+    a bool, a future level this version doesn't know -- resolves to
+    :data:`DEFAULT_WRITE_WAVE_POLICY`, never to a more permissive one.
+    """
+    raw = (pdata or {}).get("write_wave_policy")
+    if raw in WRITE_WAVE_POLICY_LEVELS:
+        return raw
+    return DEFAULT_WRITE_WAVE_POLICY
+
 
 STARTER: dict = {
     "_comment": "daedalus policy for THIS repo. Generic secret protections are "
@@ -68,6 +131,22 @@ STARTER: dict = {
     "spine": {
         "ledger_path": "runs/spine/spine.sqlite3",
     },
+    "_comment_write_wave_policy": "Auto-promotion for concurrent write waves "
+        "(see daedalus.kairos.gated_writes.run_write_wave). One of 'never' "
+        "(always human promote), 'low_risk' (auto-promote only change_risk== "
+        "'low' candidates), 'always' (any clean gated candidate). THIS SETTING "
+        "DOES NOT BYPASS THE GATE: every level is ANDed against "
+        "daedalus.core.get_governance()'s promotion_allowed, which is FALSE "
+        "until runs/spine/gate_discrimination.json proves, at the CURRENT "
+        "revision, that this repo's test command actually catches a bad "
+        "patch (kill rate >= 80%, no critical defect class survives -- see "
+        "daedalus.spine.bootstrap.gate_discrimination). A brand new repo has "
+        "no such receipt, so 'always' here is armed but inert: nothing "
+        "auto-promotes until that measurement exists and is fresh against "
+        "HEAD. 'Promoted' also never means merged to your primary checkout --"
+        " it lands in a disposable integration worktree/branch; merging that "
+        "in stays a human `git merge` at every level, including 'always'.",
+    "write_wave_policy": "always",
 }
 
 
