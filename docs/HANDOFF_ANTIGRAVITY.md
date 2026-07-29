@@ -107,6 +107,25 @@ too, and build so it gets caught.
    Always read `git diff --cached --name-only` before committing — twice this
    week that read was skipped and other agents' work was swept into an unrelated
    commit. Both commits carry `git notes` corrections.
+9. **If more than one agent can write this repo, do not use the index.**
+   `git add <paths>` then `git commit` is **not atomic**, and the git index is a
+   shared mutable global. MEASURED 2026-07-29: one agent staged three files,
+   read `git diff --cached --name-only`, ran `git commit`, and got *"no changes
+   added to commit"* — another had committed its staged set in the interval,
+   under a different message. Nothing was corrupted, but only because the
+   staged set happened to be complete; the same race against a HALF-staged
+   index ships a partial change under someone else's authorship, and against a
+   session holding one of the four protected artefacts (§T9) it commits exactly
+   what everyone was told not to.
+
+   Use `git commit -- <paths>` instead. It commits the working-tree content of
+   the named paths only, ignores whatever else is in the index, and leaves the
+   index otherwise untouched — so it is immune to the race in both directions.
+   Reading the staged set is still worth doing; it just stops being the thing
+   that protects you.
+10. **An agreed sequence needs an agreed EXECUTOR.** Two agents negotiated the
+    correct commit ORDER and both then acted on it. Settling *what* happens is
+    not settling *who does it*.
 
 ---
 
