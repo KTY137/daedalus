@@ -122,6 +122,7 @@ __all__ = [
     "STATE_WORKTREE_FAILED",
     "TaskAttempt",
     "TaskSpec",
+    "command_gate",
     "offload_runner",
     "pytest_gate",
     "pytest_gate_argv",
@@ -867,16 +868,16 @@ def _contained_gate_child(argv: Sequence[str], worktree: Path, out_path: Path,
     return proc, log
 
 
-def pytest_gate(paths: Sequence[str] = (), *,
-                timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
-                poll_s: float = 0.25,
-                name: str = "pytest",
-                executes_candidate: bool = True
-                ) -> Callable[[RunnerContext], GateResult]:
-    """Default gate: run a pytest subset INSIDE the candidate worktree.
+def command_gate(argv: Sequence[str], *,
+                 timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
+                 poll_s: float = 0.25,
+                 name: str = "command",
+                 executes_candidate: bool = True
+                 ) -> Callable[[RunnerContext], GateResult]:
+    """Run an arbitrary command INSIDE the candidate worktree.
 
     THE GATE IS WHERE CANDIDATE CODE ACTUALLY RUNS. Everything else in this
-    module handles the candidate's bytes; ``pytest`` executes them. So by
+    module handles the candidate's bytes; this command executes them. So by
     default the child is launched at LOW INTEGRITY through
     :mod:`daedalus.spine.containment`, and the kernel -- not our path checks --
     refuses the writes that a Python guard provably cannot close (the "move-in"
@@ -908,13 +909,12 @@ def pytest_gate(paths: Sequence[str] = (), *,
     See :func:`_remove_gate_tmpdir`, which also records what the Job Object
     does and does not contain.
     """
-    argv_paths = tuple(str(p) for p in paths)
+    effective_argv = tuple(str(arg) for arg in argv)
 
     def _gate(ctx: RunnerContext) -> GateResult:
         from daedalus.spine import containment
         from daedalus.spine.cancel import CancellationUnavailable, ManagedProcess
 
-        argv = pytest_gate_argv(argv_paths)
         started = time.monotonic()
         tmpdir = Path(tempfile.mkdtemp(prefix="daedalus-gate-"))
         out_path = tmpdir / "gate.out"
@@ -933,7 +933,7 @@ def pytest_gate(paths: Sequence[str] = (), *,
         try:
             if executes_candidate:
                 try:
-                    proc, log = _contained_gate_child(argv, ctx.worktree,
+                    proc, log = _contained_gate_child(effective_argv, ctx.worktree,
                                                       out_path, tmpdir)
                 except containment.ContainmentUnavailable as e:
                     # HARD REFUSAL. A gate that runs candidate code outside the
@@ -956,7 +956,8 @@ def pytest_gate(paths: Sequence[str] = (), *,
             else:
                 with open(out_path, "wb") as fh:
                     try:
-                        proc = ManagedProcess(argv, cwd=ctx.worktree, stdout=fh,
+                        proc = ManagedProcess(effective_argv, cwd=ctx.worktree,
+                                              stdout=fh,
                                               stderr=subprocess.STDOUT)
                     except CancellationUnavailable as e:
                         refusal = (f"gate refused to launch outside a killable "
@@ -976,7 +977,7 @@ def pytest_gate(paths: Sequence[str] = (), *,
             # whether the scratch dir survived says nothing about the candidate.
             scratch_error = _remove_gate_tmpdir(tmpdir)
         if refusal is not None:
-            return GateResult(passed=False, name=name, command=argv,
+            return GateResult(passed=False, name=name, command=effective_argv,
                               returncode=None, output=refusal,
                               duration_s=time.monotonic() - started,
                               containment=attestation)
@@ -997,13 +998,29 @@ def pytest_gate(paths: Sequence[str] = (), *,
                       "for.")
         if scratch_error:
             output = f"{output}\n{scratch_error}"
-        return GateResult(passed=passed, name=name, command=argv,
+        return GateResult(passed=passed, name=name, command=effective_argv,
                           returncode=returncode, output=output,
                           duration_s=time.monotonic() - started,
                           cancelled=cancelled, timed_out=timed_out,
                           containment=attestation)
 
     return _gate
+
+
+def pytest_gate(paths: Sequence[str] = (), *,
+                timeout_s: float = DEFAULT_GATE_TIMEOUT_S,
+                poll_s: float = 0.25,
+                name: str = "pytest",
+                executes_candidate: bool = True
+                ) -> Callable[[RunnerContext], GateResult]:
+    """Run the repository's pytest gate through :func:`command_gate`."""
+    return command_gate(
+        pytest_gate_argv(paths),
+        timeout_s=timeout_s,
+        poll_s=poll_s,
+        name=name,
+        executes_candidate=executes_candidate,
+    )
 
 
 def offload_runner(**offload_kwargs: Any) -> Callable[[RunnerContext], Any]:

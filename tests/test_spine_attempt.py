@@ -8,6 +8,7 @@ Every runner and gate here is injected, so nothing touches a model or a network.
 import dataclasses
 import hashlib
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from daedalus.spine.attempt import (
     RunnerContext,
     TaskAttempt,
     TaskSpec,
+    command_gate,
     pytest_gate_argv,
 )
 from daedalus.spine.ledger import STATE_COMPLETED, STATE_FAILED, SpineLedger
@@ -578,6 +580,218 @@ def test_default_gate_argv_targets_the_requested_subset():
     assert argv[1:3] == ("-m", "pytest")
     assert "tests/test_a.py" in argv and "tests/test_b.py" in argv
     assert "-p" in argv and "no:cacheprovider" in argv
+
+
+def _command_gate_context(worktree, *, is_cancelled=lambda: False):
+    return RunnerContext(
+        worktree=worktree,
+        branch="gate-test",
+        base_revision="0" * 40,
+        task=spec(),
+        is_cancelled=is_cancelled,
+    )
+
+
+def test_command_gate_runs_arbitrary_argv_in_worktree_and_records_evidence(
+        tmp_path):
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+    (worktree / "where.txt").write_text("inside\n", encoding="utf-8")
+    argv = (
+        sys.executable,
+        "-c",
+        "from pathlib import Path; "
+        "print(Path.cwd().name); "
+        "print(Path('where.txt').read_text().strip())",
+    )
+
+    verdict = command_gate(
+        argv, executes_candidate=False, name="python-build", poll_s=0.01
+    )(_command_gate_context(worktree))
+
+    assert verdict.passed is True, verdict.output
+    assert verdict.command == argv
+    assert verdict.name == "python-build"
+    assert verdict.returncode == 0
+    assert verdict.output.splitlines() == ["candidate", "inside"]
+    assert verdict.summary()["command"] == list(argv)
+    assert verdict.summary()["output_sha256"] == verdict.output_sha256
+    assert verdict.containment is not None
+    assert verdict.containment.requested is False
+    assert verdict.containment.executes_candidate is False
+    assert verdict.containment.contained is False
+
+
+@pytest.mark.parametrize(
+    ("program", "expected_returncode", "expected_output"),
+    [
+        ("print('not green'); raise SystemExit(7)", 7, "not green"),
+        ("pass", 0, "NO output"),
+    ],
+)
+def test_command_gate_rejects_nonzero_and_empty_green(
+        tmp_path, program, expected_returncode, expected_output):
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+
+    verdict = command_gate(
+        (sys.executable, "-c", program),
+        executes_candidate=False,
+        poll_s=0.01,
+    )(_command_gate_context(worktree))
+
+    assert verdict.passed is False
+    assert verdict.returncode == expected_returncode
+    assert expected_output in verdict.output
+
+
+class _PendingGateProcess:
+    """Deterministic process double for cancel/deadline polling."""
+
+    def __init__(self, argv, *, cwd, stdout, stderr):
+        self.argv = tuple(argv)
+        self.cwd = cwd
+        self._returncode = None
+        stdout.write(b"gate started\n")
+        stdout.flush()
+
+    def poll(self):
+        return self._returncode
+
+    @property
+    def returncode(self):
+        return self._returncode
+
+    def cancel(self):
+        self._returncode = 137
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+
+@pytest.mark.parametrize(
+    ("cancelled", "timeout_s", "expected_field"),
+    [
+        (True, 60.0, "cancelled"),
+        (False, -1.0, "timed_out"),
+    ],
+)
+def test_command_gate_preserves_cancel_and_timeout_semantics(
+        tmp_path, monkeypatch, cancelled, timeout_s, expected_field):
+    from daedalus.spine import cancel as cancel_mod
+
+    monkeypatch.setattr(cancel_mod, "ManagedProcess", _PendingGateProcess)
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+
+    verdict = command_gate(
+        ("builder", "--check"),
+        executes_candidate=False,
+        timeout_s=timeout_s,
+        poll_s=0,
+    )(_command_gate_context(worktree, is_cancelled=lambda: cancelled))
+
+    assert verdict.passed is False
+    assert getattr(verdict, expected_field) is True
+    assert verdict.returncode == 137
+    assert verdict.command == ("builder", "--check")
+
+
+def test_command_gate_records_effective_containment_attestation(
+        tmp_path, monkeypatch):
+    from daedalus.spine.containment import ContainmentAttestation
+
+    attestation = ContainmentAttestation(
+        requested=True,
+        executes_candidate=True,
+        contained=True,
+        platform=sys.platform,
+        mechanism="test-low-integrity",
+        token_integrity_sid="S-1-16-4096",
+        worktree_label="S-1-16-4096",
+        inherited_handle_count=1,
+    )
+
+    class _ContainedProcess:
+        returncode = 0
+
+        def __init__(self):
+            self.attestation = attestation
+
+        def poll(self):
+            return 0
+
+        def cancel(self):
+            raise AssertionError("completed child must not be cancelled")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+    class _Log:
+        def close(self):
+            return None
+
+    seen = {}
+
+    def _contained(argv, worktree, out_path, tmpdir):
+        seen["argv"] = tuple(argv)
+        seen["worktree"] = worktree
+        out_path.write_text("contained build passed\n", encoding="utf-8")
+        return _ContainedProcess(), _Log()
+
+    monkeypatch.setattr(attempt_mod, "_contained_gate_child", _contained)
+    worktree = tmp_path / "candidate"
+    worktree.mkdir()
+    argv = ("npm", "run", "build")
+
+    verdict = command_gate(argv)(_command_gate_context(worktree))
+
+    assert verdict.passed is True
+    assert verdict.command == argv
+    assert seen == {"argv": argv, "worktree": worktree}
+    assert verdict.containment is attestation
+    block = verdict.summary()["containment"]
+    assert block["requested"] is True
+    assert block["executes_candidate"] is True
+    assert block["contained"] is True
+    assert block["mechanism"] == "test-low-integrity"
+    assert block["inherited_handle_count"] == 1
+
+
+def test_pytest_gate_is_a_thin_command_gate_wrapper(monkeypatch):
+    sentinel = object()
+    calls = []
+
+    def _command_gate(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return sentinel
+
+    monkeypatch.setattr(attempt_mod, "command_gate", _command_gate)
+
+    result = attempt_mod.pytest_gate(
+        ["tests/test_a.py"],
+        timeout_s=12,
+        poll_s=0.5,
+        name="suite",
+        executes_candidate=False,
+    )
+
+    assert result is sentinel
+    assert calls == [(
+        pytest_gate_argv(["tests/test_a.py"]),
+        {
+            "timeout_s": 12,
+            "poll_s": 0.5,
+            "name": "suite",
+            "executes_candidate": False,
+        },
+    )]
 
 
 def test_gate_returning_a_bare_bool_is_accepted_and_says_so(repo, worktree_root,
