@@ -345,6 +345,18 @@ _LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
 def lane_for_host(host: str | None) -> str:
     """``"trusted"`` only if ``host`` is THIS machine; ``"untrusted"`` otherwise.
 
+    THE ONLY IMPLEMENTATION. There is exactly one answer to "do the bytes leave
+    this machine", and it lives here, next to the gate it switches
+    (:func:`slice_egress_rule`). Do not re-derive it at a call site: within a
+    day of this predicate landing the repo held FIVE independent versions of the
+    question (``council/vendors.py``, ``council/session.py``,
+    ``council/canary.py``, an inline set literal in ``accelerators.py``, and
+    this one) and they returned three different answers for ``[::1]``. A caller
+    that needs a boolean writes ``lane_for_host(h) == "trusted"``; a caller that
+    needs the lane string uses the return value directly. Both are pinned by
+    ``tests/test_host_predicate.py``, which also fails if a module grows its own
+    copy of the host table.
+
     THE BUG THIS EXISTS TO PREVENT. ``lane="trusted"`` turns OFF the
     default-deny allow-list in :func:`slice_egress_rule`, leaving only the
     secret floor. That was previously chosen by PROVIDER NAME -- "ollama is
@@ -374,6 +386,26 @@ def lane_for_host(host: str | None) -> str:
     the same check-then-use shape that produced this repo's worktree CRITICALs,
     with egress instead of deletion at the end of it. Refusing names removes the
     window rather than narrowing it.
+
+    WIDER THAN THE AD-HOC PREDICATES IT REPLACED, DELIBERATELY. The council's
+    copies matched ``^https?://([^/:]+)`` against a three-name frozenset, so
+    they answered ``untrusted`` for ``http://[::1]:11434``, for a scheme-less
+    ``127.0.0.1:11434`` (the literal shape ``OLLAMA_HOST`` takes), and for every
+    127.0.0.0/8 address other than ``127.0.0.1``. Consolidating onto this
+    function makes those three ``trusted``, which is a REAL widening of the
+    egress boundary and is argued rather than assumed:
+
+    * The old ``untrusted`` was a PARSING ACCIDENT, not a policy. That regex
+      cannot span a bracketed IPv6 literal (``[^/:]+`` dies on the first colon,
+      yielding the host ``"["``) and requires a scheme. Nobody decided ``::1``
+      was off-machine; a character class did.
+    * All three are loopback by specification -- 127.0.0.0/8 is reserved for
+      loopback entire (RFC 1122 3.2.1.3) and ``::1`` is the IPv6 loopback
+      (RFC 4291 2.5.3). Packets to them provably do not reach a wire.
+    * The widening admits NUMERIC LITERALS ONLY, so it does not reopen the DNS
+      indirection that ``localhost`` was refused for. That refusal still holds,
+      and consolidation NARROWS the council in that direction: its copies called
+      ``http://localhost:11434`` local, and this one does not.
     """
     raw = (host or "").strip()
     if not raw:

@@ -65,8 +65,11 @@ EGRESS
   the local bench alone (ollama: no bytes leave the machine)".  That claim is a
   property of an environment variable nobody had ever set.  Normalising a
   REMOTE Ollama into this process would retroactively falsify it from a code
-  path nobody edited.  So: the host is passed explicitly per call, and only
-  ``127.0.0.1``/``localhost`` counts as ``local``.
+  path nobody edited.  So: the host is passed explicitly per call, and whether
+  it counts as ``local`` is decided by ``sensitivity.lane_for_host`` -- the ONE
+  implementation of "do the bytes leave this machine", shared with the gate it
+  switches.  NUMERIC LOOPBACK ONLY: ``localhost`` does NOT count, because a name
+  is a DNS indirection the predicate cannot see through.
 * codex and agy default to ``lane="untrusted"``: the allow-list / default-deny
   tier is ON for them, and withheld paths are named.  ``runtime_registry.py``
   currently marks ``codex_cli`` trusted-with-IP and ``openai_api`` not -- same
@@ -90,7 +93,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from ..providers._ollama_native import effective_input_window, native_chat, num_ctx_value
 from ..providers._openai_compat import ProviderHTTPError, server_reachable
-from ..sensitivity import secret_floor_rule, slice_egress_rule
+from ..sensitivity import lane_for_host, secret_floor_rule, slice_egress_rule
 from ..spine.cancel import CancellationUnavailable, ManagedProcess
 from ..structcore.tokens import count_tokens
 from .bus import actor_id as _bus_actor_id
@@ -173,8 +176,13 @@ PROMPT_DATA_NOTICE = (
     "ability to read files; cite only spans present in the evidence given here."
 )
 
-_HOST_RE = re.compile(r"^[a-z]+://([^/:]+)", re.IGNORECASE)
-_LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+# NO LOCAL-HOST TABLE HERE, ON PURPOSE. "Do the bytes leave this machine" has
+# exactly one implementation, ``sensitivity.lane_for_host``, imported above --
+# it is the predicate that switches the tier-2 allow-list, so a second copy next
+# to it is a second answer to a safety question. This module used to carry
+# ``_LOCAL_HOSTS`` + ``_endpoint_host`` and disagreed with the shared predicate
+# on ``[::1]``, on 127.0.0.0/8, and on ``localhost``. See
+# ``tests/test_host_predicate.py``, which fails if the table comes back.
 
 
 # --- identity (ADR-010: actor ids are namespaced) --------------------------
@@ -219,11 +227,6 @@ def model_family(model: str) -> str:
     while parts and re.fullmatch(r"\d+(\.\d+)?[bkm]?|v\d+|latest|preview|\d{8}", parts[-1]):
         parts.pop()
     return "-".join(parts) or base or "unknown"
-
-
-def _endpoint_host(url: str) -> str:
-    match = _HOST_RE.match(url or "")
-    return match.group(1) if match else (url or "unknown")
 
 
 # --- the outbound/inbound value type ---------------------------------------
@@ -954,8 +957,10 @@ class OllamaAdapter(CouncilAdapter):
     The host is passed EXPLICITLY per call.  ``OLLAMA_HOST`` is never read for
     routing and never written -- see the module docstring; normalising a remote
     Ollama into this process would silently flip ``offload.py``'s trusted lane.
-    ``local`` is True only for ``127.0.0.1``/``localhost``: the bench is another
-    machine on the tailnet, and bytes sent there have left this one.
+    ``local`` is ``sensitivity.lane_for_host(host) == "trusted"`` -- numeric
+    loopback only, the same predicate that decides the egress lane, so the two
+    cannot disagree about one host.  The bench is another machine on the
+    tailnet, and bytes sent there have left this one.
 
     Over-budget prompts are REFUSED LOUDLY.  Ollama HEAD-truncates an over-long
     prompt -- it eats the system prompt first -- so a silently truncated council
@@ -980,7 +985,10 @@ class OllamaAdapter(CouncilAdapter):
         self.output_reserve = output_reserve
         self._chat = chat or native_chat
         self.endpoint = self.host
-        self.local = _endpoint_host(self.host) in _LOCAL_HOSTS
+        # ONE predicate, shared with the egress gate it feeds. Not a local
+        # copy: ``local`` and ``lane`` must never be able to disagree about the
+        # same host, and they did (``[::1]`` was local-but-untrusted).
+        self.local = lane_for_host(self.host) == "trusted"
 
     @property
     def independence_class(self) -> tuple[str, str]:
@@ -1120,7 +1128,9 @@ def available_vendors(
         detail=host,
         independence_class=("local", model_family(ollama_model)),
         endpoint=host,
-        lane="trusted" if _endpoint_host(host) in _LOCAL_HOSTS else "untrusted",
+        # The lane IS the predicate's return value -- no re-derivation, no
+        # second table, nothing to drift.
+        lane=lane_for_host(host),
     ))
 
     return tuple(out)
