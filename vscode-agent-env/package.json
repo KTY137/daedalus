@@ -2,7 +2,7 @@
   "name": "daedalus-vscode",
   "displayName": "Daedalus",
   "description": "VS Code cockpit for the daedalus Ikarus/Codex/Claude/Ollama team bus.",
-  "version": "0.3.0",
+  "version": "0.5.1",
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
@@ -40,7 +40,12 @@
     "onCommand:daedalus.openInbox",
     "onCommand:daedalus.openOutbox",
     "onCommand:daedalus.openMemory",
-    "onCommand:daedalus.openDashboard"
+    "onCommand:daedalus.openDashboard",
+    "onCommand:daedalus.openChat",
+    "onCommand:daedalus.askAboutFile",
+    "onCommand:daedalus.showTaskStatus",
+    "onCommand:daedalus.showTaskArtifacts",
+    "onCommand:daedalus.watchTask"
   ],
   "contributes": {
     "configuration": {
@@ -76,7 +81,7 @@
       "daedalus": [
         {
           "id": "daedalusDashboardView",
-          "name": "Dashboard",
+          "name": "Ikarus",
           "type": "webview"
         },
         {
@@ -142,25 +147,51 @@
         "command": "daedalus.openDashboard",
         "title": "Daedalus: Open Dashboard",
         "icon": "$(dashboard)"
+      },
+      {
+        "command": "daedalus.openChat",
+        "title": "Daedalus: Chat with Ikarus",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "daedalus.askAboutFile",
+        "title": "Daedalus: Ask Ikarus About This File"
+      },
+      {
+        "command": "daedalus.showTaskStatus",
+        "title": "Daedalus: Show Task Status"
+      },
+      {
+        "command": "daedalus.showTaskArtifacts",
+        "title": "Daedalus: Show Task Artifacts"
+      },
+      {
+        "command": "daedalus.watchTask",
+        "title": "Daedalus: Watch Task Live"
       }
     ],
     "viewsWelcome": [
       {
         "view": "daedalusProjects",
-        "contents": "[Open Dashboard](command:daedalus.openDashboard)\n\nConfigure projects, active agents, Ikarus workers, and environment health."
+        "contents": "[Chat with Ikarus](command:daedalus.openChat)\n\nState an objective, watch it planned, watch it run, act on the result.\n\n[Open Dashboard](command:daedalus.openDashboard)\n\nConfigure projects, active agents, Ikarus workers, and environment health."
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "daedalus.openDashboard",
+          "command": "daedalus.openChat",
           "when": "view == daedalusProjects || view == daedalusQueue",
           "group": "navigation@0"
         },
         {
-          "command": "daedalus.refresh",
+          "command": "daedalus.openDashboard",
           "when": "view == daedalusProjects || view == daedalusQueue",
           "group": "navigation@1"
+        },
+        {
+          "command": "daedalus.refresh",
+          "when": "view == daedalusProjects || view == daedalusQueue",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -178,6 +209,21 @@
           "command": "daedalus.openInbox",
           "when": "view == daedalusQueue && viewItem == daedalusQueueGroup",
           "group": "navigation"
+        },
+        {
+          "command": "daedalus.showTaskStatus",
+          "when": "view == daedalusQueue && viewItem == daedalusQueueFile",
+          "group": "1_live@1"
+        },
+        {
+          "command": "daedalus.watchTask",
+          "when": "view == daedalusQueue && viewItem == daedalusQueueFile",
+          "group": "1_live@2"
+        },
+        {
+          "command": "daedalus.showTaskArtifacts",
+          "when": "view == daedalusQueue && viewItem == daedalusQueueFile",
+          "group": "1_live@3"
         }
       ],
       "editor/context": [
@@ -187,6 +233,10 @@
         },
         {
           "command": "daedalus.enqueueAuto",
+          "group": "daedalus"
+        },
+        {
+          "command": "daedalus.askAboutFile",
           "group": "daedalus"
         }
       ]

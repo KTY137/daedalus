@@ -86,21 +86,224 @@ function probeWebServer() {
   });
 }
 
+// Thrown by ensureWebServer with a CLASSIFIED cause instead of one generic
+// message, because "the backend isn't answering" collapses three different
+// honest states into one otherwise: never spawned (absent), spawned then
+// died (degraded -- and we captured why), or spawned and is still alive but
+// hasn't answered yet (genuinely unknown, not a failure). A UI that cannot
+// tell these apart cannot render them as anything but a scary blank.
+class BackendUnavailable extends Error {
+  constructor(state, message, detail) {
+    super(message);
+    this.state = state; // 'absent' | 'degraded' | 'unknown'
+    this.detail = detail || "";
+  }
+}
+
 async function ensureWebServer(context) {
   if (await probeWebServer()) return;
   const root = harnessRoot(context);
-  if (!root) throw new Error("Cannot find daedalus root. Set daedalus.root in VS Code settings.");
-  webServerProcess = cp.spawn(
-    python(),
-    ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
-    { cwd: root, windowsHide: true, detached: false, stdio: "ignore" }
-  );
-  context.subscriptions.push({ dispose: () => { if (webServerProcess) webServerProcess.kill(); } });
+  if (!root) {
+    // No `detail` on purpose: backendStateHtml already renders a dedicated,
+    // always-visible remediation line whenever `root` comes back empty --
+    // repeating the same sentence again inside a collapsed <details> would
+    // hide it behind a click instead of adding information.
+    throw new BackendUnavailable("absent", "Cannot find the daedalus root.", "");
+  }
+  let stderrTail = "";
+  let spawnError = null;
+  let exited = false;
+  try {
+    webServerProcess = cp.spawn(
+      python(),
+      ["-m", "daedalus.cli", "web", "--host", WEB_HOST, "--port", String(WEB_PORT)],
+      { cwd: root, windowsHide: true, detached: false, stdio: ["ignore", "ignore", "pipe"] }
+    );
+  } catch (err) {
+    throw new BackendUnavailable("absent", `Failed to launch "${python()}".`, String(err.message || err));
+  }
+  const proc = webServerProcess;
+  proc.stderr.on("data", (chunk) => { stderrTail = (stderrTail + chunk.toString()).slice(-4000); });
+  proc.on("error", (err) => { spawnError = err; });
+  proc.on("exit", () => { exited = true; });
   for (let i = 0; i < 20; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, 250));
+    if (spawnError) {
+      throw new BackendUnavailable("absent", `Could not start "${python()}".`, String(spawnError.message || spawnError));
+    }
     if (await probeWebServer()) return;
+    if (exited) {
+      // MEASURED distinction this class exists for: a process that reported
+      // healthy right up until it died is not the same claim as one that is
+      // still running -- the UI must not describe both as "starting up".
+      throw new BackendUnavailable(
+        "degraded",
+        "The Ikarus backend process exited before it answered.",
+        stderrTail || "(process exited with no output captured)"
+      );
+    }
   }
-  throw new Error("Daedalus Agent OS web server did not become ready on http://127.0.0.1:8765");
+  throw new BackendUnavailable(
+    "unknown",
+    "The Ikarus backend did not respond within 5s.",
+    stderrTail || "(no output captured; the process is still running)"
+  );
+}
+
+// Explicit user action (a right-click / command-palette invocation), so
+// spawning the backend on demand here is fine -- unlike QueueProvider's tree
+// render below, which must never surprise-launch a process just because a
+// folder was expanded.
+async function ensureWebServerForCommand(context) {
+  try {
+    await ensureWebServer(context);
+    return true;
+  } catch (err) {
+    const detail = err instanceof BackendUnavailable ? err.detail : "";
+    const firstDetailLine = detail ? detail.split("\n")[0] : "";
+    vscode.window.showErrorMessage(`Ikarus backend unavailable: ${err.message}${firstDetailLine ? " -- " + firstDetailLine : ""}`);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Task lifecycle client: GET /api/queue/<id> [/artifacts | /events]. Additive
+// endpoints landed 2026-07-29 in daedalus/web_api.py's "task lifecycle"
+// section -- read that section's docstring for the full vocabulary
+// (queued/running/done/failed/quarantined/unknown) and why `applied` is
+// tri-state. Every helper here degrades exactly like probeWebServer() /
+// ensureWebServer() already do: a server that predates these endpoints, or
+// simply is not running, must read as "no live status available" -- never as
+// a false "done" or "failed". Nothing here ever guesses.
+// ---------------------------------------------------------------------------
+const TASK_ID_RE = /^[A-Za-z0-9._-]{1,160}$/; // mirrors web_api.py's _TASK_ID_RE
+
+function apiGet(urlPath, timeoutMs = 1500) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://${WEB_HOST}:${WEB_PORT}${urlPath}`, { timeout: timeoutMs }, (res) => {
+      res.setEncoding("utf8");
+      let raw = "";
+      res.on("data", (chunk) => { raw += chunk; });
+      res.on("end", () => {
+        let body = null;
+        try { body = JSON.parse(raw); } catch (_) { body = null; }
+        resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, body });
+      });
+    });
+    req.on("timeout", () => { req.destroy(); resolve({ ok: false, status: 0, body: null, error: "timeout" }); });
+    req.on("error", (err) => resolve({ ok: false, status: 0, body: null, error: String(err.message || err) }));
+  });
+}
+
+// The file bus names task files `<id>.json` (outbox, runs/processed) or
+// `<id>.report.json` (inbox) -- `id` IS the filename stem, nothing new is
+// minted here (see web_api.py's own "THE HONESTY RULE THIS SECTION IS BUILT
+// TO" comment, right above _task_snapshot).
+function taskIdFromFilename(name) {
+  if (typeof name !== "string") return null;
+  if (name.endsWith(".report.json")) return name.slice(0, -".report.json".length);
+  if (name.endsWith(".json")) return name.slice(0, -".json".length);
+  return null;
+}
+
+function shortAge(ageS) {
+  if (ageS === null || ageS === undefined || Number.isNaN(ageS)) return "age unknown";
+  if (ageS < 5) return "just now";
+  if (ageS < 90) return `${Math.round(ageS)}s ago`;
+  if (ageS < 5400) return `${Math.round(ageS / 60)}m ago`;
+  return `${Math.round(ageS / 3600)}h ago`;
+}
+
+// THE property that matters more than anything else rendered by this file:
+// `applied` is TRUE / FALSE / null-with-a-reason (daedalus/web_api.py
+// `_derive_applied` never guesses true). null must never be rendered as
+// either of the other two, and the reason string travels with it always.
+function appliedWord(snap) {
+  if (snap.applied === true) return "applied";
+  if (snap.applied === false) return "NOT applied";
+  return "applied: unknown";
+}
+function appliedLine(snap) {
+  return `${appliedWord(snap)} -- ${snap.applied_reason || "no reason given"}`;
+}
+
+// A snapshot is a photograph, not a promise -- age_s rides along on every
+// rendering of one so a four-minute-old "running" cannot be mistaken for a
+// live one (see the section docstring's own framing of this incident class).
+function describeSnapshot(snap) {
+  const stalledTag = snap.stalled ? " [STALLED]" : "";
+  return `${snap.state}${stalledTag} · ${shortAge(snap.age_s)}`;
+}
+
+function snapshotTooltip(snap) {
+  const lines = [snap.id,
+    `State: ${snap.state} (source: ${snap.source || "n/a"})`,
+    `Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`];
+  if (snap.stalled) lines.push("STALLED -- no progress observed recently.");
+  lines.push(appliedLine(snap));
+  if (snap.summary) lines.push(`Summary: ${snap.summary}`);
+  if (snap.error) lines.push(`Error: ${snap.error}`);
+  if (snap.objective) lines.push(`Objective: ${snap.objective}`);
+  lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
+  return lines.join("\n");
+}
+
+// Three VISUALLY distinct outcomes for a finished task -- applied / not
+// applied / unknown-why -- matching appliedWord() above; "unknown" must never
+// collapse into either a pass or a fail glyph. `stalled` overrides everything
+// else: a stalled run in progress is the single most actionable state here.
+function stateThemeIcon(snap) {
+  if (snap.stalled) return new vscode.ThemeIcon("warning", new vscode.ThemeColor("editorWarning.foreground"));
+  switch (snap.state) {
+    case "running": return new vscode.ThemeIcon("sync", new vscode.ThemeColor("charts.blue"));
+    case "queued": return new vscode.ThemeIcon("clock", new vscode.ThemeColor("descriptionForeground"));
+    case "failed": return new vscode.ThemeIcon("error", new vscode.ThemeColor("testing.iconFailed"));
+    case "quarantined": return new vscode.ThemeIcon("circle-slash", new vscode.ThemeColor("testing.iconFailed"));
+    case "done":
+      if (snap.applied === true) return new vscode.ThemeIcon("pass-filled", new vscode.ThemeColor("testing.iconPassed"));
+      if (snap.applied === false) return new vscode.ThemeIcon("circle-slash", new vscode.ThemeColor("editorWarning.foreground"));
+      return new vscode.ThemeIcon("question", new vscode.ThemeColor("editorWarning.foreground"));
+    default: return new vscode.ThemeIcon("question", new vscode.ThemeColor("descriptionForeground"));
+  }
+}
+
+// SSE client for GET /api/queue/<id>/events. Node has no built-in
+// EventSource, so this parses the same "event: X\ndata: {...}\n\n" framing
+// daedalus/web_api.py's _handle_task_events emits by hand. ONE-SHOT, exactly
+// like the server contract: reading stops after 'final', after a non-2xx
+// response (an old server without this endpoint answers 404 JSON, not SSE --
+// checked explicitly below rather than fed into the frame parser), or on a
+// transport error. There is no reconnect logic here to accidentally re-poll
+// a finished task forever.
+function watchTaskEvents(taskId, onEvent, onDone) {
+  const req = http.get(`http://${WEB_HOST}:${WEB_PORT}/api/queue/${encodeURIComponent(taskId)}/events`, (res) => {
+    res.setEncoding("utf8");
+    if (res.statusCode !== 200) {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => onDone(new Error(`HTTP ${res.statusCode}: ${body.slice(0, 300)}`)));
+      return;
+    }
+    let buf = "";
+    res.on("data", (chunk) => {
+      buf += chunk;
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const raw = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const eventMatch = /^event:\s?(.*)$/m.exec(raw);
+        const dataMatch = /^data:\s?(.*)$/m.exec(raw);
+        if (!dataMatch) continue;
+        const eventName = eventMatch ? eventMatch[1].trim() : "message";
+        let data = dataMatch[1];
+        try { data = JSON.parse(data); } catch (_) { /* keep raw string */ }
+        onEvent(eventName, data);
+      }
+    });
+    res.on("end", () => onDone(null));
+  });
+  req.on("error", (err) => onDone(err));
+  return { cancel: () => req.destroy() };
 }
 
 function agentOsHtml(project) {
@@ -127,6 +330,73 @@ function agentOsHtml(project) {
     <a href="${url}">Open in browser</a>
   </div>
   <iframe src="${url}" title="Daedalus Agent OS"></iframe>
+</body>
+</html>`;
+}
+
+// Five words, reused verbatim from the governance vocabulary the rest of the
+// product already renders (GovernanceState in apps/web/src/types.ts): this
+// widget answers one narrower question -- "is the Ikarus backend process
+// reachable" -- but it must not invent a second, incompatible way to say
+// "we do not know". 'checking' is the local addition: an in-flight probe is
+// neither a pass nor a fail and must not be silently rendered as either.
+const BACKEND_STATE_META = {
+  checking: { glyph: "&#9679;", tone: "muted", label: "checking", headline: "Checking Ikarus backend…" },
+  unknown: { glyph: "?", tone: "warn", label: "unknown", headline: "Ikarus backend: unknown" },
+  degraded: { glyph: "&#9888;", tone: "danger", label: "degraded", headline: "Ikarus backend: degraded" },
+  absent: { glyph: "&#10007;", tone: "danger", label: "absent", headline: "Ikarus backend: not running" }
+};
+
+// Rendered INSIDE the panel while ensureWebServer() is settling, and again
+// on failure instead of leaving the webview blank. Deliberately not a
+// spinner: a spinner implies measured progress, and nothing here has been
+// measured yet beyond "did the last probe answer". A static state word does
+// not make that false claim.
+function backendStateHtml(n, state, info) {
+  info = info || {};
+  const meta = BACKEND_STATE_META[state] || BACKEND_STATE_META.unknown;
+  const showRetry = state !== "checking";
+  const message = info.message ? escapeHtml(info.message) : "";
+  const detail = info.detail ? escapeHtml(info.detail) : "";
+  const root = info.root ? escapeHtml(info.root) : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${n}';">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daedalus Ikarus</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body { font-family: var(--vscode-font-family); font-size: 13px; color: var(--vscode-foreground); background: var(--vscode-editor-background); display: flex; align-items: center; justify-content: center; }
+  .wrap { max-width: 480px; padding: 24px; display: flex; flex-direction: column; gap: 10px; }
+  .head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+  .glyph.tone-muted { color: var(--vscode-descriptionForeground); }
+  .glyph.tone-warn { color: var(--vscode-editorWarning-foreground); }
+  .glyph.tone-danger { color: var(--vscode-testing-iconFailed); }
+  .state-word { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--vscode-panel-border); color: var(--vscode-descriptionForeground); }
+  p { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.5; }
+  code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--vscode-textCodeBlock-background); padding: 8px 10px; border-radius: 4px; max-height: 180px; overflow: auto; font-size: 12px; margin: 0; }
+  button { align-self: flex-start; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 0; border-radius: 4px; padding: 6px 14px; cursor: pointer; font-size: 13px; }
+  button:hover { background: var(--vscode-button-hoverBackground); }
+  details summary { cursor: pointer; color: var(--vscode-descriptionForeground); font-size: 12px; }
+  :focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="head"><span class="glyph tone-${meta.tone}">${meta.glyph}</span><span>${meta.headline}</span><span class="state-word">${meta.label}</span></div>
+    ${message ? "<p>" + message + "</p>" : ""}
+    ${root ? "<p>Harness root: <code>" + root + "</code></p>" : "<p>No daedalus root resolved yet. Set <code>daedalus.root</code> in VS Code settings, or open a workspace folder that contains the daedalus harness.</p>"}
+    ${detail ? "<details><summary>Details</summary><pre>" + detail + "</pre></details>" : ""}
+    ${showRetry ? '<button id="retryBtn" type="button">Retry</button>' : ""}
+  </div>
+  <script nonce="${n}">
+    var vscode = acquireVsCodeApi();
+    var btn = document.getElementById('retryBtn');
+    if (btn) btn.addEventListener('click', function () { vscode.postMessage({ type: 'retryBackend' }); });
+  </script>
 </body>
 </html>`;
 }
@@ -245,9 +515,22 @@ async function enqueue(context, lane, source, strategy, item, presetObjective) {
   const filePath = currentFilePath();
   if (filePath) args.push("--paths", filePath);
   const output = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: "Queueing Daedalus task" }, () => runPython(context, args));
-  vscode.window.showInformationMessage(`Queued: ${output}`);
   queueProvider.refresh();
   updateStatusBar(context);
+  // file_bridge's enqueue CLI prints exactly the outbox path it wrote
+  // (daedalus/file_bridge.py: `print(enqueue(...))`) -- the filename stem IS
+  // the task id GET /api/queue/<id> and its siblings address (see that
+  // module's own comment on why nothing new is minted). Deriving it here
+  // keeps enqueue() itself unchanged -- no new dependency on the web server
+  // unless the user actually asks to watch.
+  const id = taskIdFromFilename(path.basename(String(output || "").trim()));
+  if (id && TASK_ID_RE.test(id)) {
+    vscode.window.showInformationMessage(`Queued: ${output}`, "Watch live").then((choice) => {
+      if (choice === "Watch live") watchTask(context, { fullPath: String(output || "").trim() });
+    });
+  } else {
+    vscode.window.showInformationMessage(`Queued: ${output}`);
+  }
 }
 
 async function reviewDiff(context, projectName) {
@@ -295,6 +578,33 @@ function openMemory(context) {
   vscode.workspace.openTextDocument(vscode.Uri.file(file)).then((doc) => vscode.window.showTextDocument(doc));
 }
 
+// A VS Code-native on-ramp into the chat-first cockpit: opens the same
+// Ikarus panel other commands use, seeded with an objective about whatever
+// is open. NOT a deep link -- apps/web currently reads only `project` from
+// its URL (no initial-message param), so a pre-filled chat turn is an
+// assumed seam the web app does not implement yet. Rather than pretend it
+// does, this copies the objective to the clipboard and says so plainly; it
+// upgrades for free the day the web app grows that param.
+async function askAboutFile(context) {
+  const filePath = currentFilePath();
+  if (!filePath) {
+    vscode.window.showWarningMessage("Open a file first, then ask Ikarus about it.");
+    return;
+  }
+  const editor = vscode.window.activeTextEditor;
+  const selection = editor && !editor.selection.isEmpty ? editor.document.getText(editor.selection) : "";
+  const rel = vscode.workspace.asRelativePath(filePath);
+  const objective = selection
+    ? `About ${rel}, regarding this selection:\n\n${selection.slice(0, 2000)}\n\nWhat should I know or do here?`
+    : `What should I know about ${rel}?`;
+  await vscode.env.clipboard.writeText(objective);
+  await openDashboard(context);
+  vscode.window.showInformationMessage(
+    "Objective copied to clipboard — paste it into the Ikarus chat that just opened. " +
+    "(VS Code cannot pre-fill the chat turn yet.)"
+  );
+}
+
 async function openLatestReport(context, state) {
   const report = state && state.queue && ((state.queue.reports || [])[0] || state.queue.latest_failed);
   if (!report || !report.path) return vscode.window.showWarningMessage("No report found yet.");
@@ -302,8 +612,155 @@ async function openLatestReport(context, state) {
   return vscode.window.showTextDocument(doc, { preview: true });
 }
 
+// ===========================================================================
+// Task lifecycle commands: Show Task Status / Show Task Artifacts / Watch
+// Task Live. All three are pure reads (or a read-only SSE subscription) --
+// no confirmation is needed, unlike enqueue()/spawnIkarus()/startWatcher(),
+// because nothing here writes, spends, or reaches a hosted provider.
+// ===========================================================================
+function taskIdFromItem(item) {
+  if (!item || !item.fullPath) return null;
+  return taskIdFromFilename(path.basename(item.fullPath));
+}
+
+async function pickTaskId(item) {
+  const fromItem = taskIdFromItem(item);
+  if (fromItem && TASK_ID_RE.test(fromItem)) return fromItem;
+  const typed = await vscode.window.showInputBox({
+    prompt: "Daedalus task id (the outbox/inbox filename stem)",
+    ignoreFocusOut: true,
+    validateInput: (v) => (TASK_ID_RE.test(v || "") ? null : "Not a valid task id")
+  });
+  return typed || null;
+}
+
+function renderTaskStatusDoc(id, body) {
+  const snap = body && body.task;
+  const lines = [`Daedalus task ${id}`, "=".repeat(14 + id.length)];
+  if (snap && snap.found) {
+    lines.push(describeSnapshot(snap));
+    lines.push(appliedLine(snap));
+    if (snap.summary) lines.push(`Summary: ${snap.summary}`);
+    if (snap.error) lines.push(`Error: ${snap.error}`);
+    if (snap.objective) lines.push(`Objective: ${snap.objective}`);
+    lines.push(`Lane: ${snap.lane || "n/a"}  Project: ${snap.project || "n/a"}`);
+    lines.push(`Observed: ${snap.observed_at || "n/a"} (${shortAge(snap.age_s)})`);
+    // conversation_dispatch is daedalus.conversation's OWN read of this
+    // dispatch's timeline, and it can lag behind -- e.g. still say
+    // "dispatched" after the task is long finished -- because
+    // record_dispatch_event is deliberately NOT called from web_api.py (see
+    // that module's "conversation + progress seam" section). The `task`
+    // block above is read straight off the file bus every time and is the
+    // live truth regardless of whether any conversation ever linked this id;
+    // what follows is shown for context only, never to contradict it.
+    if (snap.conversation_dispatch) {
+      lines.push("", "Conversation dispatch (context only -- may lag the task state above):");
+      lines.push(JSON.stringify(snap.conversation_dispatch, null, 2));
+    }
+  } else {
+    lines.push(`No live snapshot: ${(body && body.error) || (snap && snap.applied_reason) || "unknown"}`);
+  }
+  lines.push("", "Full response:", JSON.stringify(body, null, 2));
+  return lines.join("\n");
+}
+
+async function showTaskStatus(context, item) {
+  const id = await pickTaskId(item);
+  if (!id) return;
+  if (!(await ensureWebServerForCommand(context))) return;
+  const res = await apiGet(`/api/queue/${encodeURIComponent(id)}`);
+  if (!res.body) {
+    vscode.window.showWarningMessage(`No response for task '${id}': ${res.error || "request failed"}`);
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument({ content: renderTaskStatusDoc(id, res.body), language: "plaintext" });
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+function renderArtifactsDoc(id, art) {
+  const lines = [`Daedalus task ${id} -- artifacts`, "=".repeat(25 + id.length)];
+  lines.push(appliedLine({ applied: art.applied, applied_reason: art.applied_reason }));
+  const listSection = (label, arr) => {
+    lines.push(`${label} (${(arr || []).length}):`);
+    (arr || []).forEach((p) => lines.push(`  - ${p}`));
+  };
+  listSection("Files changed", art.files_changed);
+  listSection("Rolled back", art.rolled_back);
+  listSection("Wrote", art.wrote);
+  listSection("Draft ids", art.draft_ids);
+  if ((art.tests_run || []).length) listSection("Tests run", art.tests_run);
+  if ((art.risks || []).length) listSection("Risks", art.risks);
+  if ((art.todos || []).length) listSection("Todos", art.todos);
+  lines.push("", "Full response:", JSON.stringify(art, null, 2));
+  return lines.join("\n");
+}
+
+async function showTaskArtifacts(context, item) {
+  const id = await pickTaskId(item);
+  if (!id) return;
+  if (!(await ensureWebServerForCommand(context))) return;
+  const res = await apiGet(`/api/queue/${encodeURIComponent(id)}/artifacts`);
+  const art = res.body && res.body.artifacts;
+  if (!art) {
+    vscode.window.showWarningMessage(`Task '${id}': ${(res.body && res.body.error) || res.error || "no artifacts info available"}`);
+    return;
+  }
+  if (art.available === false) {
+    // NOT an error -- see daedalus/web_api.py: available:false while a run is
+    // still in flight is the honest, expected answer, not a failure. Shown
+    // as information, never as a warning or error.
+    vscode.window.showInformationMessage(`Task '${id}': artifacts not available yet -- ${art.reason || "the run has not finished"}.`);
+    return;
+  }
+  const doc = await vscode.workspace.openTextDocument({ content: renderArtifactsDoc(id, art), language: "plaintext" });
+  await vscode.window.showTextDocument(doc, { preview: true });
+}
+
+const activeTaskWatches = new Map(); // task id -> { channel, cancel }
+
+function eventSummary(eventName, data) {
+  if (data && typeof data === "object" && "state" in data) {
+    return `${describeSnapshot(data)} · ${appliedLine(data)}`;
+  }
+  return typeof data === "string" ? data : JSON.stringify(data);
+}
+
+async function watchTask(context, item) {
+  const id = await pickTaskId(item);
+  if (!id) return;
+  const existing = activeTaskWatches.get(id);
+  if (existing) { existing.channel.show(true); return; }
+  if (!(await ensureWebServerForCommand(context))) return;
+  const channel = vscode.window.createOutputChannel(`Daedalus Task ${id}`);
+  channel.show(true);
+  channel.appendLine(`Watching task ${id} live (SSE). One-shot: this closes on its own once the task reaches a terminal state.`);
+  const handle = watchTaskEvents(
+    id,
+    (eventName, data) => {
+      channel.appendLine(`[${new Date().toLocaleTimeString()}] ${eventName}: ${eventSummary(eventName, data)}`);
+      if (eventName === "final") {
+        channel.appendLine("-- stream closed (terminal state reached) --");
+        activeTaskWatches.delete(id);
+        queueProvider.refresh();
+        if (data && typeof data === "object" && "state" in data) {
+          vscode.window.showInformationMessage(`Task ${id} finished: ${data.state} (${appliedWord(data)}).`);
+        }
+      }
+    },
+    (err) => {
+      if (err) channel.appendLine(`-- stream error: ${err.message || err} --`);
+      activeTaskWatches.delete(id);
+    }
+  );
+  activeTaskWatches.set(id, { channel, cancel: handle.cancel });
+}
+
 function nonce() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 // ===========================================================================
@@ -1185,8 +1642,29 @@ vscode.postMessage({ type: 'ready' });
 async function bindDashboardWebview(context, webview, projectName) {
   webview.options = { enableScripts: true };
   const project = projectName || cfg().get("defaultProject") || (projects(context)[0] && projects(context)[0].name) || "";
-  await ensureWebServer(context);
-  webview.html = agentOsHtml(project);
+  let inFlight = false;
+  const attempt = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    // Rendered BEFORE the probe, not after: leaving webview.html untouched
+    // during the ~0-5s connect window means "unknown" would render as a
+    // blank panel, which reads as broken rather than as not-yet-checked.
+    webview.html = backendStateHtml(nonce(), "checking", {});
+    try {
+      await ensureWebServer(context);
+      webview.html = agentOsHtml(project);
+    } catch (err) {
+      const state = err instanceof BackendUnavailable ? err.state : "unknown";
+      const detail = err instanceof BackendUnavailable ? err.detail : "";
+      webview.html = backendStateHtml(nonce(), state, { message: err.message, detail, root: harnessRoot(context) });
+    } finally {
+      inFlight = false;
+    }
+  };
+  webview.onDidReceiveMessage((msg) => {
+    if (msg && msg.type === "retryBackend") attempt();
+  });
+  await attempt();
 }
 
 async function openDashboard(context) {
@@ -1244,7 +1722,7 @@ class QueueProvider {
   constructor(context) { this.context = context; this._onDidChangeTreeData = new vscode.EventEmitter(); this.onDidChangeTreeData = this._onDidChangeTreeData.event; }
   refresh() { this._onDidChangeTreeData.fire(); }
   getTreeItem(element) { return element; }
-  getChildren(element) {
+  async getChildren(element) {
     const root = harnessRoot(this.context);
     if (!root) return [];
     if (!element) return [
@@ -1254,11 +1732,36 @@ class QueueProvider {
       new QueueItem("runs/processed", path.join(root, "runs", "processed"), vscode.TreeItemCollapsibleState.Collapsed, "daedalusQueueGroup")
     ];
     if (!exists(element.fullPath)) return [];
-    return fs.readdirSync(element.fullPath).sort().slice(-50).map((name) => {
+    const items = fs.readdirSync(element.fullPath).sort().slice(-50).map((name) => {
       const full = path.join(element.fullPath, name);
       const isDir = fs.statSync(full).isDirectory();
       return new QueueItem(name, full, isDir ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None, isDir ? "daedalusQueueGroup" : "daedalusQueueFile");
     });
+    // Live decoration (state / tri-state applied / staleness) for the three
+    // groups the file bus assigns task ids in -- "memory" holds unrelated
+    // artifacts (todos.local.md, event logs) with no task id to look up. A
+    // PASSIVE tree render must never itself spawn the backend (that is
+    // reserved for explicit actions -- see ensureWebServerForCommand's own
+    // comment), so this only decorates when a server happens to already be
+    // reachable, and otherwise silently reproduces the plain file listing
+    // above byte-for-byte -- the same degrade path as an old backend that
+    // predates these endpoints entirely.
+    const liveGroups = new Set([
+      path.join(root, "outbox"), path.join(root, "inbox"), path.join(root, "runs", "processed")
+    ]);
+    if (!liveGroups.has(element.fullPath) || !(await probeWebServer())) return items;
+    await Promise.all(items.map(async (item) => {
+      if (item.contextValue !== "daedalusQueueFile") return;
+      const id = taskIdFromFilename(path.basename(item.fullPath));
+      if (!id || !TASK_ID_RE.test(id)) return;
+      const res = await apiGet(`/api/queue/${encodeURIComponent(id)}`);
+      const snap = res.body && res.body.task;
+      if (!res.ok || !snap || !snap.found) return; // unknown id / old backend / transient error -- leave undecorated, never guess
+      item.description = describeSnapshot(snap);
+      item.tooltip = snapshotTooltip(snap);
+      item.iconPath = stateThemeIcon(snap);
+    }));
+    return items;
   }
 }
 
@@ -1279,10 +1782,29 @@ function activate(context) {
   projectProvider = new ProjectsProvider(context);
   queueProvider = new QueueProvider(context);
   dashboardProvider = new DashboardProvider(context);
+  // createTreeView (not registerTreeDataProvider) so live-status polling below
+  // can check `.visible` and cost nothing while the Activity Bar is hidden.
+  // It still registers the provider (tests/test_extension_manifest.py's
+  // registered_treeview_ids() recognizes both call shapes as a registration).
+  const queueTreeView = vscode.window.createTreeView("daedalusQueue", { treeDataProvider: queueProvider });
+  // Live-status refresh for the Queue view: cheap (loopback-only HTTP) and
+  // gated on the view actually being visible. Firing refresh() with no
+  // element re-queries every currently EXPANDED node only -- see
+  // QueueProvider.getChildren, which does the actual decoration and itself
+  // degrades to a no-op fetch whenever the backend is unreachable.
+  const queueLiveTimer = setInterval(() => {
+    if (queueTreeView.visible) queueProvider.refresh();
+  }, 10000);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider("daedalusDashboardView", dashboardProvider),
     vscode.window.registerTreeDataProvider("daedalusProjects", projectProvider),
-    vscode.window.registerTreeDataProvider("daedalusQueue", queueProvider)
+    queueTreeView,
+    { dispose: () => clearInterval(queueLiveTimer) },
+    // Registered once here rather than inside ensureWebServer(): that function
+    // can now run more than once per session (the webview's Retry button),
+    // and pushing a fresh dispose closure on every attempt would accumulate
+    // one per retry. webServerProcess is read fresh at dispose time either way.
+    { dispose: () => { if (webServerProcess) webServerProcess.kill(); } }
   );
   statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   statusBar.command = "daedalus.openDashboard";
@@ -1301,7 +1823,16 @@ function activate(context) {
     vscode.commands.registerCommand("daedalus.openInbox", () => openFolder(context, "inbox")),
     vscode.commands.registerCommand("daedalus.openOutbox", () => openFolder(context, "outbox")),
     vscode.commands.registerCommand("daedalus.openMemory", () => openMemory(context)),
-    vscode.commands.registerCommand("daedalus.openDashboard", () => openDashboard(context))
+    vscode.commands.registerCommand("daedalus.openDashboard", () => openDashboard(context)),
+    // Same panel, same underlying openDashboard() flow -- the web app already
+    // opens into its chat space by default (apps/web/src/App.tsx: `useState
+    // <Space>('chat')`), so "chat-first" here is a real, separately-discoverable
+    // front door onto the SAME cockpit, not a second implementation of one.
+    vscode.commands.registerCommand("daedalus.openChat", () => openDashboard(context)),
+    vscode.commands.registerCommand("daedalus.askAboutFile", () => askAboutFile(context)),
+    vscode.commands.registerCommand("daedalus.showTaskStatus", (item) => showTaskStatus(context, item)),
+    vscode.commands.registerCommand("daedalus.showTaskArtifacts", (item) => showTaskArtifacts(context, item)),
+    vscode.commands.registerCommand("daedalus.watchTask", (item) => watchTask(context, item))
   );
   updateStatusBar(context);
 }
@@ -1309,6 +1840,11 @@ function activate(context) {
 function deactivate() {
   if (watcherTerminal) watcherTerminal.dispose();
   if (webServerProcess) webServerProcess.kill();
+  for (const [, entry] of activeTaskWatches) {
+    try { entry.cancel(); } catch (_) { /* already closed */ }
+    entry.channel.dispose();
+  }
+  activeTaskWatches.clear();
 }
 
 module.exports = { activate, deactivate };

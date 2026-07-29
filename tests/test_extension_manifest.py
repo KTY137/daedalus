@@ -37,6 +37,13 @@ MAIN_JS_PATH = EXTENSION_DIR / "extension.js"
 REGISTER_COMMAND_RE = re.compile(r'vscode\.commands\.registerCommand\(\s*[\'"]([\w.]+)[\'"]')
 REGISTER_WEBVIEW_RE = re.compile(r'vscode\.window\.registerWebviewViewProvider\(\s*[\'"]([\w.]+)[\'"]')
 REGISTER_TREEVIEW_RE = re.compile(r'vscode\.window\.registerTreeDataProvider\(\s*[\'"]([\w.]+)[\'"]')
+# vscode.window.createTreeView(viewId, {treeDataProvider, ...}) is the OTHER
+# real VS Code API for wiring a tree view's provider -- not a second, weaker
+# convention. It registers the provider exactly like registerTreeDataProvider
+# does, and additionally returns a TreeView handle (used in extension.js for
+# `.visible`-gated live refresh, which registerTreeDataProvider cannot give
+# you). A view wired this way is registered, so this must count as one too.
+CREATE_TREEVIEW_RE = re.compile(r'vscode\.window\.createTreeView\(\s*[\'"]([\w.]+)[\'"]')
 # `cfg()` is this extension's own helper (`function cfg() { return
 # vscode.workspace.getConfiguration("daedalus"); }` in extension.js) -- the
 # pattern is coupled to that local convention, which is fine for a
@@ -78,7 +85,7 @@ def registered_webview_ids(source):
 
 
 def registered_treeview_ids(source):
-    return set(REGISTER_TREEVIEW_RE.findall(source))
+    return set(REGISTER_TREEVIEW_RE.findall(source)) | set(CREATE_TREEVIEW_RE.findall(source))
 
 
 def oncommand_activation_targets(manifest):

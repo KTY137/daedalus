@@ -5,6 +5,18 @@ Model Resources, Quality Gates) over the `daedalus` harness. Written for direct 
 the existing `vscode-agent-env` webview (see `extension.js` `dashboardHtml`, which already uses
 top tabs and `--vscode-*` variables — this spec extends that convention rather than replacing it).
 
+> **Status, MEASURED 2026-07-29 — read before touching `dashboardHtml`.** The template this
+> spec describes has zero callers in `extension.js`. Both real webview entry points
+> (`daedalus.openDashboard` and the Activity Bar view) render `agentOsHtml()`: an iframe onto
+> the React app in `apps/web/`, which is where the live Mission Control / Ikarus cockpit
+> actually renders today (its own trio surface — chat / graph / knowledge — is documented in
+> `apps/web/src/App.tsx`, not here). `extension.js` carries a code comment above `dashboardHtml`
+> explaining this, and `tests/test_ui_governance.py::test_dead_mission_control_template_is_labelled_not_believed`
+> holds that comment to the code. The sections below are kept as a historical/reference spec —
+> useful if these tabs are ever revived as a real, non-iframed surface — not as a description of
+> what a user sees today. Section 5 below documents what the extension actually renders natively
+> now: the backend-bootstrap states around that iframe, and the chat-first entry points.
+
 ## 1. Layout
 
 **Top tab bar, not a left rail.**
@@ -275,3 +287,76 @@ otherwise gives no linear reading order cue for "what changed."
 - **Motion**: skeleton loading states use a static/opacity-only pulse, not sliding shimmer, to
   stay comfortable under `prefers-reduced-motion` (mockup honors that media query by disabling
   the pulse animation entirely).
+
+## 5. Backend Bootstrap & Chat-First Entry Points (live, native code)
+
+Everything below is real, currently rendered by `extension.js` (not the `apps/web/` iframe
+content) — it is the extension's own chrome around that iframe, which is the one thing left that
+is genuinely native VS Code surface rather than a window onto the React app.
+
+### Why this exists
+
+`bindDashboardWebview()` owns exactly one fact the React app cannot know about itself: whether
+the local `daedalus.cli web` process it depends on is actually reachable. Before this section
+existed, that fact collapsed to two outcomes — the iframe (success) or a blank panel plus a
+generic, often-swallowed VS Code error toast (every failure, indistinguishable from each other).
+"Cannot find daedalus root", "python isn't on PATH", "the process started and then crashed", and
+"the process is alive but hasn't answered yet" are four different, actionable situations; showing
+the same blank panel for all four is the "green check nobody measured" failure mode this whole
+product exists to refuse elsewhere. `ensureWebServer()` now classifies its own failure instead of
+throwing one generic `Error`, using the SAME five-word vocabulary as `GovernanceState`
+(`apps/web/src/types.ts`) rather than inventing a second one:
+
+| state | meaning | shown when |
+|---|---|---|
+| `checking` | in-flight probe; not yet a pass or a fail | always shown first, before the probe resolves |
+| `unknown` | process spawned, still alive, has not answered within 5s | ambiguous — may still come up |
+| `degraded` | process spawned then exited before answering | captured stderr tail is shown, not swallowed |
+| `absent` | never spawned (no root resolved, or the interpreter itself failed to launch) | `daedalus.root` unset/wrong, or `daedalus.python` not found |
+
+`backendStateHtml()` renders these — never a spinner (a spinner implies measured progress; a
+static state word does not make that claim) — always with the state name spelled out as text
+(never color-only), a plain-language headline, an always-visible remediation line for the no-root
+case specifically (not hidden behind a details toggle), and a collapsed `<details>` for raw
+stderr/error text when there is any. A **Retry** button posts `{type:'retryBackend'}` back to the
+extension via `webview.onDidReceiveMessage` (the first real use of message-passing on this
+webview; `agentOsHtml` itself is a static iframe with no channel back to the extension).
+
+### Chat-first entry points
+
+`apps/web/src/App.tsx` already opens into its `chat` space by default (`useState<Space>('chat')`,
+"THREE SPACES. Chat is home.") — the trio IA (chat / graph / knowledge) is real and lives there,
+not here. So making the extension "chat-first" is NOT a second chat implementation; per
+`tests/test_ui_governance.py::test_vscode_surface_reaches_governance_through_the_web_app`, the
+VS Code surface is required to stay a window onto that app, not a second renderer. What the
+extension *can* add natively:
+
+- `daedalus.openChat` ("Daedalus: Chat with Ikarus") — a separately-discoverable command
+  (Activity Bar toolbar, command palette) that opens the same panel `daedalus.openDashboard`
+  does. Same underlying `openDashboard()` call, same singleton panel — two front doors onto one
+  cockpit, not two cockpits.
+- The Activity Bar webview view (`daedalusDashboardView`) is now titled **Ikarus**, not
+  "Dashboard".
+- `daedalus.askAboutFile` ("Daedalus: Ask Ikarus About This File", editor context menu) — copies
+  a suggested objective (current file, plus the selection if there is one) to the clipboard and
+  opens the chat panel. This is a **designed-against-an-assumed-seam** feature, stated plainly in
+  its own code comment: `apps/web`'s URL handling (`apps/web/src/App.tsx`) currently reads only
+  `project` from `location.search`, not an initial-message param, so VS Code cannot deep-link a
+  pre-filled chat turn today. Clipboard + an explicit "paste it in" notification is honest about
+  that limitation instead of pretending the deep link exists; it upgrades for free the day
+  `apps/web` grows that param.
+
+### What this section deliberately does not cover
+
+Per-turn / per-step progress (plan issued → tool call → file edit → verified) is not rendered
+natively here. `daedalus/ikarus_os.py::ask` / `ask_stream` is single-turn and stateless as of this
+writing (no conversation/session id in the request shape) and the existing SSE surface
+(`/api/events`: `hello|report|heartbeat|queue`) is task-level, not step-level. Conversation state
+and a richer progress-event model were, at the time of this writing, being built concurrently by
+other agents against `daedalus/web_api.py` — an assumed seam, not one this extension currently
+renders. The honest thing this section can say is what already exists and is wired end-to-end
+today: chat happens in `apps/web`; queued work is visible via the existing real file-bus queue
+(pending/reports/processed, already surfaced through `daedalus dashboard --json`); the extension
+does not currently bridge "a chat turn proposed a task" to "watch that task's steps," beyond the
+`action: {kind:'queue_task', requires_confirmation}` shape `apps/web` already renders and confirms
+before enqueueing.
