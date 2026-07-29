@@ -7,7 +7,23 @@
     daedalus ikarus                     spawn plan for the demo tasks
     daedalus metrics                    offload metrics / silent-escalation alarm
     daedalus benchmark                  projected token/cost picture
-    daedalus status                     local bridge status
+    daedalus status                     local bridge status; EXITS NON-ZERO when a
+                                        subsystem is degraded or unproven
+    daedalus health [--deep] [--probe-remote] [--json]
+                                        what is working / present-but-unexercised /
+                                        degraded / absent / unknown, with the
+                                        provenance of every number. `present` and
+                                        `unknown` are NOT passes and exit 2
+    daedalus drill [--json]             trip every operability control end to end --
+                                        promotion, spend ceiling, kill switch,
+                                        gate escape, damage bounding -- and report
+                                        whether SCHEDULING a shadow run would be
+                                        defensible. It never schedules anything
+    daedalus project-memory [--dry-run] [--limit N] [--json]
+                                        project the append-only memory journal into
+                                        the vector index and record the watermark
+                                        that makes `context --latent` freshness
+                                        answerable
     daedalus dashboard --project NAME --json
     daedalus models --json
     daedalus accelerators [--deep] [--probe-remote] --json
@@ -913,7 +929,26 @@ def main() -> None:
     elif cmd == "benchmark":
         from .benchmark import main as m; m()
     elif cmd == "status":
-        from .status import main as m; m()
+        # The verdict is the point of this command, so it must reach the shell.
+        # `m()` alone discarded it and every `daedalus status` looked like a
+        # success -- including the ones reporting a degraded subsystem.
+        from .status import main as m; raise SystemExit(m())
+    elif cmd == "health":
+        from .health import main as m; raise SystemExit(m(rest))
+    elif cmd == "project-memory":
+        from .memory.projection_worker import main as m; raise SystemExit(m(rest))
+    elif cmd == "drill":
+        # tools/ is not a package, so this shells out rather than importing.
+        # Resolved from this file's location, never from cwd -- `daedalus drill`
+        # must mean the same thing from anywhere.
+        import pathlib
+        import subprocess as _sp
+        script = pathlib.Path(__file__).resolve().parents[1] / "tools" / "operability_drill.py"
+        if not script.exists():
+            print(f"the operability drill is not installed at {script}",
+                  file=sys.stderr)
+            raise SystemExit(2)
+        raise SystemExit(_sp.run([sys.executable, str(script), *rest]).returncode)
     elif cmd == "dashboard":
         from .kairos.control import main_dashboard as m; m(rest)
     elif cmd == "models":
