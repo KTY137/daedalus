@@ -1074,4 +1074,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # Same hole as the room: this entry point drives vendor CLIs and the spend
+    # ceiling is installed per PROCESS in daedalus/cli.py, which this never
+    # goes through. The module already fails closed on the secret floor import
+    # above; a missing spend cap deserves the same treatment, so this import is
+    # deliberately unguarded too.
+    from daedalus.budget import install_process_guard
+
+    install_process_guard()
     sys.exit(main())

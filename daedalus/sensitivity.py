@@ -1,16 +1,28 @@
-"""Data-egress and change-risk classification for provider routing.
+"""Egress, write-confinement and change-risk classification for provider routing.
 
-Two independent axes decide where a task may run:
+Three independent gates live here. They read **disjoint** config fields and
+have **different defaults**; do not describe one using the other's rule.
 
-* **data sensitivity** — may the *bytes* be sent to an untrusted external API?
+* **data egress** — may the *bytes* leave for an untrusted external API?
   Reading a file means sending its contents off-machine, so this gates reads.
+  Predicate: :func:`classify_data` via :func:`_path_is_sensitive`.
+  Fields: ``allow_substrings``, ``allow_exceptions``, ``deny_substrings``,
+  ``default_deny``. **Fail-closed**: a path not on the allow-list is sensitive.
+* **write confinement** — may a local agentic writer put bytes on disk here?
+  Predicate: :func:`path_write_blocked`. Field: ``write_allow`` (plus the
+  denylists). **NOT fail-closed by default**: an empty ``write_allow`` means
+  *unconfined*, and only the denylists apply. Confinement is opt-in per
+  project; when set, the list is the whole permission and denials stack on top.
 * **change risk** — does the task touch high-blast-radius code (HV / motion /
   data-loss / architecture / auth / prod)? This gates whether a free model may
   do more than *review*.
 
-The rule is fail-closed: anything not explicitly allow-listed is treated as
-sensitive (``default_deny``). Trusted lanes (Claude, local Ollama) bypass the
-egress gate; only untrusted external providers (DeepSeek) are constrained by it.
+The egress axis's allow-list has never been consulted by the write axis. Prose
+that said otherwise once made 8 of 12 supposedly-denied paths writable,
+including ``daedalus/config.py``, which *loads the policy* — see the long note
+on :func:`path_write_blocked`. State each gate's default separately or repeat
+that bug. Trusted lanes (Claude, local Ollama) bypass the egress gate; only
+untrusted external providers (DeepSeek) are constrained by it.
 
 The rules are **per-project config, not hardcoded**, so this harness is reusable
 across repos. Generic secret/allow defaults ship here; project-specific rules
@@ -434,6 +446,59 @@ def secret_floor_rule(path: str, text: str = "") -> str | None:
 _LOOPBACK_LITERALS = frozenset({"127.0.0.1", "::1", "[::1]"})
 
 
+ENV_TRUSTED_HOSTS = "DAEDALUS_TRUSTED_HOSTS"
+
+
+def declared_trusted_hosts() -> frozenset[str]:
+    """Addresses the operator has DECLARED to be inside their trust boundary.
+
+    ``DAEDALUS_TRUSTED_HOSTS=100.119.126.9`` (comma-separated for several). Empty
+    and therefore inert unless somebody sets it, so the fail-closed default this
+    module is built on is untouched for every configuration that stays silent.
+
+    Exists because the shipped predicate answers "is this THIS machine", and for
+    a private-tunnel bench the honest answer is "no, and I trust it anyway".
+    Refusing to let that be expressible does not make the setup safer -- it makes
+    the operator point OLLAMA_HOST at a tunnel and lose the distinction
+    entirely, which is the failure this module already survived once.
+
+    Three hardenings carried over deliberately from the loopback rule:
+
+    * **Numeric literals only.** A name is dropped, not resolved. That is the
+      whole reason ``localhost`` is refused here: a name that resolves to your
+      bench when checked can resolve elsewhere when connected, and this
+      predicate cannot see the difference.
+    * **Exact address equality.** No CIDR, no prefixes. Declaring ``.9`` must
+      never quietly trust ``.99``; a trust list that grows by arithmetic is a
+      trust list nobody can audit.
+    * **Unparseable entries are dropped**, never guessed at. A typo shrinks the
+      list rather than widening it.
+
+    Normalised through :mod:`ipaddress` so equivalent spellings of one address
+    compare equal, and a port or scheme accidentally left on an entry is
+    stripped rather than silently producing an entry that matches nothing.
+    """
+    import os  # local, matching this module's deliberately small import surface
+
+    raw = os.environ.get(ENV_TRUSTED_HOSTS, "") or ""
+    out: set[str] = set()
+    for part in raw.split(","):
+        entry = part.strip()
+        if not entry:
+            continue
+        try:
+            from urllib.parse import urlsplit
+
+            parsed = urlsplit(entry if "//" in entry else f"//{entry}")
+            candidate = (parsed.hostname or entry).strip().lower()
+            import ipaddress
+
+            out.add(str(ipaddress.ip_address(candidate)))
+        except (ValueError, UnicodeError):
+            continue  # a typo must NARROW the list, never widen it
+    return frozenset(out)
+
+
 def lane_for_host(host: str | None) -> str:
     """``"trusted"`` only if ``host`` is THIS machine; ``"untrusted"`` otherwise.
 
@@ -514,6 +579,23 @@ def lane_for_host(host: str | None) -> str:
     if not name:
         return "untrusted"
     if name in _LOOPBACK_LITERALS:
+        return "trusted"
+    if name in declared_trusted_hosts():
+        # OPERATOR-DECLARED trust boundary. The owner asserts this address is
+        # inside it -- typically a private-tunnel bench on the same tailnet.
+        #
+        # WHY THIS IS NOT THE BUG THIS MODULE EXISTS TO PREVENT. That bug was
+        # trust inferred from a PROVIDER NAME while the host came from
+        # OLLAMA_HOST: nothing named the host, so nothing could review it. Here
+        # the host is the declaration. It is empty by default, so the
+        # fail-closed posture is unchanged for anyone who says nothing, and a
+        # reader of the configuration can see exactly which addresses were
+        # trusted and go disagree with the person who wrote them down.
+        #
+        # It keeps every hardening the loopback rule earned: numeric literals
+        # only (no DNS/hosts indirection, the reason `localhost` is refused),
+        # EXACT address equality (no CIDR, no prefixes -- trusting .9 must never
+        # trust .99), and anything unparseable is dropped rather than guessed.
         return "trusted"
     # The whole 127.0.0.0/8 block is loopback, not just 127.0.0.1.
     try:

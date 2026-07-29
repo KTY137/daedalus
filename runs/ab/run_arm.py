@@ -219,4 +219,16 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # An A/B arm is the single most expensive thing in this repo: it drives a
+    # vendor CLI in a loop, and one measured arm through `claude -p` cost
+    # $1.43-$1.85. It ran with no ceiling installed, because the ceiling lives
+    # in daedalus/cli.py and this is a separate entry point. The repo root is
+    # NOT on sys.path here: the only insert in this file sits inside
+    # distilled_context(), so it has not run yet at import time. Insert it
+    # first -- discovered by checking rather than by assuming, after the first
+    # version of this block would have crashed with ImportError.
+    sys.path.insert(0, str(HERE.parents[1]))
+    from daedalus.budget import install_process_guard
+
+    install_process_guard()
     raise SystemExit(main())

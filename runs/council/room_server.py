@@ -565,4 +565,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # The server drives the same room engine, so it spawns the same paid vendor
+    # CLIs -- and it is a THIRD entry point that never passes through
+    # daedalus/cli.py, where the spend ceiling is installed. A long-lived HTTP
+    # server is the worst place to be uncapped: nobody is watching the terminal.
+    from daedalus.budget import install_process_guard
+
+    install_process_guard()
     sys.exit(main())

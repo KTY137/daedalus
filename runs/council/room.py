@@ -41,12 +41,48 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-ROOM = Path(__file__).resolve().parent / "room.md"
+def _resolve_room() -> Path:
+    """Where this room's transcript lives.
+
+    THIS ENGINE IS CANONICAL, AND PORTABILITY IS WHY IT HAD A RIVAL.
+
+    Until 2026-07-29 there were two room implementations. This one, and an
+    unversioned 703-line fork at ``~/.claude/skills/room/room.py`` that the
+    `room` SKILL.md pointed every invocation at. On 2026-07-29 BOTH were live:
+    `.room/room.md` (47 turns, 10:46) and `runs/council/room.md` (92 turns,
+    10:43) were written three minutes apart, by agents who could not see each
+    other's transcript.
+
+    The fork existed for exactly one good reason: it was portable. It resolved
+    its transcript from $DAEDALUS_ROOM_FILE or ``cwd/.room/room.md``, so the
+    skill worked in any repo, while this engine hardcoded its own directory.
+    It paid for that with everything else -- no hash chain, no `verify`, no
+    cross-process lock, no per-model cursor, and, decisively, NO SECRET FLOOR:
+    its ``_attach`` read any path and inlined the bytes verbatim, to a bench at
+    100.119.126.9 over a tailnet and over ssh. That is precisely the egress
+    hole commit df5a7c2 closed HERE, whose own message warns that "a fix that
+    lives in one of two implementations is not a closed class."
+
+    So the fork's one advantage moves here, and the rival loses its reason to
+    exist. THE DEFAULT IS UNCHANGED -- an unset variable still resolves to
+    runs/council/room.md, because a live transcript must not move under the
+    agents currently writing to it.
+    """
+    env = os.environ.get("DAEDALUS_ROOM_FILE", "").strip()
+    if env:
+        return Path(env).expanduser().absolute()
+    return Path(__file__).resolve().parent / "room.md"
+
+
+ROOM = _resolve_room()
 BENCH = os.environ.get("DAEDALUS_RTX_OLLAMA_HOST", "http://100.119.126.9:11434")
 BENCH_SSH = "Administrator@100.119.126.9"
 
 # The repo this room talks about; attachment paths resolve against it.
-REPO_ROOT = ROOM.parents[2]
+# ANCHORED TO THIS FILE, never to ROOM: the transcript is now movable
+# ($DAEDALUS_ROOM_FILE) and deriving the repo from it would make a room opened
+# in /tmp resolve every attachment path against /tmp.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # The hash-chained mirror of the markdown, and the council id it is filed under.
 BUS_ID = "room"
@@ -1268,4 +1304,14 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # `ask` spawns a paid vendor CLI. The spend ceiling is installed per
+    # PROCESS in daedalus/cli.py, and the room is its own entry point, so every
+    # turn taken here ran outside the cap -- including turns that cost real
+    # money. budget.BILLABLE_SITES lists ask_codex/ask_fable as
+    # ``explicit: False``, which is the register naming the hole, not blessing
+    # it. This module already imports daedalus elsewhere, so the import is not
+    # a new dependency; it is the one that was missing.
+    from daedalus.budget import install_process_guard
+
+    install_process_guard()
     sys.exit(main())

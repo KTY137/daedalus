@@ -179,4 +179,14 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # The ceiling is installed per PROCESS, in cli.py, and this module has its
+    # own entry point -- so `python -m daedalus.claude_bridge` spawned the
+    # Anthropic CLI with no cap at all. budget.BILLABLE_SITES has carried this
+    # site as ``explicit: False`` since the register was written: that field is
+    # the register ADMITTING a hole, not certifying a safe one. Installed here
+    # for the same reason cli.py gives -- a cap you must remember to install is
+    # missing exactly where somebody forgot.
+    from .budget import install_process_guard
+
+    install_process_guard()
     main()

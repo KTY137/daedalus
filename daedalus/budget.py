@@ -210,6 +210,38 @@ _PRICES: dict[str, VendorPrice] = {
 # Vendors that cost nothing because no bytes leave this machine.
 FREE_VENDORS = frozenset({"local", "local_inference"})
 
+# A SECOND kind of free, and conflating it with the first would be the bug this
+# module keeps finding elsewhere. A subscription vendor is free of MONEY and not
+# free of EGRESS: `claude -p` under a Max plan sends the bytes off-machine
+# exactly as the API does, it just does not bill per token. So this set is read
+# ONLY by the dollar axis; `lane_for_host` and the egress fence never see it.
+#
+# The real constraint on a subscription lane is a RATE limit, and this module
+# already has that axis -- DAEDALUS_BUDGET_MAX_CALLS. A subscription vendor
+# therefore costs $0.00 and still consumes one call, which is the honest model:
+# you cannot spend money on it, you can absolutely exhaust it.
+#
+# DECLARED, NOT DETECTED, AND EMPTY BY DEFAULT. Whether an operator holds a
+# subscription is a fact about their account, not about this repo -- there is no
+# way to read it from here, and guessing wrong in the free direction is the one
+# error that costs real money. Unset means "assume you are billed", which is the
+# same rule as UNKNOWN_CALL_USD: an unknown price is not a free price.
+ENV_SUBSCRIPTIONS = "DAEDALUS_SUBSCRIPTION_VENDORS"
+
+
+def subscription_vendors() -> frozenset[str]:
+    """Vendors the operator has declared as covered by a flat-rate plan.
+
+    Set ``DAEDALUS_SUBSCRIPTION_VENDORS=anthropic_cli,openai_cli`` when the CLIs
+    authenticate against a Max/Pro plan rather than metered API keys. Only names
+    that already have a price entry are honoured, so a typo silently widening
+    the cap is impossible -- it simply does not match and the vendor keeps
+    paying full worst-case price.
+    """
+    raw = os.environ.get(ENV_SUBSCRIPTIONS, "") or ""
+    named = {p.strip().lower() for p in raw.split(",") if p.strip()}
+    return frozenset(n for n in named if n in _PRICES)
+
 
 @dataclass(frozen=True)
 class Estimate:
@@ -269,6 +301,19 @@ def price_call(
         # mean local pass the host; this is the unknown-price rule applied to
         # the case that bit this repo once already.
         vendor = "remote_inference"
+
+    if vendor in subscription_vendors():
+        # $0.00 on the DOLLAR axis, one call on the RATE axis. The call is still
+        # counted -- and that is the whole point of doing it here rather than by
+        # deleting the price entry: a subscription cannot be overspent, it can
+        # only be exhausted, and DAEDALUS_BUDGET_MAX_CALLS is the cap that
+        # matches that failure mode. Deliberately AFTER the host check above, so
+        # a declared subscription can never launder an untrusted host into
+        # looking local: this decides what a call costs, never where it goes.
+        return Estimate(vendor, model, 0.0, calls, "subscription",
+                        f"'{vendor}' declared flat-rate via {ENV_SUBSCRIPTIONS}; "
+                        f"billed $0 but still {calls} call(s) against "
+                        f"{ENV_MAX_CALLS}")
 
     price = _PRICES.get(vendor)
     if price is None:
@@ -684,7 +729,21 @@ class Ledger:
             st = self._state(data)
             want = max(1, int(estimate.calls))
 
-            if st.committed_usd + estimate.usd > st.ceiling_usd:
+            # ``> 0`` and not ``>= 0``: the question this axis asks is "does THIS
+            # call push the total over", not "is the total already over". A call
+            # that adds nothing cannot cross a dollar ceiling, and refusing it
+            # buys exactly nothing -- it only makes an exhausted budget block
+            # work that is free. MEASURED 2026-07-29: with a subscription vendor
+            # declared, `codex --version` was refused at estimate=$0.0000 against
+            # spent=$24.00, and that $24 was itself fiction -- worst-case
+            # reservations for calls a flat-rate plan had already paid for.
+            #
+            # This does NOT weaken the cap. A zero that came from a mispriced
+            # vendor still gets counted on the call axis below (only the
+            # host-certified ``free_local`` basis is exempt there), so an
+            # under-priced runaway is still bounded -- by call count, which is
+            # the axis this module already says it trusts more than price.
+            if estimate.usd > 0 and st.committed_usd + estimate.usd > st.ceiling_usd:
                 raise BudgetRefused(
                     label=label, vendor=estimate.vendor, model=estimate.model,
                     estimate_usd=estimate.usd, spent_usd=st.spent_usd,
@@ -827,8 +886,17 @@ def guard(
 # --------------------------------------------------------------------------
 
 # argv[0] basenames that ARE a paid vendor.
+#
+# ``claude-code`` is the npm-package binary name for the same Anthropic CLI that
+# ships as ``claude`` (`npx @anthropic-ai/claude-code -p ...`). MEASURED
+# 2026-07-29: before it was listed here, ``classify_argv`` returned None for
+# both ``["claude-code", "-p", ...]`` and ``["npx", "@anthropic-ai/claude-code",
+# ...]`` -- the wrapper scan takes the basename of the package spec, which is
+# "claude-code", not "claude". The OpenAI spec (`@openai/codex`) survived only
+# by luck: its basename happens to be exactly "codex".
 _PAID_EXECUTABLES: dict[str, str] = {
     "claude": "anthropic_cli",
+    "claude-code": "anthropic_cli",
     "codex": "openai_cli",
     "agy": "google_agy",
     "antigravity": "google_agy",
@@ -836,8 +904,20 @@ _PAID_EXECUTABLES: dict[str, str] = {
 # argv[0] basenames that RUN something else; scan their arguments too, because
 # `ssh bench agy -p ...` and `cmd /c claude -p ...` spend exactly as much money
 # as `claude -p ...` does.
+#
+# The second row was added 2026-07-29 after MEASURING that each one carried a
+# vendor past the guard. ``uv``/``uvx`` are the live ones -- both are installed
+# on this machine, so `uv run claude -p ...` was a working bypass. The rest are
+# the ordinary process-shepherd verbs an agent reaches for when it wants a
+# timeout or a detached child; none of them is exotic, and each is one word away
+# from a spend nobody counted. Adding a wrapper cannot over-bill on its own: the
+# scan still requires an actual vendor token in the arguments, so
+# `timeout 60 git status` is passed through untouched.
 _WRAPPERS = frozenset({"ssh", "cmd", "cmd.exe", "sh", "bash", "zsh", "pwsh",
-                       "powershell", "npx", "bunx", "env", "wsl", "wsl.exe"})
+                       "powershell", "npx", "bunx", "env", "wsl", "wsl.exe",
+                       "uv", "uvx", "timeout", "nohup", "xargs", "stdbuf",
+                       "winpty", "start", "sudo", "doas", "time", "script",
+                       "nice", "setsid"})
 
 # Host suffixes that are a paid inference API.
 _PAID_API_HOSTS: dict[str, str] = {
