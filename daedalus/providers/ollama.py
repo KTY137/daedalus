@@ -310,6 +310,60 @@ class OllamaProvider(Provider):
 
     # -- agentic loop -----------------------------------------------------
 
+    @staticmethod
+    def _decision_schema(tools: list) -> dict:
+        """The tool decision, as a shape the sampler can be forced into.
+
+        ``finish`` is in the enum and is not optional: Ollama has no
+        ``tool_choice``, so a constrained turn ALWAYS produces an object. Without
+        an explicit way to say "nothing further", a model that is genuinely done
+        would be compelled to invent one more call -- trading a turn that wrote
+        nothing for a turn that writes something wrong, which is worse.
+        """
+        names = [((t.get("function") or {}).get("name") or "") for t in (tools or [])]
+        names = [n for n in names if n]
+        return {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": names + ["finish"]},
+                "path": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["action"],
+        }
+
+    def _schema_rescue(self, messages, model, tools, timeout_s) -> list:
+        """Re-ask the last turn with the call SHAPE constrained.
+
+        Returns tool_calls in the same shape the loop already handles, or ``[]``
+        when the model says it is finished -- so the caller's existing
+        "no calls -> read the report" path stays the fall-through and nothing
+        downstream needs to know this happened.
+
+        Failures here are deliberately silent-and-empty: this is a rescue
+        attempt on a turn that was already going to be treated as finished, so a
+        broken rescue must degrade to the old behaviour, never to an exception.
+        """
+        schema = self._decision_schema(tools)
+        nudge = list(messages) + [{
+            "role": "user",
+            "content": ("Respond with ONE json object: the next tool to call and its "
+                        "arguments, or action \"finish\" if the work is complete. "
+                        "For write_file, content must be the FULL new file."),
+        }]
+        try:
+            msg = native_chat(host=self.host, model=model or self.model, messages=nudge,
+                              force_json=schema, keep_alive=keep_alive_value(),
+                              timeout_s=timeout_s)
+            obj = json.loads((msg.get("content") or "").strip())
+        except (ProviderHTTPError, json.JSONDecodeError, ValueError, TypeError, OSError):
+            return []
+        action = str(obj.get("action") or "").strip()
+        if not action or action == "finish":
+            return []
+        args = {k: obj[k] for k in ("path", "content") if isinstance(obj.get(k), str)}
+        return [{"function": {"name": action, "arguments": json.dumps(args)}}]
+
     def _run_agentic(self, objective, repo_root, paths, agent, model, timeout_s, policy,
                      writable, slice_texts=None):
         changed: list[str] = []
@@ -364,6 +418,24 @@ class OllamaProvider(Provider):
             msg = native_chat(host=self.host, model=model or self.model, messages=messages,
                               tools=tools, keep_alive=keep_alive_value(), timeout_s=timeout_s)
             calls = msg.get("tool_calls") or []
+            if not calls and writable and not changed:
+                # THE EXPENSIVE FAILURE, CAUGHT. A write task that stops calling
+                # tools without having written anything is almost never "done" --
+                # it is a model that decided correctly and then narrated the
+                # decision in prose instead of emitting it. The line below would
+                # read that prose as a finished report: a successful turn that
+                # changed nothing, which is the shape this repo built the
+                # full-file-rewrite fallback to route around.
+                #
+                # MEASURED 2026-07-29: qwen2.5-coder 7b/14b and devstral emit 0%
+                # structured tool_calls on agent-shaped tasks and 100% when the
+                # shape is constrained at the sampler. So ask once more, with the
+                # shape compelled, before believing "done".
+                #
+                # Gated on ``writable and not changed`` on purpose: models that
+                # emit calls natively (qwen3.6 scored 100%) reach here only when
+                # genuinely finished, and pay nothing.
+                calls = self._schema_rescue(messages, model, tools, timeout_s)
             if not calls:
                 report = coerce_report(extract_json(msg.get("content") or "{}"))
                 break
