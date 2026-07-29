@@ -32,6 +32,12 @@ RTX_OLLAMA_ENV = "DAEDALUS_RTX_OLLAMA_HOST"
 RTX_TOKEN_ENV = "DAEDALUS_RTX_OLLAMA_TOKEN"
 # Pre-doc-alignment name; kept as fallback so existing deployments stay authorized.
 RTX_TOKEN_FALLBACK_ENV = "DAEDALUS_RTX_TOKEN"
+# ssh target for probing the bench's COMPUTE units rather than only its Ollama
+# endpoint. The room skill already carries the same address under
+# ROOM_BENCH_SSH, so that is honoured as a fallback instead of asking an
+# operator to configure the same host twice under two names.
+RTX_SSH_ENV = "DAEDALUS_RTX_SSH"
+RTX_SSH_FALLBACK_ENV = "ROOM_BENCH_SSH"
 NVOF_SDK_ENV = "DAEDALUS_NVOF_SDK"
 
 
@@ -264,6 +270,112 @@ def _remote_rtx_status(*, probe: bool) -> dict[str, Any]:
         }
 
 
+_CC_FLOORS: dict[str, tuple[int, int]] = {
+    # Tensor cores arrived with Volta. Below this there is no MMA unit at all,
+    # so "install torch and it will be fast" is false by construction.
+    "tensor_cores": (7, 0),
+    # RT cores arrived with Turing. Everything in the RT-accelerated
+    # neighbour-search literature (RTNN, RT-kNNS, JUNO) needs these; on Pascal
+    # the papers do not apply, they are not merely unimplemented.
+    "rt_cores": (7, 5),
+}
+
+
+def capability_lanes(compute_capability: str) -> dict[str, Any]:
+    """Which accelerator classes a device can host AT ALL, from its CC.
+
+    Exists because this module answered hardware questions about the machine it
+    RUNS on while the capable card lives on the bench. The local MX330 reports
+    CC 6.1 -- Pascal, which has neither tensor cores nor RT cores -- so every
+    lane read "missing" when the honest word was "impossible here". Meanwhile
+    the bench's RTX 5080 reports CC 12.0 and can host all of them.
+
+    "missing" invites someone to go install a library. "impossible" tells them
+    to stop. Reporting the first when the second is true is how an afternoon
+    gets spent against the wrong silicon.
+    """
+    try:
+        major, _, minor = (compute_capability or "").partition(".")
+        cc = (int(major), int(minor or 0))
+    except (TypeError, ValueError):
+        return {"compute_capability": compute_capability or "", "known": False,
+                "supports": {}, "note": "unparseable compute capability"}
+    supports = {name: cc >= floor for name, floor in _CC_FLOORS.items()}
+    return {"compute_capability": compute_capability, "known": True,
+            "supports": supports,
+            "note": ("architecture supports " +
+                     ", ".join(sorted(k for k, v in supports.items() if v))
+                     if any(supports.values())
+                     else "pre-Volta: no tensor cores, no RT cores")}
+
+
+def _remote_compute_status(*, probe: bool) -> dict[str, Any]:
+    """The bench's COMPUTE units, not just its Ollama endpoint.
+
+    ``_remote_rtx_status`` asks the bench "are you serving models". That is a
+    different question from "what can this card do", and answering the first
+    while reporting on the second is what made the local report misleading.
+
+    Deliberately OPT-IN and off by default: this needs ssh, which is a wider
+    trust surface than an unauthenticated HTTP GET, and a readiness report has
+    no business opening one unless an operator asked for it. Unconfigured
+    returns ``available: None`` -- unknown, never ``False``, because "we did not
+    look" and "it is not there" are the two answers this repo most insists on
+    keeping apart.
+    """
+    target = (os.environ.get(RTX_SSH_ENV, "").strip()
+              or os.environ.get(RTX_SSH_FALLBACK_ENV, "").strip())
+    if not target:
+        return {"configured": False, "available": None, "target": "",
+                "devices": [], "lanes": {}, "error": "",
+                "hint": f"set {RTX_SSH_ENV}=user@host to probe the bench's GPU"}
+    if not probe:
+        return {"configured": True, "available": None, "target": target,
+                "devices": [], "lanes": {}, "error": "",
+                "hint": "pass --probe-remote to actually query it"}
+    if shutil.which("ssh") is None:
+        return {"configured": True, "available": None, "target": target,
+                "devices": [], "lanes": {}, "error": "ssh not on PATH",
+                "hint": ""}
+    query = ("nvidia-smi --query-gpu=name,compute_cap,memory.total,driver_version "
+             "--format=csv,noheader")
+    try:
+        result = subprocess.run(
+            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", target, query],
+            capture_output=True, text=True, timeout=25)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {"configured": True, "available": False, "target": target,
+                "devices": [], "lanes": {},
+                "error": f"{type(exc).__name__}: {exc}", "hint": ""}
+    if result.returncode != 0:
+        return {"configured": True, "available": False, "target": target,
+                "devices": [], "lanes": {},
+                "error": (result.stderr or result.stdout or "ssh failed").strip()[:400],
+                "hint": ""}
+
+    devices: list[dict[str, Any]] = []
+    for line in (result.stdout or "").splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) < 4:
+            continue
+        name, cc, mem, driver = parts[0], parts[1], parts[2], parts[3]
+        devices.append({
+            "name": name, "compute_capability": cc,
+            "memory_mib": int(mem.split()[0]) if mem.split()[:1] and
+            mem.split()[0].isdigit() else None,
+            "driver_version": driver,
+            "capability": capability_lanes(cc),
+        })
+    lanes: dict[str, Any] = {}
+    for dev in devices:
+        for k, v in (dev["capability"].get("supports") or {}).items():
+            lanes[k] = lanes.get(k, False) or bool(v)
+    return {"configured": True, "available": bool(devices), "target": target,
+            "devices": devices, "lanes": lanes,
+            "error": "" if devices else "nvidia-smi returned no devices",
+            "hint": ""}
+
+
 def _framework_rows(*, deep: bool) -> dict[str, dict[str, Any]]:
     names = ("torch", "cupy", "warp", "cuvs", "cugraph", "newton")
     if deep:
@@ -407,6 +519,10 @@ def accelerator_status(*, deep: bool = False, probe_remote: bool = False) -> dic
         "hardware": hardware,
         "frameworks": frameworks,
         "remote_rtx_ollama": _remote_rtx_status(probe=probe_remote),
+        # The card that can actually host these lanes is the bench's, not this
+        # machine's. Reporting only local silicon is how "missing" got read as
+        # "go install it" when the local CC 6.1 made every lane impossible.
+        "remote_compute": _remote_compute_status(probe=probe_remote),
         "lanes": [lane.to_dict() for lane in lanes],
         "claims": {
             "hardware_visible_is_not_backend_ready": True,

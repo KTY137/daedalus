@@ -1056,6 +1056,21 @@ def main() -> None:
     # Installed here rather than inside each subcommand for the reason that
     # matters: a cap you have to remember to install is a cap that is missing
     # exactly where somebody forgot.
+    # BEFORE the guard, because the guard's own configuration -- the ceiling,
+    # the call cap, the declared subscription vendors -- is exactly the kind of
+    # thing that belongs in `.env`. Loading after it would read the defaults and
+    # silently ignore what the operator configured.
+    from .dotenv import DotEnvRefused, load as _load_dotenv
+
+    try:
+        _load_dotenv()
+    except DotEnvRefused as exc:
+        # The one config error worth stopping the whole CLI for: a tracked .env
+        # is a secret already in the repository, and every command from here on
+        # would be spending or sending with a leaked key.
+        print(f"[daedalus] REFUSED: {exc}", file=sys.stderr)
+        return 2
+
     from .budget import install_process_guard
 
     install_process_guard()

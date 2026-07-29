@@ -180,6 +180,21 @@ class KairosScheduler:
         # Pairwise-disjoint declared strings are not evidence that agentic
         # writers stay within those strings.
         has_writes = any(a.mode == "write" for a in live_tasks)
+        # Writes may go parallel ONLY when each one gets its own worktree. The
+        # hazard this closes is not misattribution -- it is destruction: every
+        # offload() gets a fresh provider whose rollback snapshot is per-call
+        # while the FILES are shared, so if task A's verify fails after task B
+        # landed a verified write to the same file, A's rollback writes its own
+        # stale pre-run bytes over B's finished work, with no error raised.
+        # Separate checkouts remove that by construction rather than by
+        # convention: `isolate_paths` and disjoint declared paths never could,
+        # because an agentic writer is not bound by the strings it was handed.
+        # NOT YET: the isolation that would make this safe (GitWorktreeManager,
+        # already built and hardened in kairos/worktree.py) is wired into
+        # shadow_shell.py and not into this dispatch path. Until it is, writes
+        # stay sequential -- and the serialized PROMOTION step that N worktrees
+        # would then need does not exist either, so flipping this flag alone
+        # would move the race from the files to the landing rather than remove it.
         can_parallel = parallel and not has_writes
 
         if parallel and not can_parallel and live_tasks:

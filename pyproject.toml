@@ -39,4 +39,5 @@ packages = [
     "daedalus.eval",
     "daedalus.spine",
     "daedalus.council",
+    "daedalus.mapping",
 ]
