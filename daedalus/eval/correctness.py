@@ -310,9 +310,30 @@ def pytest_node_argv(node_ids: Sequence[str]) -> tuple[str, ...]:
                    ``SKIPPED [1] file.py:12: reason``, with no node id at all.
       ``--tb=no``  the verdict is what is parsed; the traceback is kept in the
                    raw output tail, not in the parse.
+
+    ``--color=no`` is NOT cosmetic and was NOT here before 2026-07-30.
+
+    pytest normally suppresses colour when its output is not a tty, so a
+    captured pipe was assumed to be clean. It is not: pytest honours
+    ``FORCE_COLOR`` (and ``PY_COLORS``) regardless of whether anyone is
+    watching, and a Claude Code session exports ``FORCE_COLOR=3``. The per-node
+    line then arrives as
+
+        tests/test_lib.py::test_x \x1b[32mPASSED\x1b[0m\x1b[32m   [100%]\x1b[0m
+
+    and ``_PROGRESS_RE`` matches nothing. MEASURED consequence: pytest exited
+    0 having collected and PASSED the node, and :func:`parse_pytest_output`
+    returned ``not_run`` for it -- so every candidate was dropped as "not_run on
+    the base revision", no task could ever be seeded, and six end-to-end tests
+    failed. The module that decides whether a fix is real was blind, and it was
+    blind in exactly the environment this project is developed in.
+
+    The parser strips escapes too (see :data:`_ANSI_RE`). Both are deliberate:
+    this function controls its own invocation and asks for clean output, while
+    the parser is a pure function that may be handed output it did not invoke.
     """
     return (sys.executable, "-m", "pytest", *[str(n) for n in node_ids],
-            "-v", "--tb=no", "-p", "no:cacheprovider")
+            "-v", "--tb=no", "--color=no", "-p", "no:cacheprovider")
 
 
 _OUTCOME_TOKENS = {
@@ -323,6 +344,19 @@ _OUTCOME_TOKENS = {
     "XFAIL": STATUS_FAILED,   # an expected failure is not a pass
     "XPASS": STATUS_PASSED,
 }
+
+#: Every CSI escape sequence, stripped from a line before it is matched.
+#:
+#: The assumption this replaces was "pytest does not colour a pipe". It does,
+#: when ``FORCE_COLOR`` or ``PY_COLORS`` is set, and the environment this
+#: project is developed in sets ``FORCE_COLOR=3``. Under it the progress line
+#: is ``...::test_x \x1b[32mPASSED\x1b[0m``, ``_PROGRESS_RE`` fails at the
+#: whitespace, and a PASS is recorded as ``not_run``.
+#:
+#: The full CSI form rather than just ``\x1b\[[0-9;]*m``: pytest also emits
+#: cursor and erase-line sequences, and a parser that handles only colour would
+#: be correct until the day the terminal width changed.
+_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 # "tests/x.py::test_y PASSED   [ 50%]" -- verbose progress line.
 _PROGRESS_RE = re.compile(
@@ -396,7 +430,13 @@ def parse_pytest_output(text: str, requested: Sequence[str]) -> dict[str, str]:
     uncollectable: set[str] = set()
     file_errors: list[str] = []
     for raw in text.splitlines():
-        line = raw.strip()
+        # ANSI escapes are stripped before ANY match is attempted. A coloured
+        # PASSED is still a pass, and reading it as `not_run` is the worst
+        # available failure: it is indistinguishable from a test that never
+        # ran, so it silently removes evidence instead of reporting that the
+        # evidence could not be read. See `pytest_node_argv` for the measured
+        # incident (FORCE_COLOR=3 in the developing environment).
+        line = _ANSI_RE.sub("", raw).strip()
         nf = _NOT_FOUND_RE.match(line)
         if nf:
             for q in requested:
