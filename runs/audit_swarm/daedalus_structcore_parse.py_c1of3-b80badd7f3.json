@@ -1,0 +1,60 @@
+{
+ "task_id": "daedalus/structcore/parse.py#c1of3",
+ "key": "daedalus_structcore_parse.py_c1of3-b80badd7f3",
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/parse.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28017
+ }
+}

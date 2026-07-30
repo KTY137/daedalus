@@ -1,0 +1,72 @@
+{
+ "task_id": "daedalus/council/session.py#c2of3",
+ "key": "daedalus_council_session.py_c2of3-9e5088a1fd",
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "skipped_sensitive": [
+      "daedalus/council/session.py"
+     ]
+    }
+   },
+   "notes": []
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "skipped_sensitive": [
+      "daedalus/council/session.py"
+     ]
+    }
+   },
+   "notes": []
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "skipped_sensitive": [
+      "daedalus/council/session.py"
+     ]
+    }
+   },
+   "notes": []
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/session.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28016
+ }
+}

@@ -1,0 +1,47 @@
+{
+ "task_id": "daedalus/build_exec.py#c1of2",
+ "key": "daedalus_build_exec.py_c1of2-5a00acf17c",
+ "votes_requested": 3,
+ "votes_collected": 2,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  }
+ ],
+ "errors": [
+  "vote 3: BudgetRefused: BUDGET REFUSED: spend ceiling would be crossed (basis=worst_case). refused='urlopen: https://api.deepseek.com/chat/completions' (vendor=deepseek, model=?, 1 call(s), estimate=$0.0500). ceiling=$6.0000, spent=$6.0000, reserved=$0.0000, remaining=$0.0000, calls=124+0 of 200. Raise DAEDALUS_BUDGET_USD/DAEDALUS_BUDGET_MAX_CALLS deliberately, or wait for the period to roll over.\ndaedalus.budget.BudgetRefused: BUDGET REFUSED: spend ceiling would be crossed (basis=worst_case). refused='urlopen: https://api.deepseek.com/chat/completions' (vendor=deepseek, model=?, 1 call(s), estimate=$0.0500). ceiling=$6.0000, spent=$6.0000, reserved=$0.0000, remaining=$0.0000, calls=124+0 of 200. Raise DAEDALUS_BUDGET_USD/DAEDALUS_BUDGET_MAX_CALLS deliberately, or wait for the period to roll over.\n"
+ ],
+ "meta": {
+  "module": "daedalus/build_exec.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28035
+ }
+}

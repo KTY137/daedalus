@@ -20,6 +20,15 @@ different file. N agents on N different things cannot corroborate anything; N
 agents on the SAME thing can. So ``votes`` is a first-class argument and every
 result records how many independent answers it is made of.
 
+**AND ``votes`` NEEDS ``temperature > 0``, which is enforced rather than
+documented.** The decode temperature defaulted to 0.0 and every caller inherited
+it. At 0.0 the decode is deterministic, so N samples of one prompt are IDENTICAL
+and three "independent" votes are one answer counted three times -- which is
+indistinguishable from three agreeing agents in every downstream consumer. This
+paragraph used to be the only thing standing between a caller and fake agreement;
+:func:`fan_out` now REFUSES the combination. A claim this module makes about
+itself is not a control.
+
 **A FRESH PROVIDER PER CALL.** ``DeepSeekProvider.run`` resets ``self._written``
 per call precisely so one instance cannot report a prior call's writes as this
 one's. Sharing an instance across worker threads would reintroduce that race by
@@ -59,9 +68,11 @@ __all__ = ["FanoutTask", "FanoutResult", "fan_out", "default_concurrency"]
 #: Concurrency ceiling. The lane is network-bound, so this is far above the core
 #: count -- but not unbounded: each worker holds a provider, a request and a
 #: response body, and the box also has to keep running whatever else is on it.
-#: MEASURED 2026-07-30: a hundred concurrent agents pushed a 105 s test suite
-#: past a 900 s timeout, and the gate read that timeout as failing tests. If a
-#: measurement is running, pass a low number and mean it.
+#: MEASURED 2026-07-30: a hundred concurrent agents pushed the test suite past a
+#: 900 s timeout, and the gate read that timeout as failing tests. The suite is
+#: 4,146 tests and 765 s on this box when idle -- NOT the 105 s the handoff
+#: carried, which is a stale figure and the reason 18 minutes per gate mutation
+#: looked mysterious. If a measurement is running, pass a low number and mean it.
 DEFAULT_CONCURRENCY = 8
 
 #: Per-call ceiling. Advisory calls that need longer than this are usually stuck.
@@ -202,6 +213,42 @@ def _one_call(task: FanoutTask, vote: int, repo_root: str, model: str | None,
         "persona": out.get("persona"),
         "report": out.get("report"),
         "notes": out.get("notes") or [],
+        # ---- THE FLIGHT RECORDER ------------------------------------------
+        # What was actually SENT, recorded next to what came back. Added after a
+        # 2026-07-30 audit fan-out returned 2 findings from 715 answers and every
+        # cause was invisible in the results: a system prompt that forbade
+        # chain-of-thought, a worked example whose `risks` field was empty, the
+        # unit's own source sent a SECOND time truncated at 24,000 chars under a
+        # contradictory label, a `status` field that was a hardcoded default, and
+        # three "independent" votes that were byte-identical because the decode
+        # was deterministic.
+        #
+        # Not one of those is visible in an answer. All of them are obvious in a
+        # request. A lane that records only what it received can be debugged only
+        # by re-deriving what it sent, which is how a day gets spent.
+        #
+        # DIGESTS, NOT BODIES, for the prompt: the objective carries whole file
+        # contents, and a recorder that copies them turns a 4 KB result file into
+        # a 60 KB one and duplicates the repo across runs/. The digest is what
+        # answers the questions that matter -- "did these three votes see the same
+        # prompt", "did the prompt change between runs", "is this result stale" --
+        # and those are identity questions, which is exactly what a hash is for.
+        # The system message IS kept whole: it is small, shared, and it was the
+        # thing nobody could see.
+        "sent": {
+            "objective_sha256": hashlib.sha256(
+                objective.encode("utf-8")).hexdigest(),
+            "objective_chars": len(objective),
+            "brief_chars": len(brief),
+            "paths": list(task.paths),
+            "model": model or "",
+            "temperature": temperature,
+            "system_override_sha256": (
+                hashlib.sha256(system_override.encode("utf-8")).hexdigest()
+                if system_override else ""),
+            "system_override_chars": len(system_override or ""),
+            "policy": type(policy).__name__ if policy is not None else "default",
+        },
     }
 
 

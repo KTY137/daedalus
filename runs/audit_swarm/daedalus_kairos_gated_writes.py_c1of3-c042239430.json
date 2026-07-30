@@ -1,0 +1,47 @@
+{
+ "task_id": "daedalus/kairos/gated_writes.py#c1of3",
+ "key": "daedalus_kairos_gated_writes.py_c1of3-c042239430",
+ "votes_requested": 3,
+ "votes_collected": 2,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "no defect found",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": []
+  }
+ ],
+ "errors": [
+  "vote 3: BudgetRefused: BUDGET REFUSED: call-count cap would be crossed. refused='urlopen: https://api.deepseek.com/chat/completions' (vendor=deepseek, model=?, 1 call(s), estimate=$0.0500). ceiling=$60.0000, spent=$9.8000, reserved=$0.0000, remaining=$50.2000, calls=200+0 of 200. Raise DAEDALUS_BUDGET_USD/DAEDALUS_BUDGET_MAX_CALLS deliberately, or wait for the period to roll over.\ndaedalus.budget.BudgetRefused: BUDGET REFUSED: call-count cap would be crossed. refused='urlopen: https://api.deepseek.com/chat/completions' (vendor=deepseek, model=?, 1 call(s), estimate=$0.0500). ceiling=$60.0000, spent=$9.8000, reserved=$0.0000, remaining=$50.2000, calls=200+0 of 200. Raise DAEDALUS_BUDGET_USD/DAEDALUS_BUDGET_MAX_CALLS deliberately, or wait for the period to roll over.\n"
+ ],
+ "meta": {
+  "module": "daedalus/kairos/gated_writes.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28027
+ }
+}
