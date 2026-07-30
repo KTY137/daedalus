@@ -103,10 +103,25 @@ def budget_verdict(state, calls: int) -> str:
 # --------------------------------------------------------------------------
 # sources
 # --------------------------------------------------------------------------
-def _tracked(glob: str) -> list[Path]:
-    out = subprocess.run(["git", "ls-files", glob],
+def _tracked(glob: str | Sequence[str]) -> list[Path]:
+    """Tracked files matching one pathspec, or several.
+
+    A list is not sugar. A funnel aimed at one day's work spans daedalus/,
+    tests/ and tools/, and no single pathspec selects that set without also
+    dragging in everything else under those trees -- which would silently
+    change what the run measured. `git ls-files` takes many pathspecs; the
+    only reason this took one was that nothing had needed two yet.
+    """
+    globs = [glob] if isinstance(glob, str) else list(glob)
+    if not globs:
+        return []
+    out = subprocess.run(["git", "ls-files", *globs],
                          capture_output=True, text=True).stdout
-    return [Path(p) for p in out.splitlines() if p.strip()]
+    seen: dict[str, None] = {}
+    for p in out.splitlines():
+        if p.strip():
+            seen.setdefault(p, None)
+    return [Path(p) for p in seen]
 
 
 _DEF = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+(\w+)", re.MULTILINE)
