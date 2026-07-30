@@ -17,7 +17,15 @@ def fallback_decision(
     risk_level: str = "normal",
     user_requires_claude: bool = False,
 ) -> dict[str, Any]:
-    """Decide whether work can continue when Claude is missing or blocked."""
+    """Decide how work proceeds given Claude's status -- including when it succeeded.
+
+    NOT only "when Claude is missing or blocked", which is what this said
+    before. The very first branch below handles ``claude_status`` in
+    ``{"done", "needs_review"}`` and returns ``collaborative`` -- that is Claude
+    PRESENT and SUCCEEDING, the case the old sentence excluded. A caller who
+    read the docstring and skipped this function on the happy path would have
+    skipped the branch that decides the happy path.
+    """
     if claude_status in {"done", "needs_review"}:
         return {
             "mode": "collaborative",

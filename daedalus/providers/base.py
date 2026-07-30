@@ -45,8 +45,18 @@ class Provider(abc.ABC):
 
     def _enforce_read_only(self, report: dict[str, Any]) -> dict[str, Any]:
         """A read-only provider can neither edit files nor run tests. Any change
-        it proposes is advisory: it is moved into ``handoff.suggestions`` and the
-        mutating fields are forced empty so nothing can be auto-applied."""
+        it proposes is advisory: it is moved into ``handoff.suggested_files``
+        and the mutating fields are forced empty so nothing can be auto-applied.
+
+        The key is ``suggested_files``. This docstring said ``handoff.suggestions``
+        for as long as it existed, seven lines above the assignment that writes
+        the real name, and no such key is produced anywhere in the repository --
+        so a reader who trusted it searched for a field that has never existed
+        and found nothing, silently. The written contract is
+        ``suggested_files``: :meth:`daedalus.providers.deepseek` writes it, and
+        ``tests/test_hardening.py`` and ``tests/test_deepseek_write_toggle.py``
+        assert on it by that name.
+        """
         if self.caps.can_write:
             return report
         proposed = report.get("files_changed") or []

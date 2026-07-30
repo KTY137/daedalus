@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from ..budget import BudgetError, BudgetRefused, Reservation, reserve
-from ..schemas import validate_report
+from ..schemas import REPORT_KEYS, validate_report
 from ..token_policy import MAX_SUMMARY_CHARS, STATIC_PROMPT_PREFIX
 
 # Total inlined-context budget for non-agentic providers (chars). Keeps prompts
@@ -61,7 +61,45 @@ def extract_json(text: str) -> dict[str, Any]:
 
 
 def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
-    """Fill any missing report keys with safe defaults, then validate."""
+    """Fill any missing report keys with safe defaults, then validate.
+
+    TWO THINGS THIS USED TO DO SILENTLY, both of which destroyed evidence:
+
+    1. **Unexpected keys were discarded.** This function rebuilds the report
+       from a fixed key set, so a model that answered under any other key --
+       ``findings``, ``claims``, ``analysis`` -- had that content DESTROYED
+       rather than rejected, and what came back was a schema-valid report with
+       the evidence removed. It then read downstream as a clean empty answer.
+       That is how roughly 250 answers were lost in the 2026-07-30 fan-out.
+
+       They cannot stay at top level: ``schemas.validate_report`` rejects any
+       key outside ``REPORT_KEYS``, and that strictness is load-bearing --
+       ``claude_bridge`` and ``codex_cli`` both publish ``sorted(REPORT_KEYS)``
+       as a JSON-schema ``required`` list. So they are preserved inside
+       ``handoff``, which is free-form, already in the schema, and already the
+       side channel for exactly this. Nothing is truncated on the way in: a cap
+       here would recreate the defect it is meant to close.
+
+    2. **``status`` was defaulted with no record that it had been.** A model
+       that never mentioned status got ``needs_review``, indistinguishable from
+       one that chose it. Measured: constant across 715 answers, carrying zero
+       bits, while every consumer read it as a verdict. The value is unchanged
+       -- changing it would break callers -- but the fact that nobody supplied
+       it is now recorded, so "the model did not say" can be told apart from
+       "the model said needs_review".
+
+    Both records ride in ``handoff`` and neither can collide with a real report
+    key. A non-dict ``handoff`` is left exactly as it was, so it still fails
+    validation below rather than being quietly repaired here.
+    """
+    handoff = payload.get("handoff") or {}
+    if isinstance(handoff, dict):
+        unexpected = {k: v for k, v in payload.items() if k not in REPORT_KEYS}
+        if unexpected:
+            handoff = {**handoff, "unexpected_keys": unexpected}
+        if "status" not in payload:
+            handoff = {**handoff, "status_was_defaulted": True}
+
     report = {
         "status": payload.get("status", "needs_review"),
         "summary": str(payload.get("summary", ""))[:MAX_SUMMARY_CHARS],
@@ -69,7 +107,7 @@ def coerce_report(payload: dict[str, Any]) -> dict[str, Any]:
         "tests_run": payload.get("tests_run") or [],
         "risks": payload.get("risks") or [],
         "todos": payload.get("todos") or [],
-        "handoff": payload.get("handoff") or {},
+        "handoff": handoff,
     }
     errors = validate_report(report)
     if errors:
