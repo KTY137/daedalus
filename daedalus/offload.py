@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -47,23 +48,87 @@ def _content_hash(repo_root: str, rel: str) -> str | None:
 
 _SNAPSHOT_SKIP = {".git", "node_modules", "__pycache__", ".venv", "venv",
                   ".mypy_cache", ".pytest_cache", ".ruff_cache",
-                  ".daedalus_worktrees"}
+                  ".daedalus_worktrees",
+                  # MEASURED 2026-07-30: this checkout contains
+                  # ``.captures/cdp-edge-*/Default/Login Data`` and
+                  # ``.../Network/Cookies`` -- a browser profile captured by the
+                  # CDP tooling. It is gitignored, so the git-based listing below
+                  # already excludes it; this entry exists for the DEGRADED
+                  # fallback path, which is the one that walked it.
+                  ".captures"}
 _SNAPSHOT_MAX = 400_000  # per-file byte cap: skip large/binary blobs
 
 
+def _tracked_rels(repo_root: str) -> list[str] | None:
+    """Repo-relative paths git considers part of the tree, or None if it cannot say.
+
+    ``--cached`` (tracked) plus ``--others --exclude-standard`` (untracked but
+    NOT ignored). That second half is why a file the model creates still shows
+    up, and the ``--exclude-standard`` is the entire point: it is git's answer to
+    "is this part of the project", and it is the answer .gitignore was written to
+    give.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+            cwd=repo_root, capture_output=True, text=True, timeout=60, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if out.returncode != 0:
+        return None
+    return [r for r in out.stdout.split("\0") if r]
+
+
 def _repo_snapshot(repo_root: str) -> dict[str, str]:
-    """Content-hash every smallish text file under the repo, path-agnostic.
+    """Content-hash every smallish text file IN THE TREE, path-agnostic.
 
     The write-mode gate diffs a before/after snapshot to find what ACTUALLY
-    changed on disk -- so a genuine write is detected even when the caller
-    passed no --paths, or the worker wrote a file it wasn't explicitly told to
-    (the local write tool isn't restricted to the hint list). Junk dirs and
-    oversized blobs are skipped so this stays cheap.
+    changed on disk -- so a genuine write is detected even when the caller passed
+    no --paths, or the worker wrote a file it wasn't explicitly told to (the local
+    write tool isn't restricted to the hint list).
+
+    "In the tree" means ``git ls-files``, NOT ``rglob``. MEASURED 2026-07-30, and
+    the reason this changed: an ``rglob`` from the repo root with a hand-written
+    skip set does not know what .gitignore says, and this checkout has a
+    gitignored ``.captures/`` holding captured Edge profile data -- including
+    ``Login Data`` and ``Network/Cookies``. Two consequences, both bad:
+
+    * the gate READ credential stores off disk in order to hash them;
+    * ``result["wrote"]``, which is labelled GROUND TRUTH and is what arms the
+      test gate, could name files no agent ever touched -- a browser writing its
+      own cookie jar mid-run is indistinguishable here from a model editing code.
+
+    ``tools/mutation_score.py`` already excluded ``.captures``. That knowledge
+    simply never reached this function, which is the defect class this repo keeps
+    finding in itself: built, correct, and not connected to the consumer.
+
+    TRADE-OFF, stated rather than discovered later: a write into an IGNORED path
+    is now invisible to this snapshot. That is deliberate -- an ignored path is by
+    definition not the project -- and it is not the control that stops such a
+    write. ``sensitivity.path_write_blocked`` and the lane guards are, and they
+    run whether or not this function can see the file.
+
+    Degrades, and says so: if git cannot answer (not a repo, no git binary), this
+    falls back to the old walk with the skip set, which now excludes
+    ``.captures`` explicitly.
     """
     root = Path(repo_root)
     snap: dict[str, str] = {}
     if not root.is_dir():
         return snap
+
+    tracked = _tracked_rels(repo_root)
+    if tracked is not None:
+        for rel in tracked:
+            p = root / rel
+            try:
+                if not p.is_file() or p.stat().st_size > _SNAPSHOT_MAX:
+                    continue
+                snap[Path(rel).as_posix()] = hashlib.sha256(p.read_bytes()).hexdigest()
+            except OSError:
+                continue
+        return snap
+
     for p in root.rglob("*"):
         try:
             if not p.is_file() or p.stat().st_size > _SNAPSHOT_MAX:
