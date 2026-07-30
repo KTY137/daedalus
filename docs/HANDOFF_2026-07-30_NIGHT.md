@@ -41,6 +41,12 @@ Committing it on its own branch costs a minute.
 The main checkout has **104 uncommitted files, 54 of them untracked**, including
 the three gate fixes and their 25 tests. All verified; none durable.
 
+> **UPDATE, day shift, 30 July — this section is now moot.** The lab worktree
+> was committed unreviewed as `a31d004` on `experiment/deepseek-lab` (MEASURED:
+> `git log --all --oneline | grep a31d004` finds it). The main checkout's 104
+> files landed in ~10 coherent commits, `73ad0f0`..`2b08861`. Nothing described
+> above can still be lost. See the addendum (§8) for what followed.
+
 ---
 
 ## 1. Do these in this order
@@ -49,18 +55,47 @@ the three gate fixes and their 25 tests. All verified; none durable.
 the temp directory. Order matters only in that everything else can wait and this
 cannot.
 
+> **DONE, day shift, 30 July.** Committed as `a31d004`, "wip(lab): rescue the
+> deepseek-lab worktree -- UNREVIEWED", on `experiment/deepseek-lab`. Still
+> unreviewed by design — durability was the only goal.
+
 **2. Commit the main checkout.** The night's work is verified and green
 (`pytest tests -q -k "deepseek or provider or offload or egress or budget"` →
 456 passed; `-k "mutat or graph_delta or eval"` → 263 passed).
 
+> **DONE, day shift, 30 July.** ~10 commits, `73ad0f0`..`2b08861` (providers,
+> structcore/typegraph, wiki, eval/mutate+graph_delta, spine/loop, harness
+> tools, gui, the handoff doc itself, chore). The 456/263 pass counts above are
+> INHERITED from last night's entry, not re-run today.
+
 **3. Close the Ollama gap — see §2. It is a regression I introduced tonight.**
+
+> **DONE, day shift, 30 July**, commit `8c7bc0c`. See §2's update box.
 
 **4. Then, and only then, the ignition.** The gate binds its receipt to HEAD, so
 running it before the commits means the receipt is stale the moment they land.
 
+> **Still true, and sharper now.** HEAD has moved twice more since this doc's
+> `7a5fb07` reference point (through `8c7bc0c`, `d27c659`, to `fe634b5`
+> MEASURED via `git rev-parse HEAD`). Any receipt bound to an earlier HEAD is
+> stale by construction. Step 4 (§3, `--head-only`) has **not been run today** —
+> still open.
+
 ---
 
 ## 2. The gap I opened tonight, and the framework question it answers
+
+> **UPDATE, day shift, 30 July — the table below is no longer accurate.**
+> Commit `8c7bc0c` built `daedalus/lanes/checks.py` (the "proposed shape,
+> discussed, not built" from the box further down) and both
+> `providers/deepseek.py` and `providers/ollama.py` now call the shared
+> `run_checks()` — MEASURED by grep: `run_checks(` appears at
+> `deepseek.py:404` and `ollama.py:1094`. `deepseek.py` keeps
+> `_substitution_reason` / `_unresolved_first_party_imports` as thin
+> delegating wrappers per the commit message. Both columns in the table are
+> now ✓. tests/test_lanes_checks.py pins this: 29 passed (MEASURED,
+> `python -m pytest tests/test_lanes_checks.py -q`, includes
+> `test_lane_cannot_disable_baseline_by_construction`).
 
 Two new guards went into `daedalus/providers/deepseek.py` and **not** into
 `ollama.py`:
@@ -81,6 +116,11 @@ any architectural reasoning: **the guards are per-provider copies, and when one
 improves the others silently fall behind.**
 
 ### Proposed shape (discussed, not built, awaiting a decision)
+
+> **UPDATE, day shift, 30 July — this is now built,** as `8c7bc0c`, matching
+> the sketch below closely (`Check = (WriteAttempt, CheckPolicy) -> refusal |
+> ""`, cheapest-first, fail-closed on a raising check). `daedalus/lanes/`
+> holds `checks.py`, `graph_brief.py` (see §7's update) and `__init__.py`.
 
 ```
 daedalus/lanes/checks.py
@@ -163,12 +203,54 @@ Two things that cost hours tonight, so they do not cost them again:
   in ~105 s idle but blew past 900 under a hundred concurrent agents. Run the
   gate on a quiet machine, or raise `--timeout`.
 
-Budget roughly **two hours uninterrupted**: 12 mutations, each a full suite run.
+**DURATION — MEASURED, not inherited.** This morning (task be876lplf):
+baseline green, then mutation 1 at 11:15–11:36 (21 min), mutation 2 at 11:53,
+i.e. ~18 minutes per mutation. Budget **~3.6 hours for twelve** mutations, not the
+two hours this handoff initially budgeted. The cause is **environmental, not a
+code defect.** `python -m tools.gate_host_preflight` on the primary box reports
+`Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz`, `physical=4 logical=8`, 15.7 GiB
+RAM: a 15 W four-core 2019 laptop part thermally throttled under twelve
+consecutive full-suite runs. A kill rate is comparable across machines; a
+duration is not. MEASURED 2026-07-30.
+
+**Before running the gate on any machine, use the host preflight:**
 
 ```
-python -u tools/gate_discrimination.py --dry-run        # 12/12 anchors, ~2 min
-python -u tools/gate_discrimination.py --head-only      # the real thing
+python -m tools.gate_host_preflight              # human report, exit 0 = fit
+python -m tools.gate_host_preflight --json       # emit the host block
 ```
+
+Exit 0 means every required check passed. The preflight will also report why an
+optional check (tree_sitter_language_pack, lizard) is missing and how that lowers
+precision — it does not fail the run. One check is the precision guard of last
+resort: "daedalus resolves to THIS checkout". See `tools/gate_host_preflight.py`:0
+and ADR-015 Finding 1.
+
+**The `--coverage-guided` flag is opt-in, not default.** A run reporting `0
+pre-excluded by coverage` was simply not asked to exclude anything — it is not a
+sign the mechanism is broken. It is a coverage-based mutant filter that only runs
+if passed:
+
+```
+python -u tools/gate_discrimination.py --dry-run                     # 12/12 anchors, ~2 min
+python -u tools/gate_discrimination.py --head-only                   # the real thing
+python -u tools/gate_discrimination.py --head-only --coverage-guided # with filtering
+```
+
+**The receipt now carries a host block.** `write_receipt()` stamps the output of
+`gate_host_preflight.collect_host()` into every receipt, binding kill rate and
+duration to the machine that produced them. Fail-soft by construction: an
+unavailable host block records why and the receipt still writes. A receipt that
+cannot name which machine measured it invites exactly the error of comparing
+durations across hosts.
+
+### Planned offload — not yet done
+
+The owner has a second machine with a Ryzen 9000-series X3D (desktop part, 3D
+V-Cache). ESTIMATE: 5–10× on this workload (ASSUMED, not measured). Two caveats:
+the GPU is irrelevant to the gate (pytest + subprocess + disk, not GPU); the
+"RTX env-var drift" bug is already on the project's bug list, so the environment
+must be verified with `gate_host_preflight` before a receipt is produced there.
 
 ---
 
@@ -176,14 +258,19 @@ python -u tools/gate_discrimination.py --head-only      # the real thing
 
 Confirmed by reading the code, not by an agent asserting it.
 
-**Highest severity, and NOT yet verified by me — check before acting:**
-`offload._repo_snapshot` walks the repo root with `rglob` and its skip set misses
-gitignored trees. `.captures/` **does exist** in this checkout (a size check timed
-out, which is itself informative) and is said to contain Edge profile data
-including `Login Data` and `Cookies`. If true, `result["wrote"]` — labelled
-GROUND TRUTH and used to arm the test gate — can name files no agent touched.
-Proposed fix: snapshot `git ls-files`, not `rglob`. `tools/mutation_score.py`
-already knew about `.captures`; the knowledge never reached the gate.
+**Highest severity — VERIFIED and FIXED, day shift, 30 July, commit `fe634b5`.**
+`offload._repo_snapshot` walked the repo root with `rglob`, whose skip set
+missed gitignored trees. `.captures/` does exist in this checkout and does
+hold captured Edge profile data. MEASURED (commit message, reproduced
+independently today): 2 credential-shaped paths (`Login Data`,
+`Network/Cookies`) were in the snapshot before the fix, **0 after** —
+confirmed by running
+`python -c "from daedalus.offload import _repo_snapshot; print(len([k for k in _repo_snapshot('.') if 'Login Data' in k or 'Cookies' in k]))"`
+from the repo root, which prints `0`. Fix: `_tracked_rels()` now asks
+`git ls-files --cached --others --exclude-standard` instead of walking with a
+skip set; the walk survives only as a fallback for when git can't answer, with
+`.captures` added to its skip set too. `tools/mutation_score.py` already
+excluded `.captures`; that knowledge now also reaches the gate.
 
 **Docstrings that promise what the code does not do.** The pattern is worth
 knowing: three of the four worst cases have the guarantee at the top of the file
@@ -322,3 +409,57 @@ layer.
   `daedalus/` package (114 for `gui/`, 302 for `wiki/`). That is the cheapest
   open improvement in this document and it is the same defect class as everything
   else: built, measured, and never connected to the consumer.
+
+---
+
+## 8. Addendum — day shift, 30 July
+
+New work on top of the night's, not a correction to §6, which still describes
+what shipped overnight. All on `checkpoint/2026-07-20-session`, all still
+ahead of origin, nothing pushed. HEAD is `fe634b5` (MEASURED,
+`git rev-parse HEAD`).
+
+1. `a31d004` — lab worktree committed unreviewed on `experiment/deepseek-lab`.
+   §0 and §1 step 1 close (see update boxes above).
+2. `73ad0f0`..`2b08861` (~10 commits) — the main checkout's 104 uncommitted
+   files committed in coherent groups. §1 step 2 closes.
+3. `8c7bc0c` — `daedalus/lanes/checks.py`, the shared write-lane baseline
+   from §2's "proposed, not built" box. Both providers now call
+   `run_checks()`. §1 step 3 and §2's gap close. 29/29 tests pass
+   (MEASURED, `tests/test_lanes_checks.py`).
+4. `8c7bc0c` also — `daedalus/lanes/graph_brief.py` connected to both
+   provider write loops. §7's "cheapest open improvement" closes, with the
+   scope caveat in §7's update box: no fresh fan-out re-measurement exists.
+5. `d27c659` — `tests/test_graph_brief.py`, 18/18 passing (MEASURED).
+6. `fe634b5` — `offload._repo_snapshot` fixed to use `git ls-files` instead
+   of `rglob`. §4's highest-severity finding closes: VERIFIED and FIXED,
+   0 credential-shaped paths after the fix (MEASURED, reproduced
+   independently, see §4's update box).
+
+**Still open, unchanged from last night:**
+
+- §3, the ignition itself (`python -u tools/gate_discrimination.py
+  --head-only`), has **not** been run today. HEAD has moved twice since the
+  night's `7a5fb07` reference point (now `fe634b5`) — the receipt-binds-to-
+  HEAD ordering note in §1 is more relevant now, not less.
+- §2's `docref_gate` hardening, and any other proposal mentioned but not
+  built above, stays open.
+- §5 (refuted claims) is unchanged and still holds — nothing there was
+  re-examined today.
+
+> **UPDATE, day shift, 30 July — connected, commit `8c7bc0c`.**
+> `daedalus/lanes/graph_brief.py` (a threefold structural brief: symbols /
+> imports, with function-body-only edges marked `*` / documents) is now
+> injected into both provider write loops — MEASURED by grep: `render_brief(`
+> at `deepseek.py:361` and `ollama.py:775`. `tests/test_graph_brief.py`
+> (added `d27c659`) passes 18/18 (MEASURED,
+> `python -m pytest tests/test_graph_brief.py -q`).
+>
+> Scope honestly: this is a mitigation for the three specific hallucinations
+> named above (`daedalus.linting`/`daedalus.gui.lint`,
+> `ShiftManager`/`Shift`, `daedalus.wiki_vault`/`daedalus.wiki.vault`) and for
+> the substitution failure mode in §2 — it has **not** been re-measured
+> end-to-end against a fresh fan-out. There is no new held-out-detection or
+> false-positive number for the brief itself; the only honest number today is
+> the unit-test pass count above, not a claim about downstream hallucination
+> rate.
