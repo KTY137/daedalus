@@ -1,9 +1,12 @@
 """Has a NEW record producer appeared without declaring itself?
 
-``daedalus/spine/envelope.py`` converts three producers and DECLARES the rest.
-The declaration is the valuable half: a correlation id that covers three of
-sixteen formats is only useful if a reader knows which thirteen it does not
-cover. Left as prose, that list rots the first time someone adds a producer --
+``daedalus/spine/envelope.py`` converts four producers and DECLARES the rest.
+The declaration is the valuable half: a correlation id that covers four of
+seventeen formats is only useful if a reader knows which thirteen it does not
+cover. (Three and sixteen until 2026-07-30, when this file's own drift detector
+caught ``lanes/fanout.py`` -- written that day, undeclared, and its per-task
+result files a new island. The detector found it before a reader did, which is
+the entire point of the file.) Left as prose, that list rots the first time someone adds a producer --
 and it rots silently, because nothing fails.
 
 This file is the same shape as ``tests/test_spend_coverage.py``: a scan with a
@@ -149,11 +152,17 @@ def test_every_unconverted_producer_states_a_cost_or_a_reason():
             f"not a run record: {why!r}")
 
 
-def test_the_three_converted_producers_are_the_declared_three():
-    """Pins the claim the module docstring makes, so a fourth conversion that
-    forgets the docstring is caught here."""
+def test_the_converted_producers_are_the_ones_the_docstring_claims():
+    """Pins the claim the module docstring makes, so a conversion that forgets
+    the prose is caught here.
+
+    Was "the three" until 2026-07-30, when ``lanes/fanout.py`` became the fourth
+    -- found by the drift detector in this same file rather than declared by its
+    author. Updating this list is the intended way to land a conversion; landing
+    one WITHOUT updating it is what the assertion prevents."""
     assert set(envelope.CONVERTED_PRODUCERS) == {
         "daedalus/spine/ledger.py",
         "daedalus/loop.py",
         "daedalus/file_bridge.py",
+        "daedalus/lanes/fanout.py",
     }
