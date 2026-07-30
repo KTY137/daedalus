@@ -4,7 +4,7 @@ A provider turns a task brief into a validated structured report. Providers
 differ in capability, not interface:
 
 * ``claude_cli``  — agentic, write-capable, trusted with proprietary IP (primary).
-* ``deepseek``    — read-only, external, may only see non-sensitive content.
+* ``deepseek``    — external, opt-in write-capable, non-sensitive content only.
 * ``ollama``      — read-only, local (no egress), trusted with IP.
 * ``codex_cli``   — agentic, write-capable, EXTERNAL: egress-gated like deepseek.
 
@@ -66,7 +66,7 @@ _PROVIDERS: dict[str, ProviderMetadata] = {
         display_name="DeepSeek API",
         local=False,
         trusted_with_ip=False,
-        can_write=False,
+        can_write=True,
         agentic=False,
         requires_key=True,
         env_keys=("DEEPSEEK_API_KEY",),

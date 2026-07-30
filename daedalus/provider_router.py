@@ -27,6 +27,7 @@ import logging
 import os
 from dataclasses import dataclass
 
+from .config import external_write_lanes_for_repo
 from .providers import available_providers
 from .providers.personas import culture, persona_for
 from .semantic_route import FALLBACK, LATENT, semantic_route_explained
@@ -84,7 +85,37 @@ FENCE_DOMINANCE_THRESHOLD = 0.75
 FENCE_DOMINANCE_MIN_SAMPLE = 20
 
 
-def _mode(provider: str, review_only: bool, risk: str) -> str:
+def _deepseek_write_allowed(
+    write_lanes: tuple[str, ...], review_only: bool, risk: str
+) -> bool:
+    """May the DeepSeek lane APPLY this task rather than only advise it?
+
+    Three conditions, ANDed, and each one is load-bearing:
+
+    * the repository named "deepseek" in its policy ``external_write_lanes``
+      (:func:`daedalus.config.resolve_external_write_lanes`). Absent the key --
+      which is the default, and the state of every repo that has not opted in
+      -- this is False and routing is byte-identical to the advisory-only era.
+    * ``risk == "low"``. An external paid lane gets the SAME reduced rights the
+      local bench has, not more: MID risk advises, HIGH never reaches here at
+      all (branch 2 sends high-risk writes to Claude before this is asked).
+    * not ``review_only``. A review task has nothing to apply, so "write" on one
+      would only be a chance to apply something nobody asked for.
+
+    Sensitivity is not re-checked here because it cannot be true at this point:
+    branch 3 returns local-only for sensitive data before branch 4 runs. The
+    provider re-checks it anyway, per file, before any byte leaves.
+
+    The single source of truth for this question. :func:`_mode` decides the mode
+    from it and branch 4 words its reason from it, so the two can never
+    disagree -- a decision that says "write" with a reason that says
+    "(read-only)" is how a paid write lane gets switched on by accident.
+    """
+    return "deepseek" in write_lanes and risk == "low" and not review_only
+
+
+def _mode(provider: str, review_only: bool, risk: str,
+          write_lanes: tuple[str, ...] = ()) -> str:
     """write = may apply; advisory = read-only proposal.
       - Claude: always write.
       - Ollama: writes only LOW-risk (reduced rights); MID-risk it may only
@@ -92,9 +123,14 @@ def _mode(provider: str, review_only: bool, risk: str) -> str:
       - Codex: same reduced rights as Ollama -- LOW-risk may edit in place
         (read-only sandbox otherwise); routing already keeps sensitive and
         high-risk work away from it.
-      - DeepSeek: always advisory (external, read-only)."""
+      - DeepSeek: advisory, UNLESS the repository opted this lane into
+        ``external_write_lanes`` and the task is low-risk and not review-only.
+
+    ``write_lanes`` defaults to empty so every caller that predates the toggle
+    -- and every repo that has not set the key -- gets exactly the mode table
+    this function had before it existed."""
     if provider == "deepseek":
-        return "advisory"
+        return "write" if _deepseek_write_allowed(write_lanes, review_only, risk) else "advisory"
     if provider in ("ollama", "codex_cli"):
         # LOW-risk always writes directly (zero Claude tokens); MID only advises.
         # review_only tasks just won't touch files, so "write" is harmless there.
@@ -343,6 +379,12 @@ def select_provider(
     review_only = _is_review_only(objective)
     external_ok = bool(agent.get("external_ok", False))
     name = agent.get("name", "")
+    # Which UNTRUSTED external lanes this repository lets APPLY a change. Read
+    # from the repo that will be WRITTEN, and empty for every repo that has not
+    # opted in -- including every caller that passes no repo_root, so absence
+    # keeps the pre-toggle routing exactly. Every failure mode inside the
+    # resolver (no file, bad JSON, unknown lane name) also lands on empty.
+    write_lanes = external_write_lanes_for_repo(repo_root)
 
     def decide(provider: str, reason: str) -> ProviderDecision:
         # Any provider that is chosen but unreachable degrades to Claude.
@@ -353,20 +395,57 @@ def select_provider(
                 data.sensitive, risk, reach,
             )
         return ProviderDecision(
-            provider, _mode(provider, review_only, risk), persona_for(provider, name),
+            provider, _mode(provider, review_only, risk, write_lanes),
+            persona_for(provider, name),
             reason, data.sensitive, risk, reach,
         )
 
     # 1. Roles that must never leave the trusted lane may still use the local
-    # on-machine bench for review-only advisory work. They never go to an
-    # external provider and they never write locally.
+    # on-machine bench for review-only advisory work -- and, since 2026-07-29,
+    # for LOW-risk writes when the bench itself IS the trusted lane.
+    #
+    # "External" is a property of WHERE THE BYTES GO, and this repo already has
+    # exactly one implementation of that question: ``lane_for_host``. This
+    # branch used to answer it a second way -- by treating every non-Claude
+    # provider as external -- and the two answers agreed right up until the
+    # operator declared the RTX bench trusted. Then a trusted-only role's
+    # docref write bounced off the free-lane gate as "belongs to the senior
+    # crew", and the self-improvement loop's first three live attempts died
+    # of it (MEASURED, first activation run). One predicate per question:
+    # a trusted-only role may not reach an UNTRUSTED endpoint; a host the
+    # single fence certifies as trusted is not one.
     if not external_ok:
-        if review_only and avail.get("ollama", False):
-            return ProviderDecision(
-                "ollama", "advisory", persona_for("ollama", name),
-                f"role '{name}' is trusted-only; local Ollama advisory review",
-                data.sensitive, risk, reach,
-            )
+        # Reachability is a safety escalation, not merely a price/routing hint.
+        # It must dominate even a review-looking objective: a trusted-only role
+        # plus a path that feeds a fenced module stays on the senior lane.
+        if reach and reach["escalate"]:
+            return decide("claude_cli", reach["reason"])
+        if avail.get("ollama", False):
+            from .sensitivity import lane_for_host
+            ollama_host = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+            if lane_for_host(ollama_host) == "trusted":
+                if review_only:
+                    return ProviderDecision(
+                        "ollama", "advisory", persona_for("ollama", name),
+                        f"role '{name}' is trusted-only and the local bench IS "
+                        "the trusted lane (advisory review)",
+                        data.sensitive, risk, reach,
+                    )
+                if risk == "low":
+                    return ProviderDecision(
+                        "ollama", "write", persona_for("ollama", name),
+                        f"role '{name}' is trusted-only and the local bench IS "
+                        "the trusted lane (low-risk write)",
+                        data.sensitive, risk, reach,
+                    )
+            if review_only:
+                # An untrusted bench still never sees repository content from a
+                # trusted-only role -- the provider itself also refuses
+                # (providers/ollama.py), but routing must not rely on that.
+                return decide(
+                    "claude_cli",
+                    f"role '{name}' is trusted-only and OLLAMA_HOST is not a "
+                    f"trusted lane")
         return decide("claude_cli", f"role '{name}' is not external-eligible")
 
     # 2. High-risk *write* stays senior -- covers sensitive+high too. When the
@@ -386,6 +465,34 @@ def select_provider(
 
     # 4. Non-sensitive low/mid (or review): cheapest eligible worker. Codex is
     # the external fallback BETWEEN the local bench and the Claude lane.
+    #
+    # ORDER CHANGED 2026-07-29, and the reason is a measurement, not taste.
+    # DeepSeek-first dated from when the local model could not reliably emit a
+    # structured write (0% tool-call success) -- an advisory draft from a
+    # smarter external model beat a write that never landed. Schema-constrained
+    # decoding took the same 4.5GB model to 100% on this bench, so for LOW risk
+    # the calculus inverted: a FREE lane that can WRITE (and whose work then
+    # faces the gate) beats a PAID lane that may only advise. The trusted-host
+    # check composes the single egress predicate rather than re-deriving it;
+    # on an untrusted or absent bench the old order stands, and MID risk still
+    # prefers the smarter advisory voice.
+    if (risk == "low" and not review_only and avail.get("ollama", False)):
+        from .sensitivity import lane_for_host as _lane
+        if _lane(os.environ.get("OLLAMA_HOST",
+                                "http://127.0.0.1:11434")) == "trusted":
+            return decide("ollama",
+                          "non-sensitive low -> trusted bench writes for free")
+    # Opted-in external WRITE lane, second only to the free bench: a paid lane
+    # that applies its own change is still worth less than a free one that
+    # does, so this never outranks the trusted-bench branch above -- it is what
+    # the bench being down or untrusted degrades TO, instead of degrading
+    # straight to advisory. Off by default; `external_write_lanes` is the
+    # operator's explicit, per-repo, version-controlled opt-in.
+    if avail.get("deepseek", False) and _deepseek_write_allowed(
+            write_lanes, review_only, risk):
+        return decide("deepseek",
+                      "non-sensitive low -> DeepSeek write lane "
+                      "(repo opted in via external_write_lanes; PAID)")
     if avail.get("deepseek", False):
         return decide("deepseek", "non-sensitive low/mid -> DeepSeek (read-only)")
     if avail.get("ollama", False):

@@ -26,7 +26,7 @@ from daedalus.providers._ollama_native import (
     num_ctx_value,
 )
 from daedalus.providers._openai_compat import ProviderHTTPError
-from daedalus.providers.ollama import OllamaProvider
+from daedalus.providers.ollama import OllamaProvider, _window_replacement_lines
 
 _AGENT = {"name": "docs-dev", "call_name": "Lucia"}
 
@@ -279,6 +279,82 @@ class NativeChatErrorTests(unittest.TestCase):
 # _run_rewrite: window skip, slice injection, drop-to-fit                      #
 # --------------------------------------------------------------------------- #
 class RewriteWindowTests(unittest.TestCase):
+    def test_window_splice_requires_exact_line_count(self):
+        with self.assertRaisesRegex(ValueError, "exact line count required"):
+            _window_replacement_lines(
+                ["one\n", "two\n"],
+                "one\ntwo\nthree",
+                at_eof=False,
+            )
+
+    def test_window_rewrite_preserves_mixed_eol_bytes_and_sends_a_schema(self):
+        original = b"alpha\r\n`old.symbol` is stale.\nomega\r\n"
+        edited_line = "`lane_for_host` is current."
+        objective = (
+            "Broken references:\n"
+            "  line 2: old.symbol  -- pkg.py defines no 'symbol'"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "docs").mkdir()
+            (root / "docs" / "x.md").write_bytes(original)
+            (root / "pkg.py").write_text(
+                "# old.symbol was replaced by the shared predicate\n"
+                "def lane_for_host(host):\n"
+                "    return 'trusted'\n",
+                encoding="utf-8",
+            )
+            response = json.dumps({"content": edited_line})
+            with FakeOllama([(200, _resp(response))]) as srv:
+                report = _provider(srv.url)._run_rewrite(
+                    objective, d, ["docs/x.md"], None, 60, None,
+                    rewrite_windows={"docs/x.md": [{"line": 2, "radius": 0}]},
+                )
+            after = (root / "docs" / "x.md").read_bytes()
+
+        self.assertEqual(report["files_changed"], ["docs/x.md"])
+        self.assertEqual(
+            after,
+            b"alpha\r\n`lane_for_host` is current.\nomega\r\n",
+        )
+        request = srv.requests[0]
+        self.assertIs(request["think"], False)
+        self.assertEqual(request["format"]["required"], ["content"])
+        prompt = request["messages"][1]["content"]
+        self.assertIn("CURRENT CODE CONTEXT FROM pkg.py", prompt)
+        self.assertIn("EDITABLE LINES 2-2", prompt)
+
+    def test_invalid_window_output_retries_then_refuses_without_writing(self):
+        original = b"alpha\n`old.symbol` is stale.\nomega\n"
+        objective = (
+            "Broken references:\n"
+            "  line 2: old.symbol  -- pkg.py defines no 'symbol'"
+        )
+        invalid = json.dumps({"content": "first\nsecond"})
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "docs").mkdir()
+            target = root / "docs" / "x.md"
+            target.write_bytes(original)
+            (root / "pkg.py").write_text("# old.symbol\n", encoding="utf-8")
+            with FakeOllama([
+                    (200, _resp(invalid)),
+                    (200, _resp(invalid)),
+            ]) as srv:
+                report = _provider(srv.url)._run_rewrite(
+                    objective, d, ["docs/x.md"], None, 60, None,
+                    rewrite_windows={"docs/x.md": [{"line": 2, "radius": 0}]},
+                )
+            after = target.read_bytes()
+
+        self.assertEqual(after, original)
+        self.assertEqual(report["files_changed"], [])
+        self.assertIn(
+            "exact line count required",
+            report["handoff"]["skipped"]["docs/x.md"],
+        )
+        self.assertEqual(len(srv.requests), 2)
+
     def test_oversized_file_is_skipped_with_no_http_call(self):
         big = "".join(f"value_{i} = compute({i}, {i * 2})\n" for i in range(300))  # ~ >1k tok
         with mock.patch.dict(os.environ, {"OLLAMA_NUM_CTX": "2048"}):

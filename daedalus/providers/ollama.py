@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from collections import namedtuple
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +58,34 @@ MAX_READ_CHARS = 16_000
 MAX_REWRITE_FILES = 3       # scoped writes only; bigger fan-outs go through Ikarus
 MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation
 
+# --------------------------------------------------------------------------- #
+# WINDOWED rewrite -- an edit that does not require reprinting the file        #
+# --------------------------------------------------------------------------- #
+# MEASURED 2026-07-29, the first live self-improvement runs: three docref
+# attempts against docs/HANDOFF.md (2496 lines / 148_291 bytes) all ended
+# no_change/write_gate_failed. The file never reached the model -- 148 KB is
+# 6x MAX_REWRITE_CHARS, so _run_rewrite skipped it "too large for full rewrite"
+# and the write gate correctly saw no diff. Raising the cap does not fix it: the
+# rewrite-only reliability finding was measured on SMALL files, and a 7B model
+# asked to reprint 2500 lines echoes or truncates.
+#
+# The candidate already knows WHICH lines are wrong (the docref scan reports
+# them), so it can ask for a WINDOW instead of a reprint: the model sees +-N
+# lines around each broken line, returns only those lines corrected, and the
+# harness splices them back at exact positions. Everything outside a window is
+# byte-identical BY CONSTRUCTION (list-slice assignment on the original lines,
+# original line endings re-attached), not by the model's good behaviour.
+DEFAULT_WINDOW_RADIUS = 40
+MAX_WINDOW_LINES = 400      # past this it is a full rewrite wearing a window's name
+# Matches the picker's own cap on docref `detail` (12 references per document):
+# a file needing more windows than that wants a human, not a 7B.
+MAX_WINDOWS_PER_FILE = 12
+# Share of the original window's non-blank lines that must come back verbatim.
+# One corrected reference in an 81-line window should return ~99% untouched;
+# anything under half means the model rewrote the neighbourhood instead of
+# correcting it, which the line count alone would not catch.
+WINDOW_ANCHOR_FRAC = 0.5
+
 # Marker appended when a tool result is head-truncated to make the forced final
 # report call fit the local context window (visible so the model knows it lost tail).
 _TOOL_TRUNC_MARKER = "\n[...tool output truncated to fit the local context window]"
@@ -85,6 +115,130 @@ _ELISION_MARKERS = (
     "remains unchanged", "remain unchanged", "existing code here",
     "... existing code", "unchanged code omitted", "code omitted",
 )
+
+def _normalize_rewrite_windows(spec: Any, n_lines: int,
+                               radius: int = DEFAULT_WINDOW_RADIUS) -> list[tuple[int, int]]:
+    """Normalize ONE file's window hint into sorted, merged, clamped
+    1-based-inclusive ``(start, end)`` pairs.
+
+    Accepted item shapes -- all JSON-native, because the hint travels through a
+    candidate's evidence and a task spec before it reaches this file:
+
+    * ``int``                        -> that line, +- ``radius``
+    * ``{"line": L, "radius": R}``   -> ``radius`` optional
+    * ``{"start": S, "end": E}``
+    * a 2-sequence ``[S, E]``        -> START AND END. A bare 2-tuple is
+      ambiguous with ``(line, radius)``; this file picks one reading and says
+      so rather than guessing per call. Use the mapping form for line+radius.
+
+    ``spec`` itself is a LIST of those items. A bare 2-sequence at the TOP level
+    is therefore two line numbers, not one ``(start, end)`` -- wrap it
+    (``[[S, E]]``) to mean a range.
+
+    An unusable hint yields ``[]``, which degrades to the existing full-file
+    behaviour. This function never invents a window.
+    """
+    if n_lines <= 0 or not spec:
+        return []
+    items = spec if isinstance(spec, (list, tuple)) else [spec]
+    raw: list[tuple[int, int]] = []
+    for item in items:
+        start = end = None
+        if isinstance(item, bool):          # bool is an int; never a line number
+            continue
+        if isinstance(item, int):
+            start, end = item - abs(radius), item + abs(radius)
+        elif isinstance(item, Mapping):
+            try:
+                if item.get("line") is not None:
+                    line = int(item["line"])
+                    rad = abs(int(item.get("radius", radius)))
+                    start, end = line - rad, line + rad
+                elif item.get("start") is not None and item.get("end") is not None:
+                    start, end = int(item["start"]), int(item["end"])
+            except (TypeError, ValueError):
+                continue
+        elif isinstance(item, (list, tuple)) and len(item) == 2:
+            try:
+                start, end = int(item[0]), int(item[1])
+            except (TypeError, ValueError):
+                continue
+        if start is None or end is None or end < start:
+            continue
+        start, end = max(1, start), min(n_lines, end)
+        if start > n_lines or end < start:
+            continue
+        raw.append((start, end))
+    # Merge touching/overlapping windows: two windows that share a line would
+    # splice over each other, and adjacent ones are cheaper as one call.
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(raw):
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def _strip_code_fence(text: str) -> str:
+    """Drop a markdown fence wrapping the WHOLE payload. Narrow on purpose: the
+    fence must open the first line and close the last, so a fragment that
+    legitimately contains fenced code inside it is left alone."""
+    lines = text.splitlines()
+    if len(lines) >= 2 and lines[0].lstrip().startswith("```") and lines[-1].strip() == "```":
+        return "\n".join(lines[1:-1])
+    return text
+
+
+def _window_replacement_lines(old_slice: list[str], returned: str, *,
+                              at_eof: bool) -> list[str]:
+    """Validate a model-returned window and render it with the ORIGINAL line
+    endings. Raises ``ValueError(reason)`` on any fail-closed check.
+
+    ``old_slice`` is the corresponding slice of ``splitlines(keepends=True)``,
+    so the endings are available to re-attach: joining with a bare ``"\\n"``
+    would silently convert a CRLF file and turn a two-line fix into a
+    whole-file diff -- the opposite of what a window is for.
+    """
+    body = _strip_code_fence(returned)
+    if not body.strip():
+        raise ValueError("returned window was empty")
+    new_lines = body.splitlines()
+    old_plain = [ln.rstrip("\r\n") for ln in old_slice]
+    if len(new_lines) != len(old_plain):
+        raise ValueError(
+            f"returned {len(new_lines)} lines for a {len(old_plain)}-line "
+            "window; exact line count required")
+    low_new, low_old = body.lower(), "".join(old_slice).lower()
+    elided = next((m for m in _ELISION_MARKERS if m in low_new and m not in low_old), None)
+    if elided:
+        raise ValueError(f"elision marker in returned window ('{elided}')")
+    anchors = [ln for ln in old_plain if ln.strip()]
+    # A one-line correction necessarily has zero byte-identical line anchors:
+    # applying the general 50% rule there would reject every possible edit.
+    # Exact line count, identifier removal, the curated gate, and rollback are
+    # the structural guards for these surgical windows.
+    if len(old_plain) >= 3 and anchors:
+        survivors = set(new_lines)
+        kept = sum(1 for ln in anchors if ln in survivors)
+        if kept < WINDOW_ANCHOR_FRAC * len(anchors):
+            raise ValueError(f"only {kept}/{len(anchors)} original non-blank lines came back "
+                             "verbatim -- the window was rewritten, not corrected")
+    # Exact line count lets us preserve EACH original terminator, including
+    # mixed-EOL fragments and a final unterminated line. ``at_eof`` remains in
+    # the signature as an explicit caller assertion and for API compatibility.
+    def _ending(raw: str) -> str:
+        if raw.endswith("\r\n"):
+            return "\r\n"
+        if raw.endswith("\n"):
+            return "\n"
+        if raw.endswith("\r"):
+            return "\r"
+        return ""
+
+    rendered = [ln + _ending(old) for ln, old in zip(new_lines, old_slice)]
+    return rendered
+
 
 _READ_TOOLS: list[dict[str, Any]] = [
     {"type": "function", "function": {
@@ -568,9 +722,259 @@ class OllamaProvider(Provider):
                             keep_alive=keep_alive_value(), timeout_s=timeout_s)
         return coerce_report(extract_json(final.get("content") or "{}"))
 
+    # -- rewrite prompts: whole file, or one window at a time ----------------
+
+    def _full_file_content(self, objective, rel, original, creating, slice_texts,
+                           dropped, model, timeout_s):
+        """Ask for the ENTIRE edited file. Returns ``(content, None)`` or
+        ``(None, reason)``. Behaviour is byte-for-byte what it was before the
+        windowed path existed -- this is an extraction, not a change; ``dropped``
+        is appended to in place because shedding the distilled slice is
+        provenance the caller reports."""
+        if len(original) > MAX_REWRITE_CHARS:
+            return None, "too large for full rewrite"
+        system = (
+            "You are a careful software engineer. Apply the requested change and "
+            'return ONLY a json object of the form {"content": "<ENTIRE edited file>"}. '
+            "The value must be the complete file text -- every line, no omissions, "
+            "no markdown fences, no commentary. Preserve the existing style."
+        )
+        # Slice context (caller-gated) goes between the change request and the
+        # file body -- never for a greenfield CREATE (no neighborhood, and the
+        # index only slices paths that exist). had_slice lets us shed it to
+        # fit the window before skipping the file outright.
+        had_slice = (not creating) and (rel in slice_texts)
+        if creating:
+            user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
+                    "Create it: return the complete initial contents of this new file.")
+        elif had_slice:
+            user = (f"Change request:\n{objective}\n\n"
+                    "Project context (distilled, read-only -- the neighborhood of this file):\n"
+                    f"{slice_texts[rel]}\n\nFILE {rel} (current contents):\n{original}")
+        else:
+            user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+        # OUTPUT-RESERVE window check (never let the server truncate a rewrite).
+        # count_tokens is cl100k -> OVER-counts qwen tokens -> we over-skip
+        # (honest escalation) rather than under-count into silent truncation.
+        est_in = count_tokens(system) + count_tokens(user)
+        output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
+        window = effective_input_window(output_reserve)
+        if est_in > window:
+            if had_slice:  # shed the distilled context first, then re-check
+                user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+                dropped.append(rel)
+                had_slice = False
+                est_in = count_tokens(system) + count_tokens(user)
+            if est_in > window:
+                return None, (f"file needs ~{est_in} input tok but the local context "
+                              f"window leaves ~{window} tok after a ~{output_reserve}-tok "
+                              "generation reserve")
+        try:
+            msg = native_chat(host=self.host, model=model or self.model,
+                              messages=[{"role": "system", "content": system},
+                                        {"role": "user", "content": user}],
+                              force_json=True, keep_alive=keep_alive_value(),
+                              timeout_s=timeout_s, temperature=0.0)
+            return extract_json(msg.get("content") or "{}").get("content"), None
+        except (ProviderHTTPError, ValueError) as exc:
+            return None, f"model call failed: {exc}"
+
+    def _rewrite_by_window(self, objective, rel, original, windows, model, timeout_s,
+                           repo_root=None):
+        """Correct ONLY the given line windows and return the FULL spliced file.
+
+        Returns ``(content, None)`` on success or ``(None, reason)`` on refusal.
+        The rollback for a bad window is structural rather than after-the-fact:
+        every window is validated and spliced IN MEMORY, and one failed window
+        refuses the whole file, so nothing reaches the disk unless every window
+        passed. The caller's single write site then takes the backup, so the
+        exact-original-bytes contract ``_backups`` carries is untouched.
+        """
+        lines = original.splitlines(keepends=True)
+        total = len(lines)
+        if len(windows) > MAX_WINDOWS_PER_FILE:
+            return None, (f"{len(windows)} rewrite windows exceeds the cap of "
+                          f"{MAX_WINDOWS_PER_FILE}")
+        oversize = next(((s, e) for s, e in windows if e - s + 1 > MAX_WINDOW_LINES), None)
+        if oversize:
+            return None, (f"window {oversize[0]}-{oversize[1]} spans "
+                          f"{oversize[1] - oversize[0] + 1} lines (cap {MAX_WINDOW_LINES}) "
+                          "-- that is a full rewrite wearing a window's name")
+        system = (
+            "You are a careful editor working on ONE FRAGMENT of a larger file. "
+            'Return ONLY a json object of the form {"content": "<the corrected fragment>"}. '
+            "The value must be that fragment and nothing else: no line numbers, no markdown "
+            "fences, no commentary, and no other part of the file. Lines that need no change "
+            "must come back byte for byte. Preserve the existing style and indentation. "
+            "For a broken documentation reference, the obsolete identifier must not remain. "
+            "If the exact replacement name is not known from the supplied text, preserve the "
+            "claim by rephrasing it as ordinary prose without asserting a code identifier."
+        )
+        out = list(lines)
+        applied = 0
+        # BOTTOM-UP. Splicing the last window first keeps every not-yet-applied
+        # window's line numbers valid even when a correction changes the line
+        # count above it.
+        for start, end in sorted(windows, reverse=True):
+            old_slice = lines[start - 1:end]
+            window_text = "".join(old_slice)
+            context_start = max(1, start - 2)
+            context_end = min(total, end + 2)
+            surrounding = "".join(lines[context_start - 1:context_end])
+            broken_here: list[str] = []
+            broken_modules: dict[str, str] = {}
+            for match in re.finditer(
+                    r"(?mi)^\s*line\s+(\d+)\s*:\s*(.+?)\s+--\s+(.+)$", objective):
+                try:
+                    ref_line = int(match.group(1))
+                except ValueError:
+                    continue
+                raw_ref = match.group(2).strip()
+                if start <= ref_line <= end and raw_ref and raw_ref in window_text:
+                    broken_here.append(raw_ref)
+                    module_match = re.search(
+                        r"([A-Za-z0-9_./\\-]+\.py)\b", match.group(3))
+                    if module_match:
+                        broken_modules[raw_ref] = module_match.group(1)
+            code_context: list[str] = []
+            if repo_root:
+                root = Path(repo_root).resolve()
+                for raw_ref, module_rel in broken_modules.items():
+                    candidate_path = (root / module_rel).resolve()
+                    try:
+                        candidate_path.relative_to(root)
+                        module_lines = candidate_path.read_text(
+                            encoding="utf-8", errors="strict").splitlines()
+                    except (OSError, UnicodeDecodeError, ValueError):
+                        continue
+                    needle = raw_ref.rsplit(".", 1)[-1].lower()
+                    hit = next((i for i, text in enumerate(module_lines)
+                                if needle in text.lower()), None)
+                    if hit is None:
+                        continue
+                    lo, hi = max(0, hit - 6), min(len(module_lines), hit + 7)
+                    snippet = "\n".join(
+                        f"{i + 1}: {module_lines[i]}" for i in range(lo, hi))
+                    code_context.append(
+                        f"CURRENT CODE CONTEXT FROM {module_rel} "
+                        f"(read-only; use it to find the current name):\n{snippet}")
+            if len(window_text) > MAX_REWRITE_CHARS:
+                return None, (f"window {start}-{end} is {len(window_text)} chars "
+                              f"(cap {MAX_REWRITE_CHARS})")
+            user = (f"Change request:\n{objective}\n\n"
+                    f"You are editing FILE {rel}, lines {start} to {end} of {total}. "
+                    "The measured defect is inside THIS fragment: correct it here; "
+                    "returning the fragment unchanged fails the task. Return ONLY "
+                    "those lines, corrected."
+                    + (f" These exact obsolete identifiers MUST NOT remain: "
+                       f"{', '.join(broken_here)}." if broken_here else "")
+                    + (" Preserve the fragment's punctuation structure, including "
+                       "the same net opening/closing delimiters."
+                       if broken_here else "")
+                    + (f"\n\nSURROUNDING CONTEXT {context_start}-{context_end} "
+                       "(read-only; do not return it):\n"
+                       f"{surrounding}\n"
+                       + (("\n\n" + "\n\n".join(code_context) + "\n")
+                          if code_context else "")
+                       + f"EDITABLE LINES {start}-{end} (return exactly these):\n"
+                       f"{window_text}"))
+            est_in = count_tokens(system) + count_tokens(user)
+            reserve = count_tokens(window_text) + OUTPUT_RESERVE_TOKENS
+            window_budget = effective_input_window(reserve)
+            if est_in > window_budget:
+                return None, (f"window {start}-{end} needs ~{est_in} input tok but the local "
+                              f"context window leaves ~{window_budget} tok after a "
+                              f"~{reserve}-tok generation reserve")
+            # The expected answer is the same fragment plus a tiny edit.
+            # Without an output cap Ollama may keep a malformed JSON string
+            # alive until the whole remaining context is exhausted; the first
+            # real 81-line window did exactly that for >7 minutes. Twice the
+            # source estimate leaves room for JSON escaping and modest reflow.
+            output_cap = min(
+                1536,
+                max(384, (2 * count_tokens(window_text)) + 128),
+            )
+            content_schema = {
+                "type": "object",
+                "properties": {"content": {"type": "string"}},
+                "required": ["content"],
+                "additionalProperties": False,
+            }
+            replacement = None
+            last_failure = "no usable content returned"
+            for attempt_no in range(2):
+                attempt_user = user
+                if attempt_no:
+                    attempt_user += (
+                        "\n\nRETRY: Your previous answer was unusable or unchanged. "
+                        + (f"Remove or replace exactly: {', '.join(broken_here)}. "
+                           if broken_here else
+                           "The obsolete identifier MUST NOT remain. ")
+                        + "Rephrase that one "
+                        "line as ordinary prose if needed, keep the exact same number "
+                        "of lines, preserve its delimiter balance, and preserve all "
+                        "other text.")
+                try:
+                    msg = native_chat(
+                        host=self.host, model=model or self.model,
+                        messages=[{"role": "system", "content": system},
+                                  {"role": "user", "content": attempt_user}],
+                        force_json=content_schema, keep_alive=keep_alive_value(),
+                        # urllib's request is not cooperatively cancellable.
+                        # Bound each generation so a stop/wall-clock request
+                        # cannot be hidden behind the provider's 300 s default.
+                        timeout_s=min(float(timeout_s), 60.0), temperature=0.0,
+                        num_predict=output_cap, think=False)
+                    returned = extract_json(msg.get("content") or "{}").get("content")
+                except (ProviderHTTPError, ValueError) as exc:
+                    last_failure = f"model call failed: {exc}"
+                    continue
+                if not isinstance(returned, str) or not returned.strip():
+                    last_failure = "no content returned"
+                    continue
+                try:
+                    candidate = _window_replacement_lines(
+                        old_slice, returned, at_eof=(end == total))
+                except ValueError as exc:
+                    last_failure = f"refused: {exc}"
+                    continue
+                if candidate == old_slice:
+                    last_failure = "fragment came back unchanged"
+                    continue
+                remaining = [raw for raw in broken_here if raw in "".join(candidate)]
+                if remaining:
+                    last_failure = (
+                        "obsolete identifier(s) remained: " + ", ".join(remaining))
+                    continue
+                if broken_here:
+                    old_fragment = "".join(old_slice)
+                    new_fragment = "".join(candidate)
+                    changed_balance = next((
+                        (left, right)
+                        for left, right in (("(", ")"), ("[", "]"), ("{", "}"))
+                        if (old_fragment.count(left) - old_fragment.count(right))
+                        != (new_fragment.count(left) - new_fragment.count(right))
+                    ), None)
+                    if changed_balance:
+                        last_failure = (
+                            "delimiter balance changed for "
+                            f"{changed_balance[0]}{changed_balance[1]}")
+                        continue
+                replacement = candidate
+                break
+            if replacement is None:
+                return None, (f"window {start}-{end} failed after 2 attempts: "
+                              f"{last_failure}")
+            out[start - 1:end] = replacement
+            applied += 1
+        if not applied:
+            return None, "every window came back unchanged"
+        return "".join(out), None
+
     # -- full-file-rewrite write path --------------------------------------
 
-    def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy, slice_texts=None):
+    def _run_rewrite(self, objective, repo_root, paths, model, timeout_s, policy,
+                     slice_texts=None, rewrite_windows=None):
         """Apply a scoped write WITHOUT the tool loop. The live benchmark showed
         7B-class models narrate edits but never emit write_file calls -- yet the
         same model reliably returns the COMPLETE edited file as json. So: model
@@ -581,6 +985,8 @@ class OllamaProvider(Provider):
         skipped: dict[str, str] = {}
         dropped: list[str] = []            # rels whose slice context we shed to fit
         slice_texts = slice_texts or {}
+        rewrite_windows = rewrite_windows or {}
+        windowed: list[str] = []           # rels edited through a line window
         for raw_rel in paths[:MAX_REWRITE_FILES]:
             try:
                 target, rel = self._resolve(repo_root, raw_rel)
@@ -599,63 +1005,40 @@ class OllamaProvider(Provider):
                 skipped[rel] = "protected path"
                 continue
             if creating:
-                original = ""
+                disk_original = ""
             else:
                 try:
-                    original = target.read_text(encoding="utf-8", errors="replace")
-                except OSError as exc:
+                    disk_original = target.read_bytes().decode("utf-8")
+                except (OSError, UnicodeDecodeError) as exc:
                     skipped[rel] = f"unreadable: {exc}"
                     continue
-            if len(original) > MAX_REWRITE_CHARS:
-                skipped[rel] = "too large for full rewrite"
-                continue
-            system = (
-                "You are a careful software engineer. Apply the requested change and "
-                'return ONLY a json object of the form {"content": "<ENTIRE edited file>"}. '
-                "The value must be the complete file text -- every line, no omissions, "
-                "no markdown fences, no commentary. Preserve the existing style."
-            )
-            # Slice context (caller-gated) goes between the change request and the
-            # file body -- never for a greenfield CREATE (no neighborhood, and the
-            # index only slices paths that exist). had_slice lets us shed it to
-            # fit the window before skipping the file outright.
-            had_slice = (not creating) and (rel in slice_texts)
-            if creating:
-                user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
-                        "Create it: return the complete initial contents of this new file.")
-            elif had_slice:
-                user = (f"Change request:\n{objective}\n\n"
-                        "Project context (distilled, read-only -- the neighborhood of this file):\n"
-                        f"{slice_texts[rel]}\n\nFILE {rel} (current contents):\n{original}")
-            else:
-                user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
-            # OUTPUT-RESERVE window check (never let the server truncate a rewrite).
-            # count_tokens is cl100k -> OVER-counts qwen tokens -> we over-skip
-            # (honest escalation) rather than under-count into silent truncation.
-            est_in = count_tokens(system) + count_tokens(user)
-            output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
-            window = effective_input_window(output_reserve)
-            if est_in > window:
-                if had_slice:  # shed the distilled context first, then re-check
-                    user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
-                    dropped.append(rel)
-                    had_slice = False
-                    est_in = count_tokens(system) + count_tokens(user)
-                if est_in > window:
-                    skipped[rel] = (f"file needs ~{est_in} input tok but the local context "
-                                    f"window leaves ~{window} tok after a ~{output_reserve}-tok "
-                                    "generation reserve")
+            # WINDOWED path: the caller named the lines that are wrong, so the
+            # model is asked for those lines instead of a reprint. No hint (or
+            # an unusable one) falls through to the unchanged full-file
+            # behaviour below -- a window is never invented here.
+            windows = ([] if creating else _normalize_rewrite_windows(
+                rewrite_windows.get(rel), disk_original.count("\n") + 1))
+            if windows:
+                # Keep raw decoded line endings for byte-stable splicing.
+                original = disk_original
+                content, reason = self._rewrite_by_window(
+                    objective, rel, original, windows, model, timeout_s,
+                    repo_root=repo_root)
+                if reason:
+                    skipped[rel] = reason
                     continue
-            try:
-                msg = native_chat(host=self.host, model=model or self.model,
-                                  messages=[{"role": "system", "content": system},
-                                            {"role": "user", "content": user}],
-                                  force_json=True, keep_alive=keep_alive_value(),
-                                  timeout_s=timeout_s, temperature=0.0)
-                content = extract_json(msg.get("content") or "{}").get("content")
-            except (ProviderHTTPError, ValueError) as exc:
-                skipped[rel] = f"model call failed: {exc}"
-                continue
+                windowed.append(rel)
+            else:
+                # Preserve the pre-window full-rewrite contract: text-mode
+                # reads expose universal newlines to the prompt and text-mode
+                # writes restore the platform convention.
+                original = (disk_original.replace("\r\n", "\n").replace("\r", "\n"))
+                content, reason = self._full_file_content(
+                    objective, rel, original, creating, slice_texts, dropped,
+                    model, timeout_s)
+                if reason:
+                    skipped[rel] = reason
+                    continue
             if not isinstance(content, str) or not content.strip():
                 skipped[rel] = "no content returned"
                 continue
@@ -681,15 +1064,30 @@ class OllamaProvider(Provider):
                 if root in parent.parents and not parent.exists():
                     self._created_dirs.append(str(parent))
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            if windows:
+                # Do not route through text-mode newline translation. Window
+                # splicing promises that bytes outside the measured fragment
+                # stay identical even when the checkout uses LF on Windows.
+                target.write_bytes(content.encode("utf-8"))
+            else:
+                target.write_text(content, encoding="utf-8")
             changed.append(rel)
             self._written.append(rel)  # ground truth, mirrors the tool-loop write site
 
-        summary = (f"Applied full-file rewrite to: {', '.join(changed)}."
-                   if changed else "Rewrite produced no applicable change.")
+        # WHICH KIND of rewrite landed is provenance, not decoration: a windowed
+        # edit saw only a fragment of the file, so a reviewer reading "rewrite"
+        # must not assume the model considered the whole document.
+        if changed:
+            how = ", ".join(f"{rel} ({'windowed' if rel in windowed else 'full-file'})"
+                            for rel in changed)
+            summary = f"Applied rewrite to: {how}."
+        else:
+            summary = "Rewrite produced no applicable change."
         if skipped:
             summary += " Skipped: " + "; ".join(f"{k} ({v})" for k, v in skipped.items())
         handoff: dict[str, Any] = {}
+        if windowed:
+            handoff["windowed_rewrite"] = windowed
         if skipped:
             handoff["skipped"] = skipped
         if dropped:
@@ -716,6 +1114,10 @@ class OllamaProvider(Provider):
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
         slice_texts: dict[str, str] | None = None,  # rel -> caller-gated distilled context
+        # rel -> line windows to correct instead of reprinting the file. See
+        # _normalize_rewrite_windows for the accepted item shapes. Absent (the
+        # default) keeps the full-file behaviour exactly as it was.
+        rewrite_windows: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         # BEFORE any prompt is built: every path below this line puts repository
         # content on the wire (the rewrite prompt carries whole file bodies, the
@@ -748,7 +1150,8 @@ class OllamaProvider(Provider):
             if writable and paths and len(paths) <= MAX_REWRITE_FILES:
                 # Scoped write -> full-file rewrite (deterministic apply; the
                 # benchmark proved the tool loop never actually writes at 7B).
-                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s, policy, slice_texts)
+                report = self._run_rewrite(objective, repo_root, paths, model, timeout_s,
+                                           policy, slice_texts, rewrite_windows)
             else:
                 report = self._run_agentic(objective, repo_root, paths, agent, model, timeout_s,
                                            policy, writable, slice_texts)

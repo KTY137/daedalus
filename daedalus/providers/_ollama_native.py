@@ -149,6 +149,8 @@ def native_chat(
     # many places that still pass True.
     force_json: object = False,
     num_ctx: int | None = None,
+    num_predict: int | None = None,
+    think: bool | None = None,
     keep_alive: str | None = None,
     timeout_s: int = 300,
     temperature: float = 0.0,
@@ -158,6 +160,12 @@ def native_chat(
 
     ``options.num_ctx`` (defaulting to :func:`num_ctx_value`) is the whole point
     of this path -- it is the only way to lift the ~2050-token ``/v1`` cap.
+    ``num_predict`` is optional and omitted by default, preserving every
+    existing caller; bounded rewrite callers use it to prevent a malformed
+    JSON generation from consuming the entire remaining context window.
+    ``think`` is likewise opt-in. Structured edit callers disable hidden
+    reasoning so a bounded generation cannot spend its entire token allowance
+    before emitting the required JSON value.
     ``format:"json"`` is sent only when ``force_json``; ``keep_alive`` and
     ``tools`` only when provided. Raises :class:`ProviderHTTPError` on any HTTP
     error or an unreachable host, mirroring ``_openai_compat._post``.
@@ -169,6 +177,10 @@ def native_chat(
         "stream": False,
         "options": {"num_ctx": num_ctx or num_ctx_value(), "temperature": temperature},
     }
+    if num_predict is not None:
+        body["options"]["num_predict"] = max(1, int(num_predict))
+    if think is not None:
+        body["think"] = bool(think)
     if force_json:
         # A dict is a JSON *schema*, and that distinction is load-bearing.
         # ``format:"json"`` only promises valid JSON of any shape; a schema
@@ -206,6 +218,9 @@ def native_chat(
         raise ProviderHTTPError(f"HTTP {exc.code} from {url}: {detail}") from exc
     except urllib.error.URLError as exc:
         raise ProviderHTTPError(f"cannot reach {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise ProviderHTTPError(
+            f"request to {url} timed out after {timeout_s:g}s") from exc
 
     message = payload.get("message")
     if not isinstance(message, dict):
