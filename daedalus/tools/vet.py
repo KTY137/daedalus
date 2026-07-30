@@ -56,6 +56,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from ..sensitivity import lane_for_host
 
@@ -202,18 +203,51 @@ def load_allowances(repo_root) -> tuple[dict[str, dict[str, str]], list[str]]:
         return {}, []
     except (OSError, ValueError) as exc:
         return {}, [f"{p}: {exc.__class__.__name__}: {exc}"]
-    out: dict[str, dict[str, str]] = {}
+    out: dict[str, dict[str, Any]] = {}
     errs: list[str] = []
     for subject, rules in (raw.get("allow") or {}).items():
         if not isinstance(rules, dict):
             errs.append(f"{p}: allow[{subject!r}] must be an object of rule -> reason")
             continue
-        clean = {}
-        for rid, reason in rules.items():
-            if not isinstance(reason, str) or not reason.strip():
-                errs.append(f"{p}: allow[{subject!r}][{rid!r}] needs a non-empty reason")
+        clean: dict[str, Any] = {}
+        for rid, entry in rules.items():
+            # TWO accepted shapes, and the PINNED one is the point. An
+            # adversarial review on 2026-07-30 found this loader rejecting the
+            # exact form `apply_allowances` reads -- it required `entry` to be a
+            # str, so `{"reason": ..., "body_sha256": ...}` was discarded with a
+            # "needs a non-empty reason" error and the whole subject vanished.
+            #
+            # Consequence, measured: `pinned` could never be non-empty, so
+            # `mcp_spec_digest`, the `identity=` arguments and the
+            # pin-mismatch refusal were all unreachable, and EVERY allowance
+            # anyone could actually write was the weak name-keyed kind. The
+            # byte-binding written to close the name-inheritance breach was
+            # present in the reader, absent from the writer, and documented as
+            # working. It failed closed (the BLOCK stood) but it was reported
+            # as a mitigation that did not exist.
+            if isinstance(entry, dict):
+                reason = entry.get("reason")
+                pinned = entry.get("body_sha256")
+                if not isinstance(reason, str) or not reason.strip():
+                    errs.append(f"{p}: allow[{subject!r}][{rid!r}] needs a "
+                                "non-empty reason")
+                    continue
+                if pinned is not None and (not isinstance(pinned, str)
+                                           or not pinned.strip()):
+                    errs.append(f"{p}: allow[{subject!r}][{rid!r}].body_sha256 "
+                                "must be a non-empty string when present")
+                    continue
+                item: dict[str, str] = {"reason": reason.strip()}
+                if pinned:
+                    item["body_sha256"] = pinned.strip()
+                clean[str(rid)] = item
+            elif isinstance(entry, str) and entry.strip():
+                clean[str(rid)] = entry.strip()
+            else:
+                errs.append(f"{p}: allow[{subject!r}][{rid!r}] must be a "
+                            "non-empty reason string, or an object with a "
+                            "'reason' and an optional 'body_sha256'")
                 continue
-            clean[str(rid)] = reason.strip()
         if clean:
             out[str(subject)] = clean
     return out, errs
@@ -279,12 +313,26 @@ def apply_allowances(findings, subject: str, allowances, *, identity: str = "") 
             pinned = str(entry.get("body_sha256") or "")
         else:
             reason, pinned = str(entry), ""
-        if pinned and identity and pinned != identity:
-            # The acknowledgement names other bytes. Refuse it and SAY so, rather
+        if pinned and pinned != identity:
+            # The acknowledgement names other bytes -- or names bytes we could
+            # not compute an identity for at all. Refuse it and SAY so, rather
             # than silently falling through to BLOCK with no explanation.
+            #
+            # `identity` is deliberately NOT part of this condition any more.
+            # It used to read `if pinned and identity and pinned != identity`,
+            # which fails OPEN in the one case that matters most: a pinned
+            # allowance checked against an EMPTY identity was applied, and
+            # rendered with no UNPINNED note, so the strongest-looking form --
+            # verified against nothing -- was indistinguishable from a real pin
+            # match. A pin whose counterpart cannot be computed is a pin that
+            # cannot be honoured.
+            why = (" (an allowance exists but pins a different body_sha256, so "
+                   "it does not apply here)" if identity else
+                   " (an allowance exists and pins a body_sha256, but no "
+                   "identity could be computed for this subject, so the pin "
+                   "cannot be verified and is refused)")
             out.append(Finding(f.rule, f.severity, f.where, f.line, f.excerpt,
-                               f.why + " (an allowance exists but pins a different "
-                                       "body_sha256, so it does not apply here)"))
+                               f.why + why))
             continue
         note = reason if pinned else reason + "  [UNPINNED: this allowance names a "
         if not pinned:

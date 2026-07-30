@@ -8,6 +8,7 @@ promote a capability to invisible.
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -208,6 +209,101 @@ class McpServers(unittest.TestCase):
         v = vet.vet_mcp_server("weird", "just-a-string")
         self.assertEqual(v.outcome, vet.UNSCANNABLE)
         self.assertFalse(v.cleared)
+
+
+class PinnedAllowanceRoundTrip(unittest.TestCase):
+    """An allowance must bind to BYTES, and must survive its own loader.
+
+    ADVERSARIAL REVIEW 2026-07-30 (Cerberus, BLOCKING): it did not. The reader
+    (``apply_allowances``) accepted ``{"reason": ..., "body_sha256": ...}``; the
+    writer (``load_allowances``) required a bare string and discarded that exact
+    shape with a "needs a non-empty reason" error, dropping the whole subject.
+
+    So ``pinned`` could never be non-empty: ``mcp_spec_digest``, every
+    ``identity=`` argument and the pin-mismatch refusal were unreachable, and
+    the only allowance anyone could write was the weak name-keyed kind -- which
+    means the name-inheritance breach the pin was written to close was still
+    open. It failed CLOSED (the BLOCK stood), but a mitigation that does not
+    exist was documented as working, and no test round-tripped it through disk.
+
+    These tests do that round-trip, which is the only way this class of defect
+    is caught: exercising reader and writer separately cannot see it.
+    """
+
+    def _allowances(self, payload):
+        d = tempfile.mkdtemp()
+        (Path(d) / ".agentenv").mkdir()
+        (Path(d) / ".agentenv" / "tool-allowances.json").write_text(
+            json.dumps(payload), encoding="utf-8")
+        return vet.load_allowances(d)
+
+    def _block(self):
+        return [vet.Finding("exec.subprocess", vet.BLOCK, "x.md", 1,
+                            "subprocess.run", "runs a process")]
+
+    def test_the_pinned_shape_survives_the_loader(self):
+        allow, errs = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"reason": "reviewed by hand",
+                                "body_sha256": "aaaa"}}}})
+        self.assertEqual(errs, [])
+        self.assertEqual(allow["room"]["exec.subprocess"],
+                         {"reason": "reviewed by hand", "body_sha256": "aaaa"})
+
+    def test_matching_pin_downgrades_without_an_unpinned_note(self):
+        allow, _ = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"reason": "reviewed", "body_sha256": "aaaa"}}}})
+        f = vet.apply_allowances(self._block(), "room", allow, identity="aaaa")[0]
+        self.assertEqual(f.severity, vet.REVIEW)
+        self.assertNotIn("UNPINNED", f.acknowledged or "")
+
+    def test_mismatched_pin_stays_blocked(self):
+        # The name-inheritance breach: a DIFFERENT skill answering to "room"
+        # must not inherit the acknowledgement written for the reviewed one.
+        allow, _ = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"reason": "reviewed", "body_sha256": "aaaa"}}}})
+        f = vet.apply_allowances(self._block(), "room", allow, identity="bbbb")[0]
+        self.assertEqual(f.severity, vet.BLOCK)
+        self.assertIn("different body_sha256", f.why)
+
+    def test_pin_with_no_computable_identity_is_refused(self):
+        # Was fail-OPEN: `if pinned and identity and pinned != identity` applied
+        # the allowance when identity was empty, and rendered it with no
+        # UNPINNED note -- so a pin verified against nothing looked exactly like
+        # a verified pin match.
+        allow, _ = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"reason": "reviewed", "body_sha256": "aaaa"}}}})
+        f = vet.apply_allowances(self._block(), "room", allow, identity="")[0]
+        self.assertEqual(f.severity, vet.BLOCK)
+        self.assertIn("cannot be verified", f.why)
+
+    def test_bare_string_still_works_and_is_reported_unpinned(self):
+        # The weak form must keep working -- allowances are written by hand and
+        # demanding a digest up front means nobody writes one -- but it must be
+        # visibly weaker rather than silently equivalent.
+        allow, errs = self._allowances({"allow": {"room": {
+            "exec.subprocess": "because vendors"}}})
+        self.assertEqual(errs, [])
+        f = vet.apply_allowances(self._block(), "room", allow, identity="aaaa")[0]
+        self.assertEqual(f.severity, vet.REVIEW)
+        self.assertIn("UNPINNED", f.acknowledged or "")
+
+    def test_a_pin_that_is_not_a_string_is_an_error_not_a_silent_drop(self):
+        allow, errs = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"reason": "ok", "body_sha256": 17}}}})
+        self.assertTrue(any("body_sha256" in e for e in errs), errs)
+        self.assertNotIn("room", allow)
+
+    def test_a_reasonless_object_is_an_error(self):
+        allow, errs = self._allowances({"allow": {"room": {
+            "exec.subprocess": {"body_sha256": "aaaa"}}}})
+        self.assertTrue(any("non-empty reason" in e for e in errs), errs)
+        self.assertNotIn("room", allow)
+
+    def test_a_junk_entry_names_both_accepted_shapes(self):
+        allow, errs = self._allowances({"allow": {"room": {
+            "exec.subprocess": ["nope"]}}})
+        self.assertTrue(any("body_sha256" in e for e in errs), errs)
+        self.assertNotIn("room", allow)
 
 
 class Determinism(unittest.TestCase):
