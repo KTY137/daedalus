@@ -132,8 +132,15 @@ from daedalus.primary_tree import (
     nearest_existing,
     overlap_reason as _overlap_reason,
 )
+from daedalus.schemas import ContractProvenance
+from daedalus.spine.envelope import current_trace_id
 from daedalus.spine.ledger import SpineLedger, canonical_json
-from daedalus.storage import StorageUnavailable, require_storage
+from daedalus.storage import (
+    ArtifactLocator,
+    ArtifactStore,
+    StorageUnavailable,
+    require_storage,
+)
 
 __all__ = [
     "ATTEMPT_STATES",
@@ -706,6 +713,8 @@ class AttemptResult:
     cleanup_error: str | None = None
     ledger_error: str | None = None
     artifact_path: str | None = None
+    artifact_locator: dict[str, Any] | None = None
+    persist_error: str | None = None
     runner_detail: Any = None
     reaped: tuple = ()
     reap_error: str | None = None
@@ -739,6 +748,8 @@ class AttemptResult:
             "cleanup_error": self.cleanup_error,
             "ledger_error": self.ledger_error,
             "artifact_path": self.artifact_path,
+            "artifact_locator": _jsonable(self.artifact_locator),
+            "persist_error": self.persist_error,
             "runner_detail": _jsonable(self.runner_detail),
             "reaped": _jsonable(list(self.reaped)),
             "reap_error": self.reap_error,
@@ -1296,6 +1307,8 @@ class TaskAttempt:
         error: str | None = None
         runner_detail: Any = None
         artifact_path: str | None = None
+        artifact_locator: dict[str, Any] | None = None
+        persist_error: str | None = None
 
         try:
             if self._is_cancelled():
@@ -1317,7 +1330,10 @@ class TaskAttempt:
                     error = f"patch capture failed: {type(e).__name__}: {e}"
 
             if artifact is not None and self._artifact_dir is not None:
-                artifact_path, persist_error = self._persist(artifact)
+                locator, persist_error = self._persist_to_store(artifact)
+                if locator is not None:
+                    artifact_path = str(locator.blob_path)
+                    artifact_locator = locator.summary()
                 if persist_error and error is None:
                     error = persist_error
 
@@ -1392,6 +1408,7 @@ class TaskAttempt:
             base_revision=base_revision, error=error,
             worktree_path=str(worktree), worktree_removed=removed,
             cleanup_error=cleanup_error, artifact_path=artifact_path,
+            artifact_locator=artifact_locator, persist_error=persist_error,
             runner_detail=runner_detail)
 
     # -- steps -------------------------------------------------------------- #
@@ -1509,10 +1526,22 @@ class TaskAttempt:
                           duration_s=time.monotonic() - started)
 
     def _persist(self, artifact: PatchArtifact) -> tuple[str | None, str | None]:
-        """Write the patch bytes beside the ledger, if a directory was given.
+        """Compatibility projection of :meth:`_persist_to_store`.
 
-        Off by default: the artifact is returned to the caller, and writing it
-        anywhere is a decision about somebody else's disk.
+        Existing direct callers receive the verified blob path and any error.
+        The normal run path also retains the immutable metadata locator.
+        """
+        # Call through the class so the long-standing fence test's deliberately
+        # tiny stand-in object (which binds only this compatibility method)
+        # still exercises the real implementation.
+        locator, error = TaskAttempt._persist_to_store(self, artifact)
+        return (str(locator.blob_path) if locator is not None else None, error)
+
+    def _persist_to_store(
+            self,
+            artifact: PatchArtifact
+            ) -> tuple[ArtifactLocator | None, str | None]:
+        """Put candidate bytes through the canonical content-addressed store.
 
         THE ONE PLACE THIS MODULE WRITES A CALLER-CHOSEN PATH, and until now it
         wrote it unchecked. Everything else here is fenced by construction --
@@ -1526,24 +1555,55 @@ class TaskAttempt:
         docstring's claim that this class cannot write the primary checkout was
         true of every path except this one.
 
-        So the fence runs BEFORE ``mkdir``: refusing after the directory tree
-        exists would still have left a mark on the checkout. The refusal is
-        reported, not raised, because persistence is a side errand -- losing a
-        gated candidate to a bad output directory would be strictly worse than
-        not writing the file.
+        The fence still runs BEFORE the store can create a directory. The store
+        then verifies ``diff_sha256`` against the authoritative bytes, publishes
+        them atomically without replacing an existing object, and emits a
+        provenance-bearing immutable locator. A corrupted existing object is a
+        refusal, not something an attempt silently repairs.
+
+        Failure is reported rather than raised because persistence is a side
+        errand -- losing an in-memory gated candidate to a bad output directory
+        would be strictly worse than retaining it with an explicit error.
         """
+        store = ArtifactStore(self._artifact_dir)
         try:
-            target = assert_write_allowed(
-                Path(self._artifact_dir) / f"{artifact.diff_sha256}.patch",
-                self.repo_root, what="to persist a candidate patch to")
+            # Check the root, not merely one derived blob path: one put writes
+            # both a blob and a locator beneath it.
+            assert_write_allowed(
+                store.root,
+                self.repo_root,
+                what="to persist a candidate artifact store to")
         except PrimaryCheckoutWrite as e:
             return None, str(e)
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(artifact.diff_bytes)
-            return str(target), None
-        except OSError as e:
-            return None, f"artifact could not be persisted: {e}"
+            task = getattr(self, "task", None)
+            task_digest = getattr(task, "digest", None)
+            provenance = ContractProvenance(
+                origin="daedalus.spine.attempt.TaskAttempt",
+                source_revision=artifact.base_revision,
+                created_at=artifact.created_ts,
+                input_digests=(
+                    (str(task_digest),) if task_digest else ()
+                ),
+                trace_id=current_trace_id(),
+            )
+            locator = store.put_bytes(
+                artifact.diff_bytes,
+                expected_sha256=artifact.diff_sha256,
+                media_type="text/x-diff",
+                metadata={
+                    "kind": "candidate_patch",
+                    "task_id": artifact.task_id,
+                    "branch": artifact.branch,
+                    "changed_paths": list(artifact.changed_paths),
+                    "filename_hint": f"{artifact.task_id}.patch",
+                },
+                provenance=provenance.to_dict(),
+            )
+            return locator, None
+        except Exception as e:                 # noqa: BLE001 - reported side effect
+            return None, (
+                f"artifact could not be persisted: {type(e).__name__}: {e}")
 
     def _cleanup(self, worktree: Path) -> tuple[bool, str | None]:
         if self._keep_worktree:
@@ -1570,6 +1630,9 @@ class TaskAttempt:
             "cleanup_error": kw.get("cleanup_error"),
             "worktree_removed": kw.get("worktree_removed", False),
             "artifact": artifact.summary() if artifact else None,
+            "artifact_path": kw.get("artifact_path"),
+            "artifact_locator": kw.get("artifact_locator"),
+            "persist_error": kw.get("persist_error"),
             "gates": gates.summary() if gates else None,
             "error": kw.get("error"),
         }

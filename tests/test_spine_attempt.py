@@ -32,7 +32,7 @@ from daedalus.spine.attempt import (
     pytest_gate_argv,
 )
 from daedalus.spine.ledger import STATE_COMPLETED, STATE_FAILED, SpineLedger
-from daedalus.storage import StorageUnavailable
+from daedalus.storage import ArtifactStore, StorageUnavailable
 
 
 # --------------------------------------------------------------------------- #
@@ -964,7 +964,19 @@ def test_artifact_is_persisted_only_when_a_directory_is_given(
     assert on.artifact_path is not None
     written = Path(on.artifact_path)
     assert written.read_bytes() == on.artifact.diff_bytes
-    assert written.name == f"{on.artifact.diff_sha256}.patch"
+    assert written.name == on.artifact.diff_sha256[2:]
+    assert on.artifact_locator is not None
+    assert on.artifact_locator["uri"] == f"sha256:{on.artifact.diff_sha256}"
+    assert Path(on.artifact_locator["local_paths"]["locator"]).is_file()
+    assert on.persist_error is None
+    locator_sha256 = on.artifact_locator["locator_uri"].rsplit(":", 1)[1]
+    store = ArtifactStore(out_dir)
+    assert store.verify(store.load_locator(locator_sha256)).blob_path == written
+
+    persisted_result = ledger.get(on.intent_id).result
+    assert persisted_result["artifact_path"] == str(written)
+    assert persisted_result["artifact_locator"] == on.artifact_locator
+    assert persisted_result["persist_error"] is None
     assert repo.resolve() not in written.resolve().parents
 
     assert_primary_untouched(repo, head)
