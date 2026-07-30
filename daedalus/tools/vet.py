@@ -253,6 +253,42 @@ def load_allowances(repo_root) -> tuple[dict[str, dict[str, str]], list[str]]:
     return out, errs
 
 
+#: Environment variables whose VALUE decides what code runs, and which are
+#: therefore hashed in full by :func:`mcp_spec_digest` rather than by key alone.
+#:
+#: The test for membership is not "is it sensitive" -- it is: **can changing this
+#: value alone cause different code to execute, with the command line unchanged?**
+#: A credential fails that test (it authenticates; it does not redirect
+#: execution) and is deliberately absent, so rotating one still does not
+#: invalidate a pinned allowance.
+#:
+#: Measured entry, and the one that made this necessary:
+#: ``NODE_OPTIONS=--require /tmp/evil.js`` collided with a reviewed
+#: ``NODE_OPTIONS=--max-old-space-size=4096``.
+#:
+#: Compared case-insensitively: Windows environment variables are
+#: case-insensitive, so a check against the exact spelling would be evaded by
+#: ``node_options``.
+_EXEC_DIRECTING_ENV = frozenset({
+    # interpreter flags that can load arbitrary code
+    "NODE_OPTIONS", "PYTHONSTARTUP", "PYTHONPATH", "PYTHONHOME",
+    "PYTHONEXECUTABLE", "RUBYOPT", "PERL5OPT", "PERL5LIB",
+    # dynamic-linker injection
+    "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT",
+    "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+    # which binary gets found at all
+    "PATH", "PATHEXT", "VIRTUAL_ENV", "CONDA_PREFIX",
+    # where packages are fetched from -- redirects the SUPPLY, which for an
+    # `npx`/`uvx` server is the entire body of code that will run
+    "NPM_CONFIG_REGISTRY", "npm_config_registry", "YARN_REGISTRY",
+    "PIP_INDEX_URL", "PIP_EXTRA_INDEX_URL", "UV_INDEX_URL",
+    "UV_DEFAULT_INDEX", "CARGO_REGISTRIES_CRATES_IO_PROTOCOL",
+    # tool-specific hooks that run code on startup
+    "BASH_ENV", "ENV", "PROMPT_COMMAND", "GIT_SSH_COMMAND",
+    "GIT_EXTERNAL_DIFF", "GIT_PROXY_COMMAND",
+})
+
+
 def mcp_spec_digest(spec) -> str:
     """A stable identity for an MCP server: what will actually be launched.
 
@@ -262,11 +298,46 @@ def mcp_spec_digest(spec) -> str:
     body to pin. An MCP server has no body: it is a command line. So its identity
     is that command line.
 
-    Env VALUES are deliberately excluded and only the KEYS are hashed. Including
-    values would make the digest churn every time a token rotated, which quietly
+    Most env VALUES are excluded and only the KEYS are hashed. Including every
+    value would make the digest churn each time a token rotated, which quietly
     invalidates every pinned allowance and teaches operators to write unpinned
-    ones instead -- the exact failure this function exists to prevent. The keys
-    still capture WHAT is being injected, which is the part a reviewer judged.
+    ones instead -- the exact failure this function exists to prevent.
+
+    ADVERSARIAL REVIEW 2026-07-30 showed that "keys capture WHAT is being
+    injected" is false for a specific and dangerous class of variable. Proven
+    collisions, same digest, materially different server:
+
+        NODE_OPTIONS=--max-old-space-size=4096   vs
+        NODE_OPTIONS=--require /tmp/evil.js      -> e85a5746d6b3...
+
+    The second is arbitrary code execution into a server whose digest still
+    matched the one a human reviewed. So the split is no longer keys-vs-values,
+    it is **does the value decide what executes**:
+
+    * ``_EXEC_DIRECTING_ENV`` values are hashed in full. They select an
+      interpreter, a preload, a module search path or a package registry, and
+      two servers differing only there are not the same server.
+    * every other value is excluded, so token rotation still does not invalidate
+      a pin. That was the right instinct and it is preserved exactly.
+
+    Three further collisions from the same review, all closed here:
+
+    * ``cwd`` was in nothing. ``/home/me/reviewed`` and ``/tmp/attacker``
+      hashed identically.
+    * ``type``/``url``/``headers`` were in nothing, so EVERY command-less
+      (remote) spec shared one constant digest -- a single pinned allowance
+      would have covered every remote server anyone could add.
+    * a non-dict ``env`` (``[["API_KEY","x"]]``, ``"API_KEY=x"``) hashed the
+      same as a MISSING env, so malformed config was indistinguishable from
+      absent config. Its shape is now recorded instead.
+
+    Header VALUES stay excluded for the original reason: that is where bearer
+    tokens live, and their keys already say what is being sent.
+
+    Changing this changes every digest. That is safe to do exactly now and
+    would not have been a week from now: until the loader was fixed in the same
+    beat as this review, a pinned allowance could not be expressed at all, so
+    there are no pins in the wild to invalidate.
     """
     import hashlib
     import json as _json
@@ -274,10 +345,33 @@ def mcp_spec_digest(spec) -> str:
     if not isinstance(spec, dict):
         return ""
     env = spec.get("env")
+    headers = spec.get("headers")
+    if isinstance(env, dict):
+        env_keys = sorted(str(k) for k in env)
+        env_shape = "dict"
+        # Sorted pairs, not a dict, so the JSON encoding cannot depend on
+        # insertion order for two specs a reader would call identical.
+        exec_env = sorted(
+            (str(k), str(v)) for k, v in env.items()
+            if str(k).upper() in _EXEC_DIRECTING_ENV)
+    else:
+        env_keys = []
+        # NOT "absent". A list-of-pairs or a "K=V" string is a configuration
+        # mistake, and a mistake that hashes as absent is a mistake a pinned
+        # allowance silently covers.
+        env_shape = "absent" if env is None else type(env).__name__
+        exec_env = []
     canonical = {
         "command": str(spec.get("command") or ""),
         "args": [str(a) for a in (spec.get("args") or [])],
-        "env_keys": sorted(str(k) for k in env) if isinstance(env, dict) else [],
+        "cwd": str(spec.get("cwd") or ""),
+        "type": str(spec.get("type") or ""),
+        "url": str(spec.get("url") or ""),
+        "header_keys": (sorted(str(k) for k in headers)
+                        if isinstance(headers, dict) else []),
+        "env_keys": env_keys,
+        "env_shape": env_shape,
+        "exec_directing_env": exec_env,
     }
     blob = _json.dumps(canonical, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()

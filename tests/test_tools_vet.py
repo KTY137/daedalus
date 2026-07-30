@@ -306,6 +306,95 @@ class PinnedAllowanceRoundTrip(unittest.TestCase):
         self.assertNotIn("room", allow)
 
 
+class McpDigestBindsToWhatRuns(unittest.TestCase):
+    """The digest must separate servers that would run different code.
+
+    ADVERSARIAL REVIEW 2026-07-30 proved four collisions, each one a pinned
+    allowance silently covering a server nobody reviewed. The docstring's claim
+    -- "the keys still capture WHAT is being injected" -- is false for any
+    variable whose VALUE selects an interpreter, a preload or a registry.
+
+    The rule these tests pin is not "hash more". It is: does the value decide
+    what executes? A credential does not, and must still be excluded, or
+    rotating a token invalidates every pin and operators go back to writing the
+    weak name-keyed form.
+    """
+
+    def d(self, **spec):
+        return vet.mcp_spec_digest(spec)
+
+    def test_node_options_code_injection_is_not_the_same_server(self):
+        reviewed = self.d(command="npx", args=["-y", "pkg"],
+                          env={"NODE_OPTIONS": "--max-old-space-size=4096"})
+        hostile = self.d(command="npx", args=["-y", "pkg"],
+                         env={"NODE_OPTIONS": "--require /tmp/evil.js"})
+        self.assertNotEqual(reviewed, hostile)
+
+    def test_exec_directing_env_is_matched_case_insensitively(self):
+        # Windows environment variables are case-insensitive, so a check against
+        # the exact spelling would be evaded by lowercasing the name.
+        a = self.d(command="x", env={"node_options": "--require a.js"})
+        b = self.d(command="x", env={"node_options": "--require b.js"})
+        self.assertNotEqual(a, b)
+
+    def test_a_rotated_credential_does_not_invalidate_the_pin(self):
+        # The original instinct, preserved exactly: a token authenticates, it
+        # does not redirect execution.
+        a = self.d(command="x", env={"API_KEY": "aaa", "TOKEN": "111"})
+        b = self.d(command="x", env={"API_KEY": "bbb", "TOKEN": "222"})
+        self.assertEqual(a, b)
+
+    def test_adding_a_credential_KEY_does_change_the_digest(self):
+        # Which values are sent is a rotation detail; WHICH VARIABLES are
+        # injected at all is a fact a reviewer judged.
+        self.assertNotEqual(self.d(command="x", env={"API_KEY": "a"}),
+                            self.d(command="x", env={"API_KEY": "a", "EXTRA": "b"}))
+
+    def test_cwd_is_part_of_identity(self):
+        self.assertNotEqual(self.d(command="x", cwd="/home/me/reviewed"),
+                            self.d(command="x", cwd="/tmp/attacker"))
+
+    def test_remote_servers_do_not_all_share_one_digest(self):
+        # Was a CONSTANT for every command-less spec, so a single pinned
+        # allowance covered every remote server anyone could ever add.
+        good = self.d(type="http", url="https://good.example/mcp")
+        evil = self.d(type="http", url="https://evil.tld/mcp")
+        self.assertNotEqual(good, evil)
+        self.assertNotEqual(good, self.d(type="http", url="https://good.example/mcp",
+                                        headers={"Authorization": "x"}))
+
+    def test_header_values_stay_excluded(self):
+        # Same reason as credentials: that is where bearer tokens live, and the
+        # keys already say what is being sent.
+        self.assertEqual(self.d(type="http", url="https://a/mcp",
+                                headers={"Authorization": "Bearer aaa"}),
+                         self.d(type="http", url="https://a/mcp",
+                                headers={"Authorization": "Bearer bbb"}))
+
+    def test_a_malformed_env_is_not_indistinguishable_from_no_env(self):
+        # A list-of-pairs or a "K=V" string is a configuration mistake, and a
+        # mistake that hashes as absent is a mistake a pin silently covers.
+        absent = self.d(command="x")
+        for malformed in ([["API_KEY", "x"]], "API_KEY=x", 17):
+            with self.subTest(malformed=malformed):
+                self.assertNotEqual(absent, self.d(command="x", env=malformed))
+
+    def test_command_and_args_splitting_still_does_not_collide(self):
+        # Verified as already-correct by the same review; pinned so it stays so.
+        self.assertNotEqual(self.d(command="npx -y", args=["pkg"]),
+                            self.d(command="npx", args=["-y", "pkg"]))
+
+    def test_a_non_dict_spec_has_no_identity(self):
+        self.assertEqual(vet.mcp_spec_digest("just-a-string"), "")
+        self.assertEqual(vet.mcp_spec_digest(None), "")
+
+    def test_the_digest_is_deterministic_and_order_independent(self):
+        a = vet.mcp_spec_digest({"command": "x", "env": {"B": "1", "A": "2"}})
+        b = vet.mcp_spec_digest({"env": {"A": "2", "B": "1"}, "command": "x"})
+        self.assertEqual(a, b)
+        self.assertEqual(len(a), 64)
+
+
 class Determinism(unittest.TestCase):
     def test_the_same_bytes_produce_identical_findings(self):
         text = ("import subprocess\nsubprocess.run(['x'])\n"
