@@ -33,7 +33,9 @@ import {
 import { useTheme } from './hooks/useTheme';
 import { useEventSource } from './hooks/useEventSource';
 import { ThemeEditor } from './components/ThemeEditor';
+import { MissionControl } from './components/MissionControl';
 import './views/spaces.css';
+import './mission-control.css';
 import { GraphSpace } from './views/GraphSpace';
 import { KnowledgeSpace } from './views/KnowledgeSpace';
 import { useLoop } from './views/useLoop';
@@ -68,6 +70,7 @@ import {
   getDraft,
   getDrafts,
   getEnvStatus,
+  getHealth,
   getHierarchy,
   getProjects,
   getProviderStatus,
@@ -80,6 +83,7 @@ import {
   type DraftDetail,
   type DraftRow,
   type EnvStatusPayload,
+  type HealthPayload,
   type ProviderStatusRow
 } from './api';
 import type { AgentProfile, BootstrapPayload, ControlPlanePayload, DashboardPayload, EffortLevel, HierarchyPayload, IkarusAskPayload, IkarusChatPayload, ProjectRow, RuntimeRow, RuntimeTestPayload, StructurePayload } from './types';
@@ -876,7 +880,17 @@ function InboxTray({ drafts, onChange }: { drafts: DraftRow[]; onChange: () => v
   );
 }
 
-function RuntimeCenter({ runtimes }: { runtimes: RuntimeRow[] }) {
+function RuntimeCenter({
+  runtimes,
+  providers,
+  providerError,
+  providerLoadedAt
+}: {
+  runtimes: RuntimeRow[];
+  providers: ProviderStatusRow[];
+  providerError: string;
+  providerLoadedAt: number | null;
+}) {
   const [tests, setTests] = useState<Record<string, RuntimeTestPayload['test']>>({});
   const [busy, setBusy] = useState('');
 
@@ -894,8 +908,48 @@ function RuntimeCenter({ runtimes }: { runtimes: RuntimeRow[] }) {
     <section className="panel feature-panel">
       <div className="panel-head">
         <KeyRound size={18} />
-        <div><h2>Provider Runtime Registry</h2><p>CLI-first today, API-ready later. The app never talks to random subprocesses directly.</p></div>
+        <div><h2>Provider truth table</h2><p>Configuration is declared. Reachability is sampled. Neither proves that a model call succeeded.</p></div>
       </div>
+      <div className="provider-truth">
+        <div className="provider-truth-head">
+          <span>provider</span><span>configuration</span><span>reachability</span><span>verdict</span>
+        </div>
+        {providerError && (
+          <div className="provider-sample-error" role="status">
+            <StateBadge state="unknown" compact />
+            <span>{providerError} Cached rows below are stale evidence, not current availability.</span>
+          </div>
+        )}
+        {providers.map((provider) => {
+          const state: HealthState = providerError
+            ? 'unknown'
+            : !provider.implemented || !provider.configured
+              ? 'absent'
+              : !provider.available
+                ? 'degraded'
+                : 'present';
+          return (
+            <div className="provider-truth-row" key={provider.name}>
+              <span><b>{provider.display_name}</b><small>{provider.name}</small></span>
+              <span>{provider.configured ? 'configured' : provider.requires_key ? 'key missing' : 'not configured'}</span>
+              <span>{providerError ? 'unknown' : provider.available ? 'answered probe' : provider.last_error || 'did not answer'}</span>
+              <StateBadge state={state} compact />
+            </div>
+          );
+        })}
+        {providers.length === 0 && (
+          <div className="provider-sample-error">
+            <StateBadge state="unknown" compact />
+            <span>No provider rows were returned. Availability is unknown.</span>
+          </div>
+        )}
+        <p className="provider-sampled">
+          {providerLoadedAt
+            ? `sampled ${new Date(providerLoadedAt).toLocaleTimeString()}`
+            : 'not sampled in this session'}
+        </p>
+      </div>
+      <div className="section-title"><h3>Runtime adapters</h3><p>Executable paths and manual connection probes.</p></div>
       <div className="runtime-table">
         {runtimes.map((runtime) => (
           <div className="runtime-row" key={runtime.id}>
@@ -958,6 +1012,12 @@ export default function App() {
   const [runtimes, setRuntimes] = useState<RuntimeRow[]>([]);
   const [envStatus, setEnvStatus] = useState<EnvStatusPayload | undefined>();
   const [providerStatus, setProviderStatus] = useState<ProviderStatusRow[]>([]);
+  const [providerStatusError, setProviderStatusError] = useState('');
+  const [providerStatusLoadedAt, setProviderStatusLoadedAt] = useState<number | null>(null);
+  const [health, setHealth] = useState<HealthPayload | undefined>();
+  const [healthError, setHealthError] = useState('');
+  const [healthLoadedAt, setHealthLoadedAt] = useState<number | null>(null);
+  const [dashboardLoadedAt, setDashboardLoadedAt] = useState<number | null>(null);
   const [bootstrap, setBootstrap] = useState<BootstrapPayload | undefined>();
   const [selectedName, setSelectedName] = useState('');
   // Chat is the home surface: the app opens into the assistant, never into a
@@ -980,6 +1040,7 @@ export default function App() {
   // Lightweight live counters pushed by the SSE stream — updated instantly on
   // events so badges/dots react without waiting for a full dashboard fetch.
   const [live, setLive] = useState<{ queueDepth?: number; inFlight?: number; watcherState?: string; unread?: number }>({});
+  const [loopSignal, setLoopSignal] = useState(0);
   const [structure, setStructure] = useState<StructurePayload | undefined>();
   const [structureLoading, setStructureLoading] = useState(false);
   const [structureError, setStructureError] = useState('');
@@ -999,6 +1060,8 @@ export default function App() {
   const refresh = useCallback(async (nextProject = project) => {
     const serial = ++refreshSerial.current;
     setError('');
+    setProviderStatusError('');
+    setHealthError('');
     setRefreshing(true);
     try {
       const projectPayload = await getProjects();
@@ -1013,7 +1076,10 @@ export default function App() {
       // must not blank the agent graph, runtime controls or project picker.
       const tasks = [
         getDashboard(chosen).then((payload) => {
-          if (serial === refreshSerial.current) setDashboard(payload);
+          if (serial === refreshSerial.current) {
+            setDashboard(payload);
+            setDashboardLoadedAt(Date.now());
+          }
         }),
         getControlPlane(chosen).then((plane) => {
           if (serial !== refreshSerial.current) return;
@@ -1031,7 +1097,28 @@ export default function App() {
           if (serial === refreshSerial.current) setEnvStatus(payload.env);
         }),
         getProviderStatus().then((payload) => {
-          if (serial === refreshSerial.current) setProviderStatus(payload.providers || []);
+          if (serial === refreshSerial.current) {
+            setProviderStatus(payload.providers || []);
+            setProviderStatusLoadedAt(Date.now());
+            setProviderStatusError('');
+          }
+        }).catch((err) => {
+          if (serial === refreshSerial.current) {
+            setProviderStatusError(err instanceof Error ? err.message : String(err));
+          }
+          throw err;
+        }),
+        getHealth().then((payload) => {
+          if (serial === refreshSerial.current) {
+            setHealth(payload);
+            setHealthLoadedAt(Date.now());
+            setHealthError('');
+          }
+        }).catch((err) => {
+          if (serial === refreshSerial.current) {
+            setHealthError(err instanceof Error ? err.message : String(err));
+          }
+          throw err;
         }),
         getClaudeBootstrap(chosen).then((payload) => {
           if (serial === refreshSerial.current) setBootstrap(payload);
@@ -1067,6 +1154,52 @@ export default function App() {
     refresh();
   }, [refresh]);
 
+  // Provider availability is a sampled measurement, not a startup constant.
+  // The main SSE channel does not carry provider changes, so keep this one
+  // cheap endpoint warm and label its age in Mission Control. A failed refresh
+  // leaves the prior rows visible as stale evidence but flips their state to
+  // UNKNOWN instead of allowing cached reachability to pose as live.
+  useEffect(() => {
+    let active = true;
+    const sample = () => {
+      getProviderStatus().then((payload) => {
+        if (!active) return;
+        setProviderStatus(payload.providers || []);
+        setProviderStatusLoadedAt(Date.now());
+        setProviderStatusError('');
+      }).catch((err) => {
+        if (active) setProviderStatusError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    const timer = window.setInterval(sample, 20_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  // The backend's health glance is read-only and keeps expensive/remote probes
+  // disabled by default. It changes independently of the task event stream
+  // (heartbeats, receipts and ledgers age), so sample it at a slower cadence.
+  useEffect(() => {
+    let active = true;
+    const sample = () => {
+      getHealth().then((payload) => {
+        if (!active) return;
+        setHealth(payload);
+        setHealthLoadedAt(Date.now());
+        setHealthError('');
+      }).catch((err) => {
+        if (active) setHealthError(err instanceof Error ? err.message : String(err));
+      });
+    };
+    const timer = window.setInterval(sample, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   useEffect(() => {
     document.documentElement.dataset.performance = fastMode ? 'fast' : 'quality';
     try {
@@ -1088,11 +1221,18 @@ export default function App() {
     onQueue: (d) => {
       setLive((prev) => ({ ...prev, queueDepth: d.queue_depth }));
       // A queue change is a real "something changed" signal → refresh the feed.
-      if (project) getDashboard(project).then(setDashboard).catch(() => undefined);
+      if (project) getDashboard(project).then((payload) => {
+        setDashboard(payload);
+        setDashboardLoadedAt(Date.now());
+      }).catch(() => undefined);
     },
     onReport: () => {
       // A task finished → pull the fresh reports/feed once.
-      if (project) getDashboard(project).then(setDashboard).catch(() => undefined);
+      setLoopSignal((value) => value + 1);
+      if (project) getDashboard(project).then((payload) => {
+        setDashboard(payload);
+        setDashboardLoadedAt(Date.now());
+      }).catch(() => undefined);
     }
   });
 
@@ -1101,7 +1241,10 @@ export default function App() {
   useEffect(() => {
     if (!project || liveStatus === 'live') return;
     const timer = setInterval(() => {
-      getDashboard(project).then(setDashboard).catch(() => undefined);
+      getDashboard(project).then((payload) => {
+        setDashboard(payload);
+        setDashboardLoadedAt(Date.now());
+      }).catch(() => undefined);
     }, 5000);
     return () => clearInterval(timer);
   }, [project, liveStatus]);
@@ -1153,6 +1296,14 @@ export default function App() {
    * `unknown` with "start the backend", which is what actually happened.
    */
   const loop = useLoop(project, true);
+
+  // The generic event stream cannot carry loop iteration detail, but a report
+  // event is still a trustworthy invalidation signal. Re-read the loop's
+  // read-only queue/history/map surfaces once for each completed task.
+  useEffect(() => {
+    if (loopSignal === 0) return;
+    loop.reload();
+  }, [loopSignal, loop.reload]);
 
   const loadHierarchy = useCallback(async (force = false) => {
     if (!project || (!force && hierarchyFetchedFor.current === project)) return;
@@ -1384,7 +1535,16 @@ export default function App() {
       );
     }
 
-    if (target === 'providers') return <RuntimeCenter runtimes={runtimes} />;
+    if (target === 'providers') {
+      return (
+        <RuntimeCenter
+          runtimes={runtimes}
+          providers={providerStatus}
+          providerError={providerStatusError}
+          providerLoadedAt={providerStatusLoadedAt}
+        />
+      );
+    }
 
     if (target === 'inbox') return <InboxTray drafts={drafts} onChange={() => refresh(project)} />;
 
@@ -1543,7 +1703,28 @@ export default function App() {
           {!offline && error && <div className="error-banner">{error}</div>}
 
           {space === 'chat' && (
-            <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
+            <>
+              <MissionControl
+                project={project}
+                stream={liveStatus}
+                inFlight={inFlight}
+                queueDepth={queueDepth}
+                health={health}
+                healthError={healthError}
+                healthLoadedAt={healthLoadedAt}
+                providers={providerStatus}
+                providersError={providerStatusError}
+                providersLoadedAt={providerStatusLoadedAt}
+                governance={governance}
+                governanceLoadedAt={dashboardLoadedAt}
+                loop={loop}
+                onRefresh={() => refresh(project)}
+                onOpenKnowledge={() => goSpace('knowledge')}
+                onOpenProviders={() => openSheet('providers')}
+                refreshing={refreshing}
+              />
+              <IkarusPanel project={project} runtimes={runtimes} providerStatus={providerStatus} onApplied={() => refresh(project)} />
+            </>
           )}
           {space === 'graph' && (
             <GraphSpace
@@ -1565,9 +1746,10 @@ export default function App() {
             icon={<GitBranch size={15} />}
             badge={<span className="pill"><LiveDot status={streamLive ? 'good' : 'warn'} /> {streamLive ? 'live' : 'polling'}</span>}
           >
-            <div className="kpi">{inFlight} <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 500 }}>in flight</span></div>
-            <div className="bars">
-              {[40, 70, 55, 90, 35, 65, 80, 50].map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}
+            <div className="rail-metrics">
+              <div><b>{inFlight}</b><span>running</span></div>
+              <div><b>{queueDepth}</b><span>queued</span></div>
+              <div><b>{reportCount}</b><span>reports</span></div>
             </div>
           </RailCard>
 
@@ -1616,10 +1798,22 @@ export default function App() {
               on PATH and answering a probe is not a billable call succeeding, so
               the honest ceiling for a lane is `present`. */}
           <RailCard title="Connections" icon={<KeyRound size={15} />} badge={<span className="pill">BYOK</span>}>
-            {runtimes.length === 0 && <div className="conn"><div className="l"><span className="sub">No runtimes detected yet.</span></div></div>}
+            {providerStatusError && (
+              <div className="conn">
+                <div className="l"><span className="sub">Provider sample failed. Cached rows are UNKNOWN.</span></div>
+                <StateBadge state="unknown" compact />
+              </div>
+            )}
+            {runtimes.length === 0 && !providerStatusError && <div className="conn"><div className="l"><span className="sub">No runtimes detected yet.</span></div></div>}
             {runtimes.map((r) => {
               const row = providerStatus.find((p) => p.name === (RUNTIME_TO_PROVIDER[r.id] || r.id));
-              const item = assessProvider({
+              const item = providerStatusError ? {
+                name: r.label,
+                state: 'unknown' as const,
+                headline: 'the provider availability sample failed; cached reachability is not a live claim',
+                remedy: providerStatusError,
+                derivedFrom: 'GET /api/providers/status'
+              } : assessProvider({
                 label: r.label,
                 configured: row ? row.configured : undefined,
                 available: r.available && (row ? row.available : true),

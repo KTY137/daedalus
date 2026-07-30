@@ -157,6 +157,13 @@ function QueueTab({ block, sourceAssessments }: { block: LoopQueueBlock; sourceA
 
   return (
     <>
+      <dl className="api-bounds" aria-label="Queue response bounds">
+        <div><dt>requested cap</dt><dd>{num(block.limit)} rows</dd></div>
+        <div><dt>returned</dt><dd>{num(block.returned ?? candidates.length)}</dd></div>
+        <div><dt>response</dt><dd>{block.response_bytes == null ? 'not reported' : `${num(block.response_bytes)} bytes`}</dd></div>
+        <div><dt>dropped for size</dt><dd>{num(block.dropped_for_size ?? 0)}</dd></div>
+      </dl>
+
       {degraded.length > 0
         ? <DegradedSourcesBanner sources={degraded} what="this queue" />
         : <AllSourcesReadNote what="the ranking below" />}
@@ -244,10 +251,26 @@ const OUTCOME_TONE: Record<string, string> = {
 function AttemptsTab({ block }: { block: LoopAttemptsBlock }) {
   const rows = block.intents || [];
   const ledger = block.ledger;
+  const hasRunCorrelation = rows.some((row) => row.run_id || row.trace_id);
 
   return (
     <>
       <DegradedSourcesBanner sources={block.degraded_sources || []} what="this history" />
+
+      <dl className="api-bounds" aria-label="Attempt history bounds">
+        <div><dt>history cap</dt><dd>{num(block.limit)} rows</dd></div>
+        <div><dt>returned</dt><dd>{num(block.returned ?? rows.length)}</dd></div>
+        <div><dt>response</dt><dd>{block.response_bytes == null ? 'not reported' : `${num(block.response_bytes)} bytes`}</dd></div>
+        <div><dt>dropped for size</dt><dd>{num(block.dropped_for_size ?? 0)}</dd></div>
+      </dl>
+
+      {!hasRunCorrelation && rows.length > 0 && (
+        <p className="loop-note loop-note-warn">
+          This endpoint serves global attempt history, not one loop run. It reports no run/trace id,
+          execution bounds, stop reason, lane, or worker; those fields therefore remain explicitly
+          “not reported” below.
+        </p>
+      )}
 
       <div className="ledger-strip">
         <StateBadge
@@ -283,6 +306,9 @@ function AttemptsTab({ block }: { block: LoopAttemptsBlock }) {
                 <span>{row.kind}</span>
                 <span>{row.state}</span>
                 {row.source && <span>via {row.source}</span>}
+                <span>lane {row.lane || 'not reported'}</span>
+                <span>worker {row.worker || 'not reported'}</span>
+                <span>run {row.run_id || row.trace_id || 'not reported'}</span>
                 {row.gates_passed != null && (
                   <span className={row.gates_passed ? 'ok' : 'bad'}>
                     gates {row.gates_passed ? 'passed' : 'failed'}

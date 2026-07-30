@@ -1,0 +1,1324 @@
+[
+ {
+  "label": "live-app",
+  "url": "http://127.0.0.1:8765/",
+  "viewport": {
+   "w": 1440,
+   "h": 900
+  },
+  "truncated": false,
+  "metrics": [
+   {
+    "key": "horizontal_overflow",
+    "value": 0,
+    "unit": "px",
+    "tier": "A",
+    "note": "the page body must never scroll sideways",
+    "offenders": []
+   },
+   {
+    "key": "contrast_failures",
+    "value": 228,
+    "unit": "elements",
+    "tier": "A",
+    "note": "WCAG AA: 4.5:1 body, 3.0:1 large",
+    "offenders": [
+     {
+      "sel": "div.brand@19,20",
+      "ratio": 1.14,
+      "need": 4.5,
+      "text": "Daedalus"
+     },
+     {
+      "sel": "small@118,26",
+      "ratio": 1.33,
+      "need": 4.5,
+      "text": "\u00b7 Agent OS"
+     },
+     {
+      "sel": "button.pill@637,22",
+      "ratio": 1.33,
+      "need": 4.5,
+      "text": "BYOK 2/4"
+     },
+     {
+      "sel": "span.pill@726,20",
+      "ratio": 2.88,
+      "need": 4.5,
+      "text": "promotion unknown"
+     },
+     {
+      "sel": "b@759,25",
+      "ratio": 2.88,
+      "need": 4.5,
+      "text": "UNKNOWN!"
+     },
+     {
+      "sel": "button.pill@948,20",
+      "ratio": 2.88,
+      "need": 4.5,
+      "text": "loop \u2026"
+     },
+     {
+      "sel": "b@981,25",
+      "ratio": 2.88,
+      "need": 4.5,
+      "text": "UNKNOWN!"
+     },
+     {
+      "sel": "span.pill@1104,22",
+      "ratio": 1.33,
+      "need": 4.5,
+      "text": "polling \u00b7 0 running"
+     },
+     {
+      "sel": "span.mc-kicker@87,76",
+      "ratio": 1.42,
+      "need": 4.5,
+      "text": "DAEDALUS / MISSION CONTROL"
+     },
+     {
+      "sel": "h1@87,88",
+      "ratio": 1.14,
+      "need": 4.5,
+      "text": "Evolution control"
+     },
+     {
+      "sel": "span.mc-project@221,95",
+      "ratio": 1.33,
+      "need": 4.5,
+      "text": "agent_env"
+     },
+     {
+      "sel": "b@723,83",
+      "ratio": 2.88,
+      "need": 4.5,
+      "text": "UNKNOWN!"
+     }
+    ]
+   },
+   {
+    "key": "small_targets",
+    "value": 60,
+    "unit": "elements",
+    "tier": "A",
+    "note": "interactive targets should reach 44x44",
+    "offenders": [
+     {
+      "sel": "select.proj@184,17",
+      "size": "120x30"
+     },
+     {
+      "sel": "button.pill@637,22",
+      "size": "81x21"
+     },
+     {
+      "sel": "button.pill@948,20",
+      "size": "148x24"
+     },
+     {
+      "sel": "button.iconbtn@1234,17",
+      "size": "31x31"
+     },
+     {
+      "sel": "button.iconbtn@1273,17",
+      "size": "31x31"
+     },
+     {
+      "sel": "button.iconbtn@1312,17",
+      "size": "31x31"
+     },
+     {
+      "sel": "button.iconbtn@1351,17",
+      "size": "31x31"
+     },
+     {
+      "sel": "button.iconbtn@1390,17",
+      "size": "31x31"
+     },
+     {
+      "sel": "button.dockbtn@18,73",
+      "size": "39x39"
+     },
+     {
+      "sel": "button.dockbtn@18,112",
+      "size": "39x39"
+     },
+     {
+      "sel": "button.dockbtn@18,151",
+      "size": "39x39"
+     },
+     {
+      "sel": "button.dockbtn@18,204",
+      "size": "39x39"
+     }
+    ]
+   },
+   {
+    "key": "banned_faces",
+    "value": 0,
+    "unit": "families",
+    "tier": "A",
+    "note": "grotesk defaults that mark a generated page",
+    "offenders": []
+   },
+   {
+    "key": "console_errors",
+    "value": 1,
+    "unit": "errors",
+    "tier": "A",
+    "note": "a broken page is not a design question",
+    "offenders": [
+     {
+      "msg": "pageerror: Cannot read properties of null (reading 'appendChild')"
+     }
+    ]
+   },
+   {
+    "key": "visible_elements",
+    "value": 681,
+    "unit": "elements",
+    "tier": "B",
+    "note": "raw density of what is on screen at once",
+    "offenders": []
+   },
+   {
+    "key": "framed_panels",
+    "value": 92,
+    "unit": "panels",
+    "tier": "B",
+    "note": "when everything is a bordered box, nothing is elevated",
+    "offenders": [
+     {
+      "sel": "header.topbar@8,8"
+     },
+     {
+      "sel": "select.proj@184,17"
+     },
+     {
+      "sel": "nav.dock@8,64"
+     },
+     {
+      "sel": "section.mission-control@74,64"
+     },
+     {
+      "sel": "header.mc-head@75,65"
+     },
+     {
+      "sel": "button.mc-action@889,77"
+     },
+     {
+      "sel": "button.mc-action@988,77"
+     },
+     {
+      "sel": "div.mc-readouts@75,118"
+     },
+     {
+      "sel": "div.mc-readout@75,118"
+     },
+     {
+      "sel": "div.mc-readout@335,118"
+     },
+     {
+      "sel": "div.mc-readout@595,118"
+     },
+     {
+      "sel": "div.mc-stage@87,197"
+     }
+    ]
+   },
+   {
+    "key": "distinct_radii",
+    "value": 7,
+    "unit": "values",
+    "tier": "B",
+    "note": "more than two or three corner radii reads as unconsidered",
+    "offenders": [
+     {
+      "radius": 10,
+      "count": 14
+     },
+     {
+      "radius": 12,
+      "count": 10
+     },
+     {
+      "radius": 999,
+      "count": 5
+     },
+     {
+      "radius": 7,
+      "count": 5
+     },
+     {
+      "radius": 8,
+      "count": 4
+     },
+     {
+      "radius": 20,
+      "count": 2
+     },
+     {
+      "radius": 3,
+      "count": 1
+     }
+    ]
+   },
+   {
+    "key": "panel_nesting_depth",
+    "value": 6,
+    "unit": "levels",
+    "tier": "B",
+    "note": "frames inside frames inside frames",
+    "offenders": [
+     {
+      "sel": "div@503,397"
+     },
+     {
+      "sel": "section.panel@480,190"
+     },
+     {
+      "sel": "section.spine@74,394"
+     },
+     {
+      "sel": "div.mc-evidence-grid@75,361"
+     },
+     {
+      "sel": "section@491,362"
+     },
+     {
+      "sel": "div.spine-head@75,395"
+     }
+    ]
+   },
+   {
+    "key": "allcaps_text_share",
+    "value": 17.5,
+    "unit": "% of chars",
+    "tier": "B",
+    "note": "shouted micro-labels used as decoration rather than hierarchy",
+    "offenders": []
+   },
+   {
+    "key": "status_pills_visible",
+    "value": 24,
+    "unit": "pills",
+    "tier": "B",
+    "note": "if everything is flagged, nothing is flagged",
+    "offenders": [
+     {
+      "sel": "button.pill@637,22",
+      "text": "BYOK 2/4"
+     },
+     {
+      "sel": "span.pill@1104,22",
+      "text": "polling \u00b7 0 running"
+     },
+     {
+      "sel": "button.chip@85,805",
+      "text": "What's running?"
+     },
+     {
+      "sel": "button.chip@183,805",
+      "text": "Build me an agent networ"
+     },
+     {
+      "sel": "button.chip@331,805",
+      "text": "Route this to Claude"
+     },
+     {
+      "sel": "button.chip@448,805",
+      "text": "Show the mission feed"
+     },
+     {
+      "sel": "span.pill@1341,84",
+      "text": "polling"
+     },
+     {
+      "sel": "span.pill@1364,281",
+      "text": "BYOK"
+     },
+     {
+      "sel": "b.needs-confirm@1367,696",
+      "text": "manual"
+     },
+     {
+      "sel": "b.needs-confirm@1367,729",
+      "text": "manual"
+     },
+     {
+      "sel": "b.needs-confirm@1367,762",
+      "text": "manual"
+     },
+     {
+      "sel": "b.needs-confirm@1367,795",
+      "text": "manual"
+     }
+    ]
+   },
+   {
+    "key": "largest_equal_tile_row",
+    "value": 10,
+    "unit": "tiles",
+    "tier": "B",
+    "note": "an N-equal-tile metric row is the most recognisable trope in the category",
+    "offenders": [
+     {
+      "sel": "div.flow-wrap@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__renderer@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__pane@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__viewport@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__edgelabel-renderer@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__nodes@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "div.react-flow__viewport-portal@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "svg@481,250",
+      "size": "911x628"
+     },
+     {
+      "sel": "rect@481,250",
+      "size": "911x628"
+     }
+    ]
+   },
+   {
+    "key": "accent_hue_families",
+    "value": 3,
+    "unit": "hues",
+    "tier": "B",
+    "note": "distinct 30-degree hue families in use, semantic colour included",
+    "offenders": [
+     {
+      "hue_bucket": "30-59deg",
+      "count": 12
+     },
+     {
+      "hue_bucket": "120-149deg",
+      "count": 2
+     },
+     {
+      "hue_bucket": "210-239deg",
+      "count": 2
+     }
+    ]
+   },
+   {
+    "key": "identifier_leaks",
+    "value": 6,
+    "unit": "strings",
+    "tier": "B",
+    "note": "internal field names and raw JSON rendered as user-facing text",
+    "offenders": [
+     {
+      "sel": "span.mc-project@221,95",
+      "text": "agent_env"
+     },
+     {
+      "sel": "small@87,458",
+      "text": "claude_cli"
+     },
+     {
+      "sel": "small@87,518",
+      "text": "openai_api"
+     },
+     {
+      "sel": "small@87,548",
+      "text": "anthropic_api"
+     },
+     {
+      "sel": "small@87,578",
+      "text": "codex_cli"
+     },
+     {
+      "sel": "span.seg-label@1258,636",
+      "text": "semi_auto"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "label": "daedalus-design-direction",
+  "url": "file:///C:/Users/nukei/Desktop/agent_env/docs/design/prototypes/daedalus-design-direction.html",
+  "viewport": {
+   "w": 1440,
+   "h": 900
+  },
+  "truncated": false,
+  "metrics": [
+   {
+    "key": "horizontal_overflow",
+    "value": 0,
+    "unit": "px",
+    "tier": "A",
+    "note": "the page body must never scroll sideways",
+    "offenders": []
+   },
+   {
+    "key": "contrast_failures",
+    "value": 8,
+    "unit": "elements",
+    "tier": "A",
+    "note": "WCAG AA: 4.5:1 body, 3.0:1 large",
+    "offenders": [
+     {
+      "sel": "span@260,481",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "agent_env"
+     },
+     {
+      "sel": "i@410,908",
+      "ratio": 1.15,
+      "need": 4.5,
+      "text": "\u00b7"
+     },
+     {
+      "sel": "i@514,908",
+      "ratio": 1.15,
+      "need": 4.5,
+      "text": "\u00b7"
+     },
+     {
+      "sel": "div.rail-label@1028,540",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "Self-improvement loop"
+     },
+     {
+      "sel": "span@1053,575",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "candidates ranked"
+     },
+     {
+      "sel": "div.rail-label@1028,688",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "Runtimes"
+     },
+     {
+      "sel": "i.st-off@1218,806",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "no key"
+     },
+     {
+      "sel": "div.rail-label@1028,922",
+      "ratio": 4.3,
+      "need": 4.5,
+      "text": "History"
+     }
+    ]
+   },
+   {
+    "key": "small_targets",
+    "value": 1,
+    "unit": "elements",
+    "tier": "A",
+    "note": "interactive targets should reach 44x44",
+    "offenders": [
+     {
+      "sel": "summary@313,871",
+      "size": "169x24"
+     }
+    ]
+   },
+   {
+    "key": "banned_faces",
+    "value": 0,
+    "unit": "families",
+    "tier": "A",
+    "note": "grotesk defaults that mark a generated page",
+    "offenders": []
+   },
+   {
+    "key": "console_errors",
+    "value": 1,
+    "unit": "errors",
+    "tier": "A",
+    "note": "a broken page is not a design question",
+    "offenders": [
+     {
+      "msg": "pageerror: Cannot read properties of null (reading 'appendChild')"
+     }
+    ]
+   },
+   {
+    "key": "visible_elements",
+    "value": 74,
+    "unit": "elements",
+    "tier": "B",
+    "note": "raw density of what is on screen at once",
+    "offenders": []
+   },
+   {
+    "key": "framed_panels",
+    "value": 6,
+    "unit": "panels",
+    "tier": "B",
+    "note": "when everything is a bordered box, nothing is elevated",
+    "offenders": [
+     {
+      "sel": "section.instrument@162,463"
+     },
+     {
+      "sel": "div.bezel@163,464"
+     },
+     {
+      "sel": "article.finding@197,702"
+     },
+     {
+      "sel": "div.gutter@197,723"
+     },
+     {
+      "sel": "div.well-body@313,906"
+     },
+     {
+      "sel": "aside.rail@1009,516"
+     }
+    ]
+   },
+   {
+    "key": "distinct_radii",
+    "value": 2,
+    "unit": "values",
+    "tier": "B",
+    "note": "more than two or three corner radii reads as unconsidered",
+    "offenders": [
+     {
+      "radius": 3,
+      "count": 1
+     },
+     {
+      "radius": 2,
+      "count": 1
+     }
+    ]
+   },
+   {
+    "key": "panel_nesting_depth",
+    "value": 3,
+    "unit": "levels",
+    "tier": "B",
+    "note": "frames inside frames inside frames",
+    "offenders": [
+     {
+      "sel": "div.gutter@197,723"
+     },
+     {
+      "sel": "section.instrument@162,463"
+     },
+     {
+      "sel": "article.finding@197,702"
+     }
+    ]
+   },
+   {
+    "key": "allcaps_text_share",
+    "value": 10.3,
+    "unit": "% of chars",
+    "tier": "B",
+    "note": "shouted micro-labels used as decoration rather than hierarchy",
+    "offenders": []
+   },
+   {
+    "key": "status_pills_visible",
+    "value": 0,
+    "unit": "pills",
+    "tier": "B",
+    "note": "if everything is flagged, nothing is flagged",
+    "offenders": []
+   },
+   {
+    "key": "largest_equal_tile_row",
+    "value": 2,
+    "unit": "tiles",
+    "tier": "B",
+    "note": "an N-equal-tile metric row is the most recognisable trope in the category",
+    "offenders": [
+     {
+      "sel": "table@330,921",
+      "size": "628x110"
+     },
+     {
+      "sel": "tbody@330,921",
+      "size": "628x110"
+     }
+    ]
+   },
+   {
+    "key": "accent_hue_families",
+    "value": 2,
+    "unit": "hues",
+    "tier": "B",
+    "note": "distinct 30-degree hue families in use, semantic colour included",
+    "offenders": [
+     {
+      "hue_bucket": "30-59deg",
+      "count": 7
+     },
+     {
+      "hue_bucket": "120-149deg",
+      "count": 2
+     }
+    ]
+   },
+   {
+    "key": "identifier_leaks",
+    "value": 1,
+    "unit": "strings",
+    "tier": "B",
+    "note": "internal field names and raw JSON rendered as user-facing text",
+    "offenders": [
+     {
+      "sel": "span@260,481",
+      "text": "agent_env"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "label": "ikarus-hud",
+  "url": "file:///C:/Users/nukei/Desktop/agent_env/docs/design/prototypes/ikarus-hud.html",
+  "viewport": {
+   "w": 1440,
+   "h": 900
+  },
+  "truncated": false,
+  "metrics": [
+   {
+    "key": "horizontal_overflow",
+    "value": 0,
+    "unit": "px",
+    "tier": "A",
+    "note": "the page body must never scroll sideways",
+    "offenders": []
+   },
+   {
+    "key": "contrast_failures",
+    "value": 18,
+    "unit": "elements",
+    "tier": "A",
+    "note": "WCAG AA: 4.5:1 body, 3.0:1 large",
+    "offenders": [
+     {
+      "sel": "i@119,36",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Daedalus \u00b7 agent_env"
+     },
+     {
+      "sel": "div.clock@1346,32",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "00:00:00"
+     },
+     {
+      "sel": "div.label@34,91",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Corpus"
+     },
+     {
+      "sel": "em@275,225",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "of 5"
+     },
+     {
+      "sel": "div.label@34,291",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Type coverage"
+     },
+     {
+      "sel": "span@34,314",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Returns annotated"
+     },
+     {
+      "sel": "span@34,344",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Params annotated"
+     },
+     {
+      "sel": "span@34,374",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Untyped payloads"
+     },
+     {
+      "sel": "span@346,667",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "247 modules \u00b7 612 imports \u00b7 live"
+     },
+     {
+      "sel": "div.lg@1038,633",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "module"
+     },
+     {
+      "sel": "div.lg@1038,650",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "fenced"
+     },
+     {
+      "sel": "div.lg@1038,667",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "drift"
+     }
+    ]
+   },
+   {
+    "key": "small_targets",
+    "value": 3,
+    "unit": "elements",
+    "tier": "A",
+    "note": "interactive targets should reach 44x44",
+    "offenders": [
+     {
+      "sel": "button.btn@1073,778",
+      "size": "97x35"
+     },
+     {
+      "sel": "button.btn@1179,778",
+      "size": "105x35"
+     },
+     {
+      "sel": "button.btn@1293,778",
+      "size": "113x35"
+     }
+    ]
+   },
+   {
+    "key": "banned_faces",
+    "value": 0,
+    "unit": "families",
+    "tier": "A",
+    "note": "grotesk defaults that mark a generated page",
+    "offenders": []
+   },
+   {
+    "key": "console_errors",
+    "value": 1,
+    "unit": "errors",
+    "tier": "A",
+    "note": "a broken page is not a design question",
+    "offenders": [
+     {
+      "msg": "pageerror: Cannot read properties of null (reading 'appendChild')"
+     }
+    ]
+   },
+   {
+    "key": "visible_elements",
+    "value": 137,
+    "unit": "elements",
+    "tier": "B",
+    "note": "raw density of what is on screen at once",
+    "offenders": []
+   },
+   {
+    "key": "framed_panels",
+    "value": 13,
+    "unit": "panels",
+    "tier": "B",
+    "note": "when everything is a bordered box, nothing is elevated",
+    "offenders": [
+     {
+      "sel": "span.fill@18,16"
+     },
+     {
+      "sel": "span.fill@18,76"
+     },
+     {
+      "sel": "div.row@34,114"
+     },
+     {
+      "sel": "div.row@34,147"
+     },
+     {
+      "sel": "div.row@34,180"
+     },
+     {
+      "sel": "span.fill@18,276"
+     },
+     {
+      "sel": "span.fill@1126,76"
+     },
+     {
+      "sel": "div.row@1142,156"
+     },
+     {
+      "sel": "div.row@1142,185"
+     },
+     {
+      "sel": "span.fill@1126,281"
+     },
+     {
+      "sel": "div.row@1142,319"
+     },
+     {
+      "sel": "div.row@1142,347"
+     }
+    ]
+   },
+   {
+    "key": "distinct_radii",
+    "value": 0,
+    "unit": "values",
+    "tier": "B",
+    "note": "more than two or three corner radii reads as unconsidered",
+    "offenders": []
+   },
+   {
+    "key": "panel_nesting_depth",
+    "value": 2,
+    "unit": "levels",
+    "tier": "B",
+    "note": "frames inside frames inside frames",
+    "offenders": [
+     {
+      "sel": "div.row@34,114"
+     },
+     {
+      "sel": "span.fill@18,76"
+     }
+    ]
+   },
+   {
+    "key": "allcaps_text_share",
+    "value": 39.8,
+    "unit": "% of chars",
+    "tier": "B",
+    "note": "shouted micro-labels used as decoration rather than hierarchy",
+    "offenders": []
+   },
+   {
+    "key": "status_pills_visible",
+    "value": 0,
+    "unit": "pills",
+    "tier": "B",
+    "note": "if everything is flagged, nothing is flagged",
+    "offenders": []
+   },
+   {
+    "key": "largest_equal_tile_row",
+    "value": 6,
+    "unit": "tiles",
+    "tier": "B",
+    "note": "an N-equal-tile metric row is the most recognisable trope in the category",
+    "offenders": [
+     {
+      "sel": "div.field@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.emit@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.scan@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.grain@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.vig@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.hud@0,0",
+      "size": "1440x900"
+     }
+    ]
+   },
+   {
+    "key": "accent_hue_families",
+    "value": 5,
+    "unit": "hues",
+    "tier": "B",
+    "note": "distinct 30-degree hue families in use, semantic colour included",
+    "offenders": [
+     {
+      "hue_bucket": "180-209deg",
+      "count": 10
+     },
+     {
+      "hue_bucket": "0-29deg",
+      "count": 6
+     },
+     {
+      "hue_bucket": "120-149deg",
+      "count": 5
+     },
+     {
+      "hue_bucket": "30-59deg",
+      "count": 5
+     },
+     {
+      "hue_bucket": "210-239deg",
+      "count": 2
+     }
+    ]
+   },
+   {
+    "key": "identifier_leaks",
+    "value": 0,
+    "unit": "strings",
+    "tier": "B",
+    "note": "internal field names and raw JSON rendered as user-facing text",
+    "offenders": []
+   }
+  ]
+ },
+ {
+  "label": "daedalus-forge",
+  "url": "file:///C:/Users/nukei/Desktop/agent_env/docs/design/prototypes/daedalus-forge.html",
+  "viewport": {
+   "w": 1440,
+   "h": 900
+  },
+  "truncated": false,
+  "metrics": [
+   {
+    "key": "horizontal_overflow",
+    "value": 0,
+    "unit": "px",
+    "tier": "A",
+    "note": "the page body must never scroll sideways",
+    "offenders": []
+   },
+   {
+    "key": "contrast_failures",
+    "value": 14,
+    "unit": "elements",
+    "tier": "A",
+    "note": "WCAG AA: 4.5:1 body, 3.0:1 large",
+    "offenders": [
+     {
+      "sel": "i@135,43",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "agent_env \u00b7 forest"
+     },
+     {
+      "sel": "b@400,31",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Data structure"
+     },
+     {
+      "sel": "span@400,48",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "fields \u00b7 consumes"
+     },
+     {
+      "sel": "b@524,31",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Knowledge"
+     },
+     {
+      "sel": "span@524,48",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "links \u00b7 doc\u2192code"
+     },
+     {
+      "sel": "div.label@33,103",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Code lens"
+     },
+     {
+      "sel": "div.label@33,281",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Under the cursor"
+     },
+     {
+      "sel": "p.empty@33,313",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "Move across the projection. The nearest "
+     },
+     {
+      "sel": "div.lgi@985,725",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "module"
+     },
+     {
+      "sel": "div.lgi@1048,725",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "fenced"
+     },
+     {
+      "sel": "div.lgi@1111,725",
+      "ratio": 4.45,
+      "need": 4.5,
+      "text": "drift"
+     },
+     {
+      "sel": "div.label@1187,103",
+      "ratio": 4.22,
+      "need": 4.5,
+      "text": "Loop"
+     }
+    ]
+   },
+   {
+    "key": "small_targets",
+    "value": 6,
+    "unit": "elements",
+    "tier": "A",
+    "note": "interactive targets should reach 44x44",
+    "offenders": [
+     {
+      "sel": "button.lens@275,25",
+      "size": "112x40"
+     },
+     {
+      "sel": "button.lens@387,25",
+      "size": "123x40"
+     },
+     {
+      "sel": "button.lens@511,25",
+      "size": "118x40"
+     },
+     {
+      "sel": "button.btn@1091,802",
+      "size": "92x32"
+     },
+     {
+      "sel": "button.btn@1191,802",
+      "size": "100x32"
+     },
+     {
+      "sel": "button.btn@1299,802",
+      "size": "107x32"
+     }
+    ]
+   },
+   {
+    "key": "banned_faces",
+    "value": 0,
+    "unit": "families",
+    "tier": "A",
+    "note": "grotesk defaults that mark a generated page",
+    "offenders": []
+   },
+   {
+    "key": "console_errors",
+    "value": 1,
+    "unit": "errors",
+    "tier": "A",
+    "note": "a broken page is not a design question",
+    "offenders": [
+     {
+      "msg": "pageerror: Cannot read properties of null (reading 'appendChild')"
+     }
+    ]
+   },
+   {
+    "key": "visible_elements",
+    "value": 115,
+    "unit": "elements",
+    "tier": "B",
+    "note": "raw density of what is on screen at once",
+    "offenders": []
+   },
+   {
+    "key": "framed_panels",
+    "value": 15,
+    "unit": "panels",
+    "tier": "B",
+    "note": "when everything is a bordered box, nothing is elevated",
+    "offenders": [
+     {
+      "sel": "span.fl@18,15"
+     },
+     {
+      "sel": "button.lens@275,25"
+     },
+     {
+      "sel": "span.fl@18,89"
+     },
+     {
+      "sel": "div.row@33,124"
+     },
+     {
+      "sel": "div.row@33,153"
+     },
+     {
+      "sel": "div.row@33,182"
+     },
+     {
+      "sel": "span.fl@18,267"
+     },
+     {
+      "sel": "span.fl@1172,89"
+     },
+     {
+      "sel": "div.row@1187,124"
+     },
+     {
+      "sel": "div.row@1187,150"
+     },
+     {
+      "sel": "div.row@1187,176"
+     },
+     {
+      "sel": "span.fl@1172,261"
+     }
+    ]
+   },
+   {
+    "key": "distinct_radii",
+    "value": 0,
+    "unit": "values",
+    "tier": "B",
+    "note": "more than two or three corner radii reads as unconsidered",
+    "offenders": []
+   },
+   {
+    "key": "panel_nesting_depth",
+    "value": 2,
+    "unit": "levels",
+    "tier": "B",
+    "note": "frames inside frames inside frames",
+    "offenders": [
+     {
+      "sel": "div.row@33,124"
+     },
+     {
+      "sel": "span.fl@18,89"
+     }
+    ]
+   },
+   {
+    "key": "allcaps_text_share",
+    "value": 32.1,
+    "unit": "% of chars",
+    "tier": "B",
+    "note": "shouted micro-labels used as decoration rather than hierarchy",
+    "offenders": []
+   },
+   {
+    "key": "status_pills_visible",
+    "value": 0,
+    "unit": "pills",
+    "tier": "B",
+    "note": "if everything is flagged, nothing is flagged",
+    "offenders": []
+   },
+   {
+    "key": "largest_equal_tile_row",
+    "value": 7,
+    "unit": "tiles",
+    "tier": "B",
+    "note": "an N-equal-tile metric row is the most recognisable trope in the category",
+    "offenders": [
+     {
+      "sel": "div.field@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.emit@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.scan@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.grain@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.vig@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "canvas@0,0",
+      "size": "1440x900"
+     },
+     {
+      "sel": "div.rim@0,0",
+      "size": "1440x900"
+     }
+    ]
+   },
+   {
+    "key": "accent_hue_families",
+    "value": 4,
+    "unit": "hues",
+    "tier": "B",
+    "note": "distinct 30-degree hue families in use, semantic colour included",
+    "offenders": [
+     {
+      "hue_bucket": "180-209deg",
+      "count": 13
+     },
+     {
+      "hue_bucket": "30-59deg",
+      "count": 6
+     },
+     {
+      "hue_bucket": "0-29deg",
+      "count": 5
+     },
+     {
+      "hue_bucket": "120-149deg",
+      "count": 4
+     }
+    ]
+   },
+   {
+    "key": "identifier_leaks",
+    "value": 0,
+    "unit": "strings",
+    "tier": "B",
+    "note": "internal field names and raw JSON rendered as user-facing text",
+    "offenders": []
+   }
+  ]
+ }
+]

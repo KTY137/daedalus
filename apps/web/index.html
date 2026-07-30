@@ -6,12 +6,13 @@
     <title>Daedalus Agent OS</title>
     <script>
       // Set the theme before first paint (no flash). Persisted choice wins;
-      // otherwise follow the OS. Toggled at runtime by the ThemeToggle.
+      // otherwise use the cockpit's dark instrument surface. The light theme
+      // remains one click away; using the OS default made a fresh automation
+      // profile silently open the washed-out presentation theme.
       (function () {
         try {
           var saved = localStorage.getItem('daedalus-theme');
-          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          document.documentElement.dataset.theme = saved || (prefersDark ? 'dark' : 'light');
+          document.documentElement.dataset.theme = saved || 'dark';
           document.documentElement.dataset.performance = localStorage.getItem('daedalus-performance') === 'quality' ? 'quality' : 'fast';
         } catch (e) {
           document.documentElement.dataset.theme = 'dark';

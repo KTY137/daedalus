@@ -152,8 +152,54 @@ export interface ProviderStatusRow {
   last_error: string;
 }
 
+export interface ProviderStatusPayload extends ApiEnvelope {
+  providers: ProviderStatusRow[];
+}
+
 export function getProviderStatus() {
-  return request<ApiEnvelope & { providers: ProviderStatusRow[] }>('/api/providers/status');
+  return request<ProviderStatusPayload>('/api/providers/status');
+}
+
+/** One fact behind a health verdict. The backend refuses to call inherited or
+ * configured data "measured", and the UI keeps that provenance visible. */
+export interface HealthFact {
+  label: string;
+  value: unknown;
+  provenance: 'MEASURED' | 'INHERITED' | 'ASSUMED';
+  source: string | null;
+  age_s: number | null;
+}
+
+export interface HealthSubsystem {
+  name: string;
+  asks: string;
+  state: 'working' | 'present' | 'degraded' | 'absent' | 'unknown';
+  headline: string;
+  facts: HealthFact[];
+  remedy: string;
+  required: boolean;
+  seconds: number;
+}
+
+export interface HealthSnapshot {
+  schema: number;
+  generated_at: string;
+  states: string[];
+  counts: Record<'working' | 'present' | 'degraded' | 'absent' | 'unknown', number>;
+  /** 0 every probe held; 1 something is broken; 2 the run is unproven. */
+  verdict: 0 | 1 | 2;
+  not_proven: string[];
+  subsystems: HealthSubsystem[];
+}
+
+export interface HealthPayload extends ApiEnvelope {
+  health: HealthSnapshot;
+  asked?: { deep: boolean; probe_remote: boolean; only: string | null };
+}
+
+/** Cheap, read-only system glance. Expensive and remote probes remain off. */
+export function getHealth() {
+  return request<HealthPayload>('/api/health', undefined, 30_000);
 }
 
 export function updateAgent(project: string, agent: string, patch: Record<string, unknown>) {
@@ -458,6 +504,17 @@ export interface LoopAttempt {
   gates_passed: boolean | null;
   changed_paths: number | null;
   error: string | null;
+  /** NOT YET SERVED by `/api/loop/attempts` (2026-07-29). The live loop report
+   * now knows lane/worker, but this endpoint projects the separate spine
+   * intent ledger through a fixed allowlist that omits them. Optional here so
+   * an additive backend field will render immediately; absent is always shown
+   * as "not reported", never as an empty value. */
+  lane?: string;
+  worker?: string;
+  /** Also not yet served: the run/trace this attempt belongs to. Without it,
+   * attempts cannot be scoped to "this run" — only to "all recorded history". */
+  trace_id?: string;
+  run_id?: string;
 }
 
 export interface LoopAttemptsBlock {
