@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .atomic import write_text_atomic
 from .memory import record_from_bridge_report
 from .projects import resolve_repo_root
 from .spine import envelope
@@ -177,11 +178,17 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
 
     Same trick as enqueue(): write under a name no consumer's glob matches,
     then os.replace. Consumers of the inbox glob `*.report.json`, which never
-    matches `*.report.json.tmp`."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    matches `*.report.json.tmp`.
+
+    Delegates to ``daedalus.atomic``, which adds two things this lacked:
+
+    * the MEASURED win32 retry -- the watcher polls this directory, so it is
+      holding these files open when the replace lands;
+    * a RANDOM temp suffix. This used to be a fixed ``.tmp``, so two publishers
+      racing on the same target wrote one scratch file and one could publish the
+      other's half-written bytes. The suffix still ends in ``.tmp``, so no
+      consumer glob starts matching it."""
+    write_text_atomic(path, json.dumps(payload, indent=2))
 
 
 def _read_journal(key: str) -> dict[str, Any]:
@@ -389,9 +396,7 @@ def enqueue(objective: str, repo_root: str, paths: list[str], model: str = "sonn
     # is half a JSON document. Writing to a name the watcher's `*.json` glob
     # cannot match and then `os.replace`-ing it means the request either is not
     # there or is there complete -- there is no observable in-between.
-    tmp = OUTBOX / f"{base}.json.tmp"
-    tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    os.replace(tmp, path)
+    write_text_atomic(path, json.dumps(payload, indent=2))
     return path
 
 
@@ -679,10 +684,7 @@ def write_heartbeat(project: str | None = None, repo_root: str | None = None,
         "current": current,
     }
     try:
-        HEARTBEAT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = HEARTBEAT_PATH.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        os.replace(tmp, HEARTBEAT_PATH)
+        write_text_atomic(HEARTBEAT_PATH, json.dumps(payload, indent=2))
         if current is None:
             _last_idle_beat = now
     except OSError:

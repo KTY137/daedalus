@@ -41,6 +41,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from .atomic import write_text_atomic
+
 SHIFT_VERSION = "1"
 SHIFT_REL_PATH = "runs/shift.json"
 
@@ -172,10 +174,15 @@ def _hm(td: timedelta) -> str:
 
 
 def _write_atomic(path: Path, payload: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(payload, indent=1), encoding="utf-8")
-    os.replace(tmp, path)
+    """Publish the shift file. Delegates to ``daedalus.atomic``.
+
+    The comment block above says the replace "is atomic on POSIX and Windows".
+    That is true of the syscall and NOT true of this call: on win32 the ticker
+    reads this exact file on a timer, holds it open without FILE_SHARE_DELETE,
+    and the replace then fails with ERROR_ACCESS_DENIED. ``daedalus.atomic``
+    carries the bounded retry that was measured against that case.
+    """
+    write_text_atomic(path, json.dumps(payload, indent=1))
 
 
 class _ShiftLock:

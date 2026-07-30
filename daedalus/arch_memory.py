@@ -46,6 +46,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .atomic import write_text_atomic
+
 ARCH_MEMORY_VERSION = "1"
 MEMORY_REL_PATH = "runs/arch_memory.json"
 STATE_REL_PATH = "docs/architecture-state.json"
@@ -173,13 +175,20 @@ def save(mem: ArchMemory, repo_root=".") -> Path:
     A post-commit hook writes this while a prompt hook may be reading it. There
     is no read-modify-write here, so atomic publish is sufficient and no lock is
     needed -- a reader sees the previous snapshot or the new one, never half.
+
+    That concurrent reader is exactly what used to break this on win32: the
+    reader holds the file open without FILE_SHARE_DELETE and the bare
+    ``os.replace`` failed with ERROR_ACCESS_DENIED. This function NAMED that
+    scenario in the paragraph above and then did the unretried replace anyway.
+    ``daedalus.atomic`` carries the measured retry; see its module docstring.
+
+    The per-pid temp name is also gone: two hook invocations in one process
+    (a post-commit hook and a prompt hook both calling save) shared one scratch
+    path, so a racing pair could publish half-written bytes. ``atomic`` uses a
+    random suffix instead.
     """
-    import os as _os
     p = Path(repo_root) / MEMORY_REL_PATH
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + f".{_os.getpid()}.tmp")
-    tmp.write_text(json.dumps(mem.to_dict(), indent=1), encoding="utf-8")
-    _os.replace(tmp, p)
+    write_text_atomic(p, json.dumps(mem.to_dict(), indent=1))
     return p
 
 
@@ -234,12 +243,7 @@ def _last_shown(root: Path) -> list[str]:
 
 
 def _remember_shown(root: Path, lines) -> None:
-    import os as _os
-    p = root / LAST_SHOWN_REL_PATH
-    p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_name(p.name + f".{_os.getpid()}.tmp")
-    tmp.write_text(NEWLINE.join(lines), encoding="utf-8")
-    _os.replace(tmp, p)
+    write_text_atomic(root / LAST_SHOWN_REL_PATH, NEWLINE.join(lines))
 
 
 def render_delta(repo_root=".") -> str:

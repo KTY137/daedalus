@@ -86,6 +86,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from . import progress
+from .atomic import write_text_atomic
 from .spine.attempt import ATTEMPT_STATES, STATE_CANCELLED
 from .spine.envelope import (
     PREDICATE_LOOP_LEDGER,
@@ -425,10 +426,10 @@ class LoopLedger:
             predicate_type=PREDICATE_LOOP_LEDGER,
             predicate=body,
             trace_id=self.trace_id)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_name(f"{self.path.name}.{uuid.uuid4().hex[:8]}.tmp")
-        tmp.write_text(json.dumps(doc, indent=2), encoding="utf-8")
-        os.replace(tmp, self.path)
+        # Atomic publish with the win32 retry -- see daedalus.atomic. The ledger
+        # is polled by the web loop endpoint and the mission-control view, which
+        # is the concurrent-reader case the bare replace loses.
+        write_text_atomic(self.path, json.dumps(doc, indent=2))
         return self.path
 
 

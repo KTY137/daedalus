@@ -120,6 +120,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+
+from ..atomic import write_text_atomic
 from typing import Any, Iterable
 
 from daedalus.spine.cancel import cancel_all_managed
@@ -544,23 +546,17 @@ class KillSwitch:
         fail to engage precisely because something was watching it. The window
         is one ``read_bytes`` of a <1 KiB file, so a bounded retry closes it;
         the caller decides what an exhausted retry means.
+
+        This is where that retry was first measured and written. It now
+        delegates to :mod:`daedalus.atomic`, which is this same loop lifted so
+        the four other publishers that documented themselves as atomic and
+        omitted it (``arch_memory.save``, ``shift._write_atomic``,
+        ``file_bridge._write_json_atomic``, ``loop.LoopLedger.save``) share one
+        implementation instead of four divergent copies. Behaviour here is
+        unchanged: same temp-sibling scheme, same bounded retry, same raise on
+        an exhausted deadline.
         """
-        target.parent.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_name(f"{target.name}.{uuid.uuid4().hex[:8]}.tmp")
-        tmp.write_text(text, encoding="utf-8")
-        deadline = time.monotonic() + max(0.0, retry_s)
-        while True:
-            try:
-                os.replace(tmp, target)
-                return
-            except OSError:
-                if time.monotonic() >= deadline:
-                    try:
-                        os.unlink(tmp)
-                    except OSError:
-                        pass
-                    raise
-                time.sleep(0.02)
+        write_text_atomic(target, text, retry_s=retry_s)
 
     def arm(self, *, force: bool = False, note: str = "") -> SwitchState:
         """Write the permit so work may proceed.
