@@ -1,15 +1,15 @@
-ARCHITECTURE: STALE -- measured at 79553172, HEAD is 7a5fb078
+ARCHITECTURE: STALE -- measured at 79553172, HEAD is 2fc037e7
   144 modules | 8 islands | 3 shims | 12 unreached · 2 doc-drift
 PACKAGES
   adapters    universal interface for CLI agent runtimes
   council     "Der Rat": a cross-vendor council that produces EVIDENCE,
   eval        a small, private eval harness for the distillation thesis
+  lanes       what every write lane must do, in one place
   mapping     the GENERATED half of the architecture artifact
   observe     the behavioural axis: what the code actually did, not what it declares
   providers   Model-provider backends for the agent harness
   spine       Mission Spine light
   structcore  the Universal Structural Core (Daedalus Movement I)
-  tools       the capability layer: what tools exist, and what they are cleared for
 ISLANDS (nothing imports these -- do not read them by accident)
   publish.py, gui_catalogue.py, evolution.py, shadow_shell.py, langgraph_adapter.py, memstore.py, preservation
 SHIMS (re-export only): decompose.py, drafts.py, mission_control.py

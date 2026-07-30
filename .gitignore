@@ -61,3 +61,6 @@ runs/canary/
 runs/ikarus/
 runs/progress/
 tests/_looptmp/
+
+# Playwright MCP scratch dir -- tool cache, never source.
+.playwright-mcp/
