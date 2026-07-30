@@ -74,7 +74,9 @@ def collect_skills(repo_root: str | Path, *, include_user: bool = True) -> tuple
     root = Path(repo_root).resolve()
     records: list[ToolRecord] = []
     errors: list[str] = []
-    seen: set[str] = set()
+    # (name, root) -- the annotation said ``set[str]`` while the code put tuples
+    # in it, which is how the key's actual shape stopped being anybody's business.
+    seen: set[tuple[str, str]] = set()
 
     allowances, allow_err = vet_mod.load_allowances(root)
     errors.extend(allow_err)
@@ -91,7 +93,24 @@ def collect_skills(repo_root: str | Path, *, include_user: bool = True) -> tuple
             errors.append(f"{sroot}: {getattr(defect, 'directory', '?')}: "
                           f"{'; '.join(getattr(defect, 'problems', ()) or ['unspecified defect'])}")
         for sk in sorted(getattr(report, "skills", ()) or (), key=lambda s: s.name):
-            key = (sk.name, scope)
+            # KEYED ON THE ROOT, not on the scope label.
+            #
+            # ADVERSARIAL REVIEW 2026-07-30 (Cerberus, high 7). ``SKILL_SCOPES``
+            # labels BOTH ``.claude/skills`` and ``.agentenv/skills`` as
+            # "project", so a skill of the same name in the second directory
+            # produced the key that the first had already claimed and was
+            # ``continue``d past -- never vetted, never in the inventory, never
+            # reported as shadowed. A hostile skill became invisible to the trust
+            # gate by choosing a name that already existed.
+            #
+            # The comment above ``SKILL_SCOPES`` says "BOTH are reported so a
+            # shadowed skill is visible rather than silently absent". This makes
+            # that true. Keying on the root still collapses a genuine duplicate
+            # (the same directory scanned twice) and no longer collapses two
+            # different files that happen to share a name -- which is the only
+            # thing the key was ever meant to do, since precedence is expressed
+            # by ORDER in ``roots`` and not by this set.
+            key = (sk.name, str(sroot))
             if key in seen:
                 continue
             seen.add(key)
