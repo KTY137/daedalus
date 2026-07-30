@@ -37,15 +37,39 @@ REAL_SHA = "a5fc7ce99731000000000000000000000000beef"
 OTHER_SHA = "1234567890abcdef00000000000000000000cafe"
 
 
+def _frozen_gate(head: str, gate_paths: tuple = ()) -> dict:
+    """The gate binding, from the production argv builder (see bootstrap's
+    ``_gate_binding``: a receipt that cannot name the exact command it measured
+    is not evidence about any gate)."""
+    from daedalus.spine.attempt import pytest_gate_argv
+    return {
+        "argv": [str(v) for v in pytest_gate_argv(gate_paths)],
+        "gate_paths": list(gate_paths),
+        "gate_scope": "whole-suite" if not gate_paths else "scoped",
+        "head": head,
+    }
+
+
 def _write_receipt(root: Path, **overrides) -> None:
     doc = {
+        # A receipt that PASSES every check, so a test that flips ONE field is
+        # measuring that field and nothing else. `state`, `kill_rate_floor` and
+        # `critical_defect_classes` are as load-bearing as the counts: without
+        # them the receipt is "not a completed measurement" and every positive
+        # control would fail for a reason it was not written to test.
+        "state": "measured",
+        "kill_rate_floor": B.KILL_RATE_FLOOR,
+        "critical_defect_classes": list(B.CRITICAL_DEFECT_CLASSES),
         "head": REAL_SHA,
+        "frozen_gate": _frozen_gate(REAL_SHA),
         "measured_at": "2026-07-29T00:00:00+00:00",
         "planted": 12,
         "killed": 10,                 # 83%, above the 80% floor
         "surviving_classes": [],
     }
     doc.update(overrides)
+    if "frozen_gate" not in overrides:
+        doc["frozen_gate"] = dict(doc["frozen_gate"], head=doc["head"])
     path = root / B.DISCRIMINATION_REL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc, indent=2), encoding="utf-8")

@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from . import metrics
 from .kairos.scheduler import FREE_LANES
@@ -295,6 +296,20 @@ def offload(
     run_tests: bool = False,
     project: str | None = None,
     isolate_paths: bool = False,
+    # WINDOWED REWRITE hint: ``{rel_path: [window, ...]}``, where a window is a
+    # line number, ``{"line": L, "radius": R}`` or ``{"start": S, "end": E}``.
+    # A caller that already MEASURED which lines are wrong (the docref scan
+    # does) can ask the local model to correct those lines instead of
+    # reprinting a 2500-line document it will only truncate. Purely additive:
+    # no hint means the existing full-file rewrite, unchanged. Consumed only by
+    # the local (ollama) write lane -- external lanes never see it, so it opens
+    # no new egress path.
+    rewrite_windows: dict[str, Any] | None = None,
+    # Explicit assignment resolved by the PRIMARY scheduler before an isolated
+    # worktree is created. Dirty repo-local policy is intentionally absent from
+    # a HEAD-based worktree, so relying on the worktree to rediscover this can
+    # silently switch models mid-attempt.
+    model: str | None = None,
 ) -> dict:
     if availability is None:
         from .doctor import check
@@ -381,7 +396,7 @@ def offload(
     if decision.provider == "ollama":
         run_kwargs["writable"] = (decision.mode == "write")   # advisory truly can't write
         model_assignments = ((pdata or {}).get("team") or {}).get("model_assignments") or {}
-        preferred_model = model_assignments.get(agent["name"])
+        preferred_model = model or model_assignments.get(agent["name"])
         if preferred_model:
             run_kwargs["model"] = str(preferred_model)
         # THE WIRE (Horizon Phase 2, static-only): hand the LOCAL bench a gated
@@ -404,16 +419,28 @@ def offload(
             include_focus=not rewrite_bound, budget=_slice_budget())
         if slice_texts:
             run_kwargs["slice_texts"] = slice_texts
+        # Only a WRITE run can splice anything; handing the hint to an advisory
+        # or agentic run would be dead weight on the prompt budget.
+        if rewrite_windows and rewrite_bound:
+            run_kwargs["rewrite_windows"] = {
+                str(k).replace("\\", "/"): v for k, v in rewrite_windows.items()}
     elif decision.provider == "codex_cli":
         # Same reduced-rights grant as ollama: advisory runs in codex's
         # read-only sandbox and structurally cannot write.
+        run_kwargs["writable"] = (decision.mode == "write")
+    elif decision.provider == "deepseek":
+        # External writes require BOTH the router's explicit per-project
+        # opt-in and this per-call grant. DeepSeekProvider defaults writable
+        # to False, so omitting the seam turns a legitimate write route into
+        # an unexplained advisory no-op.
         run_kwargs["writable"] = (decision.mode == "write")
 
     # FAIL-CLOSED writable grant: the verify-fail path below undoes a bad write
     # via worker.rollback(), so a provider without a callable rollback() must
     # never hold write rights -- a failed verify would leave the primary
     # checkout dirty while the result reported rolled_back=[] with no flag
-    # (today that's codex_cli; only the ollama provider implements rollback).
+    # Providers with an explicit write mode implement rollback; any future
+    # provider that does not is automatically downgraded here.
     # The downgrade is EXPLICIT, mirroring core._codex_report's
     # mutation_blocked stamp: the notice + needs_stronger_lane ride the result,
     # and the write-mode verify gate (require_changes) then fails the run into
@@ -439,6 +466,9 @@ def offload(
     before_snap = _snap() if decision.mode == "write" else {}
 
     out = worker.run(**run_kwargs)
+    used_model = run_kwargs.get("model") or getattr(worker, "model", None)
+    if used_model:
+        result["model"] = str(used_model)
     report = out["report"]
 
     # Slice-context provenance rides the result even on escalation: what the

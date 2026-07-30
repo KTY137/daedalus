@@ -89,6 +89,81 @@ def resolve_write_wave_policy(pdata: dict | None) -> str:
     return DEFAULT_WRITE_WAVE_POLICY
 
 
+# --------------------------------------------------------------------------- #
+# external_write_lanes: may an UNTRUSTED external provider APPLY a change,     #
+# or only advise?                                                             #
+# --------------------------------------------------------------------------- #
+# Every external lane has always been advisory-only: it reads (what egress
+# permits), proposes, and a trusted lane applies. This key is the operator's
+# opt-in to let a NAMED external lane land its own full-file rewrite instead.
+#
+# It is a LIST OF LANE NAMES rather than a bool because "external writes" is not
+# one decision -- enabling DeepSeek must not silently enable a lane added next
+# year. Unknown names are DISCARDED (see below), so the config cannot grant a
+# permission this version of the code does not implement.
+#
+# What it does NOT do, and this matters because the key reads more permissive
+# than it is:
+#   * it does not widen EGRESS. A named lane still only receives bytes
+#     `daedalus.sensitivity.classify_data` already permits (the repo's `allow` /
+#     `default_deny` keys). Denylisted content is refused before any prompt.
+#   * it does not widen WRITE CONFINEMENT. A named lane may still only touch
+#     paths `write_allow` permits; `path_write_blocked` guards every target.
+#   * it does not reach MID or HIGH change-risk, and never a review-only task.
+#     `provider_router._mode` ANDs this key with risk == "low".
+#   * it does not skip the verify gate, and the provider keeps a byte-exact
+#     rollback of every file it touched.
+# It is also PAID: a lane named here spends real money per file rewritten.
+KNOWN_EXTERNAL_WRITE_LANES = ("deepseek",)
+#: Fail-closed default for a config that omits the key, or sets something that
+#: is not a list of known lane names -- a typo, a bool, a bare string, a lane
+#: from a future version. Absence (or garbage) must never be read as permission,
+#: and a name we do not recognize must never be read as one we do.
+DEFAULT_EXTERNAL_WRITE_LANES: tuple[str, ...] = ()
+
+
+def resolve_external_write_lanes(pdata: dict | None) -> tuple[str, ...]:
+    """The external lanes a resolved project config permits to WRITE.
+
+    ``pdata`` is a project dict as returned by :func:`resolve_project` (or
+    ``None``); the key is read from its ``policy`` block, alongside the other
+    egress/write knobs it belongs with. The result is the INTERSECTION of what
+    the config asks for and :data:`KNOWN_EXTERNAL_WRITE_LANES` -- an
+    intersection, not a passthrough, so an unrecognized name grants nothing
+    instead of being handed to a router that might match it later. Comparison
+    is case-insensitive and whitespace-trimmed; ordering is
+    :data:`KNOWN_EXTERNAL_WRITE_LANES`' so two processes reading the same file
+    produce the same tuple.
+    """
+    if not isinstance(pdata, dict):
+        return DEFAULT_EXTERNAL_WRITE_LANES
+    policy = pdata.get("policy")
+    if not isinstance(policy, dict):
+        return DEFAULT_EXTERNAL_WRITE_LANES
+    raw = policy.get("external_write_lanes")
+    if not isinstance(raw, (list, tuple)):
+        return DEFAULT_EXTERNAL_WRITE_LANES
+    asked = {x.strip().lower() for x in raw if isinstance(x, str)}
+    return tuple(name for name in KNOWN_EXTERNAL_WRITE_LANES if name in asked)
+
+
+def external_write_lanes_for_repo(repo_root: str | None) -> tuple[str, ...]:
+    """:func:`resolve_external_write_lanes` for the repo that will be WRITTEN.
+
+    Reads the repository's own ``.agentenv/agentenv.json``. Every failure mode
+    -- no ``repo_root``, no config file, unreadable, malformed JSON, no policy
+    block -- resolves to :data:`DEFAULT_EXTERNAL_WRITE_LANES`, so a router that
+    cannot read the config routes exactly as it did before this key existed.
+
+    Deliberately repo-local and NOT registry-aware: this grants an untrusted
+    external lane write rights over a specific checkout, so the permission has
+    to live in the checkout it applies to, reviewable in that repo's version
+    control -- not in a registry entry written for some other repository, which
+    is the exact shape of the bug ``_apply_repo_confinement`` exists to undo.
+    """
+    return resolve_external_write_lanes({"policy": _repo_local_policy(repo_root)})
+
+
 STARTER: dict = {
     "_comment": "daedalus policy for THIS repo. Generic secret protections are "
                 "always merged in; add your own denies. With no 'policy' block, "
@@ -100,7 +175,20 @@ STARTER: dict = {
         "high_risk_paths": [],
         "high_risk_terms": ["delete", "drop table", "migration", "auth",
                             "payment", "production", "deploy"],
-        "deny_content": []
+        "deny_content": [],
+        "_comment_external_write_lanes": "Which UNTRUSTED external provider "
+            "lanes may APPLY a change instead of only advising. Empty -- the "
+            "default, and the behaviour every version before this key had -- "
+            "means every external lane is advisory-only. Add \"deepseek\" to "
+            "let the DeepSeek lane land its own full-file rewrite, and only on "
+            "LOW change-risk, non-review tasks. Enabling it widens NOTHING "
+            "else: that lane still only receives bytes the egress keys "
+            "('allow'/'default_deny') permit, still only writes paths "
+            "'write_allow' permits, still faces the verify gate, and keeps a "
+            "byte-exact rollback of every file it touched. Unknown lane names "
+            "here are discarded, not honoured. DeepSeek writes are PAID -- "
+            "this is an occasional opt-in, not a default lane.",
+        "external_write_lanes": []
     },
     "test_command": None,   # opt-in: a fresh repo has no suite -- don't gate writes on a nonexistent one
     "test_cwd": ".",
@@ -158,8 +246,12 @@ def _repo_local_policy(repo_root: str | None) -> dict | None:
     if not f.exists():
         return None
     try:
-        return (json.loads(f.read_text(encoding="utf-8")) or {}).get("policy") or None
-    except (OSError, json.JSONDecodeError):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
+        policy = data.get("policy")
+        return policy if isinstance(policy, dict) else None
+    except (OSError, UnicodeError, json.JSONDecodeError):
         return None
 
 

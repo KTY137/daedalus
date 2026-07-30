@@ -76,10 +76,14 @@ from __future__ import annotations
 
 import inspect
 import json
+import threading
+import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
+from . import progress
 from .build import BuildSession, Wave, load_session, wave_path_conflicts
 from .kairos.scheduler import Assignment, KairosScheduler
 
@@ -108,7 +112,8 @@ _LANDED_STATUSES = {"offloaded"}
 _PLANNED_STATUSES = {"planned"}
 # NOT landed, on purpose: daedalus.kairos.gated_writes.run_write_wave's own
 # statuses ("gated_promoted", "gated_held", "gated_refused",
-# "write_gate_failed") all fall through to "bounced" below, even a clean,
+# "gated_artifact_lost", "write_gate_failed") all fall through to "bounced"
+# below, even a clean,
 # fully-auto-promoted candidate. That is correct, not an omission --
 # "landed" here has only ever meant repo_root's PRIMARY checkout changed, and
 # a gated candidate never does that, no matter how far it advanced (see
@@ -116,6 +121,34 @@ _PLANNED_STATUSES = {"planned"}
 # worktree/branch, never repo_root). The full status string and reason are
 # never lost -- they ride along in the raw per-task result dict
 # (BuildTask.last_result).
+
+
+#: Attribution for every progress event this module records. A ProgressEvent
+#: with no source is refused at construction (progress.ProgressEvent.__post_init__)
+#: precisely so an observation can never be read without knowing who made it.
+PROGRESS_SOURCE = "daedalus.build_exec"
+
+#: How often a blocked wave proves its dispatching thread is still alive.
+#: Matches progress_sources.track_call's own default rather than inventing a
+#: second cadence, and sits well inside progress.DEFAULT_STALL_BUDGET_S (90s)
+#: so a HEALTHY wave never drifts into the stall window between beats -- the
+#: stall detector should fire on a wedged wave, not on a quiet one.
+_HEARTBEAT_INTERVAL_S = 15.0
+
+
+def _attempt_unit_id(wave_index: int, pos: int, nonce: str) -> str:
+    """The progress unit id for ONE task in ONE wave dispatch.
+
+    Readable on sight (which wave, which slot) and unique per dispatch, so two
+    runs of the same wave never collide in the log. It is deliberately NOT the
+    spine attempt's ``task_id``: that id is minted inside ``_spec_for`` and does
+    not exist yet when the attempt STARTS, and a lifecycle that cannot name its
+    own start is the exact gap this function closes. The real attempt task_id
+    is recorded in the finish event's detail once it is known, and the ambient
+    trace_id (stamped on every event by progress._record) is what joins the two
+    together with the driving loop's own iteration events.
+    """
+    return f"wave{int(wave_index)}-t{int(pos)}-{nonce}"
 
 
 def _cancel_requested(cancel: Any) -> bool:
@@ -234,8 +267,16 @@ class WaveExecutor:
     whatever the task's ``objective``/``paths`` route to right now.
     """
 
-    def __init__(self, availability: dict | None = None) -> None:
+    def __init__(self, availability: dict | None = None,
+                 progress_log: Any = None) -> None:
         self.availability = availability
+        # WHERE THE ATTEMPT-LIFECYCLE EVENTS GO. Defaulted to None (=
+        # daedalus.progress.default_log()) so every existing construction is
+        # unchanged. A driver that already owns a log -- LoopDriver does --
+        # passes its own, so one run's iteration events and its attempt events
+        # land in ONE file. Splitting them across two logs would reintroduce
+        # exactly the join-by-hand this whole change exists to remove.
+        self._progress_log = progress_log
 
     def _scheduler_for(self, session: BuildSession) -> KairosScheduler:
         scheduler = KairosScheduler(availability=self.availability, project=session.project)
@@ -243,8 +284,30 @@ class WaveExecutor:
         return scheduler
 
     @staticmethod
-    def _task_dicts(wave: Wave) -> list[dict[str, Any]]:
-        return [{"objective": t.objective, "paths": list(t.paths)} for t in wave.tasks]
+    def _task_dicts(wave: Wave,
+                    curated_gates: Mapping[int, Mapping[str, Any]] | None = None
+                    ) -> list[dict[str, Any]]:
+        """The task dicts ``KairosScheduler.accept``/``dispatch`` consume.
+
+        ``curated_gates`` maps a position in ``wave.tasks`` to that task's OWN
+        execution hints (the curated command gate and, when measured,
+        ``rewrite_windows``). It rides on the task dict under "gate" because
+        that dict is what
+        ``run_write_wave`` receives position-matched to its assignments, and
+        because ``accept()`` reads only "objective"/"paths" -- an extra key is
+        inert on every path that does not look for it.
+
+        Keyed by POSITION rather than carried on BuildTask because BuildTask
+        lives in daedalus/build.py, which this change does not own. The
+        position key is the same 1:1 correspondence tasks/assignments/results
+        already rely on throughout this file (and which run_wave length-checks
+        after dispatch), so it introduces no new alignment assumption.
+        """
+        out = [{"objective": t.objective, "paths": list(t.paths)} for t in wave.tasks]
+        for pos, gate in (curated_gates or {}).items():
+            if gate and 0 <= int(pos) < len(out):
+                out[int(pos)]["gate"] = dict(gate)
+        return out
 
     def classify_wave(self, scheduler: KairosScheduler, wave: Wave, repo_root: str) -> list[Assignment]:
         """Read-only: route every task in ``wave`` without executing anything.
@@ -254,9 +317,93 @@ class WaveExecutor:
         whether a wave may run concurrently."""
         return scheduler.accept(self._task_dicts(wave), repo_root=repo_root)
 
+    def _emit(self, fn: Any, unit_id: str, **kw: Any) -> None:
+        """Record one progress observation. Best-effort BY DESIGN: losing an
+        observation must never take down the wave being observed. Mirrors
+        ``LoopDriver._emit`` deliberately -- two different swallow-policies for
+        the same log would make a missing event ambiguous between "it did not
+        happen" and "it happened and this one crashed"."""
+        try:
+            fn(unit_id, source=PROGRESS_SOURCE, log=self._progress_log, **kw)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _emit_attempt_finished(self, unit_id: str, *, wave: Wave, position: int,
+                               result: Mapping[str, Any], duration_s: float,
+                               dry_run: bool, gated: bool, curated: bool) -> None:
+        """The terminal events for one task: its gate verdict (when it actually
+        reached a gate) and its DONE.
+
+        Every value here is READ from the result, never re-derived from a
+        status string that happens to look encouraging -- the same discipline
+        ``LoopDriver._outcome_of`` applies one level up.
+        """
+        status = str(result.get("status") or "")
+        state = str(result.get("attempt_state") or "")
+        reason = str(result.get("reason") or "")
+        # changed_paths (gated path) and wrote (dispatch path) are both the
+        # MEASURED before/after diff. `paths` is the task's declared hint and
+        # is deliberately NOT used as a fallback: counting a declaration as a
+        # change is how a self-report gets laundered into evidence.
+        changed = result.get("changed_paths")
+        if changed is None:
+            changed = result.get("wrote")
+        files_changed = len(changed or [])
+
+        # A gate verdict is emitted ONLY when an attempt really ran one. A
+        # bounce ("belongs to the senior crew") and a dry-run preview never
+        # reached a gate, and inventing a passed=False verdict for them would
+        # be indistinguishable from a real gate failure -- the same
+        # fail-closed-but-wrong confusion picker.py documents for docref.
+        if state:
+            self._emit(progress.record_gate_verdict, unit_id,
+                       # Named from what actually wired the gate, which this
+                       # method knows for certain: a curated argv becomes
+                       # attempt.command_gate(name="queue-command"); otherwise
+                       # gated_writes._relay_gate names itself "offload-verify".
+                       name=("queue-command" if curated else "offload-verify"),
+                       passed=(state == "clean"),
+                       detail={"wave": wave.index, "position": position,
+                               "attempt_state": state, "status": status,
+                               "reason": reason,
+                               "attempt_task_id": result.get("task_id"),
+                               "integration_branch": result.get("integration_branch")})
+
+        if dry_run or status == "planned":
+            succeeded: bool | None = None      # nothing ran; there is no verdict
+        elif state:
+            succeeded = (state == "clean")
+        else:
+            succeeded = (_task_status(status) == "landed")
+
+        # "applied" means THE PRIMARY CHECKOUT CHANGED. The gated path never
+        # changes it at any promotion level (run_write_wave's docstring), so it
+        # is False there however far the candidate advanced -- a promoted
+        # candidate sits in an integration branch awaiting a human `git merge`.
+        applied: bool | None
+        if dry_run:
+            applied = None
+        elif gated:
+            applied = False
+        else:
+            applied = bool(result.get("wrote"))
+
+        self._emit(progress.record_done, unit_id, succeeded=succeeded,
+                   applied=applied, reason=reason or status or state,
+                   detail={"wave": wave.index, "position": position,
+                           "status": status, "attempt_state": state,
+                           "lane": result.get("lane"), "worker": result.get("worker"),
+                           "files_changed": files_changed,
+                           "duration_s": round(float(duration_s), 3),
+                           "attempt_task_id": result.get("task_id"),
+                           "integration_branch": result.get("integration_branch"),
+                           "dry_run": dry_run})
+
     def run_wave(self, scheduler: KairosScheduler, wave: Wave, repo_root: str, *,
                  dry_run: bool = True, parallel: bool = True,
-                 cancel: Any = None) -> WaveResult:
+                 cancel: Any = None,
+                 curated_gates: Mapping[int, Mapping[str, Any]] | None = None
+                 ) -> WaveResult:
         """Dispatch one wave. ``parallel=True`` is a promise, not a hint: if
         classification finds a write-mode task in this wave, that promise is
         refused (:class:`UnsafeParallelWriteError`), never silently honored
@@ -272,7 +419,7 @@ class WaveExecutor:
         at the last instant before anything is dispatched, and then handed
         down -- see ``_accepts_cancel`` for why the hand-down is conditional.
         """
-        tasks = self._task_dicts(wave)
+        tasks = self._task_dicts(wave, curated_gates)
         assignments = scheduler.accept(tasks, repo_root=repo_root)
         write_n = sum(1 for a in assignments if a.accepted and a.mode == "write")
         advisory_n = sum(1 for a in assignments if a.accepted and a.mode != "write")
@@ -352,6 +499,83 @@ class WaveExecutor:
             for t in wave.tasks:
                 t.mark("dispatched")
 
+        # ---- ATTEMPT LIFECYCLE: OPEN ------------------------------------- #
+        # Emitted HERE, at the wave/attempt seam, because this is the last
+        # place that still knows a task's WAVE POSITION and its ASSIGNMENT
+        # (lane/worker/mode/accepted) in the same scope. Below this line the
+        # tasks scatter: write-mode ones go through run_write_wave into
+        # per-task worktrees, the rest through dispatch, and neither hands
+        # back a "started" signal -- both are blocking calls that report only
+        # at the end. That silence is precisely what makes a running wave
+        # unobservable today.
+        #
+        # Dry runs emit too. A dry run is a real lifecycle (it routes, it
+        # decides, it reports a status) and it is the ONLY way to watch this
+        # machinery without spending money -- muting it would make the cheap
+        # path the unobservable one, which is backwards.
+        nonce = uuid.uuid4().hex[:8]
+        batch_id = f"wave-{wave.index}-{nonce}"
+        units = [_attempt_unit_id(wave.index, i, nonce)
+                 for i in range(len(wave.tasks))]
+        for i, (task, a) in enumerate(zip(wave.tasks, assignments)):
+            self._emit(progress.open_unit, units[i], batch_id=batch_id,
+                       detail={"wave": wave.index, "position": i,
+                               "objective": task.objective[:200],
+                               "paths": list(task.paths),
+                               "lane": a.lane, "worker": a.worker,
+                               "owner": a.owner, "mode": a.mode,
+                               "accepted": a.accepted,
+                               # The routing REASON at open time. For a bounce
+                               # this is already the whole answer ("belongs to
+                               # the senior crew -> return to Adam") and it is
+                               # now visible the instant it is decided, not
+                               # only in a post-mortem of the result dict.
+                               "routing_reason": a.reason,
+                               # Declared, not measured: BuildTask.builder is
+                               # this repo's routing label (claude|ollama), not
+                               # an observation of which model answered.
+                               "builder": getattr(task, "builder", ""),
+                               "tier": getattr(task, "tier", ""),
+                               "curated_gate": list(
+                                   (tasks[i].get("gate") or {}).get("argv") or ()),
+                               "rewrite_windows": dict(
+                                   (tasks[i].get("gate") or {}).get(
+                                       "rewrite_windows") or {}),
+                               "dry_run": dry_run})
+            self._emit(progress.claim_unit, units[i],
+                       detail={"wave": wave.index, "position": i,
+                               "dispatch": "gated_writes" if gated_write_wave
+                                           else "scheduler.dispatch"})
+
+        # LIVENESS WHILE THE WAVE BLOCKS. A gated write wave can run for many
+        # minutes inside one call; with no signal in between, a working wave
+        # and a wedged one are indistinguishable from outside. HEARTBEAT is
+        # deliberately the weakest kind in this vocabulary -- proof the
+        # dispatching thread is alive, never proof of forward progress (see
+        # progress.heartbeat, and UnitProgress.stalled, which refuses to let a
+        # heartbeat clear a stall). Anything stronger would need a per-round
+        # hook that neither offload() nor dispatch() exposes; this does not
+        # invent one. progress.heartbeat is reused rather than
+        # progress_sources.track_call because track_call wraps ONE call into
+        # ONE unit's terminal event, and this is one call behind N units.
+        beat_stop = threading.Event()
+
+        def _beat() -> None:
+            n = 0
+            while not beat_stop.wait(_HEARTBEAT_INTERVAL_S):
+                n += 1
+                for u in units:
+                    self._emit(progress.heartbeat, u,
+                               detail={"beat": n, "wave": wave.index,
+                                       "waiting_on": "gated_writes"
+                                                     if gated_write_wave
+                                                     else "scheduler.dispatch"})
+
+        beat_thread = threading.Thread(
+            target=_beat, daemon=True, name=f"build-exec-heartbeat-w{wave.index}")
+        beat_thread.start()
+        dispatch_started = time.monotonic()
+
         if gated_write_wave:
             from .kairos.gated_writes import run_write_wave
 
@@ -375,10 +599,26 @@ class WaveExecutor:
             # believing it.
             extra = {"cancel": cancel} if (
                 cancel is not None and _accepts_cancel(run_write_wave)) else {}
-            raw = run_write_wave(scheduler, repo_root, tasks, assignments,
-                                 auto_promote=write_wave_policy, **extra)
+
+            def _dispatch() -> list[dict[str, Any]]:
+                return run_write_wave(scheduler, repo_root, tasks, assignments,
+                                      auto_promote=write_wave_policy, **extra)
         else:
-            raw = scheduler.dispatch(repo_root, tasks, dry_run=dry_run, parallel=wave_parallel)
+            def _dispatch() -> list[dict[str, Any]]:
+                return scheduler.dispatch(repo_root, tasks, dry_run=dry_run,
+                                          parallel=wave_parallel)
+
+        # ONE stop point for the beat, on EVERY exit including a raise. The
+        # thread is a daemon, so a leak would not hold the interpreter open --
+        # but this executor also runs inside a long-lived process (the web API),
+        # where a leaked beat would keep appending events for a wave that ended
+        # long ago. A stale "still working" signal is worse than no signal: it
+        # is the exact lie the stall detector exists to catch.
+        try:
+            raw = _dispatch()
+        finally:
+            beat_stop.set()
+            beat_thread.join(timeout=2.0)
         # Guaranteed len(tasks) long, position-matched to `tasks`/`wave.tasks`:
         # dispatch() builds its return list 1:1 from accept()'s own 1:1 pass
         # over `tasks`, UNLESS its internal parallel-write downgrade path fires
@@ -394,8 +634,19 @@ class WaveExecutor:
                 "write downgrade; this call should never be able to trigger it)")
 
         landed_n = bounced_n = 0
-        for task, result in zip(wave.tasks, raw):
+        elapsed = time.monotonic() - dispatch_started
+        for pos, (task, result) in enumerate(zip(wave.tasks, raw)):
             task.last_result = result
+            # ---- ATTEMPT LIFECYCLE: CLOSE -------------------------------- #
+            # Before the `dry_run` short-circuit below, so a dry run closes
+            # every unit it opened. A lifecycle that opens and never closes
+            # renders as STALLED forever (progress.UnitProgress.stalled), which
+            # would turn the cheapest, safest path into the one that looks
+            # permanently broken.
+            self._emit_attempt_finished(
+                units[pos], wave=wave, position=pos, result=result,
+                duration_s=elapsed, dry_run=dry_run,
+                gated=gated_write_wave, curated=bool(tasks[pos].get("gate")))
             if dry_run:
                 continue
             coarse = _task_status(str(result.get("status", "")))

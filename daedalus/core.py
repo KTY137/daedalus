@@ -484,8 +484,16 @@ def _head_sha_safe(repo_root: str) -> str | None:
         return None
 
 
-def _gov_discrimination(repo_root: str, head: str | None) -> dict[str, Any]:
-    """Has the gate been SHOWN to separate good patches from bad ones?"""
+def _gov_discrimination(repo_root: str, head: str | None, *,
+                        expected_gate: Mapping[str, Any] | None = None
+                        ) -> dict[str, Any]:
+    """Has THIS candidate gate been shown to separate good patches from bad?
+
+    A global boolean cannot safely authorise heterogeneous gates.  When no
+    ``expected_gate`` is supplied this surface still reports the receipt, but
+    promotion remains refused because no exact argv/scope/path binding was
+    made.
+    """
     gate = {
         "id": "discrimination",
         "question": "Has the test gate been shown to catch planted defects at THIS revision?",
@@ -506,7 +514,9 @@ def _gov_discrimination(repo_root: str, head: str | None) -> dict[str, Any]:
         return gate
     receipt = Path(repo_root) / DISCRIMINATION_REL_PATH
     try:
-        gd = gate_discrimination(repo_root, head=head)
+        gd = gate_discrimination(
+            repo_root, head=head, expected_gate=expected_gate,
+            require_gate_binding=True)
     except Exception as e:                       # noqa: BLE001
         gate["headline"] = f"the discrimination gate raised {type(e).__name__}"
         return gate
@@ -754,7 +764,9 @@ def _gov_operability_drill(repo_root: str, head: str | None) -> dict[str, Any]:
     return gate
 
 
-def get_governance(project: str | None = None) -> dict[str, Any]:
+def get_governance(project: str | None = None, *,
+                   expected_gate: Mapping[str, Any] | None = None
+                   ) -> dict[str, Any]:
     """May this system promote anything right now, and why not?
 
     One payload, one shape, consumed identically by the HTTP API, the VS Code
@@ -783,7 +795,7 @@ def get_governance(project: str | None = None) -> dict[str, Any]:
             repo_root = ""
     head = _head_sha_safe(repo_root)
     gates = [
-        _gov_discrimination(repo_root, head),
+        _gov_discrimination(repo_root, head, expected_gate=expected_gate),
         _gov_write_confinement(repo_root, selected),
         _gov_operability_drill(repo_root, head),
     ]

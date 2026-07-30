@@ -74,6 +74,17 @@ def _external_repo(root: Path) -> Path:
     return root
 
 
+def _frozen_gate(head: str, gate_paths: tuple = ()) -> dict:
+    """The gate binding a receipt must carry, in the shape bootstrap validates."""
+    from daedalus.spine.attempt import pytest_gate_argv
+    return {
+        "argv": [str(v) for v in pytest_gate_argv(gate_paths)],
+        "gate_paths": list(gate_paths),
+        "gate_scope": "whole-suite" if not gate_paths else "scoped",
+        "head": head,
+    }
+
+
 def _receipt(tmp: Path, **overrides) -> Path:
     """A receipt that PASSES every check, so a test that flips one field is
     measuring that field and nothing else."""
@@ -86,9 +97,19 @@ def _receipt(tmp: Path, **overrides) -> Path:
         "surviving_classes": [],
         "kill_rate_floor": KILL_RATE_FLOOR,
         "critical_defect_classes": list(CRITICAL_DEFECT_CLASSES),
-        "frozen_gate": {"gate_paths": [], "gate_scope": "whole-suite"},
+        # Built from the PRODUCTION argv builder, never hand-copied: bootstrap
+        # cross-checks the receipt argv against pytest_gate_argv(paths), so a
+        # hand-written copy here would drift the day the real command changes
+        # and this fixture would start certifying a gate nobody runs.
+        "frozen_gate": _frozen_gate(MEASURED_HEAD),
     }
     doc.update(overrides)
+    if "frozen_gate" not in overrides:
+        # Follow the (possibly overridden) measurement head: a receipt whose
+        # binding names a different revision than its own measurement is the
+        # forgery bootstrap refuses, so the fixture must not create one by
+        # accident while a test is measuring something else entirely.
+        doc["frozen_gate"] = dict(doc["frozen_gate"], head=doc["head"])
     path = tmp / DISCRIMINATION_REL_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(doc), encoding="utf-8")

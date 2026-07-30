@@ -432,6 +432,87 @@ class LoopLedger:
         return self.path
 
 
+def _curated_gate(candidate: Any) -> dict[str, Any]:
+    """The per-candidate execution hints the picker carries, or ``{}``.
+
+    WHAT TRAVELS. ``Candidate`` carries four curated gate things
+    (``gate_argv``, ``gate_cwd``/``gate_timeout_s``, ``gate_paths``,
+    ``base_revision``), plus measured evidence. The command-gate triple and the
+    measured ``rewrite_windows`` evidence are forwarded:
+
+    * ``gate_argv`` (+ cwd/timeout) -- the whole point. Without it a docref
+      candidate is judged by ``offload()``'s project-wide test command, which
+      says nothing about whether the document's references now resolve.
+    * ``rewrite_windows`` -- the docref scanner already measured which lines
+      are broken. Without this hint the isolated write-wave seam asks Ollama
+      for a full-file rewrite; a 2,496-line HANDOFF is then correctly refused
+      as too large and every attempt becomes a fast, unexplained no-op.
+    * ``gate_paths`` is deliberately DROPPED, not forgotten. It only feeds the
+      default pytest gate, which the curated argv replaces outright -- and
+      ``spine/picker.py`` documents that forwarding it is what produced
+      ``pytest docs/THAT.md``: a gate that failed every docref attempt for a
+      reason unrelated to the fix, fail-closed and indistinguishable from a
+      real finding.
+    * ``base_revision`` is deliberately DROPPED. The picker observed it when it
+      ranked; ``gated_writes`` re-reads HEAD at dispatch. Substituting the
+      older value would attempt on ground that may have moved and would cut
+      across the promotion lock's staleness handling -- a correctness change to
+      the write path, not an observability one, and out of scope here.
+
+    A gate whose ``cwd`` is not "." is also dropped: ``TaskAttempt.__init__``
+    rejects that combination outright (subdirectory execution is unimplemented),
+    so forwarding one would convert a task that runs today into a hard
+    ValueError. Falling back to the existing gate is the degradation; crashing
+    the attempt is not.
+    """
+    out: dict[str, Any] = {}
+    evidence = getattr(candidate, "evidence", {})
+    if isinstance(evidence, Mapping):
+        rewrite_windows = evidence.get("rewrite_windows")
+        if isinstance(rewrite_windows, Mapping) and rewrite_windows:
+            out["rewrite_windows"] = dict(rewrite_windows)
+
+    argv = tuple(getattr(candidate, "gate_argv", ()) or ())
+    if not argv:
+        return out
+    cwd = str(getattr(candidate, "gate_cwd", ".") or ".")
+    if cwd != ".":
+        return out
+    out.update({
+        "argv": [str(a) for a in argv],
+        "cwd": cwd,
+        "timeout_s": float(getattr(candidate, "gate_timeout_s", 900.0) or 900.0),
+    })
+    return out
+
+
+def _model_of(raw: Mapping[str, Any]) -> str:
+    """The model id a wave result REPORTS, or ``""``.
+
+    Best-effort by construction, and deliberately not clever: it reads the two
+    places a model id could legitimately appear (the result dict itself, and
+    the nested raw ``offload()`` report under "result") and otherwise gives up.
+
+    It never falls back to a routing PREFERENCE. `daedalus.offload` passes a
+    `preferred_model` into its provider call but does not report back what
+    actually answered, so a preference is a request, not an observation --
+    recording one here would put an unmeasured claim in the ledger under a
+    field a reader would reasonably trust as measured. Empty is the honest
+    answer until a provider seam reports the real thing.
+    """
+    for key in ("model", "model_id"):
+        got = raw.get(key)
+        if got:
+            return str(got)
+    nested = raw.get("result")
+    if isinstance(nested, Mapping):
+        for key in ("model", "model_id"):
+            got = nested.get(key)
+            if got:
+                return str(got)
+    return ""
+
+
 # --------------------------------------------------------------------------- #
 # results                                                                      #
 # --------------------------------------------------------------------------- #
@@ -448,10 +529,33 @@ class IterationResult:
     #: when classification never routed this candidate to an attempt at all.
     outcome: str
     #: ``run_write_wave``'s own status string, verbatim -- "gated_promoted",
-    #: "gated_held", "gated_refused", "write_gate_failed", or a dispatch status.
+    #: "gated_held", "gated_refused", "gated_artifact_lost",
+    #: "write_gate_failed", or a dispatch status.
     status: str
     promoted: bool
     reason: str
+    #: WHO actually ran it, read from the wave result rather than from this
+    #: loop's own routing guess -- ``_session_for`` proposes a lane, but
+    #: ``KairosScheduler.accept`` is what decides, and a bounce ("belongs to
+    #: the senior crew -> return to Adam") is exactly the case where the two
+    #: disagree. Empty when the result carried none.
+    lane: str = ""
+    worker: str = ""
+    #: Best-effort ONLY: no result shape in this repo carries a model id today
+    #: (neither KairosScheduler.dispatch's dict nor gated_writes' `base`), so
+    #: this is normally "". Kept as a declared field so the day a provider seam
+    #: does report one it lands here instead of needing another schema change.
+    #: Never back-filled from a routing preference -- a preferred model is not
+    #: evidence of the model that ran.
+    model: str = ""
+    #: Narrow provider-side activation receipt. This explains whether a
+    #: requested window actually ran or why it was skipped; prompts and file
+    #: content are deliberately excluded upstream.
+    provider_receipt: dict[str, Any] | None = None
+    #: Durable raw patch bytes for a clean candidate that governance held.
+    #: This lives outside the primary checkout; the attempt branch is reaped.
+    artifact_path: str | None = None
+    artifact_sha256: str = ""
     attempt_task_ids: tuple[str, ...] = ()
     integration_branch: str | None = None
     duration_s: float = 0.0
@@ -467,6 +571,10 @@ class IterationResult:
             "instruction": self.instruction, "source": self.source,
             "score": self.score, "outcome": self.outcome, "status": self.status,
             "promoted": self.promoted, "reason": self.reason,
+            "lane": self.lane, "worker": self.worker, "model": self.model,
+            "provider_receipt": self.provider_receipt,
+            "artifact_path": self.artifact_path,
+            "artifact_sha256": self.artifact_sha256,
             "attempt_task_ids": list(self.attempt_task_ids),
             "integration_branch": self.integration_branch,
             "duration_s": round(self.duration_s, 3),
@@ -630,7 +738,11 @@ class LoopDriver:
         if executor is None:
             from .build_exec import WaveExecutor
 
-            executor = WaveExecutor()
+            # ONE LOG FOR THE WHOLE RUN. The executor emits the attempt-level
+            # lifecycle and this driver emits the iteration-level one; handing
+            # it this loop's log keeps both in a single file, so "what happened
+            # in iteration 3" is one read rather than a join across two.
+            executor = WaveExecutor(progress_log=self._progress_log)
         self.executor = executor
 
         base = Path(runs_dir) if runs_dir else Path(self.repo_root) / "runs" / "loop"
@@ -746,15 +858,20 @@ class LoopDriver:
         decided the unit of work, and re-decomposing it would both re-plan
         settled work and add a model call per iteration.
 
-        KNOWN LOSS, stated rather than worked around: ``Candidate`` carries a
-        curated ``gate_argv``/``gate_paths``/``base_revision`` and a
-        ``to_spec()`` that preserves them, but the gated write path builds its
-        own ``TaskSpec`` from the Assignment (objective + paths) and re-reads
-        HEAD for the base. Routing through the wave executor therefore drops
-        the candidate's own gate command. Forking a second attempt path to
-        keep it would mean re-implementing the promotion lock, the governance
-        AND, and worktree isolation -- a far worse trade. Reported upward
-        instead.
+        THE CURATED GATE NOW TRAVELS; THE BASE STILL DOES NOT. This used to
+        drop all three of ``Candidate``'s curated fields, because the gated
+        write path builds its own ``TaskSpec`` from the Assignment. The
+        command gate (``gate_argv`` + cwd/timeout) is now forwarded --
+        ``_curated_gate`` explains exactly what is carried and what is not --
+        so a docref candidate is judged by its own re-scan instead of by the
+        project's whole test command.
+
+        Still dropped, deliberately: ``gate_paths`` (inert once a command gate
+        exists, and actively harmful if forwarded -- see ``_curated_gate``) and
+        ``base_revision`` (``gated_writes`` re-reads HEAD; overriding it is a
+        correctness change to the write path, not an observability one). No
+        second attempt path was forked, so the promotion lock, the governance
+        AND and worktree isolation are all still the existing ones.
         """
         from .build import BuildSession, BuildTask, Wave, assign_builder
         from .categories import preset_for
@@ -818,11 +935,28 @@ class LoopDriver:
         # parallel=False is not "run sequentially" -- for a live write wave it
         # means "let run_wave choose the safe path", which is the gated,
         # isolated-worktree one. See WaveExecutor.run_wave's own error text.
+        wave_kwargs: dict[str, Any] = {
+            "dry_run": self.dry_run,
+            "parallel": False,
+            "cancel": self.switch,
+        }
+        curated_gate = _curated_gate(candidate)
+        if curated_gate:
+            # THE CANDIDATE'S OWN GATE, carried instead of dropped. One task in
+            # this wave (see _session_for), so position 0 is the whole mapping.
+            #
+            # Keep the kwarg absent when there is no curated gate. Besides
+            # preserving the pre-feature call byte-for-byte, this matters for
+            # injected WaveExecutor-compatible adapters: the hint is an
+            # additive capability, not a new mandatory protocol method.
+            wave_kwargs["curated_gates"] = {0: curated_gate}
         wave_result = self.executor.run_wave(
-            scheduler, wave, self.repo_root,
-            dry_run=self.dry_run, parallel=False, cancel=self.switch)
+            scheduler, wave, self.repo_root, **wave_kwargs)
 
         raw = wave_result.results[0] if wave_result.results else {}
+        provider_receipt = (dict(raw["provider_receipt"])
+                            if isinstance(raw.get("provider_receipt"), Mapping)
+                            else None)
         outcome = self._outcome_of(raw)
         status = str(raw.get("status") or "")
         promoted = status == "gated_promoted"
@@ -855,7 +989,8 @@ class LoopDriver:
                    name="write_wave", passed=(outcome == "clean"),
                    detail={"loop_run": self.run_id, "iteration": index,
                            "attempt_state": outcome, "status": status,
-                           "promoted": promoted, "counted": counted})
+                           "promoted": promoted, "counted": counted,
+                           "provider_receipt": provider_receipt})
         self._emit(progress.record_done, unit,
                    succeeded=(True if promoted else
                               (True if outcome == "clean" else False)),
@@ -866,8 +1001,9 @@ class LoopDriver:
         # A candidate whose attempt failed outright changed nothing and must
         # not lock its files away from a later, better attempt. A candidate
         # that reached `clean` DID produce bytes -- promoted or merely held --
-        # and those bytes are sitting in a sibling branch a human still has to
-        # merge, so the files are genuinely spoken for either way.
+        # and those bytes are preserved in the checkout-external candidate
+        # archive a human can inspect/apply, so the files are genuinely spoken
+        # for either way.
         claimed: list[str] = []
         if counted and not self.dry_run and outcome == "clean":
             claimed = self.ledger.claim(
@@ -883,6 +1019,12 @@ class LoopDriver:
                      else outcome),
             status=status, promoted=promoted,
             reason=str(raw.get("reason") or ""),
+            lane=str(raw.get("lane") or ""), worker=str(raw.get("worker") or ""),
+            model=_model_of(raw),
+            provider_receipt=provider_receipt,
+            artifact_path=(str(raw["artifact_path"])
+                           if raw.get("artifact_path") else None),
+            artifact_sha256=str(raw.get("artifact_sha256") or ""),
             attempt_task_ids=attempt_ids,
             integration_branch=raw.get("integration_branch"),
             duration_s=time.monotonic() - started, spend_usd=spend_delta,
@@ -958,8 +1100,25 @@ class LoopDriver:
                             candidate.task_id, outcome=iteration.outcome,
                             iteration=iteration.index,
                             attempt_task_ids=iteration.attempt_task_ids,
+                            # THE REASON RIDES WITH THE RECORD. A detail of
+                            # {"status": "bounced"} is what cost an hour of
+                            # ledger archaeology: "bounced" names the shape of
+                            # the outcome and nothing about its cause, while
+                            # the cause ("belongs to the senior crew -> return
+                            # to Adam") was sitting unread on the wave result.
+                            # lane/worker travel with it because "who was this
+                            # even given to" is the very next question a reader
+                            # asks, and answering it should not need a join
+                            # against a second file.
                             detail={"status": iteration.status,
-                                    "promoted": iteration.promoted})
+                                    "promoted": iteration.promoted,
+                                    "reason": iteration.reason,
+                                    "lane": iteration.lane,
+                                    "worker": iteration.worker,
+                                    "model": iteration.model,
+                                    "provider_receipt": iteration.provider_receipt,
+                                    "artifact_path": iteration.artifact_path,
+                                    "artifact_sha256": iteration.artifact_sha256})
                         self.ledger.save()
                     else:
                         report.notes.append(
@@ -1038,9 +1197,20 @@ def render(report: LoopReport) -> str:
     lines.append(f"  kill switch: {report.killswitch_path}")
     for it in report.iterations:
         flag = "" if it.counted else "  [INTERRUPTED - not counted]"
+        # WHO, then WHY, on the same line as the verdict. An operator reading
+        # this is asking "why did that produce nothing?", and every earlier
+        # version of this line answered only "it produced nothing". The reason
+        # is truncated, not dropped: the untruncated text is in the report JSON
+        # and the ledger detail, and a line that wraps the terminal is a line
+        # nobody scans.
+        who = f"  [{it.lane or '?'}/{it.worker or '?'}]" if (it.lane or it.worker) else ""
+        why = ""
+        if it.reason:
+            r = " ".join(str(it.reason).split())
+            why = f"\n         why: {r[:200]}{'...' if len(r) > 200 else ''}"
         lines.append(
             f"    #{it.index} {it.candidate_id}  {it.outcome}/{it.status or '-'}"
-            f"  {it.duration_s:.1f}s{flag}")
+            f"  {it.duration_s:.1f}s{who}{flag}{why}")
     branches = report.integration_branches
     if branches:
         lines.append(f"  awaiting a human `git merge` ({len(branches)} sibling "
@@ -1060,6 +1230,22 @@ def render(report: LoopReport) -> str:
 # CLI                                                                          #
 # --------------------------------------------------------------------------- #
 def main(argv: Sequence[str] | None = None) -> int:
+    # `.env` FIRST, then the ceiling -- the same order as cli.main, for the
+    # same reason: the guard's own configuration (the ceiling, the declared
+    # subscriptions, the trusted bench, OLLAMA_HOST) lives exactly there.
+    # MEASURED 2026-07-29, first live run: this entry point skipped the load,
+    # so the router saw no reachable local lane, escalated every docref task
+    # to the paid tier, and the free-lane gate bounced all three attempts with
+    # "belongs to the senior crew" -- a loop that could only refuse. The
+    # bounce was CORRECT; the blindness was the bug.
+    from .dotenv import DotEnvRefused, load as _load_dotenv
+
+    try:
+        _load_dotenv()
+    except DotEnvRefused as exc:
+        print(f"[daedalus] REFUSED: {exc}", file=sys.stderr)
+        return 2
+
     # THE CEILING GOES ON BEFORE ANYTHING ELSE IN THIS PROCESS, including
     # argument parsing -- the same posture as every other spend entry point in
     # this tree (tests/test_spend_coverage.py enforces it). A loop driver is

@@ -1035,8 +1035,32 @@ def run_corpus(*, only: str | None = None, timeout_s: float = DEFAULT_TIMEOUT_S,
 
 
 def write_receipt(receipt: dict, out_path: Path) -> None:
+    """Write the receipt, completing the fields ``bootstrap`` requires.
+
+    ``bootstrap.gate_discrimination`` reads a receipt as a COMPLETED
+    MEASUREMENT: without ``state``, the thresholds it was judged against, and a
+    gate binding naming the exact argv, it refuses -- correctly, because a
+    receipt that cannot say what it measured or what it measured against is not
+    evidence. Filling those in here rather than at each call site means a
+    partial dict from a caller can never produce a receipt that reads as
+    complete but is not, which is the only failure mode worth guarding: an
+    INCOMPLETE receipt is refused loudly, a MISLEADING one is not.
+
+    Nothing already present is overwritten, so a caller testing a specific
+    field still measures that field.
+    """
+    doc = dict(receipt)
+    doc.setdefault("state", "measured")
+    doc.setdefault("kill_rate_floor", KILL_RATE_FLOOR)
+    doc.setdefault("critical_defect_classes", list(CRITICAL_DEFECT_CLASSES))
+    head = str(doc.get("head") or "")
+    if "frozen_gate" not in doc and head:
+        # The gate was frozen AT the measurement head, so the binding names the
+        # same revision by construction; a disagreement is the forgery shape
+        # bootstrap refuses.
+        doc["frozen_gate"] = freeze_gate_config(head)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(receipt, indent=2, default=str), encoding="utf-8")
+    out_path.write_text(json.dumps(doc, indent=2, default=str), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #

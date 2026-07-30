@@ -210,21 +210,95 @@ class GateDiscrimination:
     measured_head: str | None = None
     kill_rate: float | None = None
     surviving_critical: tuple[str, ...] = ()
+    gate_scope: str | None = None
+    gate_paths: tuple[str, ...] = ()
+    gate_argv: tuple[str, ...] = ()
+    gate_bound: bool | None = None
 
     def to_dict(self) -> dict:
         return {"proven": self.proven, "reason": self.reason,
                 "measured_at": self.measured_at,
                 "measured_head": self.measured_head,
                 "kill_rate": self.kill_rate,
-                "surviving_critical": list(self.surviving_critical)}
+                "surviving_critical": list(self.surviving_critical),
+                "gate_scope": self.gate_scope,
+                "gate_paths": list(self.gate_paths),
+                "gate_argv": list(self.gate_argv),
+                "gate_bound": self.gate_bound}
+
+
+def _gate_binding(raw: Any, *, receipt: bool
+                  ) -> tuple[dict[str, Any] | None, str | None]:
+    """Validate and canonicalise a discrimination gate description.
+
+    A discrimination score belongs to the exact command that produced it.  A
+    receipt which merely says "pytest" -- or whose ``gate_scope`` disagrees
+    with its paths -- is not evidence about any gate.  Receipt bindings are
+    narrower than requested bindings: this corpus tool measures only the real
+    pytest gate, while a candidate may request a custom command such as the
+    docref verifier.  The latter is valid as a request but cannot match a
+    pytest receipt.
+    """
+    label = "receipt frozen_gate" if receipt else "requested gate"
+    if not isinstance(raw, Mapping):
+        return None, f"the {label} is missing or is not an object"
+
+    argv_raw = raw.get("argv")
+    paths_raw = raw.get("gate_paths")
+    scope = str(raw.get("gate_scope") or "").strip()
+    if not isinstance(argv_raw, (list, tuple)) or not argv_raw:
+        return None, f"the {label} records no executable argv"
+    if not isinstance(paths_raw, (list, tuple)):
+        return None, f"the {label} gate_paths is not an array"
+    argv = tuple(str(value) for value in argv_raw)
+    paths = tuple(str(value).replace("\\", "/") for value in paths_raw)
+    if any(not value or "\x00" in value for value in (*argv, *paths)):
+        return None, f"the {label} contains an empty or NUL-bearing value"
+    if len(set(paths)) != len(paths):
+        return None, f"the {label} contains duplicate gate_paths"
+
+    expected_scope = "whole-suite" if not paths else "scoped"
+    allowed_scopes = {expected_scope}
+    if not receipt:
+        allowed_scopes.add("custom-command")
+    if scope not in allowed_scopes:
+        return None, (
+            f"the {label} scope {scope!r} disagrees with gate_paths "
+            f"(expected {expected_scope!r})")
+
+    if receipt:
+        # Import the production builder instead of copying its argv.  This
+        # catches a forged receipt that names arbitrary tests or a custom
+        # verifier while retaining a plausible-looking scope/path label.
+        from daedalus.spine.attempt import pytest_gate_argv
+
+        expected_argv = tuple(str(value) for value in pytest_gate_argv(paths))
+        if argv != expected_argv:
+            return None, (
+                "the receipt frozen_gate argv is not the production pytest "
+                "argv for its recorded gate_paths")
+
+    return {
+        "argv": argv,
+        "gate_paths": paths,
+        "gate_scope": scope,
+    }, None
 
 
 def gate_discrimination(repo_root: str | Path,
-                        head: str | None = None) -> GateDiscrimination:
-    """Read the discrimination receipt and judge it. Fails closed, SIX ways.
+                        head: str | None = None, *,
+                        expected_gate: Mapping[str, Any] | None = None,
+                        require_gate_binding: bool = False,
+                        ) -> GateDiscrimination:
+    """Read the discrimination receipt and judge it. Fails closed.
 
     A receipt only counts when it is present, parseable, measured against THE
-    CURRENT REVISION, internally consistent, and clean on every critical class.
+    CURRENT REVISION, internally consistent, clean on every critical class,
+    and bound to the exact gate being authorised.  ``expected_gate`` has the
+    receipt shape ``{"argv", "gate_paths", "gate_scope"}``.  Callers making a
+    promotion decision set ``require_gate_binding=True``; callers displaying
+    the historical measurement may omit it, but that unbound answer must not
+    be read as authority for an arbitrary candidate gate.
     The revision clause is the same doctrine the map and inventory sources
     follow: a measurement of a tree that no longer exists is not a measurement
     of this one.
@@ -281,6 +355,9 @@ def gate_discrimination(repo_root: str | Path,
             False, f"the discrimination receipt is unreadable ({type(e).__name__})")
     if not isinstance(doc, Mapping):
         return GateDiscrimination(False, "the discrimination receipt is not an object")
+    if doc.get("state") != "measured":
+        return GateDiscrimination(
+            False, "the discrimination receipt is not a completed measurement")
 
     measured_head = str(doc.get("head") or "").strip() or None
     measured_at = str(doc.get("measured_at") or "").strip() or None
@@ -294,6 +371,53 @@ def gate_discrimination(repo_root: str | Path,
         return GateDiscrimination(
             False, "the discrimination receipt records no head, so it cannot be "
                    "tied to a revision", measured_at, None)
+
+    frozen, gate_error = _gate_binding(doc.get("frozen_gate"), receipt=True)
+    if gate_error or frozen is None:
+        return GateDiscrimination(
+            False, gate_error or "the receipt gate binding is unusable",
+            measured_at, measured_head)
+    frozen_head = str((doc.get("frozen_gate") or {}).get("head") or "").strip()
+    if frozen_head != measured_head:
+        return GateDiscrimination(
+            False,
+            "the receipt frozen_gate head does not match the measurement head",
+            measured_at, measured_head,
+            gate_scope=frozen["gate_scope"],
+            gate_paths=frozen["gate_paths"], gate_argv=frozen["argv"],
+            gate_bound=False)
+
+    requested = None
+    if expected_gate is not None:
+        requested, gate_error = _gate_binding(expected_gate, receipt=False)
+        if gate_error or requested is None:
+            return GateDiscrimination(
+                False, gate_error or "the requested gate binding is unusable",
+                measured_at, measured_head,
+                gate_scope=frozen["gate_scope"],
+                gate_paths=frozen["gate_paths"], gate_argv=frozen["argv"],
+                gate_bound=False)
+        if requested != frozen:
+            return GateDiscrimination(
+                False,
+                "the discrimination receipt measured a different gate: "
+                f"receipt scope={frozen['gate_scope']!r} "
+                f"paths={list(frozen['gate_paths'])!r}, requested "
+                f"scope={requested['gate_scope']!r} "
+                f"paths={list(requested['gate_paths'])!r}",
+                measured_at, measured_head,
+                gate_scope=frozen["gate_scope"],
+                gate_paths=frozen["gate_paths"], gate_argv=frozen["argv"],
+                gate_bound=False)
+    elif require_gate_binding:
+        return GateDiscrimination(
+            False,
+            "the receipt proves one frozen pytest gate, but no candidate gate "
+            "was supplied to bind this promotion decision",
+            measured_at, measured_head,
+            gate_scope=frozen["gate_scope"],
+            gate_paths=frozen["gate_paths"], gate_argv=frozen["argv"],
+            gate_bound=False)
 
     planted = doc.get("planted")
     killed = doc.get("killed")
@@ -332,7 +456,10 @@ def gate_discrimination(repo_root: str | Path,
     return GateDiscrimination(
         True,
         f"kill rate {rate:.0%} at {measured_head}, no critical class survived",
-        measured_at, measured_head, rate)
+        measured_at, measured_head, rate,
+        gate_scope=frozen["gate_scope"],
+        gate_paths=frozen["gate_paths"], gate_argv=frozen["argv"],
+        gate_bound=(True if requested is not None else None))
 
 
 # --------------------------------------------------------------------------- #
@@ -461,7 +588,11 @@ def shadow_run(repo_root: str | Path, *,
         head = _head_sha(root)
     except Exception:                            # noqa: BLE001
         head = None
-    disc = gate_discrimination(root, head=head)
+    # A receipt proves ONE frozen gate, never "whatever gate the next
+    # candidate happens to use".  Until a candidate exists there is nothing
+    # to bind, so the promotion answer is deliberately unproven.
+    disc = gate_discrimination(
+        root, head=head, require_gate_binding=True)
 
     def _finish(state: str, **kw: Any) -> ShadowResult:
         return ShadowResult(state=state, refreshed=refreshed, discrimination=disc,
@@ -475,9 +606,25 @@ def shadow_run(repo_root: str | Path, *,
 
     top = queue.candidates[0]
     from daedalus.spine.attempt import run_attempt
+    from daedalus.spine.attempt import pytest_gate_argv
     from daedalus.spine.picker import resolve_spine_db_path
 
     task = top.to_task_spec()
+    if task.gate_argv:
+        requested_gate = {
+            "argv": list(task.gate_argv),
+            "gate_paths": list(task.gate_paths),
+            "gate_scope": "custom-command",
+        }
+    else:
+        requested_gate = {
+            "argv": list(pytest_gate_argv(task.gate_paths)),
+            "gate_paths": list(task.gate_paths),
+            "gate_scope": ("whole-suite" if not task.gate_paths else "scoped"),
+        }
+    disc = gate_discrimination(
+        root, head=head, expected_gate=requested_gate,
+        require_gate_binding=True)
     ledger_path, ledger_error = resolve_spine_db_path(root)
     if ledger_error or ledger_path is None:
         notes = notes + (

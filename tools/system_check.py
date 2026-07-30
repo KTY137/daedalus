@@ -127,14 +127,37 @@ class Sandbox:
         if rc != 0:
             self.error = f"git clone failed: {out[-300:]}"
             return False
-        rc, diff = run(["git", "diff", "HEAD"], timeout=600)
-        if rc == 0 and diff.strip():
-            patch = self.tmp / "working.patch"
-            patch.write_text(diff, encoding="utf-8", newline="")
-            rc2, out2 = run(["git", "apply", "--whitespace=nowarn", str(patch)],
-                            cwd=self.repo, timeout=600)
-            if rc2 != 0:
-                self.error = f"could not carry the working diff: {out2[-300:]}"
+        # CARRY THE TREE BY COPYING, NOT BY PATCHING.
+        #
+        # This used to write `git diff HEAD` to a file and `git apply` it, and
+        # that failed on 2026-07-30 with "corrupt patch at line 10606". The
+        # cause was not a corrupt repository: a tracked markdown file
+        # (runs/council/room.md, the cross-vendor transcript) contains lines
+        # that are literally `---`, and `git apply` reads an added line `---`
+        # as the start of a file header. Any tree containing prose about diffs
+        # can therefore become uncarryable, which is a spectacular way for an
+        # acceptance run to refuse to measure anything.
+        #
+        # A patch is a fragile ENCODING of "make the clone look like the working
+        # tree". A copy is that statement directly, and it cannot be confused by
+        # its own contents. The untracked-file loop below already copied; this
+        # makes both halves of the same job work the same way.
+        rc, changed = run(["git", "diff", "HEAD", "--name-only"], timeout=600)
+        if rc != 0:
+            self.error = f"could not list the working diff: {changed[-300:]}"
+            return False
+        for rel in [l.strip() for l in changed.splitlines() if l.strip()]:
+            src, dst = ROOT / rel, self.repo / rel
+            try:
+                if src.is_file():
+                    dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, dst)
+                elif dst.exists():
+                    # Deleted in the working tree: a rename shows up as a delete
+                    # plus an add, so both halves are handled by this one branch.
+                    dst.unlink()
+            except OSError as exc:
+                self.error = f"could not carry {rel}: {exc.__class__.__name__}"
                 return False
         rc, listing = run(["git", "ls-files", "--others", "--exclude-standard"],
                           timeout=600)

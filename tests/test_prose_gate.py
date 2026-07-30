@@ -96,6 +96,59 @@ class ProseBranchTests(unittest.TestCase):
             vr = verify(_report(["docs/x.md"]), d)
             self.assertTrue(vr.ok, vr.as_dict())
 
+    def test_a_proven_broken_docref_may_be_replaced_without_fighting_preservation(self):
+        before = "Use `daedalus.mod.old_name` for routing.\n"
+        after = "Use `daedalus.mod.new_name` for routing.\n"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "daedalus").mkdir()
+            (root / "daedalus" / "mod.py").write_text(
+                "def new_name():\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            (root / "docs").mkdir()
+            rel = "docs/guide.md"
+            (root / rel).write_text(after, encoding="utf-8")
+
+            vr = verify(
+                _report([rel]),
+                d,
+                require_changes=True,
+                disk_changed=[rel],
+                prose_before={rel: before},
+            )
+
+        self.assertTrue(vr.ok, vr.as_dict())
+        prose = next(c for c in vr.checks if c["name"] == f"prose:{rel}")
+        self.assertIn("allowed docref correction", prose["detail"])
+
+    def test_a_resolving_docref_cannot_use_the_broken_ref_waiver(self):
+        before = "Use `daedalus.mod.current_name` for routing.\n"
+        after = "Use the helper for routing.\n"
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "daedalus").mkdir()
+            (root / "daedalus" / "mod.py").write_text(
+                "def current_name():\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            (root / "docs").mkdir()
+            rel = "docs/guide.md"
+            (root / rel).write_text(after, encoding="utf-8")
+
+            vr = verify(
+                _report([rel]),
+                d,
+                require_changes=True,
+                disk_changed=[rel],
+                prose_before={rel: before},
+            )
+
+        self.assertFalse(vr.ok)
+        self.assertIn(f"prose:{rel}", vr.failed)
+
 
 class DispatchUsesDiskTruthTests(unittest.TestCase):
     """A writer must not dodge the per-file checks by reporting nothing."""

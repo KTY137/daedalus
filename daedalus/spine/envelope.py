@@ -608,6 +608,38 @@ CONVERTED_PRODUCERS = {
 #: visible instead of being rediscovered by someone grepping for a trace id
 #: that was never written.
 UNCONVERTED_PRODUCERS = {
+    # -- MEASUREMENT ARTEFACTS, not run records. Listed first because the
+    #    distinction matters: these are corpus-level reports about the tree,
+    #    reproducible from the tree alone, and NOT records of something that
+    #    happened during a run. A trace id would correlate them to nothing. ---#
+    "daedalus/shift.py":
+        "OPERATOR STATE, NOT A RUN RECORD. runs/shift.json, one declared working "
+        "window with checkpoints. It is the operator's intent for a session, not "
+        "a record of an effect, so there is no run for a trace id to name. Written "
+        "atomically and appended under a lock because a ticker, a prompt hook and "
+        "the agent all touch it concurrently.",
+    "daedalus/arch_memory.py":
+        "DERIVED SUMMARY, NOT A RUN RECORD. runs/arch_memory.json plus a "
+        "runs/arch_memory.shown cursor. Regenerated from the tree on commit; "
+        "reproducible from a revision with no run involved, so the honest "
+        "correlator is the head it was built at, which the file already carries.",
+    "daedalus/eval/graph_delta.py":
+        "MEASUREMENT ARTEFACT, NOT A RUN RECORD. runs/eval/graph_delta.json, keyed "
+        "by mutation id "
+        "from tools/gate_discrimination.py. NOT a run record: it is a corpus "
+        "measurement, reproducible from the tree at a revision with no run "
+        "involved, so there is no run for a trace id to point at. Conversion "
+        "cost is therefore not LOW or HIGH but MEANINGLESS -- the honest "
+        "correlator here is the revision it was measured at, which the report "
+        "already carries. Revisit if it is ever called per-candidate inside a "
+        "loop iteration, which WOULD make it a run record.",
+    "daedalus/gui/lint.py":
+        "MEASUREMENT ARTEFACT, NOT A RUN RECORD. runs/gui/report.json, keyed by "
+        "capture label. Same reasoning: it scores a rendered surface against the design rules "
+        "and is reproducible from that surface. If the GUI lane ever gates a "
+        "candidate, the gate result becomes a run record and this entry moves "
+        "to the worklist above with a real conversion cost.",
+
     # -- genuine run records, in value order. THIS IS THE WORKLIST. --------- #
     "daedalus/council/bus.py":
         "RUN RECORD. JSONL, council_id+seq. LOW-MEDIUM. HASH-CHAINED: "

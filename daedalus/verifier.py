@@ -300,7 +300,47 @@ def _prose_check(repo_root: str, rel: str,
         after = ""
 
     result = check_preservation(before, after)
-    return result.ok, result.summary(), "checked"
+    if result.ok:
+        return True, result.summary(), "checked"
+
+    # A stale code reference is the one intentional deletion the docref lane
+    # exists to make. The generic preservation tripwire sees the old inline
+    # identifier disappear and calls it LOST; the docref gate sees the same
+    # event as either ``fixed`` or ``claim_withdrawn``. Requiring both without
+    # reconciling them made every correct docref edit structurally impossible:
+    # the full suite passed, then preservation rolled the patch back before the
+    # curated docref gate could judge it.
+    #
+    # Waive ONLY blocking inline-code losses that are independently proven to
+    # have been broken in the before-image, whose fixes keep the resolving
+    # denominator intact. Any other lost fact remains blocking.
+    blocking = result.blocking
+    lost_code = [f for f in blocking if f.kind == "code"]
+    if lost_code and len(lost_code) == len(blocking):
+        try:
+            from .spine.docrefs import scan, verify_fixes
+
+            before_report = scan(repo_root, overrides={key: before})
+            targets = [
+                ref for ref in before_report.broken
+                if ref.doc_path == key
+                and any(ref.raw == finding.artefact for finding in lost_code)
+            ]
+            expected = {finding.artefact for finding in lost_code}
+            found = {ref.raw for ref in targets}
+            after_report = scan(repo_root)
+            allowed, verdicts = verify_fixes(
+                before_report.n_resolving, after_report, targets)
+        except Exception:  # an unavailable proof is not a waiver
+            allowed, verdicts, expected, found = False, (), set(), set()
+        if allowed and found == expected:
+            kinds = ", ".join(v.verdict for v in verdicts)
+            return True, (
+                f"{result.summary()} | allowed docref correction(s): {kinds}; "
+                f"resolving {before_report.n_resolving}->{after_report.n_resolving}"
+            ), "checked"
+
+    return False, result.summary(), "checked"
 
 
 def _effective_timeout(timeout_s: object) -> int | float:

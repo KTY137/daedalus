@@ -442,6 +442,69 @@ class TestObservabilityAndDryRun(unittest.TestCase):
         self.assertIn("QUEUED", [k.upper() for k in kinds])
         self.assertIn("CLAIMED", [k.upper() for k in kinds])
 
+    def test_provider_window_receipt_survives_report_and_loop_ledger(self):
+        receipt = {
+            "provider": "ollama",
+            "action": "escalated_after_verify_fail",
+            "wrote": [],
+            "handoff": {
+                "skipped": {
+                    "docs/HANDOFF.md": "window 695-695: no content returned",
+                },
+            },
+        }
+        d, _ = make_driver(
+            self.tmp,
+            bounds=LoopBounds(max_iterations=1),
+            script=[{
+                "status": "write_gate_failed",
+                "attempt_state": "no_change",
+                "task_id": "k-window",
+                "paths": ["docs/HANDOFF.md"],
+                "reason": "the runner produced no change to gate",
+                "provider_receipt": receipt,
+            }],
+        )
+        d.switch.arm(force=True)
+        report = run_driver(d)
+
+        self.assertEqual(report.iterations[0].provider_receipt, receipt)
+        self.assertEqual(
+            report.to_dict()["iterations"][0]["provider_receipt"],
+            receipt,
+        )
+        recorded = d.ledger.attempts["cand-1"]["detail"][0]
+        self.assertEqual(recorded["provider_receipt"], receipt)
+
+    def test_held_patch_location_survives_report_and_loop_ledger(self):
+        patch_path = str(self.tmp / "external" / "abc.patch")
+        d, _ = make_driver(
+            self.tmp,
+            bounds=LoopBounds(max_iterations=1),
+            script=[{
+                "status": "gated_held",
+                "attempt_state": "clean",
+                "task_id": "k-held",
+                "paths": ["docs/HANDOFF.md"],
+                "changed_paths": ["docs/HANDOFF.md"],
+                "artifact_path": patch_path,
+                "artifact_sha256": "a" * 64,
+            }],
+        )
+        d.switch.arm(force=True)
+        report = run_driver(d)
+
+        iteration = report.iterations[0]
+        self.assertEqual(iteration.artifact_path, patch_path)
+        self.assertEqual(iteration.artifact_sha256, "a" * 64)
+        rendered = report.to_dict()["iterations"][0]
+        self.assertEqual(rendered["artifact_path"], patch_path)
+        self.assertEqual(rendered["artifact_sha256"], "a" * 64)
+        recorded = d.ledger.attempts["cand-1"]["detail"][0]
+        self.assertEqual(recorded["artifact_path"], patch_path)
+        self.assertEqual(recorded["artifact_sha256"], "a" * 64)
+        self.assertEqual(iteration.claim_basis, "changed_paths")
+
     def test_dry_run_spends_nothing_and_persists_nothing(self):
         d, ex = make_driver(self.tmp, dry_run=True,
                             bounds=LoopBounds(max_iterations=2),
@@ -480,6 +543,10 @@ class TestRealSeam(unittest.TestCase):
                    g.promote_candidates, g._reattempt):
             self.assertIn("cancel", inspect.signature(fn).parameters,
                           f"{fn.__name__} dropped its cancel parameter")
+        self.assertIn("artifact_dir",
+                      inspect.signature(g.gate_candidates).parameters)
+        self.assertIn("artifact_dir",
+                      inspect.signature(g._attempt_assignment).parameters)
         self.assertTrue(_accepts_cancel(g.run_write_wave))
 
     def test_run_wave_refuses_to_dispatch_when_already_cancelled(self):
