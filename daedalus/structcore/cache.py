@@ -25,11 +25,16 @@ import zlib
 from functools import lru_cache
 from pathlib import Path
 
-from .parse import CodeUnit
+from .parse import (AliasImport, CodeUnit, FieldDecl, ParamDecl, PyTypeFacts,
+                    SignatureDecl, TypeDecl)
 from .perfile import ANALYSIS_VERSION, FileAnalysis
 from . import tokens
 
-_SCHEMA = 1
+# 2: rows gained ``type_facts``. Bumped rather than left to the KeyError path in
+# ``_decode``, so a row from the previous generation is DELETEd on open instead
+# of merely failing to decode -- the two failures look the same from the outside
+# but only one of them is stated.
+_SCHEMA = 2
 
 
 def cache_root() -> Path:
@@ -100,6 +105,84 @@ def file_key(rel: str, spec_name: str, text: str) -> str:
 # (de)serialization -- JSON, not pickle: the cache file is on disk and pickle   #
 # would make a tampered cache an arbitrary-code-execution vector.              #
 # --------------------------------------------------------------------------- #
+# --- type facts -------------------------------------------------------------
+# Encoded as nested plain LISTS, positionally, in declaration-field order --
+# exactly the style ``units`` uses for ``CodeUnit``. Written out by hand rather
+# than via ``dataclasses.astuple``/``asdict`` for two reasons: a reflective codec
+# would silently start round-tripping a NEW field the moment one is added to
+# ``parse.py`` (so the cache would carry a field this generation of the decoder
+# does not know how to place), and it would hide the one thing that actually
+# needs care below -- JSON has no tuple, so every ``tuple[str, ...]`` field must
+# be RE-TUPLED on the way in. A list where extraction produced a tuple changes
+# ``repr`` and dataclass equality, which is enough to break the byte-identity
+# assertions the type layer is held to (a cache HIT would not equal a cache MISS).
+def _enc_type(d: TypeDecl) -> list:
+    return [d.module, d.qualname, d.name, d.kind, d.line, d.end_line,
+            list(d.bases), list(d.decorators), d.alias_target, d.language]
+
+
+def _dec_type(r: list) -> TypeDecl:
+    return TypeDecl(r[0], r[1], r[2], r[3], r[4], r[5],
+                    tuple(r[6]), tuple(r[7]), r[8], r[9])
+
+
+def _enc_field(d: FieldDecl) -> list:
+    return [d.module, d.owner, d.name, d.line, d.annotation, d.origin,
+            d.has_default, d.language]
+
+
+def _dec_field(r: list) -> FieldDecl:
+    return FieldDecl(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7])
+
+
+def _enc_param(p: ParamDecl) -> list:
+    return [p.name, p.position, p.annotation, p.kind, p.has_default]
+
+
+def _dec_param(r: list) -> ParamDecl:
+    return ParamDecl(r[0], r[1], r[2], r[3], r[4])
+
+
+def _enc_sig(s: SignatureDecl) -> list:
+    return [s.module, s.qualname, s.name, s.line, s.end_line, s.owner,
+            [_enc_param(p) for p in s.params], s.returns, s.receiver,
+            s.is_async, list(s.decorators), s.language]
+
+
+def _dec_sig(r: list) -> SignatureDecl:
+    return SignatureDecl(r[0], r[1], r[2], r[3], r[4], r[5],
+                         tuple(_dec_param(p) for p in r[6]),
+                         r[7], r[8], r[9], tuple(r[10]), r[11])
+
+
+def _enc_alias(a: AliasImport) -> list:
+    return [a.local, a.kind, a.level, a.module, a.orig, a.line]
+
+
+def _dec_alias(r: list) -> AliasImport:
+    return AliasImport(r[0], r[1], r[2], r[3], r[4], r[5])
+
+
+def _enc_facts(f: PyTypeFacts) -> list:
+    return [f.module,
+            [_enc_type(d) for d in f.types],
+            [_enc_field(d) for d in f.fields],
+            [_enc_sig(s) for s in f.signatures],
+            [_enc_alias(a) for a in f.aliases],
+            f.future_annotations, f.truncated]
+
+
+def _dec_facts(r: list) -> PyTypeFacts:
+    return PyTypeFacts(
+        module=r[0],
+        types=tuple(_dec_type(d) for d in r[1]),
+        fields=tuple(_dec_field(d) for d in r[2]),
+        signatures=tuple(_dec_sig(s) for s in r[3]),
+        aliases=tuple(_dec_alias(a) for a in r[4]),
+        future_annotations=r[5], truncated=r[6],
+    )
+
+
 def _encode(a: FileAnalysis) -> bytes:
     doc = {
         "rel": a.rel, "lang": a.lang, "n_chars": a.n_chars,
@@ -110,6 +193,7 @@ def _encode(a: FileAnalysis) -> bytes:
         "runs": a.runs,
         "py_imports": a.py_imports,
         "raw_imports": a.raw_imports,
+        "type_facts": _enc_facts(a.type_facts),
     }
     return zlib.compress(json.dumps(doc, separators=(",", ":")).encode("utf-8"), 1)
 
@@ -133,6 +217,11 @@ def _decode(blob: bytes) -> FileAnalysis:
         # iterates/unpacks, so this is shape-compatible.
         py_imports=[tuple(r) for r in doc["py_imports"]],
         raw_imports=[tuple(r) for r in doc["raw_imports"]],
+        # Subscript, like every field above: a row from before the type layer has
+        # no such key, and a ``.get(PyTypeFacts())`` default would decode it into
+        # a plausible analysis claiming the file has NO types -- which is
+        # indistinguishable from a file that genuinely has none.
+        type_facts=_dec_facts(doc["type_facts"]),
     )
 
 
