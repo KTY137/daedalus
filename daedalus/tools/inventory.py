@@ -188,7 +188,12 @@ def build(repo_root: str | Path, *, include_user: bool = True) -> dict:
         # Read errors are NEVER folded into the summary counts. "Could not read
         # the tool list" and "there are no tools" produce the same empty list,
         # and a caller must be able to tell them apart.
-        "errors": sorted(sk_err + mc_err),
+        #
+        # DEDUPED, because `load_allowances` is called by BOTH collectors above
+        # and so reports every problem in the allowance file twice. Two
+        # identical strings here are one fact counted twice -- the message
+        # carries its own file path, so equal strings mean equal findings.
+        "errors": sorted(set(sk_err) | set(mc_err)),
         "degraded": bool(sk_err or mc_err),
     }
 
@@ -212,7 +217,8 @@ def render(inv: dict) -> str:
     tools = inv["tools"]
     if not tools:
         head = "no tools found"
-        return head + (" — BUT the read was degraded:\n  " + "\n  ".join(inv["errors"])
+        return head + (" — BUT this report is not the whole truth:\n  "
+                       + "\n  ".join(inv["errors"])
                        if inv["degraded"] else " (and every source was read cleanly)")
     w = max(len(t["name"]) for t in tools) + 2
     lines = ["KIND         SCOPE     " + "NAME".ljust(w) + "VERDICT       FINDINGS  SOURCE"]
@@ -233,7 +239,13 @@ def render(inv: dict) -> str:
     if s["unscannable"]:
         lines.append("UNSCANNABLE (not the same as clean): " + ", ".join(s["unscannable"]))
     if inv["degraded"]:
-        lines.append("DEGRADED — some sources could not be read:")
+        # NOT "some sources could not be read". That was true of every entry in
+        # this list until an inert allowance could land here too, and an
+        # allowance that does nothing is a config defect in a file that read
+        # perfectly. A heading that names the wrong cause is the same defect
+        # class this gate exists to catch, so it names the consequence instead
+        # and lets each message state its own cause.
+        lines.append("DEGRADED — this report is not the whole truth:")
         lines += ["  " + e for e in inv["errors"]]
     return "\n".join(lines)
 

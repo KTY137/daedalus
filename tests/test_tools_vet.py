@@ -409,5 +409,212 @@ class Determinism(unittest.TestCase):
         self.assertEqual([x.line for x in subs], sorted(x.line for x in subs))
 
 
+class RemoteFetchDetection(unittest.TestCase):
+    """``mcp.remote_fetch`` must fire for every real-world spelling of a
+    code-fetching launcher. ADVERSARIAL REVIEW 2026-07-30 (Cerberus): the check
+    used to test membership of the raw ``command`` plus one argument, so a
+    Windows shim, an absolute path, a shell wrapper, or a subcommand-form
+    launcher all evaded it while being ordinary ways to write a real config."""
+
+    def test_windows_npx_cmd_shim(self):
+        v = vet.vet_mcp_server("w", {"command": "npx.cmd", "args": ["-y", "thing@1.0.0"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings},
+                      "npx.cmd is what PATHEXT resolves npx to on Windows")
+
+    def test_absolute_windows_path_to_npx_cmd(self):
+        v = vet.vet_mcp_server("w", {"command": r"C:\Program Files\nodejs\npx.cmd",
+                                     "args": ["thing@1.0.0"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings},
+                      "an absolute path must not hide the launcher's basename")
+
+    def test_absolute_posix_path_to_npx(self):
+        v = vet.vet_mcp_server("w", {"command": "/usr/local/bin/npx", "args": ["thing@1.0.0"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_shell_wrapper_puts_the_launcher_at_args_one(self):
+        """``cmd /c npx ...`` — the real launcher is ``args[1]``, not ``command``."""
+        v = vet.vet_mcp_server("w", {"command": "cmd", "args": ["/c", "npx", "-y", "thing@1.0.0"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_uv_subcommand_form(self):
+        """``uv tool run`` resolves from a registry; ``uv`` was not in the fetcher
+        set at all, only recognisable by its fetching subcommand."""
+        v = vet.vet_mcp_server("w", {"command": "uv", "args": ["tool", "run", "thing"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_case_is_not_a_hiding_place(self):
+        v = vet.vet_mcp_server("w", {"command": "NPX", "args": ["thing@1.0.0"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_uvx_from_a_git_url(self):
+        v = vet.vet_mcp_server("w", {"command": "uvx",
+                                     "args": ["--from", "git+https://github.com/x/y", "srv"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+
+class RemoteFetchNonEvents(unittest.TestCase):
+    """A gate that reports every server is a gate nobody reads — these must stay
+    quiet, or the hardening above teaches operators to ignore the finding."""
+
+    def test_a_local_node_script_is_not_a_fetcher(self):
+        v = vet.vet_mcp_server("w", {"command": "node", "args": ["server.js"]})
+        self.assertNotIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_a_pinned_absolute_binary_is_not_a_fetcher(self):
+        v = vet.vet_mcp_server("w", {"command": "/usr/local/bin/pinned-server"})
+        self.assertNotIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_uv_venv_is_not_a_fetching_subcommand(self):
+        """``uv`` IS in the subcommand table, but ``venv`` is not one of its
+        fetching verbs — flagging the binary unconditionally would report every
+        locally-installed server."""
+        v = vet.vet_mcp_server("w", {"command": "uv", "args": ["venv"]})
+        self.assertNotIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+    def test_python_module_invocation_is_not_a_fetcher(self):
+        v = vet.vet_mcp_server("w", {"command": "python", "args": ["-m", "myserver"]})
+        self.assertNotIn("mcp.remote_fetch", {f.rule for f in v.findings})
+
+
+class UnpinnedDetection(unittest.TestCase):
+    """``mcp.unpinned`` must fire whenever the code that runs tomorrow is not
+    the code reviewed today: no version at all, a moving dist-tag, or a
+    version range."""
+
+    def test_scoped_package_with_no_version_at_all(self):
+        """This repo's own ``.mcp.json`` context7 entry is written exactly this
+        way — a scoped npm package with NO ``@version`` — and a rule hunting
+        only for ``@latest`` saw nothing to report."""
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "@upstash/context7-mcp"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_at_latest_after_a_flag_and_a_trailing_subcommand(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "shadcn@latest", "mcp"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_at_latest_on_a_scoped_package_with_no_flag(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["@playwright/mcp@latest"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_at_next_dist_tag(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "pkg@next"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_caret_range(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "pkg@^1.2.0"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_tilde_range(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "pkg@~1.2"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_uvx_from_a_git_url(self):
+        """This repo's own serena entry is spelled exactly this way:
+        ``--from git+https://github.com/oraios/serena``."""
+        v = vet.vet_mcp_server("w", {"command": "uvx",
+                                     "args": ["--from", "git+https://github.com/oraios/serena",
+                                             "serena"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+
+class UnpinnedNonEvents(unittest.TestCase):
+    """A false positive here teaches an operator to stop pinning — these are
+    correctly pinned and must stay quiet."""
+
+    def test_scoped_package_pinned_to_an_exact_version(self):
+        """The leading ``@`` of a scoped npm package is a SCOPE, not a version;
+        treating it as one is how a correct pin gets reported as unpinned."""
+        v = vet.vet_mcp_server("w", {"command": "npx",
+                                     "args": ["-y", "@upstash/context7-mcp@1.2.3"]})
+        self.assertNotIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_unscoped_package_pinned_to_an_exact_version(self):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", "thing@1.0.0"]})
+        self.assertNotIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_a_local_script_has_no_package_spec_to_pin(self):
+        v = vet.vet_mcp_server("w", {"command": "node", "args": ["server.js"]})
+        self.assertNotIn("mcp.unpinned", {f.rule for f in v.findings})
+
+    def test_uvx_from_a_pep508_exact_pin(self):
+        """The package named after ``--from`` is exactly pinned with ``==``; the
+        trailing ``srv`` is the entry point inside that package, not a second,
+        unpinned package spec, and must not be reported as one."""
+        v = vet.vet_mcp_server("w", {"command": "uvx", "args": ["--from", "pkg==1.4.2", "srv"]})
+        self.assertNotIn("mcp.unpinned", {f.rule for f in v.findings})
+
+
+class EgressWithNoLocalCommand(unittest.TestCase):
+    """A remote server with no launch command is not "nothing to inspect" — it
+    is the strongest available statement about where the bytes go. Before this
+    fix ``{"type":"http","url":"https://evil.tld/mcp"}`` reached no rule at all
+    and produced ZERO findings, reading as an ordinary unscannable entry."""
+
+    def test_a_command_less_remote_server_is_flagged_for_egress(self):
+        v = vet.vet_mcp_server("evilserver", {"type": "http", "url": "https://evil.tld/mcp"})
+        egress = [f for f in v.findings if f.rule == "mcp.egress"]
+        self.assertTrue(egress, "a command-less remote server must still be judged on its host")
+        self.assertIn("evil.tld", egress[0].excerpt)
+        self.assertFalse(v.cleared, "an egress finding must never read as cleared")
+
+    def test_a_command_less_loopback_server_is_not_flagged(self):
+        v = vet.vet_mcp_server("localserver", {"type": "http", "url": "http://127.0.0.1:8080/mcp"})
+        self.assertEqual([f for f in v.findings if f.rule == "mcp.egress"], [])
+
+
+class InertAllowanceIsReported(unittest.TestCase):
+    """An acknowledgement ``apply_allowances`` can never act on is worse than no
+    acknowledgement at all: it reads to whoever wrote it as a decision that was
+    recorded and taken. ``load_allowances`` must say so in ``errs`` rather than
+    silently accepting it — this repo's own ``tool-allowances.json`` carried
+    exactly this defect (``room`` -> ``net.python_http``, a REVIEW rule an
+    allowance can never downgrade)."""
+
+    def _write(self, root: Path, payload: dict) -> None:
+        (root / ".agentenv").mkdir(parents=True, exist_ok=True)
+        (root / vet.ALLOWANCE_PATH).write_text(json.dumps(payload), encoding="utf-8")
+
+    def test_naming_a_review_rule_is_reported_as_having_no_effect(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(root, {"allow": {"room": {"net.python_http": "some reason"}}})
+            allow, errs = vet.load_allowances(root)
+            self.assertTrue(errs, "an allowance that can never fire must be reported, not silent")
+            self.assertTrue(any("net.python_http" in e for e in errs), errs)
+
+    def test_naming_an_unknown_rule_id_is_reported(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(root, {"allow": {"room": {"no.such.rule": "some reason"}}})
+            allow, errs = vet.load_allowances(root)
+            self.assertTrue(errs, "a rule id this gate does not define must not silently pass")
+            self.assertTrue(any("no.such.rule" in e for e in errs), errs)
+
+    def test_a_block_rule_allowance_is_not_reported_inert_and_still_loads(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(root, {"allow": {"room": {"exec.subprocess": "real reason"}}})
+            allow, errs = vet.load_allowances(root)
+            self.assertEqual(errs, [], "exec.subprocess is BLOCK — an allowance on it has real effect")
+            self.assertEqual(allow["room"]["exec.subprocess"], "real reason")
+
+
+class LiveRepoConfig(unittest.TestCase):
+    """The gate must see what this repo actually ships, not just fixtures.
+    Before the fix, ``npx -y @upstash/context7-mcp`` — this checkout's own
+    context7 server, with no ``@version`` at all — was invisible to a rule
+    hunting only for ``@latest``."""
+
+    def test_this_repos_context7_entry_is_flagged_unpinned(self):
+        p = Path(".mcp.json")
+        if not p.exists():
+            self.skipTest(".mcp.json is not present in this checkout")
+        cfg = json.loads(p.read_text(encoding="utf-8"))
+        servers = cfg.get("mcpServers") or {}
+        self.assertIn("context7", servers, "this test pins the exact live entry the gate must catch")
+        v = vet.vet_mcp_server("context7", servers["context7"])
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()

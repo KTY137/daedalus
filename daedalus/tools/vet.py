@@ -154,6 +154,26 @@ _DESTRUCTIVE = [
 RULES = [(rid, sev, re.compile(pat, re.I | re.M), why)
          for rid, sev, pat, why in (_EXEC + _NET + _SECRET + _INJECT + _DESTRUCTIVE)]
 
+#: Rule ids minted inline rather than pattern-matched, so a severity index built
+#: only from :data:`RULES` would call them unknown. Every one is REVIEW — which
+#: is precisely why an allowance naming one does nothing; see
+#: :func:`load_allowances`.
+_SYNTHETIC_RULE_SEVERITY = {
+    "obfuscation.invisible_chars": REVIEW,
+    "meta.allowed_tools_request": REVIEW,
+    "mcp.remote_fetch": REVIEW,
+    "mcp.unpinned": REVIEW,
+    "mcp.egress": REVIEW,
+    "mcp.env_injected": REVIEW,
+}
+
+#: Every rule id this gate can emit, mapped to the severity it emits. The only
+#: consumer is the inert-allowance check in :func:`load_allowances`: an
+#: acknowledgement is a downgrade from BLOCK, so naming any other rule buys
+#: nothing, and an operator who wrote one believes they bought something.
+RULE_SEVERITY: dict[str, str] = {rid: sev for rid, sev, _pat, _why in RULES}
+RULE_SEVERITY.update(_SYNTHETIC_RULE_SEVERITY)
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -248,6 +268,31 @@ def load_allowances(repo_root) -> tuple[dict[str, dict[str, str]], list[str]]:
                             "non-empty reason string, or an object with a "
                             "'reason' and an optional 'body_sha256'")
                 continue
+
+        # AN ACKNOWLEDGEMENT THAT CANNOT FIRE IS REPORTED, NOT IGNORED.
+        # `apply_allowances` downgrades BLOCK and skips everything else, so an
+        # allowance naming a REVIEW rule -- or a rule id that no longer exists
+        # -- is inert. It failed safe, and it read to whoever wrote it as a
+        # decision that had been recorded and taken. The live file carried one:
+        # `room` -> `net.python_http`, which is REVIEW, acknowledged in writing
+        # by a human who had no way to learn it did nothing.
+        #
+        # These degrade the report; they never empty the allowance set. An
+        # inert entry stays in `clean` because removing it would make the
+        # message describe a state the loader had already discarded.
+        for rid in sorted(clean):
+            sev = RULE_SEVERITY.get(rid)
+            if sev is None:
+                errs.append(
+                    f"{p}: allow[{subject!r}][{rid!r}] names no rule this gate "
+                    f"defines (vet version {VET_VERSION}) — it has no effect")
+            elif sev != BLOCK:
+                errs.append(
+                    f"{p}: allow[{subject!r}][{rid!r}] names a {sev.upper()} "
+                    f"rule, but an allowance only downgrades {BLOCK.upper()} — "
+                    "this entry has no effect and the finding is reported "
+                    "unchanged")
+
         if clean:
             out[str(subject)] = clean
     return out, errs
@@ -648,9 +693,192 @@ def vet_skill(skill, *, allowances=None) -> Verdict:
 # An MCP server is a command line, so what can be judged statically is the
 # command line: what it runs, from where, pinned or not, and where its bytes go.
 
-_UNPINNED = re.compile(r"@latest\b|^(?:git\+)?https?://", re.I)
 _URL_IN_ARG = re.compile(r"https?://([^/\s'\"]+)", re.I)
-_REMOTE_FETCHERS = ("npx", "uvx", "pipx", "bunx", "pnpm", "dlx")
+
+#: The floor, applied to every token whether or not a launcher was recognised.
+#: This is the pre-2026-07-30 rule and it is kept verbatim in effect so the
+#: hardening below can only ever add findings, never remove one.
+_UNPINNED_ANY = re.compile(
+    r"@(?:latest|next|beta|canary|rc|dev|alpha|nightly|edge|experimental)\b"
+    r"|^(?:git\+)?https?://", re.I)
+
+#: Launchers whose entire purpose is to fetch code and then run it.
+#:
+#: ADVERSARIAL REVIEW 2026-07-30 (Cerberus, high 4). The test used to be
+#: ``cmd.lower() in _REMOTE_FETCHERS or any(... for a in args[:1])``. Four
+#: evasions, all of them ordinary ways to write a real config, not exotica:
+#:
+#:   ``npx.cmd``                          -- the Windows shim, PATHEXT resolves it
+#:   ``C:\Program Files\nodejs\npx.cmd``  -- an absolute path
+#:   ``cmd /c npx ...``                   -- the launcher is now ``args[1]``
+#:   ``uv tool run ...``                  -- ``uv`` was not in the set at all
+#:
+#: So membership is tested against a NORMALISED name (basename, executable
+#: suffix stripped) over ALL tokens, not the raw command plus one argument.
+_ALWAYS_FETCHERS = frozenset({"npx", "uvx", "bunx", "dlx"})
+
+#: Package managers that fetch only under certain subcommands. ``uv run``
+#: resolves from a registry, ``uv venv`` does not. Flagging the binary
+#: unconditionally would report every locally-installed server, and a gate that
+#: reports everything is a gate nobody reads.
+_FETCHING_SUBCOMMANDS = {
+    "uv": frozenset({"run", "tool", "tools"}),
+    "npm": frozenset({"exec", "x"}),
+    "pnpm": frozenset({"dlx", "exec"}),
+    "yarn": frozenset({"dlx"}),
+    "bun": frozenset({"x"}),
+    "deno": frozenset({"run"}),
+    "pipx": frozenset({"run"}),
+}
+
+#: Stripped before the membership test, so ``npx.cmd`` and ``npx`` are one
+#: launcher. These are the suffixes Windows resolves through ``PATHEXT``.
+_EXE_SUFFIXES = (".cmd", ".exe", ".bat", ".ps1", ".com")
+
+#: Flags whose VALUE names the package to fetch. ``uvx --from git+https://...``
+#: puts the entire supply chain in the argument after the flag.
+_SPEC_BEARING_FLAGS = frozenset({
+    "--from", "--with", "--package", "-p", "--spec", "--index-url",
+})
+
+#: A version that is a moving pointer rather than a version.
+_DIST_TAGS = frozenset({
+    "latest", "next", "beta", "alpha", "canary", "rc", "dev",
+    "experimental", "nightly", "edge", "unstable", "main", "master", "head",
+})
+
+
+def _exe_name(token: str) -> str:
+    """The bare launcher name: no directory, no Windows executable suffix.
+
+    Returns ``""`` for anything carrying a scheme, so a URL whose last path
+    segment happens to read like a launcher (``.../bin/npx``) cannot be
+    mistaken for one.
+    """
+    raw = str(token).strip().strip('"').strip("'")
+    if "://" in raw:
+        return ""
+    name = raw.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    for suf in _EXE_SUFFIXES:
+        if name.endswith(suf):
+            return name[: -len(suf)]
+    return name
+
+
+def _remote_fetch_reason(cmd: str, args) -> str:
+    """Why this command line fetches code at launch, or ``""`` if it does not.
+
+    Every token is considered. A shell wrapper (``cmd /c npx``) or a subcommand
+    (``uv tool run``) puts the real launcher arbitrarily far to the right, and
+    the position it lands in is chosen by whoever wrote the config.
+    """
+    tokens = [_exe_name(t) for t in [cmd, *args]]
+    for i, tok in enumerate(tokens):
+        if not tok:
+            continue
+        if tok in _ALWAYS_FETCHERS:
+            return tok
+        subs = _FETCHING_SUBCOMMANDS.get(tok)
+        if subs:
+            rest = [t for t in tokens[i + 1:] if t and not t.startswith("-")]
+            if rest and rest[0] in subs:
+                return f"{tok} {rest[0]}"
+    return ""
+
+
+def _unpinned_reason(token: str) -> str:
+    """Why this package spec is not reproducible, or ``""`` if it is pinned.
+
+    The rule this closes: ``npx -y @upstash/context7-mcp`` carries no version
+    at all, so a pattern hunting for ``@latest`` saw nothing to report while the
+    config resolved to whatever the registry called current that morning. This
+    repo's own ``.mcp.json`` was the instance that proved it.
+
+    The leading ``@`` of a scoped npm package is a SCOPE, not a version, and
+    treating it as one is how a correct pin gets reported as unpinned.
+    """
+    t = str(token).strip().strip('"').strip("'")
+    if not t or t.startswith("-"):
+        return ""
+    low = t.lower()
+    if "://" in low or low.startswith(("git+", "github:", "file:", "git@")):
+        return ("resolved from a URL, so what it installs can change without "
+                "the config changing")
+    if "==" in t:                      # PEP 508 exact pin
+        return ""
+    if any(op in t for op in (">=", "<=", "~=", "!=", ">", "<")):
+        return f"{t!r} is a version RANGE — it resolves to whatever is newest at launch"
+
+    body = t
+    if body.startswith("@"):           # npm scope: @scope/name[@version]
+        slash = body.find("/")
+        if slash == -1:
+            return ""                  # not a package spec at all
+        body = body[slash + 1:]
+    at = body.rfind("@")
+    if at <= 0:
+        # No version component. Only meaningful for something that LOOKS like a
+        # package name -- a bare path or a subcommand must not be reported.
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", body):
+            return ""
+        return ("no version at all — it resolves to whatever the registry "
+                "calls current at launch")
+    ver = body[at + 1:].strip()
+    if not ver:
+        return "an empty version component"
+    if ver.lower() in _DIST_TAGS:
+        return f"@{ver} is a dist-tag — a moving pointer, not a version"
+    if not ver[0].isdigit() or any(c in ver for c in "^~*<>| "):
+        return f"@{ver} is a range or a tag, not an exact version"
+    if any(seg in ("x", "X", "*") for seg in ver.split(".")):
+        return f"@{ver} is a wildcard range, not an exact version"
+    return ""
+
+
+def _package_spec_tokens(cmd: str, args) -> list[str]:
+    """The tokens on this command line that name a package to be fetched.
+
+    Two shapes, both real: the value of a spec-bearing flag (``--from X``), and
+    the first bare argument after the launcher, which is what ``npx`` and
+    ``uvx`` treat as the package.
+    """
+    tokens = list(args)
+    out: list[str] = []
+    for i, tok in enumerate(tokens):
+        if str(tok).strip().lower() in _SPEC_BEARING_FLAGS and i + 1 < len(tokens):
+            out.append(str(tokens[i + 1]))
+    if out:
+        # A spec-bearing flag already named the package, so the bare argument
+        # after it is the ENTRY POINT, not a second package: in
+        # ``uvx --from pkg==1.4.2 srv``, ``srv`` is the console script the
+        # package installs. Reading it as a package spec reported a correctly
+        # pinned config as unpinned — a false positive here is worse than a
+        # miss, because it teaches operators that pinning does not help.
+        return out
+    launcher_seen = _exe_name(cmd) in _ALWAYS_FETCHERS or _exe_name(cmd) in _FETCHING_SUBCOMMANDS
+    skip_next = False
+    for tok in tokens:
+        s = str(tok).strip()
+        if skip_next:
+            skip_next = False
+            continue
+        if s.lower() in _SPEC_BEARING_FLAGS:
+            skip_next = True
+            continue
+        low = _exe_name(s)
+        if low in _ALWAYS_FETCHERS or low in _FETCHING_SUBCOMMANDS:
+            launcher_seen = True
+            continue
+        if s.startswith("-"):
+            continue
+        if launcher_seen and low in _FETCHING_SUBCOMMANDS.get(_exe_name(cmd), frozenset()):
+            continue
+        if any(s.lower() in subs for subs in _FETCHING_SUBCOMMANDS.values()):
+            continue                    # a subcommand word, not a package
+        if launcher_seen:
+            out.append(s)
+            break
+    return out
 
 
 def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
@@ -666,24 +894,49 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
 
     cmd = str(spec.get("command") or "")
     args = [str(a) for a in (spec.get("args") or [])]
-    line = " ".join([cmd] + args)
+    url = str(spec.get("url") or "")
+    stype = str(spec.get("type") or "")
+    line = " ".join([cmd, *args]).strip()
     if not cmd:
-        skipped.append(f"{name}: no command declared")
+        if url:
+            # A remote server has no launch command: the code is not on this
+            # machine at all. That is not "nothing to inspect" — it is the
+            # strongest available statement about where the bytes go. Until
+            # this review `url` reached no rule, so a spec of
+            # {"type":"http","url":"https://evil.tld/mcp"} produced ZERO
+            # findings and read as an ordinary unscannable entry.
+            skipped.append(f"{name}: remote {stype or 'url'} server — no local command to "
+                           f"inspect; everything it runs lives at {url}")
+        else:
+            skipped.append(f"{name}: no command declared")
 
-    if cmd.lower() in _REMOTE_FETCHERS or any(a.lower() in _REMOTE_FETCHERS for a in args[:1]):
-        notes.append(f"launched through {cmd!r}, which fetches code at start-up — "
+    fetch = _remote_fetch_reason(cmd, args)
+    if fetch:
+        notes.append(f"launched through {fetch!r}, which fetches code at start-up — "
                      "what runs tomorrow is not what was reviewed today")
         findings.append(Finding("mcp.remote_fetch", REVIEW, f"<mcp:{name}>", 0,
                                 _clip(line, 100), "resolves its code from a remote registry at launch"))
 
-    for tok in [cmd] + args:
-        if _UNPINNED.search(tok):
+    for tok in [cmd, *args]:
+        if _UNPINNED_ANY.search(tok):
             findings.append(Finding("mcp.unpinned", REVIEW, f"<mcp:{name}>", 0, _clip(tok, 80),
                                     "unpinned version or a bare URL — not reproducible"))
             break
+    else:
+        # The floor matched nothing. Only now is the more expensive question
+        # worth asking, and only where the command line actually fetches:
+        # NO VERSION AT ALL is unpinned too, and that is the shape this repo's
+        # own context7 entry was written in — `npx -y @upstash/context7-mcp`.
+        for tok in (_package_spec_tokens(cmd, args) if fetch else ()):
+            why = _unpinned_reason(tok)
+            if why:
+                findings.append(Finding("mcp.unpinned", REVIEW, f"<mcp:{name}>", 0,
+                                        _clip(tok, 80), why))
+                break
 
     # Where do the bytes go? One implementation of that question exists; call it.
-    hosts = sorted({m.group(1).split(":")[0] for a in [cmd] + args for m in _URL_IN_ARG.finditer(a)})
+    hosts = sorted({m.group(1).split(":")[0]
+                    for a in [cmd, url, *args] for m in _URL_IN_ARG.finditer(a)})
     for h in hosts:
         lane = lane_for_host(h)
         sev = REVIEW if lane == "untrusted" else CLEAR
