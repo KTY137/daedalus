@@ -121,12 +121,42 @@ def toplevel_defs(source: str) -> frozenset[str] | None:
 
 
 def _module_path(root: Path, dotted: str) -> Path | None:
+    """Where a dotted first-party module lives, or None if nothing provides it.
+
+    A directory WITHOUT ``__init__.py`` still counts. Since Python 3.3 such a
+    directory is an implicit namespace package (PEP 420) and imports perfectly
+    well -- ``tools`` and ``tests`` in this repository are exactly that, and
+    both import fine while reporting ``__file__ is None``.
+
+    MEASURED 2026-07-30: without this branch the gate reported "module 'tools'
+    does not exist" for `tests/test_iron_plan_guard.py`, a real committed file
+    that imports it, and `test_no_false_positives_across_the_real_tree` failed
+    with its own message -- "this gate must never refuse real repo code". Any
+    lane writing a module that imports `tools` or `tests` would have been
+    refused for importing something that is demonstrably there.
+
+    This does not loosen the guard. The invented imports it exists to catch --
+    ``daedalus.linting``, ``daedalus.wiki_vault`` -- name directories that do
+    not exist either, so they are still refused. A directory is required to
+    contain at least one ``.py`` file, so an empty or data-only folder cannot
+    launder an import that would fail at runtime.
+
+    The returned directory is deliberately not a readable module: :func:`_exports`
+    fails closed on it (an OSError becomes ``opaque=True``), which is the honest
+    answer, because what a namespace package provides is its submodules and no
+    single file lists them.
+    """
     parts = dotted.split(".")
     direct = root.joinpath(*parts).with_suffix(".py")
     if direct.is_file():
         return direct
     pkg = root.joinpath(*parts, "__init__.py")
-    return pkg if pkg.is_file() else None
+    if pkg.is_file():
+        return pkg
+    namespace = root.joinpath(*parts)
+    if namespace.is_dir() and any(namespace.glob("*.py")):
+        return namespace
+    return None
 
 
 def _exports(path: Path) -> tuple[frozenset[str], bool]:
@@ -392,3 +422,9 @@ def with_markers(markers: Sequence[str],
                  policy: CheckPolicy = BASELINE_POLICY) -> CheckPolicy:
     """``policy`` with this lane's own elision markers. Convenience only."""
     return replace(policy, elision_markers=tuple(markers))
+
+
+# Grounding a model's PROSE against the tree -- audit_references, judge --
+# lives in daedalus/lanes/grounding.py. It was briefly here, and being here
+# made this module two things: a write gate that refuses, and a report
+# measurement that observes. Different subject, different consumer.

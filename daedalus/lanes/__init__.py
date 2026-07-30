@@ -38,14 +38,19 @@ from .checks import (
     toplevel_defs,
 )
 from .graph_brief import GraphBrief, graph_brief, render_brief
+from .grounding import ReferenceAudit, audit_references, claim_text, judge
 
 __all__ = [
     "BASELINE",
     "BASELINE_POLICY",
     "CheckPolicy",
     "GraphBrief",
+    "ReferenceAudit",
     "WriteAttempt",
+    "audit_references",
+    "claim_text",
     "graph_brief",
+    "judge",
     "imports_resolve",
     "no_elision",
     "not_substituted",
