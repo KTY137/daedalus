@@ -1,0 +1,46 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c256",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_system_check.py: Tests the acceptance harness system_check.py, enforcing exit code contract, check declarations, and self-test coverage. daedalus/orchestrate.py: Compatibility CLI re-exporting prepare_task from daedalus.kairos.orchestrate.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_system_check.py|tools.system_check",
+   "DEPENDS|tests/test_system_check.py|tools.self_test",
+   "CLAIMS|tests/test_system_check.py|The exit code is the verdict: 0 means all pass, 1 means failure, 2 means incomplete.",
+   "CLAIMS|tests/test_system_check.py|Every check declares what it proves.",
+   "SMELL|tests/test_system_check.py|Modifies global sc.CHECKS list in test_a_check_that_raises_is_a_FAIL_not_a_skip, side effect on module state.",
+   "DEPENDS|daedalus/orchestrate.py|daedalus.kairos.orchestrate",
+   "CLAIMS|daedalus/orchestrate.py|Compatibility CLI for daedalus.kairos.orchestrate."
+  ],
+  "todos": [
+   "tests/test_system_check.py|constant|TOOLS|The parent directory of tools/ used to import system_check and self_test.",
+   "tests/test_system_check.py|function|test_all_pass_is_the_only_zero|Ensures all PASS results yield EXIT_OK.",
+   "tests/test_system_check.py|function|test_any_failure_is_one|Ensures any FAIL yields EXIT_FAILED.",
+   "tests/test_system_check.py|function|test_unavailable_on_a_CORE_check_is_incomplete_not_success|Ensures core UNAVAILABLE yields EXIT_INCOMPLETE.",
+   "tests/test_system_check.py|function|test_unavailable_on_an_OPTIONAL_check_does_not_block|Ensures optional UNAVAILABLE yields EXIT_OK.",
+   "tests/test_system_check.py|function|test_failure_outranks_incomplete|Ensures FAIL outranks UNAVAILABLE.",
+   "tests/test_system_check.py|function|test_the_three_outcomes_are_distinct|Ensures PASS, FAIL, UNAVAILABLE and EXIT_OK, EXIT_FAILED, EXIT_INCOMPLETE are distinct.",
+   "tests/test_system_check.py|function|test_every_check_declares_what_it_proves|Ensures all CHECKS have a non-empty 'proves' field.",
+   "tests/test_system_check.py|function|test_every_check_declares_a_stage_and_core_flag|Ensures all CHECKS have stage and core flag.",
+   "tests/test_system_check.py|function|test_check_names_are_unique|Ensures no duplicate check names.",
+   "tests/test_system_check.py|function|test_the_spine_and_safety_properties_are_all_covered|Ensures required checks are present.",
+   "tests/test_system_check.py|function|test_a_check_that_raises_is_a_FAIL_not_a_skip|Ensures a crashing check yields FAIL.",
+   "tests/test_system_check.py|function|test_the_self_test_exists_and_seeds_defects_for_the_sharpest_checks|Ensures self_test has mutations for required checks.",
+   "tests/test_system_check.py|function|test_every_seeded_defect_names_a_real_check|Ensures self_test mutations point to existing checks.",
+   "tests/test_system_check.py|function|test_the_self_test_is_offered_by_the_cli|Ensures --self-test flag appears in source.",
+   "daedalus/orchestrate.py|function|prepare_task|Re-exports prepare_task from daedalus.kairos.orchestrate for compatibility."
+  ],
+  "handoff": {}
+ },
+ "name": "c256",
+ "paths": [
+  "tests/test_system_check.py",
+  "daedalus/orchestrate.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 21.5
+}

@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "rv19",
+ "report": {
+  "status": "needs_review",
+  "summary": "Cross-slice review of shard 19 finds no contradictions, but several files have CLAIMS without corresponding symbols (shift_hook, arch_hook, shift_ticker, providers/base, langgraph_adapter), making those claims unverifiable. Orphans: crew_hook.py UNWIRED as a whole, and backward-compat re-exports in ikarus.py. No duplicated responsibility or clear missing edges detected.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Overstated claims: daedalus/shift_hook.py, daedalus/arch_hook.py, daedalus/shift_ticker.py, daedalus/providers/base.py, daedalus/langgraph_adapter.py have CLAIMS but no symbols in the census, so their guarantees cannot be validated.",
+   "Orphans: daedalus/crew_hook.py is completely UNWIRED, and backward-compat aliases in ikarus.py (Ikarus, MetronScheduler, etc.) have no internal dependents, risking accumulated dead code.",
+   "Missing census coverage: the absence of symbols for files appearing in READS/CLAIMS suggests incomplete shard data, weakening structural confidence."
+  ],
+  "todos": [
+   "Complete symbol listing for shift_hook.py, arch_hook.py, shift_ticker.py, providers/base.py, and langgraph_adapter.py to validate claims.",
+   "Deprecate or remove crew_hook.py if confirmed unused.",
+   "Audit ikarus.py re-exports for external consumers; consider deprecation.",
+   "Revisit the eval package claim about distilled slices; ensure it is backed by run_tier1/run_tier2."
+  ],
+  "handoff": {
+   "suggestion": "Re-run census for the noted files to capture their symbols. Investigate crew_hook.py and ikarus.py usage. Downgrade claims for files with no supporting symbols until evidence is provided."
+  }
+ },
+ "name": "rv19",
+ "paths": [
+  "docs/research/census/shard19.md"
+ ],
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 82.7
+}

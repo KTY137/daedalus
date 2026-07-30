@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c185",
+ "report": {
+  "status": "failed",
+  "summary": "No files supplied; cannot perform structural census.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Please provide the relevant files for the structural census.",
+   "skipped_sensitive": [
+    "tests/test_slice_egress_gate.py"
+   ]
+  }
+ },
+ "name": "c185",
+ "paths": [
+  "tests/test_slice_egress_gate.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.2
+}

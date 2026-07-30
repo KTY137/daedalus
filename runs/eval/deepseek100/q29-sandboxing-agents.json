@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q29-sandboxing-agents",
+ "report": {
+  "status": "needs_review",
+  "summary": "Windows offers Job Objects (resource limits), AppContainer (capability isolation), Windows Containers (process/Hyper-V), WSL 2 (lightweight VM), and Windows Sandbox (ephemeral desktop). In practice, agent frameworks (AutoGPT, MetaGPT, Open Interpreter) rarely use these; they rely on Docker or execute locally with no Windows-specific sandbox. Docker on Windows uses Hyper-V isolation. Windows Sandbox is underutilized despite being a strong option. Immediate action: prototype a sandbox that programmatically creates ephemeral Windows Sandbox instances or Hyper-V containers per agent session, combi",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Windows Sandbox lacks persistent file sharing by default and may complicate I/O for agents.",
+   "AppContainer isolation requires careful capability declaration and may break many Python packages that assume full filesystem access.",
+   "Job Objects alone do not provide filesystem or network isolation."
+  ],
+  "todos": [
+   "Investigate Windows Sandbox automation APIs for agent integration (Start-Process 'WindowsSandbox.exe' -ArgumentList 'config.wsb').",
+   "Benchmark overhead of Hyper-V isolated containers vs process-isolated containers for frequent code execution.",
+   "Audit popular agent frameworks' current sandboxing strategies on Windows hosts."
+  ],
+  "handoff": {
+   "suggestion": "Daedalus should implement a Windows-specific sandbox using Windows Sandbox programmatically (via .wsb config files) for complete isolation, falling back to Docker's Hyper-V mode for familiarity. Combine with Job Objects for memory/CPU caps. Evaluate whether the latency of launching a new sandbox per task is acceptable; if not, consider pre-warmed Windows Containers. This sets Daedalus apart from frameworks that ignore Windows-native hardening."
+  }
+ },
+ "name": "q29-sandboxing-agents",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 27.2
+}

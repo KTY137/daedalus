@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q22-wiki-link-semantics",
+ "report": {
+  "status": "needs_review",
+  "summary": "Obsidian and Logseq store notes as plain Markdown with [[wikilinks]], making the core format highly portable; backlinks and graph views are application-specific but derivable. Roam uses EDN/JSON, less portable. Semantic MediaWiki data is in a database, locked to the wiki engine. For portability, treat the Markdown file as canonical and avoid proprietary block references.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Adopting app-specific features like block references or embedded queries may lock data into an ecosystem.",
+   "Roam's EDN format is not human-readable and requires conversion for portability."
+  ],
+  "todos": [
+   "Define a plain-text representation for block references if needed.",
+   "Ensure semantic annotations in Semantic MediaWiki are exportable to RDF for portability."
+  ],
+  "handoff": {
+   "suggestion": "Use a Markdown-based format with [[wikilinks]] as the portable layer; store notes as .md files with YAML front matter for metadata. Application-specific features (like backlinks or graph views) can be regenerated from the plain text by any tool that parses wiki links."
+  }
+ },
+ "name": "q22-wiki-link-semantics",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 22.1
+}

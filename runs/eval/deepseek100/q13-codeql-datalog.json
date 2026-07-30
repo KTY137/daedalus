@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q13-codeql-datalog",
+ "report": {
+  "status": "needs_review",
+  "summary": "Datalog engines like Souffl\u00e9 use semi-naive evaluation, B-tree storage, parallel execution, and magic-sets to analyze millions of LOC in minutes (Doop took ~8 min for OpenJDK). CodeQL adds incremental evaluation for commit-snapshot queries. A Datalog layer on a multiplex graph is feasible by exporting relations to Souffl\u00e9, but incremental updates remain hard. Short-term: benchmark Souffl\u00e9 on extracted subgraph relations.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "incremental updates may cause latency spikes if full re-evaluation is needed",
+   "integration complexity with existing graph db",
+   "rule compilation overhead"
+  ],
+  "todos": [
+   "prototype extraction from multiplex graph to relations",
+   "benchmark Souffl\u00e9 on representative code analysis tasks",
+   "evaluate DDlog for incremental queries",
+   "assess whether Cypher/GQL recursive features suffice"
+  ],
+  "handoff": {
+   "suggestion": "Integrate Datalog by first treating it as a batch analysis engine: periodically export the relevant portion of the multiplex graph (e.g., call graph, dataflow) as relational facts to Souffl\u00e9. Souffl\u00e9 compiles Datalog rules to C++ and runs in-process; you can embed it as a service. Benchmark against real workloads: Doop reported analyzing OpenJDK (14M LOC) in under 10 minutes with Souffl\u00e9; for Daedalus code evolution tasks, the graph is smaller, so inference time may be seconds. If that's acceptable, implement a caching layer that only re-exports changes. For truly interactive latency (<100ms), explore DDlog or write a custom incremental Datalog evaluator that pushes deltas through the rules. Alternatively, check if the multiplex graph DB already supports recursive queries (e.g., Neo4j's Cypher supports variable-length paths) sufficient for your analysis; if yes, Datalog may be overkill. The single most impactful next step: replicate Doop's setup on a sample Java project from your domain, measure Souffl\u00e9's latency for your typical analysis, and compute the overhead of graph-to-relations translation."
+  }
+ },
+ "name": "q13-codeql-datalog",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 34.3
+}

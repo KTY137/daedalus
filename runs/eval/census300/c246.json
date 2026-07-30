@@ -1,0 +1,35 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c246",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/perfile.py: Pure, picklable, parallelizable per-file analysis functions and data structures that are the per-file half of index building, including FileAnalysis dataclass, analyze_file for single file analysis, and analyze_chunk for batched worker entry.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/clones",
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/languages",
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/metrics",
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/parse",
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/tokens",
+   "DEPENDS|daedalus/structcore/perfile.py|daedalus/structcore/imports",
+   "CLAIMS|daedalus/structcore/perfile.py|Pure: same inputs -> same outputs, no I/O, no globals.",
+   "CLAIMS|daedalus/structcore/perfile.py|Workers must not re-enter the single-flight build lock.",
+   "CLAIMS|daedalus/structcore/perfile.py|Unconditional extraction to ensure cache correctness."
+  ],
+  "todos": [
+   "daedalus/structcore/perfile.py|constant|ANALYSIS_VERSION|Version identifier for FileAnalysis schema, incremented when meaning of rows changes.",
+   "daedalus/structcore/perfile.py|dataclass|FileAnalysis|Data container for per-file analysis results including metrics, units, imports, type facts.",
+   "daedalus/structcore/perfile.py|function|analyze_file|Pure function that analyzes a single file given text and language spec, returns FileAnalysis.",
+   "daedalus/structcore/perfile.py|function|analyze_chunk|Worker entry point for batch analysis of files, tags results with original index for order restoration."
+  ],
+  "handoff": {}
+ },
+ "name": "c246",
+ "paths": [
+  "daedalus/structcore/perfile.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 12.9
+}

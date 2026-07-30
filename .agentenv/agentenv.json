@@ -1,9 +1,13 @@
 {
   "_comment": "Daedalus's policy for its OWN repository. Authorised by Kaya on 2026-07-29. See docs/PROPOSED_SELF_POLICY.md for the reasoning and docs/adrs/ for the write-confinement finding. To revoke: delete this file. There is no other state.",
-
   "name": "agent_env",
   "repo_root": "C:/Users/nukei/Desktop/agent_env",
-
+  "_comment_team": "The windowed documentation writer is pinned to the measured 14B bench model. qwen3.6 spent bounded generations in hidden reasoning or preserved the obsolete identifier; qwen2.5-coder:14b used the supplied current-code context and produced the exact resolving replacement in a one-line splice.",
+  "team": {
+    "model_assignments": {
+      "docs-dev": "qwen2.5-coder:14b"
+    }
+  },
   "policy": {
     "_comment_write_allow": "THIS is the write permission. `allow` below is the EGRESS axis and does NOT gate writes -- measured: with allow-only, 8 of 12 paths this policy claims to deny were writable, including daedalus/config.py, which loads this file. write_allow is prefix-anchored at the repo root: an entry ending in / names a subtree, anything else names one file.",
     "write_allow": [
@@ -11,11 +15,16 @@
       "tests/",
       "README.md"
     ],
-
-    "_comment_egress": "Which paths' BYTES may reach an untrusted external API. Separate question from writing, deliberately kept separate.",
+    "_comment_egress": "Which paths' BYTES may reach an untrusted external API. Separate question from writing, deliberately kept separate. | 2026-07-30, owner decision: 'daedalus/' added so external review lanes (DeepSeek) can READ the package source. This is an EGRESS widening and nothing else -- default_deny stays true, the deny list is checked BEFORE this allow list so secrets/.env/credentials/keys remain blocked, write_allow is untouched, and external_write_lanes stays [] so an external lane still cannot APPLY anything. runs/ and .agentenv/ are deliberately NOT added: the ledger, receipts and room transcripts are operational history, not source.",
     "default_deny": true,
-    "allow": ["docs/", "/tests/", "test_", ".md", "readme"],
-
+    "allow": [
+      "docs/",
+      "/tests/",
+      "test_",
+      ".md",
+      "readme",
+      "daedalus/"
+    ],
     "_comment_high_risk": "Belt to write_allow's braces, and it does real work even though write_allow already denies these: it forces change_risk -> 'high', which routes the task AWAY from the free local lane before any write is attempted. If somebody widens write_allow later -- and somebody will -- these must still be refused, so that widening has to delete a line that names what it is protecting.",
     "high_risk_paths": [
       "daedalus/sensitivity.py",
@@ -32,14 +41,13 @@
       "docs/adrs/",
       ".github/",
       ".git/"
-    ]
+    ],
+    "_comment_external_write_lanes": "Which UNTRUSTED external provider lanes may APPLY a change instead of only advising. Empty (the default, and today's behaviour) = every external lane is advisory-only. Add \"deepseek\" to let the DeepSeek lane land a full-file rewrite, and only on LOW change-risk, non-review tasks. This does NOT widen anything else: a lane named here may still only touch paths write_allow permits, may still only receive bytes the egress keys (allow / default_deny) permit, still faces the verify gate, and still rolls back on failure. DeepSeek writes are PAID.",
+    "external_write_lanes": []
   },
-
   "_comment_write_wave_policy": "Authorised by Kaya on 2026-07-29: 'standard ist aber automatisch' -- the auto-promote knob for concurrent write waves (daedalus.kairos.gated_writes.run_write_wave), set to 'always' here deliberately, same as the shipped template default. This does NOT bypass the discrimination gate: it is ANDed against daedalus.core.get_governance()'s promotion_allowed every time, which stays FALSE until runs/spine/gate_discrimination.json is fresh against HEAD and proves this repo's test command actually catches a bad patch. Until that receipt exists (or goes stale, as it is right now -- it names an old commit, HEAD has moved), 'always' is armed but inert: every write-wave candidate is held for a human, exactly as 'never' would hold it. 'Promoted' also never means merged into this checkout -- promote_candidates lands into a disposable integration worktree/branch only; merging that into agent_env stays a human `git merge`.",
   "write_wave_policy": "always",
-
   "_comment_test": "The verify gate after a live write. Deliberately the WHOLE suite, not a scoped subset: write_allow permits tests/, so a candidate can write a test, and a scoped command would not necessarily run the file the candidate just added. -x stops at the first failure, which is the only outcome that matters to a gate. RE-EXAMINED 2026-07-29 against the argument that docs/ writes cannot break Python tests and so deserve a cheaper gate: that argument is FALSE here, measured. tests/test_comms.py:27 reads the real docs/COMMS_PROTOCOL.md, tests/test_generated_inventory.py reads the real docs/FEATURE_INVENTORY.json and docs/architecture-state.json, and tests/test_markdown_nodes.py:350 reads the real docs/HANDOFF.md. write_allow permits docs/, so a docs-only candidate can genuinely turn this suite red. The whole-suite command stays.",
-
   "_comment_test_timeout": "MEASURED 2026-07-29: this file declared the whole suite while verifier.verify() hard-coded timeout_s=120 and offload passed nothing else, so the committed configuration was STRUCTURALLY unable to pass -- every live write died with 'could not run tests: ... timed out after 120 seconds' and rolled back before the gate was ever reached. This budget is a RUNAWAY guard, not a performance target: it exists to stop a wedged pytest from pinning the harness, so it is sized well ABOVE the observed runtime rather than tightly around it. A false timeout is expensive in both directions -- good work is rolled back AND the task escalates to a paid lane -- and this box runs several agents at once, so a suite that takes ~20 min idle can take considerably longer under load. Hence roughly 2x headroom. Consequence to accept knowingly: every live write to docs/, tests/ or README.md now pays the full suite. The real fix for that is path-aware test selection (run only the tests reachable from what actually changed), which this static test_command cannot express; see the report accompanying this change.",
   "test_command": "python -m pytest tests -q -x",
   "test_timeout_s": 2700,

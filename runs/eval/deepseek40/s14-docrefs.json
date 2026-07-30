@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s14-docrefs",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audited docrefs.py for false-positive and false-negative modes in doc-reference drift detection. Key false positives: (1) dotted names like `core.autocrlf` and `status.code` that match coincidental module basenames; (2) references ending in file extensions (e.g., `.md`, `.rs`) misread as missing attributes; (3) module dunders (`__file__`, etc.) not declared in source; (4) suffix-resolved references without root-anchored module path (e.g., `vendors` resolved via suffix index but not anchored). Key false negatives: (1) references to symbols in modules with star-imports or `__getattr__` are skipp",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Skipping modules with star-imports or __getattr__ may hide real broken references; consider partial enumeration or runtime import as fallback.",
+   "Stripping fenced code blocks may discard legitimate doc references; consider a whitelist of known example patterns.",
+   "Suffix resolution without anchoring may produce false positives when multiple modules share a basename; current code handles ambiguity by skipping, but single-hit suffix may still be wrong module."
+  ],
+  "todos": [
+   "Add test for suffix-resolved reference that is not root-anchored to verify it is marked 'suspect' or 'skipped'.",
+   "Consider adding a configuration option to include/exclude certain doc patterns from code-block stripping.",
+   "Evaluate whether partial enumeration of star-imports via importlib.metadata or similar is feasible without running code."
+  ],
+  "handoff": {
+   "suggestion": "To improve precision per line of code, modify `resolve_reference` to mark suffix-resolved references as 'suspect' when the module path is not root-anchored (i.e., `_module_file(root, parts[:n], None) is None`). This catches cases like `vendors` resolving to `daedalus/council/vendors.py` via suffix index but the doc may refer to a different `vendors` module. Change the state from 'resolving' to 'suspect' and add a 'why' field explaining the ambiguity. This single change addresses the most common false-positive source (suffix ambiguity) with minimal code impact."
+  }
+ },
+ "name": "s14-docrefs",
+ "kind": "scan",
+ "elapsed_s": 7.3
+}

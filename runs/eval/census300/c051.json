@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c051",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/eval/mint.py: mints independent oracle tasks from byte-level diffs of changed files, enforcing scope, cross-file, and label hygiene rules.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/eval/mint.py|daedalus.sensitivity.secret_floor_rule",
+   "DEPENDS|daedalus/eval/mint.py|daedalus.structcore.index.cached_index",
+   "DEPENDS|daedalus/eval/mint.py|daedalus.structcore.languages.spec_for",
+   "DEPENDS|daedalus/eval/mint.py|daedalus.structcore.parse.extract_units",
+   "READS|daedalus/eval/mint.py|<repo_root>/.git",
+   "CLAIMS|daedalus/eval/mint.py|Minted labels come from diffs that the slicer never used in its own graph, ensuring independence",
+   "CLAIMS|daedalus/eval/mint.py|Labels are scoped to files in cached_index[\"modules\"], matching the slicer's neighborhood expansion boundary",
+   "CLAIMS|daedalus/eval/mint.py|Labels never include symbols from the target file itself, preventing circularity",
+   "CLAIMS|daedalus/eval/mint.py|Junk keywords, cross-language families, and secret-floor filters are applied to labels with transparent diagnostics",
+   "UNWIRED|daedalus/eval/mint.py|MINT_CONFIRM_THRESHOLD",
+   "UNWIRED|daedalus/eval/mint.py|DEFAULT_MINT_STORE_PATH",
+   "SMELL|daedalus/eval/mint.py|_mint_from_diffs handles scope, target selection, label extraction, filtering, and capping \u2013 multiple responsibilities in one function"
+  ],
+  "todos": [
+   "daedalus/eval/mint.py|constant|MINT_CONFIRM_THRESHOLD|Number of independent confirmations before a minted task is taken out of quarantine",
+   "daedalus/eval/mint.py|constant|DEFAULT_MINT_STORE_PATH|Path to the persisted store for minted tasks",
+   "daedalus/eval/mint.py|constant|MUST_INCLUDE_CAP|Maximum number of must_include labels per task"
+  ],
+  "handoff": {}
+ },
+ "name": "c051",
+ "paths": [
+  "daedalus/eval/mint.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 32.0
+}

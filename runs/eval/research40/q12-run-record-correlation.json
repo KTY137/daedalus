@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q12-run-record-correlation",
+ "report": {
+  "status": "needs_review",
+  "summary": "Correlating run records across incompatible ID schemes can be achieved via a correlation service mapping to a global UUID, combined with OpenTelemetry trace context and in-toto attestations. A full re-keying migration is riskier and often unnecessary; the literature (e.g., in-toto NSDI'19) shows attestation overhead is minimal (<5ms per step), while tracing adds negligible latency in instrumented services.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "External LLM agents may not propagate trace headers, creating partial traces and correlation gaps.",
+   "ID mapping tables must be transactionally consistent and persist across restarts; corruption leads to attribution errors.",
+   "in-toto key management on Windows/Python requires secure storage; compromise breaks chain of trust.",
+   "OpenTelemetry instrumentation introduces dependency bloat; ensure it aligns with fail-closed egress rules.",
+   "Granularity mismatch: trace IDs correlate request flows, while in-toto links attest to pipeline steps; correlating both requires careful metadata design."
+  ],
+  "todos": [
+   "Implement a correlation service that generates and stores a global UUID for each event, mapping to producer-native IDs. Use a lightweight database (e.g., SQLite) with atomic writes.",
+   "Inject W3C traceparent header into all outgoing calls allowed by the egress fence; wrap calls with a retry-instrumenting decorator.",
+   "Generate in-toto link attestations for each orchestration step, embedding the trace_id in the predicate and signing with a local key.",
+   "For legacy records, run a one-off migration script to populate the mapping table, leaving original IDs untouched.",
+   "Add a health check that verifies trace_id propagation across test agents; fail-closed if missing."
+  ],
+  "handoff": {
+   "detailed_recommendation": "Based on the constraints (Windows, Python, fail-closed egress, multi-agent with heterogeneous IDs), a full re-keying migration is too disruptive and risky, especially if external LLM IDs cannot be altered. Instead, adopt a correlation layer: (1) Assign a globally unique UUID to every logical run record at the point of creation or ingestion. Maintain a persistent mapping table (native_id -> global_uuid) with indices. (2) Use OpenTelemetry's `traceparent` header (W3C Trace Context) across internal and external allowed calls; for producers that cannot propagate it, generate a new trace_id at the boundary and link it in the attestation. (3) Generate in-toto link attestations (ITE-6 style) for each orchestration step, signing with a local key. Embed the trace_id and the global UUID in the predicate so they are verifiable. The literature suggests this approach adds negligible overhead: in-toto's NSDI'19 paper reports attestation generation latencies <5ms per step; OpenTelemetry benchmarks show <2% overhead in instrumented services. However, these numbers depend on implementation and were not measured in a Daedalus-like environment. The main disagreements in the community center on whether attestation alone suffices without a unified ID; some argue for a canonical UUID from the start to simplify querying. Our recommendation is to prioritize traceability and auditability over a perfect global schema, using mapping as a bridge. A full re-keying would require updating all historical data and references, with high risk of inconsistency and downtime, and is unnecessary when correlation can be achieved via metadata.",
+   "caveats": "The above assumes that the fail-closed egress allows the injection of trace headers into approved external calls; if the fence strips headers, correlation breaks. Ensure the mapping table is replicated or backed up, as it becomes a critical dependency. If multiple agents produce records concurrently, the ID mapping must be idempotent. Finally, in-toto attestations in Python may require additional libraries (pyca/cryptography) which must be vetted for Windows compatibility."
+  }
+ },
+ "name": "q12-run-record-correlation",
+ "question": "What patterns exist for correlating run records across heterogeneous producers with incompatible id schemes? Is in-toto / ITE-6 attestation plus an OpenTelemetry trace_id carried alongside the accepted approach, and what does it fail to give you compared with a full re-keying migration?",
+ "elapsed_s": 57.4
+}

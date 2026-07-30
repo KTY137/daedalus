@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q40-cost-of-being-wrong",
+ "report": {
+  "status": "needs_review",
+  "summary": "In automated code review, false positives (FPs) erode trust more than false negatives due to alert fatigue. Studies (e.g., Google Tricorder) show that FP rates below 10% are tolerated, while rates above 20% may cause teams to stop reading entirely (uncertain). No precise relative cost is quantified, but wasted developer effort is the main hurdle. Recommendation: target FP rate <10%, use confidence thresholds, and monitor fix rate.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Citations for exact thresholds (10%, 20%) are uncertain; literature lacks a definitive universal number.",
+   "Relative cost of FP vs FN is context-dependent; organizational culture and criticality of bugs affect tolerance.",
+   "No measured ratio exists; research focuses on FP rate impact rather than direct comparison."
+  ],
+  "todos": [
+   "Review Google Tricorder paper (Sadowski et al., ICSE 2015) and Johnson et al. (ICSE 2013) for specific numbers.",
+   "Implement FP rate monitoring and track developer fix rates and engagement over time.",
+   "Start with conservative FP rate target (<10%) and suppress low-confidence findings; adjust based on pilot feedback."
+  ],
+  "handoff": {
+   "suggestion": "Run a pilot with a strict FP rate cap (e.g., 5\u201310%) and measure developer response via fix rate and surveys. Use this baseline to calibrate the tool before wider deployment."
+  }
+ },
+ "name": "q40-cost-of-being-wrong",
+ "question": "In automated code review, what is the measured cost of a false positive relative to a false negative, in terms of engineer trust and long-term tool adoption? What false-positive rate causes teams to stop reading a tool's output entirely?",
+ "elapsed_s": 41.5
+}

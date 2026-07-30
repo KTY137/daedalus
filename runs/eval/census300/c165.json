@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c165",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/spine/docref_gate.py: implements the gate that judges docref fixes by checking the corpus denominator first, then document existence, then each finding; provides CLI entry point and exits with codes 0 (pass), 1 (fail), or 2 (inconclusive).",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/spine/docref_gate.py|daedalus.spine.docrefs",
+   "READS|daedalus/spine/docref_gate.py|target document file (.md) at path from --doc argument",
+   "READS|daedalus/spine/docref_gate.py|repo root directory (--repo-root) for scanning",
+   "CLAIMS|daedalus/spine/docref_gate.py|'nothing here writes, spawns, or reaches the network'",
+   "CLAIMS|daedalus/spine/docref_gate.py|'checks: denominator first, then document existence, then each finding'",
+   "CLAIMS|daedalus/spine/docref_gate.py|'deliberately does not check fact preservation'",
+   "CLAIMS|daedalus/spine/docref_gate.py|'fail closed with exit codes 0 (pass), 1 (fail), 2 (inconclusive)'",
+   "CLAIMS|daedalus/spine/docref_gate.py|'verifying zero targets is exit 2, never 0'"
+  ],
+  "todos": [
+   "daedalus/spine/docref_gate.py|constant|EXIT_PASS|codes a successful gate verdict (0)",
+   "daedalus/spine/docref_gate.py|constant|EXIT_FAIL|codes a measured failure of the candidate (1)",
+   "daedalus/spine/docref_gate.py|constant|EXIT_INCONCLUSIVE|codes that the gate could not reach a verdict (2)",
+   "daedalus/spine/docref_gate.py|function|build_parser|constructs an ArgumentParser for the gate CLI",
+   "daedalus/spine/docref_gate.py|function|run_gate|executes the gate logic given arguments and returns (exit_code, report_lines); never raises",
+   "daedalus/spine/docref_gate.py|function|main|parses CLI args and calls run_gate, prints report, returns exit code"
+  ],
+  "handoff": {
+   "suggestion": "This file depends on daedalus.spine.docrefs; ensure that module's scan and verify_fixes are available. The gate reads the target document and repo root; no writes. Public symbols are stable for external use."
+  }
+ },
+ "name": "c165",
+ "paths": [
+  "daedalus/spine/docref_gate.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 12.9
+}

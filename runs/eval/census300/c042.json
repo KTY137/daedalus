@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c042",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/markdown.py: Implements Markdown document parsing as a StructCore node kind, providing heading extraction, link classification (standard and Obsidian wikilinks), and document index filtering between code and documents.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CLAIMS|daedalus/structcore/markdown.py|Guarantees len(result) <= len(text) by construction for document_skeleton.",
+   "CLAIMS|daedalus/structcore/markdown.py|Guarantees links inside code fences are not parsed.",
+   "CLAIMS|daedalus/structcore/markdown.py|Guarantees that a link that does not resolve is dropped and counted, never guessed.",
+   "SMELL|daedalus/structcore/markdown.py|Fence detection logic duplicated in _headings and _content_lines."
+  ],
+  "todos": [
+   "daedalus/structcore/markdown.py|constant|DOCUMENT_PARSE_VERSION|Parse version string for document parsing.",
+   "daedalus/structcore/markdown.py|constant|MAX_HEADING_LEVEL|Maximum heading level (6).",
+   "daedalus/structcore/markdown.py|constant|DOCUMENT_KIND|Discriminator string 'document' for module entries.",
+   "daedalus/structcore/markdown.py|constant|WIKI_KINDS|Tuple of wikilink kinds (wiki, code, type, deferred).",
+   "daedalus/structcore/markdown.py|function|is_document|Determines if a modules entry is a document based on attributes.",
+   "daedalus/structcore/markdown.py|function|code_modules|Returns index modules with documents removed.",
+   "daedalus/structcore/markdown.py|function|document_modules|Returns index modules restricted to documents.",
+   "daedalus/structcore/markdown.py|function|slugify|Generates GitHub-style anchor slug from heading title.",
+   "daedalus/structcore/markdown.py|class|DocSection|Represents a document section with heading, body, and metadata.",
+   "daedalus/structcore/markdown.py|class|DocLink|Represents a link occurrence with classification and metadata.",
+   "daedalus/structcore/markdown.py|class|DocumentParse|Represents a full document parse with sections and links."
+  ],
+  "handoff": {}
+ },
+ "name": "c042",
+ "paths": [
+  "daedalus/structcore/markdown.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 19.6
+}

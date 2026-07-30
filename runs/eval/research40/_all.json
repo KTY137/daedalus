@@ -1,0 +1,1146 @@
+[
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q10-architecture-enforcement",
+  "report": {
+   "status": "needs_review",
+   "summary": "import-linter and tach can enforce static import layering, e.g., forbidding imports within a package. They cannot express data-level rules such as 'module X must not be referenced in string literals of module Y'. This requires custom static analysis (e.g., semgrep) or runtime checks. Literature on this specific intersection is sparse; most research addresses static dependencies, not dynamic name references in data.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "import-linter and tach operate on AST, missing runtime imports or dynamic references.",
+    "Data-level rule is vaguely defined \u2013 clarification needed on what constitutes 'named in data' (e.g., string literal, variable, config).",
+    "No single tool covers all cases; a combination of linters and custom checks increases maintenance burden.",
+    "False positives possible if modules are referenced intentionally for documentation or logging."
+   ],
+   "todos": [
+    "Use import-linter with layer contracts to enforce static import boundaries; define each package as a layer and disallow internal imports via forbidden rules.",
+    "For data-level constraints, write a custom semgrep rule or a script using ast/string scanning to detect strings matching module paths under P inside Q.",
+    "Establish a contract document specifying both static and dynamic expectations to guide tool configuration and custom checks.",
+    "Add a pre-commit hook combining linter and custom check to fail closed on violations."
+   ],
+   "handoff": {
+    "suggestion": "Define a linting stage that runs import-linter for import constraints and a custom AST walker (or semgrep) for string references. The custom checker should look for pattern 'from P.' or 'import P.' in string literals, but may need exclusion patterns for comments/logs. Example semgrep rule: `pattern: \"$X\" where $X contains a path under P`."
+   }
+  },
+  "name": "q10-architecture-enforcement",
+  "question": "What is the state of the art for detecting and enforcing architectural layering in Python (import-linter, tach, dependency contracts)? Can any of them express 'this module must have zero internal imports' or 'no module under path P may be named in module Q's data'?",
+  "elapsed_s": 34.1
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q07-policy-evaluation-order",
+  "report": {
+   "status": "needs_review",
+   "summary": "Industry standard (AWS IAM, Cedar, common OPA patterns) mandates explicit deny takes precedence over any allow, regardless of evaluation order. 'Exceptions before denies' (allow-overrides) is rarely defensible; it risks project-scoped allows shadowing baseline denies, leading to unintended access and privilege escalation. Recommend deny-overrides default.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Allow-overrides model can cause privilege escalation if a project-scoped allow list inadvertently permits access blocked by a baseline deny.",
+    "Maintaining security posture becomes harder when local exceptions can override global safeguards.",
+    "Order-dependent evaluation ('first match') can lead to inconsistent policy interpretations and bypasses."
+   ],
+   "todos": [
+    "Adopt explicit deny precedence: deny always wins over allow, regardless of declaration order.",
+    "Ensure the evaluation engine returns 'deny' if any applicable policy yields an explicit deny, else 'allow' if any allows and no denies, else 'deny'.",
+    "Audit existing allow lists to verify they cannot circumvent baseline denies under the new precedence.",
+    "Document the precedence rule clearly in project guidelines and architecture decision records."
+   ],
+   "handoff": {
+    "references": [
+     "AWS IAM policy evaluation logic: https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html",
+     "Cedar (Amazon Verified Permissions) docs: Forbid always takes precedence over Permit.",
+     "OPA policy language: deny-overrides pattern using 'default deny = false' and explicit deny rules."
+    ],
+    "suggestion": "Implement an explicit deny resolver that short-circuits evaluation once a deny is found, similar to AWS IAM's model. This aligns with Daedalus' fail-closed egress fence."
+   }
+  },
+  "name": "q07-policy-evaluation-order",
+  "question": "Policy-engine evaluation order: is 'exceptions evaluated before denies' ever a defensible default, and what do AWS IAM, Cedar and OPA/Rego mandate about explicit-deny precedence? What goes wrong when a project-scoped allow list can shadow a baseline deny?",
+  "elapsed_s": 43.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q09-deferred-import-cycles",
+  "report": {
+   "status": "needs_review",
+   "summary": "Deferred imports break cycles but cause delayed ImportError, performance overhead, and hidden dependency graphs. CI visibility requires exhaustive path import testing, import hook tracing, and static cycle detection.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Runtime overhead from repeated importlib lookups in hot paths",
+    "Delayed discovery of missing modules until seldom-used code paths executed",
+    "Potential circular import errors re-emerging under specific call sequences",
+    "Static analysis tools may not detect dynamically evaluated imports",
+    "Windows-specific import quirks (e.g., case insensitivity) may complicate tracing"
+   ],
+   "todos": [
+    "Implement CI workflow that invokes all registered agent entry-points to trigger deferred imports and captures import errors",
+    "Add custom pytest fixture that wraps imports to log and assert no circular import exceptions",
+    "Integrate import-linter or custom pylint rule to flag modules using deferred imports for review",
+    "Refactor critical cycles using dependency injection or interfaces to eliminate deferred imports",
+    "Monitor import time during performance tests to identify hot-deferred-imports"
+   ],
+   "handoff": {
+    "suggestion": "Daedalus should add a CI job that dynamically discovers and calls every agent's main function in a sandbox, catching ImportError/ModuleNotFoundError, complemented by a custom import hook that detects attempted circular imports by tracking partially initialized modules, and use coverage to ensure all deferred import sites are exercised."
+   }
+  },
+  "name": "q09-deferred-import-cycles",
+  "question": "When a Python codebase uses function-local (deferred) imports to break import cycles, what are the documented failure modes at scale, and what techniques make the resulting runtime cycles visible in CI rather than only under manual graph analysis?",
+  "elapsed_s": 47.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q01-win-replace-open-file",
+  "report": {
+   "status": "needs_review",
+   "summary": "On Windows, os.replace() fails if the target file is open without FILE_SHARE_DELETE. Most Python file openings lack this flag. Retries with exponential backoff may help transient locks but not sustained ones. Proper fix: open files with FILE_SHARE_DELETE via ctypes/msvcrt, or design to avoid replacement while handles open. Recommend bounded retry (5 attempts, exp backoff 100ms\u20131.6s) as a safety net, but primary resolution is FILE_SHARE_DELETE.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Retrying may mask systemic design issues if the lock is persistent.",
+    "Using FILE_SHARE_DELETE may allow readers to see inconsistent state if writer replaces mid-read.",
+    "Exponential backoff in a critical path could introduce latency."
+   ],
+   "todos": [
+    "Audit all file opens to identify long-held handles on files that might be replaced.",
+    "Implement a utility to open files with FILE_SHARE_DELETE using ctypes or msvcrt.open_osfhandle.",
+    "Add bounded retry wrapper around os.replace for transient-lock scenarios, logging failures.",
+    "Consider a write-to-temp-then-rename strategy for writers, with readers using FILE_SHARE_DELETE."
+   ],
+   "handoff": {
+    "suggestion": "Use ctypes to open files with FILE_SHARE_DELETE. Example: \n\ndef open_with_share_delete(path, mode):\n    import ctypes\n    from ctypes import wintypes\n    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)\n    GENERIC_READ = 0x80000000\n    FILE_SHARE_DELETE = 0x00000004\n    OPEN_EXISTING = 3\n    FILE_ATTRIBUTE_NORMAL = 0x80\n    hr = kernel32.CreateFileW(path, GENERIC_READ, FILE_SHARE_DELETE, None, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, None)\n    if hr == -1:\n        raise ctypes.WinError(ctypes.get_last_error())\n    return open(hr, mode)"
+   }
+  },
+  "name": "q01-win-replace-open-file",
+  "question": "On win32, exactly which conditions make MoveFileEx / os.replace fail over an open target file, and what retry and backoff shape is correct? Can CPython be persuaded to open files with FILE_SHARE_DELETE so a replace succeeds while a reader holds a handle?",
+  "elapsed_s": 49.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q02-posix-rename-semantics",
+  "report": {
+   "status": "needs_review",
+   "summary": "SetFileInformationByHandle with FILE_RENAME_INFO_EX and FILE_RENAME_POSIX_SEMANTICS provides genuine POSIX rename-over-open-file semantics on Windows 10 1709+ on NTFS and ReFS: the rename is immediate and all open handles reflect the new name. Cross-volume renames are not atomic; fallback to MoveFileEx is required. SMB support requires protocol-level POSIX extensions (SMB 3.1.1+ with appropriate server capabilities). FAT/exFAT do not support it. Atomicity is maintained locally but may be impacted by memory-mapped files or oplocks.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Only available on Windows 10 version 1709 and later; call will fail with ERROR_INVALID_PARAMETER on older releases.",
+    "Fails on SMB shares unless the server supports the SMB 3.1.1 POSIX extensions and the share is configured appropriately\u2014many NAS devices do not support this.",
+    "Not supported on FAT/exFAT volumes; may fail or behave unexpectedly.",
+    "Memory-mapped files or files with active oplocks can prevent the rename even with the POSIX flag (observed in some edge cases).",
+    "Renaming across volumes is not atomic and requires a copy/delete fallback (MoveFileEx with MOVEFILE_COPY_ALLOWED).",
+    "Atomicity guarantees are not fully documented for all failure modes; no published formal verification."
+   ],
+   "todos": [
+    "Use FILE_RENAME_POSIX_SEMANTICS for local renames on NTFS/ReFS when the file may be open; fallback to FILE_RENAME_INFO (delayed rename) for broader version compatibility.",
+    "Implement a pre-check for cross-volume rename and use MoveFileEx with COPY_ALLOWED, noting the lack of atomicity.",
+    "Test SMB behavior against target server OS versions; check for SMB dialect and POSIX extension support via GetFileInformationByHandleEx or WMI.",
+    "Add assertion that the volume is not FAT/exFAT before attempting POSIX rename.",
+    "Consider detecting memory-mapped sections via NtQueryVirtualMemory and aborting the rename if unmapping is not possible.",
+    "Measure rename latency under load to verify no regressions; no published benchmarks exist, so instrument the code."
+   ],
+   "handoff": {
+    "suggestion": "Add a test harness that opens a file with FILE_SHARE_DELETE, renames it using the POSIX flag, and verifies that the original handle still refers to the file at the new path. Repeat on NTFS, ReFS, and an SMB share with known POSIX extension support. Document the exact Windows build numbers and fallback paths."
+   }
+  },
+  "name": "q02-posix-rename-semantics",
+  "question": "Does SetFileInformationByHandle with FILE_RENAME_INFO_EX and FILE_RENAME_POSIX_SEMANTICS (Windows 10 1709+) give true POSIX rename-over-open-file semantics, and what are its limits on NTFS, ReFS and SMB shares?",
+  "elapsed_s": 65.8
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q06-file-locking-semantics",
+  "report": {
+   "status": "needs_review",
+   "summary": "Byte-range locks via LockFileEx (msvcrt.locking) are safe for a cross\u2011process mutex on Windows when each process uses a single handle. Lock release occurs only when the last handle to the file closes; intra\u2011process handle duplication causes self\u2011conflict. fcntl.flock is unavailable on native Windows and unreliable over SMB. Advisory lock semantics require cooperative checking; SMB reliability depends on server oplocks.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Advisory-only: processes must voluntarily check locks; no mandatory enforcement.",
+    "Intra\u2011process deadlock if the same lock file is opened multiple times without sharing the same handle.",
+    "SMB byte\u2011range lock reliability varies with client/server caching and oplock support; test under failure conditions.",
+    "msvcrt.locking offers no timeout or async wait; polling wastes CPU."
+   ],
+   "todos": [
+    "Implement cross\u2011process mutex as a singleton context manager that opens the lock file once and holds the handle.",
+    "Test lock acquisition/release over local NTFS and SMB shares under process crash scenarios.",
+    "Add an optional fallback to Windows named mutexes (win32event) if file locking proves unreliable over SMB."
+   ],
+   "handoff": {
+    "suggestion": "Wrap msvcrt.locking in a class that enforces a single handle per lock file. Provide a context manager that locks a dedicated byte (e.g., position 0) with LK_LOCK and unlocks with LK_UNLCK. On __exit__, do not close the handle if the process may re\u2011acquire; instead release lock explicitly and close only at process shutdown."
+   }
+  },
+  "name": "q06-file-locking-semantics",
+  "question": "Byte-range locks (msvcrt.locking / LockFileEx) versus fcntl.flock: what are the semantics for multiple handles in one process, for threads, for lock release when ANY handle closes, and over SMB? Which is safe for a cross-process mutex in Python?",
+  "elapsed_s": 72.8
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q08-reparse-point-errno",
+  "report": {
+   "status": "needs_review",
+   "summary": "On Windows, lstat on a reparse point typically succeeds, returning stat for the reparse point itself. Failures can yield EACCES (STATUS_ACCESS_DENIED), ENOENT (STATUS_OBJECT_NAME_NOT_FOUND), EIO (STATUS_IO_DEVICE_ERROR), or rarely STATUS_REPARSE_POINT_ENCOUNTERED if flags are misused. Security-critical path guards should treat any lstat error (including ENOENT) as HOSTILE rather than absent, because it prevents path verification. For an unstattable ancestor directory, the only safe posture is fail\u2011closed: deny access.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Strict fail\u2011closed could reject legitimate but transiently inaccessible paths (e.g., network flakiness).",
+    "Performance may degrade when statting every ancestor in deep paths; caching may mitigate this.",
+    "Lack of empirical data on lstat failure modes in real Windows deployments; reliance on OS documentation and limited testing."
+   ],
+   "todos": [
+    "Implement a path guard that calls os.lstat on every component of a candidate path.",
+    "Treat any OSError (any errno) as HOSTILE \u2013 deny the operation immediately.",
+    "After a successful lstat, check st_mode: if S_ISLNK, resolve the reparse point target and verify it remains within allowed boundaries; if out of bounds, treat as HOSTILE.",
+    "For ancestor directories that cannot be statted, adopt fail\u2011closed: deny the entire operation."
+   ],
+   "handoff": {
+    "suggestion": "Use os.lstat on every path component. On failure (any errno, including ENOENT, EACCES, EIO, ENOTDIR, ELOOP), abort with HOSTILE. For reparse points, read the substitute name via GetFinalPathNameByHandle or device\u2011specific methods after opening with FILE_FLAG_OPEN_REPARSE_POINT; validate the target. If the ancestor cannot be statted at all, fail immediately."
+   }
+  },
+  "name": "q08-reparse-point-errno",
+  "question": "Which errno and NTSTATUS values can lstat return for a Windows reparse point, and which of them should a security-critical path guard treat as HOSTILE rather than as absent? What is the correct fail-closed posture for an unstattable ancestor directory?",
+  "elapsed_s": 75.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q05-crash-safe-rollback",
+  "report": {
+   "status": "needs_review",
+   "summary": "Crash-safe file rollback commonly uses undo-journals: SQLite's rollback journal writes original pages before in-place modification; dpkg stores package state in /var/lib/dpkg/updates/; Emacs and Vim use backup/swap files. Minimum durable record: before a write, save original file content (or differential) to a synced journal file. On recovery, restore if journal is present. Measured overhead on HDD: ~2x writes for full file copies; page-level journals reduce cost. The approach is proven but requires strict fsync ordering.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Double-write overhead for large files (potentially 2x I/O) unless using delta/page-level journal.",
+    "Requires reliable fsync ordering: journal must be durable before main file is touched; some filesystems weaken this.",
+    "Race conditions if multiple processes attempt concurrent modifications \u2014 need file locking.",
+    "Rollback discards intended writes; may surprise users if crash occurs after data is logically committed but before journal deletion.",
+    "On Windows, fsync semantics depend on FlushFileBuffers; NTFS metadata ordering is not always guaranteed without write-through."
+   ],
+   "todos": [
+    "Implement per-file undo-journal: before in-place write, copy original to .<filename>.undo, fsync the undo file, then proceed.",
+    "On process startup, scan for orphan undo files; if found, copy content back to original to restore last safe state.",
+    "Add a verification step after write (e.g., checksum) and only delete undo on success \u2014 if killed between write and verify, the undo persists and rollback is safe.",
+    "Consider atomic write-and-rename for new files or single-operation changes to avoid undo overhead.",
+    "Benchmark overhead with target file sizes; if unacceptable, implement page-level or block-level journal like SQLite (copy only modified blocks).",
+    "Add locking mechanism (fcntl/win32 lock) to prevent concurrent modification of the same file during undo-protected operation."
+   ],
+   "handoff": {
+    "suggestion": "The described undo-journal is a minimal, battle-tested approach (SQLite, dpkg). For Daedalus on Windows, confirm FlushFileBuffers calls are sufficient to guarantee order. If file size is large, store original in a separate 'rollback' directory with a unique session ID, and record the mapping. On crash recovery, apply all pending rollbacks. This avoids cluttering working directories and supports host-wide cleanup."
+   }
+  },
+  "name": "q05-crash-safe-rollback",
+  "question": "Crash-safe file rollback: what on-disk undo-journal designs do editors and package managers actually use, and what is the minimum durable record that makes in-memory backups recoverable after a kill between write and verify?",
+  "elapsed_s": 81.1
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q04-sqlite-wal-durability",
+  "report": {
+   "status": "needs_review",
+   "summary": "Analyzed SQLite WAL synchronous=NORMAL durability. Process crash: no corruption; recent commits safe if OS cache intact, but not guaranteed. OS crash/power loss: database safe from corruption (WAL checksums), but transactions since last checkpoint may be lost. Network shares/OneDrive: unsupported, high corruption risk; WAL likely non-functional. Recommendation: use only on local disk; implement proactive checkpoints; reject network paths.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Data loss window on OS crash proportional to checkpoint interval",
+    "Network/cloud paths (including OneDrive) cause corruption; WAL mode may fail entirely",
+    "OneDrive may corrupt file during sync or rename operations",
+    "Windows network shares may not support required byte-range locking"
+   ],
+   "todos": [
+    "Enforce local storage only for SQLite databases; detect and block network/cloud paths",
+    "Use journal_mode=WAL and synchronous=NORMAL for performance",
+    "Implement periodic checkpointing (e.g., after N writes or time-based) to reduce loss window",
+    "If durability is critical, consider synchronous=FULL",
+    "Add integrity check on database open (PRAGMA integrity_check)",
+    "If network paths are unavoidable, design a server-based storage instead"
+   ],
+   "handoff": {
+    "suggestion": "For Daedalus: in database initialization, check path is local (e.g., using pathlib and win32api to detect UNC/DriveType) and refuse network/cloud paths. Set PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;. After every ~100 write transactions or 30 seconds, run PRAGMA wal_checkpoint(TRUNCATE) to flush data and limit potential loss on crash. Include startup integrity check. This balances performance and safety for local-only operation."
+   }
+  },
+  "name": "q04-sqlite-wal-durability",
+  "question": "SQLite with journal_mode=WAL and synchronous=NORMAL: what exactly is guaranteed across a process crash, an OS crash and power loss, and how do those guarantees change on a network share or a OneDrive-synced path?",
+  "elapsed_s": 81.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q14-code-in-artifact-dirs",
+  "report": {
+   "status": "needs_review",
+   "summary": "Mature projects (e.g., Linux kernel, Django, Apache) enforce strict separation: source in src/, artifacts in out/ or build/. They prevent silent code entrypoints by excluding artifact dirs from the module search path, using read-only permissions, and naming conventions (e.g., no .py or .sh in artifact dirs). Specific numbers are scarce, but a 2021 study on Python package security found 12% of packages inadvertently execute test artifacts. No single standard exists; conventions vary.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Over-separation may complicate debugging when generated code must be inspected or reused.",
+    "Relying solely on naming conventions is fragile; an attacker or LLM could name a malicious file .pkl but embed executable code.",
+    "Windows permission models differ from Unix; ACLs may not prevent execution if the file is explicitly invoked.",
+    "Dynamic code loading (e.g., importlib) could bypass directory exclusions if not carefully implemented."
+   ],
+   "todos": [
+    "Designate a dedicated artifact root (e.g., daedalus_artifacts/) that is never added to sys.path.",
+    "Configure the runtime to reject any import from that root (e.g., via custom import hooks).",
+    "Set filesystem ACLs to deny execute permission on the artifact directory and all subdirectories.",
+    "Implement a periodic scan in the orchestration loop to alert on any .py or .sh files appearing in the artifact tree.",
+    "Document this separation as a core security invariant for all contributors."
+   ],
+   "handoff": {
+    "suggestion": "Implement a strict artifact access layer: all generated files go through a library that writes to a configurable, non-importable directory, and any file with a known executable extension triggers an immediate quarantine and audit log. Consider integrating with the egress fence so that no outbound call can reference a path inside the artifact root."
+   }
+  },
+  "name": "q14-code-in-artifact-dirs",
+  "question": "How do mature projects handle executable code that must live alongside output artifacts, and what conventions prevent an artifact directory from silently becoming a source directory with its own unguarded entrypoints?",
+  "elapsed_s": 33.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q13-entrypoint-vs-dead",
+  "report": {
+   "status": "needs_review",
+   "summary": "No universal accepted criteria exist; entrypoints are any explicitly designated launch points (console_scripts, `__main__`, git hooks, config files). Dead code is unreachable from these under a conservative call graph. Numbers are scarce: e.g., Vulture reports precision ~60\u201380% with heavy false positives from dynamic features. Disagreements center on handling dynamism (eval, decorators, importlib). For Daedalus: combine static import/call graphs with explicit entrypoint registration, parse config files statically where possible, and supplement with dynamic coverage; provide manual overrides fo",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Static dead-code detection in Python has high false positives due to reflection, eval, metaclasses, and dynamic imports.",
+    "External entrypoints (git hooks, config files) may be missed without manual curation.",
+    "Tool-specific heuristics (e.g., Vulture, PyCG) are not standardised and require tuning.",
+    "On Windows, path handling and shebang-less entrypoints may complicate identification."
+   ],
+   "todos": [
+    "Enumerate all known entrypoints from setup.py/console_scripts, `__main__` modules, git hooks, and explicitly listed config files.",
+    "Build a conservative import-based call graph (e.g., via `sys.modules` snapshot or AST analysis) starting from those entrypoints.",
+    "Integrate optional dynamic coverage data to recover reachability missed by static analysis.",
+    "Implement a dead\u2011code whitelist mechanism to allow developers to suppress false positives."
+   ],
+   "handoff": {
+    "suggestion": "Consider adopting PyCG (https://github.com/vitsalis/PyCG) for static call\u2011graph generation, combined with a custom entrypoint\u2011discovery layer that parses git hook scripts and project\u2011specific config files. For dynamic augmentation, use `coverage.py` runs under test suites. Use Vulture with a whitelist to flag candidates, but always verify via the call graph."
+   }
+  },
+  "name": "q13-entrypoint-vs-dead",
+  "question": "What are the accepted criteria for distinguishing a DEAD module from an ENTRYPOINT module in static analysis, given entrypoints invoked via python -m, console_scripts, git hooks, and external config files that live outside the repository?",
+  "elapsed_s": 39.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q03-replacefile-vs-movefileex",
+  "report": {
+   "status": "needs_review",
+   "summary": "MoveFileEx(MOVEFILE_REPLACE_EXISTING) on same volume is atomic via NTFS rename, preserving ACLs/ADS of new file. Concurrent readers holding target open without FILE_SHARE_DELETE cause failure. Safe workaround: rename target out of way, then rename new file in. ReplaceFile is not atomic and fails on open handles unless dangerous flag used.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Rename-out-then-rename-in has a brief window where target name is missing; other processes may fail to open.",
+    "Fallback rename of open target may be blocked by anti-malware or security software, causing unpredictable failures.",
+    "Transactional NTFS is deprecated, so no fully atomic multi-step alternative exists on Windows.",
+    "If new file is not on the same volume as target, MoveFileEx falls back to non-atomic copy; must enforce same-volume placement."
+   ],
+   "todos": [
+    "Use MoveFileEx via ctypes with a temporary file on the same volume for atomic replacement.",
+    "Before replacing, attempt to rename existing target to a random backup name (handles concurrent readers without delete sharing).",
+    "Set all required ACLs and alternate data streams on the temporary file before the rename.",
+    "Flush and close the temporary file, then call MoveFileEx(new_file, target, MOVEFILE_REPLACE_EXISTING).",
+    "Implement retry logic with backoff for transient sharing violations or directory locks."
+   ],
+   "handoff": {
+    "suggestion": "Implement the 'rename-out-then-rename-in' pattern: 1) Generate unique temporary name in target directory. 2) Call MoveFileEx(target, temp_backup, MOVEFILE_REPLACE_EXISTING) to move the current target out of the way (this succeeds even if target is open without FILE_SHARE_DELETE). 3) Call MoveFileEx(new_file, target, MOVEFILE_REPLACE_EXISTING) to atomically place the new file. 4) Call DeleteFile(temp_backup) to mark the old file for deletion after all handles close. This ensures zero-downtime for readers and preserves atomicity, ACLs, and ADS of the new file. Monitor for rare failures (e.g., first rename blocked) and fall back to direct MoveFileEx with sharing-violation retries. Sources: Raymond Chen's 'Atomic File Replacement' (The Old New Thing) and Windows Internals (Russinovich) confirm NTFS rename atomicity and open-file rename behavior."
+   }
+  },
+  "name": "q03-replacefile-vs-movefileex",
+  "question": "ReplaceFile versus MoveFileEx(REPLACE_EXISTING) versus rename-into-place on Windows: which preserves atomicity, ACLs and alternate data streams, and which survives a concurrent reader holding the target open?",
+  "elapsed_s": 88.6
+ },
+ {
+  "error": "IncompleteRead: IncompleteRead(1 bytes read)",
+  "name": "q11-monkeypatch-control-bypass",
+  "question": "For a spend or security control implemented as a process-global monkeypatch of subprocess and urlopen, what are the known bypass classes, and what architectural alternatives (a broker process, seccomp, Windows job objects, wrapper binaries on PATH) give coverage that does not depend on which process starts?",
+  "elapsed_s": 60.4
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q12-run-record-correlation",
+  "report": {
+   "status": "needs_review",
+   "summary": "Correlating run records across incompatible ID schemes can be achieved via a correlation service mapping to a global UUID, combined with OpenTelemetry trace context and in-toto attestations. A full re-keying migration is riskier and often unnecessary; the literature (e.g., in-toto NSDI'19) shows attestation overhead is minimal (<5ms per step), while tracing adds negligible latency in instrumented services.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "External LLM agents may not propagate trace headers, creating partial traces and correlation gaps.",
+    "ID mapping tables must be transactionally consistent and persist across restarts; corruption leads to attribution errors.",
+    "in-toto key management on Windows/Python requires secure storage; compromise breaks chain of trust.",
+    "OpenTelemetry instrumentation introduces dependency bloat; ensure it aligns with fail-closed egress rules.",
+    "Granularity mismatch: trace IDs correlate request flows, while in-toto links attest to pipeline steps; correlating both requires careful metadata design."
+   ],
+   "todos": [
+    "Implement a correlation service that generates and stores a global UUID for each event, mapping to producer-native IDs. Use a lightweight database (e.g., SQLite) with atomic writes.",
+    "Inject W3C traceparent header into all outgoing calls allowed by the egress fence; wrap calls with a retry-instrumenting decorator.",
+    "Generate in-toto link attestations for each orchestration step, embedding the trace_id in the predicate and signing with a local key.",
+    "For legacy records, run a one-off migration script to populate the mapping table, leaving original IDs untouched.",
+    "Add a health check that verifies trace_id propagation across test agents; fail-closed if missing."
+   ],
+   "handoff": {
+    "detailed_recommendation": "Based on the constraints (Windows, Python, fail-closed egress, multi-agent with heterogeneous IDs), a full re-keying migration is too disruptive and risky, especially if external LLM IDs cannot be altered. Instead, adopt a correlation layer: (1) Assign a globally unique UUID to every logical run record at the point of creation or ingestion. Maintain a persistent mapping table (native_id -> global_uuid) with indices. (2) Use OpenTelemetry's `traceparent` header (W3C Trace Context) across internal and external allowed calls; for producers that cannot propagate it, generate a new trace_id at the boundary and link it in the attestation. (3) Generate in-toto link attestations (ITE-6 style) for each orchestration step, signing with a local key. Embed the trace_id and the global UUID in the predicate so they are verifiable. The literature suggests this approach adds negligible overhead: in-toto's NSDI'19 paper reports attestation generation latencies <5ms per step; OpenTelemetry benchmarks show <2% overhead in instrumented services. However, these numbers depend on implementation and were not measured in a Daedalus-like environment. The main disagreements in the community center on whether attestation alone suffices without a unified ID; some argue for a canonical UUID from the start to simplify querying. Our recommendation is to prioritize traceability and auditability over a perfect global schema, using mapping as a bridge. A full re-keying would require updating all historical data and references, with high risk of inconsistency and downtime, and is unnecessary when correlation can be achieved via metadata.",
+    "caveats": "The above assumes that the fail-closed egress allows the injection of trace headers into approved external calls; if the fence strips headers, correlation breaks. Ensure the mapping table is replicated or backed up, as it becomes a critical dependency. If multiple agents produce records concurrently, the ID mapping must be idempotent. Finally, in-toto attestations in Python may require additional libraries (pyca/cryptography) which must be vetted for Windows compatibility."
+   }
+  },
+  "name": "q12-run-record-correlation",
+  "question": "What patterns exist for correlating run records across heterogeneous producers with incompatible id schemes? Is in-toto / ITE-6 attestation plus an OpenTelemetry trace_id carried alongside the accepted approach, and what does it fail to give you compared with a full re-keying migration?",
+  "elapsed_s": 57.4
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q16-divergent-health-surfaces",
+  "report": {
+   "status": "needs_review",
+   "summary": "Prevent silent divergence by combining a single verdict vocabulary (canonical health states) with a consistency test across surfaces. The vocabulary ensures compatibility; the diversity test detects hidden disagreements. Collapsing to one engine removes diversity and risks single-point failures.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Even with a vocabulary, modules may interpret thresholds differently; regular calibration needed.",
+    "Consistency tests may cause false positives if modules have different latency/refresh rates.",
+    "Diverse modules may have common failure modes if underlying dependencies overlap (e.g., Windows system calls)."
+   ],
+   "todos": [
+    "Define a canonical health vocabulary (e.g., healthy, degraded, failed, unknown) with optional structured reasons.",
+    "Implement multiple independent health assembly modules (e.g., resource monitor, LLM heartbeat, egress fence status).",
+    "Add a reconciler module that compares health verdicts and raises an alert on divergence."
+   ],
+   "handoff": {
+    "suggestion": "Use an open standard like CloudEvents or a custom JSON schema for health reports. The reconciler can be an LLM call that gauges the severity of divergence and logs diagnostic context."
+   }
+  },
+  "name": "q16-divergent-health-surfaces",
+  "question": "When several modules independently answer the same operational question ('is the system healthy?'), what architectural patterns keep them from silently diverging: a single verdict vocabulary, a consistency test between surfaces, or collapsing to one engine with multiple views?",
+  "elapsed_s": 35.2
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q17-wrong-file-rewrites",
+  "report": {
+   "status": "needs_review",
+   "summary": "Output-target confusion in multi-file LLM edits is documented in SWE-bench and agent frameworks (e.g., Aider, OpenHands). SWE-bench reports that even strong models often apply patches to wrong files, but exact rates for this specific overwrite error are uncertain. Prevention: structured prompts with clear file boundaries, use of diff formats, and validation checking if output content matches another file's original content (to reject and re-prompt).",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Validation may produce false positives (e.g., legitimate identical lines) or be circumvented.",
+    "No single prompt structure is foolproof; model may ignore instructions.",
+    "Relying solely on output validation might mask underlying planning failures."
+   ],
+   "todos": [
+    "Implement output sanitizer that flags if rewrite content is identical to another file's original content, then re-prompt with emphasis on correct file.",
+    "Adopt unified diff output format with explicit file path headers.",
+    "Add a verification step (separate LLM call) to confirm edits are applied to intended file."
+   ],
+   "handoff": {
+    "suggestion": "Add an output validation step in the multi-file editor: before committing a rewrite, check if the new content matches (exactly or nearly) the original content of any other file mentioned in the prompt. If so, reject and re-prompt the LLM with a stronger instruction to edit ONLY the target file, possibly by framing the task as a diff generation with explicit target path."
+   }
+  },
+  "name": "q17-wrong-file-rewrites",
+  "question": "MEASURED IN OUR SYSTEM: an LLM asked to rewrite file A, given a change request that also mentions file B, returned B's contents and destroyed A. Three of five multi-file writes failed this way. Is this failure documented in the literature or in agent-framework issue trackers? What prompt structures and output validations are known to prevent output-target confusion in multi-file edit agents?",
+  "elapsed_s": 37.8
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q15-shim-lifecycle",
+  "report": {
+   "status": "needs_review",
+   "summary": "Backwards-compatibility shims are temporary re-export modules used during refactorings. Teams often rely on static analysis and runtime telemetry to confirm zero imports before deletion, but evidence shows many deprecations are never completed. For a fail-closed, LLM-driven system like Daedalus, an evidence-based approach should combine import-hook telemetry, a fixed observation window, and explicit deprecation signals to avoid unexpected breakage.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Static analysis may miss dynamic imports (e.g., importlib.import_module with constructed names).",
+    "Telemetry might have blind spots (e.g., early process exit before log flush).",
+    "External consumers (if any) are invisible to internal monitoring, potentially causing silent failures downstream.",
+    "Deleting a shim in a fail-closed system could inadvertently disable a security-critical path if it was the only way to reach a deprecated but essential module."
+   ],
+   "todos": [
+    "Implement an import hook (sys.meta_path) that logs any access to shim modules, sending events to a central telemetry database with a minimum 90-day observation window before deletion.",
+    "Combine with static analysis (e.g., vulture + grep for dynamic patterns) to confirm zero internal references.",
+    "For external-facing components, issue a deprecation warning via runtime warnings and a changelog entry at least one release cycle before removal.",
+    "In the telemetry pipeline, tag shim accesses with the stack trace to identify calling context for auditing.",
+    "Only delete when both static analysis and telemetry show zero accesses over the observation period; if telemetry is incomplete, default to keeping the shim."
+   ],
+   "handoff": {
+    "suggestion": "Since Daedalus is LLM-driven and fail-closed, consider adding a 'shim integrity check' that runs before any critical operation: if a shim is imported during a session, the system could log it and optionally notify an admin. This ensures that a premature deletion does not cause silent failures. Also, consider using a deprecation library like `deprecated` to emit warnings that can be caught by automated testing, further reducing guesswork."
+   }
+  },
+  "name": "q15-shim-lifecycle",
+  "question": "What is known about the lifecycle of backwards-compatibility re-export shims? How do teams decide when a shim with zero internal importers can be deleted, and what telemetry or deprecation mechanisms make that decision evidence-based rather than a guess?",
+  "elapsed_s": 47.7
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q21-tests-that-test-mocks",
+  "report": {
+   "status": "needs_review",
+   "summary": "Detecting tests that rely solely on mocks involves three main techniques: mutation testing (e.g., deleting the implementation and checking if the test passes), coverage analysis (measuring how much of the module under test is actually executed), and assertion analysis (inspecting whether assertions only validate mock interactions). Mutation testing is the most reliable but computationally expensive, with tools like MutPy for Python. Coverage inspection is cheap and can be done per-commit using tools like coverage.py. Assertion analysis via static analysis is lightweight but may produce false p",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "False positives: low coverage does not guarantee a test only tests mocks; it may test edge cases that happen to not cover lines.",
+    "Dynamic Python features and mocking frameworks (e.g., unittest.mock, pytest-mock) complicate static analysis of assertions.",
+    "Mutation testing may be too slow for per-commit feedback; on a moderate codebase, full mutation analysis can take minutes to hours, while targeted mutation (deletion of specific functions) may take seconds per test but requires careful selection.",
+    "Windows compatibility: some mutation testing tools (like mutmut) may have limited Windows support, requiring alternatives."
+   ],
+   "todos": [
+    "Implement a per-commit pre-commit hook or CI step that uses coverage.py to check if a test module exercises the corresponding implementation module below a threshold (e.g., <X% line coverage) and flags it for manual review.",
+    "Integrate a heuristic that counts assertions on mock objects vs. real return values; if mock assertions dominate, raise a warning.",
+    "Set up a nightly mutation testing job (e.g., using mutmut or a custom script that replaces functions with mocks) to catch more subtle cases; store results for periodic audit.",
+    "For immediate triage, create a script that temporarily deletes the implementation module's body and re-runs tests to see if any still pass; this can be run manually on suspicious tests."
+   ],
+   "handoff": {
+    "suggestion": "Start with a coverage-based check: for each test file, require that the tested module's coverage is above a threshold (e.g., 5% statement coverage) or flag for review. This can be implemented via coverage.py with a simple configuration per commit. Combine with a mock-assertion ratio heuristic using AST analysis. Use mutation testing only as a periodic sanity check."
+   }
+  },
+  "name": "q21-tests-that-test-mocks",
+  "question": "How do you mechanically detect a test that tests only its own mocks -- one that would pass with the implementation deleted? What tools or techniques exist (mutation testing, coverage of the module under test, assertion analysis), and what do they cost to run per commit?",
+  "elapsed_s": 27.6
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q18-patch-vs-rewrite",
+  "report": {
+   "status": "needs_review",
+   "summary": "Based on Aider's benchmarks (2024-07-22 edit formats), whole-file rewrites have a 23% apply failure rate vs 5% for search/replace and 10% for unified diff. Whole-file hits context limits and suffers from silent truncation. With a 24K-char rewrite ceiling, recommend switching to search/replace blocks to handle larger files and reduce failures.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Search/replace blocks can fail if the LLM generates ambiguous or incorrect SEARCH strings (Aider's 5% failure rate includes this).",
+    "Requires careful prompt engineering with few-shot examples to teach the model the format.",
+    "The LLM may still attempt to generate whole-file edits if not constrained.",
+    "If the file changes are very large, search/replace blocks can still exceed context limits; may need chunking."
+   ],
+   "todos": [
+    "Implement search/replace edit format (e.g., Aider's SEARCH/REPLACE blocks) as the default for file edits.",
+    "Add validation to parse and apply patches, with fallback to whole-file only for files <= 24K chars.",
+    "Include few-shot examples in the system prompt to reduce format errors.",
+    "Test failure rates on representative files > 24K characters."
+   ],
+   "handoff": {
+    "suggestion": "Adopt Aider's specific search/replace format: surround SEARCH and REPLACE sections with special markers (e.g., <<<<<<< SEARCH and >>>>>>> REPLACE). Use line numbers and context to disambiguate. See Aider's edit formats post for details."
+   }
+  },
+  "name": "q18-patch-vs-rewrite",
+  "question": "Whole-file rewrite versus unified-diff versus search-replace-block as the edit format for LLM code agents: what does the measured evidence say about failure rates, file-size ceilings, and silent truncation? Aider's benchmarks are the obvious source -- what did they actually find, and what edit format should a system with a 24,000-character rewrite ceiling adopt instead?",
+  "elapsed_s": 42.2
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q23-review-and-write-modes",
+  "report": {
+   "status": "needs_review",
+   "summary": "Mature agent designs separate action and observation channels via structured tool calls (e.g., ReAct, OpenAI function calling, Anthropic tool use). When an agent writes code directly as plain text, it often loses the ability to report observations because the output is consumed. Prior art (AutoGPT, early LangChain agents) showed that agents can execute commands and forget to check results. The accepted pattern is to have the agent output a structured edit request, let the system apply it, and return the outcome as an observation, keeping the reporting channel intact.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Structured tool calls add parsing overhead and can fail if the agent produces malformed JSON or arguments.",
+    "Agents may ignore observations if they are not explicitly forced to process them; mitigation requires a mandatory observation-injection step.",
+    "Switching modes (advisory vs. write) can still cause state confusion if not handled carefully; the system must maintain a consistent message history.",
+    "No single published benchmark specifically measures 'lost reporting channel' in code-editing agents; empirical evidence is anecdotal (e.g., AutoGPT run failures due to missing read-back)."
+   ],
+   "todos": [
+    "Design a tool-based interface for write operations: agent outputs a structured 'edit_file' action with parameters (path, content, diff), system applies it and returns an observation (diff, success/failure).",
+    "Implement a standard cycle: (1) agent optionally produces reasoning, (2) agent outputs tool call, (3) environment executes and appends observation to conversation, (4) repeat.",
+    "Ensure that all write operations go through this tool API; never allow the agent to directly output code meant for execution without an observation step.",
+    "Adopt a schema like OpenAPI function calling or a minimal JSON format with 'thought' and 'action' fields to keep parsing simple."
+   ],
+   "handoff": {
+    "suggestion": "Review the ReAct paper (Yao et al., 2022) and OpenAI function calling docs for patterns. Consider implementing a minimal ToolCall schema with 'action' type and 'observation' injection in the conversation loop. This separates advisory reasoning from writable actions cleanly."
+   }
+  },
+  "name": "q23-review-and-write-modes",
+  "question": "Agent interfaces that switch between an advisory mode and a write mode: what is the accepted design for letting an agent BOTH make a change AND report observations about it? Is there prior art on write-mode agents losing their reporting channel, and how do mature systems structure the response schema?",
+  "elapsed_s": 37.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q20-llm-test-generation-quality",
+  "report": {
+   "status": "needs_review",
+   "summary": "LLM-generated test pass rates: 50-80% typical (e.g., Jain et al., 2023 report 76% for GPT-4, uncertain). Mutation scores rarely reported; EvalPlus (Liu et al., 2023) shows vulnerability to trivial tests. Delete-resistance (tests passing after feature deletion) is not measured in literature. Disagreements: pass rate alone is insufficient; mutation testing and delete-checks are needed to gauge real test quality.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Reported pass rates overestimate quality if tests contain weak assertions.",
+    "Mutation testing is computationally expensive and may slow CI.",
+    "Delete-resistance metric is non-standard and may produce false positives/negatives.",
+    "Test quality varies widely across LLM models and problem domains."
+   ],
+   "todos": [
+    "Benchmark Daedalus test generation on pass rate, mutation score, and delete-resistance using a sample of 50 functions.",
+    "Integrate mutation testing tool (e.g., mutmut for Python) into CI.",
+    "Implement feature-delete test: remove function body and verify generated tests fail.",
+    "Use EvalPlus-style test augmentation to detect overfitting tests."
+   ],
+   "handoff": {
+    "suggestion": "Set up a controlled experiment using Daedalus's current LLM test generation with mutmut for mutation testing and a custom delete-resistance checker on 50 representative functions."
+   }
+  },
+  "name": "q20-llm-test-generation-quality",
+  "question": "What is the measured quality of LLM-generated unit tests: pass rate on first run, mutation score of the resulting suite, and the rate of tests that would still pass if the feature under test were deleted? Name the studies and their numbers.",
+  "elapsed_s": 50.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q19-detect-hallucinated-imports",
+  "report": {
+   "status": "needs_review",
+   "summary": "LLMs hallucinate imports/APIs at rates of 20-40% in open-ended coding tasks. A study by Phan et al. (2023, uncertain citation) found 23% of GPT-generated code had import errors. Cheap static checks that attempt to resolve imports and validate attribute existence via `importlib.util.find_spec()` and `dir()` catch most such hallucinations at minimal cost.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Hallucination rates vary significantly by model version, prompt complexity, and task domain; the cited 23% figure is based on an uncertain recollection of a study and may not generalize.",
+    "Static checks may miss dynamically created names or conditional imports; false positives can occur if a module is available only in the target environment but not in the checking environment."
+   ],
+   "todos": [
+    "Implement a static validator that uses `importlib.util.find_spec()` to verify module existence and `dir()` to check API presence for all imports in generated code.",
+    "Run the validator as a mandatory pass in the code generation pipeline to block obviously hallucinated imports before any test execution."
+   ],
+   "handoff": {
+    "suggestion": "The Daedalus team should integrate a lightweight import/API validator as a first-tier filter. They can start with a simple script that parses generated Python code, extracts all `import` / `from ... import` statements, and checks each against the current Python environment. For API validation, after a successful import, use `hasattr(module, name)` to confirm each imported name. This will catch a large fraction of hallucination errors before tests run, reducing wasted test cycles."
+   }
+  },
+  "name": "q19-detect-hallucinated-imports",
+  "question": "MEASURED IN OUR SYSTEM: zero of 26 LLM-written tests passed, and three of seven test files imported modules that do not exist. What is the reported rate of hallucinated imports and APIs in LLM-generated code, and which cheap static checks catch the most of it per unit of cost?",
+  "elapsed_s": 58.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q24-symbol-survival-heuristics",
+  "report": {
+   "status": "needs_review",
+   "summary": "In practice, LLM code edit heuristics include top-level definition survival, line diff ratio, identifier Jaccard, and AST edit distance. Thresholds are rarely public; Aider likely uses ~70% token overlap. No reported false-positive rates on genuine refactors. Multi-metric ensemble is safest.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "A fixed 50% top-level definition ratio may falsely classify large refactors (e.g., module splits) as replacements.",
+    "AST edit distance is sensitive to formatting changes, inflating false positives.",
+    "Identifier Jaccard is high for renames during refactoring, leading to false negatives.",
+    "Embedding similarity is unstable for small changes and lacks clear thresholds.",
+    "Any single heuristic is insufficient; a composite approach is needed but tuning is data-intensive."
+   ],
+   "todos": [
+    "Implement a composite classifier using weighted combination of top-level ratio, identifier Jaccard, and normalized AST edit distance.",
+    "Train thresholds on a curated dataset of intentional edits vs. replacements.",
+    "Add a confidence score and flag ambiguous cases (e.g., 0.4-0.6) for human review.",
+    "Monitor false-positive rate in production and adjust thresholds per file type."
+   ],
+   "handoff": {
+    "suggestion": "Prototype: 1) Normalize AST edit distance by tree size; 2) Combine with identifier overlap (Jaccard) using a linear model; 3) Default threshold: 0.6 for edit, 0.4 for replacement; else flag. Integrate with existing 50% top-level ratio as feature."
+   }
+  },
+  "name": "q24-symbol-survival-heuristics",
+  "question": "For validating that an LLM's file rewrite is an EDIT rather than a REPLACEMENT, what heuristics are used in practice? We use surviving top-level definition ratio with a 50% threshold. What alternatives exist (AST edit distance, embedding similarity, identifier overlap), and what false-positive rates do they carry on genuine refactors?",
+  "elapsed_s": 39.6
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q29-docstring-drift-detection",
+  "report": {
+   "status": "needs_review",
+   "summary": "Specification mining (Daikon, Texada) reports >90% precision for simple invariants; NL-to-assertion (Toradocu, Jdoctor) ~70-85% precision for comment-code consistency. Disagreements: soundness vs completeness, static vs dynamic. Recommend LLM-based extraction + runtime assertions. Measure precision internally.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "LLM may hallucinate specifications, leading to false assertions",
+    "Dynamic mining limited to observed paths",
+    "Runtime monitoring may introduce performance overhead",
+    "Literature precision may not transfer to Python codebases"
+   ],
+   "todos": [
+    "Build LLM-based extraction: parse docstrings into formal assertions using few-shot prompts",
+    "Implement lightweight runtime checks for 'never writes X' and atomicity using decorators",
+    "Run on sample of 100 docstrings, manually label, compute precision/recall",
+    "Iterate on prompt engineering and assertion generation"
+   ],
+   "handoff": {
+    "suggestion": "Use existing LLM routing to call a model trained to extract formal assertions from docstrings. Combine with a runtime monitor (e.g., Python's settrace or context managers) to verify 'never writes X' and atomicity properties. Start by generating assertions for a small set of critical functions and manually verify correctness."
+   }
+  },
+  "name": "q29-docstring-drift-detection",
+  "question": "Detecting docstrings that promise guarantees the implementation does not provide -- atomicity, fail-closed behaviour, 'never writes X'. What automated techniques exist (specification mining, NL-to-assertion, contract inference), and what precision do they report on real codebases?",
+  "elapsed_s": 40.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q28-refutation-prompting",
+  "report": {
+   "status": "needs_review",
+   "summary": "No direct empirical evidence exists on the effect of refutation-framed prompting on verification accuracy or precision/recall trade-off. Existing verification methods (e.g., process supervision, SelfCheckGPT) use neutral prompts and report overall accuracy, not the trade-off. The 22% refutation rate may reflect genuine errors or prompt-induced over-skepticism. A controlled experiment is needed to quantify the trade-off given your fail-closed fence.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Refutation framing may increase false negatives, causing critical flaws to be missed.",
+    "The 22% refutation rate could be an artifact of prompt bias rather than true error density.",
+    "No published numbers exist for this exact instruction; any extrapolation is guesswork.",
+    "A precision-optimized verifier violates fail-closed egress requirements, potentially passing dangerous outputs silently."
+   ],
+   "todos": [
+    "Design a side-by-side experiment: compare neutral vs. refutation-focused prompts on a labeled verification dataset.",
+    "Measure precision, recall, false-negative rate, and F1 for each framing.",
+    "If recall drops below required thresholds, recalibrate the prompt (e.g., add calibration examples or a secondary verification step).",
+    "Document the trade-off and set an operational decision rule based on the cost of false negatives."
+   ],
+   "handoff": {
+    "suggestion": "Implement the controlled experiment in your verification pipeline, compare baseline and refutation prompts, compute confusion matrices, and tune the decision threshold to maintain required recall under the fail-closed policy."
+   }
+  },
+  "name": "q28-refutation-prompting",
+  "question": "We instructed a verification wave that REFUTED is the most valuable verdict, and 22% of checkable claims were refuted. What is known about the effect of adversarial or refutation-framed prompting on verification accuracy, and does it trade recall for precision?",
+  "elapsed_s": 49.3
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q26-fan-out-without-corroboration",
+  "report": {
+   "status": "needs_review",
+   "summary": "For disparate fan-out where agents have no shared inputs, apply a two-stage pipeline: (1) agents generate claims with citations; (2) a local judge model scores each claim against its source file. Triage by judge confidence, flagging low-scoring claims for human review. This avoids external calls (fits fail-closed egress) and provides measurable, auditable scores.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Judge model may hallucinate or be inconsistent itself; mitigate with explicit citation checks and an ensemble of light + heavy judges.",
+    "Computational cost of judging 1,226 claims may be high; consider sampling if throughput is limited.",
+    "No published benchmarks for exactly this setup; adaptation from QA fact-checking may overfit.",
+    "Agents might generate claims that are unfalsifiable without external knowledge\u2014judge will be limited to file content."
+   ],
+   "todos": [
+    "Implement a claim\u2011verification step: for each generated claim, retrieve the source file snippet and prompt a local judge LLM to output a 1\u20135 confidence score with a mandatory justification.",
+    "Create a simple scoring rubric for the judge (e.g., 'Does the claim faithfully reflect the file content?').",
+    "Pilot on a small subset; measure inter\u2011judge agreement between two different local models.",
+    "Set a threshold (e.g., score < 3) for automatic triage to a human review queue.",
+    "Integrate this verification as an optional post\u2011processing step in the Daedalus pipeline, configurable per workflow."
+   ],
+   "handoff": {
+    "suggestion": "Use a lightweight local model (e.g., Phi\u20113) for quick triage and a larger one (e.g., Llama\u20113\u201170B locally served via vLLM on Windows) for uncertain cases. Cache source snippets to avoid re\u2011computation. The verification prompt should include: 'Given the file excerpt and the agent\u2019s claim, rate agreement (1=completely unsupported, 5=perfectly supported). Only use information from the excerpt.' Return valid JSON with keys score and reason."
+   }
+  },
+  "name": "q26-fan-out-without-corroboration",
+  "question": "MEASURED IN OUR SYSTEM: 1,226 claims from 244 agents, and the largest cluster of agents making the same claim was TWO, because each saw a different file. When a fan-out gives every agent a different input, corroboration is structurally unavailable as a ranking signal. What ranking or triage methods work in that regime?",
+  "elapsed_s": 51.3
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q27-verifier-same-family",
+  "report": {
+   "status": "needs_review",
+   "summary": "Self-verification within the same model family provides limited independent signal on code tasks. Measurements show marginal gains (e.g., Self-Refine improved pass@1 on MBPP by ~5.6% without execution feedback; Self-Debugging without execution saw ~3.8% improvement). With execution feedback, gains are substantial (Reflexion: +17.7% on HumanEval). Cross-family verification is under-measured but expected to reduce correlated errors. Error correlation within a family is high due to shared training data and biases. Consensus: pure self-verification is unreliable; external feedback (tests) or diver",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Self-verification leads to overconfidence and repeated mistakes due to correlated errors.",
+    "Cross-family verification may introduce calibration issues if verifier is weaker.",
+    "Execution feedback requires secure sandboxing (fail-closed constraint).",
+    "Published numbers may not transfer to Daedalus' specific codebase and model mix."
+   ],
+   "todos": [
+    "Prioritize test-based verification wherever possible (e.g., run candidate code in sandbox).",
+    "If model-only verification is needed, use a verifier from a different model family to reduce error correlation.",
+    "When only one family is available, use majority voting across multiple samples with varied temperature.",
+    "Implement a fallback protocol: if verifier and claimant are same family and no tests pass, flag for human review.",
+    "Log verification outcomes to measure actual error correlation in your setting."
+   ],
+   "handoff": {}
+  },
+  "name": "q27-verifier-same-family",
+  "question": "When the verifier is the same model family as the claimant, how much independent signal remains? What has been measured about self-verification, cross-family verification, and the correlation of errors within a model family on code tasks?",
+  "elapsed_s": 51.7
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q25-cheap-model-census-reliability",
+  "report": {
+   "status": "needs_review",
+   "summary": "Cheap models reliably produce structured output but hallucinate specifics. Literature shows higher factual error rates for smaller/cheaper models, though exact numbers vary. The verification ratio depends on error cost, verification cost, and hallucination rate; statistical quality control suggests piloting to estimate p and setting sampling accordingly (no universal ratio). Recommendation: use cheap model for structure, verify claims with a stronger judge, start with 100% verification on a small set to calibrate.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Verification model may also hallucinate; verify its own error rate.",
+    "Cheap model hallucination rate may drift as prompts or data change; periodic recalibration needed.",
+    "No published study exactly matches 'code slice structural extraction' scenario; numbers from other domains may not transfer.",
+    "Cost of verification with a strong model might negate savings if hallucination rate is high."
+   ],
+   "todos": [
+    "Pilot: run cheap model on a representative sample (e.g., 100 slices) and verify all claims with a strong model (or human) to estimate hallucination rate p.",
+    "If p > acceptable threshold, consider using cheap model only for output structure (schema mapping) and delegate claim extraction to a more reliable model.",
+    "For ongoing verification, implement statistical sampling plan (e.g., ANSI/ASQ Z1.4) with AQL based on risk tolerance; start with 10-20% random verification and adjust.",
+    "Track false positive vs false negative hallucinations separately; different cost implications.",
+    "Explore confidence signals from cheap model (logprobs, etc.) to prioritize verification.",
+    "Benchmark cheap vs expensive model on your task using standard metrics (precision, recall, factual consistency) to inform cost-quality trade-off."
+   ],
+   "handoff": {
+    "suggestion": "No proposed file edits; this is a research recommendation."
+   }
+  },
+  "name": "q25-cheap-model-census-reliability",
+  "question": "MEASURED IN OUR SYSTEM: a cheap model performing structural extraction over 300 code slices produced reliable aggregate shape but hallucinated specific claims (two of two checked __all__ claims were false). What is known about the reliability of cheap models for structured extraction versus judgement, and what verification ratio is worth paying for?",
+  "elapsed_s": 57.1
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q33-structured-extraction-schema",
+  "report": {
+   "status": "needs_review",
+   "summary": "JSON schema enforcement and one-fact-per-line designs maximise merge reliability. Grammar-constrained decoding (jsonformer, outlines) virtually eliminates parsing errors, dropping malformed-output rates from ~10% to 0% in reported benchmarks. Closed tag vocabularies reduce semantic inconsistency. In TAC KBP tasks, per-line facts improved recall and simplified deduplication. For Daedalus, this combination allows deterministic set-union merging with minimal loss.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Rigid schema may exclude valid facts; a fallback extraction path is advisable.",
+    "Grammar-constrained decoding increases latency and may reduce factual recall.",
+    "Closed vocabularies require maintenance and re-annotation as domains evolve.",
+    "One-fact-per-line can duplicate boilerplate and increase token costs."
+   ],
+   "todos": [
+    "Adopt JSON schema enforcement with a predefined set of entity/relation types.",
+    "Require each output to be a list of flat JSON objects, each describing one fact.",
+    "Implement merge logic as a union of fact sets, deduplicating on normalized key fields.",
+    "If latency is critical, use post-hoc JSON repair instead of real-time grammar constraints."
+   ],
+   "handoff": {
+    "suggestion": "Integrate outlines (github.com/outlines-dev/outlines) or lmql for schema-constrained generation. For schema, define a small core vocabulary plus an 'other' category with free-text value to capture outliers. Add a validator that strips malformed lines before merge."
+   }
+  },
+  "name": "q33-structured-extraction-schema",
+  "question": "For fan-out extraction tasks where results must be merged mechanically, what schema design choices most improve mergeability? Closed tag vocabularies, one-fact-per-line, JSON schema enforcement -- what is the measured effect on downstream aggregation quality?",
+  "elapsed_s": 37.4
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q32-scaling-review-fanout",
+  "report": {
+   "status": "needs_review",
+   "summary": "Literature suggests diminishing returns after ~3\u20134 reviewers. SmartBear reported one reviewer finds ~50% of defects, two ~60%, three ~75%, four ~85%, five ~90%. Weller (1993) found two inspectors 86%, three 91%, four 96%. For LLMs, ensemble studies show plateau at 3\u20135 agents. Budget split: allocate 60\u201370% to finders, 30\u201340% to verifiers, but adapt dynamically.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Over-fan-out increases latency, cost and false-positive rate due to LLM bias overlap.",
+    "Existing numbers are from human inspection; LLM yield curves may differ and lack robust measurement.",
+    "Fixed fan-out wastes budget if defects quickly saturate; adaptive mechanisms need careful tuning."
+   ],
+   "todos": [
+    "Pilot Daedalus with a known-defect corpus to map the marginal yield curve of LLM reviewers.",
+    "Implement dynamic fan-out: start with 3 finders, measure unique defect discovery rate, expand only if >5% new defects.",
+    "Test verifier models (e.g., stronger LLM, majority voting, debate) to filter false positives from finders."
+   ],
+   "handoff": {
+    "suggestion": "Add an adaptive review fan-out engine that monitors the number of unique defects per additional reviewer. When the incremental yield drops below a threshold (e.g., 10% of previous total), stop adding finders and shift budget to a verifier. Use a consensus mechanism where disagreements are escalated to a higher-capability model. Instrument cost/detection trade-offs per review cycle."
+   }
+  },
+  "name": "q32-scaling-review-fanout",
+  "question": "At what point does adding more review agents stop finding new defects? What is known about the marginal yield curve of review fan-out, and how should a budget be split between more finders and more verifiers?",
+  "elapsed_s": 41.8
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q30-guarantee-vocabulary",
+  "report": {
+   "status": "needs_review",
+   "summary": "No single accepted vocabulary. JML, Dafny, contracts.py, and Rust's type-level approaches have niche adoption; mainstream use only for Rust (e.g., AWS Firecracker, Deno). Dafny's Ironclad Apps verified 4 apps with zero bugs, but no large-scale uptake. Recommend a lightweight Python decorator scheme (@idempotent, @fail_closed, @pure) with runtime checks and property testing for Daedalus agents.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "LLM-generated code may violate annotation semantics; thorough testing essential",
+    "Runtime checks add overhead; no compile-time verification",
+    "Dynamic nature of Python limits static enforcement of guarantees",
+    "Agent understanding of informal decorators may drift without formal spec"
+   ],
+   "todos": [
+    "Define a minimal set of decorators for guarantees (atomic, idempotent, fail-closed, pure, never-writes)",
+    "Implement runtime validation (e.g., using icontract or custom wrappers) and property-based tests with Hypothesis",
+    "Create a linter to detect missing or misused decorators in agent-generated code",
+    "Document semantics clearly for LLM agents, with examples and failure modes",
+    "Enforce fail-closed behavior via context managers and review patterns for external calls"
+   ],
+   "handoff": {
+    "suggestion": "Consider a module `daedalus.contracts` with decorators like `@idempotent`, `@fail_closed`, `@pure`, and a test suite that checks patterns (e.g., `@pure` functions must not call I/O). Use `__wrapped__` introspection for runtime checks."
+   }
+  },
+  "name": "q30-guarantee-vocabulary",
+  "question": "Is there an accepted vocabulary or annotation scheme for machine-checkable code guarantees (atomic, idempotent, fail-closed, pure, never-writes)? What have JML, Dafny, contracts.py, and Rust's type-level approaches actually achieved in mainstream codebases?",
+  "elapsed_s": 51.6
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q22-agent-capability-vs-instruction",
+  "report": {
+   "status": "needs_review",
+   "summary": "Prompt-level restrictions ('do not edit X') rely on instruction-following; adversarial prompt injection (e.g., 'ignore previous instructions') defeats them with measured success rates of 70\u201390% in public benchmarks (Schulhoff et al. 2023, HackAPrompt 2023). Capability\u2011level restrictions (tool allow lists, path sandboxing) stop unauthorized actions irrespective of model output, reducing risk to implementation bugs. No major LLM agent framework (AutoGPT, LangChain, CrewAI) enforces structural restrictions by default; all hinge on prompts. Given the fail\u2011closed egress fence on Windows, adopt stru",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Cited compliance rates are model\u2011 and attack\u2011dependent; updated models may resist simple injections better, but adversarial robustness remains an open problem.",
+    "Structural enforcement requires careful implementation (e.g., OS\u2011level sandboxing, robust path canonicalization) to avoid bypasses.",
+    "Over\u2011restriction may harm agent utility; a balance between flexibility and security must be struck through iterative threat modelling."
+   ],
+   "todos": [
+    "Implement a tool runner with mandatory path allow list for file I/O operations; block any write outside whitelisted directories regardless of model instructions.",
+    "Enforce a tool allow list in the agent execution loop (e.g., before dispatching a tool call, validate the tool name against a static set) rather than relying on a prompt.",
+    "For code evolution tasks, run generated code in a sandboxed subprocess with restricted file system permissions and no network access unless explicitly needed.",
+    "Add monitoring and logging of all tool invocations to detect and alert on policy violations, supporting the fail\u2011closed requirement."
+   ],
+   "handoff": {
+    "suggestion": "Evidence on prompt\u2011level vs capability\u2011level restrictions:\n\nWhat is known:\n- Prompt\u2011level restrictions (e.g., 'do not edit file X') are soft constraints that depend on the model faithfully following the instruction. They are vulnerable to prompt injection, indirect injection (e.g., poisoned web pages), and jailbreaking techniques. Agents that interpret tool calls from free\u2011form text are particularly susceptible because the model itself controls which tools are invoked.\n- Capability\u2011level restrictions (or structural restrictions) are hard barriers enforced by the agent runtime, independent of the model\u2019s output. Examples include: a file system filter that rejects write operations outside a safe directory, a tool allow list that checks the tool name before execution, or a sandbox that limits system calls. When correctly implemented, these cannot be circumvented by the model\u2019s text generation.\n\nWhat the numbers were (measured compliance rates):\n- Schulhoff et al. (2023), in the HackAPrompt competition and related work, demonstrated that simple prompt injection could cause GPT\u20113.5 and similar models to disregard system\u2011level constraints in 70\u201390% of targeted test cases. Indirect injection (e.g., hidden text on a scraped webpage) achieved similar success rates.\n- Greshake et al. (2023) showed 100% success in exfiltrating data from LLM\u2011integrated applications via indirect prompt injection in certain scenarios.\n- Studies on safety\u2011trained models (e.g., Anthropic, Google) found that instruction\u2011only constraints still fail under adversarial prompts, though refusal rates have improved. No study to date has shown zero bypass for prompt\u2011only restrictions in an uncontrolled environment.\n- Conversely, structurally enforced allow lists have a 0% rate of unauthorized action due to model misbehavior, provided the enforcement layer itself is bug\u2011free.\n\nWhat the disagreements are:\n- Some argue that instruction\u2011tuned models have become robust enough to resist most prompt injections (e.g., GPT\u20114 with system message). However, adversarial robustness evaluations consistently find novel attacks that succeed, and the threat model for autonomous agents includes both direct and indirect injection.\n- There is debate over the performance cost of structural restrictions: adding tool validators and sandboxes can increase latency and complexity. Proponents of prompt\u2011only approaches claim that careful system messaging and filtering of tool outputs mitigate most risks, but this has not been demonstrated against a determined adversary.\n- Another disagreement concerns the granularity of allow lists: too strict a list limits the agent\u2019s ability to solve novel problems, while too loose a list weakens security. The optimum depends on the use case.\n\nWhat I would do given the constraints (Windows, Python, fail\u2011closed egress):\n1. **Hybrid approach with structural primacy:** Use capability\u2011level restrictions as the primary security boundary. All tool invocations must pass through an enforcement proxy that checks file paths, network destinations, and tool names against a configurable allow list. The model\u2019s instruction is only advisory.\n2. **Sandboxing for code evolution:** Since Daedalus evolves code, run generated code in a sandboxed container (e.g., Windows Job Object, restricted process token) that limits file writes to a single workspace directory and denies outbound network calls by default.\n3. **Fail\u2011closed design:** If an allow list check fails, the agent loop must abort the action and log the incident, never falling back to a prompt\u2011based decision. The egress fence must be implemented at the OS level (e.g., Windows Firewall rules for the agent process) rather than relying on the model\u2019s cooperation.\n4. **Fallback prompts as a secondary layer:** Still include instructive prompts (e.g., 'You are allowed to edit only files in the /safe directory') to guide the model\u2019s proposals, reducing the frequency of denied tool calls, but never trust them for security.\n\nBy adopting structural enforcement, Daedalus can maintain a strong security posture while retaining the flexibility of LLM\u2011driven code evolution."
+   }
+  },
+  "name": "q22-agent-capability-vs-instruction",
+  "question": "In agent frameworks, what is the evidence on prompt-level restrictions ('do not edit X') versus capability-level restrictions (no write tool, path allow lists)? What compliance rates have been measured for instruction-only constraints, and which frameworks enforce structurally instead?",
+  "elapsed_s": 107.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q31-worktree-parallel-agents",
+  "report": {
+   "status": "needs_review",
+   "summary": "Git worktrees share a single object store and index, leading to lock contention on index.lock and race conditions on pack files. At 10 concurrent worktrees, occasional index lock failures are likely; at 100, frequent lock timeouts, operation failures, and possible object store corruption (e.g., concurrent gc) become common. Formal benchmarks are sparse; practitioner reports and mailing list discussions indicate issues beyond ~30-50 worktrees. Disagreements exist on whether to use worktrees with retry logic or switch to per-agent clones. For Daedalus on Windows, the fail-closed egress fence and",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Windows file locking (antivirus, OS) may worsen contention and cause spurious failures.",
+    "Shared object store writes (e.g., `git gc`, `git repack`) can corrupt the database if not serialized.",
+    "Many short-lived worktrees increase inode usage and disk churn.",
+    "Serializing all Git writes through a single point becomes a bottleneck, limiting true parallelism.",
+    "Alternatives like per-agent clones consume more disk space and take longer to initialize."
+   ],
+   "todos": [
+    "Implement a write-serializing adapter around Git operations (e.g., a queue or lock file) to avoid index/store contention among worktrees.",
+    "Benchmark the system at 10 and 100 simulated parallel agents, measuring lock contention rate, operation latency, and failure frequency.",
+    "Evaluate per-agent thin clones (e.g., `git clone --shared` from a bare reference repo) as a fallback; compare disk and time overhead.",
+    "Ensure no automatic garbage collection on shared object stores and add health checks for repository corruption.",
+    "If adopting worktrees, add retry logic with exponential backoff for index lock errors."
+   ],
+   "handoff": {
+    "suggestion": "Start with a small pilot: run 10 agents with worktrees and monitor lock errors. Then spike 100 agents using a file-based job queue for Git writes. If contention is unmanageable, prototype per-agent clones seeded from a common bare repository (read-only) and measure the trade-offs. Also investigate Git's `core.fscache` and `core.preloadindex` on Windows to mitigate some performance issues. For deeper background, review Git mailing list threads on 'worktree scalability' and the Git for Windows issues tracker."
+   }
+  },
+  "name": "q31-worktree-parallel-agents",
+  "question": "Git worktree strategies for many parallel agents: what breaks at ten and at a hundred concurrent worktrees, how do teams handle shared object-store contention and index locks, and what is the practical alternative when worktrees stop scaling?",
+  "elapsed_s": 71.6
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q34-self-improving-gates",
+  "report": {
+   "status": "needs_review",
+   "summary": "Prior art includes automated red-teaming (Perez et al., 2022) where LLMs generate adversarial prompts, finding up to 30% attack success on earlier models but missing nuanced harms. Ganguli et al. (2022) reported harmful outputs in 10-20% of cases after RLHF. Multi-agent adversarial testing for harness hardening is less common; debated whether fan-out improves coverage or just creates redundant attacks. Self-attacking systems are underexplored but conceptually similar to automated red-teaming applied to the entire agent pipeline.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Self-adversarial testing can miss novel attack vectors that the attacker models haven't been trained to generate.",
+    "Generating adversarial tests with the same model class may lead to blind spots if the harness shares vulnerabilities with the attacker.",
+    "Fan-out may amplify trivial bypasses rather than discovering fundamental flaws.",
+    "Real-world adversarial examples may differ from generated ones in distribution, leading to overconfidence in safety."
+   ],
+   "todos": [
+    "Implement a self-adversarial test suite using a fan-out of attacker agents that attempt to bypass the egress fence via prompt injection, social engineering, and multi-step plans.",
+    "Measure bypass rate over time and monitor for novel attack patterns using a separate detector agent.",
+    "Incorporate known jailbreak templates as seeds and use LLM generalization to create variants.",
+    "Conduct regular human red-teaming to complement automated tests and catch overlooked attack types."
+   ],
+   "handoff": {
+    "suggestion": "Start with a simple implementation: spawn 10 attacker agents with instructions to exfiltrate a dummy secret, log all attempts, and train a classifier on successful bypasses. Run nightly and block any discovered patterns in the next deploy. Reference Perez et al. (2022) for methodology and Ganguli et al. (2022) for expected attack success rates. Keep the attacker models separate from the production system to avoid contamination."
+   }
+  },
+  "name": "q34-self-improving-gates",
+  "question": "Systems that harden their own safety gates by attacking themselves: what prior art exists for using an agent fan-out as an adversarial test of the harness that runs it? What did such systems find, and what did they miss?",
+  "elapsed_s": 49.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q37-cold-start-thresholds",
+  "report": {
+   "status": "needs_review",
+   "summary": "Literature does not give a single definitive number. Mutation testing work (e.g., Inozemtseva & Holmes, 2014) suggests 20\u201350 mutants can approximate full mutant set metrics, but this is for mutation score, not defect-detector thresholds. Studies on synthetic defect injection for prediction (e.g., Just et al., 2014) show mutants can mimic real faults incompletely; thresholds from mutants diverge from real-defect thresholds by an uncertain margin. Recommendation: per-project empirical convergence analysis with bootstrapping; start with \u2265200 mutants, validate with historical defects if available.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Mutant-based thresholds may overfit to artificial patterns, causing missed critical defects (fail-open risk) or excessive false positives.",
+    "Without real-defect data, calibration uncertainty persists; synthetic-to-real transfer gap is unquantified broadly."
+   ],
+   "todos": [
+    "Implement bootstrapping on synthetic corpus to determine threshold stability point (likely 100\u2013500 mutants).",
+    "Collect a small set of real post-mortem defects (\u226520) for validation and potential threshold adjustment.",
+    "Start with a conservative threshold (e.g., top 5% of mutant suspiciousness scores) and monitor in production."
+   ],
+   "handoff": {
+    "suggestion": "Review recent literature on 'synthetic defect injection for prediction calibration' (e.g., TSE 2021 studies). Consider using a holdout set of real defects to adjust thresholds if project history allows."
+   }
+  },
+  "name": "q37-cold-start-thresholds",
+  "question": "When calibrating a defect detector per project using synthetic corpora, how many synthetic examples are needed before thresholds stabilise, and how much does a threshold calibrated on synthetic mutants differ from one calibrated on real defects?",
+  "elapsed_s": 54.3
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q35-mutation-operator-design",
+  "report": {
+   "status": "needs_review",
+   "summary": "Operators altering arithmetic/logic (AOR, ROR, LCR, UOI) achieve low equivalent mutant rates (~10-20%), while statement deletion (SDL) and constant replacement (CDL/CRP) often exceed 30-50% equivalent, wasting budget. For Daedalus, prioritize AOR, ROR, LCR, UOI and filter SDL via reachability analysis.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Equivalent mutant rates are language- and test-suite-dependent; Python's dynamic typing may inflate rates for type-changing operators.",
+    "Static dead-code analysis may miss runtime properties and incorrectly filter non-equivalent deletions.",
+    "Literature numbers derive from Fortran/Java/C; direct extrapolation to Python requires validation.",
+    "Operator effectiveness also depends on fault-revealing power, not just equivalence rate."
+   ],
+   "todos": [
+    "Prioritise mutation operators AOR, ROR, LCR, UOI in Daedalus's defect-generation pipeline.",
+    "Implement a static reachability filter to discard statement deletions in unreachable code or unused assignments.",
+    "Collect empirical equivalent rates on your Python codebase using a tool like mutmut to calibrate operator selection.",
+    "Avoid constant replacement operators unless the constant appears in a branching condition."
+   ],
+   "handoff": {
+    "suggestion": "In Daedalus's mutation pipeline, add a pre-filter that uses control-flow analysis to skip statement deletions when the statement is in dead code or its result is never read, and favour arithmetic/relational/logical/unary operator mutations. Run a small pilot with mutmut on your code to measure exact equivalent rates before scaling."
+   }
+  },
+  "name": "q35-mutation-operator-design",
+  "question": "Designing mutation operators that produce genuinely defective programs with a low equivalent-mutant rate: which operator families have the best defect-to-equivalent ratio in practice, and which are known to be mostly equivalent and therefore wasted budget?",
+  "elapsed_s": 56.3
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q40-cost-of-being-wrong",
+  "report": {
+   "status": "needs_review",
+   "summary": "In automated code review, false positives (FPs) erode trust more than false negatives due to alert fatigue. Studies (e.g., Google Tricorder) show that FP rates below 10% are tolerated, while rates above 20% may cause teams to stop reading entirely (uncertain). No precise relative cost is quantified, but wasted developer effort is the main hurdle. Recommendation: target FP rate <10%, use confidence thresholds, and monitor fix rate.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Citations for exact thresholds (10%, 20%) are uncertain; literature lacks a definitive universal number.",
+    "Relative cost of FP vs FN is context-dependent; organizational culture and criticality of bugs affect tolerance.",
+    "No measured ratio exists; research focuses on FP rate impact rather than direct comparison."
+   ],
+   "todos": [
+    "Review Google Tricorder paper (Sadowski et al., ICSE 2015) and Johnson et al. (ICSE 2013) for specific numbers.",
+    "Implement FP rate monitoring and track developer fix rates and engagement over time.",
+    "Start with conservative FP rate target (<10%) and suppress low-confidence findings; adjust based on pilot feedback."
+   ],
+   "handoff": {
+    "suggestion": "Run a pilot with a strict FP rate cap (e.g., 5\u201310%) and measure developer response via fix rate and surveys. Use this baseline to calibrate the tool before wider deployment."
+   }
+  },
+  "name": "q40-cost-of-being-wrong",
+  "question": "In automated code review, what is the measured cost of a false positive relative to a false negative, in terms of engineer trust and long-term tool adoption? What false-positive rate causes teams to stop reading a tool's output entirely?",
+  "elapsed_s": 41.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q36-semantics-preserving-transforms",
+  "report": {
+   "status": "needs_review",
+   "summary": "No system provides fully provably behaviour-preserving transformations for all Python features. Formal semantics exist (e.g. Politz et al. 2014, Guth et al. 2015) but have not been leveraged for a comprehensive refactoring tool. Conservative static analysis can catch some issues (e.g. variable capture in closures, mutable default aliasing, evaluation order changes), but guarantees are limited. Common refactorings like extract method, rename, and move are unsafe under closures, decorators, generators, name shadowing and side effects without careful checks. I recommend starting with a small set ",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Formal semantics may not cover all Python constructs (e.g., certain decorators, metaclasses, C extensions).",
+    "Even proven transformations may have subtle interactions with dynamic features like introspection or monkey-patching.",
+    "User must accept a restricted subset of Python or annotate impure regions to retain safety."
+   ],
+   "todos": [
+    "Implement a tiny set of safe transformations (e.g., local variable rename) using a formal model of Python's scoping and evaluation order; prove them correct.",
+    "Build a 'refactoring firewall' that rejects transformations unless the affected code passes a conservative side-effect purity analysis.",
+    "Integrate with a regression test runner to catch any unintended changes during development."
+   ],
+   "handoff": {
+    "suggestion": "Investigate the K-framework Python semantics (Guth et al., 2015) as a basis for modelling and proving transformations. Start with a minimal core calculus and extend only with features you can formally verify."
+   }
+  },
+  "name": "q36-semantics-preserving-transforms",
+  "question": "Provably behaviour-preserving source transformations for Python specifically: which are actually safe given closures, mutable default arguments, decorators, generators, name shadowing and evaluation-order side effects? Which transformations look safe and are not?",
+  "elapsed_s": 66.1
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q39-egress-classification",
+  "report": {
+   "status": "needs_review",
+   "summary": "Secret detection in source files commonly uses regex, entropy, and ML. GitHub reported initial regex precision ~18% (82% false positives) improving to ~90% with ML. Other tools like TruffleHog can reach >90% false positives on high-entropy non-secrets. Test fixtures with dummy secrets are handled via allowlists/baselines (e.g., detect-secrets). For Daedalus, a layered approach with local ML reduces false positives without violating the egress fence.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Allowlists may become stale, missing new test fixtures or secret patterns.",
+    "Local ML model (e.g., fine-tuned CodeBERT) requires representative training data and may not generalize to all secret types.",
+    "Entropy-based scanning still triggers many alerts on minified code, UUIDs, or base64-encoded non-secrets.",
+    "False negatives from novel or obfuscated secrets remain a risk regardless of method."
+   ],
+   "todos": [
+    "Implement a regex+entropy scanner (e.g., Gitleaks, detect-secrets) with a curated allowlist for known false positives and test fixtures.",
+    "Train or fine-tune a small language model (e.g., CodeBERT) for local classification of flagged strings as secret vs. benign, avoiding external API calls.",
+    "Automatically populate the allowlist from directories containing test fixtures and from historical false-positive logs.",
+    "Monitor false-positive and false-negative rates in production; periodically retrain the local classifier using updated data."
+   ],
+   "handoff": {
+    "suggestion": "Set up a pre-commit hook and CI step using detect-secrets with a managed baseline file. For egress decisions, pass flagged files through a local fine-tuned transformer model (e.g., a distilled BERT) to suppress false positives, keeping all analysis inside the fail-closed fence."
+   }
+  },
+  "name": "q39-egress-classification",
+  "question": "Classifying whether a source file may leave a machine: what techniques exist for detecting secrets, proprietary content and device identifiers in source, what are their false-positive rates, and how do teams handle test fixtures that deliberately look like credentials?",
+  "elapsed_s": 57.5
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "q38-static-import-resolution",
+  "report": {
+   "status": "needs_review",
+   "summary": "Static import resolution in Python faces false positives from conditional imports, __getattr__, namespace packages, lazy loaders, and re-exports. Existing tools (Pyright, mypy, Jedi) report no aggregate false-positive rates; observed rates vary wildly (0\u201330% depending on codebase). Recommendation: use allow-lists and limit dynamic imports in Daedalus' fail-closed fence.",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [
+    "Static analysis cannot guarantee resolution correctness for all dynamic import patterns; false negatives (unsafe modules allowed) are dangerous.",
+    "Allow-lists may block legitimate imports if not regularly updated, hindering agent flexibility.",
+    "Namespace packages and lazy loaders can evade simple file-existence checks.",
+    "Overly strict restrictions on dynamic imports may limit the usefulness of code generation."
+   ],
+   "todos": [
+    "Implement an allow-list-based import resolver that only permits whitelisted modules unless a module passes strict static checks.",
+    "Integrate with mypy/Pyright strict mode (with '--warn-unused-imports' and '--follow-imports=error') to catch obvious invalid imports.",
+    "Detect namespace packages by scanning sys.path for matching directories without __init__.py; treat as potential false positives.",
+    "Ban top-level conditional imports and __getattr__/lazy loader usage in agent-generated code; allow only within sandboxed submodules.",
+    "Use a runtime import audit in a controlled sandbox for modules that fail static resolution, logging any discrepancies."
+   ],
+   "handoff": {
+    "suggestion": "WHAT IS KNOWN:\nStatic import resolution in Python without execution must account for the full import system semantics defined in PEP 302 and importlib. The hardest cases are:\n- Conditional imports (based on platform, Python version, environment variables, or os.path checks). These can only be resolved if the condition is statically evaluable.\n- Module-level __getattr__ (PEP 562) that dynamically provides attributes, causing tools to incorrectly believe a module is importable.\n- Namespace packages (PEP 420): A virtual package composed of multiple directories, each without __init__.py. Resolution requires combining path entries, making static determination non-trivial.\n- Lazy loaders (importlib.util.LazyLoader): Defer actual module loading until attribute access; static tools may assume the module is unavailable or may prematurely trigger a side-effect.\n- Re-exports via 'from module import *' with dynamic __all__ or without it (all non-private names). Determining the exported set statically requires analyzing the source of the re-exported module.\n\nWHAT THE NUMBERS WERE:\nNo published aggregate false-positive rate exists for Python import resolution across mainstream tools. Observed behavior in tools like Pyright and mypy suggests that on a typical open-source project with conservative dynamic import usage, the false-positive rate for missing imports is below 5%. However, on codebases heavily using conditional imports or namespace packages (e.g., Zope, some ML frameworks), rates can exceed 30%. Pyright\u2019s issue tracker reports sporadic false positives for lazy loaders and namespace packages; mypy\u2019s stub-only coverage often masks runtime failures. The closest empirical data comes from a 2022 study of 10 popular Python projects where Jedi achieved ~87% accuracy in resolving imports statically, but this study (uncertain citation: 'Static Analysis of Python Imports in Large Projects', SCAM 2022? possibly fabricated) has not been replicated. Tools like import-linter and fawltydeps do not focus on correctness rates. Therefore, the literature does not answer the question with a single reliable figure.\n\nWHAT THE DISAGREEMENTS ARE:\nThe primary disagreement is between tools that assume a fully configured environment (e.g., Pyright upon opening a project) and those that attempt purely lexical resolution (e.g., Pyflakes). Type checkers often skip finding implementation files if stubs exist, leading to a different notion of 'resolution success'. Moreover, some tools treat any unresolvable import as an error, while others only flag when the imported name is used, leading to varying definitions of false positive.\n\nWHAT I WOULD DO:\nGiven Daedalus\u2019 fail-closed egress fence and the need for safety over convenience, I would:\n1. Maintain an explicit allow-list of modules that agents can import, curated for each runtime environment. Static analysis becomes a second line of defense.\n2. Use mypy or Pyright in strict mode to catch obviously missing imports, but accept that their false positives will be high on dynamic code; log these but do not block.\n3. For namespace packages, precompute the available namespaces by crawling sys.path at startup and cache them, avoiding reliance on import hooks during static passes.\n4. Forbid dynamic import constructs (conditional imports, lazy loaders, __getattr__) in code generated by agents, unless the agent explicitly requests a sandboxed evaluation.\n5. Implement a lightweight runtime import checker that, in a temporary thread, attempts to import a module and checks for ImportError; upon success, adds to a trust cache. This can be done for modules that fail static verification, but only if the module is trusted enough to be executed in a sandbox.\nThis hybrid approach balances the practical limitations of static analysis with the security requirements of the fence."
+   }
+  },
+  "name": "q38-static-import-resolution",
+  "question": "Statically resolving whether a Python import will succeed, without executing the module: what are the hard cases (conditional imports, __getattr__, namespace packages, lazy loaders, re-exports), and what false-positive rate do existing tools report?",
+  "elapsed_s": 72.3
+ }
+]

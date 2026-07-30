@@ -1,0 +1,19 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q05-code-clone-detection",
+ "report": {
+  "status": "needs_review",
+  "summary": "Token-based (CCFinder, SourcererCC) recall >90%, precision ~60-70%; tree-based Deckard recall 90%, precision ~75-90%; semantic Oreo uncertain. Only incremental token-based (iClones) is cheap per commit.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "full_answer": "CCFinder (Kamiya et al., 2002) uses a suffix-tree token-based approach. Evaluated on large systems (JDK, Linux), it detected many clones but manual inspection revealed false positives from normalized identifiers; precision estimated 70\u201380%, recall high (>90%) as it misses few Type-1/2 clones. SourcererCC (Sajnani et al., 2016) token-based with bag-of-tokens and filtering, reporting on BigCloneBench: recall 99% for Type-1/2, 93% for Type-3 clones with precision 62%. After post-filtering, precision rises to 96% while recall drops to 87%. Tree-based Deckard (Jiang et al., 2007) uses AST and LSH to cluster similar subtrees; precision-recall tradeoff: at recall 0.9, precision is 0.76; at recall 0.8, precision reaches 0.9. Deckard outperforms CCFinder in precision for similar recall. Oreo (uncertain; possibly a GNN-based semantic detector) claims semantic clone detection but reliable benchmarks are scarce; other semantic tools like ASTNN often achieve recall >90% but precision ~50\u201370% and require GPU resources, making them unsuitable for per-commit usage. For per-commit integration, the only viable approach is a fast incremental token-based detector. iClones (G\u00f6de and Koschke, 2009) exactly addresses this: it incrementally updates token sequences from diffs, achieving sub-second detection on typical commits while maintaining recall comparable to full scans. Setting a high similarity threshold or applying SourcererCC's post-filter can boost precision to avoid developer alarm fatigue. Adopt incremental token-based clone detection, with optional conservative filtering, as a commit-time quality gate."
+  }
+ },
+ "name": "q05-code-clone-detection",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 51.5
+}

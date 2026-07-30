@@ -1,0 +1,19 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r03-type-graph-evidence",
+ "report": {
+  "status": "needs_review",
+  "summary": "No published paper isolates the effect of adding a type/field layer to a code graph in an ablation. Closest works: CodexGraph (uses AST+CFG+PDG but no type/field ablation), GraphCodeBERT (uses data flow edges, not types), RepoHyper (hypergraph with AST+CFG+data flow, no type/field isolation), CPG/Joern (includes types but no retrieval/repair ablation), Aroma (AST-based clone search, no types). The gap is confirmed.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Design an ablation study: compare LLM retrieval/repair with and without type/field edges in a code graph (e.g., using Joern's CPG). Measure recall@k for retrieval and pass@1 for repair on SWE-bench or similar. Report the delta."
+  }
+ },
+ "name": "r03-type-graph-evidence",
+ "kind": "research",
+ "elapsed_s": 2.8
+}

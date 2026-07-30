@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c282",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. daedalus/token_policy.py: denylisted path fragment 'token'",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "daedalus/token_policy.py"
+   ]
+  }
+ },
+ "name": "c282",
+ "paths": [
+  "tests/test_imports_graph.py",
+  "daedalus/fallback.py",
+  "daedalus/token_policy.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

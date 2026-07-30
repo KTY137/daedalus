@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c284",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/providers/__init__.py: Defines provider metadata, registry, and health-check functions for model backends (ollama, claude_cli, deepseek, codex_cli) and provides get/list/health/available interfaces. daedalus/bootstrap_prompt.py: Generates a session bootstrap prompt for Claude CLI that includes harness root, project info, active agents, and usage commands.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/providers/__init__.py|daedalus.providers.base",
+   "DEPENDS|daedalus/providers/__init__.py|daedalus.providers.claude_cli",
+   "DEPENDS|daedalus/providers/__init__.py|daedalus.providers.deepseek",
+   "DEPENDS|daedalus/providers/__init__.py|daedalus.providers.ollama",
+   "DEPENDS|daedalus/providers/__init__.py|daedalus.providers.codex_cli",
+   "DEPENDS|daedalus/bootstrap_prompt.py|daedalus.core",
+   "DEPENDS|daedalus/bootstrap_prompt.py|daedalus.projects",
+   "UNWIRED|daedalus/providers/__init__.py|list_providers",
+   "UNWIRED|daedalus/bootstrap_prompt.py|claude_bootstrap_prompt",
+   "CLAIMS|daedalus/providers/__init__.py|A provider turns a task brief into a validated structured report.",
+   "CLAIMS|daedalus/bootstrap_prompt.py|Session bootstrap prompts for external runtimes."
+  ],
+  "todos": [
+   "daedalus/providers/__init__.py|class|ProviderMetadata|Defines frozen dataclass with fields for provider metadata.",
+   "daedalus/providers/__init__.py|function|get_provider|Returns a Provider instance for given name, raises ValueError if unknown.",
+   "daedalus/providers/__init__.py|function|list_providers|Returns list of all provider metadata dicts.",
+   "daedalus/providers/__init__.py|function|provider_health|Returns list of health status dicts for all providers.",
+   "daedalus/providers/__init__.py|function|available_providers|Returns dict of provider names to availability booleans.",
+   "daedalus/bootstrap_prompt.py|constant|HARNESS_ROOT|Path to harness root directory.",
+   "daedalus/bootstrap_prompt.py|function|claude_bootstrap_prompt|Returns dict with project and prompt string for Claude CLI."
+  ],
+  "handoff": {}
+ },
+ "name": "c284",
+ "paths": [
+  "daedalus/providers/__init__.py",
+  "daedalus/bootstrap_prompt.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.3
+}

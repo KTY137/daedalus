@@ -1,0 +1,19 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-233158-18d033.json",
+      "digest": {
+        "sha256": "410fcb9e69755809971ce23396df7f5e113736b06c6c07161c54594d614348e6"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {},
+    "claims": {},
+    "trace_id": "tr-20260729T233158-431959c6"
+  },
+  "trace_id": "tr-20260729T233158-431959c6"
+}

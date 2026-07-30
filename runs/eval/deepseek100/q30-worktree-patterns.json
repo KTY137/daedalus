@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q30-worktree-patterns",
+ "report": {
+  "status": "needs_review",
+  "summary": "Production systems avoid conflicts in multi-agent Git setups by isolating each agent to a worktree on its own branch, then serializing merges through a bot (e.g., Bors, Mergify) that requires rebase onto latest main. This scales to ~25k developers at Google (Piper, not Git) and 100s of active branches in the Linux kernel, but Git worktree contention emerges around 100 concurrent agents due to merge queue bottlenecks and cascading rebases.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "At 100 concurrent agents, merge conflicts can cascade, causing thrashing and repeated rebases.",
+   "Shared object database locking under high push concurrency can degrade performance.",
+   "CI pipeline saturation may delay feedback loops, causing stale branches."
+  ],
+  "todos": [
+   "Implement a serial merge bot that accepts one PR at a time after successful CI on the rebased branch.",
+   "Decompose tasks so agents modify disjoint files to minimize conflicts.",
+   "Profile Git locking under simulated 100-agent push storms.",
+   "Consider a patch-stack model (like Stacked Git) for dependent changes."
+  ],
+  "handoff": {
+   "suggestion": "Adopt a merge queue that enforces linear history: each agent rebases onto latest main before CI runs, and merges are serial. Start with a small pool and stress-test at 10 agents before scaling to 100. Use worktrees for isolation but rely on the queue to avoid simultaneous writes."
+  }
+ },
+ "name": "q30-worktree-patterns",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 32.5
+}

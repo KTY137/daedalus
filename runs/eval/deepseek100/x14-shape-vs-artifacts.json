@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x14-shape-vs-artifacts",
+ "report": {
+  "status": "needs_review",
+  "summary": "compare_declared() marks truncated observations as 'agrees' even when missing columns may exist beyond MAX_NAMES (64). This silently masks CSV column mismatches for wide schemas, undermining the join between observed shapes and artifact schemas.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "finding": "compare_declared() returns agrees=True for truncated shapes even if expected columns are missing outside the observed 64 names",
+    "severity": "medium",
+    "trigger": "Comparing an observed DataFrame with >64 columns against declared names; if all observed columns match but a declared column is missing beyond the truncation, no mismatch is reported.",
+    "location": "shape.py, compare_declared: missing_in_observation=() when shape.truncated is True; agrees property uses only undeclared_in_observation"
+   }
+  ],
+  "todos": [
+   "Add a 'complete' flag to ShapeConflict and set agrees=False when comparison is partial due to truncation",
+   "Consider raising MAX_NAMES or making it configurable for wide-table use cases"
+  ],
+  "handoff": {
+   "suggestion": "In compare_declared(), if truncated, set comparable=False with a reason, or introduce a separate partial_agrees indicator instead of silently hiding missing columns. Alternatively, always raise MAX_NAMES to a higher bound (e.g., 512) for table schemas, matching artifacts.py MAX_COLUMNS."
+  }
+ },
+ "name": "x14-shape-vs-artifacts",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 56.0
+}

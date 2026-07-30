@@ -1,0 +1,69 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c086",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_spine_picker.py: Tests for daedalus.spine.picker focusing on reproducibility, determinism, degradation, and review packet generation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_spine_picker.py|daedalus.spine.picker",
+   "DEPENDS|tests/test_spine_picker.py|pytest",
+   "READS|tests/test_spine_picker.py|FEATURE_INVENTORY.json (via tmp_path)",
+   "CLAIMS|tests/test_spine_picker.py|ORDER IS REPRODUCIBLE: same inputs produce same queue.",
+   "CLAIMS|tests/test_spine_picker.py|NOTHING RUNS UNLESS ASKED: dry-run tests prove no attempt via exception."
+  ],
+  "todos": [
+   "tests/test_spine_picker.py|constant|INVENTORY|Sample inventory fixture for testing.",
+   "tests/test_spine_picker.py|constant|BASELINE|Sample eval baseline fixture for testing.",
+   "tests/test_spine_picker.py|constant|GATE_RESULT|Sample gate result fixture for testing.",
+   "tests/test_spine_picker.py|constant|INDEX|Sample hotspot index fixture for testing.",
+   "tests/test_spine_picker.py|function|no_eval|Fixture that monkeypatches _load_baseline to keep eval hermetic.",
+   "tests/test_spine_picker.py|class|Boom|Exception used to verify no attempt runs.",
+   "tests/test_spine_picker.py|class|FakeGate|Fake gate result for review packet tests.",
+   "tests/test_spine_picker.py|class|FakeArtifact|Fake artifact for review packet tests.",
+   "tests/test_spine_picker.py|class|FakeResult|Fake attempt result for review packet tests.",
+   "tests/test_spine_picker.py|function|test_every_candidate_carries_a_reason_a_score_and_evidence|Verifies all candidates have reason, score, and evidence.",
+   "tests/test_spine_picker.py|function|test_candidate_without_evidence_is_refused_not_silently_dropped|Ensures NoEvidence raised for missing or minimal evidence.",
+   "tests/test_spine_picker.py|function|test_measured_offset_can_never_cross_a_band|Confirms band_offset is clamped within its band.",
+   "tests/test_spine_picker.py|function|test_ranking_is_deterministic_for_a_fixed_inventory|Verifies queue order is reproducible.",
+   "tests/test_spine_picker.py|function|test_ranking_is_insensitive_to_input_order|Verifies rank output is independent of input order.",
+   "tests/test_spine_picker.py|function|test_ties_break_on_task_id_not_on_arrival|Verifies tie-breaking by task_id.",
+   "tests/test_spine_picker.py|function|test_source_priority_order_holds_across_sources|Verifies source ordering in queue.",
+   "tests/test_spine_picker.py|function|test_more_tested_island_outranks_less_tested_island|Verifies islands ordered by test count.",
+   "tests/test_spine_picker.py|function|test_limit_truncates_the_ranked_queue_not_the_sources|Verifies limit truncates queue but sources retain counts.",
+   "tests/test_spine_picker.py|function|test_malformed_inventory_degrades_to_an_empty_queue|Verifies malformed inventory yields empty queue with reasons.",
+   "tests/test_spine_picker.py|function|test_missing_inventory_file_is_an_empty_inventory_not_a_crash|Verifies missing inventory file yields empty queue.",
+   "tests/test_spine_picker.py|function|test_prose_arrays_are_never_queued_but_the_discrepancy_is_reported|Verifies prose islands are not queued but noted.",
+   "tests/test_spine_picker.py|function|test_a_broken_eval_baseline_does_not_empty_the_queue|Verifies inventory survives broken eval baseline.",
+   "tests/test_spine_picker.py|function|test_cheap_eval_source_queues_only_recorded_misses_and_says_so|Verifies eval baseline queues only tasks with recall < 1.0.",
+   "tests/test_spine_picker.py|function|test_eval_gate_source_queues_regressions_and_unmeasurable_primaries|Verifies gate result queues regressions and errored primaries.",
+   "tests/test_spine_picker.py|function|test_hotspots_rank_by_measured_score_share|Verifies hotspot ranking by score.",
+   "tests/test_spine_picker.py|function|test_hotspots_degrade_when_the_index_carries_no_ranking|Verifies empty index yields no hotspot candidates.",
+   "tests/test_spine_picker.py|function|test_expensive_sources_are_off_by_default|Verifies eval gate and hotspots are opt-in.",
+   "tests/test_spine_picker.py|function|test_opt_in_sources_are_consulted_when_asked|Verifies opt-in sources are consulted when requested.",
+   "tests/test_spine_picker.py|function|test_a_failing_opt_in_source_is_reported_not_raised|Verifies failing opt-in sources are reported as notes.",
+   "tests/test_spine_picker.py|function|test_candidates_convert_to_a_real_taskspec_carrying_the_evidence|Verifies candidate.to_task_spec produces TaskSpec with metadata.",
+   "tests/test_spine_picker.py|function|test_island_gate_paths_come_from_the_recorded_tests|Verifies gate paths from recorded tests.",
+   "tests/test_spine_picker.py|function|test_review_packet_contains_the_diff_and_the_gate_verdict|Verifies review packet includes diff and gate verdict.",
+   "tests/test_spine_picker.py|function|test_review_packet_reports_a_passing_gate_as_evidence_not_permission|Verifies passing gate is evidence, not permission.",
+   "tests/test_spine_picker.py|function|test_review_packet_does_not_offer_a_reaped_branch_for_inspection|Verifies reaped branch bypasses diff inspection.",
+   "tests/test_spine_picker.py|function|test_review_packet_handles_an_attempt_that_produced_no_patch|Verifies no-patch attempt review.",
+   "tests/test_spine_picker.py|function|test_an_empty_patch_never_offers_an_apply_command|Verifies empty patch omits apply command.",
+   "tests/test_spine_picker.py|function|test_review_packet_truncates_a_huge_diff_and_says_it_did|Verifies diff truncation message.",
+   "tests/test_spine_picker.py|function|test_dry_run_performs_no_attempt|Verifies --dry-run prevents attempt.",
+   "tests/test_spine_picker.py|function|test_bare_invocation_defaults_to_the_dry_run|Verifies default invocation is dry run.",
+   "tests/test_spine_picker.py|function|test_json_output_performs_no_attempt_either|Verifies --json prevents attempt."
+  ],
+  "handoff": {
+   "suggestion": "No edits needed; the file is a comprehensive test suite for daedalus.spine.picker."
+  }
+ },
+ "name": "c086",
+ "paths": [
+  "tests/test_spine_picker.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 27.2
+}

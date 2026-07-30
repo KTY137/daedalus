@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c139",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/observe/shape.py: Captures structural shape metadata (family, dtype, shape, keys) of live Python objects without reading their values, enabling safe observation for the graph.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CLAIMS|daedalus/observe/shape.py|The module guarantees it does not read element values, only metadata (family, dtype, shape, names).",
+   "CLAIMS|daedalus/observe/shape.py|describe guarantees that redact hook is applied to all names extracted.",
+   "SMELL|daedalus/observe/shape.py|describe function has high cyclomatic complexity with many branching checks for different object types."
+  ],
+  "todos": [
+   "daedalus/observe/shape.py|constant|SHAPE_VERSION|Version identifier for the shape format.",
+   "daedalus/observe/shape.py|constant|MAX_NAMES|Maximum number of names/keys to extract before truncation.",
+   "daedalus/observe/shape.py|constant|MAX_NAME_CHARS|Maximum characters per name before clipping.",
+   "daedalus/observe/shape.py|constant|MAX_DEPTH|Maximum recursion depth for nested containers.",
+   "daedalus/observe/shape.py|constant|ARRAY|Family for array-like objects (ndarray, tensor, etc.).",
+   "daedalus/observe/shape.py|constant|TABLE|Family for table-like objects (DataFrame, etc.).",
+   "daedalus/observe/shape.py|constant|RECORD|Family for dicts, dataclasses, namespaces.",
+   "daedalus/observe/shape.py|constant|SEQUENCE|Family for lists, tuples, sets.",
+   "daedalus/observe/shape.py|constant|TREE|Family for tree-like structures (ROOT, HDF5 groups).",
+   "daedalus/observe/shape.py|constant|SCALAR|Family for single values (bool, int, float, etc.).",
+   "daedalus/observe/shape.py|constant|TEXT|Family for string objects.",
+   "daedalus/observe/shape.py|constant|BINARY|Family for bytes/bytearray objects.",
+   "daedalus/observe/shape.py|constant|OPAQUE|Family for objects that cannot be characterized.",
+   "daedalus/observe/shape.py|class|Shape|Immutable dataclass representing one shape observation.",
+   "daedalus/observe/shape.py|class|ShapeConflict|Dataclass for discrepancies between declared and observed shapes.",
+   "daedalus/observe/shape.py|function|describe|Describes a live object's shape without reading its values.",
+   "daedalus/observe/shape.py|function|compare_declared|Compares an observed shape to declared field names."
+  ],
+  "handoff": {}
+ },
+ "name": "c139",
+ "paths": [
+  "daedalus/observe/shape.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 20.2
+}

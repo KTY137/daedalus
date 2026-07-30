@@ -1,0 +1,9 @@
+{
+  "_doc": "Acknowledged capabilities. A tool listed here still reports the finding on every run; the acknowledgement only downgrades BLOCK to REVIEW and attaches the reason. Both the subject and the exact rule id must be named -- there is no wildcard, because 'trust this tool entirely' is not something anyone can responsibly mean.",
+  "allow": {
+    "room": {
+      "exec.subprocess": "The room skill exists to launch vendor CLIs (claude, codex, agy, ollama) so agents from different vendors can take turns in one transcript. Spawning processes is its function, not a defect. Reviewed by Kaya 2026-07-30.",
+      "net.python_http": "Talks to the local Ollama HTTP API on 127.0.0.1 so a local model can take a turn. Loopback only; sensitivity.lane_for_host calls that trusted. Reviewed by Kaya 2026-07-30."
+    }
+  }
+}

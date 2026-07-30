@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c275",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_registry_shadowing.py: Tests that naming a project does not grant extra write permission as a regression test for a confinement bug.\ndaedalus/eval/__init__.py: Package initializer that exports the eval harness tasks and runtime for the distillation thesis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_registry_shadowing.py|daedalus.config",
+   "DEPENDS|tests/test_registry_shadowing.py|daedalus.sensitivity",
+   "CLAIMS|tests/test_registry_shadowing.py|The tests guarantee that resolve_project does not drop write confinement when a project name is supplied.",
+   "DEPENDS|daedalus/eval/__init__.py|daedalus.eval.tasks",
+   "DEPENDS|daedalus/eval/__init__.py|daedalus.eval.harness",
+   "CLAIMS|daedalus/eval/__init__.py|The package claims that distilled semantic slices beat whole-repo concatenation for token efficiency and context retention."
+  ],
+  "todos": [
+   "tests/test_registry_shadowing.py|constant|SELF_PROTECTING|Tuple of paths that must be write-protected under any project name.",
+   "tests/test_registry_shadowing.py|class|RegistryMustNotShadowTheRepoTests|Unittest class verifying that naming a project does not weaken write confinement.",
+   "tests/test_registry_shadowing.py|class|IntersectWriteAllowTests|Unittest class verifying the intersection logic for write allow lists.",
+   "daedalus/eval/__init__.py|module|daedalus.eval|The eval package for measuring slice quality against whole-repo baselines.",
+   "daedalus/eval/__init__.py|function|resolve_task_repo|Resolves a task repository path for a given task identifier.",
+   "daedalus/eval/__init__.py|function|run_tier1|Runs deterministic tier-1 eval (recall and compression).",
+   "daedalus/eval/__init__.py|function|run_tier2|Runs optional tier-2 eval with an LLM to compare slice vs whole-repo performance.",
+   "daedalus/eval/__init__.py|constant|TASKS|Dictionary of labelled tasks for the eval harness."
+  ],
+  "handoff": {}
+ },
+ "name": "c275",
+ "paths": [
+  "tests/test_registry_shadowing.py",
+  "daedalus/eval/__init__.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.3
+}

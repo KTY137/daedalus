@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m13-loop",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audit limited because the excerpt does not include the LoopDriver class, main loop logic, error handling, or integration with bounds checks. Only LoopBounds, LoopLedger, and the truncated _curated_gate are visible. Minor observations: os.replace in save() may fail on Windows if the ledger file is open; no explicit error handling for save failures at this level. The _curated_gate function is cut off, so potential bugs in dropping gate_paths/cwd cannot be fully assessed. No critical correctness defects found in the provided slice, but the loop's core behaviour is unexamined.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Missing LoopDriver and main loop: cannot verify bound enforcement, killswitch integration, or error handling.",
+   "os.replace atomicity may cause PermissionError on Windows if another process has the ledger file open (e.g., concurrent reader).",
+   "LoopLedger.save lacks exception handling; caller must cope.",
+   "Truncated _curated_gate prevents analysis of gate_argv/gate_cwd handling."
+  ],
+  "todos": [
+   "Request full loop.py file to audit LoopDriver, iteration logic, and error handling.",
+   "Verify that all four bounds are checked correctly every iteration.",
+   "Confirm that 'NEVER WRITES PRIMARY CHECKOUT' guarantee holds across all code paths."
+  ],
+  "handoff": {
+   "suggestion": "Provide the full implementation of loop.py, especially LoopDriver and the main loop function. The current excerpt cuts off at _curated_gate, leaving the critical loop logic invisible. Without it, the audit cannot assess correctness, error swallowing, or docstring guarantee compliance."
+  }
+ },
+ "name": "m13-loop",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 59.2
+}

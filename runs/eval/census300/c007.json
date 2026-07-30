@@ -1,0 +1,68 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c007",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/mapping/drift.py: implements a CI gate that compares current structural state against a committed snapshot, managing acceptances, dark switch documentation, and ignore configuration to prevent architectural drift.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "WRITES|daedalus/mapping/drift.py|docs/architecture-state.json",
+   "READS|daedalus/mapping/drift.py|.daedalusignore",
+   "READS|daedalus/mapping/drift.py|docs/*.md, .env.example, .env.template",
+   "CLAIMS|daedalus/mapping/drift.py|the gate that makes the generated architecture map stick.",
+   "SMELL|daedalus/mapping/drift.py|god-object: single file handles multiple concerns (acceptance, documentation scanning, snapshot state, ignore config, drift detection).",
+   "SMELL|daedalus/mapping/drift.py|implicit dependency on reach and switches modules not expressed via imports."
+  ],
+  "todos": [
+   "daedalus/mapping/drift.py|constant|SNAPSHOT_REL|Relative path to the committed architecture state JSON file.",
+   "daedalus/mapping/drift.py|constant|SCHEMA_VERSION|Current schema version for the snapshot.",
+   "daedalus/mapping/drift.py|constant|MAX_HORIZON_DAYS|Maximum horizon days for acceptance expiry.",
+   "daedalus/mapping/drift.py|constant|MIN_WHY_CHARS|Minimum characters for acceptance 'why' field.",
+   "daedalus/mapping/drift.py|constant|ISLAND_CLASSES|Reach classes treated as islands.",
+   "daedalus/mapping/drift.py|constant|UNKNOWN_CLASSES|Reach classes treated as unknown.",
+   "daedalus/mapping/drift.py|constant|SHIM_CLASSES|Reach classes treated as shims.",
+   "daedalus/mapping/drift.py|constant|UNREACHED_CLASSES|Union of island, unknown, shim classes.",
+   "daedalus/mapping/drift.py|constant|REACHED_CLASSES|Reach classes that are reached.",
+   "daedalus/mapping/drift.py|constant|IGNORE_FILENAME|Filename for ignore configuration.",
+   "daedalus/mapping/drift.py|constant|IGNORE_ENV|Environment variable for ignore configuration.",
+   "daedalus/mapping/drift.py|constant|DOC_DIRS|Directories searched for documentation.",
+   "daedalus/mapping/drift.py|constant|DOC_SUFFIX|File suffix for documentation files.",
+   "daedalus/mapping/drift.py|constant|DOC_EXTRA_FILES|Extra files to include in documentation search.",
+   "daedalus/mapping/drift.py|constant|GENERATED_DOCS|Files considered generated and excluded from documentation scan.",
+   "daedalus/mapping/drift.py|constant|MIN_DOC_DESC_CHARS|Minimum characters of prose beside a switch name to count as documented.",
+   "daedalus/mapping/drift.py|constant|NEW_ISLAND|Kind string for new island drift.",
+   "daedalus/mapping/drift.py|constant|NEW_UNKNOWN|Kind string for new unknown drift.",
+   "daedalus/mapping/drift.py|constant|NEW_SHIM|Kind string for new shim drift.",
+   "daedalus/mapping/drift.py|constant|ENGINE_DISAGREEMENT|Kind string for engine disagreement.",
+   "daedalus/mapping/drift.py|constant|NEW_DARK_SWITCH|Kind string for new dark switch drift.",
+   "daedalus/mapping/drift.py|constant|BECAME_ISLAND|Kind string for became island drift.",
+   "daedalus/mapping/drift.py|constant|NOW_REACHED|Kind string for now reached drift.",
+   "daedalus/mapping/drift.py|constant|DOC_DRIFT|Kind string for documentation drift.",
+   "daedalus/mapping/drift.py|constant|VANISHED|Kind string for vanished drift.",
+   "daedalus/mapping/drift.py|constant|TEST_ONLY|Kind string for test-only drift.",
+   "daedalus/mapping/drift.py|constant|UNPARSABLE|Kind string for unparsable drift.",
+   "daedalus/mapping/drift.py|constant|IGNORE_DRIFT|Kind string for ignore configuration drift.",
+   "daedalus/mapping/drift.py|constant|STALE_ACCEPTANCE|Kind string for stale acceptance.",
+   "daedalus/mapping/drift.py|constant|INVALID_ACCEPTANCE|Kind string for invalid acceptance.",
+   "daedalus/mapping/drift.py|constant|INVALID_SNAPSHOT|Kind string for invalid snapshot.",
+   "daedalus/mapping/drift.py|constant|KIND_ORDER|Ordered tuple of drift kinds for rendering.",
+   "daedalus/mapping/drift.py|constant|NON_BLOCKING_KINDS|Frozenset of drift kinds that do not block.",
+   "daedalus/mapping/drift.py|constant|ACCEPTABLE_KINDS|Frozenset of drift kinds that can be accepted.",
+   "daedalus/mapping/drift.py|function|ignore_config|Returns the ignore configuration fingerprint for a repo root.",
+   "daedalus/mapping/drift.py|function|repo_state|Returns the current repository state (head, branch, dirty flag).",
+   "daedalus/mapping/drift.py|class|DocIndex|Index of documentation lines for environment variable documentation checking.",
+   "daedalus/mapping/drift.py|class|ScanResult|Dataclass holding scan state, sites, reach, and switches."
+  ],
+  "handoff": {
+   "suggestion": "Consider importing reach and switches explicitly or documenting the interface dependency to make implicit coupling visible."
+  }
+ },
+ "name": "c007",
+ "paths": [
+  "daedalus/mapping/drift.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 32.9
+}

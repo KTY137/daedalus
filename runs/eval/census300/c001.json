@@ -1,0 +1,72 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c001",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/spine/picker.py: Implements the measurement-sorted work queue for Daedalus, defining candidate selection, ranking, and review packet generation with evidence-based prioritization.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/spine/picker.py|daedalus.config (imported in _project_config)",
+   "DEPENDS|daedalus/spine/picker.py|daedalus.spine.attempt (lazy import in Candidate.to_task_spec)",
+   "READS|daedalus/spine/picker.py|docs/FEATURE_INVENTORY.json (via INVENTORY_REL_PATH)",
+   "READS|daedalus/spine/picker.py|<repo>/.agentenv/work-queue.json (via DEFAULT_WORK_QUEUE_REL_PATH)",
+   "READS|daedalus/spine/picker.py|<repo>/runs/spine/spine.sqlite3 (via DEFAULT_SPINE_DB_REL_PATH)",
+   "CLAIMS|daedalus/spine/picker.py|\"NO TASK WITHOUT EVIDENCE\" (module docstring)",
+   "CLAIMS|daedalus/spine/picker.py|\"Cross-band comparison is therefore NOT a claim that one island beats one hotspot on evidence.\" (module docstring)"
+  ],
+  "todos": [
+   "daedalus/spine/picker.py|constant|ROOT|Resolved repo root path",
+   "daedalus/spine/picker.py|constant|INVENTORY_REL_PATH|Relative path to feature inventory JSON",
+   "daedalus/spine/picker.py|constant|WORK_QUEUE_SCHEMA|Schema identifier for work queue",
+   "daedalus/spine/picker.py|constant|DEFAULT_WORK_QUEUE_REL_PATH|Default relative path for work queue JSON",
+   "daedalus/spine/picker.py|constant|DEFAULT_SPINE_DB_REL_PATH|Default relative path for spine SQLite database",
+   "daedalus/spine/picker.py|constant|SOURCE_BANDS|Dictionary of source priority bands",
+   "daedalus/spine/picker.py|constant|BAND_SPAN|Maximum offset within a band",
+   "daedalus/spine/picker.py|constant|SOURCE_ORDER|Tuple of source names in priority order",
+   "daedalus/spine/picker.py|constant|DEFAULT_LIMIT|Default number of candidates to pick",
+   "daedalus/spine/picker.py|constant|EXIT_CANDIDATE|Exit code for candidate available",
+   "daedalus/spine/picker.py|constant|EXIT_FAILED|Exit code for attempt failure",
+   "daedalus/spine/picker.py|constant|EXIT_NO_CHANGE|Exit code for attempt with no change",
+   "daedalus/spine/picker.py|constant|EXIT_SOURCE_UNAVAILABLE|Exit code for unavailable source",
+   "daedalus/spine/picker.py|constant|EXIT_BY_STATE|Mapping from outcome state to exit code",
+   "daedalus/spine/picker.py|constant|STATUS_ISLAND|Constant for 'island' status",
+   "daedalus/spine/picker.py|constant|STATUS_STALE|Constant for 'stale' status",
+   "daedalus/spine/picker.py|class|Candidate|Frozen dataclass representing a unit of work with evidence",
+   "daedalus/spine/picker.py|class|PickedQueue|Frozen dataclass representing a ranked queue with source status",
+   "daedalus/spine/picker.py|class|NoEvidence|Exception raised when a candidate lacks evidence",
+   "daedalus/spine/picker.py|class|WorkQueueInvalid|Exception for invalid work queue configuration",
+   "daedalus/spine/picker.py|function|apply_attempt_memory|Applies attempt outcome memory penalty to candidate score",
+   "daedalus/spine/picker.py|function|attempt_history|Retrieves attempt history from ledger",
+   "daedalus/spine/picker.py|function|build_queue|Builds the ranked queue from all sources",
+   "daedalus/spine/picker.py|function|eval_baseline_candidates|Generates candidates from eval baseline",
+   "daedalus/spine/picker.py|function|eval_gate_candidates|Generates candidates from eval gates",
+   "daedalus/spine/picker.py|function|hotspot_candidates|Generates candidates from code hotspots",
+   "daedalus/spine/picker.py|function|instruction_fingerprint|Computes a fingerprint of instruction text",
+   "daedalus/spine/picker.py|function|inventory_candidates|Generates candidates from feature inventory",
+   "daedalus/spine/picker.py|function|inventory_freshness|Checks freshness of inventory file",
+   "daedalus/spine/picker.py|function|load_inventory|Loads feature inventory from file",
+   "daedalus/spine/picker.py|function|load_map_state|Loads map state from architecture state file",
+   "daedalus/spine/picker.py|function|load_work_queue|Loads the configured work queue from file",
+   "daedalus/spine/picker.py|function|main|Entry point for the 'daedalus improve' command",
+   "daedalus/spine/picker.py|function|map_candidates|Generates candidates from architecture state map",
+   "daedalus/spine/picker.py|function|map_state_trustworthy|Checks if map state is trustworthy (with digest)",
+   "daedalus/spine/picker.py|function|outcome_policy|Returns outcome policy for a given source",
+   "daedalus/spine/picker.py|function|rank|Ranks a list of candidates by score",
+   "daedalus/spine/picker.py|function|render_queue|Renders the queue for human review",
+   "daedalus/spine/picker.py|function|review_packet|Generates review packet for a candidate",
+   "daedalus/spine/picker.py|function|resolve_spine_db_path|Resolves the spine database path",
+   "daedalus/spine/picker.py|function|work_queue_candidates|Generates candidates from the work queue JSON"
+  ],
+  "handoff": {
+   "suggestion": ""
+  }
+ },
+ "name": "c001",
+ "paths": [
+  "daedalus/spine/picker.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 33.7
+}

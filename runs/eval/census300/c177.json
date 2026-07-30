@@ -1,0 +1,59 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c177",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_extension_manifest.py: Implements manifest-consistency checks for the VS Code extension, verifying that package.json commands, views, activation events, menus, configuration properties, main entry, and engine version are consistent with extension.js source using real parsers and regexes anchored to specific API calls.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "READS|tests/test_extension_manifest.py|vscode-agent-env/package.json",
+   "READS|tests/test_extension_manifest.py|vscode-agent-env/extension.js",
+   "CLAIMS|tests/test_extension_manifest.py|the regexes are anchored to exact VS Code API call shape, not prose, making them safer than matching in comments"
+  ],
+  "todos": [
+   "tests/test_extension_manifest.py|module|ROOT|Root directory of the project",
+   "tests/test_extension_manifest.py|module|EXTENSION_DIR|Path to the vscode-agent-env extension directory",
+   "tests/test_extension_manifest.py|module|PACKAGE_JSON_PATH|Path to package.json manifest file",
+   "tests/test_extension_manifest.py|module|MAIN_JS_PATH|Path to extension.js source file",
+   "tests/test_extension_manifest.py|module|REGISTER_COMMAND_RE|Regex to extract command IDs from vscode.commands.registerCommand calls",
+   "tests/test_extension_manifest.py|module|REGISTER_WEBVIEW_RE|Regex to extract view IDs from vscode.window.registerWebviewViewProvider calls",
+   "tests/test_extension_manifest.py|module|REGISTER_TREEVIEW_RE|Regex to extract view IDs from vscode.window.registerTreeDataProvider calls",
+   "tests/test_extension_manifest.py|module|CREATE_TREEVIEW_RE|Regex to extract view IDs from vscode.window.createTreeView calls",
+   "tests/test_extension_manifest.py|module|CFG_GET_RE|Regex to extract configuration keys from cfg().get() calls",
+   "tests/test_extension_manifest.py|module|COMMAND_URI_RE|Regex to extract command IDs from command: URIs in markdown",
+   "tests/test_extension_manifest.py|function|load_manifest|Load and return the parsed package.json manifest",
+   "tests/test_extension_manifest.py|function|load_source|Load and return the raw text of extension.js",
+   "tests/test_extension_manifest.py|function|declared_commands|Return set of command IDs declared in manifest's contributes.commands",
+   "tests/test_extension_manifest.py|function|registered_commands|Return set of command IDs found via REGISTER_COMMAND_RE in source",
+   "tests/test_extension_manifest.py|function|declared_views|Return dict of view IDs to type from contributes.views.daedalus",
+   "tests/test_extension_manifest.py|function|registered_webview_ids|Return set of view IDs found via REGISTER_WEBVIEW_RE",
+   "tests/test_extension_manifest.py|function|registered_treeview_ids|Return set of view IDs found via REGISTER_TREEVIEW_RE or CREATE_TREEVIEW_RE",
+   "tests/test_extension_manifest.py|function|oncommand_activation_targets|Return set of command IDs from activationEvents that start with onCommand:",
+   "tests/test_extension_manifest.py|function|onview_activation_targets|Return set of view IDs from activationEvents that start with onView:",
+   "tests/test_extension_manifest.py|function|menu_command_refs|Return set of command IDs referenced in contributes.menus entries",
+   "tests/test_extension_manifest.py|function|viewswelcome_command_refs|Return set of command IDs extracted from viewsWelcome markdown via COMMAND_URI_RE",
+   "tests/test_extension_manifest.py|function|configured_property_short_keys|Return set of configuration property short keys (without daedalus. prefix)",
+   "tests/test_extension_manifest.py|function|configured_property_reads|Return set of configuration keys read via cfg().get() in source",
+   "tests/test_extension_manifest.py|function|parse_engine_version|Parse a engines.vscode version spec string into a (major, minor, patch) tuple",
+   "tests/test_extension_manifest.py|module|MANIFEST|Loaded manifest dictionary for use in tests",
+   "tests/test_extension_manifest.py|module|SOURCE|Loaded source text for use in tests",
+   "tests/test_extension_manifest.py|class|ManifestJsonTests|Test case for basic package.json structure fields",
+   "tests/test_extension_manifest.py|class|CommandRegistrationConsistencyTests|Test case for consistency between declared commands and registerCommand calls",
+   "tests/test_extension_manifest.py|class|ViewProviderConsistencyTests|Test case for consistency between declared views and provider registrations",
+   "tests/test_extension_manifest.py|class|ActivationEventConsistencyTests|Test case for consistency between activationEvents and declared commands/views",
+   "tests/test_extension_manifest.py|class|MenuAndWelcomeReferenceTests|Test case for consistency of command references in menus and viewsWelcome",
+   "tests/test_extension_manifest.py|class|ConfigurationPropertyUsageTests|Test case for declared configuration properties being read in source",
+   "tests/test_extension_manifest.py|class|MainEntryPointTests|Test case for existence of main and files entries",
+   "tests/test_extension_manifest.py|class|EngineVersionTests|Test case for engines.vscode presence and parseability"
+  ],
+  "handoff": {}
+ },
+ "name": "c177",
+ "paths": [
+  "tests/test_extension_manifest.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.2
+}

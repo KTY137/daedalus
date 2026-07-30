@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c016",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_typegraph_resolve.py: Stage 2 of type-graph resolution tests, ensuring no false edges from ambiguous imports and that resolver table is separate from definition table.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_typegraph_resolve.py|daedalus.structcore.build_index",
+   "DEPENDS|tests/test_typegraph_resolve.py|daedalus.structcore.typegraph",
+   "DEPENDS|tests/test_typegraph_resolve.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_typegraph_resolve.py|daedalus.structcore.parse",
+   "READS|tests/test_typegraph_resolve.py|tests/fixtures/typegraph/",
+   "READS|tests/test_typegraph_resolve.py|daedalus/structcore/typegraph.py",
+   "CLAIMS|tests/test_typegraph_resolve.py|I2: Resolution must not modify graph.SymbolResolver.defs_by_file.",
+   "CLAIMS|tests/test_typegraph_resolve.py|I5: Ambiguous imports must produce no edge and increment counter."
+  ],
+  "todos": [
+   "tests/test_typegraph_resolve.py|constant|ALPHA|Type node ID for result_alpha.py Result",
+   "tests/test_typegraph_resolve.py|constant|BETA|Type node ID for result_beta.py Result",
+   "tests/test_typegraph_resolve.py|class|AmbiguityIsRefusedAndCounted|Tests that ambiguous imports produce no edges and are counted",
+   "tests/test_typegraph_resolve.py|class|ResolvingIsStillRequired|Positive control that cross-module resolution still works",
+   "tests/test_typegraph_resolve.py|class|UnresolvedIsCountedNotGuessed|Tests that unresolved types are counted but not minted into nodes",
+   "tests/test_typegraph_resolve.py|class|TheResolverTableIsSeparate|Tests that annotation resolution uses separate types_by_file table"
+  ],
+  "handoff": {
+   "suggestion": "No changes; analysis complete."
+  }
+ },
+ "name": "c016",
+ "paths": [
+  "tests/test_typegraph_resolve.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.6
+}

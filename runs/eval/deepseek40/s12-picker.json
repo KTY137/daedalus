@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s12-picker",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audit of candidate selection in daedalus/spine/picker.py reveals several biases and gaps. The band-based priority system (SOURCE_BANDS) is a human prior, not a measurement, so high-band sources (work_queue, map_island) always outrank low-band ones (hotspot, eval_miss) regardless of evidence strength. This can starve real problems: a critical hotspot with high churn/complexity (offset up to 50) will never beat a trivial map_island candidate (band 800 vs 100). The offset is clamped to [0, BAND_SPAN=50], which is smaller than the minimum band gap (100), so measurement cannot reorder bands. Outcom",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "High-band sources (work_queue, map_island) can starve low-band but critical hotspots or eval misses forever due to band gap > BAND_SPAN.",
+   "Outcome memory reduces offset for failed attempts, creating a feedback loop that may starve hard problems.",
+   "Default cheap sources skip eval and hotspots, so critical defects may never appear in the queue without explicit flags.",
+   "Work_queue source is disabled by default, so default queue relies on potentially stale inventory and map state.",
+   "Docref source has high band but limited write scope, so it may not address core code issues.",
+   "No mechanism to escalate a candidate's band based on evidence, so a critical hotspot can never outrank a trivial map_island."
+  ],
+  "todos": [
+   "Consider adding a mechanism to escalate band based on evidence strength (e.g., if hotspot offset is max, allow band promotion).",
+   "Review outcome memory policy: consider not reducing offset for failed attempts on high-importance candidates.",
+   "Make eval and hotspot sources cheap by default or add a warning when they are disabled.",
+   "Add a test to verify that a critical hotspot with max offset can outrank a trivial map_island candidate if evidence warrants.",
+   "Consider adding a 'starvation detector' that alerts if a low-band candidate has been pending for too long."
+  ],
+  "handoff": {
+   "suggestion": "Proposed edit: In picker.py, modify the ranking logic to allow a candidate's offset to exceed BAND_SPAN if its evidence is strong enough (e.g., hotspot with churn*complexity > threshold). This would require changing _clamp and the score computation, and updating the test that pins BAND_SPAN inequality. Alternatively, add a 'promote' flag to Candidate that allows band override based on evidence."
+  }
+ },
+ "name": "s12-picker",
+ "kind": "scan",
+ "elapsed_s": 9.5
+}

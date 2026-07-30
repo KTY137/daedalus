@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "w09-typegraph-ceiling",
+ "report": {
+  "status": "done",
+  "summary": "DeepSeek applied full-file rewrite to: daedalus/eval/type_ceiling.py. Skipped: daedalus/eval/ceiling.py (suspected truncation (under half the original size)); daedalus/structcore/typegraph.py (too large for full rewrite)",
+  "files_changed": [
+   "daedalus/eval/type_ceiling.py"
+  ],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "paid_calls": 2,
+   "skipped": {
+    "daedalus/eval/ceiling.py": "suspected truncation (under half the original size)",
+    "daedalus/structcore/typegraph.py": "too large for full rewrite"
+   }
+  }
+ },
+ "name": "w09-typegraph-ceiling",
+ "requested_paths": [
+  "daedalus/eval/ceiling.py",
+  "daedalus/structcore/typegraph.py",
+  "daedalus/eval/type_ceiling.py"
+ ],
+ "elapsed_s": 186.8
+}

@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c164",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/ignore.py: Manages per-repo structural ignore rules (.daedalusignore), defining ignore patterns, scope (center/shell), and presets via ProjectScope and IgnoreRules classes.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "READS|daedalus/structcore/ignore.py|<root>/.daedalusignore file",
+   "READS|daedalus/structcore/ignore.py|DAEDALUS_IGNORE environment variable",
+   "READS|daedalus/structcore/ignore.py|DAEDALUS_CENTER environment variable",
+   "CLAIMS|daedalus/structcore/ignore.py|load_ignore_rules guarantees missing/unreadable file returns empty rules",
+   "CLAIMS|daedalus/structcore/ignore.py|IgnoreRules.matches guarantees last-match-win semantics for ignore decisions",
+   "CLAIMS|daedalus/structcore/ignore.py|ProjectScope.in_center guarantees returns True if rel is inside any center root (or whole repo if no center)",
+   "CLAIMS|daedalus/structcore/ignore.py|ProjectScope.center_of guarantees returns the longest matching center root or None",
+   "CLAIMS|daedalus/structcore/ignore.py|ProjectScope.is_shell guarantees returns True if rel is outside center or ignored",
+   "CLAIMS|daedalus/structcore/ignore.py|project_scope guarantees center precedence: explicit > env, and ignore composition order with last-match-wins"
+  ],
+  "todos": [],
+  "handoff": {}
+ },
+ "name": "c164",
+ "paths": [
+  "daedalus/structcore/ignore.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.6
+}

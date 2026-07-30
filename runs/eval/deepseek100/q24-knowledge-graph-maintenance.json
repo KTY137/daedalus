@@ -1,0 +1,21 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q24-knowledge-graph-maintenance",
+ "report": {
+  "status": "needs_review",
+  "summary": "Production KGs (Google KG, Wikidata, DBpedia) use temporal provenance: facts tagged with source version & timestamp. Entity resolution uses blocking + ML (Diffbot ~95% accuracy). Staleness: source change monitoring triggers diff-based re-extraction. Invalidation: on source update, deprecate old-version facts. Key: Knowledge Vault (Dong 2014) uses probabilistic fusion; DBpedia Live updates from Wikipedia; Wikidata uses time qualifiers. Action: versioned fact tables with source UUIDs; on change, flag affected facts for re-evaluation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Citations from memory, no exact numbers verified."
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Implement a versioned provenance model where each fact is linked to its source snapshot ID. Use a diff engine to detect changed entities in sources and invalidate only facts derived from outdated snapshots, triggering selective re-extraction."
+  }
+ },
+ "name": "q24-knowledge-graph-maintenance",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 33.8
+}

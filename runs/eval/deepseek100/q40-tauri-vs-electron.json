@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q40-tauri-vs-electron",
+ "report": {
+  "status": "needs_review",
+  "summary": "Tauri 2 IPC: Rust commands via invoke; sidecar: subprocess managed by Rust; bundle: ~3-5MB for Rust-only vs Electron\u2019s 50MB+. Python sidecar complicates: PyInstaller adds 30\u201350MB, PyOxidizer more compact but complex. Measured: memory <20MB vs >100MB; startup <500ms vs >1s. Pain: no Node.js API, sidecar lifecycle, cross-platform Python bundling. Most actionable: prototype Tauri + sidecar with \u201aprocess\u2018 plugin and a compiled Python script to test IPC latency and bundle impact early.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Python sidecar can inflate bundle beyond Electron\u2019s size if not managed.",
+   "Sidecar process lifecycle (start/stop/crash recovery) adds complexity.",
+   "Tauri\u2019s Rust backend might be overkill if only used to call Python.",
+   "Limited debugging and profiling support for IPC compared to Node.js tools."
+  ],
+  "todos": [
+   "Build a minimal Tauri app that calls a Python sidecar, measure round-trip IPC time.",
+   "Compare bundle sizes: Tauri + Python vs Electron + Python (e.g., using child_process).",
+   "Evaluate PyOxidizer for embedding Python, measure memory footprint.",
+   "Test handling of sidecar crashes and process exit races."
+  ],
+  "handoff": {
+   "suggestion": "Start with a spike: Tauri v2 + @tauri-apps/plugin-shell to run a Python script as sidecar, measure IPC latency (stdin/stdout) and memory. If overhead is acceptable, compare bundle using PyOxidizer vs PyInstaller. Fallback to Electron if sidecar management becomes a bottleneck."
+  }
+ },
+ "name": "q40-tauri-vs-electron",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 29.4
+}

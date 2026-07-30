@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x09-graphdelta-vs-mutate",
+ "report": {
+  "status": "needs_review",
+  "summary": "The 'literals' layer fails to detect change_constant mutants because _module_literals only inspects top-level Assign/AnnAssign nodes, missing constants inside class bodies, if blocks, etc. Since many such mutants modify class-level defaults or conditionally-defined constants, they produce no delta. The fix broadens _module_literals to recursively walk the AST, skipping functions (handled separately) to capture all module-level constants without false alarms.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Extending _module_literals may uncover pre-existing constants that were previously ignored (e.g., in try/except blocks), but these reflect real source changes and should not increase false positives on real commits.",
+   "If a constant change occurs inside a function but is also duplicated at module level, it could be double-counted, but the merged set-based diff ignores duplicates."
+  ],
+  "todos": [
+   "Update _module_literals to recursively walk tree.body, skipping FunctionDef nodes, and processing Assign/AnnAssign at any depth.",
+   "Confirm with mutation corpus that changed class constants now appear in the 'literals' layer delta."
+  ],
+  "handoff": {
+   "suggestion": "In daedalus/eval/graph_delta.py, replace the current _module_literals with:\n\n```python\ndef _module_literals(module: str, text: str) -> set:\n    import ast\n    from collections import Counter\n    try:\n        tree = ast.parse(text)\n    except SyntaxError:\n        return set()\n    c: Counter = Counter()\n    def walk_node(node):\n        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):\n            return  # function bodies handled by _literals_by_function\n        if isinstance(node, (ast.Assign, ast.AnnAssign)):\n            for sub in ast.walk(node):\n                if isinstance(sub, ast.Constant):\n                    r = repr(sub.value)\n                    c[r if len(r) <= 80 else r[:79] + '\u2026'] += 1\n        for child in ast.iter_child_nodes(node):\n            walk_node(child)\n    for stmt in tree.body:\n        walk_node(stmt)\n    return {f\"{k}#{i}\" for k, n in c.items() for i in range(n)}\n```\n\nThis captures constants in all module-level contexts (classes, conditionals, loops) while avoiding re-extracting function-local constants.",
+   "skipped_sensitive": [
+    "daedalus/eval/mutate.py"
+   ]
+  }
+ },
+ "name": "x09-graphdelta-vs-mutate",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 116.3
+}

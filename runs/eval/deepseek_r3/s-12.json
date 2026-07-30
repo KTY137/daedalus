@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s-12",
+ "report": {
+  "status": "needs_review",
+  "summary": "Consolidated 5 confirmed findings from v-embeddings and 8 from v-picker into 11 ranked action items covering silent correctness errors, missing implementations, and inefficiencies. 3 undecidable claims deferred to risk list pending missing source.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "UNDECIDABLE: Work_queue disabled by default? Inspect build_queue logic.",
+   "UNDECIDABLE: TOCTOU on queue file read from load_work_queue; inspect body.",
+   "UNDECIDABLE: Claims 16,17,20 require full source of build_queue/load_work_queue to verify."
+  ],
+  "todos": [
+   "Fix NaN propagation in _candidate (v-picker claim 9): Add math.isfinite(offset) check.",
+   "Refactor _embed_batch to raise on EmbeddingError instead of returning None (v-embeddings: error swallowing).",
+   "Add WAL mode and busy timeout to _init_db to prevent SQLITE_BUSY (v-embeddings: concurrency).",
+   "Enforce evidence schema in _candidate beyond non-empty check (v-picker claim 7).",
+   "Allow zero vectors in _normalize_vector when normalization='none' (v-embeddings: potential correctness).",
+   "Implement search_report, ingest_report, record_journal_watermark or remove docstring promises (v-embeddings: missing implementations).",
+   "Add starvation detector alert for low-band candidates pending too long (v-picker claim 1).",
+   "Implement band escalation when offset reaches BAND_SPAN (v-picker claim 2), and add cross-band ordering test.",
+   "Review OUTCOME_POLICY to avoid penalizing high-importance candidates on retry (v-picker claim 5).",
+   "Fix silent config masking in _project_config: raise or warn on non-Mapping input (v-picker claim 8).",
+   "Make eval/hotspot sources cheap by default or warn when disabled (v-picker claim 3)."
+  ],
+  "handoff": {
+   "suggestion": "Apply changes in picker.py and embeddings.py. picker.py: add offset validation, evidence schema, band escalation, starvation detector, OUTCOME_POLICY review, config masking fix, cheap sources adjustment. embeddings.py: enable WAL/busy timeout in _init_db, refactor _embed_batch error handling, implement missing methods, fix _normalize_vector for 'none' normalization."
+  }
+ },
+ "name": "s-12",
+ "paths": [
+  "docs/research/rounds/round2/v-picker.md",
+  "docs/research/rounds/round2/v-embeddings.md"
+ ],
+ "elapsed_s": 63.7
+}

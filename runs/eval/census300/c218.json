@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c218",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_operability_drill.py: Tests for the operability drill module, verifying verdict arithmetic, staleness checks, exception handling, receipt generation, and that the drill does not autonomously schedule.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_operability_drill.py|tools.operability_drill",
+   "DEPENDS|tests/test_operability_drill.py|daedalus.spine.bootstrap",
+   "WRITES|tests/test_operability_drill.py|runs/spine/drill-test.json",
+   "WRITES|tests/test_operability_drill.py|runs/spine/drill-test2.json",
+   "WRITES|tests/test_operability_drill.py|runs/spine/drill-test3.json",
+   "READS|tests/test_operability_drill.py|runs/spine/drill-test.json",
+   "READS|tests/test_operability_drill.py|runs/spine/drill-test2.json",
+   "READS|tests/test_operability_drill.py|runs/spine/drill-test3.json",
+   "CLAIMS|tests/test_operability_drill.py|The drill decides whether autonomy is defensible, so the drill needs guards.",
+   "CLAIMS|tests/test_operability_drill.py|Three properties: INCOMPLETE IS NOT A PASS, ONE FAIL IS A FAIL, A STALE PROOF IS A MISSING CONTROL."
+  ],
+  "todos": [
+   "tests/test_operability_drill.py|constant|ROOT|Root path of the repository, resolved to two directories above the test file.",
+   "tests/test_operability_drill.py|function|test_incomplete_is_never_rounded_up_to_a_pass|Ensures EXIT_PASS, EXIT_FAIL, and EXIT_INCOMPLETE are distinct values.",
+   "tests/test_operability_drill.py|function|test_one_failure_outranks_any_number_of_passes|Ensures a single failure results in EXIT_FAIL regardless of passes.",
+   "tests/test_operability_drill.py|function|test_a_single_unexercised_control_blocks_the_verdict|Ensures one incomplete control results in EXIT_INCOMPLETE.",
+   "tests/test_operability_drill.py|function|test_a_proof_from_another_revision_fails_the_drill|Ensures staleness detection returns FAIL if the measured head does not match.",
+   "tests/test_operability_drill.py|function|test_a_proof_for_THIS_revision_passes|Ensures staleness detection returns PASS if the measured head matches.",
+   "tests/test_operability_drill.py|function|test_a_control_that_raises_is_INCOMPLETE_and_says_so|Ensures a crashing control is recorded as INCOMPLETE with the exception detail.",
+   "tests/test_operability_drill.py|function|test_the_receipt_records_the_revision_it_was_measured_at|Ensures the receipt JSON contains 'head' and 'scheduling_defensible'.",
+   "tests/test_operability_drill.py|function|test_scheduling_defensible_is_true_ONLY_on_a_clean_exit|Ensures scheduling_defensible is False when a control fails.",
+   "tests/test_operability_drill.py|function|test_the_drill_does_not_start_anything_by_itself|Ensures the drill module does not contain scheduling-related code."
+  ],
+  "handoff": {}
+ },
+ "name": "c218",
+ "paths": [
+  "tests/test_operability_drill.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.5
+}

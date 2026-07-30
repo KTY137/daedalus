@@ -1,0 +1,59 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-225536-595620.json",
+      "digest": {
+        "sha256": "548670dbfbcb9dd9eb8e4246f3f12a59242bad895cedfa405588888456eb6909"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-1161569012"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260729T225536-cff60055"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "the runner produced no change to gate",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "qwen2.5-coder:14b",
+            "provider_receipt": {
+              "provider": "ollama",
+              "model": "qwen2.5-coder:14b",
+              "action": "escalated_after_verify_fail",
+              "wrote": [],
+              "report_status": "done",
+              "handoff": {
+                "windowed_rewrite": [
+                  "docs/HANDOFF.md"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260729T225536-cff60055"
+  },
+  "trace_id": "tr-20260729T225536-cff60055"
+}

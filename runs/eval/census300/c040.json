@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c040",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files supplied in context; nothing to report.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "skipped_sensitive": [
+    "daedalus/sensitivity.py"
+   ]
+  }
+ },
+ "name": "c040",
+ "paths": [
+  "daedalus/sensitivity.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 1.6
+}

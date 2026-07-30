@@ -1,0 +1,26 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q16-workflow-provenance",
+ "report": {
+  "status": "needs_review",
+  "summary": "Adopt W3C PROV-O as semantic backbone, augmented with RO-Crate for packaging and CWLProv for workflow runs. Snakemake/Nextflow DAGs can be mapped to PROV. This avoids reinventing: PROV provides entities, activities, agents; RO-Crate bundles metadata; CWLProv records fine-grained provenance. Measured adoption: RO-Crate used by ELIXIR, Bioschemas. No single perfect model, but layering avoids lock-in.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Multiple standards may lead to integration overhead.",
+   "PROV-O's flexibility may cause interoperability issues without strict profiles."
+  ],
+  "todos": [
+   "Map Snakemake/Nextflow DAG output to PROV-O entities.",
+   "Adopt RO-Crate specification for packaging data artefacts with provenance.",
+   "Evaluate CWLProv for detailed execution records."
+  ],
+  "handoff": {
+   "suggestion": "Implement provenance recording using W3C PROV-O (PROV-JSON) for data artefacts, mapping workflow DAGs; use RO-Crate for packaging; adopt CWLProv-like patterns for detailed steps."
+  }
+ },
+ "name": "q16-workflow-provenance",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 16.7
+}

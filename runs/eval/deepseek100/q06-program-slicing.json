@@ -1,0 +1,23 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q06-program-slicing",
+ "report": {
+  "status": "needs_review",
+  "summary": "Answered on program slicing: static vs dynamic vs thin slicing, Python tool scarcity, and slice size relevance for impact analysis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "citations uncertain"
+  ],
+  "todos": [
+   "verify tool availability for Python 3.12"
+  ],
+  "handoff": {
+   "answer": "Program slicing extracts the subset of statements relevant to a variable at a point. Static slicing (Weiser, 1984) conservatively includes all statements that may affect the variable via data and control dependencies, yielding large slices\u2014often over 50% of a program\u2014making it impractical for precise impact analysis. Dynamic slicing (Korel & Laski, 1988) considers a specific execution trace, producing smaller, more accurate slices but missing impacts for other inputs. Thin slicing (Sridharan et al., PLDI 2007) is a lightweight static technique that includes only 'producer' statements for relevant values, ignoring some non-essential data-flow, yielding slices typically 3\u20134\u00d7 smaller than static slices in Java benchmarks. For Python, mature slicing tools are lacking. Research prototypes like PySlicer (built on WALA) exist but are not production-ready; dynamic slicing can be achieved via bytecode tracing or frameworks like SlicePy, but none are widely adopted. Slice size directly affects utility for impact analysis: smaller slices reduce false positives, helping developers focus on likely affected code. Static slices are often too large to be actionable, while dynamic slices are too context-dependent. Thin slicing offers a balance, potentially small enough to be practical. For Daedalus, implementing a thin slicer or leveraging dynamic instrumentation with test case replay could narrow change-impact predictions. The most actionable step: evaluate thin slicing on Python codebases of your scale to see if slice size remains manageable."
+  }
+ },
+ "name": "q06-program-slicing",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 58.9
+}

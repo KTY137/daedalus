@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c268",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_web_api_health.py: tests the /api/health endpoint to ensure it returns five-state vocabulary, distinguishes surface failure from bad health, and requires explicit opt-in for expensive probes. daedalus/providers/claude_cli.py: implements the Claude CLI provider, wrapping ask_claude to run agentic, write-capable code evolution tasks.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_web_api_health.py|daedalus.web_api",
+   "DEPENDS|tests/test_web_api_health.py|daedalus.health",
+   "CLAIMS|tests/test_web_api_health.py|test_present_and_unknown_are_NOT_reported_as_working: guarantee that working claims carry a MEASURED fact",
+   "CLAIMS|tests/test_web_api_health.py|test_the_expensive_probes_are_OFF_unless_asked_and_the_answer_says_so: guarantee that expensive probes are off by default and declared",
+   "CLAIMS|tests/test_web_api_health.py|test_a_failure_of_the_SURFACE_is_distinguishable_from_bad_health: guarantee that surface failure is distinguishable from bad health",
+   "DEPENDS|daedalus/providers/claude_cli.py|daedalus.claude_bridge",
+   "DEPENDS|daedalus/providers/claude_cli.py|daedalus.providers.base",
+   "CLAIMS|daedalus/providers/claude_cli.py|ClaudeCLIProvider class docstring: primary lane: agentic, write-capable, trusted Claude CLI",
+   "CLAIMS|daedalus/providers/claude_cli.py|run method docstring: unused policy parameter: Claude is agentic + trusted",
+   "SMELL|daedalus/providers/claude_cli.py|run method has an unused policy parameter, which may indicate dead branch",
+   "SMELL|daedalus/providers/claude_cli.py|available() checks for external binary 'claude', creating an implicit dependency"
+  ],
+  "todos": [
+   "tests/test_web_api_health.py|function|server|provides a real server on a free loopback port for tests",
+   "tests/test_web_api_health.py|function|test_the_endpoint_answers_with_the_five_state_vocabulary|guarantees the endpoint returns 200 with five-state vocabulary",
+   "tests/test_web_api_health.py|function|test_present_and_unknown_are_NOT_reported_as_working|guarantees that working claims carry a MEASURED fact",
+   "tests/test_web_api_health.py|function|test_the_expensive_probes_are_OFF_unless_asked_and_the_answer_says_so|guarantees that expensive probes are off by default and that is declared",
+   "tests/test_web_api_health.py|function|test_asking_for_deep_is_recorded|guarantees that asking for deep is recorded in the response",
+   "tests/test_web_api_health.py|function|test_a_failure_of_the_SURFACE_is_distinguishable_from_bad_health|guarantees that a 500 from health surface is distinguishable from bad health",
+   "daedalus/providers/claude_cli.py|class|ClaudeCLIProvider|primary lane: agentic, write-capable, trusted Claude CLI provider"
+  ],
+  "handoff": {}
+ },
+ "name": "c268",
+ "paths": [
+  "tests/test_web_api_health.py",
+  "daedalus/providers/claude_cli.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 33.6
+}

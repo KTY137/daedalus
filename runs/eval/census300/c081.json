@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c081",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files supplied; slice is empty.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "skipped_sensitive": [
+    "daedalus/spine/killswitch.py"
+   ]
+  }
+ },
+ "name": "c081",
+ "paths": [
+  "daedalus/spine/killswitch.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 1.8
+}

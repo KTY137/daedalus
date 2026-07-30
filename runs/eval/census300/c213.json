@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c213",
+ "report": {
+  "status": "blocked",
+  "summary": "No files were supplied in the context for analysis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "The context is empty; no files or paths were provided to perform the structural census.",
+   "skipped_sensitive": [
+    "tests/test_offload_slice_context.py"
+   ]
+  }
+ },
+ "name": "c213",
+ "paths": [
+  "tests/test_offload_slice_context.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.6
+}

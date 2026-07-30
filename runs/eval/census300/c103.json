@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c103",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_ikarus_shells.py: Tests the three shells (deterministic/hand/voice) and five routing obligations: classify-once, start-final agreement, provider fence, hand liveness vocabulary, and German act request round-trip.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_ikarus_shells.py|daedalus.health",
+   "DEPENDS|tests/test_ikarus_shells.py|daedalus.ikarus_os",
+   "DEPENDS|tests/test_ikarus_shells.py|daedalus.ikarus_act",
+   "SMELL|tests/test_ikarus_shells.py|Tests internal functions (_route,_shell_for,_hand_state,_reconcile_final) indicating tight coupling to implementation."
+  ],
+  "todos": [
+   "tests/test_ikarus_shells.py|constant|PROJECT|The project name used in tests: 'sunny_garden'",
+   "tests/test_ikarus_shells.py|class|RouteTest|Tests the _route function that routes intents to shells and handles capability decisions.",
+   "tests/test_ikarus_shells.py|class|ClassifyOnceTest|Tests that classify() runs exactly once per request and that streaming/blocking forms do not reclassify.",
+   "tests/test_ikarus_shells.py|class|StartFinalAgreementTest|Tests that start and final events agree on intent and shell, and that reconcile handles mismatches.",
+   "tests/test_ikarus_shells.py|class|ProviderFenceTest|Tests that the provider argument is ignored on the hand path and honored on the voice path.",
+   "tests/test_ikarus_shells.py|class|HandLivenessVocabularyTest|Tests that hand_state composes the one liveness predicate with five-word vocabulary and caching behavior.",
+   "tests/test_ikarus_shells.py|class|HandRefusesInWordsTest|Tests that confirmations to absent/unknown hands are refused in words, and proposals report cached state without new probes.",
+   "tests/test_ikarus_shells.py|class|GermanActRequestTest|Tests the round-trip of German act requests from classification through offer, confirmation, and enqueue.",
+   "tests/test_ikarus_shells.py|class|FalsePositiveDoesNotReachTheHandTest|Tests that 'does that make sense' is answered not queued, while real build requests still reach the hand."
+  ],
+  "handoff": {
+   "suggestion": "No changes needed; the test file is comprehensive and covers the specified obligations."
+  }
+ },
+ "name": "c103",
+ "paths": [
+  "tests/test_ikarus_shells.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 10.0
+}

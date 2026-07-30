@@ -1,0 +1,49 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c094",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/tools/vet.py: Implements a static safety gate for vetting skills and MCP servers using rule-based scanning, with fail-closed semantics, allowance management, and obfuscation detection.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/tools/vet.py|daedalus.sensitivity",
+   "READS|daedalus/tools/vet.py|.agentenv/tool-allowances.json",
+   "READS|daedalus/tools/vet.py|Skill body and bundled files via scan_text",
+   "CLAIMS|daedalus/tools/vet.py|Static only, never executes anything",
+   "CLAIMS|daedalus/tools/vet.py|Fail-closed: unknown is not clean",
+   "CLAIMS|daedalus/tools/vet.py|Findings not scores",
+   "CLAIMS|daedalus/tools/vet.py|No policy about hosts; delegates to sensitivity.lane_for_host",
+   "SMELL|daedalus/tools/vet.py|Combines skill and MCP server vetting in a single module; attack surfaces differ"
+  ],
+  "todos": [
+   "daedalus/tools/vet.py|constant|VET_VERSION|Identifies verdict meaning version",
+   "daedalus/tools/vet.py|constant|CLEAR|Outcome indicating no findings",
+   "daedalus/tools/vet.py|constant|REVIEW|Outcome indicating human review needed",
+   "daedalus/tools/vet.py|constant|BLOCK|Outcome indicating disqualifying finding",
+   "daedalus/tools/vet.py|constant|UNSCANNABLE|Outcome indicating scan failure",
+   "daedalus/tools/vet.py|constant|MAX_FILE_BYTES|Maximum file size for scanning",
+   "daedalus/tools/vet.py|constant|MAX_FILES_SCANNED|Maximum number of files to scan",
+   "daedalus/tools/vet.py|constant|TEXT_SUFFIXES|Set of text file extensions",
+   "daedalus/tools/vet.py|constant|RULES|List of all scan rules",
+   "daedalus/tools/vet.py|constant|ALLOWANCE_PATH|Path to tool-allowances.json",
+   "daedalus/tools/vet.py|class|Finding|Represents a single scan finding with evidence",
+   "daedalus/tools/vet.py|class|Verdict|Aggregated scan result for a subject",
+   "daedalus/tools/vet.py|function|load_allowances|Loads allowances from file, returns dict and errors",
+   "daedalus/tools/vet.py|function|apply_allowances|Downgrades BLOCK findings to REVIEW based on allowances",
+   "daedalus/tools/vet.py|function|scan_text|Scans text for all rule matches deterministically",
+   "daedalus/tools/vet.py|function|vet_skill|Vets a Skill dataclass, returns Verdict",
+   "daedalus/tools/vet.py|function|vet_mcp_server|Vets an MCP server entry, returns Verdict"
+  ],
+  "handoff": {
+   "suggestion": ""
+  }
+ },
+ "name": "c094",
+ "paths": [
+  "daedalus/tools/vet.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.5
+}

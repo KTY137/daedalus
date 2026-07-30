@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c078",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/mapping/spectral.py: Provides spectral structure metrics (Fiedler vector, modularity, conductance, eigengap) over the undirected reachability graph to assess how well the declared on-disk package layout matches actual import structure.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/mapping/spectral.py|daedalus.mapping.inventory",
+   "CLAIMS|daedalus/mapping/spectral.py|'This module produces MEASUREMENTS ABOUT A PARTITION WE ALREADY DECLARED (the package layout on disk)'",
+   "CLAIMS|daedalus/mapping/spectral.py|'No graph is built here. graph_from_reach is an adapter over reach.analyse, not a second walker.'",
+   "CLAIMS|daedalus/mapping/spectral.py|'Nothing here returns an exit code, blocks a lane, moves a picker band, or decides anything.'",
+   "CLAIMS|daedalus/mapping/spectral.py|'Laplacian spectral theory as used here is defined for undirected graphs.'",
+   "CLAIMS|daedalus/mapping/spectral.py|'boundary_agreement ~1.0 means a REAL SEAM, ~0.5 means a FALSE WALL'",
+   "CLAIMS|daedalus/mapping/spectral.py|'modularity Q >= 0.3 with clear lift means real structure, lift <= 0 means filing not architecture'",
+   "CLAIMS|daedalus/mapping/spectral.py|'leak_rate >0.8 means a PASS-THROUGH package'",
+   "CLAIMS|daedalus/mapping/spectral.py|'confident is the honest brake: it is False when the winning gap is not meaningfully larger than the runner-up'"
+  ],
+  "todos": [
+   "daedalus/mapping/spectral.py|constant|HAVE_MATH|Indicates whether the math extra (networkx) is available.",
+   "daedalus/mapping/spectral.py|constant|MATH_EXTRA_HINT|Installation hint string for the math extra.",
+   "daedalus/mapping/spectral.py|constant|DEFAULT_TRIALS|Default number of random partition trials for modularity baseline.",
+   "daedalus/mapping/spectral.py|constant|DEFAULT_SEED|Default random seed for reproducibility.",
+   "daedalus/mapping/spectral.py|constant|DEFAULT_K_MAX|Maximum number of eigenvalues to consider for eigengap heuristic.",
+   "daedalus/mapping/spectral.py|function|graph_from_edges|Builds an undirected networkx graph from a source-to-targets mapping.",
+   "daedalus/mapping/spectral.py|function|graph_from_reach|Builds an undirected networkx graph from a ReachReport, optionally scoped to prefixes.",
+   "daedalus/mapping/spectral.py|function|declared_partition|Groups modules by their declared directory package using inventory._area_of.",
+   "daedalus/mapping/spectral.py|function|fiedler_report|Returns algebraic connectivity, Fiedler vector, and boundary agreement per package.",
+   "daedalus/mapping/spectral.py|function|modularity_report|Returns Newman modularity Q of declared partition vs random partitions.",
+   "daedalus/mapping/spectral.py|function|conductance_report|Returns per-package leak rate and symmetric conductance.",
+   "daedalus/mapping/spectral.py|function|eigengap_report|Returns cluster count estimate from normalized Laplacian eigengap heuristic."
+  ],
+  "handoff": {}
+ },
+ "name": "c078",
+ "paths": [
+  "daedalus/mapping/spectral.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 16.3
+}

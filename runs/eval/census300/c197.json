@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c197",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/selftest.py: Provides a live self-test that exercises the full write offload cascade using a real Ollama model, separate from unit tests.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/selftest.py|daedalus.doctor",
+   "DEPENDS|daedalus/selftest.py|daedalus.offload",
+   "DEPENDS|daedalus/selftest.py|daedalus.kairos.worktree",
+   "WRITES|daedalus/selftest.py|temporary scratch repo (temp directory with .agentenv, agents, src files)",
+   "READS|daedalus/selftest.py|src/hello.py in scratch repo",
+   "CLAIMS|daedalus/selftest.py|Performs a real Ollama write round-trip, separate from unit tests",
+   "CLAIMS|daedalus/selftest.py|run() returns result dict and is silent (no console noise)",
+   "SMELL|daedalus/selftest.py|run() has multiple return paths and a finally block that conditionally modifies result dict, increasing risk of logic errors"
+  ],
+  "todos": [
+   "daedalus/selftest.py|function|run|Runs the live round-trip and returns result dict",
+   "daedalus/selftest.py|function|main|Entry point for CLI; parses args, calls run and emits result"
+  ],
+  "handoff": {}
+ },
+ "name": "c197",
+ "paths": [
+  "daedalus/selftest.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.3
+}

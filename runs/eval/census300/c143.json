@@ -1,0 +1,20 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c143",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_verify_test_budget.py: Tests that the test timeout budget is configurable, that a timeout is distinguishable from a test failure, that malformed budgets fall back to default, that the repo's own configured budget is passable, and that the budget is plumbed through offload and gated by disk-truth rather than self-report.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {}
+ },
+ "name": "c143",
+ "paths": [
+  "tests/test_verify_test_budget.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 11.9
+}

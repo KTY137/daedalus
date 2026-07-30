@@ -1,0 +1,46 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c030",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_typegraph_determinism.py: Contains tests for determinism of the type layer across different PYTHONHASHSEED values and assertion that union IDs are content-derived, using subprocess probes and in-process state.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_typegraph_determinism.py|daedalus.structcore.build_index",
+   "DEPENDS|tests/test_typegraph_determinism.py|daedalus.structcore.typegraph",
+   "DEPENDS|tests/test_typegraph_determinism.py|daedalus.structcore.forest.build_knowledge_forest",
+   "DEPENDS|tests/test_typegraph_determinism.py|daedalus.structcore.parse.ANY_SENTINEL and python_type_facts",
+   "WRITES|tests/test_typegraph_determinism.py|temporary directories created by tempfile.mkdtemp (cleaned up in tearDownModule)",
+   "READS|tests/test_typegraph_determinism.py|tests/fixtures/typegraph/ directory",
+   "CLAIMS|tests/test_typegraph_determinism.py|Two processes must produce byte-identical output, and every name the layer could not pin down must produce NO edge and a COUNTER",
+   "CLAIMS|tests/test_typegraph_determinism.py|union_id is content-derived, never counted; resolving union_shapes.py ALONE yields the same three ids as resolving all sixteen files",
+   "SMELL|tests/test_typegraph_determinism.py|Test file has extensive inline documentation (390+ lines of comments) that duplicates information possibly present in other test files",
+   "UNWIRED|tests/test_typegraph_determinism.py|REPO_ROOT is defined but only used for subprocess path insertion and fixture path resolution"
+  ],
+  "todos": [
+   "tests/test_typegraph_determinism.py|constant|REPO_ROOT|Root of the repository, used to locate fixtures and insert into sys.path for subprocesses",
+   "tests/test_typegraph_determinism.py|constant|FIXTURE|Path to the typegraph fixture directory",
+   "tests/test_typegraph_determinism.py|constant|ANY_SITES|Number of bare Any sites in the fixture that should be counted as unresolved",
+   "tests/test_typegraph_determinism.py|constant|ANY_INSIDE_SITES|Number of non-bare Any sites (Any inside type hints) in the fixture",
+   "tests/test_typegraph_determinism.py|constant|AMBIGUOUS_ATTEMPTS|Number of ambiguous attempts (e.g., Result from two imports) in the fixture",
+   "tests/test_typegraph_determinism.py|constant|UNRESOLVED_ATTEMPTS|Number of unresolved attempts (names that cannot be resolved) in the fixture",
+   "tests/test_typegraph_determinism.py|constant|UNION_IDS|Expected union IDs for the three union sites in the fixture",
+   "tests/test_typegraph_determinism.py|constant|UNION_EDGES|Expected number of union member edges (6)",
+   "tests/test_typegraph_determinism.py|constant|SEEDS|PYTHONHASHSEED values to test: 0, 1, 2, 12345, 98765, random",
+   "tests/test_typegraph_determinism.py|function|setUpModule|Saves and clears environment variables that could affect determinism, sets a temporary cache directory",
+   "tests/test_typegraph_determinism.py|function|tearDownModule|Restores saved environment variables and removes temporary directories",
+   "tests/test_typegraph_determinism.py|class|ByteIdentityAcrossHashSeeds|Tests that the type layer output is byte-identical across different PYTHONHASHSEED values, including parallel scan"
+  ],
+  "handoff": {
+   "suggestion": "No edits proposed; this file is a structural census of test code. No changes needed."
+  }
+ },
+ "name": "c030",
+ "paths": [
+  "tests/test_typegraph_determinism.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.6
+}

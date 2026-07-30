@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c106",
+ "report": {
+  "status": "blocked",
+  "summary": "No files supplied in context; structural census cannot be performed.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Please provide the relevant file excerpts or a codebase snapshot to analyze.",
+   "skipped_sensitive": [
+    "daedalus/accelerators.py"
+   ]
+  }
+ },
+ "name": "c106",
+ "paths": [
+  "daedalus/accelerators.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 1.7
+}

@@ -1,0 +1,70 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-205208-11035c.json",
+      "digest": {
+        "sha256": "e57558d904f8a303a53d4ae5d8b1a0436428d23246e4de8e7140a95c82a3f4f5"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 2,
+        "outcomes": [
+          "not_attempted",
+          "not_attempted"
+        ],
+        "attempt_task_ids": [
+          [],
+          []
+        ],
+        "iterations": [
+          0,
+          1
+        ],
+        "trace_ids": [
+          "tr-20260729T205208-f7137b34",
+          "tr-20260729T205208-f7137b34"
+        ],
+        "detail": [
+          {
+            "status": "bounced",
+            "promoted": false
+          },
+          {
+            "status": "bounced",
+            "promoted": false
+          }
+        ]
+      },
+      "docref-docs-handoff-antigravity-md-0af585": {
+        "n": 1,
+        "outcomes": [
+          "not_attempted"
+        ],
+        "attempt_task_ids": [
+          []
+        ],
+        "iterations": [
+          2
+        ],
+        "trace_ids": [
+          "tr-20260729T205208-f7137b34"
+        ],
+        "detail": [
+          {
+            "status": "bounced",
+            "promoted": false
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260729T205208-f7137b34"
+  },
+  "trace_id": "tr-20260729T205208-f7137b34"
+}

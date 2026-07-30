@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s17-provider-router",
+ "report": {
+  "status": "needs_review",
+  "summary": "Routing audit: 1) Task reaches incapable model when provider unavailable degrades to Claude (line 195-199), but no check for model capability (tool-calling, context size, modality) before routing. 2) Provider failure: silent fallback to Claude in decide() (line 195-199), no logging or reporting of original provider failure. 3) Lane guard bypass: _is_review_only() uses substring match (line 56-58) \u2013 objective like 'not review' or 'review_and_apply' could bypass. FENCE_DOMINANCE_THRESHOLD (0.75) and MIN_SAMPLE (20) can be gamed by small repos. No validation that external_write_lanes_for_repo ret",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Model capability mismatch: no check for tool-calling, context window, or modality before routing to a provider (e.g., image task to text-only Ollama).",
+   "Silent fallback on provider failure: decide() degrades to Claude without logging or reporting the original provider failure, making debugging hard.",
+   "Review-only substring bypass: _is_review_only() matches substrings like 'review' in 'not_review' or 'review_and_apply', allowing write tasks to be misclassified as review-only.",
+   "Fence dominance threshold bypass: small repos (<20 modules) always keep fence UP, but threshold 0.75 can be gamed by adding many non-fenced files to dilute ratio.",
+   "External write lanes trust: no validation that external_write_lanes_for_repo returns expected values; malformed config could silently disable or enable write lanes.",
+   "No modality routing: objective may require image/audio but provider may not support it; no check exists."
+  ],
+  "todos": [
+   "Add capability check before routing: verify provider supports required tools, context size, and modality.",
+   "Log provider failure and fallback reason; consider raising alert or returning error instead of silent fallback.",
+   "Improve _is_review_only() to use exact match or NLP-based classification to prevent substring bypass.",
+   "Revisit fence dominance logic: add minimum absolute count of fenced modules to prevent gaming.",
+   "Validate external_write_lanes_for_repo output against known lane names and schema.",
+   "Add modality field to objective metadata and route accordingly."
+  ],
+  "handoff": {
+   "suggestion": "Add a capability registry per provider (e.g., supports_tools, max_context, modalities) and check before routing. In decide(), log the original provider failure and reason. Change _is_review_only() to use word-boundary regex or a small classifier. For fence dominance, require at least N fenced modules (e.g., 5) in addition to fraction threshold. Validate external_write_lanes_for_repo returns only known lane names."
+  }
+ },
+ "name": "s17-provider-router",
+ "kind": "scan",
+ "elapsed_s": 7.4
+}

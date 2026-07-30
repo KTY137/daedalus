@@ -1,0 +1,45 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c187",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/wiki/links.py: Responsible for wikilink extraction, link index building (forward/backward), backlinks lookup, unlinked mentions detection, and local graph construction for a wiki vault.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CLAIMS|daedalus/wiki/links.py|extract_wikilinks guarantees 'No resolution, no I/O.'",
+   "CLAIMS|daedalus/wiki/links.py|build_index guarantees 'Deterministic: every list sorted at the end.'",
+   "CLAIMS|daedalus/wiki/links.py|backlinks guarantees 'Pages that link TO this one. The panel users actually read.'",
+   "CLAIMS|daedalus/wiki/links.py|unlinked_mentions guarantees 'Bounded on purpose'",
+   "CLAIMS|daedalus/wiki/links.py|local_graph guarantees 'Depth 1 by default ... Bounded and it SAYS when it stopped'",
+   "UNWIRED|daedalus/wiki/links.py|backlinks",
+   "UNWIRED|daedalus/wiki/links.py|unlinked_mentions",
+   "UNWIRED|daedalus/wiki/links.py|local_graph"
+  ],
+  "todos": [
+   "daedalus/wiki/links.py|constant|LINKS_VERSION|Version string '1'",
+   "daedalus/wiki/links.py|constant|MAX_LINKS_PER_PAGE|Bounded so one page cannot dominate an index.",
+   "daedalus/wiki/links.py|constant|MAX_MENTIONS_PER_PAGE|Maximum mentions per page for unlinked mentions.",
+   "daedalus/wiki/links.py|constant|MAX_LOCAL_NODES|Maximum nodes in local graph.",
+   "daedalus/wiki/links.py|constant|DOC|String 'doc'",
+   "daedalus/wiki/links.py|constant|CODE|String 'code'",
+   "daedalus/wiki/links.py|constant|TYPE|String 'type'",
+   "daedalus/wiki/links.py|constant|VAULT|String 'vault'",
+   "daedalus/wiki/links.py|class|WikiLink|Represents a wikilink with kind, target, anchor, alias, embed, line.",
+   "daedalus/wiki/links.py|function|extract_wikilinks|Every wikilink in a page body, in source order. No I/O.",
+   "daedalus/wiki/links.py|class|LinkIndex|Forward and reverse edges over one vault. Derived; regenerate and it is true.",
+   "daedalus/wiki/links.py|function|build_index|Link index over a vault's pages. Deterministic.",
+   "daedalus/wiki/links.py|function|backlinks|Pages that link TO this one. The panel users actually read.",
+   "daedalus/wiki/links.py|function|unlinked_mentions|Pages whose text names this page's title without linking it. Bounded.",
+   "daedalus/wiki/links.py|function|local_graph|The n-hop neighbourhood around one page, undirected. Depth 1 default, bounded."
+  ],
+  "handoff": {}
+ },
+ "name": "c187",
+ "paths": [
+  "daedalus/wiki/links.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.0
+}

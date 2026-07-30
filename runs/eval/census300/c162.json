@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c162",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/cache.py: Persistent per-file analysis cache using sqlite, with content-addressed keys and JSON serialization.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/cache.py|daedalus/structcore/parse",
+   "DEPENDS|daedalus/structcore/cache.py|daedalus/structcore/perfile",
+   "DEPENDS|daedalus/structcore/cache.py|daedalus/structcore/tokens",
+   "WRITES|daedalus/structcore/cache.py|directory: cache_root()",
+   "READS|daedalus/structcore/cache.py|daedalus/structcore/parse.py",
+   "CLAIMS|daedalus/structcore/cache.py|Persistent per-file analysis cache using sqlite, never a correctness dependency."
+  ],
+  "todos": [
+   "daedalus/structcore/cache.py|function|cache_root|Get base directory for on-disk caches, with env override.",
+   "daedalus/structcore/cache.py|function|enabled|Check if caching is enabled via environment variable.",
+   "daedalus/structcore/cache.py|function|file_key|Content-addressed key for caching, including version and tokenizer identity.",
+   "daedalus/structcore/cache.py|class|FileCache|Per-repo sqlite store of FileAnalysis rows, keyed by content."
+  ],
+  "handoff": {}
+ },
+ "name": "c162",
+ "paths": [
+  "daedalus/structcore/cache.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 9.1
+}

@@ -1,0 +1,56 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c015",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/memory/embeddings.py: Defines versioned embedding projections for Daedalus events, including embedding specs, vector store with identity anchoring, schema migration from v1 to v2, and Ollama backend integration.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/memory/embeddings.py|daedalus.adapters.events",
+   "DEPENDS|daedalus/memory/embeddings.py|daedalus.providers.ollama",
+   "WRITES|daedalus/memory/embeddings.py|SQLite database at self.db_path (including directory creation)",
+   "WRITES|daedalus/memory/embeddings.py|Legacy table renamed to legacy_agent_events_v1",
+   "READS|daedalus/memory/embeddings.py|SQLite database at self.db_path",
+   "READS|daedalus/memory/embeddings.py|Ollama embedding service via HTTP POST /api/embed",
+   "CLAIMS|daedalus/memory/embeddings.py|One index per search; search_report resolves exactly one index_id",
+   "CLAIMS|daedalus/memory/embeddings.py|Declared identity must match the backend; _resolved_spec enforces this",
+   "CLAIMS|daedalus/memory/embeddings.py|Dimension agreement on ingest, read, and scoring; no broadcast/truncation/zero-padding",
+   "CLAIMS|daedalus/memory/embeddings.py|Empirical coordinate-system identity via identity anchor; drift detection via IDENTITY_DRIFT_TOLERANCE",
+   "CLAIMS|daedalus/memory/embeddings.py|Journal append-only-ness enforced for watermark; record_journal_watermark refuses rollback or changed content hash",
+   "UNWIRED|daedalus/memory/embeddings.py|_embed_batch (compatibility helper; usage not visible in provided excerpt)",
+   "SMELL|daedalus/memory/embeddings.py|Large module-level docstring mixing usage, guarantees, and stated limits; risk of fragmentation"
+  ],
+  "todos": [
+   "daedalus/memory/embeddings.py|class|AgentEvent|A projection input, not the authoritative event record; provides to_dict/from_dict for serialization",
+   "daedalus/memory/embeddings.py|class|EmbeddingSpec|Identity of one mutually compatible embedding coordinate system; defines index_id via SHA-256 of canonical spec",
+   "daedalus/memory/embeddings.py|class|JournalPosition|A position in the authoritative journal this index is derived from; supports optional content_hash for append-only check",
+   "daedalus/memory/embeddings.py|class|ProjectionFilter|Exact-match provenance filters applied before vector scoring",
+   "daedalus/memory/embeddings.py|class|OperationStatus|Machine-readable status for projection and query operations",
+   "daedalus/memory/embeddings.py|class|IngestReport|Status and counts for an ingest operation",
+   "daedalus/memory/embeddings.py|class|SearchReport|Status and matches for a search operation; includes freshness field (default unanchored)",
+   "daedalus/memory/embeddings.py|class|IndexStatus|Status and metadata for an index; includes identity_anchor provenance and revision_pinned flag",
+   "daedalus/memory/embeddings.py|class|EmbeddingError|Base class for expected embedder failures",
+   "daedalus/memory/embeddings.py|class|EmbeddingUnavailableError|The embedding service could not be reached",
+   "daedalus/memory/embeddings.py|class|EmbeddingProtocolError|The embedding service returned a malformed response",
+   "daedalus/memory/embeddings.py|class|EmbeddingBackend|Protocol for testable backend seam; requires embed method",
+   "daedalus/memory/embeddings.py|class|OllamaEmbeddingBackend|Ollama's current batched POST /api/embed transport",
+   "daedalus/memory/embeddings.py|class|EventVectorStore|Append-only, versioned event projection index backed by SQLite; provides _init_db for schema migration",
+   "daedalus/memory/embeddings.py|constant|EMBED_MODEL|Default embedding model from OLLAMA_EMBED_MODEL env var",
+   "daedalus/memory/embeddings.py|constant|EVENT_PROJECTOR_VERSION|Projector version string 'agent-event-v1'",
+   "daedalus/memory/embeddings.py|constant|SCHEMA_VERSION|Database schema version (2)",
+   "daedalus/memory/embeddings.py|constant|IDENTITY_DRIFT_TOLERANCE|Maximum cosine distance for identity anchor re-embedding",
+   "daedalus/memory/embeddings.py|constant|MOVABLE_TAG_PROVIDERS|Set of providers with movable model tags (frozenset({'ollama'}))"
+  ],
+  "handoff": {
+   "suggestion": "No edits proposed; read-only census completed."
+  }
+ },
+ "name": "c015",
+ "paths": [
+  "daedalus/memory/embeddings.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.7
+}

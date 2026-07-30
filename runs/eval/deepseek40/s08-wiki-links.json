@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s08-wiki-links",
+ "report": {
+  "status": "needs_review",
+  "summary": "Backlink computation is symmetric with forward links: both use the same edge records stored in idx.backward, which is built from forward edges. local_graph can loop forever on a cycle because it does not track visited edges, only nodes; a cycle of unseen nodes could cause infinite loop if depth is large and max_nodes is not hit. unlinked_mentions uses a regex that matches any word-like string of >=3 chars, so common words like 'the' (3 chars) would be skipped due to length check, but words like 'and' (3 chars) would be skipped; however, words like 'agent' (5 chars) could produce false positive",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "local_graph can loop forever on a cycle if depth is large and max_nodes is not reached, because it only checks seen nodes, not visited edges; a cycle of unseen nodes would keep adding to frontier indefinitely.",
+   "unlinked_mentions regex uses word boundaries but does not handle underscores/hyphens inside words; e.g., title 'agent' would match 'agentive' because \\b matches before 'agent' and after 'ive'? Actually \\b before 'agent' and after 'ive'? No, \\b after 'agent' would not match because 'i' is word char; so false positive unlikely for that case. But title 'a_b' would match 'a_b_c' because \\b after 'b'? Actually 'a_b' is a single word; regex would match 'a_b' inside 'a_b_c' because \\b after 'b' fails? Let's check: 'a_b_c' has word chars; \\b after 'b' is between 'b' and '_' which is not a word boundary because both are word chars; so no match. So false positives are limited to cases where title appears as a separate word, which is correct. However, common words like 'the' (3 chars) are skipped by length check; but words like 'and' (3 chars) also skipped. So false positives from common words are mitigated by length check.",
+   "build_index silently drops links beyond MAX_LINKS_PER_PAGE per page; this could lose data without warning.",
+   "unlinked_mentions truncates at MAX_MENTIONS_PER_PAGE without indicating how many were omitted; caller must check limit.",
+   "local_graph truncates at MAX_LOCAL_NODES and sets truncated flag, but the note says 'stopped at the node bound; the neighbourhood is larger' which is clear."
+  ],
+  "todos": [
+   "Add visited edge set in local_graph to prevent infinite loops on cycles.",
+   "Consider warning or logging when MAX_LINKS_PER_PAGE is exceeded.",
+   "Consider returning a count of total matches in unlinked_mentions so caller knows truncation occurred.",
+   "Test local_graph with a cycle and depth > 1 to confirm infinite loop."
+  ],
+  "handoff": {
+   "suggestion": "Fix local_graph to track visited edges (source+target) to prevent infinite loops. Add a warning log when MAX_LINKS_PER_PAGE is hit. In unlinked_mentions, return total count of matches before truncation."
+  }
+ },
+ "name": "s08-wiki-links",
+ "kind": "scan",
+ "elapsed_s": 9.3
+}

@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c233",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/status.py: Provides the CLI for subsystem health assessment (working/present/degraded/absent/unknown) via the `daedalus.status` module, including legacy counter collection and printing, and integrates with the `health` module.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/status.py|daedalus.health",
+   "DEPENDS|daedalus/status.py|daedalus.file_bridge",
+   "DEPENDS|daedalus/status.py|daedalus.memory",
+   "DEPENDS|daedalus/status.py|daedalus.projects",
+   "READS|daedalus/status.py|OUTBOX directory",
+   "READS|daedalus/status.py|INBOX directory",
+   "READS|daedalus/status.py|TODO_PATH",
+   "READS|daedalus/status.py|events file via load_events",
+   "READS|daedalus/status.py|git repository via _git",
+   "CLAIMS|daedalus/status.py|This file used to print six numbers and a git diff... The answer is :mod:`daedalus.health`, which reports each subsystem as one of five things -- working, present, degraded, absent, unknown -- and can never render the last two as a pass.",
+   "CLAIMS|daedalus/status.py|EXIT CODES, and the one exception... The human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran. --json always exits 0, because the VS Code extension shells out with execFile and treats a non-zero exit as a crashed command.",
+   "CLAIMS|daedalus/status.py|RELATION TO tools/system_check.py. That harness clones the tree and RUNS the product; it answers 'does the pipeline execute end to end'. This reads the live artefacts in the tree you are standing in."
+  ],
+  "todos": [
+   "daedalus/status.py|module|daedalus.status|Provides CLI for subsystem health assessment",
+   "daedalus/status.py|constant|ROOT|Resolved path to the repository root",
+   "daedalus/status.py|function|collect_status|Collects six counters (repo_root, git_branch, git_status, outbox_count, inbox_count, memory_events, open_todos, todo_snapshot)",
+   "daedalus/status.py|function|print_counters|Prints the old counter output with disclaimers",
+   "daedalus/status.py|function|main|Entry point for CLI, parses args, calls health.assess, handles exit codes"
+  ],
+  "handoff": {
+   "suggestion": "No changes proposed."
+  }
+ },
+ "name": "c233",
+ "paths": [
+  "daedalus/status.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 16.5
+}

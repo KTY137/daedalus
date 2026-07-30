@@ -1,0 +1,47 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c122",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_picker_work_queue.py: Focused test proofs for the curated picker -> attempt path, verifying work queue parsing, candidate binding, policy feasibility, artifact scope enforcement, and gate integration without network.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_picker_work_queue.py|daedalus.spine.attempt",
+   "DEPENDS|tests/test_picker_work_queue.py|daedalus.spine.picker",
+   "DEPENDS|tests/test_picker_work_queue.py|daedalus.spine.bootstrap",
+   "DEPENDS|tests/test_picker_work_queue.py|daedalus.spine.ledger",
+   "DEPENDS|tests/test_picker_work_queue.py|daedalus.offload",
+   "CLAIMS|tests/test_picker_work_queue.py|Focused proof for the curated picker -> attempt path. No model or network is used."
+  ],
+  "todos": [
+   "tests/test_picker_work_queue.py|constant|BASE|provides a 40-character hex string for base revision",
+   "tests/test_picker_work_queue.py|constant|OBSERVED|provides a 40-character hex string for observed head",
+   "tests/test_picker_work_queue.py|constant|TARGET|provides the target path string design/visual-lab/src/main.tsx",
+   "tests/test_picker_work_queue.py|constant|GATE_ARGV|provides a list of command-line arguments for the gate",
+   "tests/test_picker_work_queue.py|function|test_work_queue_source_states_are_distinct_and_path_is_confined|verifies that work queue source states are distinct and the path is confined to repo root",
+   "tests/test_picker_work_queue.py|function|test_work_queue_path_cannot_escape_through_a_symlink|verifies that a symlink cannot be used to escape the repo root",
+   "tests/test_picker_work_queue.py|function|test_disabled_map_source_is_not_refreshed_into_the_primary_repo|verifies that a disabled map source is not refreshed",
+   "tests/test_picker_work_queue.py|function|test_queue_candidate_binds_bytes_base_scope_gate_and_observed_head|verifies candidate binding with base, scope, gate, and observed head",
+   "tests/test_picker_work_queue.py|function|test_invalid_queue_never_admits_a_partial_candidate|verifies that invalid queue never admits a partial candidate",
+   "tests/test_picker_work_queue.py|function|test_policy_feasibility_suppresses_task_before_ranking|verifies that policy feasibility suppresses task before ranking",
+   "tests/test_picker_work_queue.py|function|test_external_repo_uses_one_repo_bound_ledger_for_read_and_write|verifies external repo uses one repo-bound ledger for read and write",
+   "tests/test_picker_work_queue.py|function|test_legacy_taskspec_body_and_digest_shape_are_unchanged|verifies legacy TaskSpec body and digest shape remain unchanged",
+   "tests/test_picker_work_queue.py|function|test_offload_runner_forwards_declared_paths_and_cannot_be_widened|verifies offload runner forwards declared paths and cannot be widened",
+   "tests/test_picker_work_queue.py|function|test_taskspec_command_gate_is_the_attempt_default|verifies TaskSpec command gate is the attempt default",
+   "tests/test_picker_work_queue.py|function|test_artifact_outside_target_scope_is_refused_before_gate|verifies artifact outside target scope is refused before gate",
+   "tests/test_picker_work_queue.py|function|test_in_scope_artifact_reaches_the_gate|verifies in-scope artifact reaches the gate",
+   "tests/test_picker_work_queue.py|function|test_green_gate_cannot_rewrite_the_tree_after_artifact_capture|verifies green gate cannot rewrite the tree after artifact capture",
+   "tests/test_picker_work_queue.py|function|test_post_gate_binding_error_fails_closed_and_resolves_intent|verifies post-gate binding error fails closed and resolves intent",
+   "tests/test_picker_work_queue.py|function|test_review_packet_is_safe_for_a_cp1252_windows_console|verifies review packet is safe for a cp1252 Windows console"
+  ],
+  "handoff": {}
+ },
+ "name": "c122",
+ "paths": [
+  "tests/test_picker_work_queue.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.9
+}

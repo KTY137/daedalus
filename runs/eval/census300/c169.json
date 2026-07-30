@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c169",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/eval/tasks.py: Defines the task set for distillation eval, including task resolution, correctness detection, and the primary task corpus.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/eval/tasks.py|daedalus.projects",
+   "READS|daedalus/eval/tasks.py|AGENT_ENV_ROOT (file system parent directory)",
+   "CLAIMS|daedalus/eval/tasks.py|Labels verified reachable by running semantic_slice (circularity acknowledged)"
+  ],
+  "todos": [
+   "daedalus/eval/tasks.py|function|resolve_task_repo|Maps a repo label to an absolute repo root, returning the path or raising ValueError.",
+   "daedalus/eval/tasks.py|function|is_correctness_task|Returns True if task uses correctness format (fail_to_pass/pass_to_pass keys), preventing false recall scoring.",
+   "daedalus/eval/tasks.py|function|task_project_label|Returns a project bucket string for a task, never raises KeyError on missing 'repo'.",
+   "daedalus/eval/tasks.py|constant|AGENT_ENV_ROOT|Absolute path to the agent_env repo root (parents[2] of this file).",
+   "daedalus/eval/tasks.py|constant|CORRECTNESS_KEYS|Tuple of keys ('fail_to_pass','pass_to_pass') that mark a correctness task.",
+   "daedalus/eval/tasks.py|constant|TASKS|List of task dictionaries, each with id, repo, target, must_include, etc. for slice-recall tasks."
+  ],
+  "handoff": {
+   "suggestion": ""
+  }
+ },
+ "name": "c169",
+ "paths": [
+  "daedalus/eval/tasks.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.2
+}

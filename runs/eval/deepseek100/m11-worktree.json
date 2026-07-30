@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m11-worktree",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audit found a docstring contradiction in _remove_tree_no_follow: invariant claim 'fresh lstat before every syscall' is not honored in retry paths. _is_reparse_point fails open on stat errors. Implementation of _remove_tree_no_follow is truncated, so critical re-check logic cannot be verified.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Docstring mismatch: _remove_tree_no_follow claims fresh lstat before every syscall, but retry paths in _force_unlink, _force_rmdir, _unlink_reparse_point do not re-verify, widening the attack window.",
+   "_is_reparse_point returns False on OSError/ValueError, failing open. If an error prevents stat'ing a reparse point, it allows traversal into attacker-controlled junctions.",
+   "Incomplete code: _remove_tree_no_follow body truncated; could not verify that re-checks at scan, per-child unlink, and rmdir drain are performed as claimed.",
+   "_chain_between raises ValueError if target not under root, could propagate unhandled if callers don\u2019t ensure containment.",
+   "GitWorktreeManager and cleanup_worktree not visible; docstring claims about allocation record integrity and identity checks cannot be verified."
+  ],
+  "todos": [
+   "Request full implementation of _remove_tree_no_follow, including walk loop and _verify_reachable.",
+   "Request full GitWorktreeManager implementation to verify containment claims."
+  ],
+  "handoff": {
+   "suggestion": "Audit incomplete because _remove_tree_no_follow implementation truncated. Provide full function body, especially walk loop and _verify_reachable, to complete safety review of the most critical component."
+  }
+ },
+ "name": "m11-worktree",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 93.9
+}

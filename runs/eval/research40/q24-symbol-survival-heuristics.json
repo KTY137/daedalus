@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q24-symbol-survival-heuristics",
+ "report": {
+  "status": "needs_review",
+  "summary": "In practice, LLM code edit heuristics include top-level definition survival, line diff ratio, identifier Jaccard, and AST edit distance. Thresholds are rarely public; Aider likely uses ~70% token overlap. No reported false-positive rates on genuine refactors. Multi-metric ensemble is safest.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "A fixed 50% top-level definition ratio may falsely classify large refactors (e.g., module splits) as replacements.",
+   "AST edit distance is sensitive to formatting changes, inflating false positives.",
+   "Identifier Jaccard is high for renames during refactoring, leading to false negatives.",
+   "Embedding similarity is unstable for small changes and lacks clear thresholds.",
+   "Any single heuristic is insufficient; a composite approach is needed but tuning is data-intensive."
+  ],
+  "todos": [
+   "Implement a composite classifier using weighted combination of top-level ratio, identifier Jaccard, and normalized AST edit distance.",
+   "Train thresholds on a curated dataset of intentional edits vs. replacements.",
+   "Add a confidence score and flag ambiguous cases (e.g., 0.4-0.6) for human review.",
+   "Monitor false-positive rate in production and adjust thresholds per file type."
+  ],
+  "handoff": {
+   "suggestion": "Prototype: 1) Normalize AST edit distance by tree size; 2) Combine with identifier overlap (Jaccard) using a linear model; 3) Default threshold: 0.6 for edit, 0.4 for replacement; else flag. Integrate with existing 50% top-level ratio as feature."
+  }
+ },
+ "name": "q24-symbol-survival-heuristics",
+ "question": "For validating that an LLM's file rewrite is an EDIT rather than a REPLACEMENT, what heuristics are used in practice? We use surviving top-level definition ratio with a 50% threshold. What alternatives exist (AST edit distance, embedding similarity, identifier overlap), and what false-positive rates do they carry on genuine refactors?",
+ "elapsed_s": 39.6
+}

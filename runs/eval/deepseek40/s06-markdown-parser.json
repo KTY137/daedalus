@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s06-markdown-parser",
+ "report": {
+  "status": "needs_review",
+  "summary": "Reviewed markdown/wikilink parser for adversarial input. Key findings: (1) Inline code stripping uses a naive regex that fails on nested backticks (e.g., `` `[[Note]]` ``) \u2014 phantom edge possible. (2) Fenced code block detection is correct for standard fences but does not handle HTML comments or inline code inside fences \u2014 no phantom edge from those. (3) Nested brackets in wikilinks are correctly rejected. (4) Pipes in aliases are handled per Obsidian spec. (5) Embeds are correctly distinguished. (6) HTML comments are not stripped \u2014 a link inside an HTML comment is still parsed, producing a ph",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Inline code stripping regex `_INLINE_CODE` fails on nested backticks (e.g., `` `[[Note]]` ``) \u2014 phantom edge from wikilink inside inline code.",
+   "HTML comments are not stripped \u2014 a link inside `<!-- [[Note]] -->` is parsed as a real link.",
+   "Reference definitions (`_REF_DEF`) and autolinks (`_AUTOLINK`) are matched on raw lines, not filtered by `_content_lines`, so they are parsed even inside fenced code blocks \u2014 phantom edge.",
+   "The `_INLINE_CODE` regex does not handle backtick escapes or multiple backtick sequences correctly \u2014 may miss some inline code spans.",
+   "No test coverage for adversarial inputs like nested brackets, pipes in aliases, or embeds inside code fences."
+  ],
+  "todos": [
+   "Fix inline code stripping to handle nested backticks and multiple backtick sequences.",
+   "Add HTML comment stripping before link parsing.",
+   "Move reference definition and autolink matching inside `_content_lines` to respect code fences.",
+   "Add unit tests for adversarial inputs: links inside fenced code, inline code, HTML comments, nested brackets, pipes in aliases, embeds.",
+   "Consider using a proper Markdown AST parser instead of regex for robustness."
+  ],
+  "handoff": {
+   "suggestion": "Proposed fixes: (1) Replace `_INLINE_CODE` with a more robust regex that matches backtick strings without nested backticks. (2) Add a function to strip HTML comments from lines before link scanning. (3) Move `_REF_DEF` and `_AUTOLINK` matching into `_content_lines` or apply the same fence/inline-code filtering. (4) Add test cases for each adversarial input type."
+  }
+ },
+ "name": "s06-markdown-parser",
+ "kind": "scan",
+ "elapsed_s": 48.3
+}

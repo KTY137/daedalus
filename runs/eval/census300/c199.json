@@ -1,0 +1,55 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c199",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_council_livewire.py: Tests for the live-wire gate that prevents real vendor adapters from being called without explicit --live opt-in, covering the central refusal logic, classification of live vs offline seats, and CLI integration.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_council_livewire.py|daedalus.cli",
+   "DEPENDS|tests/test_council_livewire.py|daedalus.council.session",
+   "DEPENDS|tests/test_council_livewire.py|daedalus.council.vendors",
+   "DEPENDS|tests/test_council_livewire.py|pytest",
+   "DEPENDS|tests/test_council_livewire.py|inspect",
+   "DEPENDS|tests/test_council_livewire.py|pathlib.Path",
+   "CLAIMS|tests/test_council_livewire.py|Module docstring states live-wire gate purpose and test methodology end-to-end.",
+   "CLAIMS|tests/test_council_livewire.py|spawn_sentinel fixture docstring: 'Record every attempt to start a vendor process, and start none.'",
+   "CLAIMS|tests/test_council_livewire.py|test_convene_refuses_real_vendor_seats_without_live docstring states expected behavior of refusal and no spawns.",
+   "CLAIMS|tests/test_council_livewire.py|test_live_true_actually_unlocks_dispatch docstring states that live=True is the only thing separating from paid vendor calls.",
+   "CLAIMS|tests/test_council_livewire.py|test_offline_fakes_need_no_opt_in docstring states replay harness must never need --live.",
+   "CLAIMS|tests/test_council_livewire.py|test_injected_runner_counts_as_offline docstring states that a shipped adapter with substituted transport is not live.",
+   "CLAIMS|tests/test_council_livewire.py|test_unknown_adapter_shapes_are_assumed_live docstring states fail-closed assumption: unknown subclasses are live.",
+   "CLAIMS|tests/test_council_livewire.py|test_rebinding_the_module_default_cannot_disarm_the_gate docstring states shipped-transport set snapshotted at import.",
+   "CLAIMS|tests/test_council_livewire.py|test_cli_refuses_a_bare_council_invocation docstring states CLI used to call four vendors, now refuses.",
+   "CLAIMS|tests/test_council_livewire.py|test_cli_live_flag_authorises_the_spend docstring states --live must reach convene as live=True.",
+   "CLAIMS|tests/test_council_livewire.py|test_cli_dry_run_names_the_seats_live_would_call docstring states plan must state price before --live."
+  ],
+  "todos": [
+   "tests/test_council_livewire.py|constant|CLEAN_DIFF|A sample diff string used as test evidence",
+   "tests/test_council_livewire.py|function|spawn_sentinel|Fixture that intercepts vendor process spawning and records attempts",
+   "tests/test_council_livewire.py|function|no_convene|Fixture that prevents any call to convene or default_participants",
+   "tests/test_council_livewire.py|function|test_convene_refuses_real_vendor_seats_without_live|Tests that convene raises LiveCouncilRefused without --live and spawns nothing",
+   "tests/test_council_livewire.py|function|test_live_true_actually_unlocks_dispatch|Tests that --live flag allows vendor process spawning",
+   "tests/test_council_livewire.py|function|test_convene_defaults_live_to_false|Tests that the live parameter defaults to False",
+   "tests/test_council_livewire.py|function|test_every_default_participant_is_classified_live|Tests that all shipped adapters are classified as live",
+   "tests/test_council_livewire.py|function|test_offline_fakes_need_no_opt_in|Tests that fake offline adapters do not require --live",
+   "tests/test_council_livewire.py|function|test_a_one_shot_roster_is_not_drained_by_the_gate|Tests that an iterator roster is not consumed by the gate check",
+   "tests/test_council_livewire.py|function|test_injected_runner_counts_as_offline|Tests that a shipped adapter with a substituted runner is considered offline",
+   "tests/test_council_livewire.py|function|test_unknown_adapter_shapes_are_assumed_live|Tests that unknown subclasses of shipped adapters are assumed live",
+   "tests/test_council_livewire.py|function|test_rebinding_the_module_default_cannot_disarm_the_gate|Tests that monkeypatching run_managed after import does not change gate classification",
+   "tests/test_council_livewire.py|function|test_cli_refuses_a_bare_council_invocation|Tests that CLI refuses council invocation without --live",
+   "tests/test_council_livewire.py|function|test_cli_refuses_live_and_dry_run_together|Tests that CLI refuses contradictory --live and --dry-run",
+   "tests/test_council_livewire.py|function|test_cli_live_flag_authorises_the_spend|Tests that --live reaches convene with live=True",
+   "tests/test_council_livewire.py|function|test_cli_dry_run_names_the_seats_live_would_call|Tests that --dry-run prints the seats without calling convene"
+  ],
+  "handoff": {}
+ },
+ "name": "c199",
+ "paths": [
+  "tests/test_council_livewire.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 25.2
+}

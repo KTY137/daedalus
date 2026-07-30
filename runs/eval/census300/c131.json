@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c131",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/config.py: Manages per-repo configuration resolution including write wave policy, external write lanes, project loading, and repo initialization.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/config.py|daedalus.sensitivity (intersect_write_allow)",
+   "WRITES|daedalus/config.py|.agentenv/agentenv.json, .agentenv/agents/*.json, CLAUDE.md, AGENTS.md (via init_repo)",
+   "READS|daedalus/config.py|.agentenv/agentenv.json (from repo_root)",
+   "READS|daedalus/config.py|templates/agents/*.json, templates/CLAUDE.md, templates/AGENTS.md (via init_repo)",
+   "CLAIMS|daedalus/config.py|resolve_write_wave_policy: \"Anything other than one of WRITE_WAVE_POLICY_LEVELS resolves to DEFAULT_WRITE_WAVE_POLICY\"",
+   "CLAIMS|daedalus/config.py|resolve_external_write_lanes: \"Unknown names are DISCARDED; intersection with KNOWN_EXTERNAL_WRITE_LANES\"",
+   "UNWIRED|daedalus/config.py|external_write_lanes_for_repo (defined but not called within this file)"
+  ],
+  "todos": [
+   "daedalus/config.py|constant|REPO_CONFIG|Path to repo-local config file relative to repo root: .agentenv/agentenv.json",
+   "daedalus/config.py|constant|TEMPLATE_DIR|Resolved path to templates directory (parents[1] / templates)",
+   "daedalus/config.py|constant|WRITE_WAVE_POLICY_LEVELS|Tuple of valid write wave policy levels: never, low_risk, always",
+   "daedalus/config.py|constant|DEFAULT_WRITE_WAVE_POLICY|Fail-closed default for write wave policy: never",
+   "daedalus/config.py|function|resolve_write_wave_policy|Returns permitted write wave auto-promotion level from project config dict, defaulting to 'never' for missing or invalid values",
+   "daedalus/config.py|constant|KNOWN_EXTERNAL_WRITE_LANES|Tuple of recognized external write lane names: deepseek",
+   "daedalus/config.py|constant|DEFAULT_EXTERNAL_WRITE_LANES|Fail-closed default for external write lanes: empty tuple",
+   "daedalus/config.py|function|resolve_external_write_lanes|Returns intersection of config's external_write_lanes with known lanes, case-insensitive; default empty",
+   "daedalus/config.py|function|external_write_lanes_for_repo|Reads repo-local .agentenv/agentenv.json and resolves external write lanes for that repo",
+   "daedalus/config.py|constant|STARTER|Template dict for scaffolded agentenv.json, including policy, test settings, and work queue config",
+   "daedalus/config.py|constant|TOOL_INSTRUCTION_TEMPLATES|Tuple of tool instruction filenames: CLAUDE.md, AGENTS.md",
+   "daedalus/config.py|function|resolve_project|Returns project config dict for given repo_root and optional project name; merges repo-local confinement",
+   "daedalus/config.py|function|init_repo|Scaffolds .agentenv/agentenv.json from STARTER, copies template agents and tool instructions; returns path to written config"
+  ],
+  "handoff": {}
+ },
+ "name": "c131",
+ "paths": [
+  "daedalus/config.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.9
+}

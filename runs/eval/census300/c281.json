@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c281",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tests/fixtures/typegraph/dataclass_field_count_collision.py: path not on the external allow-list (default-deny); tests/fixtures/typegraph/ambiguous_result_star_import.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tests/fixtures/typegraph/dataclass_field_count_collision.py",
+    "tests/fixtures/typegraph/ambiguous_result_star_import.py"
+   ]
+  }
+ },
+ "name": "c281",
+ "paths": [
+  "tests/test_gate_judges_the_candidate.py",
+  "tests/fixtures/typegraph/dataclass_field_count_collision.py",
+  "tests/fixtures/typegraph/ambiguous_result_star_import.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c202",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_tools_vet.py: provides unit tests that verify the invariants of the vet module (daedalus.tools.vet), covering static-only analysis, fail-closed behavior, detection of injections and secrets, acknowledgement handling, bytecode exemptions, MCP server vetting, and determinism of findings.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_tools_vet.py|daedalus.skills",
+   "DEPENDS|tests/test_tools_vet.py|daedalus.tools.vet",
+   "READS|tests/test_tools_vet.py|daedalus/tools/vet.py",
+   "CLAIMS|tests/test_tools_vet.py|StaticOnly: vetting never runs, imports or contacts what it inspects",
+   "CLAIMS|tests/test_tools_vet.py|FailClosed: 'could not scan' is never 'clean'",
+   "CLAIMS|tests/test_tools_vet.py|Acknowledgements: an acknowledgement downgrades, it never hides",
+   "CLAIMS|tests/test_tools_vet.py|BytecodeExemption: the exemption is conditional on the source having been scanned",
+   "CLAIMS|tests/test_tools_vet.py|McpServers: a server is never reported as cleared because it was not started"
+  ],
+  "todos": [
+   "tests/test_tools_vet.py|class|StaticOnly|verifies vetting never runs, imports or contacts what it inspects",
+   "tests/test_tools_vet.py|class|FailClosed|verifies 'could not scan' is never 'clean'",
+   "tests/test_tools_vet.py|class|Detection|verifies detection of prompt injection, exec calls, dotenv secrets",
+   "tests/test_tools_vet.py|class|Acknowledgements|verifies acknowledgement downgrades but never hides",
+   "tests/test_tools_vet.py|class|BytecodeExemption|verifies conditional exemption for .pyc files",
+   "tests/test_tools_vet.py|class|McpServers|verifies MCP server vetting rules",
+   "tests/test_tools_vet.py|class|Determinism|verifies findings are reproducible and ordered"
+  ],
+  "handoff": {}
+ },
+ "name": "c202",
+ "paths": [
+  "tests/test_tools_vet.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.0
+}

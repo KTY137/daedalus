@@ -1,0 +1,50 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c156",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_stream_hook.py: Test suite for the stream_hook module, verifying abridgement, provenance, plumbing filters, deduplication, sidecar counting, failure resilience, and log rotation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_stream_hook.py|runs/council/stream_hook.py",
+   "READS|tests/test_stream_hook.py|HOOK_PATH (stream_hook.py file)"
+  ],
+  "todos": [
+   "tests/test_stream_hook.py|constant|HOOK_PATH|Path to the stream_hook.py under test",
+   "tests/test_stream_hook.py|constant|ABRIDGED|Regex for matching abridged provenance lines",
+   "tests/test_stream_hook.py|constant|PARAS|Sample paragraph texts used in tests",
+   "tests/test_stream_hook.py|constant|LONG|Long concatenated sample text exceeding LEDE_MAX",
+   "tests/test_stream_hook.py|module|hook|Loaded stream_hook module under test",
+   "tests/test_stream_hook.py|function|run|Runs stream_hook with monkeypatched env and stdin, returns exit code",
+   "tests/test_stream_hook.py|function|run_subprocess|Runs stream_hook as subprocess, returns CompletedProcess",
+   "tests/test_stream_hook.py|function|room_text|Returns content of room.md from temp directory",
+   "tests/test_stream_hook.py|function|log_lines|Returns non-empty lines from .stream_hook.log",
+   "tests/test_stream_hook.py|function|sidecar_body|Returns body of sidecar file without provenance header",
+   "tests/test_stream_hook.py|function|test_long_turn_is_abridged_and_the_omission_line_is_true|Guarantees long turns are abridged with correct provenance arithmetic and sidecar integrity",
+   "tests/test_stream_hook.py|function|test_short_turn_is_mirrored_whole_with_no_omission_line|Guarantees short turns are mirrored entirely without abridgement or sidecar",
+   "tests/test_stream_hook.py|function|test_lede_cuts_at_a_boundary_never_midword|Guarantees abridgement cuts between tokens, not mid-word",
+   "tests/test_stream_hook.py|function|test_lede_prefers_the_paragraph_break_inside_the_window|Guarantees lede prefers paragraph breaks within LEDE_MIN-LEDE_MAX window",
+   "tests/test_stream_hook.py|function|test_lede_does_not_cut_at_a_version_number_or_a_file_line_reference|Guarantees abridgement avoids cutting at version numbers or file references",
+   "tests/test_stream_hook.py|function|test_an_open_code_fence_in_the_lede_is_closed|Guarantees any open code fence in the lede is closed in the room text",
+   "tests/test_stream_hook.py|function|test_plumbing_is_never_mirrored|Guarantees plumbing markers are skipped and not mirrored to room",
+   "tests/test_stream_hook.py|function|test_empty_turn_is_skipped|Guarantees empty turns are skipped with appropriate log entry",
+   "tests/test_stream_hook.py|function|test_dedupe_still_holds|Guarantees identical consecutive turns are deduplicated",
+   "tests/test_stream_hook.py|function|test_sidecar_counter_survives_a_restart|Guarantees sidecar counter persists across subprocess restarts",
+   "tests/test_stream_hook.py|function|test_counter_continues_past_ids_left_by_an_earlier_day|Guarantees counter continues from existing sidecar IDs from previous runs",
+   "tests/test_stream_hook.py|function|test_internal_failure_still_exits_zero_and_logs_an_error|Guarantees internal failures exit zero and log error instead of crashing",
+   "tests/test_stream_hook.py|function|test_garbage_stdin_exits_zero_and_logs_an_error|Guarantees garbage stdin exits zero and logs error",
+   "tests/test_stream_hook.py|function|test_sidecar_failure_is_named_in_the_room_not_hidden|Guarantees sidecar write failure is reported in room text as UNAVAILABLE",
+   "tests/test_stream_hook.py|function|test_log_rotates_at_its_cap|Guarantees log rotates at LOG_MAX_BYTES retaining one backup",
+   "tests/test_stream_hook.py|function|test_log_records_every_field|Guarantees log entries contain all required tab-separated fields"
+  ],
+  "handoff": {}
+ },
+ "name": "c156",
+ "paths": [
+  "tests/test_stream_hook.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 16.9
+}

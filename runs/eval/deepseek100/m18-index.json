@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m18-index",
+ "report": {
+  "status": "blocked",
+  "summary": "The provided slice of daedalus/structcore/index.py is incomplete; it cuts off during _per_file_pass and does not contain the build_index function. Without the full implementation, many docstring guarantees (opt-in layers, document/module interleaving, type node exclusion) cannot be verified. Only potential issue spotted: _collect terminates early if max_files=0 (unclear if caller ever passes 0). Concurrency/filesystem-atomicity unevaluable.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "_collect will return after one file if max_files=0; unknown if caller defaults to 0 or uses that value",
+   "docstring guarantees about documents/types/wiki layering cannot be verified without build_index implementation",
+   "concurrency and Windows file handle issues cannot be assessed with truncated _per_file_pass"
+  ],
+  "todos": [
+   "Obtain complete file including build_index and rest of _per_file_pass",
+   "Verify max_files handling in _collect and its callers",
+   "Ensure document/type/wiki opt-in logic matches all docstring claims (e.g., exclusion from modules, edges, etc.)",
+   "Review _per_file_pass for process pool order correctness and Windows compatibility",
+   "Test filesystem atomicity with content-keyed cache under concurrent access"
+  ],
+  "handoff": {
+   "suggestion": "Please provide the full source of build_index and the remainder of _per_file_pass to complete the audit."
+  }
+ },
+ "name": "m18-index",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 49.5
+}

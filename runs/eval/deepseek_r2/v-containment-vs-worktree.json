@@ -1,0 +1,26 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "v-containment-vs-worktree",
+ "report": {
+  "status": "needs_review",
+  "summary": "Source file `containment-vs-worktree.py` was not located; all claims are undecidable.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "UNDECIDABLE: Implement network isolation - source file not found.",
+   "UNDECIDABLE: Reduce harness privilege - source file not found.",
+   "UNDECIDABLE: Measure named pipe behavior - source file not found.",
+   "UNDECIDABLE: Add disk quota or monitoring - source file not found."
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Locate the missing source file to re-evaluate claims."
+  }
+ },
+ "name": "v-containment-vs-worktree",
+ "paths": [
+  "docs/research/rounds/round1/containment-vs-worktree.md"
+ ],
+ "elapsed_s": 10.7
+}

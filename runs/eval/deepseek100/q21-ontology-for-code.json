@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q21-ontology-for-code",
+ "report": {
+  "status": "needs_review",
+  "summary": "No single universal code-entity ontology dominates. SPDX (ISO/IEC 5962:2021) is widely adopted for license/SBOM exchange; CodeMeta works for scholarly metadata. Full code-structure ontologies (SWO, SEON) lack broad tool support and add ceremony without clear benefit. Adopt the lightest schema that meets actual interoperability needs; for internal use, design a minimal AST-based representation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Heavy ontologies (SEON, SWO) impose semantic overhead with little tooling uptake",
+   "Premature standardization may force rigidity where a flexible internal schema suffices",
+   "Interoperability benefit is limited unless explicit external exchange is required"
+  ],
+  "todos": [
+   "Survey external tools/systems Daedalus must interoperate with (e.g., SBOM generators, repo registries)",
+   "If license/compliance exchange needed, map internal model to SPDX minimal profile",
+   "For code analysis, evaluate lightweight AST-based serialization (e.g., JSON of tree-sitter output) vs. SWO/SEON",
+   "Prototype metadata export to CodeMeta if targeting scholarly repositories"
+  ],
+  "handoff": {
+   "suggestion": "Identify concrete consumers: if SBOM exchange is required, adopt SPDX. For scientific software discovery, implement CodeMeta export. Otherwise, avoid semantic over-engineering\u2014define a minimal internal schema (e.g., JSON representation of AST symbols) and defer external ontologies until a specific interoperability need is proven."
+  }
+ },
+ "name": "q21-ontology-for-code",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 21.5
+}

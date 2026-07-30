@@ -1,0 +1,44 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m12-canary",
+ "report": {
+  "status": "needs_review",
+  "summary": "Critical syntax error in ProbeResult.key property (missing code) breaks module import. live_egress_lanes listed in __all__ but not defined in this slice; triggers ImportError. The provided file is incomplete, so concurrency, history appending, and run_canary error handling are not auditable.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "severity": "critical",
+    "finding": "ProbeResult.key property line is truncated: `return (self.vendor, self.m` causes SyntaxError on import, making entire module unusable.",
+    "trigger": "Any import of the module."
+   },
+   {
+    "severity": "high",
+    "finding": "live_egress_lanes is exported in __all__ and referenced in docstring, but no definition appears in the visible slice. Likely a missing function or import.",
+    "trigger": "Any code that imports or calls live_egress_lanes."
+   },
+   {
+    "severity": "medium",
+    "finding": "The provided slice ends mid\u2011sentence; crucial functions (run_canary, dry_run_plan, append_history, render_table, resolve_exe, compare_to_history, load_history) are not shown. Concurrency safety and filesystem atomicity (Windows file locks) cannot be assessed.",
+    "trigger": "Cannot verify; slice incomplete."
+   },
+   {
+    "severity": "low",
+    "finding": "Docstring guarantee that 'every host is passed explicitly' and that only localhost is local cannot be verified because the code that populates ProbeResult.local is not visible.",
+    "trigger": "Cannot verify; slice incomplete."
+   }
+  ],
+  "todos": [
+   "Complete the ProbeResult.key property: return (self.vendor, self.model, self.probe) (or whatever the intended tuple is).",
+   "Define live_egress_lanes or remove it from __all__ and docstring if it belongs in another module.",
+   "Provide the full file for a complete audit of run_canary, threading, history file writes, and exit-code logic."
+  ],
+  "handoff": {
+   "suggestion": "Fix the truncated `key` property by closing the tuple and parentheses. Verify that live_egress_lanes is either implemented locally or properly imported; otherwise remove the name from __all__ and update the docstring."
+  }
+ },
+ "name": "m12-canary",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 74.2
+}

@@ -1,0 +1,36 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c260",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/report.py: Provides functions to trim a raw build_index result into a compact API payload for the cockpit Structure sheet, including clone rows projection, dependency graph construction, and the main structure_summary function. daedalus/mapping/__init__.py: Re-exports key types and the analyse function from reach module to provide the mechanical half of the architecture artifact, answering questions about reachability.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CLAIMS|daedalus/structcore/report.py|The raw index carries a per-file modules dict and full clone-site lists \u2014 far too large to ship to the UI.",
+   "DEPENDS|daedalus/mapping/__init__.py|daedalus.mapping.reach",
+   "CLAIMS|daedalus/mapping/__init__.py|Two halves: mechanical (here) derived on every run from the tree itself, narrative in docs/adrs/*.md"
+  ],
+  "todos": [
+   "daedalus/structcore/report.py|function|structure_summary|Trims a full build_index result into a compact API payload for the cockpit Structure sheet.",
+   "daedalus/mapping/__init__.py|constant|CLASSES|Re-exports CLASSES from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|constant|ENTRY_KINDS|Re-exports ENTRY_KINDS from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|constant|SCHEMA|Re-exports SCHEMA from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|class|EntryPoint|Re-exports EntryPoint from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|class|ModuleFacts|Re-exports ModuleFacts from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|class|ReachReport|Re-exports ReachReport from daedalus.mapping.reach",
+   "daedalus/mapping/__init__.py|function|analyse|Re-exports analyse from daedalus.mapping.reach"
+  ],
+  "handoff": {
+   "suggestion": ""
+  }
+ },
+ "name": "c260",
+ "paths": [
+  "daedalus/structcore/report.py",
+  "daedalus/mapping/__init__.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.8
+}

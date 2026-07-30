@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c179",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_primary_tree_fence.py: Tests for the primary checkout write fence, verifying that writes into the checkout are blocked and writes into worktrees are allowed, covering path resolution, symlinks, aliases, and integration with the attempt module.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_primary_tree_fence.py|daedalus.primary_tree",
+   "DEPENDS|tests/test_primary_tree_fence.py|daedalus.spine.attempt",
+   "CLAIMS|tests/test_primary_tree_fence.py|The primary-checkout write fence: a write aimed at the checkout is refused, the SAME write aimed at a worktree is allowed.",
+   "CLAIMS|tests/test_primary_tree_fence.py|Every fence test here is PAIRED. A blocked-only assertion passes just as well when the predicate is \"return \\\"no\\\"\" for everything, which is a guard that is broken in the direction nobody notices until the product stops working; and an allowed-only assertion passes when the predicate is \"return None\". So each case states both halves against the same input shape."
+  ],
+  "todos": [
+   "tests/test_primary_tree_fence.py|function|trees|Fixture that creates a stand-in primary checkout and a stand-in worktree as siblings.",
+   "tests/test_primary_tree_fence.py|function|test_the_same_write_is_refused_in_the_checkout_and_allowed_in_a_worktree|THE invariant: identical relative path, one tree apart, opposite verdicts.",
+   "tests/test_primary_tree_fence.py|function|test_assert_write_allowed_raises_for_the_checkout_and_returns_for_a_worktree|assert_write_allowed raises for checkout and returns resolved path for worktree.",
+   "tests/test_primary_tree_fence.py|function|test_a_file_that_does_not_exist_yet_is_judged_by_its_GROUND|A new file is judged by its ground; fence must block creation inside checkout and allow in worktree.",
+   "tests/test_primary_tree_fence.py|function|test_a_relative_path_cannot_walk_out_of_the_worktree_into_the_checkout|\\\"..\\\" is resolved before comparison; path escaping checkout is blocked, staying is allowed.",
+   "tests/test_primary_tree_fence.py|function|test_a_symlink_pointing_into_the_checkout_is_resolved_and_refused|Symlink that lands on checkout is resolved and refused; ordinary dir is allowed.",
+   "tests/test_primary_tree_fence.py|function|test_input_that_cannot_be_resolved_is_refused_not_guessed_at|Input that cannot be resolved (None, empty) is refused; real worktree path is allowed.",
+   "tests/test_primary_tree_fence.py|function|test_a_checkout_that_cannot_be_examined_refuses_everything|If checkout cannot be examined, everything is refused.",
+   "tests/test_primary_tree_fence.py|function|test_the_default_root_is_this_repository_not_unfenced|If no repo_root given, defaults to this repository's root, not unfenced.",
+   "tests/test_primary_tree_fence.py|function|test_every_alias_spelling_of_the_real_checkout_is_refused|All alias spellings of the real checkout (lowercased, dotdot, UNC admin share, etc.) are refused.",
+   "tests/test_primary_tree_fence.py|function|test_the_alias_test_above_is_not_vacuous|Same alias shapes aimed at a non-checkout directory are allowed (paired half).",
+   "tests/test_primary_tree_fence.py|function|test_write_and_overlap_diverge_on_the_contains_direction|overlap_reason and write_blocked_reason diverge on parent directory: container is blocked by overlap but allowed by write fence.",
+   "tests/test_primary_tree_fence.py|function|test_attempt_module_uses_the_shared_comparison_not_its_own|Verifies that spine/attempt.py uses shared comparisons from primary_tree, not private copies.",
+   "tests/test_primary_tree_fence.py|function|test_nearest_existing_stops_at_the_first_real_directory|nearest_existing returns the first existing ancestor directory.",
+   "tests/test_primary_tree_fence.py|function|test_persist_refuses_an_artifact_dir_inside_the_checkout|TaskAttempt._persist refuses artifact_dir inside checkout and does not create directories.",
+   "tests/test_primary_tree_fence.py|function|test_persist_writes_happily_into_a_worktree|TaskAttempt._persist writes into a worktree successfully."
+  ],
+  "handoff": {}
+ },
+ "name": "c179",
+ "paths": [
+  "tests/test_primary_tree_fence.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 17.1
+}

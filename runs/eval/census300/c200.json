@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c200",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/bookkeeper.py: Responsible for rendering docs/ARCHITECTURE.md into a styled HTML artifact and maintaining a timestamped snapshot history with git hashes, using only stdlib.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "READS|daedalus/bookkeeper.py|docs/ARCHITECTURE.md",
+   "READS|daedalus/bookkeeper.py|docs/architecture_history/manifest.json",
+   "WRITES|daedalus/bookkeeper.py|docs/architecture.html",
+   "WRITES|daedalus/bookkeeper.py|docs/architecture_history/",
+   "WRITES|daedalus/bookkeeper.py|docs/architecture_history/manifest.json",
+   "WRITES|daedalus/bookkeeper.py|docs/architecture_history/index.html",
+   "CLAIMS|daedalus/bookkeeper.py|After every build session (and on demand), it renders docs/ARCHITECTURE.md into a styled, self-contained docs/architecture.html artifact, and files timestamped snapshots into docs/architecture_history/",
+   "UNWIRED|daedalus/bookkeeper.py|main"
+  ],
+  "todos": [
+   "daedalus/bookkeeper.py|constant|ROOT|Root path of the repository (parent of script's directory)",
+   "daedalus/bookkeeper.py|constant|DOCS|Path to docs directory (ROOT/docs)",
+   "daedalus/bookkeeper.py|constant|SOURCE|Path to ARCHITECTURE.md (DOCS/ARCHITECTURE.md)",
+   "daedalus/bookkeeper.py|constant|ARTIFACT|Path to output architecture.html (DOCS/architecture.html)",
+   "daedalus/bookkeeper.py|constant|HISTORY|Path to architecture_history directory (DOCS/architecture_history)",
+   "daedalus/bookkeeper.py|function|render_markdown|Converts a subset of Markdown to HTML (headings, lists, tables, code, blockquote, hr, inline)",
+   "daedalus/bookkeeper.py|function|update|Renders ARCHITECTURE.md to artifact, snapshots on content change, returns summary dict",
+   "daedalus/bookkeeper.py|function|main|CLI entry point for the bookkeeper actions"
+  ],
+  "handoff": {}
+ },
+ "name": "c200",
+ "paths": [
+  "daedalus/bookkeeper.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.2
+}

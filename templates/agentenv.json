@@ -28,7 +28,10 @@
       "production",
       "deploy"
     ],
-    "deny_content": []
+    "deny_content": [],
+
+    "_comment_external_write_lanes": "Which UNTRUSTED external provider lanes may APPLY a change instead of only advising. Empty (the default, and today's behaviour) = every external lane is advisory-only. Add \"deepseek\" to let the DeepSeek lane land a full-file rewrite, and only on LOW change-risk, non-review tasks. This does NOT widen anything else: a lane named here may still only touch paths write_allow permits, may still only receive bytes the egress keys (allow / default_deny) permit, still faces the verify gate, and still rolls back on failure. DeepSeek writes are PAID.",
+    "external_write_lanes": []
   },
   "test_command": "python -m pytest -q",
   "test_cwd": ".",

@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c221",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/tools/inventory.py: builds a deterministic inventory of every skill and MCP server visible from a project, each with a vet verdict, by reading skill directories and MCP config files.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/tools/inventory.py|daedalus.skills",
+   "DEPENDS|daedalus/tools/inventory.py|daedalus.tools.vet",
+   "READS|daedalus/tools/inventory.py|skill directories (SKILL_SCOPES, USER_SKILL_DIRS)",
+   "READS|daedalus/tools/inventory.py|MCP config files (MCP_SCOPES)",
+   "CLAIMS|daedalus/tools/inventory.py|Derived, never hand-maintained \u2014 regenerate and it is true by construction",
+   "CLAIMS|daedalus/tools/inventory.py|It reads files and returns data"
+  ],
+  "todos": [
+   "daedalus/tools/inventory.py|constant|INVENTORY_VERSION|Version string for the inventory format",
+   "daedalus/tools/inventory.py|constant|SKILL_SCOPES|Precedence-ordered list of (scope, relative_path) pairs for skill directories",
+   "daedalus/tools/inventory.py|constant|USER_SKILL_DIRS|Tuple of user-level skill directories",
+   "daedalus/tools/inventory.py|constant|MCP_SCOPES|Precedence-ordered list of (scope, relative_path) pairs for MCP config files",
+   "daedalus/tools/inventory.py|class|ToolRecord|Dataclass representing one tool with provenance and verdict",
+   "daedalus/tools/inventory.py|function|collect_skills|Collects all skills from project and user scopes, vetting each",
+   "daedalus/tools/inventory.py|function|collect_mcp_servers|Collects all MCP servers from project and user scopes, vetting each",
+   "daedalus/tools/inventory.py|function|build|Returns the whole inventory as a deterministic dict",
+   "daedalus/tools/inventory.py|function|render|Returns a flat table string for terminal display of inventory",
+   "daedalus/tools/inventory.py|function|main|CLI entry point that prints inventory as JSON or table"
+  ],
+  "handoff": {}
+ },
+ "name": "c221",
+ "paths": [
+  "daedalus/tools/inventory.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 11.2
+}

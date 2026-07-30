@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c167",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_offload_automint.py: Tests the auto-mint seam that fires on landed offload writes, verifying invariants about when minting occurs, fail-soft behavior, and the environment toggle.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_offload_automint.py|daedalus",
+   "DEPENDS|tests/test_offload_automint.py|daedalus.offload",
+   "DEPENDS|tests/test_offload_automint.py|daedalus.eval.mint",
+   "DEPENDS|tests/test_offload_automint.py|daedalus.providers",
+   "DEPENDS|tests/test_offload_automint.py|daedalus.metrics",
+   "CLAIMS|tests/test_offload_automint.py|fires only on a genuinely landed edit (verified disk change, gate passed, nothing rolled back)",
+   "CLAIMS|tests/test_offload_automint.py|exactly one mint + one store write per landed run",
+   "CLAIMS|tests/test_offload_automint.py|minted task is QUARANTINE tier; non-quarantine task is REFUSED",
+   "CLAIMS|tests/test_offload_automint.py|minter that raises is fail-soft AND loud",
+   "CLAIMS|tests/test_offload_automint.py|env flag toggles it, OFF by default"
+  ],
+  "todos": [
+   "tests/test_offload_automint.py|class|AutoMintSeamTests|Validates the auto-mint seam invariants: fires on landed writes, never on rolled-back/advisory/dry-run, fail-soft, env-toggle"
+  ],
+  "handoff": {}
+ },
+ "name": "c167",
+ "paths": [
+  "tests/test_offload_automint.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.8
+}

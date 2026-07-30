@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c228",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_honest_denominator.py: Tests that the reduction percentage denominator uses exact token counts from the index rather than a heuristic, and ensures cache correctness and backward compatibility.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.cache",
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.perfile",
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.languages",
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.slice",
+   "DEPENDS|tests/test_honest_denominator.py|daedalus.structcore.tokens"
+  ],
+  "todos": [
+   "tests/test_honest_denominator.py|module|tests.test_honest_denominator|Module providing tests for honest denominator token exactness.",
+   "tests/test_honest_denominator.py|constant|MOD|Template for test module files with prose-heavy docstring.",
+   "tests/test_honest_denominator.py|constant|MAIN|Template for main file importing modules.",
+   "tests/test_honest_denominator.py|class|HonestDenominatorTest|Test case containing tests for index total_tokens, slice denominator, cache round-trip, legacy fallback, and staleness."
+  ],
+  "handoff": {}
+ },
+ "name": "c228",
+ "paths": [
+  "tests/test_honest_denominator.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 26.3
+}

@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m60-forest",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audit found issues that conflict with documented guarantees: (1) duplicate type nodes are silently discarded, losing attributes and violating evidence-preserving claim; (2) edge evidence is hardcoded, discarding any per-edge index evidence; (3) temporal edge dedup may lose later occurrences; (4) _json_value repr fallback can break determinism. No filesystem or concurrency issues; no silent partial failures.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "HIGH: In type_nodes loop, second and subsequent rows for the same node_id are silently skipped (line approx. after `if node_id in type_ids: continue`), discarding attributes and evidence. Concrete trigger: index with multiple type_nodes entries sharing an id but differing attributes.",
+   "MEDIUM: Hardcoded evidence tuples (e.g., 'structcore.type_edges') discard any per-edge provenance from the index, contradicting the docstring claim that the snapshot is evidence-preserving. This affects all edge types.",
+   "LOW: In temporal pairs deduplication, `seen_temporal` uses only file pair (a,b); later occurrences with different attributes are dropped. This could lose data if the iterable contains duplicate pairs.",
+   "LOW: `_json_value` fallback to `repr()` for unknown types may produce non-deterministic output across Python runs, violating the deterministic claim if the index ever carries custom objects with unstable repr."
+  ],
+  "todos": [
+   "Merge duplicate type node rows instead of skipping, combining attributes with documented conflict resolution.",
+   "Allow edge sources to provide an optional 'evidence' key, falling back to current hardcoded values.",
+   "Consider temporal dedup that also compares attributes or keep last occurrence.",
+   "Disallow non-JSON-serialisable attribute types or document the deterministic guarantee scope."
+  ],
+  "handoff": {
+   "suggestions": [
+    {
+     "location": "type_nodes loop in build_knowledge_forest",
+     "change": "Modify deduplication to update attributes from subsequent rows (e.g., dict merge) instead of skipping. Alternatively, raise an error if duplicate ids are found."
+    },
+    {
+     "location": "All edge-construction loops",
+     "change": "Check for an 'evidence' key in the input row. If present, use it; otherwise use the current hardcoded tuple to preserve upstream provenance."
+    }
+   ]
+  }
+ },
+ "name": "m60-forest",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 70.4
+}

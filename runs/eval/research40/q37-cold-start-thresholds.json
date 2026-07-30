@@ -1,0 +1,26 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q37-cold-start-thresholds",
+ "report": {
+  "status": "needs_review",
+  "summary": "Literature does not give a single definitive number. Mutation testing work (e.g., Inozemtseva & Holmes, 2014) suggests 20\u201350 mutants can approximate full mutant set metrics, but this is for mutation score, not defect-detector thresholds. Studies on synthetic defect injection for prediction (e.g., Just et al., 2014) show mutants can mimic real faults incompletely; thresholds from mutants diverge from real-defect thresholds by an uncertain margin. Recommendation: per-project empirical convergence analysis with bootstrapping; start with \u2265200 mutants, validate with historical defects if available.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Mutant-based thresholds may overfit to artificial patterns, causing missed critical defects (fail-open risk) or excessive false positives.",
+   "Without real-defect data, calibration uncertainty persists; synthetic-to-real transfer gap is unquantified broadly."
+  ],
+  "todos": [
+   "Implement bootstrapping on synthetic corpus to determine threshold stability point (likely 100\u2013500 mutants).",
+   "Collect a small set of real post-mortem defects (\u226520) for validation and potential threshold adjustment.",
+   "Start with a conservative threshold (e.g., top 5% of mutant suspiciousness scores) and monitor in production."
+  ],
+  "handoff": {
+   "suggestion": "Review recent literature on 'synthetic defect injection for prediction calibration' (e.g., TSE 2021 studies). Consider using a holdout set of real defects to adjust thresholds if project history allows."
+  }
+ },
+ "name": "q37-cold-start-thresholds",
+ "question": "When calibrating a defect detector per project using synthetic corpora, how many synthetic examples are needed before thresholds stabilise, and how much does a threshold calibrated on synthetic mutants differ from one calibrated on real defects?",
+ "elapsed_s": 54.3
+}

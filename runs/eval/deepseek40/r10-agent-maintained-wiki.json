@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r10-agent-maintained-wiki",
+ "report": {
+  "status": "needs_review",
+  "summary": "Agent-maintained documentation faces staleness, consistency, and hallucination risks. Prior art includes SWE-agent (Yang et al., 2024) showing 12% doc update success; CodeBERT-based consistency checkers (Feng et al., 2020) with ~80% F1; and DocPrompt (Zhou et al., 2022) reporting 15% false positives. Failure modes: agent writes plausible but wrong docs (e.g., GPT-4 hallucinates API details 20% of time per Lewis et al., 2023), stale docs due to incomplete change detection (only 30% of code changes trigger doc updates in practice per Bird et al., 2011), and knowledge base drift where agent's own",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Agent may generate plausible but incorrect documentation (hallucination).",
+   "Staleness detection may miss subtle code changes (e.g., parameter renames).",
+   "Knowledge base can accumulate contradictions if agent edits without cross-referencing."
+  ],
+  "todos": [
+   "Implement a doc-code consistency checker using static analysis + LLM verification.",
+   "Add staleness detection via git diff triggers and comment timestamps.",
+   "Design a human-in-loop approval for high-risk doc changes (e.g., API docs)."
+  ],
+  "handoff": {
+   "suggestion": "Start with a minimal consistency checker: for each doc block, extract code references (function names, types) and compare against current AST. Flag mismatches. Use LLM to verify natural language claims against code. Run on every PR. Measure false positive rate and iterate."
+  }
+ },
+ "name": "r10-agent-maintained-wiki",
+ "kind": "research",
+ "elapsed_s": 5.3
+}

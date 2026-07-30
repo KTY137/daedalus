@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c140",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_mutation_score.py: Tests for tools/mutation_score.py, verifying mutation scoring logic with fixture-based end-to-end and unit tests including classification, anchoring, and drop-test controls.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_mutation_score.py|tools/mutation_score",
+   "WRITES|tests/test_mutation_score.py|temporary directories (fixture repos)",
+   "READS|tests/test_mutation_score.py|fixture files (goodmod.py, weakmod.py, etc.)",
+   "CLAIMS|tests/test_mutation_score.py|the scorer must be falsifiable: good tests score 100%, weak tests yield survivors, removing a covering test flips a caught mutant to survived",
+   "CLAIMS|tests/test_mutation_score.py|three rules: red baseline is not a score, inapplicable mutation is not a survivor, nothing touches the working repository",
+   "SMELL|tests/test_mutation_score.py|sys.path.insert(0, ...) side-effect at module load"
+  ],
+  "todos": [
+   "tests/test_mutation_score.py|class|GeneratorTests|Tests for mutation generation: operator reachability, determinism, spread sampling, compile validity, utf8 offsets, unparseable source, guard operator targeting",
+   "tests/test_mutation_score.py|class|AnchorTests|Tests for mutation anchoring: span mutation refuses on shifted file, patch mutation behavior, no-op edit not applicable",
+   "tests/test_mutation_score.py|class|ClassificationTests|Tests for mutation classification with fake runner: red baseline inconclusive, timeout inconclusive, expect_test requirement, inapplicable not counted",
+   "tests/test_mutation_score.py|class|EndToEndTests|End-to-end tests with real pytest: good tests kill all mutants, weak tests leave named survivors, dropping covering test flips kill to survivor, working tree never written, sandbox destroyed",
+   "tests/test_mutation_score.py|class|DropTestControlTests|Tests for drop_test function: removes function and still parses, refuses nonexistent test",
+   "tests/test_mutation_score.py|class|RenderTests|Tests for render function: output includes SURVIVED, UNFALSIFIABLE, equivalent mutant, mutation score percentage",
+   "tests/test_mutation_score.py|function|build_fixture_repo|Builds a temporary fixture repository with good and weak modules and tests",
+   "tests/test_mutation_score.py|constant|GOOD_MODULE|Source code for a well-tested module (is_allowed with DENY and size checks)",
+   "tests/test_mutation_score.py|constant|GOOD_TESTS|Test source that fully covers GOOD_MODULE branches",
+   "tests/test_mutation_score.py|constant|WEAK_MODULE|Source code for a poorly-tested module (classify incomplete branches)",
+   "tests/test_mutation_score.py|constant|WEAK_TESTS|Test source that misses some branches of WEAK_MODULE",
+   "tests/test_mutation_score.py|constant|RED_TESTS|Test source that is already failing (baseline non-green)"
+  ],
+  "handoff": {
+   "suggestion": "The test file is well-structured with clear docstrings explaining the rationale. No immediate structural changes needed; however, the sys.path.insert at module level is a code smell that could be moved to a setup method if compatibility allows."
+  }
+ },
+ "name": "c140",
+ "paths": [
+  "tests/test_mutation_score.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 9.9
+}

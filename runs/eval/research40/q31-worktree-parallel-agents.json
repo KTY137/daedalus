@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q31-worktree-parallel-agents",
+ "report": {
+  "status": "needs_review",
+  "summary": "Git worktrees share a single object store and index, leading to lock contention on index.lock and race conditions on pack files. At 10 concurrent worktrees, occasional index lock failures are likely; at 100, frequent lock timeouts, operation failures, and possible object store corruption (e.g., concurrent gc) become common. Formal benchmarks are sparse; practitioner reports and mailing list discussions indicate issues beyond ~30-50 worktrees. Disagreements exist on whether to use worktrees with retry logic or switch to per-agent clones. For Daedalus on Windows, the fail-closed egress fence and",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Windows file locking (antivirus, OS) may worsen contention and cause spurious failures.",
+   "Shared object store writes (e.g., `git gc`, `git repack`) can corrupt the database if not serialized.",
+   "Many short-lived worktrees increase inode usage and disk churn.",
+   "Serializing all Git writes through a single point becomes a bottleneck, limiting true parallelism.",
+   "Alternatives like per-agent clones consume more disk space and take longer to initialize."
+  ],
+  "todos": [
+   "Implement a write-serializing adapter around Git operations (e.g., a queue or lock file) to avoid index/store contention among worktrees.",
+   "Benchmark the system at 10 and 100 simulated parallel agents, measuring lock contention rate, operation latency, and failure frequency.",
+   "Evaluate per-agent thin clones (e.g., `git clone --shared` from a bare reference repo) as a fallback; compare disk and time overhead.",
+   "Ensure no automatic garbage collection on shared object stores and add health checks for repository corruption.",
+   "If adopting worktrees, add retry logic with exponential backoff for index lock errors."
+  ],
+  "handoff": {
+   "suggestion": "Start with a small pilot: run 10 agents with worktrees and monitor lock errors. Then spike 100 agents using a file-based job queue for Git writes. If contention is unmanageable, prototype per-agent clones seeded from a common bare repository (read-only) and measure the trade-offs. Also investigate Git's `core.fscache` and `core.preloadindex` on Windows to mitigate some performance issues. For deeper background, review Git mailing list threads on 'worktree scalability' and the Git for Windows issues tracker."
+  }
+ },
+ "name": "q31-worktree-parallel-agents",
+ "question": "Git worktree strategies for many parallel agents: what breaks at ten and at a hundred concurrent worktrees, how do teams handle shared object-store contention and index locks, and what is the practical alternative when worktrees stop scaling?",
+ "elapsed_s": 71.6
+}

@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c234",
+ "report": {
+  "status": "blocked",
+  "summary": "No context files supplied. Unable to perform structural census.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "note": "Need file paths or excerpts to proceed.",
+   "skipped_sensitive": [
+    "tests/test_write_guard_e2e.py"
+   ]
+  }
+ },
+ "name": "c234",
+ "paths": [
+  "tests/test_write_guard_e2e.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.7
+}

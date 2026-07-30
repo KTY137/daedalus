@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c152",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_temporal_ceiling.py: Tests for the temporal co-change ceiling check (eval/ceiling.py) using git-based fixtures, covering positive control, artifact leak, static edge, rename boundary, materiality floor, and co-change rev parameter.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_temporal_ceiling.py|daedalus.eval.ceiling",
+   "DEPENDS|tests/test_temporal_ceiling.py|daedalus.structcore.churn"
+  ],
+  "todos": [
+   "tests/test_temporal_ceiling.py|constant|GIT|Indicates git availability for skipping tests.",
+   "tests/test_temporal_ceiling.py|class|CleanReachableTest|Tests that a label with sufficient prior co-change is classified REACHABLE on clean arm.",
+   "tests/test_temporal_ceiling.py|class|LeakArtifactTest|Tests that the self-prediction leak (clean UNREACHABLE, leaky REACHABLE) is correctly identified.",
+   "tests/test_temporal_ceiling.py|class|ClassifyUnitTest|Tests the _classify function's decision order for static edge, no in-scope def, and unreachable.",
+   "tests/test_temporal_ceiling.py|class|RenameBoundaryTest|Tests that coupling across file rename is correctly unified.",
+   "tests/test_temporal_ceiling.py|class|MaterialityFloorTest|Tests that a single recoverable label among many does not trigger reopen signal when below materiality floor.",
+   "tests/test_temporal_ceiling.py|class|CoChangeRevParamTest|Tests that co_change_pairs with rev parameter narrows history and handles unresolvable rev."
+  ],
+  "handoff": {
+   "suggestion": "No changes proposed."
+  }
+ },
+ "name": "c152",
+ "paths": [
+  "tests/test_temporal_ceiling.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.4
+}

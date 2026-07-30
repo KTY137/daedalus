@@ -1,0 +1,129 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s-10",
+ "report": {
+  "status": "needs_review",
+  "summary": "All 15 claims across both reports remain UNDECIDABLE because the required source files (gated-writes.py and wiki-links.py) were not provided. No CONFIRMED or REFUTED findings. Actionable items require source access to verify.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "description": "local_graph potential infinite loop on cycles (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "breaks silently (crash)"
+   },
+   {
+    "description": "build_index silently dropping links beyond limit (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "silent data loss"
+   },
+   {
+    "description": "offload() finishes with 'escalated_after_verify_fail' and non-empty wrote, the gate catches it, but patch bytes still captured (gated-writes claim 1)",
+    "settling_file": "gated-writes.py",
+    "blast_radius": "silent data integrity violation"
+   },
+   {
+    "description": "offload-verify gate only checks offload's own verdict, not independently verify patch (gated-writes claim 2)",
+    "settling_file": "gated-writes.py",
+    "blast_radius": "silent bypass of verification"
+   },
+   {
+    "description": "module only gates attempts, not writes; offload() can auto-land into primary checkout outside a wave (gated-writes claim 3)",
+    "settling_file": "gated-writes.py",
+    "blast_radius": "data escape outside wave"
+   },
+   {
+    "description": "Phase 2 promotion opt-in not wired into KairosScheduler.dispatch() default path (gated-writes claim 4)",
+    "settling_file": "gated-writes.py",
+    "blast_radius": "silent failure to promote (cost money?)"
+   },
+   {
+    "description": "curated command gate only used if provided; otherwise only offload-verify gate runs (gated-writes claim 5)",
+    "settling_file": "gated-writes.py",
+    "blast_radius": "limited control (annoyance?)"
+   },
+   {
+    "description": "unlinked_mentions truncation without total count (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "data hiding"
+   },
+   {
+    "description": "unlinked_mentions regex boundary behavior with underscores/hyphens (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "annoyance (missed links)"
+   },
+   {
+    "description": "local_graph truncation flag clarity (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "confusion (annoyance)"
+   },
+   {
+    "description": "warning on MAX_LINKS_PER_PAGE exceedance not implemented (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "annoyance"
+   },
+   {
+    "description": "returning total matches in unlinked_mentions not implemented (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "blast_radius": "feature missing"
+   }
+  ],
+  "todos": [
+   {
+    "action": "Add write fence in Phase 1 that prevents offload from auto-landing during a wave (gated-writes claim 6)",
+    "settling_file": "gated-writes.py",
+    "priority": "high (silent data integrity)"
+   },
+   {
+    "action": "Ensure artifact persistence does not bypass primary checkout fence (gated-writes claim 7)",
+    "settling_file": "gated-writes.py",
+    "priority": "high (silent data integrity)"
+   },
+   {
+    "action": "Add independent verification of patch in gate (gated-writes claim 9)",
+    "settling_file": "gated-writes.py",
+    "priority": "high (verification bypass)"
+   },
+   {
+    "action": "Wire Phase 2 promotion into default dispatch path or document why opt-in (gated-writes claim 8)",
+    "settling_file": "gated-writes.py",
+    "priority": "medium (incomplete promotion)"
+   },
+   {
+    "action": "Rename module to reflect it orders attempts (gated-writes claim 10)",
+    "settling_file": "gated-writes.py",
+    "priority": "low (naming clarity)"
+   },
+   {
+    "action": "Add visited edge set in local_graph to prevent infinite loop (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "priority": "high (crash prevention)"
+   },
+   {
+    "action": "Testing local_graph with cycles (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "priority": "medium"
+   },
+   {
+    "action": "Include total matches in unlinked_mentions output (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "priority": "medium"
+   },
+   {
+    "action": "Warning on MAX_LINKS_PER_PAGE exceedance (wiki-links)",
+    "settling_file": "wiki-links.py",
+    "priority": "low"
+   }
+  ],
+  "handoff": {
+   "suggestion": "Provide source files gated-writes.py and wiki-links.py to allow verification of the undecidable claims. Alternatively, if the modules have been renamed, locate the corresponding source files for verification."
+  }
+ },
+ "name": "s-10",
+ "paths": [
+  "docs/research/rounds/round2/v-gated-writes.md",
+  "docs/research/rounds/round2/v-wiki-links.md"
+ ],
+ "elapsed_s": 59.6
+}

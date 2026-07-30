@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q29-docstring-drift-detection",
+ "report": {
+  "status": "needs_review",
+  "summary": "Specification mining (Daikon, Texada) reports >90% precision for simple invariants; NL-to-assertion (Toradocu, Jdoctor) ~70-85% precision for comment-code consistency. Disagreements: soundness vs completeness, static vs dynamic. Recommend LLM-based extraction + runtime assertions. Measure precision internally.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "LLM may hallucinate specifications, leading to false assertions",
+   "Dynamic mining limited to observed paths",
+   "Runtime monitoring may introduce performance overhead",
+   "Literature precision may not transfer to Python codebases"
+  ],
+  "todos": [
+   "Build LLM-based extraction: parse docstrings into formal assertions using few-shot prompts",
+   "Implement lightweight runtime checks for 'never writes X' and atomicity using decorators",
+   "Run on sample of 100 docstrings, manually label, compute precision/recall",
+   "Iterate on prompt engineering and assertion generation"
+  ],
+  "handoff": {
+   "suggestion": "Use existing LLM routing to call a model trained to extract formal assertions from docstrings. Combine with a runtime monitor (e.g., Python's settrace or context managers) to verify 'never writes X' and atomicity properties. Start by generating assertions for a small set of critical functions and manually verify correctness."
+  }
+ },
+ "name": "q29-docstring-drift-detection",
+ "question": "Detecting docstrings that promise guarantees the implementation does not provide -- atomicity, fail-closed behaviour, 'never writes X'. What automated techniques exist (specification mining, NL-to-assertion, contract inference), and what precision do they report on real codebases?",
+ "elapsed_s": 40.9
+}

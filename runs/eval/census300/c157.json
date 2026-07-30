@@ -1,0 +1,34 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c157",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_bridge_signals.py: test suite for file_bridge signal and heartbeat functions, covering unread report ledger, bridge_status, heartbeat states, doctor warnings, and codex inline brief smell.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_bridge_signals.py|daedalus.file_bridge",
+   "DEPENDS|tests/test_bridge_signals.py|daedalus.doctor"
+  ],
+  "todos": [
+   "tests/test_bridge_signals.py|class|UnreadLedgerTests|Tests for unread report ledger, mark_read, note_report_arrival",
+   "tests/test_bridge_signals.py|class|BridgeStatusTests|Tests for bridge_status counts and print_status",
+   "tests/test_bridge_signals.py|class|HeartbeatTests|Tests for heartbeat write/status, stale, busy, wedged states",
+   "tests/test_bridge_signals.py|class|DoctorHeartbeatTests|Tests for doctor heartbeat warnings",
+   "tests/test_bridge_signals.py|class|CodexInlineBriefWarningTests|Tests for codex_inline_brief_warning and enqueue warning",
+   "tests/test_bridge_signals.py|function|test_two_enqueues_in_the_same_second_do_not_overwrite|Tests two enqueues same second do not overwrite",
+   "tests/test_bridge_signals.py|function|test_a_third_collision_also_gets_its_own_name|Tests third collision gets unique name",
+   "tests/test_bridge_signals.py|function|test_distinct_objectives_still_get_readable_names|Tests distinct objectives get readable names",
+   "tests/test_bridge_signals.py|function|test_PARALLEL_producers_do_not_collide|Tests parallel producers do not collide",
+   "tests/test_bridge_signals.py|function|test_a_request_is_published_atomically|Tests atomic publish of request"
+  ],
+  "handoff": {}
+ },
+ "name": "c157",
+ "paths": [
+  "tests/test_bridge_signals.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 22.0
+}

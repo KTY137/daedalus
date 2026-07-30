@@ -1,0 +1,23 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q15-dataframe-schema-tracking",
+ "report": {
+  "status": "needs_review",
+  "summary": "Static column tracking for DataFrames is limited: pandas-stubs provide weak hints, pandera/Dagster checks run at runtime, Static Frame offers strict types but requires API adoption. Realistic static coverage ~50-70% for common select/filter/join in annotated code; dynamic ops break inference. Most actionable: build a type\u2011aware linter combining mypy/pyright with pandera decorators.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Over\u2011reliance on static hints for highly dynamic pipelines",
+   "False sense of correctness if only 50% of columns are tracked"
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Static schema tracking for pandas/polars DataFrames is inherently limited because column existence and types are resolved at runtime, and operations like melt, pivot, or apply with lambdas defeat purely static inference.\n\nExisting tools:\n- **pandas-stubs**: provide type stubs for mypy, but only for the DataFrame class itself, not for individual columns. They do not track column names or prevent operations on non\u2011existent columns.\n- **pandera**: offers runtime schema validation via decorators; static analysis tools can inspect these annotations, but the checks are not enforced until execution.\n- **Static Frame**: an immutable, statically typed DataFrame library with full mypy support; it can catch many schema errors at type\u2011check time, but requires migrating to its API and constrains dynamic operations.\n- **Dagster asset checks**: purely runtime validation at pipeline boundaries, not static.\n\nRealistic coverage: In well\u2011typed codebases that avoid heavy dynamic features, static inference can track column names for about 50\u201370% of common operations (select, filter, join). No rigorous benchmark exists, but anecdotal evidence from type\u2011checker plugins (e.g., pyright with pandas stubs) shows that column\u2011level errors are caught only when all operations are explicitly typed and no runtime introspection is used. Dynamic indexing, eval/query strings, and user\u2011defined functions remain opaque.\n\nSingle most actionable step: Build a lightweight linter that combines mypy/pyright with pandera decorators to propagate schema information across a chain of DataFrame operations. For each expression, infer a likely schema from incoming type hints and flag writes to columns that were not declared, creating a safety net for the 50% of columns that can be tracked statically.\n",
+   "actionable_step": "Implement a type\u2011aware linter that uses mypy/pyright to propagate schema annotations across DataFrame expressions, integrated with pandera decorators, to flag undeclared columns for the subset of operations amenable to static analysis."
+  }
+ },
+ "name": "q15-dataframe-schema-tracking",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 38.6
+}

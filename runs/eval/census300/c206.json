@@ -1,0 +1,34 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c206",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/providers/_ollama_native.py: Native Ollama /api/chat client with context window override, used for local offload lane when OpenAI-compat shim ignores options.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/providers/_ollama_native.py|daedalus.providers._openai_compat",
+   "READS|daedalus/providers/_ollama_native.py|OLLAMA_NUM_CTX environment variable",
+   "CLAIMS|daedalus/providers/_ollama_native.py|num_ctx_value never raises, falls back to default on invalid env",
+   "CLAIMS|daedalus/providers/_ollama_native.py|effective_input_window reserves tokens for generation, callers must fail loud against this budget",
+   "CLAIMS|daedalus/providers/_ollama_native.py|native_chat raises ProviderHTTPError on any HTTP error or unreachable host"
+  ],
+  "todos": [
+   "daedalus/providers/_ollama_native.py|constant|DEFAULT_NUM_CTX|Measured VRAM-safe context window size (6144)",
+   "daedalus/providers/_ollama_native.py|constant|OUTPUT_RESERVE_TOKENS|Tokens held back for response generation inside Ollama's full context window (1024)",
+   "daedalus/providers/_ollama_native.py|function|num_ctx_value|Returns context window to request from Ollama, with env override and clamp",
+   "daedalus/providers/_ollama_native.py|function|effective_input_window|Returns usable input tokens = full context minus generation reserve",
+   "daedalus/providers/_ollama_native.py|function|native_chat|POST messages to Ollama native /api/chat and return adapted assistant message"
+  ],
+  "handoff": {
+   "suggestion": "No changes proposed; structural census complete."
+  }
+ },
+ "name": "c206",
+ "paths": [
+  "daedalus/providers/_ollama_native.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 12.7
+}

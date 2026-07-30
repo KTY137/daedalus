@@ -1,0 +1,26 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c138",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tools/self_test.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tools/self_test.py"
+   ]
+  }
+ },
+ "name": "c138",
+ "paths": [
+  "tools/self_test.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

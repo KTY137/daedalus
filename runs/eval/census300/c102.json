@@ -1,0 +1,59 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c102",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_host_predicate.py: Pins the consolidated host-to-lane predicate (lane_for_host) with a comprehensive table of hosts, ensures all callers delegate to it, and prevents reintroduction of duplicate local-host tables.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_host_predicate.py|daedalus.council.vendors",
+   "DEPENDS|tests/test_host_predicate.py|daedalus.sensitivity",
+   "READS|tests/test_host_predicate.py|daedalus/",
+   "CLAIMS|tests/test_host_predicate.py|Consolidates host-to-lane predicate onto sensitivity.lane_for_host",
+   "CLAIMS|tests/test_host_predicate.py|Tests pin both halves: the shared answers, and the absence of any caller-local copy.",
+   "SMELL|tests/test_host_predicate.py|High test count with many parametrized cases; possible maintenance burden but necessary for comprehensive coverage.",
+   "SMELL|tests/test_host_predicate.py|Uses _OWNED_ELSEWHERE allowlist that must be manually updated; if forgotten, test_no_caller_keeps_its_own_copy may miss new duplicates."
+  ],
+  "todos": [
+   "tests/test_host_predicate.py|constant|TABLE|Provides the complete contract mapping host strings to expected lanes and reasons.",
+   "tests/test_host_predicate.py|constant|HOSTS|Tuple of host strings extracted from TABLE for parametrization.",
+   "tests/test_host_predicate.py|function|test_the_shared_predicate_answers_the_whole_table|Verifies that lane_for_host returns expected lane for every entry in TABLE.",
+   "tests/test_host_predicate.py|function|test_none_fails_closed|Verifies that lane_for_host(None) returns \"untrusted\".",
+   "tests/test_host_predicate.py|function|test_ollama_adapter_local_flag_is_the_shared_predicate|Ensures OllamaAdapter.local matches lane_for_host for all hosts.",
+   "tests/test_host_predicate.py|function|test_available_vendors_lane_is_the_shared_predicate|Ensures availability rows lane matches lane_for_host.",
+   "tests/test_host_predicate.py|function|test_local_and_lane_can_never_disagree_about_one_host|Ensures adapter.local and row.lane are consistent.",
+   "tests/test_host_predicate.py|function|test_the_two_shipped_defaults_still_land_where_they_must|Verifies default local and bench hosts produce correct lanes and local flags.",
+   "tests/test_host_predicate.py|function|test_WIDENED_numeric_loopback_the_old_regex_could_not_parse|Pins that numeric loopbacks now return trusted.",
+   "tests/test_host_predicate.py|function|test_NARROWED_names_the_council_used_to_call_local|Pins that names like localhost now return untrusted.",
+   "tests/test_host_predicate.py|function|test_unset_env_reproduces_the_old_fail_closed_default|Verifies unset DAEDALUS_TRUSTED_HOSTS leaves bench untrusted.",
+   "tests/test_host_predicate.py|function|test_empty_env_is_the_same_as_unset|Verifies empty env same as unset.",
+   "tests/test_host_predicate.py|function|test_a_declared_numeric_address_is_trusted_with_or_without_scheme_or_port|Verifies declared numeric address becomes trusted regardless of formatting.",
+   "tests/test_host_predicate.py|function|test_declaring_one_address_does_not_trust_its_neighbour|Ensures exact address equality only.",
+   "tests/test_host_predicate.py|function|test_a_declared_hostname_is_dropped_never_resolved|Verifies hostname in env is ignored.",
+   "tests/test_host_predicate.py|function|test_an_unparseable_entry_narrows_rather_than_widens|Verifies malformed env entries are dropped.",
+   "tests/test_host_predicate.py|function|test_a_bad_entry_does_not_poison_a_good_one_in_the_same_list|Verifies only bad entries dropped, good ones kept.",
+   "tests/test_host_predicate.py|function|test_multiple_declared_addresses_are_all_honoured|Verifies multiple trusted addresses work.",
+   "tests/test_host_predicate.py|function|test_a_scheme_and_port_on_the_declaration_itself_are_stripped|Verifies normalization of declared host.",
+   "tests/test_host_predicate.py|function|test_is_loopback_host_true_for_numeric_loopback_only|Verifies is_loopback_host returns True for numeric loopbacks.",
+   "tests/test_host_predicate.py|function|test_is_loopback_host_false_for_everything_else|Verifies is_loopback_host returns False for other hosts.",
+   "tests/test_host_predicate.py|function|test_is_loopback_host_stays_false_for_a_declared_trusted_host|Pins security property: is_loopback_host false for declared trusted host.",
+   "tests/test_host_predicate.py|function|test_is_loopback_host_ignores_the_declared_trust_list_entirely|Verifies is_loopback_host unaffected by env.",
+   "tests/test_host_predicate.py|function|test_is_loopback_host_none_fails_closed|Verifies is_loopback_host(None) returns False.",
+   "tests/test_host_predicate.py|function|test_no_caller_keeps_its_own_copy_of_the_host_predicate|Ensures no new duplicate host predicates appear.",
+   "tests/test_host_predicate.py|function|test_vendors_has_no_local_host_table_left|Pins that vendors.py no longer contains old local-host symbols.",
+   "tests/test_host_predicate.py|function|test_the_allowlist_does_not_rot|Ensures _OWNED_ELSEWHERE entries still have duplicates.",
+   "tests/test_host_predicate.py|function|test_the_known_divergences_are_still_divergences|Pins specific disagreements between allowed copies and shared predicate."
+  ],
+  "handoff": {
+   "suggestion": ""
+  }
+ },
+ "name": "c102",
+ "paths": [
+  "tests/test_host_predicate.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 21.0
+}

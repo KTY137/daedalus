@@ -1,0 +1,36 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c109",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/eval/ceiling.py: measures the temporal co-change CEILING over the eval corpus, computing a backtest hit-rate for whether pre-mint co-change history could recover missed labels, and implements the lane A2 reopen gate.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.structcore.churn",
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.structcore.index",
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.structcore.languages",
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.structcore.parse",
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.eval.harness",
+   "DEPENDS|daedalus/eval/ceiling.py|daedalus.eval.tasks",
+   "READS|daedalus/eval/ceiling.py|reads git history (subprocess calls to git) and source files from repo worktree (Path.read_text)",
+   "CLAIMS|daedalus/eval/ceiling.py|Read-only: never writes the store, the baseline, or any file (stated in module docstring)."
+  ],
+  "todos": [
+   "daedalus/eval/ceiling.py|constant|CLASSES|Tuple of classification strings for missed labels: REACHABLE, UNREACHABLE, STATIC_EDGE, NO_INSCOPE_DEF.",
+   "daedalus/eval/ceiling.py|constant|REOPEN_MIN_SHARE|Materiality floor for reopening the temporal enrichment lane (share of labels).",
+   "daedalus/eval/ceiling.py|constant|REOPEN_MIN_TASKS|Materiality floor for reopening the temporal enrichment lane (number of tasks).",
+   "daedalus/eval/ceiling.py|function|temporal_ceiling|Computes both arms of the ceiling over miss tasks; returns dict with per-task classifications, summaries, and reopen signal.",
+   "daedalus/eval/ceiling.py|function|render_ceiling|Returns ASCII-only render of the ceiling result with honest framing and reopen trigger statement.",
+   "daedalus/eval/ceiling.py|function|main|CLI entry point parsing --min-count and printing the rendered ceiling."
+  ],
+  "handoff": {}
+ },
+ "name": "c109",
+ "paths": [
+  "daedalus/eval/ceiling.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 20.7
+}

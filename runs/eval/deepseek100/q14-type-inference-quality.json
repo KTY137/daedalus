@@ -1,0 +1,26 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q14-type-inference-quality",
+ "report": {
+  "status": "needs_review",
+  "summary": "Precision of Pyright/mypy inference on unannotated Python is not well\u2011measured in published literature. Typical tool evals focus on predicting removed annotations (e.g., ManyTypes4Py) and show static baselines like PyType/Pyre achieving ~20\u201170% top\u20111 accuracy, but no direct study of Pyright or mypy in a fully unannotated setting was found. Both tools heavily default to 'Any' for function boundaries, yielding poor overall precision, while local inference is reliable. The single most actionable step is to run a controlled experiment on a stripped corpus such as ManyTypes4Py to obtain concrete to",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Relying on recalled or uncertain citations may propagate inaccurate numbers.",
+   "Directly applying annotation\u2011stripped benchmarks (like ManyTypes4Py) may not represent true unannotated codebases because the original codebases had annotations; inference may behave differently when no annotations ever existed.",
+   "Mypy and Pyright have different inference modes (e.g., --check-untyped-defs, basic type inference) that can significantly alter performance; a fair comparison must control configuration."
+  ],
+  "todos": [
+   "Design a reproducible experiment that strips all type annotations from a diverse set of real\u2011world Python projects (e.g., ManyTypes4Py corpus or top PyPI packages) and then runs both Pyright and mypy in their default inference modes to measure top\u20111 type accuracy and the fraction of variables/parameters typed as Any.",
+   "Publish the setup and results so the community has a current, concrete baseline for inference quality on unannotated code."
+  ],
+  "handoff": {
+   "suggestion": "Immediately design and run a controlled experiment using ManyTypes4Py\u2011style projects with their type annotations removed. For each tool, record the inferred type at every variable/parameter site and compare against the original (now hidden) annotation. Compute top\u20111 accuracy (exact match) and Any\u2011ratio across function boundaries, class attributes, and local variables. This will give the concrete numbers currently missing from the literature."
+  }
+ },
+ "name": "q14-type-inference-quality",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 53.8
+}

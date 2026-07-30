@@ -1,0 +1,47 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c173",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_shadow_run.py: Tests for the shadow run in daedalus.spine.bootstrap, verifying gate discrimination, promotion restrictions, source refresh, and state distinctions.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_shadow_run.py|daedalus.spine.bootstrap",
+   "DEPENDS|tests/test_shadow_run.py|daedalus.spine.attempt",
+   "DEPENDS|tests/test_shadow_run.py|daedalus.spine.picker",
+   "WRITES|tests/test_shadow_run.py|temporary files via tmp_path",
+   "READS|tests/test_shadow_run.py|temporary files via tmp_path",
+   "CLAIMS|tests/test_shadow_run.py|\"The shadow run: it may collect candidates, it may not confer trust.\"",
+   "CLAIMS|tests/test_shadow_run.py|\"Absent evidence is the state the whole repo keeps getting wrong.\" (test_no_receipt_means_unproven_not_fine)",
+   "CLAIMS|tests/test_shadow_run.py|\"Ensures that no bypass flag allows promotion regardless of discrimination.\" (test_there_is_NO_flag_that_allows_promotion_anyway)"
+  ],
+  "todos": [
+   "tests/test_shadow_run.py|constant|HEAD|A 40-character hex string used as test HEAD commit.",
+   "tests/test_shadow_run.py|function|test_no_receipt_means_unproven_not_fine|Ensures absence of a receipt yields unproven gate.",
+   "tests/test_shadow_run.py|function|test_a_receipt_from_another_revision_does_not_count|Ensures a receipt from a different revision does not prove the gate.",
+   "tests/test_shadow_run.py|function|test_a_surviving_CRITICAL_class_beats_a_perfect_looking_score|Ensures a critical defect class surviving makes gate unproven despite high kill rate.",
+   "tests/test_shadow_run.py|function|test_a_low_kill_rate_is_unproven_even_with_no_critical_survivors|Ensures low kill rate makes gate unproven even without critical survivors.",
+   "tests/test_shadow_run.py|function|test_a_corrupt_receipt_is_unproven_not_a_crash|Ensures corrupt receipt yields unproven without crash.",
+   "tests/test_shadow_run.py|function|test_a_GOOD_receipt_does_prove_it|Ensures a valid receipt proves the gate.",
+   "tests/test_shadow_run.py|function|test_promotion_is_refused_while_discrimination_is_unproven|Ensures promotion is false when discrimination is unproven.",
+   "tests/test_shadow_run.py|function|test_there_is_NO_flag_that_allows_promotion_anyway|Ensures no bypass flag allows promotion regardless of discrimination.",
+   "tests/test_shadow_run.py|function|test_the_verdict_never_calls_a_green_gate_good|Ensures verdict does not call a green gate good.",
+   "tests/test_shadow_run.py|function|test_a_proven_gate_still_does_not_promote_by_itself|Ensures a proven gate still requires human act.",
+   "tests/test_shadow_run.py|function|test_a_generator_that_exits_0_without_stamping_is_NOT_success|Ensures exit 0 without stamping is not success.",
+   "tests/test_shadow_run.py|function|test_a_generator_that_DOES_stamp_counts_as_success|Ensures a generator that stamps counts as success.",
+   "tests/test_shadow_run.py|function|test_a_generator_that_raises_is_reported_not_swallowed|Ensures a generator that raises is reported as failure.",
+   "tests/test_shadow_run.py|function|test_no_work_and_could_not_look_are_different_states|Ensures 'no_candidate' and 'sources_unavailable' are distinct states.",
+   "tests/test_shadow_run.py|function|test_a_runner_is_required_and_has_no_implicit_default|Ensures runner is required and has no default.",
+   "tests/test_shadow_run.py|function|test_the_module_does_not_write_the_primary_checkout|Ensures the shadow run module does not write the primary checkout."
+  ],
+  "handoff": {}
+ },
+ "name": "c173",
+ "paths": [
+  "tests/test_shadow_run.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.1
+}

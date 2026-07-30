@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c172",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_semantic_route_cold_start.py: Tests that the cold embedding timeout configuration prevents silent degradation of semantic routing when the first embedding call is slow, verifying timeout fallback and error reporting.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_semantic_route_cold_start.py|daedalus.semantic_route",
+   "DEPENDS|tests/test_semantic_route_cold_start.py|daedalus.provider_router",
+   "DEPENDS|tests/test_semantic_route_cold_start.py|daedalus.router",
+   "READS|tests/test_semantic_route_cold_start.py|environment variables: OLLAMA_EMBED_MODEL, OLLAMA_HOST, DAEDALUS_EMBED_TIMEOUT, DAEDALUS_EMBED_COLD_TIMEOUT, DAEDALUS_LATENT",
+   "CLAIMS|tests/test_semantic_route_cold_start.py|'NOTHING in semantic_route is mocked.'",
+   "CLAIMS|tests/test_semantic_route_cold_start.py|'A COLD embedding model is not a dead host -- and the latent route survives it.'",
+   "CLAIMS|tests/test_semantic_route_cold_start.py|'Each test starts a real HTTP server speaking the Ollama /api/embeddings protocol, and makes it SLOW on purpose.'"
+  ],
+  "todos": [
+   "tests/test_semantic_route_cold_start.py|constant|AVAIL|Indicates availability of LLM providers for tests.",
+   "tests/test_semantic_route_cold_start.py|constant|WARM_S|Budget for warm embedding calls (0.25s).",
+   "tests/test_semantic_route_cold_start.py|constant|COLD_S|Budget for cold embedding calls (10s).",
+   "tests/test_semantic_route_cold_start.py|constant|COLD_LOAD_S|Time for slow first call (1s) to test cold budget.",
+   "tests/test_semantic_route_cold_start.py|constant|FOREVER_S|Very long delay (30s) to ensure fallback.",
+   "tests/test_semantic_route_cold_start.py|class|SlowOllama|Simulates an Ollama embedding server with configurable delays.",
+   "tests/test_semantic_route_cold_start.py|class|ColdStartSurvivesTests|Tests that a slow first embedding does not kill latent routing.",
+   "tests/test_semantic_route_cold_start.py|class|DeadlineIsNotADeadHostTests|Tests that timeout errors are reported correctly (not as host unreachable).",
+   "tests/test_semantic_route_cold_start.py|class|BudgetEnvironmentTests|Tests that invalid or zero budgets fall back to defaults."
+  ],
+  "handoff": {}
+ },
+ "name": "c172",
+ "paths": [
+  "tests/test_semantic_route_cold_start.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.2
+}

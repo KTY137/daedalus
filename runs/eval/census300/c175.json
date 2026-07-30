@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c175",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_typegraph_star_imports.py: Regression tests verifying star import resolution rules: excluded names, underscore names, invisible modules, conflicting bindings; positive controls and invariants ensure fix does not break existing behavior.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_typegraph_star_imports.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_typegraph_star_imports.py|daedalus.structcore.typegraph",
+   "DEPENDS|tests/test_typegraph_star_imports.py|daedalus.structcore.parse",
+   "READS|tests/test_typegraph_star_imports.py|daedalus/ (via TheBlastRadiusIsMeasured)",
+   "CLAIMS|tests/test_typegraph_star_imports.py|A star import can prove an AMBIGUITY. It can never prove a BINDING.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|AnInvisibleStarMakesTheAnswerEnvironmental: Only ONE of the two stars is a module we can see. Whether the visible one supplies the name depends on what the other one exports, which is not a property of this source tree.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|AStarThatDisagreesWithAnExplicitBinding: An explicit ``from`` binding AND a star that reaches a DIFFERENT declaration of the same name. Which wins is statement order plus the star module's ``__all__``; neither is readable here, so the answer is refused.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|PositiveControls: \"Refuse everything\" must not be able to pass this file.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|TwoVisibleStarsAreStillTheOldAmbiguity: The behaviour the fixture corpus already pinned must not have changed: two stars that BOTH declare the name were, and remain, ambiguous.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|TheBlastRadiusIsMeasured: What the refusal costs, stated as a number rather than assumed to be small. If a star import ever appears under ``daedalus/`` this test fails and the cost has to be re-argued rather than silently paid.",
+   "CLAIMS|tests/test_typegraph_star_imports.py|TheInvariantsSurviveTheFix: The fix must not have bought I5 at the price of another invariant.",
+   "SMELL|tests/test_typegraph_star_imports.py|Multiple test classes share identical setUpClass/tearDownClass pattern; could be refactored into a common base to reduce duplication."
+  ],
+  "todos": [
+   "tests/test_typegraph_star_imports.py|constant|REPO_ROOT|Resolved path to repository root used for sys.path and scanning daedalus/.",
+   "tests/test_typegraph_star_imports.py|class|AStarDoesNotBindWhatAllExcludes|Tests star import does not bind names excluded by __all__; refusal counted; declaration node persists.",
+   "tests/test_typegraph_star_imports.py|class|AStarDoesNotBindAnUnderscoreName|Tests star import does not bind underscore-prefixed names.",
+   "tests/test_typegraph_star_imports.py|class|AnInvisibleStarMakesTheAnswerEnvironmental|Tests that when one star module is external, no edge to visible candidate; answer is environmental.",
+   "tests/test_typegraph_star_imports.py|class|AStarThatDisagreesWithAnExplicitBinding|Tests star vs explicit binding conflict produces no edge; both candidates named.",
+   "tests/test_typegraph_star_imports.py|class|PositiveControls|Tests that ordinary explicit bindings still resolve after fix.",
+   "tests/test_typegraph_star_imports.py|class|TwoVisibleStarsAreStillTheOldAmbiguity|Tests two visible stars with same name remain ambiguous.",
+   "tests/test_typegraph_star_imports.py|class|TheBlastRadiusIsMeasured|Tests no star import in daedalus/; dotted names still resolve.",
+   "tests/test_typegraph_star_imports.py|class|TheInvariantsSurviveTheFix|Tests fix preserves consistency, no edges from refused sites, reproducibility."
+  ],
+  "handoff": {}
+ },
+ "name": "c175",
+ "paths": [
+  "tests/test_typegraph_star_imports.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 27.7
+}

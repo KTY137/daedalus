@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q04-sqlite-wal-durability",
+ "report": {
+  "status": "needs_review",
+  "summary": "Analyzed SQLite WAL synchronous=NORMAL durability. Process crash: no corruption; recent commits safe if OS cache intact, but not guaranteed. OS crash/power loss: database safe from corruption (WAL checksums), but transactions since last checkpoint may be lost. Network shares/OneDrive: unsupported, high corruption risk; WAL likely non-functional. Recommendation: use only on local disk; implement proactive checkpoints; reject network paths.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Data loss window on OS crash proportional to checkpoint interval",
+   "Network/cloud paths (including OneDrive) cause corruption; WAL mode may fail entirely",
+   "OneDrive may corrupt file during sync or rename operations",
+   "Windows network shares may not support required byte-range locking"
+  ],
+  "todos": [
+   "Enforce local storage only for SQLite databases; detect and block network/cloud paths",
+   "Use journal_mode=WAL and synchronous=NORMAL for performance",
+   "Implement periodic checkpointing (e.g., after N writes or time-based) to reduce loss window",
+   "If durability is critical, consider synchronous=FULL",
+   "Add integrity check on database open (PRAGMA integrity_check)",
+   "If network paths are unavoidable, design a server-based storage instead"
+  ],
+  "handoff": {
+   "suggestion": "For Daedalus: in database initialization, check path is local (e.g., using pathlib and win32api to detect UNC/DriveType) and refuse network/cloud paths. Set PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;. After every ~100 write transactions or 30 seconds, run PRAGMA wal_checkpoint(TRUNCATE) to flush data and limit potential loss on crash. Include startup integrity check. This balances performance and safety for local-only operation."
+  }
+ },
+ "name": "q04-sqlite-wal-durability",
+ "question": "SQLite with journal_mode=WAL and synchronous=NORMAL: what exactly is guaranteed across a process crash, an OS crash and power loss, and how do those guarantees change on a network share or a OneDrive-synced path?",
+ "elapsed_s": 81.5
+}

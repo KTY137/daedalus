@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m44-ledger",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audited visible portion of ledger.py. Critical: _terminal_event is truncated, causing SyntaxError/NameError on any call to mark_completed or mark_failed. Additionally, _row_to_intent is used but not defined in the provided excerpt; if missing, it crashes record_intent. Docstring claims resolve_by_effect exists but it is not visible, leaving crash-recovery handshake unverifiable. Remaining visible logic aligns with documented guarantees; no swallowed errors or concurrency defects seen.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "severity": "critical",
+    "finding": "Incomplete function _terminal_event",
+    "trigger": "Any call to mark_completed or mark_failed -> _resolve -> _terminal_event returns a malformed SQL string, causing sqlite3.ProgrammingError.",
+    "location": "ledger.py:def _terminal_event (line truncated)"
+   },
+   {
+    "severity": "high",
+    "finding": "Missing definition of _row_to_intent",
+    "trigger": "record_intent (or any completion) returns Intent via _row_to_intent; if not defined later, NameError on first use.",
+    "location": "ledger.py:_resolve uses _row_to_intent"
+   },
+   {
+    "severity": "medium",
+    "finding": "Unverifiable resolve_by_effect",
+    "trigger": "Docstring describes resolve_by_effect as the handshake for crash recovery, but its implementation is not in the provided excerpt; absence would break the claimed recovery contract.",
+    "location": "Not visible in slice"
+   }
+  ],
+  "todos": [
+   "Complete _terminal_event method with proper SQL and fetchone logic.",
+   "Define _row_to_intent or confirm its existence in the full file.",
+   "Verify resolve_by_effect, open_intents, and other missing methods exist and match docstring guarantees.",
+   "Add a test covering resolution attempt that triggers the incomplete code path to catch this earlier."
+  ],
+  "handoff": {
+   "suggestion": "Paste the full _terminal_event and any missing helper functions. Consider adding a smudge test that calls mark_completed on a fresh intent to immediately expose the syntax error."
+  }
+ },
+ "name": "m44-ledger",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 46.6
+}

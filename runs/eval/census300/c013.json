@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c013",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files supplied for analysis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "skipped_sensitive": [
+    "daedalus/council/session.py"
+   ]
+  }
+ },
+ "name": "c013",
+ "paths": [
+  "daedalus/council/session.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.4
+}

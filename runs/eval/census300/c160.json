@@ -1,0 +1,46 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c160",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/build.py: Orchestrates build session planning, defining BuildTask/Wave/BuildSession dataclasses, chunking tasks into waves, detecting path conflicts, and persisting sessions with optional bookkeeping updates.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/build.py|daedalus.categories",
+   "DEPENDS|daedalus/build.py|daedalus.kairos.decompose",
+   "DEPENDS|daedalus/build.py|daedalus.kairos.scheduler",
+   "DEPENDS|daedalus/build.py|daedalus.router",
+   "DEPENDS|daedalus/build.py|daedalus.bookkeeper",
+   "WRITES|daedalus/build.py|runs/build/ directory",
+   "WRITES|daedalus/build.py|docs/architecture.html",
+   "READS|daedalus/build.py|session snapshot files",
+   "CLAIMS|daedalus/build.py|Nothing here writes to a repo, drives a provider, or bypasses a lane gate",
+   "CLAIMS|daedalus/build.py|Frontier-first topology",
+   "SMELL|daedalus/build.py|wave_path_conflicts duplicates logic from daedalus.kairos.scheduler._paths_overlap",
+   "SMELL|daedalus/build.py|_chunk_waves mirrors Ikarus.plan sizing logic"
+  ],
+  "todos": [
+   "daedalus/build.py|constant|FRONTIER_BUILDER|Frontier builder name, default claude",
+   "daedalus/build.py|constant|LOCAL_BUILDER|Local builder name, default ollama",
+   "daedalus/build.py|constant|LOCAL_LANES|Tuple of local lanes: local, local_only",
+   "daedalus/build.py|constant|ROOT|Resolved root path of the repository",
+   "daedalus/build.py|constant|RUN_DIR|Runs directory for build snapshots",
+   "daedalus/build.py|class|BuildTask|Represents one routed subtask with owner, category, and lifecycle status",
+   "daedalus/build.py|class|Wave|Bounded batch of BuildTask objects that may run concurrently",
+   "daedalus/build.py|class|BuildSession|Tracks one feature across waves, the unit of coordinated build",
+   "daedalus/build.py|function|assign_builder|Maps a category preset lane to builder and frontier flag",
+   "daedalus/build.py|function|load_session|Reloads a persisted BuildSession from a JSON snapshot file",
+   "daedalus/build.py|function|plan_build|Plans a multi-wave build for a feature, decomposing, routing, and chunking",
+   "daedalus/build.py|function|wave_path_conflicts|Diagnostic function to detect overlapping paths within a wave"
+  ],
+  "handoff": {}
+ },
+ "name": "c160",
+ "paths": [
+  "daedalus/build.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 19.1
+}

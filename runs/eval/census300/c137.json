@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c137",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_spend_coverage.py: Tests that the spend ceiling (process guard) is properly installed and covers all ways out of the machine, including entry points and vendor classification behind wrappers, with drift detectors for new unguarded spend entry points and changes to guard installation sites.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_spend_coverage.py|daedalus.budget",
+   "READS|tests/test_spend_coverage.py|(recursively scans all .py files in repo root)",
+   "CLAIMS|tests/test_spend_coverage.py|Does the spend ceiling actually cover the ways OUT of this machine? (module docstring)",
+   "CLAIMS|tests/test_spend_coverage.py|The architectural fact this audit turned on, pinned so it cannot change silently. (from test_the_guard_is_installed_by_exactly_one_function_in_the_tree)",
+   "CLAIMS|tests/test_spend_coverage.py|DRIFT DETECTOR for the hole that produced this whole audit. (from test_no_new_unguarded_spend_entrypoint_has_appeared)",
+   "CLAIMS|tests/test_spend_coverage.py|A ledger naming files that no longer exist reads as coverage of files that do. (from test_the_entrypoint_ledger_has_not_rotted)",
+   "CLAIMS|tests/test_spend_coverage.py|The paste-worthy one: the SAME call, guarded and unguarded, against an exhausted ceiling. (from test_guard_on_refuses_and_guard_off_spawns)"
+  ],
+  "todos": [
+   "tests/test_spend_coverage.py|constant|ROOT|Repository root path used for file scanning",
+   "tests/test_spend_coverage.py|constant|WRAPPED_VENDOR_ARGV|Test cases for vendors behind process shepherds",
+   "tests/test_spend_coverage.py|constant|INNOCENT_ARGV|Test cases for ordinary commands that should not be billed",
+   "tests/test_spend_coverage.py|constant|KNOWN_UNGUARDED_ENTRYPOINTS|Dict of files known to be unguarded with reasons",
+   "tests/test_spend_coverage.py|function|runnable_spend_entrypoints|Scans repo for directly-runnable spend entry points",
+   "tests/test_spend_coverage.py|function|test_a_vendor_behind_a_process_shepherd_is_still_billed|Tests that classify_argv identifies vendors when wrapped",
+   "tests/test_spend_coverage.py|function|test_widening_the_wrapper_list_did_not_start_billing_ordinary_commands|Tests that wrapper additions don't bill normal commands",
+   "tests/test_spend_coverage.py|function|test_the_wrapper_check_is_not_vacuous|Pins that classification is discriminative",
+   "tests/test_spend_coverage.py|function|test_no_new_unguarded_spend_entrypoint_has_appeared|Drift detector for new unguarded spend entry points",
+   "tests/test_spend_coverage.py|function|test_the_entrypoint_ledger_has_not_rotted|Ensures ledger entries still exist and are accurate",
+   "tests/test_spend_coverage.py|function|test_the_entrypoint_detector_actually_fires|Self-test that the detector works",
+   "tests/test_spend_coverage.py|function|test_the_guard_is_installed_by_exactly_one_function_in_the_tree|Pins the set of files that install the guard",
+   "tests/test_spend_coverage.py|function|test_guard_on_refuses_and_guard_off_spawns|Tests guard behavior with monkeypatched classifier"
+  ],
+  "handoff": {}
+ },
+ "name": "c137",
+ "paths": [
+  "tests/test_spend_coverage.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 35.1
+}

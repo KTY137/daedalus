@@ -1,0 +1,49 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m22-core",
+ "report": {
+  "status": "needs_review",
+  "summary": "Found 4 issues: (1) routing_summary may recommend unavailable lane; (2) get_queue crashes on concurrent file access; (3) _safe_collect_status may propagate unexpected exceptions; (4) documentation guarantee missing in _safe_load_project. Addressed specific triggers for each.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "severity": "high",
+    "description": "routing_summary ignores Claude health when Ollama server is ready, recommending 'claude' lane even if Claude CLI is unavailable.",
+    "location": "core.py:routing_summary, lines after server_ready check",
+    "trigger": "Project with default_lane='claude', Ollama server ready, Claude CLI not on PATH."
+   },
+   {
+    "severity": "high",
+    "description": "get_queue -> _file_item raises unhandled OSError (e.g., PermissionError on Windows) when a file is deleted/locked between glob and stat, crashing the dashboard.",
+    "location": "core.py:_file_item, path.stat() call without try/except",
+    "trigger": "Watcher writes a file to OUTBOX/INBOX concurrently; dashboard reads and stat fails because file already moved/locked."
+   },
+   {
+    "severity": "medium",
+    "description": "_safe_collect_status docstrings says 'Degrade on any of these' but only catches OSError, SubprocessError, ValueError; other exceptions (e.g., from metrics) will propagate.",
+    "location": "core.py:_safe_collect_status, except clause",
+    "trigger": "collect_status raises a custom exception from a submodule not in the caught list."
+   },
+   {
+    "severity": "medium",
+    "description": "_safe_load_project claims to degrade for unknown/malformed config, but load_project may raise OSError (e.g., missing repo_root) which is not caught, violating the documentation guarantee.",
+    "location": "core.py:_safe_load_project, docstring vs. except ValueError only",
+    "trigger": "Project exists in listing but its repo_root directory is missing; load_project raises OSError."
+   }
+  ],
+  "todos": [
+   "Add Claude CLI availability check in routing_summary before recommending claude lane.",
+   "Wrap path.stat() in _file_item with try/except OSError and provide defaults.",
+   "Broaden exception handling in _safe_collect_status or update docstring.",
+   "Catch OSError in _safe_load_project or clarify documentation."
+  ],
+  "handoff": {
+   "suggestion": "Patch routing_summary to incorporate provider health data; add defensive stat handling in get_queue; review exception coverage in safety wrappers."
+  }
+ },
+ "name": "m22-core",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 36.8
+}

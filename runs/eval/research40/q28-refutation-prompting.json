@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q28-refutation-prompting",
+ "report": {
+  "status": "needs_review",
+  "summary": "No direct empirical evidence exists on the effect of refutation-framed prompting on verification accuracy or precision/recall trade-off. Existing verification methods (e.g., process supervision, SelfCheckGPT) use neutral prompts and report overall accuracy, not the trade-off. The 22% refutation rate may reflect genuine errors or prompt-induced over-skepticism. A controlled experiment is needed to quantify the trade-off given your fail-closed fence.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Refutation framing may increase false negatives, causing critical flaws to be missed.",
+   "The 22% refutation rate could be an artifact of prompt bias rather than true error density.",
+   "No published numbers exist for this exact instruction; any extrapolation is guesswork.",
+   "A precision-optimized verifier violates fail-closed egress requirements, potentially passing dangerous outputs silently."
+  ],
+  "todos": [
+   "Design a side-by-side experiment: compare neutral vs. refutation-focused prompts on a labeled verification dataset.",
+   "Measure precision, recall, false-negative rate, and F1 for each framing.",
+   "If recall drops below required thresholds, recalibrate the prompt (e.g., add calibration examples or a secondary verification step).",
+   "Document the trade-off and set an operational decision rule based on the cost of false negatives."
+  ],
+  "handoff": {
+   "suggestion": "Implement the controlled experiment in your verification pipeline, compare baseline and refutation prompts, compute confusion matrices, and tune the decision threshold to maintain required recall under the fail-closed policy."
+  }
+ },
+ "name": "q28-refutation-prompting",
+ "question": "We instructed a verification wave that REFUTED is the most valuable verdict, and 22% of checkable claims were refuted. What is known about the effect of adversarial or refutation-framed prompting on verification accuracy, and does it trade recall for precision?",
+ "elapsed_s": 49.3
+}

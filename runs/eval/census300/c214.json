@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c214",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files in slice.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "",
+   "skipped_sensitive": [
+    "tests/test_web_api.py"
+   ]
+  }
+ },
+ "name": "c214",
+ "paths": [
+  "tests/test_web_api.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.1
+}

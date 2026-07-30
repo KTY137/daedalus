@@ -1,0 +1,39 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c148",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_gate_containment_job_caps.py: Tests that job object caps on contained gate child processes block forbidden operations (fork bomb, memory hog, breakaway) and allow legitimate gate work (pytest, docref gate) under production limits.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_gate_containment_job_caps.py|daedalus.spine.attempt",
+   "DEPENDS|tests/test_gate_containment_job_caps.py|daedalus.spine.containment",
+   "READS|tests/test_gate_containment_job_caps.py|REPO_ROOT (reads the repository root path for PYTHONPATH)",
+   "WRITES|tests/test_gate_containment_job_caps.py|temporary directories created by tmp_path fixture",
+   "CLAIMS|tests/test_gate_containment_job_caps.py|Module claims to verify that job caps block forbidden operations and allow legitimate work"
+  ],
+  "todos": [
+   "tests/test_gate_containment_job_caps.py|constant|REPO_ROOT|Path to the repository root for setting PYTHONPATH",
+   "tests/test_gate_containment_job_caps.py|constant|pytestmark|Pytest marker to skip tests if platform not supported",
+   "tests/test_gate_containment_job_caps.py|function|test_the_process_cap_refuses_a_fork_bomb_without_killing_the_job|Asserts that exceeding ActiveProcessLimit fails spawn with ERROR_NOT_ENOUGH_QUOTA and does not kill the job",
+   "tests/test_gate_containment_job_caps.py|function|test_the_memory_cap_refuses_a_commit_larger_than_the_job_allows|Asserts that memory cap prevents committing beyond job memory limit",
+   "tests/test_gate_containment_job_caps.py|function|test_the_child_cannot_break_out_of_the_job|Asserts that CREATE_BREAKAWAY_FROM_JOB is refused",
+   "tests/test_gate_containment_job_caps.py|function|test_the_caps_can_be_tightened_by_a_caller_and_never_loosened|Asserts that max_processes and max_job_memory_bytes are clamped to module ceilings",
+   "tests/test_gate_containment_job_caps.py|function|test_a_job_whose_limits_cannot_be_confirmed_is_refused|Asserts that _create_job raises ContainmentUnavailable when limits are zero",
+   "tests/test_gate_containment_job_caps.py|function|test_the_attestation_carries_what_the_kernel_said_not_what_was_asked|Asserts that job limits are read back from kernel, not copied from requested values",
+   "tests/test_gate_containment_job_caps.py|function|test_a_refusal_attestation_claims_no_job_limits|Asserts that refusal_attestation returns None job_limits",
+   "tests/test_gate_containment_job_caps.py|function|test_the_list_of_things_the_caps_do_not_cover_still_names_the_network|Asserts that C.JOB_LIMITS_DO_NOT_COVER includes 'network' and 'confidentiality'",
+   "tests/test_gate_containment_job_caps.py|function|test_a_real_pytest_gate_still_passes_under_the_production_caps|Asserts that a real pytest suite runs successfully under production caps",
+   "tests/test_gate_containment_job_caps.py|function|test_the_docref_gate_reaches_a_verdict_as_the_contained_child|Asserts that docref_gate runs and produces a verdict under containment"
+  ],
+  "handoff": {}
+ },
+ "name": "c148",
+ "paths": [
+  "tests/test_gate_containment_job_caps.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 31.0
+}

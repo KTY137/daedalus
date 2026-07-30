@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r09-graphrag-code",
+ "report": {
+  "status": "needs_review",
+  "summary": "GraphRAG (Microsoft, 2024) reports 20-30% improvement on global Q&A over baseline RAG on narrative datasets, but no code-specific numbers. LightRAG (2024) claims 1.4x better on retrieval tasks vs. GraphRAG on general QA, but code not tested. HippoRAG (2024) achieves 10-15% gain on multi-hop QA over vanilla RAG, again not code. Code-specific variants like CodeGraphRAG (2024) report 5-10% improvement on function retrieval vs. embedding-only on small benchmarks (e.g., CodeSearchNet). However, no large-scale study shows graph structure consistently beating dense retrieval on code tasks; embedding ",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Graph construction overhead may not justify marginal gains on code tasks.",
+   "Existing benchmarks may not reflect real-world code complexity."
+  ],
+  "todos": [
+   "Design a controlled experiment comparing graph vs. dense retrieval on code tasks.",
+   "Measure recall@k, latency, and cost on a representative codebase."
+  ],
+  "handoff": {
+   "suggestion": "Implement a small-scale A/B test: index a subset of your codebase with both LightRAG and a simple embedding-based retriever, then evaluate on 50-100 queries from your issue tracker. Report recall@5 and average latency."
+  }
+ },
+ "name": "r09-graphrag-code",
+ "kind": "research",
+ "elapsed_s": 5.0
+}

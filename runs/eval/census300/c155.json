@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c155",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_spine_map_source.py: Tests for the picker's map source, covering trust, freshness, candidate extraction, and queue integration for the generated architecture-state.json.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_spine_map_source.py|daedalus.spine.picker",
+   "DEPENDS|tests/test_spine_map_source.py|daedalus.mapping.drift",
+   "READS|tests/test_spine_map_source.py|architecture-state.json (via load_map_state)",
+   "CLAIMS|tests/test_spine_map_source.py|test_a_forged_head_is_caught_as_a_hand_edit: docstring states the attack is caught, but test is xfail (strict=True) awaiting repo_state coverage in digest.",
+   "CLAIMS|tests/test_spine_map_source.py|test_a_STALE_snapshot_is_refused_even_though_its_digest_verifies: docstring explains historical bug.",
+   "UNWIRED|tests/test_spine_map_source.py|_real_head (called within _stamped, which is called by tests)",
+   "SMELL|tests/test_spine_map_source.py|test_a_forged_head_is_caught_as_a_hand_edit is marked xfail with strict=True, indicating a planned future change.",
+   "SMELL|tests/test_spine_map_source.py|test_the_real_repo_snapshot_is_JUDGED_and_ACTED_ON_consistently may skip if no committed architecture-state.json exists, which is a conditional branch in the test."
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "No immediate edit needed. Consider removing the xfail marker on test_a_forged_head_is_caught_as_a_hand_edit once daedalus.mapping.drift._digest covers repo_state."
+  }
+ },
+ "name": "c155",
+ "paths": [
+  "tests/test_spine_map_source.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 19.5
+}

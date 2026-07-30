@@ -1,0 +1,23 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q28-prompt-injection-code",
+ "report": {
+  "status": "needs_review",
+  "summary": "Attacks: Indirect prompt injection via tool outputs (Greshake et al. 2023) achieved 100% success hiding payloads in search results; code injection in repositories (Silent Spring attack on Copilot) produced malicious suggestions. Defenses: Instruction hierarchy tagging (Wallace et al.) reduced attack success to near zero; output monitoring and prompt sanitization help but are evadable. No defense fully robust yet.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "fabricated references possible"
+  ],
+  "todos": [
+   "verify cited papers and replicability"
+  ],
+  "handoff": {
+   "suggestion": "Adopt instruction hierarchy with trusted output tags for all tool replies; pilot with dual LLM output sanitizer."
+  }
+ },
+ "name": "q28-prompt-injection-code",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 20.2
+}

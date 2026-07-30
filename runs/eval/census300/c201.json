@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c201",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_ikarus_stream.py: Test suite covering streaming chat functionality in ikarus_os, including SSE parsing, Ollama VRAM keep_alive pin via native API, Claude CLI streaming, deterministic fallbacks, and provider compatibility.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_ikarus_stream.py|daedalus.ikarus_os",
+   "DEPENDS|tests/test_ikarus_stream.py|daedalus.providers.ollama",
+   "DEPENDS|tests/test_ikarus_stream.py|daedalus.providers._openai_compat",
+   "CLAIMS|tests/test_ikarus_stream.py|Covers the branches added for the chat-latency fix \u2014 SSE delta parsing, the stream-json frame shape, the fail-closed fallbacks, and the keep_alive pin that must go to the NATIVE Ollama API (the /v1 shim silently drops it)."
+  ],
+  "todos": [
+   "tests/test_ikarus_stream.py|class|ChatStreamTest|Verifies chat_stream yields text deltas, sends stream:true, tolerates malformed frames, and raises ProviderHTTPError on unreachable host.",
+   "tests/test_ikarus_stream.py|class|KeepAliveTest|Verifies warm_model targets native /api/generate with keep_alive, respects env override, zero disables, and failure is non-fatal.",
+   "tests/test_ikarus_stream.py|class|AskStreamTest|Tests ask_stream for intent detection, enqueue proposal, local lane streaming, fallback on errors, unwired provider degradation, and empty message safety.",
+   "tests/test_ikarus_stream.py|class|ClaudeStreamFrameTest|Verifies parsing of text deltas from Claude CLI stream-json, correct flags, and graceful handling of missing CLI or spawn failure.",
+   "tests/test_ikarus_stream.py|class|NonStreamingUnchangedTest|Verifies deterministic ask, blocking ollama with pin side-effect, failure returns None, and effort caps preserved."
+  ],
+  "handoff": {
+   "suggestion": "Structural census complete. No changes proposed."
+  }
+ },
+ "name": "c201",
+ "paths": [
+  "tests/test_ikarus_stream.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.0
+}

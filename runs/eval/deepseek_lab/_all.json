@@ -1,0 +1,237 @@
+[
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w01-change-constant-blindspot",
+  "report": {
+   "status": "needs_review",
+   "summary": "DeepSeek rewrite produced no applicable change. Skipped: daedalus/eval/graph_delta.py (too large for full rewrite)",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 0,
+    "skipped": {
+     "daedalus/eval/graph_delta.py": "too large for full rewrite"
+    }
+   }
+  },
+  "name": "w01-change-constant-blindspot",
+  "requested_paths": [
+   "daedalus/eval/graph_delta.py"
+  ],
+  "elapsed_s": 0.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w05-wire-artifacts-layer",
+  "report": {
+   "status": "needs_review",
+   "summary": "DeepSeek rewrite produced no applicable change. Skipped: daedalus/structcore/artifacts.py (too large for full rewrite); daedalus/structcore/index.py (too large for full rewrite)",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 0,
+    "skipped": {
+     "daedalus/structcore/artifacts.py": "too large for full rewrite",
+     "daedalus/structcore/index.py": "too large for full rewrite"
+    }
+   }
+  },
+  "name": "w05-wire-artifacts-layer",
+  "requested_paths": [
+   "daedalus/structcore/artifacts.py",
+   "daedalus/structcore/index.py"
+  ],
+  "elapsed_s": 0.3
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w02-new-mutation-operators",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/eval/mutate.py.",
+   "files_changed": [
+    "daedalus/eval/mutate.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 1
+   }
+  },
+  "name": "w02-new-mutation-operators",
+  "requested_paths": [
+   "daedalus/eval/mutate.py"
+  ],
+  "elapsed_s": 81.4
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w04-tests-for-arch-memory",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/arch_memory.py, tests/test_arch_memory.py.",
+   "files_changed": [
+    "daedalus/arch_memory.py",
+    "tests/test_arch_memory.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 2
+   }
+  },
+  "name": "w04-tests-for-arch-memory",
+  "requested_paths": [
+   "daedalus/arch_memory.py",
+   "tests/test_arch_memory.py"
+  ],
+  "elapsed_s": 108.9
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w07-semantics-preserving-generator",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/eval/mutate.py, daedalus/eval/preserve.py.",
+   "files_changed": [
+    "daedalus/eval/mutate.py",
+    "daedalus/eval/preserve.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 2
+   }
+  },
+  "name": "w07-semantics-preserving-generator",
+  "requested_paths": [
+   "daedalus/eval/mutate.py",
+   "daedalus/eval/preserve.py"
+  ],
+  "elapsed_s": 168.7
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w10-budget-concurrency-bug",
+  "report": {
+   "status": "needs_review",
+   "summary": "DeepSeek rewrite produced no applicable change. Skipped: daedalus/budget.py (protected path (device/vendor/secret/high-risk) -- an external lane may not write here)",
+   "files_changed": [],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 0,
+    "skipped": {
+     "daedalus/budget.py": "protected path (device/vendor/secret/high-risk) -- an external lane may not write here"
+    }
+   }
+  },
+  "name": "w10-budget-concurrency-bug",
+  "requested_paths": [
+   "daedalus/budget.py"
+  ],
+  "elapsed_s": 0.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w08-documented-not-implemented",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/wiki/links.py, tests/test_wiki_links.py.",
+   "files_changed": [
+    "daedalus/wiki/links.py",
+    "tests/test_wiki_links.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 2
+   }
+  },
+  "name": "w08-documented-not-implemented",
+  "requested_paths": [
+   "daedalus/wiki/links.py",
+   "tests/test_wiki_links.py"
+  ],
+  "elapsed_s": 119.0
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w06-harden-vault-paths",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/wiki/vault.py, tests/test_wiki_vault.py.",
+   "files_changed": [
+    "daedalus/wiki/vault.py",
+    "tests/test_wiki_vault.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 2
+   }
+  },
+  "name": "w06-harden-vault-paths",
+  "requested_paths": [
+   "daedalus/wiki/vault.py",
+   "tests/test_wiki_vault.py"
+  ],
+  "elapsed_s": 291.7
+ },
+ {
+  "provider": "deepseek",
+  "persona": "Wei",
+  "agent": "w09-typegraph-ceiling",
+  "report": {
+   "status": "done",
+   "summary": "DeepSeek applied full-file rewrite to: daedalus/eval/type_ceiling.py. Skipped: daedalus/eval/ceiling.py (suspected truncation (under half the original size)); daedalus/structcore/typegraph.py (too large for full rewrite)",
+   "files_changed": [
+    "daedalus/eval/type_ceiling.py"
+   ],
+   "tests_run": [],
+   "risks": [],
+   "todos": [],
+   "handoff": {
+    "paid_calls": 2,
+    "skipped": {
+     "daedalus/eval/ceiling.py": "suspected truncation (under half the original size)",
+     "daedalus/structcore/typegraph.py": "too large for full rewrite"
+    }
+   }
+  },
+  "name": "w09-typegraph-ceiling",
+  "requested_paths": [
+   "daedalus/eval/ceiling.py",
+   "daedalus/structcore/typegraph.py",
+   "daedalus/eval/type_ceiling.py"
+  ],
+  "elapsed_s": 186.8
+ },
+ {
+  "error": "TimeoutError: The read operation timed out",
+  "name": "w03-tests-for-shift",
+  "requested_paths": [
+   "daedalus/shift.py",
+   "tests/test_shift.py"
+  ],
+  "elapsed_s": 1012.2
+ }
+]

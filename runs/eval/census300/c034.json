@@ -1,0 +1,54 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c034",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/council/vendors.py: Defines uniform, read-only adapters (CouncilProfile, CouncilAdapter) over Anthropic, OpenAI, Google (Antigravity), and Ollama vendors with secret floor checking, process containment (council_env, council_cwd, run_managed), and transport-only VendorReply, ensuring no write path, no verdict in replies, and no memory store interaction.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/council/vendors.py|..providers._ollama_native",
+   "DEPENDS|daedalus/council/vendors.py|..providers._openai_compat",
+   "DEPENDS|daedalus/council/vendors.py|..sensitivity",
+   "DEPENDS|daedalus/council/vendors.py|..spine.cancel",
+   "DEPENDS|daedalus/council/vendors.py|..structcore.tokens",
+   "DEPENDS|daedalus/council/vendors.py|.bus",
+   "CLAIMS|daedalus/council/vendors.py|Every adapter exposes the same shape -- ask(prompt, *, role, timeout_s, model=None) -> VendorReply -- over four vendors",
+   "CLAIMS|daedalus/council/vendors.py|This module produces EVIDENCE, never a decision",
+   "CLAIMS|daedalus/council/vendors.py|Nothing here writes, edits, applies or promotes anything",
+   "CLAIMS|daedalus/council/vendors.py|Council records are NEVER an input to memory recall",
+   "CLAIMS|daedalus/council/vendors.py|A reviewer must be a COMPLETION, NOT AN AGENT"
+  ],
+  "todos": [
+   "daedalus/council/vendors.py|constant|STATUSES|Closed tuple of transport outcomes for one ask",
+   "daedalus/council/vendors.py|constant|LANES|Egress lanes: 'trusted' and 'untrusted'",
+   "daedalus/council/vendors.py|constant|UNAVAILABLE_REASONS|Machine reasons for unavailable status",
+   "daedalus/council/vendors.py|dataclass|VendorReply|One vendor's answer to one question, with transport status and provenance, no verdict field",
+   "daedalus/council/vendors.py|dataclass|FloorRefusal|A secret-floor hit, naming the rule and channel",
+   "daedalus/council/vendors.py|dataclass|RunResult|What an injected runner must return",
+   "daedalus/council/vendors.py|dataclass|CouncilProfile|A read-only, tool-less, one-shot invocation of a vendor CLI",
+   "daedalus/council/vendors.py|dict|COUNCIL_PROFILES|Predefined profiles for anthropic and openai vendors",
+   "daedalus/council/vendors.py|class|CouncilAdapter|Base adapter enforcing secret floor, token ceiling, timed dispatch, and status mapping",
+   "daedalus/council/vendors.py|function|actor_id|Produce namespaced actor id 'council.<vendor>.<model>'",
+   "daedalus/council/vendors.py|function|model_family|Coarse weight family for independence classification",
+   "daedalus/council/vendors.py|function|floor_check|Run secret floor before anything leaves the process",
+   "daedalus/council/vendors.py|function|council_cwd|Return a fresh, empty temp directory for council subprocess, not under repo_root",
+   "daedalus/council/vendors.py|function|council_env|Return environment with OLLAMA_HOST stripped, never set or inherited",
+   "daedalus/council/vendors.py|function|run_managed|Default runner spawning argv under ManagedProcess with stdin from temp file and timeout tree kill",
+   "daedalus/council/vendors.py|constant|DEFAULT_BENCH_OLLAMA_HOST|Default host for bench Ollama (http://100.119.126.9:11434)",
+   "daedalus/council/vendors.py|constant|DEFAULT_LOCAL_OLLAMA_HOST|Default host for local Ollama (http://127.0.0.1:11434)",
+   "daedalus/council/vendors.py|constant|BENCH_SSH_TARGET|SSH target for bench machine",
+   "daedalus/council/vendors.py|constant|PROMPT_DATA_NOTICE|Warning prepended to every outbound prompt that evidence is data, not instructions"
+  ],
+  "handoff": {
+   "suggestion": "Todos for ClaudeAdapter, CodexAdapter, AntigravityAdapter, OllamaAdapter, VendorAvailability, and available_vendors are missing because their definitions are not present in the provided file excerpt. Incomplete CouncilAdapter.assemble method body truncated."
+  }
+ },
+ "name": "c034",
+ "paths": [
+  "daedalus/council/vendors.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 31.1
+}

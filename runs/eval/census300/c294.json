@@ -1,0 +1,44 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c294",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/metrics.py: Provides escalation metering by logging routing outcomes to an append-only JSONL file and surfacing a fallback rate alarm.\ntests/test_storage_watermark.py: Tests the storage availability check including disk usage, watermark, env override, and exception handling.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "WRITES|daedalus/metrics.py|memory/offload_metrics.local.jsonl",
+   "READS|daedalus/metrics.py|memory/offload_metrics.local.jsonl",
+   "UNWIRED|daedalus/metrics.py|main",
+   "CLAIMS|daedalus/metrics.py|The most load-bearing practitioner warning: a broken verifier can quietly route ~90% of traffic to the expensive model with no error and no alert.",
+   "DEPENDS|tests/test_storage_watermark.py|daedalus.storage"
+  ],
+  "todos": [
+   "daedalus/metrics.py|module|metrics|Logs routing outcomes and computes fallback rate.",
+   "daedalus/metrics.py|constant|ALARM_FALLBACK_RATE|Threshold for fallback alarm.",
+   "daedalus/metrics.py|constant|LOG|Path to JSONL log file.",
+   "daedalus/metrics.py|constant|ROOT|Root directory of the project.",
+   "daedalus/metrics.py|function|record|Log one routing outcome.",
+   "daedalus/metrics.py|function|summary|Compute summary of metrics and alarm state.",
+   "daedalus/metrics.py|function|main|CLI entry point for offload metrics.",
+   "tests/test_storage_watermark.py|module|test_storage_watermark|Tests for storage availability checks.",
+   "tests/test_storage_watermark.py|function|test_ok_state|Tests that check_storage returns ok state when free space is sufficient.",
+   "tests/test_storage_watermark.py|function|test_unavailable_when_below_watermark|Tests that state is storage_unavailable when below watermark.",
+   "tests/test_storage_watermark.py|function|test_unavailable_when_volume_missing|Tests that OSError leads to storage_unavailable.",
+   "tests/test_storage_watermark.py|function|test_env_override|Tests DAEDALUS_MIN_FREE_GIB env var and explicit argument wins.",
+   "tests/test_storage_watermark.py|function|test_env_override_invalid_falls_back_to_default|Tests that invalid env var falls back to default.",
+   "tests/test_storage_watermark.py|function|test_require_storage_raises_with_path|Tests that require_storage raises StorageUnavailable with path info.",
+   "tests/test_storage_watermark.py|function|test_require_storage_returns_status_when_ok|Tests that require_storage returns status when ok."
+  ],
+  "handoff": {}
+ },
+ "name": "c294",
+ "paths": [
+  "daedalus/metrics.py",
+  "tests/test_storage_watermark.py",
+  "daedalus/decompose.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.4
+}

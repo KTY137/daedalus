@@ -1,0 +1,70 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c101",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_latent_index_integrity.py: Adversarial tests verifying that the Latent Projection Index v2 correctly refuses bad states (model drift, dimension mismatch, journal fork, offline backend) and provides accurate status codes.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_latent_index_integrity.py|daedalus.memory.embeddings",
+   "CLAIMS|test_moved_model_tag_without_revision_is_refused_not_silently_mixed|The index must refuse to accept vectors when the model tag moves without a revision pin.",
+   "CLAIMS|test_pinned_revision_does_not_stop_a_second_host_but_the_anchor_does|Pinned revision does not partition by host; runtime anchor does.",
+   "CLAIMS|test_two_specs_never_share_a_search|Distinct specs must partition searches and not fall back.",
+   "CLAIMS|test_a_spec_that_lies_about_the_request_is_refused|Spec fields provider, dimension, projector_version are cross-checked against live backend output.",
+   "CLAIMS|test_spec_overrides_loose_kwargs_rather_than_cross_checking_them|When spec is supplied, kwargs are ignored; cross-check is unreachable from public API.",
+   "CLAIMS|test_identity_anchor_tolerates_ordinary_service_jitter|Sub-tolerance noise and pure rescale do not trigger drift.",
+   "CLAIMS|test_drift_is_detected_across_a_reopen_not_just_within_one_process|Verification cache must not persist across processes.",
+   "CLAIMS|test_anchor_provenance_marks_retrofitted_indexes_as_trust_on_first_use|Missing anchor leads to adoption; provenance returned as 'adopted'.",
+   "CLAIMS|test_unpinned_movable_tag_is_reported_as_unpinned|Model without model_revision has pins_model_revision False.",
+   "CLAIMS|test_mixed_width_vectors_in_one_index_are_refused_not_broadcast|Short vectors must not be zero-padded or truncated.",
+   "CLAIMS|test_cosine_refuses_mismatched_widths_directly|_cosine raises ValueError on dimension mismatch.",
+   "CLAIMS|test_backend_that_changes_output_width_under_one_spec_is_refused|Model with different width is refused.",
+   "CLAIMS|test_dangling_identity_anchor_is_reported_as_a_corrupt_index|Orphaned anchor projection triggers invalid_index.",
+   "CLAIMS|test_search_without_a_journal_position_reports_unanchored_never_fresh|Default freshness is 'unanchored'.",
+   "CLAIMS|test_search_over_a_stale_index_says_so_instead_of_ready|Search with stale journal returns status 'stale' but results.",
+   "CLAIMS|test_watermark_refuses_to_move_backwards|Journal position must not decrease.",
+   "CLAIMS|test_watermark_refuses_a_rewritten_journal_at_an_unchanged_position|Journal content hash must match at same position.",
+   "CLAIMS|test_search_refuses_when_the_journal_forked_under_the_index|Forked journal returns journal_forked status, no matches.",
+   "CLAIMS|test_unknown_journal_id_is_unanchored_not_fresh|Unseen journal ID results in unanchored freshness.",
+   "CLAIMS|test_journal_position_rejects_nonsense|Constructor validates journal_id and position.",
+   "CLAIMS|test_an_offline_backend_is_not_reported_as_drift|Embedder unavailable yields embedder_unavailable, not model_drift."
+  ],
+  "todos": [
+   "tests/test_latent_index_integrity.py|class|FakeEmbeddingBackend|Deterministic pure-function embedding backend for tests.",
+   "tests/test_latent_index_integrity.py|class|NudgedBackend|FakeEmbeddingBackend perturbed by epsilon to test drift tolerance.",
+   "tests/test_latent_index_integrity.py|class|UnavailableBackend|Mock backend that always raises EmbeddingUnavailableError.",
+   "tests/test_latent_index_integrity.py|function|test_moved_model_tag_without_revision_is_refused_not_silently_mixed|Test that index refuses vectors after model tag moves without revision pin.",
+   "tests/test_latent_index_integrity.py|function|test_pinned_revision_does_not_stop_a_second_host_but_the_anchor_does|Test that pinned revision does not partition by host but runtime anchor does.",
+   "tests/test_latent_index_integrity.py|function|test_two_specs_never_share_a_search|Test that distinct specs partition and do not fallback.",
+   "tests/test_latent_index_integrity.py|function|test_a_spec_that_lies_about_the_request_is_refused|Test that spec fields provider, dimension, projector_version are cross-checked.",
+   "tests/test_latent_index_integrity.py|function|test_spec_overrides_loose_kwargs_rather_than_cross_checking_them|Test that spec overrides kwargs, cross-check unreachable.",
+   "tests/test_latent_index_integrity.py|function|test_identity_anchor_tolerates_ordinary_service_jitter|Test that sub-tolerance noise passes.",
+   "tests/test_latent_index_integrity.py|function|test_drift_is_detected_across_a_reopen_not_just_within_one_process|Test drift detection across process reopen.",
+   "tests/test_latent_index_integrity.py|function|test_anchor_provenance_marks_retrofitted_indexes_as_trust_on_first_use|Test that adopted anchor provenance is reported.",
+   "tests/test_latent_index_integrity.py|function|test_unpinned_movable_tag_is_reported_as_unpinned|Test that model without model_revision is reported unpinned.",
+   "tests/test_latent_index_integrity.py|function|test_mixed_width_vectors_in_one_index_are_refused_not_broadcast|Test that dimension mismatch in index is refused.",
+   "tests/test_latent_index_integrity.py|function|test_cosine_refuses_mismatched_widths_directly|Test that _cosine raises ValueError on dimension mismatch.",
+   "tests/test_latent_index_integrity.py|function|test_backend_that_changes_output_width_under_one_spec_is_refused|Test that backend dimension change is refused.",
+   "tests/test_latent_index_integrity.py|function|test_dangling_identity_anchor_is_reported_as_a_corrupt_index|Test that orphaned anchor projection yields invalid_index.",
+   "tests/test_latent_index_integrity.py|function|test_search_without_a_journal_position_reports_unanchored_never_fresh|Test default freshness is unanchored.",
+   "tests/test_latent_index_integrity.py|function|test_search_over_a_stale_index_says_so_instead_of_ready|Test stale journal returns stale status.",
+   "tests/test_latent_index_integrity.py|function|test_watermark_refuses_to_move_backwards|Test that journal position cannot decrease.",
+   "tests/test_latent_index_integrity.py|function|test_watermark_refuses_a_rewritten_journal_at_an_unchanged_position|Test that journal content hash must match.",
+   "tests/test_latent_index_integrity.py|function|test_search_refuses_when_the_journal_forked_under_the_index|Test forked journal returns journal_forked.",
+   "tests/test_latent_index_integrity.py|function|test_unknown_journal_id_is_unanchored_not_fresh|Test unknown journal ID yields unanchored.",
+   "tests/test_latent_index_integrity.py|function|test_journal_position_rejects_nonsense|Test JournalPosition validation.",
+   "tests/test_latent_index_integrity.py|function|test_an_offline_backend_is_not_reported_as_drift|Test offline backend yields embedder_unavailable."
+  ],
+  "handoff": {
+   "suggestion": "No changes needed; structural census complete."
+  }
+ },
+ "name": "c101",
+ "paths": [
+  "tests/test_latent_index_integrity.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.1
+}

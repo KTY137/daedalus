@@ -1,0 +1,33 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m33-harness",
+ "report": {
+  "status": "needs_review",
+  "summary": "Docstring claim violation in eval_task_tier1: 'NEVER RAISES' but it only catches ValueError/OSError; an unexpected exception (e.g., RuntimeError from semantic_slice) would propagate, crashing the eval run. This deviates from the advertised guarantee. Additionally, _whole_repo_text silently skips files on OSError, which could cause recall misses if must_include symbols reside in skipped files\u2014though this behavior is not contractually guaranteed. No concurrency protection visible; concurrent cached_index writes may conflict on Windows.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "location": "eval_task_tier1 docstring vs implementation",
+    "trigger": "A task where semantic_slice raises any non-ValueError/non-OSError (e.g., RuntimeError due to internal KeyError).",
+    "impact": "Run crashes despite 'NEVER RAISES' guarantee, undermining Tier 1 reliability."
+   },
+   {
+    "location": "_whole_repo_text",
+    "trigger": "A source file that cannot be opened (e.g., sharing violation on Windows) containing must_include symbols.",
+    "impact": "Silent skip reduces recall without warning; may inflate slice-recall miss count incorrectly."
+   }
+  ],
+  "todos": [
+   "Expand exception handling in eval_task_tier1 to catch all exceptions (or at least BaseException) to honor the 'NEVER RAISES' guarantee.",
+   "Consider logging or reporting skipped files in _whole_repo_text to avoid silent data loss."
+  ],
+  "handoff": {
+   "suggestion": "Modify eval_task_tier1 to wrap the try block with `except Exception` instead of only `(ValueError, OSError)`. Also, consider adding a warning when _whole_repo_text skips a file due to OSError to increase visibility of potential recall degradation."
+  }
+ },
+ "name": "m33-harness",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 43.3
+}

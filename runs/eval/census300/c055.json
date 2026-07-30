@@ -1,0 +1,40 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c055",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_semantic_route_wired.py: Contains integration tests verifying that the semantic routing feature is correctly wired into production routing, including allow-side steering, lane guard, fail-soft behavior, kill switch, and roster threading.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_semantic_route_wired.py|daedalus.semantic_route",
+   "DEPENDS|tests/test_semantic_route_wired.py|daedalus.provider_router",
+   "DEPENDS|tests/test_semantic_route_wired.py|daedalus.router"
+  ],
+  "todos": [
+   "tests/test_semantic_route_wired.py|constant|AVAIL|Maps provider names to booleans indicating availability for tests.",
+   "tests/test_semantic_route_wired.py|constant|CROSS_AVAIL|Maps provider names to booleans for cross-lane availability scenario.",
+   "tests/test_semantic_route_wired.py|constant|RECEIPT_KEYS|Set of keys that the receipt must contain.",
+   "tests/test_semantic_route_wired.py|constant|INTRA_OBJECTIVE|Objective string for intra-lane tests.",
+   "tests/test_semantic_route_wired.py|constant|INTRA_TARGET|Target role for intra-lane tests.",
+   "tests/test_semantic_route_wired.py|constant|CROSS_OBJECTIVE|Objective string for cross-lane tests.",
+   "tests/test_semantic_route_wired.py|constant|CROSS_TARGET|Target role for cross-lane tests.",
+   "tests/test_semantic_route_wired.py|class|FakeOllama|Implements a real HTTP server faking the Ollama embeddings API.",
+   "tests/test_semantic_route_wired.py|class|LatentRouteSteersTests|Tests that the latent route actually steers production routing.",
+   "tests/test_semantic_route_wired.py|class|LaneGuardTests|Tests that the lane guard prevents cross-lane latent decisions.",
+   "tests/test_semantic_route_wired.py|class|FailSoftTests|Tests that no latent failure breaks routing and all are logged.",
+   "tests/test_semantic_route_wired.py|class|KillSwitchTests|Tests for the environment variable kill switch.",
+   "tests/test_semantic_route_wired.py|class|RosterThreadingTests|Tests that active_agents bounds the latent choice."
+  ],
+  "handoff": {
+   "suggestion": "No changes needed. The file is structurally sound for its purpose."
+  }
+ },
+ "name": "c055",
+ "paths": [
+  "tests/test_semantic_route_wired.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.1
+}

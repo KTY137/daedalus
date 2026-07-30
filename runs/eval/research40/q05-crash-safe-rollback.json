@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q05-crash-safe-rollback",
+ "report": {
+  "status": "needs_review",
+  "summary": "Crash-safe file rollback commonly uses undo-journals: SQLite's rollback journal writes original pages before in-place modification; dpkg stores package state in /var/lib/dpkg/updates/; Emacs and Vim use backup/swap files. Minimum durable record: before a write, save original file content (or differential) to a synced journal file. On recovery, restore if journal is present. Measured overhead on HDD: ~2x writes for full file copies; page-level journals reduce cost. The approach is proven but requires strict fsync ordering.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Double-write overhead for large files (potentially 2x I/O) unless using delta/page-level journal.",
+   "Requires reliable fsync ordering: journal must be durable before main file is touched; some filesystems weaken this.",
+   "Race conditions if multiple processes attempt concurrent modifications \u2014 need file locking.",
+   "Rollback discards intended writes; may surprise users if crash occurs after data is logically committed but before journal deletion.",
+   "On Windows, fsync semantics depend on FlushFileBuffers; NTFS metadata ordering is not always guaranteed without write-through."
+  ],
+  "todos": [
+   "Implement per-file undo-journal: before in-place write, copy original to .<filename>.undo, fsync the undo file, then proceed.",
+   "On process startup, scan for orphan undo files; if found, copy content back to original to restore last safe state.",
+   "Add a verification step after write (e.g., checksum) and only delete undo on success \u2014 if killed between write and verify, the undo persists and rollback is safe.",
+   "Consider atomic write-and-rename for new files or single-operation changes to avoid undo overhead.",
+   "Benchmark overhead with target file sizes; if unacceptable, implement page-level or block-level journal like SQLite (copy only modified blocks).",
+   "Add locking mechanism (fcntl/win32 lock) to prevent concurrent modification of the same file during undo-protected operation."
+  ],
+  "handoff": {
+   "suggestion": "The described undo-journal is a minimal, battle-tested approach (SQLite, dpkg). For Daedalus on Windows, confirm FlushFileBuffers calls are sufficient to guarantee order. If file size is large, store original in a separate 'rollback' directory with a unique session ID, and record the mapping. On crash recovery, apply all pending rollbacks. This avoids cluttering working directories and supports host-wide cleanup."
+  }
+ },
+ "name": "q05-crash-safe-rollback",
+ "question": "Crash-safe file rollback: what on-disk undo-journal designs do editors and package managers actually use, and what is the minimum durable record that makes in-memory backups recoverable after a kill between write and verify?",
+ "elapsed_s": 81.1
+}

@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x10-ceiling-vs-graphdelta",
+ "report": {
+  "status": "needs_review",
+  "summary": "Design for a TYPE-layer ceiling experiment: measure upper bound on missed labels recoverable by type edges beyond existing import/call edges. Clean arm uses type graph from parent commit to avoid self-prediction; leaky arm uses current worktree. Rename-awareness via git--follow resolves file aliases.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Building type graphs per historical revision is expensive and may require project build steps.",
+   "Dynamic typing or missing type annotations could yield incomplete type edges, understating ceiling.",
+   "Rename resolution adds complexity and potential alias probe failures (understatement risk).",
+   "The parent commit may contain syntax errors or incomplete refactors, breaking type extraction."
+  ],
+  "todos": [
+   "Implement a type-edge extractor (e.g., via Pyre/mypy dump or custom AST walk for type annotations, inheritance, and typed imports).",
+   "Integrate git checkout of parent commit and type analysis into the ceiling pipeline, caching results per revision.",
+   "Extend _classify function with TYPE_REACHABLE class and add type-edge query logic.",
+   "Add temporal-style rename resolution for focus/defining files at the parent revision.",
+   "Write a render_ceiling_type analogous to render_ceiling with clean/leaky arms and reopen thresholds.",
+   "Test on the existing corpus to establish baseline type ceiling."
+  ],
+  "handoff": {
+   "suggestion": "Design for TYPE-layer ceiling experiment:\n\nARMS:\n- CLEAN arm: For a task at commit SHA, checkout the parent commit (SHA^) (or use git to read files from that tree). Compute type edges (e.g., via static analysis) for all source files, then resolve the focus file's path to its name at that revision using `git log --follow --name-only SHA^ -- <relpath>` (aliases). For each missed label, determine its defining files and resolve their aliases at SHA^. If any such defining file is among the type-dependencies of the focus file (i.e., a direct type edge exists), classify as TYPE_REACHABLE.\n- LEAKY arm: identical process but using the current worktree (the HEAD or minted state). This will include type edges introduced in the mint commit itself, creating the self-prediction artifact.\n\nLEAKAGE: The gap between clean and leaky ceilings measures how many recoverable labels are only reachable due to changes made in the mint commit.\n\nCLASSIFICATION:\n- NO_INSCOPE_DEF: no in-scope file defines the symbol.\n- STATIC_EDGE: the defining file is already a static dependency (import/call) of the focus file in the current index.\n- TYPE_REACHABLE: not STATIC_EDGE, but a type edge exists in the respective arm.\n- UNREACHABLE: no edge of any kind.\n\nRENAME-AWARENESS: As with temporal ceiling, file renames across commits would break exact-path matching. Use `git log --follow` to resolve the historical path of focus and defining files at the target revision. Sum type edge counts across historical aliases before applying any threshold.\n\nMATERIALITY & REOPEN: After measuring, apply a similar materiality floor (e.g., \u226510% of scored labels or \u22653 tasks) before recommending the TYPE enrichment lane be built."
+  }
+ },
+ "name": "x10-ceiling-vs-graphdelta",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 61.1
+}

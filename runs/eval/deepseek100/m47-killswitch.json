@@ -1,0 +1,22 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m47-killswitch",
+ "report": {
+  "status": "blocked",
+  "summary": "Cannot audit daedalus/spine/killswitch.py because the file content was not supplied in the context. No slice provided.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Provide the content of daedalus/spine/killswitch.py or the relevant slice for the audit.",
+   "skipped_sensitive": [
+    "daedalus/spine/killswitch.py"
+   ]
+  }
+ },
+ "name": "m47-killswitch",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 4.3
+}

@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m52-preservation",
+ "report": {
+  "status": "needs_review",
+  "summary": "No defects found in the visible code. The extractors, projection, and counting logic appear correct. The incomplete visibility of check_preservation prevents auditing the DEMOTED handling and ok flag, but based on the module's guarantees and other parts, no issues detected.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "The slice does not include the full check_preservation function; the DEMOTED severity assignment and ok flag setting are not visible. Could not confirm that those parts work as documented.",
+   "Potential edge cases in _count with keys containing regex special chars or leading/trailing non-word chars appear handled by re.escape and the word-boundary-like pattern, consistent with documented allowance for substring miscounts."
+  ],
+  "todos": [
+   "Review the full check_preservation function to ensure DEMOTED findings are correctly generated and that ok is correctly set to False only on LOST.",
+   "Verify that the seen-set deduplication does not inadvertently suppress DEMOTED or LOST findings when the same key appears in multiple classes.",
+   "Add tests for unterminated fences and embedded inline code with inconsistent backtick counts to ensure extractors are robust."
+  ],
+  "handoff": {}
+ },
+ "name": "m52-preservation",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 140.4
+}

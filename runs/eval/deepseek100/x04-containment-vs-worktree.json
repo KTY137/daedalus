@@ -1,0 +1,48 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x04-containment-vs-worktree",
+ "report": {
+  "status": "needs_review",
+  "summary": "Two layers claim to confine the candidate's change: MIC write containment prevents writes outside the Low worktree, and the job object caps resource consumption. Their guarantees are orthogonal\u2014MIC bounds writes, the job bounds CPU/memory\u2014but both leave a critical gap: network egress is completely unrestricted, enabling data exfiltration and command\u2011and\u2011control. Disk filling is also unconstrained. Named pipe IPC is unmeasured and could bypass MIC. The harness itself is uncontained, but that is a design choice.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "severity": "high",
+    "description": "Unrestricted network egress: a contained process can open sockets and communicate externally, violating confidentiality. No MIC or job limit covers it. Trigger: any socket connect() or send() by the child.",
+    "evidence": "JOB_LIMITS_DO_NOT_COVER and module doc: 'NETWORK: unrestricted. A Low process still has a network stack, and NO Job Object limit can change that'."
+   },
+   {
+    "severity": "medium",
+    "description": "Disk capacity exhaustion: a candidate can fill the volume by writing large files inside its Low worktree, causing denial of service. The job's committed memory limit does not constrain disk usage. Trigger: repeated large file writes within the worktree.",
+    "evidence": "JOB_LIMITS_DO_NOT_COVER: 'disk: \u2026 A candidate that fills the volume inside its own Low-labelled worktree \u2026 is bounded by neither the job nor MIC'."
+   },
+   {
+    "severity": "medium",
+    "description": "Unmeasured named pipe bypass: a Low child may be able to communicate with a Medium pipe server, potentially bypassing MIC write restrictions. Not measured or prevented. Trigger: child connects to a Medium\u2011integrity named pipe.",
+    "evidence": "UNMEASURED tuple: 'named pipes: a Medium server with a Low client was not measured, and MIC is not documented here as a reliable IPC boundary'."
+   },
+   {
+    "severity": "low",
+    "description": "Harness process runs uncontained: while the child is isolated, the harness (including _persist) operates at full integrity, so any bug in the harness could be exploited by side channels. Trigger: a resource\u2011exhausted state causing harness to mishandle logic.",
+    "evidence": "Doc: 'Only the GATE CHILD is contained. \u2026 attempt.py's _persist all run at the invoking user's full integrity, by construction'."
+   }
+  ],
+  "todos": [
+   "Implement network isolation (e.g., firewall rule, AppContainer, or dedicated user principal) to close the egress gap.",
+   "Add disk quota or monitoring for the worktree to prevent disk fills.",
+   "Measure named pipe behavior and document whether it creates an IPC bypass.",
+   "Consider reducing the harness's privilege or moving it into a separate integrity level."
+  ],
+  "handoff": {
+   "suggestion": "Add network containment via a dedicated mechanism (firewall rule scoped to a low\u2011privilege user, or AppContainer) as discussed. The job object cannot provide it; MIC does not address egress. Disk quota enforcement would similarly require a separate mechanism. The named pipe gap should be measured before being dismissed.",
+   "skipped_sensitive": [
+    "daedalus/kairos/worktree.py"
+   ]
+  }
+ },
+ "name": "x04-containment-vs-worktree",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 35.5
+}

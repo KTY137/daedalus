@@ -1,0 +1,54 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c050",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/conversation.py: durable multi-turn conversation state with SQLite-backed store for turns, dispatch attribution, and crash-safe append-only logging.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/conversation.py|daedalus.health",
+   "WRITES|daedalus/conversation.py|runs/ikarus/conversations.sqlite3",
+   "READS|daedalus/conversation.py|runs/ikarus/conversations.sqlite3",
+   "CLAIMS|daedalus/conversation.py|A turn can cause zero or more dispatches, each reportable more than once, distinct from spine.ledger's single-resolution contract",
+   "UNWIRED|daedalus/conversation.py|new_conversation_id"
+  ],
+  "todos": [
+   "daedalus/conversation.py|module|conversation|Multi-turn conversation state with append-only logs and crash-safe SQLite store",
+   "daedalus/conversation.py|class|ConversationStore|Crash-safe conversation/turn/dispatch store over one SQLite file with WAL and event-sourced status",
+   "daedalus/conversation.py|class|Turn|Frozen dataclass for a single conversation turn",
+   "daedalus/conversation.py|class|DispatchLink|Frozen dataclass representing a link from a turn to a dispatch",
+   "daedalus/conversation.py|class|DispatchEvent|Frozen dataclass representing an event in a dispatch's lifecycle",
+   "daedalus/conversation.py|class|ConversationError|Base exception for store refusals",
+   "daedalus/conversation.py|class|UnknownConversation|Exception for unknown conversation",
+   "daedalus/conversation.py|class|UnknownTurn|Exception for unknown turn",
+   "daedalus/conversation.py|class|UnknownDispatch|Exception for unknown dispatch",
+   "daedalus/conversation.py|class|DuplicateDispatchRef|Exception for duplicate dispatch_ref",
+   "daedalus/conversation.py|constant|STATUS_ANSWERED|Chat turn status: reply produced without side effect",
+   "daedalus/conversation.py|constant|STATUS_PROPOSED|Chat turn status: action proposed but not dispatched",
+   "daedalus/conversation.py|constant|STATUS_ERROR|Chat turn status: exception during reply",
+   "daedalus/conversation.py|constant|TURN_STATUSES|Tuple of valid turn statuses",
+   "daedalus/conversation.py|constant|LIFECYCLE_DISPATCHED|Dispatch lifecycle event: work was sent",
+   "daedalus/conversation.py|constant|LIFECYCLE_REPORTED|Dispatch lifecycle event: report arrived",
+   "daedalus/conversation.py|constant|DISPATCH_LIFECYCLE|Tuple of valid dispatch lifecycle stages",
+   "daedalus/conversation.py|constant|OUTCOME_STATES|Re-exported from daedalus.health: closed set of outcome states",
+   "daedalus/conversation.py|constant|WORKING|Re-exported health state: working",
+   "daedalus/conversation.py|constant|PRESENT|Re-exported health state: present",
+   "daedalus/conversation.py|constant|DEGRADED|Re-exported health state: degraded",
+   "daedalus/conversation.py|constant|ABSENT|Re-exported health state: absent",
+   "daedalus/conversation.py|constant|UNKNOWN|Re-exported health state: unknown",
+   "daedalus/conversation.py|function|new_conversation_id|Generates a fresh, filename-safe, sortable conversation id",
+   "daedalus/conversation.py|function|default_db_path|Returns the path for the conversation SQLite database, overridable via environment variable",
+   "daedalus/conversation.py|function|default_store|(assumed) Returns a default ConversationStore instance",
+   "daedalus/conversation.py|function|recent_turns_context|(assumed) Builds a context string from recent turns for prompt injection"
+  ],
+  "handoff": {}
+ },
+ "name": "c050",
+ "paths": [
+  "daedalus/conversation.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 15.9
+}

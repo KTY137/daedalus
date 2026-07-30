@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c144",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/adapters/subprocess_adapter.py: Provides a subprocess adapter (SubprocessAdapter) for running configured CLI commands in a bounded working directory and normalizing output into a standard event stream. Defines RuntimeConfig, RUNTIME_PROFILES, and PromptMode as supporting types.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/adapters/subprocess_adapter.py|.base (AgentAdapter)",
+   "DEPENDS|daedalus/adapters/subprocess_adapter.py|.events (AgentCapabilities, AgentEvent, AgentMessage, CommandOutput, SessionEnded, SessionStarted, TextDelta, ToolCompleted, ToolRequested, event_to_transport_record)",
+   "DEPENDS|daedalus/adapters/subprocess_adapter.py|.transport (TransportSink)",
+   "CLAIMS|daedalus/adapters/subprocess_adapter.py|one-shot CLI profiles do not expose a portable approval protocol (in approve/reject methods)",
+   "CLAIMS|daedalus/adapters/subprocess_adapter.py|each CLI still needs a verified command profile and provider-specific event parser (module docstring)"
+  ],
+  "todos": [
+   "daedalus/adapters/subprocess_adapter.py|constant|PromptMode|Restricts prompt delivery mode to one of \"argument\", \"stdin\", or \"none\".",
+   "daedalus/adapters/subprocess_adapter.py|class|RuntimeConfig|Verified process-launch contract for one CLI runtime.",
+   "daedalus/adapters/subprocess_adapter.py|constant|RUNTIME_PROFILES|Provides built-in runtime profiles for one-shot, non-interactive CLI invocations.",
+   "daedalus/adapters/subprocess_adapter.py|class|SubprocessAdapter|Runs a configured CLI in a bounded working directory and normalizes output into AgentEvents."
+  ],
+  "handoff": {}
+ },
+ "name": "c144",
+ "paths": [
+  "daedalus/adapters/subprocess_adapter.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.2
+}

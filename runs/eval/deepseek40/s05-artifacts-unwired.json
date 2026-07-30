@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s05-artifacts-unwired",
+ "report": {
+  "status": "needs_review",
+  "summary": "The module `daedalus/structcore/artifacts.py` defines `extract_literals`, `resolve_literals`, and `read_schema` for extracting data-artefact edges (reads/writes/includes/figures) and their schemas. However, nothing in the provided context calls these functions. The missing call site is in `index.py` (the main orchestration file, not shown). The smallest honest wiring change is to add a call to `resolve_literals` after file parsing, passing the extracted literals and known file set, then store the resulting edges in the graph. For a 7000-file tree, the cost is O(N) for literal extraction (each ",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "If `index.py` does not exist or has a different structure, the wiring change may need adjustment.",
+   "The module assumes `known_files` is a set of POSIX paths; if the caller provides Windows paths, resolution may fail."
+  ],
+  "todos": [
+   "Add a call to `extract_literals` for each file in the tree, then `resolve_literals` with the full file set, and integrate the resulting `ArtifactEdge` list into the graph output."
+  ],
+  "handoff": {
+   "suggestion": "In `index.py`, after building the file list and before final graph assembly, add:\n\n```python\nfrom daedalus.structcore.artifacts import extract_literals, resolve_literals\n\nliterals_by_file = {}\nfor rel, text in file_texts.items():\n    literals = extract_literals(rel, text)\n    if literals:\n        literals_by_file[rel] = literals\n\nreport = resolve_literals(literals_by_file, known_files=set(file_texts.keys()))\n# Then add report.edges to the graph, and optionally report.unresolved/ambiguous as warnings.\n```\n\nThis is the minimal change; no new dependencies or config needed.",
+   "skipped_sensitive": [
+    "daedalus/structcore/index.py"
+   ]
+  }
+ },
+ "name": "s05-artifacts-unwired",
+ "kind": "scan",
+ "elapsed_s": 5.5
+}

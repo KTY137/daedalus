@@ -1,0 +1,49 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c229",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_artifacts.py: Tests for the artifacts module, validating literal extraction (LaTeX, Python, C++), schema reading (CSV, JSON, NumPy), schema comparison, and chain resolution.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_artifacts.py|daedalus.structcore.artifacts",
+   "CLAIMS|tests/test_artifacts.py|The data layer's contract: refuse to guess, and never confuse 'we could not look' with 'there is nothing there'."
+  ],
+  "todos": [
+   "tests/test_artifacts.py|class|LiteralExtraction|Tests for extract_literals across languages and determinism.",
+   "tests/test_artifacts.py|function|test_latex_input_and_figures|Guarantees extraction of \\input, \\includegraphics, \\bibliography with correct relations.",
+   "tests/test_artifacts.py|function|test_python_reader_and_writer_calls_carry_direction|Guarantees Python file reads and writes are tagged 'reads' and 'writes'.",
+   "tests/test_artifacts.py|function|test_cpp_root_calls|Guarantees C++ TFile::Open and new TFile produce 'reads' and 'writes' relations.",
+   "tests/test_artifacts.py|function|test_a_language_with_no_rules_yields_nothing_rather_than_guessing|Guarantees unknown language returns empty list, not guess.",
+   "tests/test_artifacts.py|function|test_extraction_is_deterministic|Guarantees same input produces identical output.",
+   "tests/test_artifacts.py|class|RefuseToGuess|Tests for resolve_literals: unresolved, ambiguous, resolved, external, provenance.",
+   "tests/test_artifacts.py|function|test_an_unresolved_literal_is_counted_never_bound_to_a_near_match|Guarantees unresolved literals produce no edges and are counted.",
+   "tests/test_artifacts.py|function|test_an_ambiguous_literal_produces_no_edge_and_is_counted|Guarantees ambiguous literals produce no edge and list candidates.",
+   "tests/test_artifacts.py|function|test_a_single_extension_candidate_resolves|Guarantees single candidate resolves to an edge.",
+   "tests/test_artifacts.py|function|test_an_off_tree_url_is_an_attribute_not_an_edge|Guarantees external URLs are not resolved as edges.",
+   "tests/test_artifacts.py|function|test_edges_carry_their_provenance|Guarantees edges have provenance attribute.",
+   "tests/test_artifacts.py|class|SchemaReading|Tests for read_schema: CSV, JSON, NumPy, unsupported, unreadable, truncated.",
+   "tests/test_artifacts.py|function|test_csv_header_becomes_columns|Guarantees CSV header becomes column names.",
+   "tests/test_artifacts.py|function|test_json_object_keys_with_types|Guarantees JSON object keys and types are extracted.",
+   "tests/test_artifacts.py|function|test_npy_header_is_parsed_with_stdlib|Guarantees NumPy structured array header parsed.",
+   "tests/test_artifacts.py|function|test_an_unsupported_format_is_NOT_an_empty_schema|Guarantees unsupported format returns NOT_SUPPORTED status.",
+   "tests/test_artifacts.py|function|test_an_unreadable_file_is_unreadable_not_clean|Guarantees unreadable file returns UNREADABLE status.",
+   "tests/test_artifacts.py|function|test_a_truncated_read_is_flagged_on_the_result|Guarantees truncated read sets truncated flag.",
+   "tests/test_artifacts.py|class|TheJoin|Tests for compare_schema: missing fields, refused comparison.",
+   "tests/test_artifacts.py|function|test_a_declared_field_missing_from_the_artifact_is_the_finding|Guarantees missing declared fields reported in missing_in_artifact.",
+   "tests/test_artifacts.py|function|test_it_refuses_to_compare_against_a_schema_it_never_read|Guarantees unread schema is not comparable.",
+   "tests/test_artifacts.py|class|Chain|Tests for chain_from: chain construction and bounding.",
+   "tests/test_artifacts.py|function|test_the_paper_to_data_chain_walks_backwards|Guarantees chain includes producers like paper.tex and plot.py.",
+   "tests/test_artifacts.py|function|test_the_walk_is_bounded_and_says_when_it_stopped|Guarantees max_hops bound and truncation indicator."
+  ],
+  "handoff": {}
+ },
+ "name": "c229",
+ "paths": [
+  "tests/test_artifacts.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.9
+}

@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m05-embeddings",
+ "report": {
+  "status": "needs_review",
+  "summary": "Visible concurrency flaw in _init_db can cause 'database is locked' when multiple processes initialise. Docstring claims record_journal_watermark enforces append-only journal position but this method is absent from the visible slice. _embed_batch swallows errors silently. Zero-vector rejected even for 'none' normalisation (debatable).",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CONCURRENCY: _init_db migration runs in a transaction without retry; parallel first opens on the same DB (common in WSGI/async workers) will hit SQLITE_BUSY and crash the process. Windows file locking makes this worse.",
+   "DOCSTRING MISMATCH: docstring promises record_journal_watermark enforces monotonic watermarks and hash consistency, but no such method is visible in this file.",
+   "ERROR SWALLOWING: _embed_batch catches EmbeddingError and returns None silently. Callers may treat None as success, leading to missing vectors.",
+   "POTENTIAL CORRECTNESS: _normalize_vector rejects zero norm even when normalisation='none', which may be unexpected if callers want to store zero vectors (but docstring justifies it for cosine safety).",
+   "MISSING IMPLEMENTATION: Search/ingest methods (search_report, ingest_report) are referenced in docstring but not visible; their actual enforcement cannot be verified."
+  ],
+  "todos": [
+   "Add retry logic or WAL mode + busy timeout to handle concurrent _init_db safely.",
+   "Confirm whether record_journal_watermark is defined; if not, remove docstring promise or implement it.",
+   "Consider logging or a more explicit return type in _embed_batch to prevent silent failures.",
+   "Review zero-vector policy for 'none' normalisation to see if it should be allowed for pure storage use cases."
+  ],
+  "handoff": {
+   "suggestion": "Focus on concurrency hardening of _init_db (e.g., setting PRAGMA busy_timeout before migration, or opening with URI file:?mode=rwc&nolock=1 as last resort). Also verify that record_journal_watermark exists elsewhere; if not, update the docstring to avoid false promises."
+  }
+ },
+ "name": "m05-embeddings",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 93.2
+}

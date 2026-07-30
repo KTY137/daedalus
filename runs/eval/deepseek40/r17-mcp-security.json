@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r17-mcp-security",
+ "report": {
+  "status": "needs_review",
+  "summary": "Documented attacks against MCP servers include tool poisoning (malicious tool descriptions that mislead LLM routing), rug-pull updates (server changes tool behavior after approval), cross-server shadowing (conflicting tool names across servers causing unintended invocation), and prompt injection through tool output (output containing instructions that alter LLM behavior). Mitigations adopted in practice: sandboxed execution (e.g., Docker containers for tool processes), output sanitization (stripping control tokens), tool name namespacing (e.g., server prefix), and human-in-the-loop approval fo",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Tool poisoning can cause LLM to call wrong tool; mitigation via strict schema validation and human review of tool descriptions.",
+   "Rug-pull updates: server changes tool semantics after approval; mitigation via version pinning and hash verification of tool definitions.",
+   "Cross-server shadowing: multiple servers define same tool name; mitigation via unique namespacing (e.g., server_id.tool_name).",
+   "Prompt injection through tool output: output contains instructions that alter LLM behavior; mitigation via output sanitization (strip markdown, control characters) and context isolation."
+  ],
+  "todos": [
+   "Implement tool definition hashing and version pinning to detect rug-pull updates.",
+   "Enforce output sanitization: strip any text that matches prompt injection patterns (e.g., 'ignore previous instructions').",
+   "Require human approval for any change to registered tool schemas.",
+   "Namespace tool names with server identifier to prevent cross-server shadowing."
+  ],
+  "handoff": {
+   "suggestion": "The single most actionable step: add a cryptographic hash of each tool's definition (name, description, parameters) to the registration record, and reject any invocation where the hash does not match. This directly mitigates rug-pull updates and tool poisoning by ensuring the LLM only uses the approved version. Combine with output sanitization that strips known injection patterns (e.g., 'ignore previous instructions', 'you are now a different agent') before returning tool results to the LLM context."
+  }
+ },
+ "name": "r17-mcp-security",
+ "kind": "research",
+ "elapsed_s": 5.7
+}

@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c061",
+ "report": {
+  "status": "blocked",
+  "summary": "No files supplied for analysis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Provide file excerpts to enable structural census.",
+   "skipped_sensitive": [
+    "tests/test_room_wiring.py"
+   ]
+  }
+ },
+ "name": "c061",
+ "paths": [
+  "tests/test_room_wiring.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.1
+}

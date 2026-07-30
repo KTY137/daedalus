@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "w01-change-constant-blindspot",
+ "report": {
+  "status": "needs_review",
+  "summary": "DeepSeek rewrite produced no applicable change. Skipped: daedalus/eval/graph_delta.py (too large for full rewrite)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "paid_calls": 0,
+   "skipped": {
+    "daedalus/eval/graph_delta.py": "too large for full rewrite"
+   }
+  }
+ },
+ "name": "w01-change-constant-blindspot",
+ "requested_paths": [
+  "daedalus/eval/graph_delta.py"
+ ],
+ "elapsed_s": 0.0
+}

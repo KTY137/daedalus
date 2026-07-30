@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c263",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tests/fixtures/typegraph/ambiguous_result_try_import.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tests/fixtures/typegraph/ambiguous_result_try_import.py"
+   ]
+  }
+ },
+ "name": "c263",
+ "paths": [
+  "tests/test_observe_shape.py",
+  "tests/fixtures/typegraph/ambiguous_result_try_import.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

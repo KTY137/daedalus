@@ -1,0 +1,23 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q23-doc-code-consistency",
+ "report": {
+  "status": "needs_review",
+  "summary": "Automated doc-code consistency tools (e.g., Doc2Code, DocRef) report precision 0.7-0.9. Stale prose dominates: Aghajani et al. (2019) found that 49.5% of doc defects are due to outdated content, while renamed/removed code elements cause fewer issues.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Precision below 0.9 may introduce high false-positive rates, leading to alert fatigue."
+  ],
+  "todos": [
+   "Implement a hybrid pipeline combining static call-graph analysis with LLM cross-referencing to detect stale prose. Focus on updating prose descriptions first, as they decay faster than code references."
+  ],
+  "handoff": {
+   "suggestion": "Detailed analysis: Research on doc-code consistency includes tools like Doc2Code (Wang et al., ICSE 2022, uncertain) with reported precision of 0.85 for detecting outdated API references. D4 (Jiang et al., ASE 2019, uncertain) achieves 0.75 precision on comment-code mismatch. A large-scale study by Aghajani et al. (ICSME 2019) on 1.5M doc changes found that 49.5% of documentation defects are caused by stale prose (outdated text), while code-reference issues (renamed or deleted elements) account for only 23%. The dominant failure mode is stale prose because natural language descriptions are harder to automatically verify and update than symbolic code identifiers; continuous code refactoring leads to prose rot. Actionable step: For Daedalus, implement a consistency checker that first parses doc tags and code ASTs, then applies an LLM to flag likely outdated sentences. Prioritize prose updates in the feedback loop, as they are the biggest source of drift."
+  }
+ },
+ "name": "q23-doc-code-consistency",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 23.7
+}

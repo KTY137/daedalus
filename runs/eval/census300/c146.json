@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c146",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_structcore_ignore.py: Contains unittest test cases for .daedalusignore pattern parsing, ignore/index integration, center/shell boundary, and cache invalidation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_structcore_ignore.py|daedalus.structcore.ignore",
+   "DEPENDS|tests/test_structcore_ignore.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_structcore_ignore.py|daedalus.web_api",
+   "DEPENDS|tests/test_structcore_ignore.py|daedalus.structcore.slice"
+  ],
+  "todos": [
+   "tests/test_structcore_ignore.py|class|IgnorePatternTests|Tests pattern semantics of .daedalusignore without indexer.",
+   "tests/test_structcore_ignore.py|class|IgnoreIndexTests|Tests integration of ignore rules with build_index, center, caching, and slice boundary."
+  ],
+  "handoff": {
+   "suggestion": "No changes needed; census complete."
+  }
+ },
+ "name": "c146",
+ "paths": [
+  "tests/test_structcore_ignore.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 7.8
+}

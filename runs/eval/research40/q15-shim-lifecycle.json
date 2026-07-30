@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q15-shim-lifecycle",
+ "report": {
+  "status": "needs_review",
+  "summary": "Backwards-compatibility shims are temporary re-export modules used during refactorings. Teams often rely on static analysis and runtime telemetry to confirm zero imports before deletion, but evidence shows many deprecations are never completed. For a fail-closed, LLM-driven system like Daedalus, an evidence-based approach should combine import-hook telemetry, a fixed observation window, and explicit deprecation signals to avoid unexpected breakage.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Static analysis may miss dynamic imports (e.g., importlib.import_module with constructed names).",
+   "Telemetry might have blind spots (e.g., early process exit before log flush).",
+   "External consumers (if any) are invisible to internal monitoring, potentially causing silent failures downstream.",
+   "Deleting a shim in a fail-closed system could inadvertently disable a security-critical path if it was the only way to reach a deprecated but essential module."
+  ],
+  "todos": [
+   "Implement an import hook (sys.meta_path) that logs any access to shim modules, sending events to a central telemetry database with a minimum 90-day observation window before deletion.",
+   "Combine with static analysis (e.g., vulture + grep for dynamic patterns) to confirm zero internal references.",
+   "For external-facing components, issue a deprecation warning via runtime warnings and a changelog entry at least one release cycle before removal.",
+   "In the telemetry pipeline, tag shim accesses with the stack trace to identify calling context for auditing.",
+   "Only delete when both static analysis and telemetry show zero accesses over the observation period; if telemetry is incomplete, default to keeping the shim."
+  ],
+  "handoff": {
+   "suggestion": "Since Daedalus is LLM-driven and fail-closed, consider adding a 'shim integrity check' that runs before any critical operation: if a shim is imported during a session, the system could log it and optionally notify an admin. This ensures that a premature deletion does not cause silent failures. Also, consider using a deprecation library like `deprecated` to emit warnings that can be caught by automated testing, further reducing guesswork."
+  }
+ },
+ "name": "q15-shim-lifecycle",
+ "question": "What is known about the lifecycle of backwards-compatibility re-export shims? How do teams decide when a shim with zero internal importers can be deleted, and what telemetry or deprecation mechanisms make that decision evidence-based rather than a guess?",
+ "elapsed_s": 47.7
+}

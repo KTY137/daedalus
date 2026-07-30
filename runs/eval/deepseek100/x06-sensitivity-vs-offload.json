@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x06-sensitivity-vs-offload",
+ "report": {
+  "status": "needs_review",
+  "summary": "High risk: offload slice wire bypasses egress fence if lane_for_host misclassifies a remote host as 'trusted', sending distilled context to external provider. Triggers when OFFLOAD_SLICE_TOKENS>0, OLLAMA_HOST points to remote, and lane_for_host returns 'trusted' incorrectly. Could leak sensitive file content despite aggregate egress restrictions.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "HIGH: _slice_context in daedalus/offload.py depends on sensitivity.lane_for_host to distinguish local vs remote. A false 'trusted' classification allows a remote Ollama endpoint to receive distilled context, defeating the fence's egress controls. The slice is built inside ollama branch but the trust check is only on lane label, not on resolved host connectivity.",
+   "MEDIUM: If project policy is not loaded (pol=None), semantic_slice may default to no filtering, potentially including sensitive files in slice. Combined with above, this could leak unredacted content remotely."
+  ],
+  "todos": [
+   "Audit lane_for_host logic to ensure it correctly identifies loopback, private IPs, and unrouteable addresses; any ambiguity must fail 'untrusted'.",
+   "Add a direct check in _slice_context that resolves host is actually local (e.g., via socket.gethostbyname) before trusting lane result, to prevent single-point-of-failure bypass.",
+   "Write integration test with OLLAMA_HOST set to a remote IP and OFFLOAD_SLICE_TOKENS>0; verify offload refuses to inject slice and logs clear refusal reason.",
+   "Document that slice wire is dark by default and that enabling it demands explicit host validation in deployment."
+  ],
+  "handoff": {
+   "suggestion": "Manually test: set OLLAMA_HOST=a_remote_ip, enable OFFLOAD_SLICE_TOKENS, trigger an offload; confirm that slice is refused with message about OLLAMA_HOST not being local. Also verify lane_for_host implementation never returns 'trusted' for non-local addresses. Check semantic_slice behavior when policy=None: does it redact sensitive files? Ensure it errors on the side of withholding.",
+   "skipped_sensitive": [
+    "daedalus/sensitivity.py"
+   ]
+  }
+ },
+ "name": "x06-sensitivity-vs-offload",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 44.0
+}

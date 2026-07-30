@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x17-correctness-harness",
+ "report": {
+  "status": "needs_review",
+  "summary": "Core evaluation logic (correctness_gate, before/after run comparison) not in slice. Parsing is robust (worst-case status selection), but if timeout/error flags aren't used to force 'could_not_run', a partially timed\u2011out run with some tests passing could be misreported as fixed. Need to verify that timed_out=True and returncode=None/error set all required node statuses to NOT_RUN.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "If timeout occurs, but some nodes already reported PASSED, parse_pytest_output may leave them as PASSED, while others remain NOT_RUN. Without a post-processing step that sets all requested nodes to NOT_RUN on timed_out, the evaluation could incorrectly count a fixed outcome.",
+   "If the pytest process fails entirely (returncode=None, error set) but parse_pytest_output returns an empty dict, the before/after comparison might treat all nodes as NOT_RUN, but the top-level should explicitly force 'could_not_run' in such cases \u2013 unseen.",
+   "Test output injection: a malicious test could print fake progress lines; however, worst-case ranking means later real FAILED would override a fake PASSED. Still, if an attacker can suppress pytest's own output (improbable), false passes possible."
+  ],
+  "todos": [
+   "Inspect correctness_gate (or equivalent evaluator) to ensure that timed_out or error in any run forces 'could_not_run', overriding any partial statuses.",
+   "Verify that before-state verification rejects tasks with STATUS_MISSING or STATUS_SKIPPED in either list as task_invalid.",
+   "Confirm that the selection digest check cannot be bypassed by mutable task dicts after freezing."
+  ],
+  "handoff": {
+   "suggestion": "Review full correctness_gate or _evaluate function. Add a guard: if any run's timed_out or error is truthy, set outcome=OUTCOME_COULD_NOT_RUN regardless of per-node statuses. Additionally, ensure parse_pytest_output treats timed_out by setting all requested nodes to STATUS_NOT_RUN.",
+   "skipped_sensitive": [
+    "daedalus/eval/harness.py"
+   ]
+  }
+ },
+ "name": "x17-correctness-harness",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 88.4
+}

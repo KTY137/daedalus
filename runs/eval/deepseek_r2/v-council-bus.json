@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "v-council-bus",
+ "report": {
+  "status": "needs_review",
+  "summary": "The source file council-bus.py was not provided for verification. All claims remain unverified and require the actual code for adjudication.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "UNDECIDABLE: Message-loss claim depends on _normalize_turn implementation in council-bus.py (not provided).",
+   "UNDECIDABLE: Cross-process chain corruption claim depends on _chain_state cache and locking in council-bus.py (not provided).",
+   "UNDECIDABLE: Vendor silence claim depends on dispatch/timeout code in council-bus.py (not provided).",
+   "UNDECIDABLE: Ordering non-determinism claim depends on _chain_records implementation in council-bus.py (not provided).",
+   "UNDECIDABLE: Replay acceptance claim depends on nonce handling in council-bus.py (not provided)."
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Provide the source code of council-bus.py to verify the claims."
+  }
+ },
+ "name": "v-council-bus",
+ "paths": [
+  "docs/research/rounds/round1/council-bus.md"
+ ],
+ "elapsed_s": 9.1
+}

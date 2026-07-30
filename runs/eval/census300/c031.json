@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c031",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_typegraph_parse.py: Tests for stage 1 extraction in structcore/parse.py, verifying declaration shapes, fields, signatures, and invariant I1/I2.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_typegraph_parse.py|daedalus.structcore.languages",
+   "DEPENDS|tests/test_typegraph_parse.py|daedalus.structcore.parse",
+   "READS|tests/test_typegraph_parse.py|tests/fixtures/typegraph/",
+   "CLAIMS|tests/test_typegraph_parse.py|The extractor reads every declaration shape and annotation spelling in the adversarial fixture corpus without moving extract_units."
+  ],
+  "todos": [
+   "tests/test_typegraph_parse.py|constant|CORPUS|Tuple of fixture file names as repo-relative POSIX paths.",
+   "tests/test_typegraph_parse.py|class|CorpusIsWhatWeThinkItIs|Verifies the fixture corpus file list is documented.",
+   "tests/test_typegraph_parse.py|class|UnitsAreUntouched|Ensures the new entry point is a strict superset of the old one and that type records are not shaped like code units.",
+   "tests/test_typegraph_parse.py|class|DeclarationKinds|Tests classification of declaration shapes (dataclass, class, namedtuple, typeddict, enum, protocol) and other declaration-level properties.",
+   "tests/test_typegraph_parse.py|class|Fields|Tests field extraction from dataclasses, classes, enums, typeddicts, namedtuples, instance attributes, and annotated attributes.",
+   "tests/test_typegraph_parse.py|class|Signatures|Tests signature extraction including parameter positions, defaults, annotations, async, decorators, owner, and uniqueness per code unit."
+  ],
+  "handoff": {}
+ },
+ "name": "c031",
+ "paths": [
+  "tests/test_typegraph_parse.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 11.6
+}

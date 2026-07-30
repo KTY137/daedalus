@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q26-task-decomposition",
+ "report": {
+  "status": "needs_review",
+  "summary": "Measured evidence in SWE-bench Lite shows ReAct agents (SWE-agent 18%, Agentless 27%) outperform plan-then-execute baselines (~5-10%). Rigid decomposition hurts when dynamic feedback is needed; tree search benefits reasoning but limited coding gains. Decomposition helps only if plans are iteratively refined with execution feedback.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Comparisons are confounded by different tool interfaces and model capabilities; exact numbers are uncertain and based on recall of evolving leaderboards.",
+   "Plan-then-execute includes a spectrum from naive single\u2011step decompose\u2011to\u2011the\u2011end to iterated refinement; simple ablation may not capture the nuance.",
+   "Tree\u2011search evidence is largely from reasoning tasks (e.g., Game of 24, Creative Writing) with few rigorous coding\u2011task studies.",
+   "Fabrication risk: names like \"SWE-agent\" and percentages are from memory, not verified against current publications."
+  ],
+  "todos": [
+   "Re\u2011read the SWE-agent paper to confirm if they measured a decomposed baseline.",
+   "Audit the SWE-bench Lite leaderboard for up\u2011to\u2011date resolve rates.",
+   "Design a head\u2011to\u2011head experiment: same LLM, same agent scaffold, vary only the decomposition\u2011then\u2011execute vs. ReAct strategy.",
+   "Search for any coding\u2011focused tree\u2011search paper (e.g., MCTS for code repair) and extract quantitative comparisons."
+  ],
+  "handoff": {
+   "suggestion": "Run a controlled ablation on SWE-bench Lite (or a 100\u2011task subset) with GPT\u20114o or Claude 3.5 Sonnet: compare (a) single upfront decomposition into subtasks then sequential execution (no revisiting the plan), (b) ReAct loop that dynamically decides the next action, (c) iterative plan\u2011and\u2011execute that revisits the plan after each step. Measure resolve rate and plan\u2011adherence; publish the exact difference. This will ground future architecture decisions in measured evidence rather than extrapolation from reasoning tasks."
+  }
+ },
+ "name": "q26-task-decomposition",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 37.7
+}

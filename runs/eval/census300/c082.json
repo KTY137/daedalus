@@ -1,0 +1,39 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c082",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/progress_sources.py: Provides adapters from existing daedalus signals (stream, offload, attempt, ledger, bridge) to progress event records, with explicit trust boundaries and refusal of self-reported data.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/progress_sources.py|daedalus.progress",
+   "DEPENDS|daedalus/progress_sources.py|daedalus.health",
+   "DEPENDS|daedalus/progress_sources.py|daedalus.spine.ledger",
+   "DEPENDS|daedalus/progress_sources.py|daedalus.spine.attempt (conditional)",
+   "CLAIMS|daedalus/progress_sources.py|Never edits, wraps internals, or monkeypatches the modules it reads.",
+   "CLAIMS|daedalus/progress_sources.py|Each snapshot function stamps observed_at/recomputes age at call time; nothing memoises results across calls.",
+   "CLAIMS|daedalus/progress_sources.py|No function reads worker's self-reported files_changed.",
+   "CLAIMS|daedalus/progress_sources.py|Between track_call's CLAIMED and result, no finer-grained progress is fabricated.",
+   "SMELL|daedalus/progress_sources.py|Function _bridge_progress is incomplete (signature only) and public symbol snapshot_from_bridge is declared in __all__ but not defined in the visible excerpt."
+  ],
+  "todos": [
+   "daedalus/progress_sources.py|function|watch_stream|Wraps an event-payload iterator to transparently record CLAIMED, GENERATING, and DONE events based on stream deltas, yielding items unchanged.",
+   "daedalus/progress_sources.py|function|record_offload_result|Decomposes an offload() result dict into events: tool_ran, gate_verdict, disk_change (based on content hash diff), and done. Never reads worker self-report.",
+   "daedalus/progress_sources.py|function|record_attempt_result|Decomposes an AttemptResult into events: tool_ran, gate_verdict, patch_produced, and done. Never emits disk_changed.",
+   "daedalus/progress_sources.py|function|track_call|Claims a unit, calls a blocking function with optional heartbeat, then decomposes recognized result shapes or marks done. Re-raises exceptions.",
+   "daedalus/progress_sources.py|function|snapshot_from_ledger|Read-only poll of spine ledger for one unit by effect_key or id, returning UnitProgress or None.",
+   "daedalus/progress_sources.py|function|open_attempts|Returns list of UnitProgress for all open ledger intents for a given kind (default attempt.candidate)."
+  ],
+  "handoff": {
+   "suggestion": "Complete the definition of _bridge_progress and implement snapshot_from_bridge which is declared in __all__. The excerpt appears to end prematurely; ensure the file is fully defined."
+  }
+ },
+ "name": "c082",
+ "paths": [
+  "daedalus/progress_sources.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.8
+}

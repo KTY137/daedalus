@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c070",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/offload.py: Offload bridge implementing the FrugalGPT cascade for handing work to free bench, with write guards, verification gate, auto-minting, and slice context injection.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/offload.py|daedalus.metrics",
+   "DEPENDS|daedalus/offload.py|daedalus.kairos.scheduler",
+   "DEPENDS|daedalus/offload.py|daedalus.provider_router",
+   "DEPENDS|daedalus/offload.py|daedalus.verifier",
+   "DEPENDS|daedalus/offload.py|daedalus.config",
+   "DEPENDS|daedalus/offload.py|daedalus.sensitivity",
+   "DEPENDS|daedalus/offload.py|daedalus.providers",
+   "DEPENDS|daedalus/offload.py|daedalus.providers.ollama",
+   "DEPENDS|daedalus/offload.py|daedalus.doctor",
+   "DEPENDS|daedalus/offload.py|daedalus.structcore.index",
+   "DEPENDS|daedalus/offload.py|daedalus.structcore.slice",
+   "DEPENDS|daedalus/offload.py|daedalus.eval.mint",
+   "READS|daedalus/offload.py|repo files via _content_hash, _repo_snapshot, _scoped_snapshot",
+   "READS|daedalus/offload.py|environment variables OLLAMA_HOST, OFFLOAD_SLICE_TOKENS, DAEDALUS_AUTO_MINT",
+   "CLAIMS|daedalus/offload.py|docstring: 'The offload bridge -- the single seam that actually hands work to the free bench'",
+   "CLAIMS|daedalus/offload.py|_auto_mint docstring: 'Mint one quarantined eval task from a LANDED write'",
+   "CLAIMS|daedalus/offload.py|_repo_snapshot docstring: 'Content-hash every smallish text file under the repo'",
+   "CLAIMS|daedalus/offload.py|_slice_context docstring: 'Gated distilled context for the LOCAL (trusted) lane'",
+   "SMELL|daedalus/offload.py|High number of internal dependencies and multiple responsibilities suggest potential god-object",
+   "SMELL|daedalus/offload.py|Duplication of snapshot logic (whole-repo and scoped) could be unified"
+  ],
+  "todos": [
+   "daedalus/offload.py|function|offload|Guarantees offloading work to free bench with policy enforcement and verification gate"
+  ],
+  "handoff": {}
+ },
+ "name": "c070",
+ "paths": [
+  "daedalus/offload.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 17.1
+}

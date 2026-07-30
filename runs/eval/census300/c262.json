@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c262",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_ollama_rescue_reason.py: Tests that _schema_rescue returns distinguishable outcomes for different failure modes and that rescue failures block agent turns. daedalus/projects.py: Provides functions to list, load, and resolve project configurations from JSON files in a projects directory.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_ollama_rescue_reason.py|daedalus.providers.ollama",
+   "DEPENDS|tests/test_ollama_rescue_reason.py|daedalus.providers._openai_compat",
+   "CLAIMS|tests/test_ollama_rescue_reason.py|_schema_rescue returns a REASON, not a bare empty list",
+   "DEPENDS|daedalus/projects.py|json",
+   "DEPENDS|daedalus/projects.py|pathlib.Path",
+   "DEPENDS|daedalus/projects.py|typing.Any",
+   "READS|daedalus/projects.py|ROOT/projects",
+   "CLAIMS|daedalus/projects.py|load_project raises ValueError if project unknown or missing repo_root"
+  ],
+  "todos": [
+   "tests/test_ollama_rescue_reason.py|class|RescueOutcomeTest|Tests for _schema_rescue returning distinguishable outcomes.",
+   "tests/test_ollama_rescue_reason.py|class|LoudFailureInTheLoopTest|Tests that rescue failures block agent turns instead of being reported as success.",
+   "daedalus/projects.py|constant|ROOT|Root directory of the daedalus project (parent of daedalus/).",
+   "daedalus/projects.py|constant|PROJECT_DIR|Directory where project JSON files are stored (ROOT/projects).",
+   "daedalus/projects.py|function|list_projects|Returns sorted list of project names from .json files in PROJECT_DIR.",
+   "daedalus/projects.py|function|load_project|Loads a project by name from PROJECT_DIR, validates repo_root.",
+   "daedalus/projects.py|function|resolve_repo_root|Resolves repo_root from either explicit argument or project name."
+  ],
+  "handoff": {}
+ },
+ "name": "c262",
+ "paths": [
+  "tests/test_ollama_rescue_reason.py",
+  "daedalus/projects.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 12.8
+}

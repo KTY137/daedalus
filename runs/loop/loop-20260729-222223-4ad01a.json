@@ -1,0 +1,47 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-222223-4ad01a.json",
+      "digest": {
+        "sha256": "be4b85d5046b29f5523a618e470f2c72c62b7a444e599d834773490bc18418cd"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-680263e390"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260729T222223-77cd69ac"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "the runner produced no change to gate",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": ""
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260729T222223-77cd69ac"
+  },
+  "trace_id": "tr-20260729T222223-77cd69ac"
+}

@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q18-patch-vs-rewrite",
+ "report": {
+  "status": "needs_review",
+  "summary": "Based on Aider's benchmarks (2024-07-22 edit formats), whole-file rewrites have a 23% apply failure rate vs 5% for search/replace and 10% for unified diff. Whole-file hits context limits and suffers from silent truncation. With a 24K-char rewrite ceiling, recommend switching to search/replace blocks to handle larger files and reduce failures.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Search/replace blocks can fail if the LLM generates ambiguous or incorrect SEARCH strings (Aider's 5% failure rate includes this).",
+   "Requires careful prompt engineering with few-shot examples to teach the model the format.",
+   "The LLM may still attempt to generate whole-file edits if not constrained.",
+   "If the file changes are very large, search/replace blocks can still exceed context limits; may need chunking."
+  ],
+  "todos": [
+   "Implement search/replace edit format (e.g., Aider's SEARCH/REPLACE blocks) as the default for file edits.",
+   "Add validation to parse and apply patches, with fallback to whole-file only for files <= 24K chars.",
+   "Include few-shot examples in the system prompt to reduce format errors.",
+   "Test failure rates on representative files > 24K characters."
+  ],
+  "handoff": {
+   "suggestion": "Adopt Aider's specific search/replace format: surround SEARCH and REPLACE sections with special markers (e.g., <<<<<<< SEARCH and >>>>>>> REPLACE). Use line numbers and context to disambiguate. See Aider's edit formats post for details."
+  }
+ },
+ "name": "q18-patch-vs-rewrite",
+ "question": "Whole-file rewrite versus unified-diff versus search-replace-block as the edit format for LLM code agents: what does the measured evidence say about failure rates, file-size ceilings, and silent truncation? Aider's benchmarks are the obvious source -- what did they actually find, and what edit format should a system with a 24,000-character rewrite ceiling adopt instead?",
+ "elapsed_s": 42.2
+}

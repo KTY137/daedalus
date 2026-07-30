@@ -1,0 +1,76 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-211930-27c676.json",
+      "digest": {
+        "sha256": "52cf08d4a9f60a0326dc02371b6f1931123c3b527c79865c3dbf6bccfcc21c1c"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 2,
+        "outcomes": [
+          "no_change",
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-f676902870"
+          ],
+          [
+            "kairos-ollama-feff9405fa"
+          ]
+        ],
+        "iterations": [
+          0,
+          1
+        ],
+        "trace_ids": [
+          "tr-20260729T211930-4004daf9",
+          "tr-20260729T211930-4004daf9"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false
+          },
+          {
+            "status": "write_gate_failed",
+            "promoted": false
+          }
+        ]
+      },
+      "docref-docs-handoff-antigravity-md-0af585": {
+        "n": 1,
+        "outcomes": [
+          "no_change"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-c13dc48f25"
+          ]
+        ],
+        "iterations": [
+          2
+        ],
+        "trace_ids": [
+          "tr-20260729T211930-4004daf9"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260729T211930-4004daf9"
+  },
+  "trace_id": "tr-20260729T211930-4004daf9"
+}

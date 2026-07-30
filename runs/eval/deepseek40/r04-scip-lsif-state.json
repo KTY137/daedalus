@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r04-scip-lsif-state",
+ "report": {
+  "status": "needs_review",
+  "summary": "Cross-language code indexing in 2025-2026 is dominated by SCIP (Source Code Index Protocol) as the successor to LSIF, with tree-sitter and stack-graphs serving complementary roles. SCIP is the preferred format for precise, language-agnostic indexing, supported by Sourcegraph and GitHub. LSIF is legacy but still used. Tree-sitter provides fast, incremental parsing for many languages but lacks full semantic resolution. Stack-graphs (from GitHub) enable cross-file navigation without a build system. Production-grade indexers exist for Go, TypeScript, Java, Python, Rust, C/C++, Ruby, and JavaScript",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Tree-sitter grammars for Fortran and Verilog may be incomplete or unmaintained.",
+   "SCIP indexers require language-specific semantic analysis; heuristics may miss complex references.",
+   "No existing SCIP indexer for LaTeX; custom development needed."
+  ],
+  "todos": [
+   "Evaluate tree-sitter grammars for Fortran (tree-sitter-fortran) and Verilog (tree-sitter-verilog).",
+   "Check fortls for LSIF output capability; if yes, convert LSIF to SCIP.",
+   "For LaTeX, prototype a SCIP indexer using texlab's parser or a simple TeX tokenizer.",
+   "Consider stack-graphs for cross-file references in Verilog (module instantiation)."
+  ],
+  "handoff": {
+   "suggestion": "Start by running tree-sitter queries on a sample Fortran codebase to extract function/subroutine definitions and calls. If coverage is acceptable, emit SCIP documents. For Verilog, use tree-sitter-verilog to extract module ports and instantiations. For LaTeX, use a regex-based approach to find \\label and \\ref, then emit SCIP. This gives a minimal viable indexer in days, not months."
+  }
+ },
+ "name": "r04-scip-lsif-state",
+ "kind": "research",
+ "elapsed_s": 7.3
+}

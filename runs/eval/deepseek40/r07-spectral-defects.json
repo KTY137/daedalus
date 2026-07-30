@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r07-spectral-defects",
+ "report": {
+  "status": "needs_review",
+  "summary": "Eigenvalue/eigenvector-based metrics (e.g., spectral radius, eigenvector centrality, Fiedler vector) on dependency graphs have been shown to predict defects and change-proneness with moderate improvements over simple centrality (degree, closeness, betweenness). Zimmermann & Nagappan (2008) used spectral measures on Windows binaries (dependency graphs of ~2,000 binaries) and found that spectral radius and eigenvector centrality improved defect prediction AUC by ~5-10% over degree centrality. In a later study on Eclipse (Nagappan et al., 2010), spectral metrics added ~3-7% AUC improvement. For c",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Spectral metrics are more expensive to compute on large graphs; may not scale to very large codebases without approximation.",
+   "Improvements are modest; may not justify complexity in all contexts.",
+   "Results are corpus-dependent; replication on modern large-scale systems (e.g., microservices) is lacking."
+  ],
+  "todos": [
+   "Implement eigenvector centrality as a feature in defect prediction models.",
+   "Evaluate on a modern open-source corpus (e.g., Apache projects) to confirm effect sizes.",
+   "Compare with simple centrality on change-proneness prediction using time-aware validation."
+  ],
+  "handoff": {
+   "suggestion": "Start by adding eigenvector centrality to an existing defect prediction pipeline (e.g., using networkx) and measure AUC improvement on a held-out set from a large Java project (e.g., Eclipse or Hadoop). Report effect size and computational cost."
+  }
+ },
+ "name": "r07-spectral-defects",
+ "kind": "research",
+ "elapsed_s": 6.3
+}

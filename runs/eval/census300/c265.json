@@ -1,0 +1,37 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c265",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_dss.py: Contains tests for DSS module (daedalus.structcore.dss) and KnowledgeForest, verifying hierarchy building, score restriction/prolongation, temporal carry, relation diffusion, end-to-end sampling, and failure modes. daedalus/spine/__init__.py: Defines the daedalus.spine package, re-exporting public symbols from .ledger and setting the package docstring with crash-window guarantee.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_dss.py|daedalus.structcore.dss",
+   "DEPENDS|tests/test_dss.py|daedalus.structcore.forest",
+   "DEPENDS|daedalus/spine/__init__.py|daedalus.spine.ledger",
+   "CLAIMS|daedalus/spine/__init__.py|a crash can never leave an effect the system has no record of intending"
+  ],
+  "todos": [
+   "tests/test_dss.py|function|test_hierarchy_restriction_and_bounded_prolongation_are_deterministic|Tests that hierarchy restriction and bounded prolongation are deterministic.",
+   "tests/test_dss.py|function|test_temporal_carry_uses_exact_ids_and_explicit_rename_confidence|Tests that temporal carry uses exact IDs and rename confidence.",
+   "tests/test_dss.py|function|test_relation_diffusion_keeps_import_cochange_and_clone_channels_separate|Tests that relation diffusion keeps import, co-change, and clone channels separate.",
+   "tests/test_dss.py|function|test_end_to_end_plan_is_budgeted_ranked_and_content_addressed|Tests that end-to-end plan is budgeted, ranked, and content-addressed.",
+   "tests/test_dss.py|function|test_receipt_changes_when_seed_or_budget_changes|Tests that receipt changes when seed or budget changes.",
+   "tests/test_dss.py|function|test_invalid_paths_and_scores_fail_closed|Tests that invalid paths and scores fail closed.",
+   "daedalus/spine/__init__.py|module|daedalus.spine|Mission Spine light package.",
+   "daedalus/spine/__init__.py|constant|__all__|List of public names re-exported from .ledger."
+  ],
+  "handoff": {
+   "suggestion": "Read-only census complete. No changes proposed."
+  }
+ },
+ "name": "c265",
+ "paths": [
+  "tests/test_dss.py",
+  "daedalus/spine/__init__.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.2
+}

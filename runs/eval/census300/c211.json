@@ -1,0 +1,35 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c211",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_evolution_baseline.py: Characterizes the Best-of-N baseline for Ariadne, with tests that measure the defect in evaluate_candidates' invocation, verify the binary fitness selection, assert no callers of evaluate_candidates, and guard against regression of per-candidate timeout.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_evolution_baseline.py|daedalus.kairos.evolution",
+   "DEPENDS|tests/test_evolution_baseline.py|daedalus.kairos.shadow_shell",
+   "READS|tests/test_evolution_baseline.py|daedalus/kairos/evolution.py",
+   "WRITES|tests/test_evolution_baseline.py|temporary candidate worktree and resolved.txt via _candidate_worktree and subprocess",
+   "CLAIMS|tests/test_evolution_baseline.py|test_the_fitness_function_has_no_caller: evaluate_candidates has no callers in the repository"
+  ],
+  "todos": [
+   "tests/test_evolution_baseline.py|function|test_bare_pytest_does_not_reach_the_candidates_own_code|Verifies bare pytest does not reach candidate's own code (shadowing defect)",
+   "tests/test_evolution_baseline.py|function|test_evaluator_invokes_an_interpreter_qualified_pytest|Guards that evaluate_candidates uses sys.executable -m pytest",
+   "tests/test_evolution_baseline.py|function|test_fitness_is_binary_so_there_is_no_ordering_among_green_candidates|Verifies selection is first-green-wins",
+   "tests/test_evolution_baseline.py|function|test_no_candidate_is_selected_when_none_is_green|Verifies no selection when all red",
+   "tests/test_evolution_baseline.py|function|test_the_fitness_function_has_no_caller|Verifies evaluate_candidates has no callers",
+   "tests/test_evolution_baseline.py|function|test_evaluator_bounds_the_candidate_test_run|Guards that evolution.py has per-candidate timeout"
+  ],
+  "handoff": {
+   "suggestion": "No structural changes needed. The file is a self-contained test suite that pins critical baseline properties and defects. Keep tests in sync with any changes to daedalus/kairos/evolution.py, especially the evaluate_candidates invocation and timeout logic."
+  }
+ },
+ "name": "c211",
+ "paths": [
+  "tests/test_evolution_baseline.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 20.0
+}

@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c035",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_skills.py: Defines a test suite for the daedalus.skills module, ensuring skills cannot execute code, carry no safety authority, match pinned spec constants, parse correctly, and refuse malformed inputs.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_skills.py|daedalus.skills",
+   "READS|tests/test_skills.py|daedalus/skills.py (reads source to check for forbidden tokens)",
+   "WRITES|tests/test_skills.py|temporary directories (tempfile.TemporaryDirectory)",
+   "CLAIMS|tests/test_skills.py|'the module cannot execute anything, enforced by reading its own source'",
+   "CLAIMS|tests/test_skills.py|'a bundled script is never even OPENED, enforced by recording every call to builtins.open'",
+   "CLAIMS|tests/test_skills.py|'Skill carries no lane, provider, host or path-policy field'",
+   "CLAIMS|tests/test_skills.py|'allowed-tools is recorded as a claim, never parsed into a permission'",
+   "CLAIMS|tests/test_skills.py|'every bound refuses, and refuses with a reason a human can act on'",
+   "CLAIMS|tests/test_skills.py|'a malformed skill is REPORTED as a defect and never silently skipped'",
+   "CLAIMS|tests/test_skills.py|'../ in a skill name is refused'",
+   "CLAIMS|tests/test_skills.py|'skill text rendered for a model is fenced as untrusted data'",
+   "CLAIMS|tests/test_skills.py|'Every test runs offline against temp directories. No model, no network.'"
+  ],
+  "todos": [
+   "tests/test_skills.py|function|write_skill|Helper to create a skill directory with optional text.",
+   "tests/test_skills.py|class|TempRoot|Base class for tests that manages a temporary directory.",
+   "tests/test_skills.py|class|NothingExecutes|Tests that the skills module does not execute anything (subprocess, eval, etc.).",
+   "tests/test_skills.py|class|NoSafetyAuthority|Tests that Skill has no safety-decision fields.",
+   "tests/test_skills.py|class|SpecPinning|Tests that spec constants (MAX_NAME_CHARS, etc.) are correct.",
+   "tests/test_skills.py|class|Parsing|Tests successful loading of minimal and full skill files.",
+   "tests/test_skills.py|class|Refusals|Tests error cases: missing frontmatter, bounds, traversal, etc."
+  ],
+  "handoff": {}
+ },
+ "name": "c035",
+ "paths": [
+  "tests/test_skills.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.6
+}

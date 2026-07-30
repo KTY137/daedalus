@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c285",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tests/fixtures/typegraph/result_beta.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tests/fixtures/typegraph/result_beta.py"
+   ]
+  }
+ },
+ "name": "c285",
+ "paths": [
+  "tests/test_agents_registry.py",
+  "daedalus/storage.py",
+  "tests/fixtures/typegraph/result_beta.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

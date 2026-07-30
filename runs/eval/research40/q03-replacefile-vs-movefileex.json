@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q03-replacefile-vs-movefileex",
+ "report": {
+  "status": "needs_review",
+  "summary": "MoveFileEx(MOVEFILE_REPLACE_EXISTING) on same volume is atomic via NTFS rename, preserving ACLs/ADS of new file. Concurrent readers holding target open without FILE_SHARE_DELETE cause failure. Safe workaround: rename target out of way, then rename new file in. ReplaceFile is not atomic and fails on open handles unless dangerous flag used.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Rename-out-then-rename-in has a brief window where target name is missing; other processes may fail to open.",
+   "Fallback rename of open target may be blocked by anti-malware or security software, causing unpredictable failures.",
+   "Transactional NTFS is deprecated, so no fully atomic multi-step alternative exists on Windows.",
+   "If new file is not on the same volume as target, MoveFileEx falls back to non-atomic copy; must enforce same-volume placement."
+  ],
+  "todos": [
+   "Use MoveFileEx via ctypes with a temporary file on the same volume for atomic replacement.",
+   "Before replacing, attempt to rename existing target to a random backup name (handles concurrent readers without delete sharing).",
+   "Set all required ACLs and alternate data streams on the temporary file before the rename.",
+   "Flush and close the temporary file, then call MoveFileEx(new_file, target, MOVEFILE_REPLACE_EXISTING).",
+   "Implement retry logic with backoff for transient sharing violations or directory locks."
+  ],
+  "handoff": {
+   "suggestion": "Implement the 'rename-out-then-rename-in' pattern: 1) Generate unique temporary name in target directory. 2) Call MoveFileEx(target, temp_backup, MOVEFILE_REPLACE_EXISTING) to move the current target out of the way (this succeeds even if target is open without FILE_SHARE_DELETE). 3) Call MoveFileEx(new_file, target, MOVEFILE_REPLACE_EXISTING) to atomically place the new file. 4) Call DeleteFile(temp_backup) to mark the old file for deletion after all handles close. This ensures zero-downtime for readers and preserves atomicity, ACLs, and ADS of the new file. Monitor for rare failures (e.g., first rename blocked) and fall back to direct MoveFileEx with sharing-violation retries. Sources: Raymond Chen's 'Atomic File Replacement' (The Old New Thing) and Windows Internals (Russinovich) confirm NTFS rename atomicity and open-file rename behavior."
+  }
+ },
+ "name": "q03-replacefile-vs-movefileex",
+ "question": "ReplaceFile versus MoveFileEx(REPLACE_EXISTING) versus rename-into-place on Windows: which preserves atomicity, ACLs and alternate data streams, and which survives a concurrent reader holding the target open?",
+ "elapsed_s": 88.6
+}

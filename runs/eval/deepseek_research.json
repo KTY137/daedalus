@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "pythia-deepseek",
+ "report": {
+  "status": "needs_review",
+  "summary": "1. CHEAP fitness signals: Trivial Compiler Equivalence (TCE) by Le Goues et al. (2012) uses compiler optimizations; GenProg uses test suite only. 2. Behavioural descriptors: AST-based novelty (Forrest et al., 2009) works; output-only novelty fails for programs. 3. Equivalent mutant rate: ~10-40% (Jia & Harman, 2011); bounded by compiler-based detection (TCE) or manual review. 4. Failure modes: overfitting to pre-test signal, missing semantic changes, high false positives for complex refactors.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Pre-test signal may reject valid patches that change structure without altering identifiers or constants.",
+   "High false-alarm rate for refactoring or dead code removal.",
+   "44% miss rate may be partly due to equivalent mutants (10-40%), but remaining miss is real."
+  ],
+  "todos": [
+   "Compare false-alarm rates with TCE on same dataset.",
+   "Evaluate behavioural descriptors for novelty search on program space.",
+   "Estimate equivalent mutant rate for your specific mutation operators."
+  ],
+  "handoff": {
+   "suggestion": "Consider combining AST delta with TCE for stronger cheap signal; use behavioural descriptors only if search space is large."
+  }
+ }
+}

@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c191",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/benchmark.py: Provides token/cost benchmarks (dry and live) for provider routing, estimating savings by using cheaper providers (DeepSeek, Ollama) for low-security tasks.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/benchmark.py|daedalus.provider_router",
+   "DEPENDS|daedalus/benchmark.py|daedalus.router",
+   "DEPENDS|daedalus/benchmark.py|daedalus.metrics",
+   "DEPENDS|daedalus/benchmark.py|daedalus.offload",
+   "CLAIMS|daedalus/benchmark.py|It is a dry estimate that does not call any model",
+   "CLAIMS|daedalus/benchmark.py|LIVE benchmark actually runs each task through the offload cascade and measures real accept/escalate mix",
+   "SMELL|daedalus/benchmark.py|File bundles dry-run and live-run benchmarks with separate but similar printing functions, increasing coupling"
+  ],
+  "todos": [
+   "daedalus/benchmark.py|constant|PRICES|Provides USD per 1M token prices for provider cost calculation",
+   "daedalus/benchmark.py|constant|APPLY_IN|Overhead input tokens for Claude reviewing advisory output",
+   "daedalus/benchmark.py|constant|APPLY_OUT|Overhead output tokens for Claude reviewing advisory output",
+   "daedalus/benchmark.py|constant|POSTURE|Default posture flags for provider availability",
+   "daedalus/benchmark.py|class|Task|Represents a benchmark task with name, objective, paths, and token sizes",
+   "daedalus/benchmark.py|constant|TASKS|List of representative Task instances for benchmarking",
+   "daedalus/benchmark.py|function|run|Runs dry benchmark, computes routed vs baseline costs, prints table or returns JSON",
+   "daedalus/benchmark.py|function|run_live|Runs live benchmark by actually executing tasks via offload cascade, measures real costs/fallbacks",
+   "daedalus/benchmark.py|function|main|CLI entry point parsing arguments and invoking run or run_live"
+  ],
+  "handoff": {}
+ },
+ "name": "c191",
+ "paths": [
+  "daedalus/benchmark.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.0
+}

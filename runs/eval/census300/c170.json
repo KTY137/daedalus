@@ -1,0 +1,38 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c170",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/wiki/vault.py: validates and reads wiki pages from nested vaults on disk, providing path safety, frontmatter parsing, and vault discovery.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "READS|daedalus/wiki/vault.py|.md files in vault directories",
+   "CLAIMS|daedalus/wiki/vault.py|\"This module is READ-ONLY. It discovers, parses and validates; it never writes.\""
+  ],
+  "todos": [
+   "daedalus/wiki/vault.py|constant|VAULT_VERSION|Daedalus wiki vault version identifier.",
+   "daedalus/wiki/vault.py|constant|PAGE_SUFFIX|Page file suffix ('.md').",
+   "daedalus/wiki/vault.py|constant|MAX_PAGES|Maximum number of pages per vault (5000).",
+   "daedalus/wiki/vault.py|constant|MAX_PAGE_BYTES|Maximum page file size (2MB).",
+   "daedalus/wiki/vault.py|constant|RESERVED_TOP_LEVEL|Reserved top-level directory names (e.g., 'vault').",
+   "daedalus/wiki/vault.py|class|VaultPathError|Error raised for rejected vault-relative paths.",
+   "daedalus/wiki/vault.py|function|vault_rel|Resolves a vault-relative path safely, returning (path, reason).",
+   "daedalus/wiki/vault.py|function|parse_frontmatter|Parses YAML frontmatter from page text, returning (dict, body).",
+   "daedalus/wiki/vault.py|function|read_page|Reads one page from a vault, returning (Page, reason).",
+   "daedalus/wiki/vault.py|function|discover_pages|Discovers all pages in a vault, returning (pages, refusals).",
+   "daedalus/wiki/vault.py|function|discover_vaults|Discovers all vaults (project and optional global) from repo root.",
+   "daedalus/wiki/vault.py|function|page_tree|Builds a nested tree from page paths for navigation.",
+   "daedalus/wiki/vault.py|class|Vault|Represents a wiki vault with name, root path, and kind.",
+   "daedalus/wiki/vault.py|class|Page|Represents a single wiki page with metadata and body."
+  ],
+  "handoff": {}
+ },
+ "name": "c170",
+ "paths": [
+  "daedalus/wiki/vault.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.9
+}

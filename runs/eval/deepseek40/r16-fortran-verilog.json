@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r16-fortran-verilog",
+ "report": {
+  "status": "needs_review",
+  "summary": "For Fortran, fparser (Python) is the most mature open-source parser for dependency graphs, used in PSyclone and other tools; LFortran is promising but still in development. For Verilog/SystemVerilog, Verible (C++) is the most mature for linting and parsing, with a stable AST; Yosys (C++) is mature for synthesis and can extract module hierarchies; sv-parser (Rust) is newer but functional. A minimal tier-0 extractor should identify: for Fortran, module/function/subroutine definitions, USE statements, and CALL/INCLUDE dependencies; for Verilog, module/endmodule, instantiation, and `include/`ifdef",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "fparser may not handle all Fortran 2008/2018 features; LFortran is not yet production-ready.",
+   "Verible's AST may not cover all SystemVerilog constructs (e.g., some assertions); sv-parser is less mature.",
+   "Yosys is primarily for synthesis, not just parsing; its dependency graph extraction may require additional passes."
+  ],
+  "todos": [
+   "Evaluate fparser's ability to parse target Fortran codebase (e.g., test with modern Fortran features).",
+   "Evaluate Verible's AST for extracting module instantiations and `include dependencies.",
+   "Consider Yosys for hierarchical module extraction if synthesis-level analysis is needed.",
+   "Define a common JSON schema for module/dependency graphs across both languages."
+  ],
+  "handoff": {
+   "suggestion": "Implement a tier-0 extractor using fparser (Fortran) and Verible (Verilog/SystemVerilog). For Fortran, parse USE statements, module/function/subroutine definitions, and CALL/INCLUDE. For Verilog, parse module/endmodule, instantiation, and `include/`ifdef. Output a JSON graph with nodes (module/function names) and edges (dependency type). Test on a small representative codebase. If fparser fails on modern Fortran, consider LFortran as a fallback but expect lower maturity. For Verilog, Verible's parser is the most reliable; Yosys can be used for synthesis-level hierarchy but is heavier."
+  }
+ },
+ "name": "r16-fortran-verilog",
+ "kind": "research",
+ "elapsed_s": 7.0
+}

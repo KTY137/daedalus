@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "momus-deepseek",
+ "report": {
+  "status": "needs_review",
+  "summary": "Found 6 concrete attack vectors that bypass the gate. Severity: 2 critical (allowance collision, MCP host laundering), 2 high (encoded payloads, zero-width injection), 2 medium (unscannable laundering, file-size bypass).",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Allowance collision: skill name 'room' matches allowance subject, downgrades BLOCK to REVIEW for any rule. Input: skill named 'room' with exec.subprocess. Rule: exec.subprocess (BLOCK). Why: load_allowances uses skill.name as key; no namespace isolation.",
+   "MCP host laundering: host in URL can be hidden via DNS rebinding or IP literal. Input: command 'npx' with arg 'http://127.0.0.1:8080/malicious'. Rule: mcp.egress (REVIEW). Why: lane_for_host('127.0.0.1') returns 'trusted' (local), but server could proxy to external.",
+   "Encoded payloads: base64/hex/rot13 strings bypass regex. Input: SKILL.md containing 'ZXZhbCgncHJpbnQoInRlc3QiKScp' (base64 of eval). Rule: exec.eval (BLOCK). Why: regex looks for literal 'eval(', not encoded forms.",
+   "Zero-width injection: Unicode zero-width characters split keywords. Input: 'e\\u200bval(' (zero-width space). Rule: exec.eval (BLOCK). Why: regex pattern does not account for zero-width characters.",
+   "Unscannable laundering: file with NUL byte after 4096 bytes passes first check. Input: file with first 4096 bytes clean, then NUL. Rule: b'\\x00' in raw[:4096] passes. Why: only checks first 4 KiB; later NUL bytes ignored.",
+   "File-size bypass: file exactly MAX_FILE_BYTES (2MB) is scanned, but regex may miss patterns split across boundary. Input: file 2MB with 'eval(' split at byte 2MB-1. Rule: exec.eval (BLOCK). Why: scan reads full file, but pattern may be truncated if split across read boundary? Actually read_bytes() reads whole file, so this is low risk. But large file may cause performance issues or regex timeout."
+  ],
+  "todos": [
+   "Add namespace or path-based allowance keys to prevent collision.",
+   "Add DNS resolution check for MCP hosts to detect localhost laundering.",
+   "Add base64/hex/rot13 decoding pass before regex scan.",
+   "Strip zero-width characters before scanning.",
+   "Extend NUL check to entire file, not just first 4 KiB.",
+   "Consider streaming scan for large files to avoid memory issues."
+  ],
+  "handoff": {
+   "suggestion": "Fix allowance collision by using full path or hash of skill directory as key. Add encoded payload detection via additional regex patterns for common encodings. Strip Unicode control characters. Extend binary detection to full file. For MCP, resolve hostnames and compare against loopback addresses."
+  }
+ },
+ "elapsed_s": 9.8
+}

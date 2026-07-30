@@ -1,0 +1,72 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c002",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/health.py: the health check framework defining five states (working/present/degraded/absent/unknown), fact system with provenance (MEASURED/INHERITED/ASSUMED), report generation, probe registry, rendering, and built-in probes for git worktree and architecture snapshot.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/health.py|daedalus.mapping (from .mapping import drift)",
+   "READS|daedalus/health.py|docs/architecture-state.json (drift.load_snapshot)",
+   "READS|daedalus/health.py|git repository (via _git)",
+   "READS|daedalus/health.py|Ollama API (implied via _http_json)",
+   "CLAIMS|daedalus/health.py|Nothing here spends money (but does network calls to Ollama)",
+   "CLAIMS|daedalus/health.py|Nothing here writes (but notes opening spine ledger may write)",
+   "SMELL|daedalus/health.py|God-object: module contains vocabulary, fact system, report system, probe registry, rendering, and concrete probes in one file."
+  ],
+  "todos": [
+   "daedalus/health.py|constant|WORKING|the state for a subsystem exercised just now",
+   "daedalus/health.py|constant|PRESENT|the state for code present but not exercised",
+   "daedalus/health.py|constant|DEGRADED|the state for a subsystem that ran but returned wrong",
+   "daedalus/health.py|constant|ABSENT|the state for a subsystem that is not here",
+   "daedalus/health.py|constant|UNKNOWN|the state when the check could not run",
+   "daedalus/health.py|constant|STATES|tuple of all five allowed states",
+   "daedalus/health.py|constant|NOT_PROVEN|tuple of states that do not prove working",
+   "daedalus/health.py|constant|MEASURED|provenance value for values produced by this run",
+   "daedalus/health.py|constant|INHERITED|provenance value for values read from a file",
+   "daedalus/health.py|constant|ASSUMED|provenance value for defaults or docs",
+   "daedalus/health.py|constant|PROVENANCE|tuple of all provenance values",
+   "daedalus/health.py|constant|EXIT_OK|exit code 0 when all probes exercised and held",
+   "daedalus/health.py|constant|EXIT_BAD|exit code 1 when degraded or missing",
+   "daedalus/health.py|constant|EXIT_UNPROVEN|exit code 2 when not all probes proven",
+   "daedalus/health.py|constant|PROBE_TEXT|fixed literal for embedding probes; never repo content",
+   "daedalus/health.py|constant|LOCAL_OLLAMA|default local Ollama endpoint",
+   "daedalus/health.py|constant|BENCH_OLLAMA|bench Ollama endpoint from env or default",
+   "daedalus/health.py|constant|EMBED_MODEL|embeddings model name from env or default",
+   "daedalus/health.py|constant|BENCH_SSH_HOST|SSH endpoint for bench diagnostics",
+   "daedalus/health.py|constant|BENCH_TASK_NAME|scheduled task name on bench host",
+   "daedalus/health.py|constant|BENCH_SSH_TIMEOUT_S|ssh timeout in seconds",
+   "daedalus/health.py|class|ProvenanceError|raised when fact missing required provenance",
+   "daedalus/health.py|class|Fact|one measured/assumed/inherited value with provenance guards",
+   "daedalus/health.py|function|measured|create a measured Fact",
+   "daedalus/health.py|function|inherited|create an inherited Fact with file age",
+   "daedalus/health.py|function|assumed|create an assumed Fact with declaration source",
+   "daedalus/health.py|class|Report|aggregate of name, state, facts, remedy",
+   "daedalus/health.py|function|working|create a working Report",
+   "daedalus/health.py|function|present|create a present Report",
+   "daedalus/health.py|function|degraded|create a degraded Report",
+   "daedalus/health.py|function|absent|create an absent Report",
+   "daedalus/health.py|function|unknown|create an unknown Report",
+   "daedalus/health.py|class|ProbeSpec|specification for a probe function",
+   "daedalus/health.py|constant|PROBES|list of registered ProbeSpecs",
+   "daedalus/health.py|function|probe|decorator to register a probe",
+   "daedalus/health.py|class|Ctx|context object passed to probes with paths and flags",
+   "daedalus/health.py|function|assess|run all probes and coerce results into Reports",
+   "daedalus/health.py|function|verdict|return exit code based on report states",
+   "daedalus/health.py|constant|MARKS|mapping of state to display string",
+   "daedalus/health.py|function|render|format reports for human output",
+   "daedalus/health.py|function|to_payload|convert reports to JSON-serializable dict"
+  ],
+  "handoff": {
+   "suggestion": "No changes made; structural census complete. Note that the module has a god-object smell and contains both framework and concrete probes, which may be worth splitting."
+  }
+ },
+ "name": "c002",
+ "paths": [
+  "daedalus/health.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 30.5
+}

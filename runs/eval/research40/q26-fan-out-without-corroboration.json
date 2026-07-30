@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q26-fan-out-without-corroboration",
+ "report": {
+  "status": "needs_review",
+  "summary": "For disparate fan-out where agents have no shared inputs, apply a two-stage pipeline: (1) agents generate claims with citations; (2) a local judge model scores each claim against its source file. Triage by judge confidence, flagging low-scoring claims for human review. This avoids external calls (fits fail-closed egress) and provides measurable, auditable scores.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Judge model may hallucinate or be inconsistent itself; mitigate with explicit citation checks and an ensemble of light + heavy judges.",
+   "Computational cost of judging 1,226 claims may be high; consider sampling if throughput is limited.",
+   "No published benchmarks for exactly this setup; adaptation from QA fact-checking may overfit.",
+   "Agents might generate claims that are unfalsifiable without external knowledge\u2014judge will be limited to file content."
+  ],
+  "todos": [
+   "Implement a claim\u2011verification step: for each generated claim, retrieve the source file snippet and prompt a local judge LLM to output a 1\u20135 confidence score with a mandatory justification.",
+   "Create a simple scoring rubric for the judge (e.g., 'Does the claim faithfully reflect the file content?').",
+   "Pilot on a small subset; measure inter\u2011judge agreement between two different local models.",
+   "Set a threshold (e.g., score < 3) for automatic triage to a human review queue.",
+   "Integrate this verification as an optional post\u2011processing step in the Daedalus pipeline, configurable per workflow."
+  ],
+  "handoff": {
+   "suggestion": "Use a lightweight local model (e.g., Phi\u20113) for quick triage and a larger one (e.g., Llama\u20113\u201170B locally served via vLLM on Windows) for uncertain cases. Cache source snippets to avoid re\u2011computation. The verification prompt should include: 'Given the file excerpt and the agent\u2019s claim, rate agreement (1=completely unsupported, 5=perfectly supported). Only use information from the excerpt.' Return valid JSON with keys score and reason."
+  }
+ },
+ "name": "q26-fan-out-without-corroboration",
+ "question": "MEASURED IN OUR SYSTEM: 1,226 claims from 244 agents, and the largest cluster of agents making the same claim was TWO, because each saw a different file. When a fan-out gives every agent a different input, corroboration is structurally unavailable as a ranking signal. What ranking or triage methods work in that regime?",
+ "elapsed_s": 51.3
+}

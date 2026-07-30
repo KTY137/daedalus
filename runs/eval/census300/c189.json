@@ -1,0 +1,47 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c189",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_mapping_switches.py: Provides a suite of tests for the switch analysis function, including fixtures that set up a miniature repo with known switch configurations and test various classification outcomes.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_mapping_switches.py|daedalus.mapping.switches",
+   "READS|tests/test_mapping_switches.py|daedalus project root (in test_this_repo_still_analyses)"
+  ],
+  "todos": [
+   "tests/test_mapping_switches.py|function|report|Provides a report object with analysed switch inventory for tests.",
+   "tests/test_mapping_switches.py|function|test_schema_and_determinism|Tests that the schema matches and analysis is deterministic.",
+   "tests/test_mapping_switches.py|function|test_dark_gate_is_classified_dark|Verifies dark gates are classified correctly.",
+   "tests/test_mapping_switches.py|function|test_env_name_behind_a_module_constant_is_resolved|Resolves env name behind a module constant.",
+   "tests/test_mapping_switches.py|function|test_zero_default_int_gate_is_dark|Confirms zero default int gate is dark.",
+   "tests/test_mapping_switches.py|function|test_override_with_a_fallback_is_not_dark|Ensures override with fallback is not dark.",
+   "tests/test_mapping_switches.py|function|test_inverted_switch_is_never_dark|Validates inverted switch is never dark.",
+   "tests/test_mapping_switches.py|function|test_real_default_reads_as_on|Checks real default reads as ON.",
+   "tests/test_mapping_switches.py|function|test_multi_default_conflict_is_reported|Reports multi-default conflict correctly.",
+   "tests/test_mapping_switches.py|function|test_default_imported_from_another_module_is_resolved|Resolves default imported from another module.",
+   "tests/test_mapping_switches.py|function|test_one_alias_bound_to_two_modules_resolves_per_line|Resolves alias bound to two modules per line.",
+   "tests/test_mapping_switches.py|function|test_required_read_is_not_dark|Confirms required read is not dark.",
+   "tests/test_mapping_switches.py|function|test_registry_declared_env_key_is_found|Finds registry-declared env key.",
+   "tests/test_mapping_switches.py|function|test_documented_but_never_read|Identifies documented but never read switches.",
+   "tests/test_mapping_switches.py|function|test_read_but_never_documented|Identifies read but never documented switches.",
+   "tests/test_mapping_switches.py|function|test_near_miss_name_mismatch_is_the_silent_bug|Captures near-miss name mismatch.",
+   "tests/test_mapping_switches.py|function|test_unrelated_names_are_not_accused_of_being_the_same_variable|Ensures unrelated names are not confused.",
+   "tests/test_mapping_switches.py|function|test_param_gates_split_from_safety_flags|Splits param gates from safety flags.",
+   "tests/test_mapping_switches.py|function|test_config_keys_are_classified|Classifies config keys correctly.",
+   "tests/test_mapping_switches.py|function|test_counts_agree_with_the_listings|Verifies counts agree with listings.",
+   "tests/test_mapping_switches.py|function|test_report_is_json_serialisable|Confirms report is JSON serialisable.",
+   "tests/test_mapping_switches.py|function|test_syntax_error_is_reported_not_raised|Reports syntax error instead of raising.",
+   "tests/test_mapping_switches.py|function|test_this_repo_still_analyses|Guards the invariant that the artifact always exists."
+  ],
+  "handoff": {}
+ },
+ "name": "c189",
+ "paths": [
+  "tests/test_mapping_switches.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 20.8
+}

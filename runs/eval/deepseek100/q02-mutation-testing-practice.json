@@ -1,0 +1,19 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q02-mutation-testing-practice",
+ "report": {
+  "status": "needs_review",
+  "summary": "Google (Petrovic et al., 2021) on 55M LOC: 18% killed, 73% unproductive/equiv; after filtering, mutation score ~39%. Equivalent mutants reduced via MutantEQ (constraint-based) and TCE (compiler). Facebook's SapFix evaluated patches with ~50% kill rate. Industry limits operators (statement deletion, condition flip) due to cost, high equivalence (40-50%), and diminishing returns.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Adopt a minimal operator set (statement deletion, condition negation, arithmetic) with compiler-based equivalence detection (TCE). Target a 30\u201340% mutation score and integrate into CI for changed files only."
+  }
+ },
+ "name": "q02-mutation-testing-practice",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 27.9
+}

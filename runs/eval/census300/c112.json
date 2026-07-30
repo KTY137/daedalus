@@ -1,0 +1,40 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c112",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_markdown_wikilinks.py: Tests parsing and resolution of Obsidian-flavored Markdown wikilinks in daedalus.structcore.markdown, covering regression, syntax forms, resolution refusal, and determinism.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_markdown_wikilinks.py|daedalus.structcore.markdown",
+   "CLAIMS|tests/test_markdown_wikilinks.py|NO REGRESSION guarantee",
+   "CLAIMS|tests/test_markdown_wikilinks.py|REFUSE TO GUESS guarantee",
+   "CLAIMS|tests/test_markdown_wikilinks.py|SEPARATE RELATIONS guarantee",
+   "CLAIMS|tests/test_markdown_wikilinks.py|DETERMINISM guarantee"
+  ],
+  "todos": [
+   "tests/test_markdown_wikilinks.py|module|test_markdown_wikilinks|Guarantees all tests for wikilink functionality",
+   "tests/test_markdown_wikilinks.py|constant|PLAIN_DOC|Guarantees a sample document with no wikilinks",
+   "tests/test_markdown_wikilinks.py|constant|PLAIN_NO_HEADINGS|Guarantees a sample document without headings",
+   "tests/test_markdown_wikilinks.py|constant|PLAIN_DOC_FINGERPRINT|Guarantees the expected hash for plain document with wikilinks",
+   "tests/test_markdown_wikilinks.py|constant|PLAIN_NO_HEADINGS_FINGERPRINT|Guarantees the expected hash for plain document without headings",
+   "tests/test_markdown_wikilinks.py|constant|PLAIN_KNOWN|Guarantees known file set for legacy edge test",
+   "tests/test_markdown_wikilinks.py|constant|VAULT|Guarantees a vault file set for resolution tests",
+   "tests/test_markdown_wikilinks.py|constant|DOC|Guarantees the document path used in tests",
+   "tests/test_markdown_wikilinks.py|constant|MIXED|Guarantees a mixed document for determinism test",
+   "tests/test_markdown_wikilinks.py|class|NoWikilinkDocumentIsUnmoved|Guarantees that documents without wikilinks parse identically as before",
+   "tests/test_markdown_wikilinks.py|class|WikilinkForms|Guarantees correct parsing of various wikilink syntax forms",
+   "tests/test_markdown_wikilinks.py|class|Resolution|Guarantees correct resolution of wikilinks to files and refusal to guess",
+   "tests/test_markdown_wikilinks.py|class|Determinism|Guarantees that results are deterministic regardless of iteration order"
+  ],
+  "handoff": {}
+ },
+ "name": "c112",
+ "paths": [
+  "tests/test_markdown_wikilinks.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.9
+}

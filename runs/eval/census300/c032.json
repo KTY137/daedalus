@@ -1,0 +1,60 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c032",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/file_bridge.py: Implements the file-bridge protocol for enqueuing and processing task requests with exactly-once semantics, crash safety via journaling, heartbeat monitoring, and quarantine for failed requests.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS daedalus/file_bridge.py daedalus.memory",
+   "DEPENDS daedalus/file_bridge.py daedalus.projects",
+   "DEPENDS daedalus/file_bridge.py daedalus.spine",
+   "WRITES daedalus/file_bridge.py outbox directory (via enqueue)",
+   "WRITES daedalus/file_bridge.py inbox directory (via process_request, quarantine_request)",
+   "WRITES daedalus/file_bridge.py archive directory (via process_request, quarantine_request)",
+   "WRITES daedalus/file_bridge.py runs/bridge_heartbeat.json (external, not in this file)",
+   "WRITES daedalus/file_bridge.py inbox/LATEST.log (via _note_report_arrival)",
+   "WRITES daedalus/file_bridge.py archive/.journal/*.json (via _write_journal)",
+   "WRITES daedalus/file_bridge.py archive/quarantine/*.json (via quarantine_request)",
+   "READS daedalus/file_bridge.py outbox/*.json (via process_request, _read_request)",
+   "READS daedalus/file_bridge.py inbox/*.report.json (via _completed_report)",
+   "READS daedalus/file_bridge.py runs/bridge_heartbeat.json (via heartbeat_status, called in enqueue)",
+   "READS daedalus/file_bridge.py memory EVENTS_PATH (via _memory_already_recorded)",
+   "CLAIMS daedalus/file_bridge.py WatcherNotRunning: raised by enqueue() when no watcher is alive",
+   "CLAIMS daedalus/file_bridge.py enqueue: drops one task request into the outbox with trace and consumer check",
+   "CLAIMS daedalus/file_bridge.py process_request: processes one request exactly once across crashes",
+   "CLAIMS daedalus/file_bridge.py quarantine_request: takes a request out of watcher's way permanently and visibly",
+   "CLAIMS daedalus/file_bridge.py codex_inline_brief_warning: returns warning when codex-lane objective smells like inline brief",
+   "SMELL daedalus/file_bridge.py heartbeat_status is used but not defined or imported in this file; likely expected from another module but not declared in imports"
+  ],
+  "todos": [
+   "daedalus/file_bridge.py|constant|ROOT|Root directory of the project, parent of outbox/inbox/runs.",
+   "daedalus/file_bridge.py|constant|OUTBOX|Directory where enqueued request files are placed.",
+   "daedalus/file_bridge.py|constant|INBOX|Directory where report files are placed after processing.",
+   "daedalus/file_bridge.py|constant|ARCHIVE|Directory where processed requests are moved after completion.",
+   "daedalus/file_bridge.py|constant|HEARTBEAT_PATH|Path to the watcher heartbeat file for liveness checks.",
+   "daedalus/file_bridge.py|constant|IDLE_BEAT_EVERY_S|Interval in seconds for idle watcher heartbeat.",
+   "daedalus/file_bridge.py|constant|STALE_AFTER_S|Time after which a heartbeat is considered stale.",
+   "daedalus/file_bridge.py|constant|BUSY_BUDGET_S|Maximum time a watcher can be busy before considered wedged.",
+   "daedalus/file_bridge.py|constant|CODEX_INLINE_BRIEF_CHARS|Character threshold for codex inline brief warning.",
+   "daedalus/file_bridge.py|constant|MAX_ATTEMPTS|Maximum number of dispatch attempts before quarantine.",
+   "daedalus/file_bridge.py|constant|SETTLE_GRACE_S|Grace time for incomplete request file to settle.",
+   "daedalus/file_bridge.py|class|WatcherNotRunning|Raised by enqueue() when no watcher is alive to consume the request.",
+   "daedalus/file_bridge.py|function|codex_inline_brief_warning|Returns a warning string when codex-lane objective smells like an inline task brief, else None.",
+   "daedalus/file_bridge.py|function|enqueue|Drops one task request into the outbox for watcher dispatch, with trace, consumer check, and atomic publication.",
+   "daedalus/file_bridge.py|function|quarantine_request|Takes a request out of the watcher's way permanently and visibly, writing a quarantined report and moving the request.",
+   "daedalus/file_bridge.py|function|process_request|Processes one request exactly once across crashes, producing report, log line, memory record, and archive move."
+  ],
+  "handoff": {
+   "suggestion": "No proposed edits; READ-ONLY census complete."
+  }
+ },
+ "name": "c032",
+ "paths": [
+  "daedalus/file_bridge.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 36.2
+}

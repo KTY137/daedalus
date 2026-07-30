@@ -1,0 +1,50 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c258",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/claude_bridge.py: Provides the Claude bridge: building prompts, executing Claude CLI, parsing JSON reports, handling errors, and a command-line entry point. daedalus/drafts.py: Compatibility module re-exporting symbols from daedalus.kairos.drafts.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/claude_bridge.py|daedalus.fallback",
+   "DEPENDS|daedalus/claude_bridge.py|daedalus.router",
+   "DEPENDS|daedalus/claude_bridge.py|daedalus.schemas",
+   "DEPENDS|daedalus/claude_bridge.py|daedalus.token_policy",
+   "DEPENDS|daedalus/claude_bridge.py|daedalus.budget",
+   "WRITES|daedalus/claude_bridge.py|runs/last_claude_prompt.md",
+   "WRITES|daedalus/claude_bridge.py|runs/last_claude_report.json",
+   "READS|daedalus/claude_bridge.py|repo_root (via --add-dir)",
+   "READS|daedalus/claude_bridge.py|Claude CLI output",
+   "DEPENDS|daedalus/drafts.py|daedalus.kairos.drafts",
+   "CLAIMS|daedalus/drafts.py|Compatibility wrapper for daedalus.kairos.drafts"
+  ],
+  "todos": [
+   "daedalus/claude_bridge.py|module|daedalus.claude_bridge|Provides functions to prompt Claude and parse structured reports.",
+   "daedalus/claude_bridge.py|constant|ROOT|Resolved parent directory of this file (Path).",
+   "daedalus/claude_bridge.py|constant|RUN_DIR|Directory for runs (Path to runs/ under ROOT).",
+   "daedalus/claude_bridge.py|constant|REPORT_SCHEMA|JSON schema for validating Claude reports.",
+   "daedalus/claude_bridge.py|function|build_prompt|Constructs a prompt string for Claude given objective, repo_root, paths, and agent dict.",
+   "daedalus/claude_bridge.py|function|ask_claude|Executes Claude CLI, returns dict with agent, prompt_path, report_path, and report.",
+   "daedalus/claude_bridge.py|function|main|Entry point for command-line usage with argparse.",
+   "daedalus/drafts.py|module|daedalus.drafts|Re-exports symbols from daedalus.kairos.drafts for backward compatibility.",
+   "daedalus/drafts.py|constant|DRAFT_DIR|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|constant|ROOT|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|apply_payload|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|delete_draft|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|get_draft|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|list_drafts|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|save_draft|Re-exported from daedalus.kairos.drafts.",
+   "daedalus/drafts.py|function|set_status|Re-exported from daedalus.kairos.drafts."
+  ],
+  "handoff": {}
+ },
+ "name": "c258",
+ "paths": [
+  "daedalus/claude_bridge.py",
+  "daedalus/drafts.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 22.7
+}

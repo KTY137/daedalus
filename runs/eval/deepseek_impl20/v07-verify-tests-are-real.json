@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "v07-verify-tests-are-real",
+ "report": {
+  "status": "done",
+  "summary": "DeepSeek applied full-file rewrite to: tests/test_shift.py, tests/test_wiki_links.py.",
+  "files_changed": [
+   "tests/test_shift.py",
+   "tests/test_wiki_links.py"
+  ],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "paid_calls": 2
+  }
+ },
+ "name": "v07-verify-tests-are-real",
+ "requested_paths": [
+  "tests/test_shift.py",
+  "tests/test_wiki_links.py"
+ ],
+ "elapsed_s": 347.8
+}

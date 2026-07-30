@@ -1,0 +1,42 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c288",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_adapters.py: Tests for adapters including SubprocessAdapter profiles, custom sessions, transport record round-trip, and event dataclass instantiation. daedalus/providers/base.py: Defines ProviderCapabilities dataclass and Provider abstract base class with abstract methods available and run, and a helper _enforce_read_only. daedalus/langgraph_adapter.py: Provides langgraph availability check and deferred graph building function.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_adapters.py|daedalus.adapters",
+   "DEPENDS|tests/test_adapters.py|daedalus.adapters.events",
+   "CLAIMS|daedalus/providers/base.py|ProviderCapabilities: \"What a provider is *allowed* and *able* to do. These are structural guarantees enforced by the harness, not promises the model must keep.\"",
+   "CLAIMS|daedalus/providers/base.py|Provider: \"Common interface for every model backend. All providers return the same validated ``agent_report_v1`` dict so everything downstream is uniform.\"",
+   "CLAIMS|daedalus/langgraph_adapter.py|build_graph: \"The stdlib harness keeps the state contract small and serializable. This adapter is intentionally thin so a future LangGraph graph can reuse the same state keys instead of inventing a second orchestration model.\"",
+   "UNWIRED|daedalus/langgraph_adapter.py|build_graph"
+  ],
+  "todos": [
+   "tests/test_adapters.py|function|test_subprocess_adapter_claude_profile|Claude profile has streaming True, resume False",
+   "tests/test_adapters.py|function|test_subprocess_adapter_codex_profile|Codex profile has streaming True",
+   "tests/test_adapters.py|function|test_subprocess_adapter_from_name|from_name returns adapter with correct capabilities",
+   "tests/test_adapters.py|function|test_runtime_profiles_match_verified_cli_contracts|RUNTIME_PROFILES has keys claude and codex with correct args",
+   "tests/test_adapters.py|function|test_from_name_unknown_raises|unknown name raises ValueError",
+   "tests/test_adapters.py|function|test_custom_adapter_honors_session_cwd_and_reports_exit|custom adapter respects cwd and reports exit code",
+   "tests/test_adapters.py|function|test_transport_record_round_trip_preserves_payload_and_provenance|serialization round-trip preserves payload and metadata",
+   "tests/test_adapters.py|function|test_events_dataclasses|event dataclasses can be instantiated with expected fields",
+   "daedalus/providers/base.py|class|ProviderCapabilities|frozen dataclass defining provider capabilities: name, can_write, local, trusted_with_ip, agentic",
+   "daedalus/providers/base.py|class|Provider|abstract base class for model providers with abstract methods available and run and helper _enforce_read_only",
+   "daedalus/langgraph_adapter.py|function|langgraph_available|returns True if langgraph is importable",
+   "daedalus/langgraph_adapter.py|function|build_graph|builds production graph when LangGraph is installed, raises RuntimeError if not installed, currently raises NotImplementedError"
+  ],
+  "handoff": {}
+ },
+ "name": "c288",
+ "paths": [
+  "tests/test_adapters.py",
+  "daedalus/providers/base.py",
+  "daedalus/langgraph_adapter.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 32.3
+}

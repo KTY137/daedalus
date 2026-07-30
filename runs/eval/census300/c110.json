@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c110",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_dead_letter_replay.py: Unit tests for runs/council/dead_letter_replay.py, verifying dead letter replay via room.append_turn, idempotency, error handling, dry-run, CLI, and end-to-end integration with stream_hook.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_dead_letter_replay.py|runs/council/room.py",
+   "DEPENDS|tests/test_dead_letter_replay.py|runs/council/dead_letter_replay.py",
+   "DEPENDS|tests/test_dead_letter_replay.py|runs/council/stream_hook.py",
+   "READS|tests/test_dead_letter_replay.py|runs/council/room.py",
+   "READS|tests/test_dead_letter_replay.py|runs/council/dead_letter_replay.py",
+   "READS|tests/test_dead_letter_replay.py|runs/council/stream_hook.py",
+   "CLAIMS|tests/test_dead_letter_replay.py|replay puts a turn into the room ONLY via room.append_turn",
+   "CLAIMS|tests/test_dead_letter_replay.py|replaying the same spool twice does not duplicate a turn",
+   "CLAIMS|tests/test_dead_letter_replay.py|a malformed spool line is reported and left in the spool, and does not abort replay of good lines",
+   "CLAIMS|tests/test_dead_letter_replay.py|after a successful replay, verify_room() is clean",
+   "CLAIMS|tests/test_dead_letter_replay.py|--dry-run changes nothing",
+   "CLAIMS|tests/test_dead_letter_replay.py|the full loop closes end to end: a real stream_hook dead letter can be replayed back into an attested room"
+  ],
+  "todos": [
+   "tests/test_dead_letter_replay.py|class|DeadLetterTestCase|Provides temp dir setup and helper methods for dead letter replay tests",
+   "tests/test_dead_letter_replay.py|class|ReplayLandsTurnsThroughAppendTurn|Ensures replayed turn lands via append_turn and verify is clean",
+   "tests/test_dead_letter_replay.py|class|ReplayIsIdempotent|Ensures replaying twice does not duplicate a turn",
+   "tests/test_dead_letter_replay.py|class|FailedEntriesStayQueued|Ensures entries that still cannot be chained stay in the spool",
+   "tests/test_dead_letter_replay.py|class|MalformedLineDoesNotAbortReplay|Ensures malformed lines are reported and kept, good lines still replay",
+   "tests/test_dead_letter_replay.py|class|ReplayNeverBypassesAppendTurn|Ensures replay touches room.md only through append_turn",
+   "tests/test_dead_letter_replay.py|class|DryRunChangesNothing|Ensures --dry-run reports but mutates neither room nor spool",
+   "tests/test_dead_letter_replay.py|class|CLIEntryPoint|Ensures CLI commands work correctly",
+   "tests/test_dead_letter_replay.py|class|TheFullLoopCloses|Ensures end-to-end dead letter recovery from stream_hook is clean and idempotent"
+  ],
+  "handoff": {}
+ },
+ "name": "c110",
+ "paths": [
+  "tests/test_dead_letter_replay.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 21.6
+}

@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c063",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files supplied in context; cannot perform structural census.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "note": "Context provided no files. Unable to report on any paths, symbols, or guarantees.",
+   "skipped_sensitive": [
+    "tests/test_spine_attempt.py"
+   ]
+  }
+ },
+ "name": "c063",
+ "paths": [
+  "tests/test_spine_attempt.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.3
+}

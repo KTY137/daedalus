@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c271",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tests/fixtures/typegraph/field_names_are_common_identifiers.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tests/fixtures/typegraph/field_names_are_common_identifiers.py"
+   ]
+  }
+ },
+ "name": "c271",
+ "paths": [
+  "tests/test_fake_offload.py",
+  "tests/fixtures/typegraph/field_names_are_common_identifiers.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "v-fitness-graph-delta",
+ "report": {
+  "status": "blocked",
+  "summary": "Source file fitness-graph-delta.py was not located, making it impossible to verify any claims. All claims are UNDECIDABLE without the actual code. Request the source file to proceed.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "UNDECIDABLE: Claim 1 requires inspection of the 'literals' layer and how it uses repr() for string literals; source file missing.",
+   "UNDECIDABLE: Claim 2 requires access to the corpus and mutation operator distribution; source file missing.",
+   "UNDECIDABLE: Claim 3 requires examining the leaky layer implementation and token handling; source file missing.",
+   "UNDECIDABLE: Claim 4 requires seeing the specificity arm implementation; source file missing.",
+   "UNDECIDABLE: Claim 5 requires the code for SCORING_LAYERS and full corpus; source file missing.",
+   "UNDECIDABLE: Claim 6 requires looking at the 'literals' layer logic; source file missing.",
+   "UNDECIDABLE: Claim 7 requires the measure_commit function; source file missing.",
+   "UNDECIDABLE: Claim 8 requires detection rate reporting code; source file missing."
+  ],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Provide the contents of fitness-graph-delta.py and any dependent modules to resolve the UNDECIDABLE verdicts."
+  }
+ },
+ "name": "v-fitness-graph-delta",
+ "paths": [
+  "docs/research/rounds/round1/fitness-graph-delta.md"
+ ],
+ "elapsed_s": 9.7
+}

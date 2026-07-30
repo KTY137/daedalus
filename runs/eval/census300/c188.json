@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c188",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/imports.py: Handles all-language import extraction (extract_imports) and internal resolution (resolve_internal) for non-Python files, using tree-sitter or regex fallback, with best-effort mapping to repo files.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/imports.py|daedalus/structcore/languages.py",
+   "DEPENDS|daedalus/structcore/imports.py|daedalus/structcore/parse.py",
+   "CLAIMS|daedalus/structcore/imports.py|Module docstring claims all-language import extraction and internal resolution.",
+   "CLAIMS|daedalus/structcore/imports.py|extract_imports returns [] for Python files.",
+   "CLAIMS|daedalus/structcore/imports.py|resolve_internal is best-effort for non-Python."
+  ],
+  "todos": [
+   "daedalus/structcore/imports.py|function|extract_imports|Returns list of (raw, kind) import tuples for non-Python files; returns [] for Python.",
+   "daedalus/structcore/imports.py|function|resolve_internal|Maps an internal raw import string to a repo file path (posix) or None, best-effort for non-Python.",
+   "daedalus/structcore/imports.py|constant|_CANDIDATE_LANGS|Set of language names (java, kotlin, csharp, go, php) that treat all imports as internal candidates."
+  ],
+  "handoff": {}
+ },
+ "name": "c188",
+ "paths": [
+  "daedalus/structcore/imports.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 18.7
+}

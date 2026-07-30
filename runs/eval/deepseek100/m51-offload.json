@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m51-offload",
+ "report": {
+  "status": "needs_review",
+  "summary": "The write-mode gate that diffs before/after snapshots to verify actual disk changes appears missing from offload(): before_snap is computed but never compared to an after snapshot; no usage visible in this slice. This breaks the guarantee that self-reported model changes are not trusted. Also, isolate_paths claims safety based on worker writing only declared paths, but the repo_snapshot docstring admits the worker may write outside, making the scoped snapshot miss changes. Both are severity: high and medium.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "write verification gate missing in offload.py; write may succeed without verification",
+   "scoped snapshot for parallel dispatch may miss worker writes outside declared paths"
+  ],
+  "todos": [
+   "add after-snapshot and diff in offload to verify writes",
+   "clarify isolate_paths assumption and enforce path restriction or document risk"
+  ],
+  "handoff": {
+   "suggestion": "In offload(), after worker.run, compute an after_snapshot using the same snap function, then compare before and after to detect changes; use that instead of trusting model's files_changed. Also, for isolate_paths, either enforce that the worker only writes to declared paths or fall back to full repo snapshot if unconstrained writes are possible."
+  }
+ },
+ "name": "m51-offload",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 58.9
+}

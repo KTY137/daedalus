@@ -1,0 +1,52 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s-03",
+ "report": {
+  "status": "needs_review",
+  "summary": "Consolidation of v-offload and v-gated_writes: two CONFIRMED high-risk issues in path isolation and case handling, and two UNDECIDABLE items needing offload.py inspection.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "description": "Write verification gate missing",
+    "file": "offload.py"
+   },
+   {
+    "description": "After-snapshot and diff missing",
+    "file": "offload.py"
+   }
+  ],
+  "todos": [
+   {
+    "task": "Enforce write-scope in isolate_paths mode or document risk",
+    "priority": "High",
+    "details": "isolate_paths assumption not enforced; only documented. Undetected writes outside declared paths could lead to data exfiltration or corruption. Add enforcement (e.g., worker path restriction) or explicit documentation of bypass risk."
+   },
+   {
+    "task": "Add case normalization to rebase_declared_path",
+    "priority": "High",
+    "details": "rebase_declared_path does not normalize path case before relative_to comparison, causing silent failure on Windows when resolved path and primary_root differ only in case. Use os.path.normcase or case-insensitive alternative."
+   },
+   {
+    "task": "Address scoped snapshot limitation",
+    "priority": "Medium",
+    "details": "Scoped snapshot only hashes declared paths, may miss writes outside. Could lead to undetected integrity violations. Document limitation clearly or use full-repo snapshot when possible."
+   },
+   {
+    "task": "Catch OSError in rebase_declared_path",
+    "priority": "Low",
+    "details": "rebase_declared_path catches ValueError but not OSError from p.resolve() if path does not exist, causing unhandled exception. Add OSError catch and emit logging.warning before returning raw path or raising descriptive exception."
+   }
+  ],
+  "handoff": {
+   "suggestion": "Apply the listed actions: enforce write-scope, add case normalization, address snapshot limitation, and add OSError catch. The UNDECIDABLE items require inspecting offload.py for missing verification gates."
+  }
+ },
+ "name": "s-03",
+ "paths": [
+  "docs/research/rounds/round2/v-offload.md",
+  "docs/research/rounds/round2/v-gated_writes.md"
+ ],
+ "elapsed_s": 35.7
+}

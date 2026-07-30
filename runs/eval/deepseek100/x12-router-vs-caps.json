@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x12-router-vs-caps",
+ "report": {
+  "status": "needs_review",
+  "summary": "The router does not validate provider capabilities against task requirements; it relies solely on sensitivity, risk, and review-only flags. A task may be sent to an incapable provider (e.g., Ollama for complex reasoning), producing a silent bad result rather than an explicit error.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "No per-task provider capability check; mismatch can yield incorrect output without explicit failure",
+   "Trusted-only roles may still reach incapable local bench if external_ok is false and Ollama is available but unsuitable"
+  ],
+  "todos": [
+   "Add task requirements vs. provider capabilities check before dispatching",
+   "Consider fallback to Claude if chosen provider lacks necessary capabilities"
+  ],
+  "handoff": {
+   "suggestion": "Introduce a capabilities map per provider and validate against task complexity or required features; escalate to Claude on mismatch.",
+   "skipped_sensitive": [
+    "daedalus/providers/__init__.py"
+   ]
+  }
+ },
+ "name": "x12-router-vs-caps",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 14.5
+}

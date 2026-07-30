@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c195",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files were supplied in the context; no structural census possible.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "No files to analyze. Provide file excerpts for a meaningful census.",
+   "skipped_sensitive": [
+    "tests/test_wires.py"
+   ]
+  }
+ },
+ "name": "c195",
+ "paths": [
+  "tests/test_wires.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 4.6
+}

@@ -1,0 +1,36 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "rv17",
+ "report": {
+  "status": "needs_review",
+  "summary": "Cross-file analysis of shard 17 reveals potential orphaned modules (inventory, ikarus_chat) with no DEPENDS within the shard. Orphaned writes: metrics.py outputs offload_metrics.local.jsonl, runbook.py writes runs/ directory, neither has a READ consumer here. CLAIMS for test_council_livewire.py lack corresponding SYMBOLS. Several READS (e.g., OUTBOX, INBOX, TODO_PATH in status.py) have no WRITES in this shard. Possible duplicate health-assessment responsibility between status.py and doctor.py.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Orphaned module: daedalus/tools/inventory.py \u2014 no DEPENDS line references it in shard, suggesting it may be unused.",
+   "Orphaned module: daedalus/ikarus_chat.py \u2014 BLUEPRINTS, draft(), chat() have no incoming DEPENDS in this shard.",
+   "Orphaned write: daedalus/metrics.py writes memory/offload_metrics.local.jsonl \u2014 no matching READ in shard.",
+   "Orphaned write: daedalus/runbook.py writes runs/ directory \u2014 no matching READ in shard.",
+   "Unverified CLAIMS: tests/test_council_livewire.py has four CLAIMS lines, but no SYMBOLS from that file are present in the shard, making them unsubstantiated.",
+   "Missing writer for READS: daedalus/status.py reads OUTBOX, INBOX, TODO_PATH, events file, and git repo, but no WRITES for these resources appear in shard (might be outside).",
+   "Possible duplicate responsibility: daedalus/status.py and daedalus/doctor.py both provide subsystem health assessment, risking silent divergence."
+  ],
+  "todos": [
+   "Verify whether daedalus/tools/inventory.py and daedalus/ikarus_chat.py are actually consumed by other parts of the codebase outside this shard.",
+   "Investigate if daedalus/metrics.py and daedalus/runbook.py writes are intentionally orphaned or need corresponding consumers.",
+   "Add SYMBOLS entries for tests/test_council_livewire.py to the census or remove its CLAIMS if they cannot be verified.",
+   "Check for overlap and potential consolidation of health-check logic between daedalus/status.py and daedalus/doctor.py.",
+   "Map the producers of OUTBOX, INBOX, TODO_PATH, and events file to ensure daedalus/status.py reads are properly fed."
+  ],
+  "handoff": {
+   "suggestion": "Run a full dependency graph across all shards to confirm orphans and missing edges. Review census generation to ensure CLAIMS always have corresponding SYMBOLS in the same shard."
+  }
+ },
+ "name": "rv17",
+ "paths": [
+  "docs/research/census/shard17.md"
+ ],
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 68.2
+}

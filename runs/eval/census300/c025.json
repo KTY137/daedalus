@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c025",
+ "report": {
+  "status": "blocked",
+  "summary": "No files were supplied for analysis.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "suggestion": "Please provide the relevant files from the Daedalus repository for structural census.",
+   "skipped_sensitive": [
+    "tests/test_mapping_drift.py"
+   ]
+  }
+ },
+ "name": "c025",
+ "paths": [
+  "tests/test_mapping_drift.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.7
+}

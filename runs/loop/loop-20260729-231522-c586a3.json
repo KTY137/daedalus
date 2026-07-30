@@ -1,0 +1,99 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-231522-c586a3.json",
+      "digest": {
+        "sha256": "081083e3c5be2e2f072dbe202b0b82f1a8ed9c919fc4638803cd563b76fe3960"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 1,
+        "outcomes": [
+          "clean"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-8373c937e1"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260729T231522-3ccb5e31"
+        ],
+        "detail": [
+          {
+            "status": "gated_held",
+            "promoted": false,
+            "reason": "auto_promote='always' but promotion is blocked by governance (state='degraded'): promotion is REFUSED: the gate was last shown to discriminate at a5fc7ce99731f3a3e91599059e03720cef8316e0, but HEAD is 7a5fb078f852cd2c72cc376dc171d38e0e88df5e",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "qwen2.5-coder:14b",
+            "provider_receipt": {
+              "provider": "ollama",
+              "model": "qwen2.5-coder:14b",
+              "action": "offloaded",
+              "wrote": [
+                "docs/HANDOFF.md"
+              ],
+              "report_status": "done",
+              "verify": {
+                "ok": true,
+                "checks": [
+                  {
+                    "name": "schema",
+                    "ok": true,
+                    "detail": "valid"
+                  },
+                  {
+                    "name": "did_work",
+                    "ok": true,
+                    "detail": "verified on disk: docs/HANDOFF.md"
+                  },
+                  {
+                    "name": "prose:docs/HANDOFF.md",
+                    "ok": true,
+                    "status": "checked",
+                    "detail": "lost=1, reduced=1 | [lost] code: 'vendors._LOCAL_HOSTS' (1x -> 0x) | allowed docref correction(s): claim_withdrawn; resolving 589->590"
+                  },
+                  {
+                    "name": "tests",
+                    "ok": true,
+                    "status": "pass",
+                    "timeout_s": 2700,
+                    "detail": "............................................................ [ 99%] | ................................                                         [100%] | 3425 passed, 1 xfailed, 206 subtests passed in 892.65s (0:14:52)"
+                  }
+                ],
+                "failed": [],
+                "verdict": "pass",
+                "inconclusive": []
+              },
+              "handoff": {
+                "windowed_rewrite": [
+                  "docs/HANDOFF.md"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "claims": {
+      "docs/HANDOFF.md": {
+        "candidate_id": "docref-docs-handoff-md-711bab",
+        "iteration": 0,
+        "basis": "declared",
+        "integration_branch": null
+      }
+    },
+    "trace_id": "tr-20260729T231522-3ccb5e31"
+  },
+  "trace_id": "tr-20260729T231522-3ccb5e31"
+}

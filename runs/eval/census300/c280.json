@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c280",
+ "report": {
+  "status": "blocked",
+  "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. tests/fixtures/typegraph/pkg_nested/inner_types.py: path not on the external allow-list (default-deny)",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "Route this task to Claude or local Ollama."
+  ],
+  "handoff": {
+   "offending": [
+    "tests/fixtures/typegraph/pkg_nested/inner_types.py"
+   ]
+  }
+ },
+ "name": "c280",
+ "paths": [
+  "tests/test_selftest.py",
+  "daedalus/adapters/transport.py",
+  "tests/fixtures/typegraph/pkg_nested/inner_types.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 0.0
+}

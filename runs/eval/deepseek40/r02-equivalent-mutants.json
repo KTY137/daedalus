@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r02-equivalent-mutants",
+ "report": {
+  "status": "needs_review",
+  "summary": "The equivalent mutant problem: measured rates in real corpora range from 3% to 40% depending on the mutation operators and detection techniques. A commonly cited ceiling is ~10% for strong mutation with traditional operators (e.g., Offutt & Pan 1997 report 9.2% for 10 C programs). Detection techniques: Trivial Compiler Equivalence (TCE) catches ~5-10% of mutants; constraint-based (e.g., using SAT/SMT) can detect up to 30% but is expensive; dynamic detection (e.g., impact analysis, coverage) has variable recall. The most actionable step: adopt TCE as a cheap filter, then use dynamic detection f",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Equivalent mutant rates vary by language and operator; 9.2% may not generalize to modern OO languages.",
+   "TCE may miss mutants that are semantically equivalent but syntactically different.",
+   "Constraint-based techniques may not scale to large programs."
+  ],
+  "todos": [
+   "Implement TCE as a pre-filter in the mutation testing pipeline.",
+   "Evaluate equivalent mutant rate on the target codebase to calibrate the ceiling.",
+   "Consider dynamic detection for mutants that pass TCE."
+  ],
+  "handoff": {
+   "suggestion": "Cite Offutt & Pan (1997) 'Automatically Detecting Equivalent Mutants and Infeasible Paths' for a measured 9.2% equivalent mutant rate in C programs. For detection, implement TCE (e.g., using compiler optimizations) as a first pass, then use dynamic analysis (e.g., test coverage differences) for remaining candidates. This gives a defensible ceiling for mutation score."
+  }
+ },
+ "name": "r02-equivalent-mutants",
+ "kind": "research",
+ "elapsed_s": 4.9
+}

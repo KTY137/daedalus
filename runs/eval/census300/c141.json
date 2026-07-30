@@ -1,0 +1,40 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c141",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_structcore_parallel.py: Structural scan tests for parallel per-file pass, persistent cache, and determinism of the index build.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_structcore_parallel.py|daedalus.structcore.cache",
+   "DEPENDS|tests/test_structcore_parallel.py|daedalus.structcore.clones",
+   "DEPENDS|tests/test_structcore_parallel.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_structcore_parallel.py|daedalus.structcore.languages",
+   "DEPENDS|tests/test_structcore_parallel.py|daedalus.structcore.parse",
+   "WRITES|tests/test_structcore_parallel.py|temporary directories via tempfile and _write",
+   "WRITES|tests/test_structcore_parallel.py|DAEDALUS_CACHE_DIR environment variable",
+   "READS|tests/test_structcore_parallel.py|temporary filesystem and environment variables",
+   "CLAIMS|tests/test_structcore_parallel.py|The bar for this work is DETERMINISM, not speed: the parallel and cached paths must produce byte-identical indexes to the serial one.",
+   "CLAIMS|tests/test_structcore_parallel.py|Order preservation is load-bearing (the clone passes consume it positionally)."
+  ],
+  "todos": [
+   "tests/test_structcore_parallel.py|constant|FN|Provides a Python function template for test code with a placeholder n.",
+   "tests/test_structcore_parallel.py|constant|JS|Provides a JavaScript module template for test code with a placeholder n.",
+   "tests/test_structcore_parallel.py|class|ParallelDeterminismTest|Tests that parallel index is byte-identical to serial and preserves all_units order.",
+   "tests/test_structcore_parallel.py|class|AmbiguousImportDeterminismTest|Tests deterministic resolution of ambiguous imports across directories.",
+   "tests/test_structcore_parallel.py|class|PersistentCacheTest|Tests persistent cache behavior including invalidation, key composition, and bounded directory.",
+   "tests/test_structcore_parallel.py|class|RefactorEquivalenceTest|Tests that refactored functions (split of import/unit/window pipelines) produce identical results.",
+   "tests/test_structcore_parallel.py|class|SingleFlightWithPoolTest|Tests that concurrent callers share one pooled build under single-flight lock.",
+   "tests/test_structcore_parallel.py|class|SerialFallbackTest|Tests that zero workers fall back to serial and produce identical index."
+  ],
+  "handoff": {}
+ },
+ "name": "c141",
+ "paths": [
+  "tests/test_structcore_parallel.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.9
+}

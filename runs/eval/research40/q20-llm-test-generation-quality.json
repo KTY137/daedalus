@@ -1,0 +1,29 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q20-llm-test-generation-quality",
+ "report": {
+  "status": "needs_review",
+  "summary": "LLM-generated test pass rates: 50-80% typical (e.g., Jain et al., 2023 report 76% for GPT-4, uncertain). Mutation scores rarely reported; EvalPlus (Liu et al., 2023) shows vulnerability to trivial tests. Delete-resistance (tests passing after feature deletion) is not measured in literature. Disagreements: pass rate alone is insufficient; mutation testing and delete-checks are needed to gauge real test quality.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Reported pass rates overestimate quality if tests contain weak assertions.",
+   "Mutation testing is computationally expensive and may slow CI.",
+   "Delete-resistance metric is non-standard and may produce false positives/negatives.",
+   "Test quality varies widely across LLM models and problem domains."
+  ],
+  "todos": [
+   "Benchmark Daedalus test generation on pass rate, mutation score, and delete-resistance using a sample of 50 functions.",
+   "Integrate mutation testing tool (e.g., mutmut for Python) into CI.",
+   "Implement feature-delete test: remove function body and verify generated tests fail.",
+   "Use EvalPlus-style test augmentation to detect overfitting tests."
+  ],
+  "handoff": {
+   "suggestion": "Set up a controlled experiment using Daedalus's current LLM test generation with mutmut for mutation testing and a custom delete-resistance checker on 50 representative functions."
+  }
+ },
+ "name": "q20-llm-test-generation-quality",
+ "question": "What is the measured quality of LLM-generated unit tests: pass rate on first run, mutation score of the resulting suite, and the rate of tests that would still pass if the feature under test were deleted? Name the studies and their numbers.",
+ "elapsed_s": 50.9
+}

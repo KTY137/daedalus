@@ -1,0 +1,52 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c207",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_egress_lane_by_host.py: Tests that the egress lane for Ollama is determined by the actual resolved host from OLLAMA_HOST rather than the provider name, covering the predicate (lane_for_host), the offload wire, the ikarus chat path, and the provider-level guard.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_egress_lane_by_host.py|daedalus.sensitivity",
+   "DEPENDS|tests/test_egress_lane_by_host.py|daedalus.offload",
+   "DEPENDS|tests/test_egress_lane_by_host.py|daedalus.providers.ollama",
+   "DEPENDS|tests/test_egress_lane_by_host.py|daedalus.ikarus_os",
+   "DEPENDS|tests/test_egress_lane_by_host.py|pytest",
+   "READS|tests/test_egress_lane_by_host.py|daedalus/ikarus_os.py (source text via Path(mod.__file__).read_text)",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The lane is decided by WHERE THE BYTES GO, not by the provider's name.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|`localhost` is refused on purpose.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|An unreadable host must fail closed.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The distilled context wire refuses a remote bench.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The refusal outranks the budget check.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The ikarus chat context follows the resolved host.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|No local branch still names its lane literally.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The provider itself refuses a remote endpoint.",
+   "CLAIMS|tests/test_egress_lane_by_host.py|The declared capabilities are not the egress authority."
+  ],
+  "todos": [
+   "tests/test_egress_lane_by_host.py|function|test_this_machine_is_trusted|Asserts that loopback IPs (127.x.x.x, [::1]) yield lane 'trusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_a_NAME_is_never_trusted_even_when_it_means_loopback|Asserts that 'localhost' (a name) yields lane 'untrusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_anywhere_else_is_untrusted|Asserts that non-loopback IPs and domain names yield lane 'untrusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_an_unreadable_host_fails_closed|Asserts that malformed or empty hosts yield lane 'untrusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_bind_all_is_not_loopback|Asserts that 0.0.0.0 yields lane 'untrusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_the_default_host_is_trusted|Asserts that the default Ollama host yields lane 'trusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_offload_resolves_its_lane_from_the_env_not_the_provider_name|Asserts that _resolved_ollama_lane() uses OLLAMA_HOST to determine lane.",
+   "tests/test_egress_lane_by_host.py|function|test_the_distilled_context_wire_refuses_a_remote_bench|Asserts that _slice_context refuses with appropriate metadata for a remote host.",
+   "tests/test_egress_lane_by_host.py|function|test_the_refusal_outranks_the_budget_check|Asserts that the refusal reason is 'not this machine' even when budget is 0.",
+   "tests/test_egress_lane_by_host.py|function|test_ikarus_chat_context_follows_the_resolved_host_too|Asserts that _local_lane() in ikarus_os uses OLLAMA_HOST.",
+   "tests/test_egress_lane_by_host.py|function|test_no_local_branch_still_names_its_lane_literally|Asserts that no LOCAL branch in ikarus_os hardcodes lane='trusted'.",
+   "tests/test_egress_lane_by_host.py|function|test_the_provider_itself_refuses_a_remote_endpoint|Asserts that OllamaProvider refuses a remote endpoint with 'refused' response.",
+   "tests/test_egress_lane_by_host.py|function|test_the_provider_does_not_refuse_a_loopback_endpoint|Asserts that OllamaProvider does not refuse a loopback endpoint.",
+   "tests/test_egress_lane_by_host.py|function|test_the_declared_capabilities_are_not_the_egress_authority|Asserts that caps.local and caps.trusted_with_ip can differ from egress_lane.",
+   "tests/test_egress_lane_by_host.py|function|test_a_local_host_still_reaches_the_budget_path|Asserts that with a local host, the offload wire reaches the budget path."
+  ],
+  "handoff": {}
+ },
+ "name": "c207",
+ "paths": [
+  "tests/test_egress_lane_by_host.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.8
+}

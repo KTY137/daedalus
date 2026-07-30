@@ -1,0 +1,48 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "loop-20260729-225127-fe3508.json",
+      "digest": {
+        "sha256": "dc51ba271e530ddbd29d1919f7f37053dca4f00018297bbe665b64d5feeeb20d"
+      }
+    }
+  ],
+  "predicateType": "https://daedalus.invalid/predicate/loop-ledger/v1",
+  "predicate": {
+    "schema": "daedalus.loop.ledger/2",
+    "attempts": {
+      "docref-docs-handoff-md-711bab": {
+        "n": 1,
+        "outcomes": [
+          "runner_failed"
+        ],
+        "attempt_task_ids": [
+          [
+            "kairos-ollama-23c9f3c555"
+          ]
+        ],
+        "iterations": [
+          0
+        ],
+        "trace_ids": [
+          "tr-20260729T225127-dd711d8a"
+        ],
+        "detail": [
+          {
+            "status": "write_gate_failed",
+            "promoted": false,
+            "reason": "TimeoutError: timed out",
+            "lane": "ollama",
+            "worker": "Lucia",
+            "model": "",
+            "provider_receipt": null
+          }
+        ]
+      }
+    },
+    "claims": {},
+    "trace_id": "tr-20260729T225127-dd711d8a"
+  },
+  "trace_id": "tr-20260729T225127-dd711d8a"
+}

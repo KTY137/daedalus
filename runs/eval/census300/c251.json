@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c251",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_cascade.py: unit tests for daedalus modules including verification, metrics, offload routing, semantic fallback, write guard policy, and fail-closed behavior.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_cascade.py|daedalus.metrics",
+   "DEPENDS|tests/test_cascade.py|daedalus.semantic_route",
+   "DEPENDS|tests/test_cascade.py|daedalus.verifier",
+   "DEPENDS|tests/test_cascade.py|daedalus.offload.offload",
+   "DEPENDS|tests/test_cascade.py|daedalus.provider_router.route_and_select",
+   "DEPENDS|tests/test_cascade.py|daedalus.projects.load_project",
+   "DEPENDS|tests/test_cascade.py|daedalus.sensitivity.load_policy",
+   "DEPENDS|tests/test_cascade.py|daedalus.sensitivity.path_write_blocked",
+   "WRITES|tests/test_cascade.py|metrics.LOG (JSONL file in temp dir)",
+   "READS|tests/test_cascade.py|project files via load_policy(load_project(...))",
+   "CLAIMS|tests/test_cascade.py|WriteGuardTests: regression tests for Mary's findings on the write-guard",
+   "CLAIMS|tests/test_cascade.py|OffloadFailClosedTests: Mary #1: a live write with no project policy loaded must be refused",
+   "SMELL|tests/test_cascade.py|duplicate setUp/tearDown logic for metrics.LOG in MetricsTests, OffloadRoutingTests, and OffloadFailClosedTests"
+  ],
+  "todos": [
+   "tests/test_cascade.py|class|VerifierTests|Tests for daedalus.verifier.verify schema and syntax checks",
+   "tests/test_cascade.py|class|MetricsTests|Tests for daedalus.metrics record and summary functions",
+   "tests/test_cascade.py|class|OffloadRoutingTests|Tests for daedalus.offload.offload and route_and_select routing logic",
+   "tests/test_cascade.py|class|SemanticFallbackTests|Tests for daedalus.semantic_route.semantic_route fallback behavior",
+   "tests/test_cascade.py|class|WriteGuardTests|Regression tests for write guard policy based on Mary's findings",
+   "tests/test_cascade.py|class|OffloadFailClosedTests|Tests that live writes without policy are refused (fail-closed)"
+  ],
+  "handoff": {}
+ },
+ "name": "c251",
+ "paths": [
+  "tests/test_cascade.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 9.8
+}

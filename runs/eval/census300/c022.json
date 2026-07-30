@@ -1,0 +1,41 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c022",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/parse.py: Provides extraction of code units (functions/methods) from source code using Python's ast or tree-sitter, plus extraction of Python type declarations, fields, signatures, and imports, including raw annotation normalization.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/parse.py|.languages"
+  ],
+  "todos": [
+   "daedalus/structcore/parse.py|class|CodeUnit|Represents a parsed code unit with language, module, name, lines, loc, and source.",
+   "daedalus/structcore/parse.py|function|tree_sitter_available|Returns True if tree_sitter_language_pack is importable.",
+   "daedalus/structcore/parse.py|function|extract_units|Returns list of CodeUnit from a module text based on language spec.",
+   "daedalus/structcore/parse.py|function|python_units_and_imports|Returns tuple of CodeUnits and import records from a single parse.",
+   "daedalus/structcore/parse.py|function|python_import_records|Returns raw import records from a Python source text.",
+   "daedalus/structcore/parse.py|function|resolve_python_imports|Resolves raw import records to set of internal dotted modules.",
+   "daedalus/structcore/parse.py|function|python_imports|Returns set of internal modules imported by a Python source (parse+resolve).",
+   "daedalus/structcore/parse.py|constant|TYPE_FACTS_VERSION|Version string for type facts format.",
+   "daedalus/structcore/parse.py|constant|ANY_SENTINEL|Sentinel string for bare Any annotation.",
+   "daedalus/structcore/parse.py|class|TypeDecl|Represents a type declaration with qualname, kind, lines, bases, decorators.",
+   "daedalus/structcore/parse.py|class|FieldDecl|Represents a field declaration with owner, annotation, origin.",
+   "daedalus/structcore/parse.py|class|ParamDecl|Represents a parameter declaration with position, annotation, kind.",
+   "daedalus/structcore/parse.py|class|SignatureDecl|Represents a function signature with params, returns, receiver.",
+   "daedalus/structcore/parse.py|class|AliasImport|Represents a name binding from an import statement.",
+   "daedalus/structcore/parse.py|class|PyTypeFacts|Container for all type facts from one Python file.",
+   "daedalus/structcore/parse.py|class|Annotation|Normalized reading of a raw annotation string."
+  ],
+  "handoff": {
+   "suggestion": "No proposed edits."
+  }
+ },
+ "name": "c022",
+ "paths": [
+  "daedalus/structcore/parse.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.4
+}

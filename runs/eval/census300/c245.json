@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c245",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_index_wiki_layer.py: Contains unit tests for the wiki layer of the index, verifying gate behavior, additivity with existing edges, separate relations for doc-to-doc, doc-to-code, type references, refusal to guess, and determinism.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_index_wiki_layer.py|daedalus.structcore.index",
+   "CLAIMS|tests/test_index_wiki_layer.py|These tests pin the wiring AND the three things it must not do: move an existing edge set, appear without being asked for, or publish an unresolved name as if it were an edge."
+  ],
+  "todos": [
+   "tests/test_index_wiki_layer.py|class|TheGate|Ensures wiki layer is off by default and only activated when explicitly requested with documents.",
+   "tests/test_index_wiki_layer.py|function|test_it_is_off_by_default|Asserts wiki_enabled() returns False by default.",
+   "tests/test_index_wiki_layer.py|function|test_an_explicit_argument_wins_over_the_environment|Asserts wiki_enabled(True) returns True and wiki_enabled(False) returns False.",
+   "tests/test_index_wiki_layer.py|function|test_no_wiki_block_appears_unless_asked_for|Asserts no wiki keys in index when wiki=False.",
+   "tests/test_index_wiki_layer.py|function|test_the_layer_needs_documents_indexed|Asserts wiki key not in index when documents=False.",
+   "tests/test_index_wiki_layer.py|class|ItIsAdditive|Ensures wiki layer does not modify existing edge sets and adds separate wiki-specific keys.",
+   "tests/test_index_wiki_layer.py|function|test_document_links_are_byte_identical_with_the_gate_on|Asserts document_links unchanged with wiki=True.",
+   "tests/test_index_wiki_layer.py|function|test_the_scope_key_distinguishes_the_two_builds|Asserts scope_key ends with '+wiki' when wiki=True.",
+   "tests/test_index_wiki_layer.py|function|test_code_modules_and_import_edges_do_not_move|Asserts import_edges and modules unchanged.",
+   "tests/test_index_wiki_layer.py|class|RelationsStayApart|Ensures each type of wiki link is stored in its own relation and totals are reported.",
+   "tests/test_index_wiki_layer.py|function|test_a_doc_to_doc_edge_is_resolved|Asserts b.md is in wiki_links for a.md.",
+   "tests/test_index_wiki_layer.py|function|test_a_doc_to_code_edge_is_its_own_relation|Asserts m.py in wiki_code_links not in wiki_links.",
+   "tests/test_index_wiki_layer.py|function|test_a_type_reference_is_carried_as_an_unresolved_NAME|Asserts 'Foo' in wiki_type_refs and deferred count.",
+   "tests/test_index_wiki_layer.py|function|test_the_totals_are_reported_including_the_refusals|Asserts all expected keys in wiki dict.",
+   "tests/test_index_wiki_layer.py|class|RefuseToGuess|Ensures the wiki layer does not fabricate edges for missing or ambiguous links.",
+   "tests/test_index_wiki_layer.py|function|test_a_link_to_nothing_is_counted_not_invented|Asserts no wiki_links for unresolvable link and unresolved count >0.",
+   "tests/test_index_wiki_layer.py|function|test_an_ambiguous_bare_name_produces_no_edge|Asserts no wiki_links for ambiguous name and ambiguous count >0.",
+   "tests/test_index_wiki_layer.py|class|Determinism|Ensures wiki layer produces deterministic results.",
+   "tests/test_index_wiki_layer.py|function|test_two_builds_agree|Asserts wiki keys identical between two builds."
+  ],
+  "handoff": {}
+ },
+ "name": "c245",
+ "paths": [
+  "tests/test_index_wiki_layer.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 21.3
+}

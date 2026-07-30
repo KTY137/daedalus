@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q17-wrong-file-rewrites",
+ "report": {
+  "status": "needs_review",
+  "summary": "Output-target confusion in multi-file LLM edits is documented in SWE-bench and agent frameworks (e.g., Aider, OpenHands). SWE-bench reports that even strong models often apply patches to wrong files, but exact rates for this specific overwrite error are uncertain. Prevention: structured prompts with clear file boundaries, use of diff formats, and validation checking if output content matches another file's original content (to reject and re-prompt).",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Validation may produce false positives (e.g., legitimate identical lines) or be circumvented.",
+   "No single prompt structure is foolproof; model may ignore instructions.",
+   "Relying solely on output validation might mask underlying planning failures."
+  ],
+  "todos": [
+   "Implement output sanitizer that flags if rewrite content is identical to another file's original content, then re-prompt with emphasis on correct file.",
+   "Adopt unified diff output format with explicit file path headers.",
+   "Add a verification step (separate LLM call) to confirm edits are applied to intended file."
+  ],
+  "handoff": {
+   "suggestion": "Add an output validation step in the multi-file editor: before committing a rewrite, check if the new content matches (exactly or nearly) the original content of any other file mentioned in the prompt. If so, reject and re-prompt the LLM with a stronger instruction to edit ONLY the target file, possibly by framing the task as a diff generation with explicit target path."
+  }
+ },
+ "name": "q17-wrong-file-rewrites",
+ "question": "MEASURED IN OUR SYSTEM: an LLM asked to rewrite file A, given a change request that also mentions file B, returned B's contents and destroyed A. Three of five multi-file writes failed this way. Is this failure documented in the literature or in agent-framework issue trackers? What prompt structures and output validations are known to prevent output-target confusion in multi-file edit agents?",
+ "elapsed_s": 37.8
+}

@@ -1,0 +1,25 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m27-skills",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audited visible slice of daedalus/skills.py. Found docstring claim violation in parse_frontmatter: function promises SkillError with EVERY problem found, but early return on frontmatter size/line limits prevents reporting of further parse errors (e.g., invalid keys, duplicates). The rest of the module (load_skill, discover, etc.) is not visible, so completeness of malformed reporting and concurrency safety cannot be verified. No execution risks in visible code.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "parse_frontmatter raises SkillError with only size-related reasons if MAX_FRONTMATTER_BYTES or MAX_FRONTMATTER_LINES exceeded, stopping before collecting other issues. This contradicts the docstring guarantee that every problem is reported.",
+   "Visibility is limited; key functions like load_skill and discover are not provided, so their correctness and error handling are unknown."
+  ],
+  "todos": [
+   "Refactor parse_frontmatter to defer size-check errors until after the block is fully parsed, so the SkillError includes all found issues.",
+   "Review load_skill and discover for concurrency and atomicity on Windows, and for adherence to the 'malformed is reported, never silently skipped' claim."
+  ],
+  "handoff": {
+   "suggestion": "In parse_frontmatter, move the size/line checks to a point before raising, but after the main loop has collected all other reasons. For example, collect the size reasons into a separate list and merge them before the final raise. Ensure the docstring claim of 'every problem' is true."
+  }
+ },
+ "name": "m27-skills",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 101.9
+}

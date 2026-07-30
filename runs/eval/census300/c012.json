@@ -1,0 +1,50 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c012",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/index.py: Responsible for building the multi-language structural index of a repository, including modules, dependencies, duplication, hotspots, and optionally document and type layers, with configurable opt-in features.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/languages",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/parse",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/markdown",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/metrics",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/clones",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/perfile",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/cache",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/imports",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/graph",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/tokens",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/typegraph",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/churn",
+   "DEPENDS|daedalus/structcore/index.py|daedalus/structcore/ignore",
+   "READS|daedalus/structcore/index.py|Repository root directory (walked for files)",
+   "CLAIMS|daedalus/structcore/index.py|All index outputs are derived and regenerate-anytime.",
+   "CLAIMS|daedalus/structcore/index.py|Dependencies are precise for Python, best-effort for other languages.",
+   "CLAIMS|daedalus/structcore/index.py|Duplicate clones are exact (Type-2) and near-miss (Type-3) clusters.",
+   "CLAIMS|daedalus/structcore/index.py|Hotspots are complexity ranking multiplied by normalized git churn.",
+   "CLAIMS|daedalus/structcore/index.py|Documents and type layers are opt-in and do not affect other outputs.",
+   "UNWIRED|daedalus/structcore/index.py|backend_status",
+   "UNWIRED|daedalus/structcore/index.py|documents_enabled",
+   "UNWIRED|daedalus/structcore/index.py|types_enabled",
+   "UNWIRED|daedalus/structcore/index.py|wiki_enabled",
+   "SMELL|daedalus/structcore/index.py|knowledge_links parser had no consumer until gating; dead branch before flag added."
+  ],
+  "todos": [
+   "daedalus/structcore/index.py|function|backend_status|Guarantees reporting of tree-sitter and lizard backend availability.",
+   "daedalus/structcore/index.py|function|documents_enabled|Guarantees correct boolean for document indexing based on explicit argument or environment variable.",
+   "daedalus/structcore/index.py|function|types_enabled|Guarantees correct boolean for type layer indexing based on explicit argument or environment variable.",
+   "daedalus/structcore/index.py|function|wiki_enabled|Guarantees correct boolean for wiki link layer indexing based on explicit argument or environment variable."
+  ],
+  "handoff": {}
+ },
+ "name": "c012",
+ "paths": [
+  "daedalus/structcore/index.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 26.5
+}

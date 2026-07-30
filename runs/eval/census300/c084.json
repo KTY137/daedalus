@@ -1,0 +1,24 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c084",
+ "report": {
+  "status": "needs_review",
+  "summary": "No files provided for census.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [],
+  "handoff": {
+   "skipped_sensitive": [
+    "tests/test_council_session.py"
+   ]
+  }
+ },
+ "name": "c084",
+ "paths": [
+  "tests/test_council_session.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 2.1
+}

@@ -1,0 +1,39 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c127",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/kairos/scheduler.py: Bounded scheduler for the contractor bench (Kairos) that clears tasks, dispatches to local/external workers with reduced rights, and enforces safety by bouncing senior-crew work back to Adam.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/kairos/scheduler.py|..provider_router",
+   "DEPENDS|daedalus/kairos/scheduler.py|..providers",
+   "DEPENDS|daedalus/kairos/scheduler.py|..providers.personas",
+   "DEPENDS|daedalus/kairos/scheduler.py|..sensitivity",
+   "DEPENDS|daedalus/kairos/scheduler.py|..projects",
+   "DEPENDS|daedalus/kairos/scheduler.py|..offload",
+   "DEPENDS|daedalus/kairos/scheduler.py|.gated_writes",
+   "DEPENDS|daedalus/kairos/scheduler.py|.decompose",
+   "DEPENDS|daedalus/kairos/scheduler.py|..agents_registry",
+   "DEPENDS|daedalus/kairos/scheduler.py|..benchmark",
+   "CLAIMS|daedalus/kairos/scheduler.py|Kairos never talks to the user, never decides trust, and bounces anything that belongs to the senior crew back to the trusted orchestration layer.",
+   "UNWIRED|daedalus/kairos/scheduler.py|_paths_overlap"
+  ],
+  "todos": [
+   "daedalus/kairos/scheduler.py|constant|FREE_LANES|Guarantees the set of providers that Ikarus may dispatch (non-Claude).",
+   "daedalus/kairos/scheduler.py|constant|DEFAULT_AVAILABILITY|Guarantees default availability with local bench on and external benches dormant.",
+   "daedalus/kairos/scheduler.py|class|Assignment|Guarantees a dataclass holding task assignment, acceptance status, and reason.",
+   "daedalus/kairos/scheduler.py|class|KairosScheduler|Guarantees bounded concurrency via max_workers and max_parallel_writes, and safe dispatch routing.",
+   "daedalus/kairos/scheduler.py|function|main|Guarantees a CLI entry point for demo task planning."
+  ],
+  "handoff": {}
+ },
+ "name": "c127",
+ "paths": [
+  "daedalus/kairos/scheduler.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 17.1
+}

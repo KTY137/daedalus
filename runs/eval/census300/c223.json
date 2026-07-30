@@ -1,0 +1,30 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c223",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/topology.py: Provides optional read-only spectral analysis of the structural import graph, computing a two-way partition via normalized Laplacian sweep cut, with caveats that it is analysis-only and not a write-safety proof.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/topology.py|daedalus.structcore.graph",
+   "DEPENDS|daedalus/structcore/topology.py|daedalus.structcore.index",
+   "CLAIMS|daedalus/structcore/topology.py|the module docstring states it is an analysis/visualization aid and warns that a low graph cut does not establish write-safety",
+   "CLAIMS|daedalus/structcore/topology.py|spectral_partition docstring states it returns an honest two-way visualization cut",
+   "UNWIRED|daedalus/structcore/topology.py|spectral_partition (no callers visible in this slice)"
+  ],
+  "todos": [
+   "daedalus/structcore/topology.py|function|spectral_partition|Analyzes the import graph and returns a two-way visualization cut using normalized Laplacian sweep, refusing oversized graphs and handling disconnected components."
+  ],
+  "handoff": {
+   "suggestion": "No edits proposed."
+  }
+ },
+ "name": "c223",
+ "paths": [
+  "daedalus/structcore/topology.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 12.0
+}

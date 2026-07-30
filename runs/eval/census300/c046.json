@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c046",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_eval_correctness.py: Test suite for daedalus.eval.correctness module, validating schema enforcement, before/after state logic, frozen selection integrity, pytest output parsing, and isolation guards against primary checkout and path escapes.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "SMELL|tests/test_eval_correctness.py|unused import: harness from daedalus.eval is imported but never referenced in the file.",
+   "DEPENDS|tests/test_eval_correctness.py|daedalus.eval.correctness",
+   "DEPENDS|tests/test_eval_correctness.py|daedalus.eval.harness",
+   "DEPENDS|tests/test_eval_correctness.py|daedalus.eval.tasks",
+   "DEPENDS|tests/test_eval_correctness.py|daedalus.spine.attempt",
+   "CLAIMS|tests/test_eval_correctness.py|Every guard in this file has been verified red by actually disabling it.",
+   "CLAIMS|tests/test_eval_correctness.py|An absolute path is refused (but is not a second guard, dominated by containment check).",
+   "CLAIMS|tests/test_eval_correctness.py|A skip or missing test is not proof of failure, and cannot contribute to a verdict.",
+   "CLAIMS|tests/test_eval_correctness.py|The digest is stable across declaration order and covers all fields that affect outcome."
+  ],
+  "todos": [
+   "tests/test_eval_correctness.py|function|a_task|returns a standard task dict with defaults for testing",
+   "tests/test_eval_correctness.py|class|ScriptedRunner|injected test runner that returns pre-scripted statuses and records calls",
+   "tests/test_eval_correctness.py|class|SchemaTests|tests task schema validation and anti-vacuity rule",
+   "tests/test_eval_correctness.py|class|BeforeStateTests|tests before-state evaluation including G4, G5, G7, G13 guards",
+   "tests/test_eval_correctness.py|class|AfterStateTests|tests after-state evaluation and outcome precedence including G6, G7 guards",
+   "tests/test_eval_correctness.py|class|SelectionTests|tests frozen selection and run widening/narrowing with G10, G16 guards",
+   "tests/test_eval_correctness.py|class|ParseTests|tests parsing of real pytest output including G14, G15 guards",
+   "tests/test_eval_correctness.py|class|PrimaryCheckoutGuardTests|tests refusal of primary checkout as pytest directory or patch target",
+   "tests/test_eval_correctness.py|class|OverlayEscapeTests|tests overlay path escape prevention",
+   "tests/test_eval_correctness.py|class|GitReadTests|tests git verb allowlist",
+   "tests/test_eval_correctness.py|constant|F2P|module-level constant for fail_to_pass test node id",
+   "tests/test_eval_correctness.py|constant|P2P|module-level constant for pass_to_pass test node id"
+  ],
+  "handoff": {}
+ },
+ "name": "c046",
+ "paths": [
+  "tests/test_eval_correctness.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.8
+}

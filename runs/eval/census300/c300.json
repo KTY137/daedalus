@@ -1,0 +1,58 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c300",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/council/__init__.py: Re-exports bus module symbols; declares council package docstring with falsification protocol and separation guarantees. daedalus/kairos/shadow_shell.py: Defines CandidateBranch dataclass and ShadowShellManager that runs an agent inside a GitWorktree and commits changes. daedalus/mission_control.py: Compatibility wrapper re-exporting functions from daedalus.kairos.control.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/council/__init__.py|daedalus.council.bus",
+   "CLAIMS|daedalus/council/__init__.py|council records are never an input to memory recall",
+   "CLAIMS|daedalus/council/__init__.py|falsification protocol is stated in advance and module is deleted if it fails",
+   "DEPENDS|daedalus/kairos/shadow_shell.py|daedalus.adapters.base",
+   "DEPENDS|daedalus/kairos/shadow_shell.py|daedalus.adapters.events",
+   "DEPENDS|daedalus/kairos/shadow_shell.py|daedalus.kairos.worktree",
+   "WRITES|daedalus/kairos/shadow_shell.py|worktree via GitWorktreeManager",
+   "CLAIMS|daedalus/kairos/shadow_shell.py|adapter is required to honor cwd at process launch",
+   "DEPENDS|daedalus/mission_control.py|daedalus.kairos.control"
+  ],
+  "todos": [
+   "daedalus/council/__init__.py|module|ENTRY_VERSION|re-exported constant from bus",
+   "daedalus/council/__init__.py|module|TURN_STATUS|re-exported constant from bus",
+   "daedalus/council/__init__.py|function|actor_id|re-exported from bus",
+   "daedalus/council/__init__.py|function|append_roster|re-exported from bus",
+   "daedalus/council/__init__.py|function|append_round|re-exported from bus",
+   "daedalus/council/__init__.py|function|append_turn|re-exported from bus",
+   "daedalus/council/__init__.py|function|council_store_path|re-exported from bus",
+   "daedalus/council/__init__.py|function|evidence_ref|re-exported from bus",
+   "daedalus/council/__init__.py|function|load_transcript|re-exported from bus",
+   "daedalus/council/__init__.py|function|transcript_head|re-exported from bus",
+   "daedalus/council/__init__.py|function|verify_chain|re-exported from bus",
+   "daedalus/kairos/shadow_shell.py|class|CandidateBranch|dataclass holding branch metadata and completion status",
+   "daedalus/kairos/shadow_shell.py|class|ShadowShellManager|manages spawning adapter in worktree and returns CandidateBranch",
+   "daedalus/mission_control.py|function|dashboard|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|main_dashboard|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|main_models|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|main_review_diff|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|main_squads|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|main_watcher|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|ollama_models|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|quality_gates|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|queue_timeline|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|review_diff|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|squads|re-exported from kairos.control",
+   "daedalus/mission_control.py|function|watcher_status|re-exported from kairos.control"
+  ],
+  "handoff": {}
+ },
+ "name": "c300",
+ "paths": [
+  "daedalus/council/__init__.py",
+  "daedalus/kairos/shadow_shell.py",
+  "daedalus/mission_control.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 14.4
+}

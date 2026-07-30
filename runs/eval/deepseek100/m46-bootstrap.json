@@ -1,0 +1,48 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m46-bootstrap",
+ "report": {
+  "status": "needs_review",
+  "summary": "Found two high-severity issues: (1) refresh_sources claims success (succeeded=True) when map exits 0 but the snapshot's recorded head is not None, not verifying that it matches the current repo HEAD \u2014 exactly the stale-artefact failure the docstring warns about. (2) The module docstring promises 'IT NEVER WRITES THE PRIMARY CHECKOUT' but refresh_sources writes to docs/architecture-state.json, a primary checkout file. Additional medium: no concurrency protection on the snapshot read-write cycle.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   {
+    "severity": "high",
+    "location": "daedalus/spine/bootstrap.py, refresh_sources(), line `succeeded=(code == 0 and after is not None)`",
+    "trigger": "Map subprocess exits 0 but the snapshot file retains an old non-None head (e.g., after a no-op regeneration). The condition evaluates True, incorrectly declaring success with a stale artifact.",
+    "impact": "Stale derived data enters the loop, violating the freshness guarantee."
+   },
+   {
+    "severity": "high",
+    "location": "Module docstring, lines ~30-35: 'IT NEVER WRITES THE PRIMARY CHECKOUT'",
+    "trigger": "Calling refresh_sources writes docs/architecture-state.json, a file inside the primary checkout.",
+    "impact": "Contradicts a fundamental safety guarantee; could lead to unintended modifications if callers rely on the promise."
+   },
+   {
+    "severity": "medium",
+    "location": "refresh_sources(), around the read-run-read of docs/architecture-state.json",
+    "trigger": "Two concurrent shadow runs on the same repo. No file locks or advisory mechanisms.",
+    "impact": "Possible race conditions or snapshot corruption, though the docstring implies single-iteration use."
+   },
+   {
+    "severity": "low",
+    "location": "refresh_sources() imports `from daedalus.config import resolve_project` and `_picker_source_mode` at top of function",
+    "trigger": "If either module is missing or renamed, an uncaught ImportError halts the function before any response.",
+    "impact": "Caller receives an exception instead of a graceful SourceRefresh failure."
+   }
+  ],
+  "todos": [
+   "In refresh_sources, after running map, verify that snapshot's recorded head matches the current repo HEAD (e.g., via _head_sha). Only then set succeeded=True.",
+   "Either remove the false 'never writes primary checkout' claim from the docstring or modify refresh_sources to write to a shadow location.",
+   "Consider advisory file locking (e.g., a .lock file) for the map refresh to prevent accidental concurrent runs."
+  ],
+  "handoff": {
+   "suggestion": "Patch refresh_sources: after `after = _recorded_head(snapshot)`, add `current_head = _head_sha_root()` and set `succeeded = (code == 0 and after == current_head)` to ensure freshness. Also update the docstring to reflect the actual write behavior or refactor to keep the guarantee."
+  }
+ },
+ "name": "m46-bootstrap",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 69.9
+}

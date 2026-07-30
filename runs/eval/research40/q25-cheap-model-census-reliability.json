@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "q25-cheap-model-census-reliability",
+ "report": {
+  "status": "needs_review",
+  "summary": "Cheap models reliably produce structured output but hallucinate specifics. Literature shows higher factual error rates for smaller/cheaper models, though exact numbers vary. The verification ratio depends on error cost, verification cost, and hallucination rate; statistical quality control suggests piloting to estimate p and setting sampling accordingly (no universal ratio). Recommendation: use cheap model for structure, verify claims with a stronger judge, start with 100% verification on a small set to calibrate.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Verification model may also hallucinate; verify its own error rate.",
+   "Cheap model hallucination rate may drift as prompts or data change; periodic recalibration needed.",
+   "No published study exactly matches 'code slice structural extraction' scenario; numbers from other domains may not transfer.",
+   "Cost of verification with a strong model might negate savings if hallucination rate is high."
+  ],
+  "todos": [
+   "Pilot: run cheap model on a representative sample (e.g., 100 slices) and verify all claims with a strong model (or human) to estimate hallucination rate p.",
+   "If p > acceptable threshold, consider using cheap model only for output structure (schema mapping) and delegate claim extraction to a more reliable model.",
+   "For ongoing verification, implement statistical sampling plan (e.g., ANSI/ASQ Z1.4) with AQL based on risk tolerance; start with 10-20% random verification and adjust.",
+   "Track false positive vs false negative hallucinations separately; different cost implications.",
+   "Explore confidence signals from cheap model (logprobs, etc.) to prioritize verification.",
+   "Benchmark cheap vs expensive model on your task using standard metrics (precision, recall, factual consistency) to inform cost-quality trade-off."
+  ],
+  "handoff": {
+   "suggestion": "No proposed file edits; this is a research recommendation."
+  }
+ },
+ "name": "q25-cheap-model-census-reliability",
+ "question": "MEASURED IN OUR SYSTEM: a cheap model performing structural extraction over 300 code slices produced reliable aggregate shape but hallucinated specific claims (two of two checked __all__ claims were false). What is known about the reliability of cheap models for structured extraction versus judgement, and what verification ratio is worth paying for?",
+ "elapsed_s": 57.1
+}

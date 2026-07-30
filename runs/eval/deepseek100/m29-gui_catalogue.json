@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m29-gui_catalogue",
+ "report": {
+  "status": "needs_review",
+  "summary": "Audit of gui_catalogue.py (partial): Provenance date validation too weak; uses regex that accepts invalid dates like '2026-13-40', contradicting docstring claim of mandatory checked field. No concurrency issues visible (I/O functions missing). No full verification of three-layer refusal guarantee (missing parse_entry). Other potential issues (duplicate entry names, prompt fencing) lie in unseen code.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DATE VALIDATION: Provenance.__post_init__ uses _DATE_RE which matches any '0000-00-00' pattern, not valid ISO-8601 dates. Malformed dates (e.g., '2026-13-40') pass, despite doc claiming mandatory, checked field. Could corrupt downstream sorting/filtering.",
+   "UNAUDITED CODE: load_catalogue, parse_entry, render_for_prompt are not in slice; cannot verify docstring guarantees about three-layer refusal, atomicity, or prompt injection mitigation.",
+   "NAME UNIQUENESS: Catalogue.by_name returns first match; no duplicate detection visible. Could silently return wrong entry if duplicates exist."
+  ],
+  "todos": [
+   "Strengthen Provenance date validation to reject invalid dates (e.g., use datetime.strptime).",
+   "Verify parse_entry properly quarantines bad entries; ensure Catalogue constructor rejects missing licences (already present).",
+   "Add duplicate name check during Catalogue construction or parsing."
+  ],
+  "handoff": {
+   "suggestion": "Provide full gui_catalogue.py to enable audit of file I/O (atomicity, concurrency), search/render functions, and the quarantine layer. The date validation bug is high priority because it undermines a 'mandatory checked' guarantee."
+  }
+ },
+ "name": "m29-gui_catalogue",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 48.2
+}

@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c242",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_offload_write_failclose.py: Tests that write-mode providers without rollback capability are forced to read-only with escalation, and that .daedalus_worktrees is excluded from repo snapshots.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_offload_write_failclose.py|daedalus.metrics",
+   "DEPENDS|tests/test_offload_write_failclose.py|daedalus.offload",
+   "DEPENDS|tests/test_offload_write_failclose.py|daedalus.providers",
+   "READS|tests/test_offload_write_failclose.py|<temporary directory>",
+   "WRITES|tests/test_offload_write_failclose.py|<temporary directory>",
+   "CLAIMS|tests/test_offload_write_failclose.py|Fail-close the routed write lane on rollback capability (Momus CRITICAL #1)",
+   "SMELL|tests/test_offload_write_failclose.py|Test is tightly coupled to specific provider names (codex_cli, ollama) which may change."
+  ],
+  "todos": [
+   "tests/test_offload_write_failclose.py|class|WritableFailCloseTests|Tests write grant fail-close when provider lacks rollback and rollback-capable providers keep writable=True.",
+   "tests/test_offload_write_failclose.py|class|SnapshotSkipTests|Tests that .daedalus_worktrees is excluded from repo snapshot."
+  ],
+  "handoff": {}
+ },
+ "name": "c242",
+ "paths": [
+  "tests/test_offload_write_failclose.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 8.3
+}

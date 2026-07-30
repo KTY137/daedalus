@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r19-orchestration-evidence",
+ "report": {
+  "status": "needs_review",
+  "summary": "Multi-agent orchestration shows mixed results. On SWE-bench, single-agent systems like SWE-agent (12.3% resolve) and Devin (13.8%) outperform many multi-agent frameworks (e.g., MetaGPT ~8%). However, specialized multi-agent designs like ChatDev (14.9% on SWE-bench-lite) and AutoGen's role-playing (e.g., code reviewer + coder) can exceed single agents on complex tasks. Fan-out helps when tasks require diverse expertise (e.g., software design, code review) but hurts on well-defined, sequential tasks due to coordination overhead and error propagation. Key benchmarks: SWE-bench (single-agent leads",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Coordination overhead can degrade performance on simple tasks.",
+   "Error propagation between agents can amplify mistakes.",
+   "Increased latency and cost without guaranteed improvement."
+  ],
+  "todos": [
+   "Benchmark on your specific task domain before committing to multi-agent.",
+   "Consider hybrid: single agent with selective multi-agent subroutines.",
+   "Measure coordination cost (tokens, time) vs. accuracy gain."
+  ],
+  "handoff": {
+   "suggestion": "Run a controlled experiment: compare a single strong agent (e.g., GPT-4 with ReAct) against a multi-agent system (e.g., AutoGen with coder+reviewer) on a representative subset of your tasks. Report resolve rate, cost, and latency."
+  }
+ },
+ "name": "r19-orchestration-evidence",
+ "kind": "research",
+ "elapsed_s": 4.8
+}

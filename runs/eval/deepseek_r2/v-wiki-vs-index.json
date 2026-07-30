@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "v-wiki-vs-index",
+ "report": {
+  "status": "blocked",
+  "summary": "Unable to locate source file wiki-vs-index.py; all claims are UNDECIDABLE as no code inspection was possible.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "UNDECIDABLE: [risk] If resolution logic is duplicated, a bug fix in one place may be missed in the other, leading to incorrect links in diagnostic outputs.",
+   "UNDECIDABLE: [risk] The index's wiki gate (DAEDALUS_INDEX_WIKI) suggests a separate code path that may not fully replicate links.py's deterministic sort, bounds, and edge types.",
+   "UNDECIDABLE: [risk] Link resolution rules (e.g., _candidates_for in links.py) may diverge between wiki and index, causing inconsistent edge sets for the same content.",
+   "UNDECIDABLE: [todo] Decide which component owns resolution: preferably wiki layer exports a reusable LinkIndex builder, and index.py calls it when documents+wiki flags are on.",
+   "UNDECIDABLE: [todo] Verify that type: and vault: link handling is consistent across both; currently links.py just counts them, but index may attempt resolution.",
+   "UNDECIDABLE: [todo] Check that ambiguous/unresolved reporting is uniform; links.py reports, but index's document_links may silently drop.",
+   "UNDECIDABLE: [todo] Locate markdown.knowledge_links or equivalent in structcore/markdown.py and compare with wiki/links.py build_index."
+  ],
+  "todos": [],
+  "handoff": {}
+ },
+ "name": "v-wiki-vs-index",
+ "paths": [
+  "docs/research/rounds/round1/wiki-vs-index.md"
+ ],
+ "elapsed_s": 22.0
+}

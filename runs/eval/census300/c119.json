@@ -1,0 +1,48 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c119",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/context_plan.py: Hybrid, evidence-bearing context planning over the Daedalus Knowledge Forest, combining lexical BM25 and latent event-path seeds into a DSS-guided plan.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/context_plan.py|daedalus.memory",
+   "DEPENDS|daedalus/context_plan.py|daedalus.memory.embeddings",
+   "DEPENDS|daedalus/context_plan.py|daedalus.providers.ollama",
+   "DEPENDS|daedalus/context_plan.py|daedalus.structcore.dss",
+   "DEPENDS|daedalus/context_plan.py|daedalus.structcore.forest",
+   "DEPENDS|daedalus/context_plan.py|daedalus.structcore.index",
+   "CLAIMS|daedalus/context_plan.py|The planner turns a natural-language objective into file-level seed evidence, then delegates coarse-to-fine propagation to DSS.",
+   "CLAIMS|daedalus/context_plan.py|plan_context: 'No source material is emitted or rewritten.'"
+  ],
+  "todos": [
+   "daedalus/context_plan.py|module|context_plan|Hybrid, evidence-bearing context planning over the Daedalus Knowledge Forest.",
+   "daedalus/context_plan.py|constant|CONTEXT_PLAN_SCHEMA|Schema identifier for context planning receipts.",
+   "daedalus/context_plan.py|constant|LEXICAL_PROJECTOR_VERSION|Version string for lexical BM25 projector.",
+   "daedalus/context_plan.py|constant|LATENT_MAPPER_VERSION|Version string for latent event-path mapper.",
+   "daedalus/context_plan.py|constant|LATENT_STATUS_DISABLED|Sentinel status for latent source not requested.",
+   "daedalus/context_plan.py|constant|LATENT_STATUS_READY|Sentinel status for latent source answered successfully.",
+   "daedalus/context_plan.py|constant|LATENT_STATUS_ERROR|Sentinel status for latent source raised an error.",
+   "daedalus/context_plan.py|class|LexicalSeedResult|Data class holding BM25 lexical seed scores, query terms, and matched terms.",
+   "daedalus/context_plan.py|class|LatentSeedResult|Data class holding latent seed results, including status, message, scores, and mapped events.",
+   "daedalus/context_plan.py|class|HybridSeedResult|Data class holding fused lexical and latent seed scores with metadata.",
+   "daedalus/context_plan.py|class|ContextPlanningResult|Data class holding the complete context planning result, including objective, seeds, DSS result, and receipt.",
+   "daedalus/context_plan.py|function|lexical_seed_scores|Compute BM25 baseline scores over path and symbol-name evidence from the index.",
+   "daedalus/context_plan.py|function|latent_not_requested|Return a sentinel LatentSeedResult indicating latent seeds were not requested.",
+   "daedalus/context_plan.py|function|latent_memory_seed_scores|Search versioned event projections and map events to file paths to produce latent seed scores.",
+   "daedalus/context_plan.py|function|fuse_seed_scores|Fuse lexical and latent seed scores using weighted linear combination and normalize.",
+   "daedalus/context_plan.py|function|plan_context|Build a hybrid DSS plan from a natural language objective and optional parameters."
+  ],
+  "handoff": {
+   "suggestion": "Structural census complete for context_plan.py. No changes needed; module is self-contained and all public symbols are internally used."
+  }
+ },
+ "name": "c119",
+ "paths": [
+  "daedalus/context_plan.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.2
+}

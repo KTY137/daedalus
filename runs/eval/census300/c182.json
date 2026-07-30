@@ -1,0 +1,46 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c182",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/arch_memory.py: Builds, saves, loads, and renders a compressed architecture summary of the Daedalus repository, used by agents to understand the repo structure in each turn.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "READS|daedalus/arch_memory.py|docs/architecture-state.json",
+   "READS|daedalus/arch_memory.py|runs/arch_memory.json",
+   "READS|daedalus/arch_memory.py|runs/arch_memory.shown",
+   "READS|daedalus/arch_memory.py|daedalus/*/__init__.py",
+   "WRITES|daedalus/arch_memory.py|runs/arch_memory.json",
+   "WRITES|daedalus/arch_memory.py|runs/arch_memory.shown",
+   "CLAIMS|daedalus/arch_memory.py|Provides a compact architecture summary that is true and small.",
+   "CLAIMS|daedalus/arch_memory.py|Freshness first: first line says which commit and whether it is still HEAD.",
+   "CLAIMS|daedalus/arch_memory.py|The summary is derived, never hand-maintained.",
+   "SMELL|daedalus/arch_memory.py|Module has multiple responsibilities (build, save, load, render, delta render) \u2014 possible god-object.",
+   "SMELL|daedalus/arch_memory.py|Duplication: staleness check logic in build and render functions."
+  ],
+  "todos": [
+   "daedalus/arch_memory.py|constant|ARCH_MEMORY_VERSION|Version string for the architecture memory format.",
+   "daedalus/arch_memory.py|constant|MEMORY_REL_PATH|Relative path where the architecture memory is saved.",
+   "daedalus/arch_memory.py|constant|STATE_REL_PATH|Relative path to the architecture state JSON.",
+   "daedalus/arch_memory.py|constant|MAX_LINES|Maximum number of lines in the architecture memory.",
+   "daedalus/arch_memory.py|constant|MAX_LINE_CHARS|Maximum characters per line.",
+   "daedalus/arch_memory.py|constant|NEWLINE|Newline character for file writing.",
+   "daedalus/arch_memory.py|class|ArchMemory|Dataclass representing the architecture memory with head, branch, dirty, lines, generated_at, version.",
+   "daedalus/arch_memory.py|function|build|Build an ArchMemory object from the repo root.",
+   "daedalus/arch_memory.py|function|save|Save an ArchMemory to a JSON file atomically.",
+   "daedalus/arch_memory.py|function|load|Load an ArchMemory from the JSON file.",
+   "daedalus/arch_memory.py|function|render|Render the architecture memory as a string for display.",
+   "daedalus/arch_memory.py|function|render_delta|Render what changed since last shown, or indicate no change.",
+   "daedalus/arch_memory.py|function|main|CLI entry point for the module."
+  ],
+  "handoff": {}
+ },
+ "name": "c182",
+ "paths": [
+  "daedalus/arch_memory.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 29.3
+}

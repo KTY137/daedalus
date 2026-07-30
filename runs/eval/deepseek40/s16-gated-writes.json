@@ -1,0 +1,31 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "s16-gated-writes",
+ "report": {
+  "status": "needs_review",
+  "summary": "The module does NOT prevent writes; it only orders attempts. The name 'gated_writes' overstates the guarantee. Phase 1 (gate_candidates) runs each write through TaskAttempt with offload() as the runner, but offload() itself auto-lands into the primary checkout for a single sequential write. Phase 2 (promote_candidates) is opt-in and not wired into the default dispatch path. The real fence is TaskAttempt's structural guarantee that the primary checkout is untouched during gating, plus the offload verify+rollback cascade. However, the module's own gate (offload-verify) only checks that offload r",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "The name 'gated_writes' implies a write fence, but the module only gates attempts, not writes. Offload() can still auto-land into primary checkout outside a wave.",
+   "Phase 2 promotion is opt-in and not wired into KairosScheduler.dispatch() default path, so concurrent writes may bypass promotion entirely.",
+   "The offload-verify gate only checks offload's own verdict; it does not independently verify the patch, relying on offload's verify+rollback cascade as the sole authority.",
+   "If offload() finishes with 'escalated_after_verify_fail' and non-empty wrote, the gate catches it, but the patch bytes are still captured as artifact (though not promoted).",
+   "The curated command gate is only used if provided; otherwise, only the offload-verify gate runs, which is a weak check."
+  ],
+  "todos": [
+   "Clarify naming: rename module to reflect it orders attempts, not fences writes.",
+   "Consider adding a write fence in Phase 1 that prevents offload from auto-landing into primary checkout during a wave.",
+   "Wire Phase 2 promotion into the default dispatch path or document why it is opt-in.",
+   "Add independent verification of the patch in the gate, not just offload's verdict.",
+   "Ensure that artifact persistence (artifact_dir) does not bypass the primary checkout fence."
+  ],
+  "handoff": {
+   "suggestion": "The module's name 'gated_writes' is misleading. It does not prevent writes; it only gates attempts via TaskAttempt and offload. The real write fence is offload's own verify+rollback cascade and TaskAttempt's structural guarantee that the primary checkout is untouched during gating. However, offload can still auto-land into primary checkout outside a wave. Consider renaming to 'attempt_gating' or 'concurrent_attempts' and adding an explicit write fence in Phase 1 that prevents offload from writing to primary checkout during a wave. Also, Phase 2 promotion should be wired into the default dispatch path or clearly documented as opt-in."
+  }
+ },
+ "name": "s16-gated-writes",
+ "kind": "scan",
+ "elapsed_s": 7.7
+}

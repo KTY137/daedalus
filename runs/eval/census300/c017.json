@@ -1,0 +1,39 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c017",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/kairos/gated_writes.py: Implements concurrent write gating (Phase 1) and opt-in promotion (Phase 2) for Kairos, using daedalus.spine.attempt for isolated worktree execution and a cross-process lock for promotion.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/kairos/gated_writes.py|daedalus.spine.attempt (lazy import)",
+   "DEPENDS|daedalus/kairos/gated_writes.py|daedalus.config.resolve_project (lazy import)",
+   "DEPENDS|daedalus/kairos/gated_writes.py|daedalus.spine.picker.resolve_spine_db_path (lazy import)",
+   "DEPENDS|daedalus/kairos/gated_writes.py|.worktree.GitWorktreeManager",
+   "READS|daedalus/kairos/gated_writes.py|git repository (via git rev-parse)",
+   "READS|daedalus/kairos/gated_writes.py|spine ledger database",
+   "READS|daedalus/kairos/gated_writes.py|project configuration",
+   "CLAIMS|daedalus/kairos/gated_writes.py|Never touches the primary checkout",
+   "UNWIRED|daedalus/kairos/gated_writes.py|_artifact_root_functions (defined but not called within module)",
+   "UNWIRED|daedalus/kairos/gated_writes.py|_provider_receipt (defined but not called within module)",
+   "UNWIRED|daedalus/kairos/gated_writes.py|_PromotionLock (defined but never used)",
+   "SMELL|daedalus/kairos/gated_writes.py|Several internal functions (_artifact_root_for, _provider_receipt, _PromotionLock) are defined but never called within the module, suggesting dead code."
+  ],
+  "todos": [
+   "daedalus/kairos/gated_writes.py|function|rebase_declared_path|Repo-relative form of one declared write path",
+   "daedalus/kairos/gated_writes.py|function|rebase_declared_paths|Apply rebase_declared_path to a list of paths",
+   "daedalus/kairos/gated_writes.py|class|GatedCandidate|One write Assignment's outcome from Phase 1, carrying spec and result",
+   "daedalus/kairos/gated_writes.py|class|PromotionUnavailable|The cross-process promotion lock could not be taken",
+   "daedalus/kairos/gated_writes.py|function|gate_candidates|PHASE 1: run every write Assignment through TaskAttempt concurrently"
+  ],
+  "handoff": {}
+ },
+ "name": "c017",
+ "paths": [
+  "daedalus/kairos/gated_writes.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.1
+}

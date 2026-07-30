@@ -1,0 +1,35 @@
+{
+  "schema": "daedalus.loop.report/1",
+  "run_id": "loop-20260730-022624-346035",
+  "trace_id": "tr-20260730T022624-bc1ee5ae",
+  "repo_root": "C:\\Users\\nukei\\Desktop\\agent_env",
+  "project": null,
+  "bounds": {
+    "max_iterations": 2,
+    "max_wall_clock_s": 600.0,
+    "max_spend_usd": 0.1,
+    "max_attempts_per_candidate": 2
+  },
+  "dry_run": false,
+  "mode": "inert",
+  "promotion_allowed": false,
+  "governance_state": "degraded",
+  "governance_verdict": "promotion is REFUSED: the gate was last shown to discriminate at a5fc7ce99731f3a3e91599059e03720cef8316e0, but HEAD is 7a5fb078f852cd2c72cc376dc171d38e0e88df5e",
+  "stop_reason": "error",
+  "stop_detail": "AttributeError: 'AttemptResult' object has no attribute 'persist_error'",
+  "iterations_run": 0,
+  "gated_clean": 0,
+  "promoted": 0,
+  "integration_branches": [],
+  "iterations": [],
+  "skipped": [],
+  "notes": [
+    "RUNNING PRODUCTIVELY BUT INERTLY: governance state='degraded' blocks promotion, so this loop will pick, attempt and gate normally and promote NOTHING. Every candidate that clears its gate is a real patch waiting in an integration worktree. Verdict: promotion is REFUSED: the gate was last shown to discriminate at a5fc7ce99731f3a3e91599059e03720cef8316e0, but HEAD is 7a5fb078f852cd2c72cc376dc171d38e0e88df5e"
+  ],
+  "started_ts": "2026-07-30T00:26:24.454022+00:00",
+  "finished_ts": "2026-07-30T00:42:27.269839+00:00",
+  "wall_clock_s": 962.812,
+  "spend_usd": 0.0,
+  "ledger_path": "C:\\Users\\nukei\\Desktop\\agent_env\\runs\\loop\\loop-20260730-022624-346035.json",
+  "killswitch_path": "C:\\Users\\nukei\\AppData\\Local\\daedalus\\control\\8765452452df\\killswitch"
+}

@@ -1,0 +1,65 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c088",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/artifacts.py: Defines the data layer for tracking artifacts (files that programs move) and their schemas, including extraction of path literals from code, resolution to known files, schema reading (CSV, JSON, NPY), and comparison between declared and observed schemas.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "CLAIMS|daedalus/structcore/artifacts.py|Refuse to guess. A literal that does not resolve to a file present in the file set is DROPPED and COUNTED, never bound to a near-match.",
+   "CLAIMS|daedalus/structcore/artifacts.py|Metadata only, never the payload. Schema reads are bounded by MAX_SCHEMA_BYTES and stop at the header. This layer never ingests data.",
+   "CLAIMS|daedalus/structcore/artifacts.py|Reading is not executing. No file here is imported, run, or evaluated. But parsing a hostile binary is still an attack surface, so every reader is bounded and failure is reported as unreadable, never as an empty schema.",
+   "CLAIMS|daedalus/structcore/artifacts.py|Artefacts are not code. Artefact nodes get their own id namespace and never enter modules, import_edges, all_units or the symbol resolver.",
+   "CLAIMS|daedalus/structcore/artifacts.py|A bounded read can truncate valid JSON, so say which it was.",
+   "UNWIRED|daedalus/structcore/artifacts.py|SCHEMA_FROM_CODE: constant defined but not used within this file; likely an external hook.",
+   "UNWIRED|daedalus/structcore/artifacts.py|compare_schema: referenced only in docstring; no actual definition found in this file.",
+   "SMELL|daedalus/structcore/artifacts.py|CompareSchema comparison function is promised (docstring 'compare_schema') but defined elsewhere or missing.",
+   "DEPENDS|daedalus/structcore/artifacts.py|csv, io, json, re, struct, dataclasses, pathlib (stdlib only)."
+  ],
+  "todos": [
+   "daedalus/structcore/artifacts.py|module|artifacts|Provides artifact edge extraction and schema reading.",
+   "daedalus/structcore/artifacts.py|constant|ARTIFACTS_VERSION|Semantic version tag for this module's data format.",
+   "daedalus/structcore/artifacts.py|constant|MAX_SCHEMA_BYTES|Bounded read limit for schema extraction.",
+   "daedalus/structcore/artifacts.py|constant|MAX_COLUMNS|Maximum number of columns to extract from a schema.",
+   "daedalus/structcore/artifacts.py|constant|MAX_LITERALS_PER_FILE|Maximum path literals extracted from one file.",
+   "daedalus/structcore/artifacts.py|constant|NOT_SUPPORTED|Sentinel for unimplemented schema extraction.",
+   "daedalus/structcore/artifacts.py|constant|UNREADABLE|Sentinel for failed schema read.",
+   "daedalus/structcore/artifacts.py|constant|READ|Sentinel for successful schema read.",
+   "daedalus/structcore/artifacts.py|constant|ARTIFACT_KINDS|Mapping from suffix to (family, has_schema_reader).",
+   "daedalus/structcore/artifacts.py|function|artifact_family|Returns artifact family for a given file path.",
+   "daedalus/structcore/artifacts.py|function|artifact_node_id|Generates a unique node ID for an artifact.",
+   "daedalus/structcore/artifacts.py|function|is_artifact_node_id|Checks if a node ID is an artifact node.",
+   "daedalus/structcore/artifacts.py|constant|LITERAL_RULES|Language-specific regex rules for extracting path literals.",
+   "daedalus/structcore/artifacts.py|constant|LITERAL_LANGUAGES|Mapping from suffix to language name for literal extraction.",
+   "daedalus/structcore/artifacts.py|constant|LITERAL_FILENAMES|Filenames (e.g., Makefile) to language mapping.",
+   "daedalus/structcore/artifacts.py|function|literal_language|Returns the literal-extraction language for a given file.",
+   "daedalus/structcore/artifacts.py|dataclass|PathLiteral|Represents a single path-shaped literal extracted from code.",
+   "daedalus/structcore/artifacts.py|function|extract_literals|Extracts path literals from a file's text.",
+   "daedalus/structcore/artifacts.py|function|_candidates|Generates candidate file paths for a literal.",
+   "daedalus/structcore/artifacts.py|dataclass|ArtifactEdge|Represents a resolved edge from source to artifact.",
+   "daedalus/structcore/artifacts.py|dataclass|ResolveReport|Aggregates results of resolving literals against known files.",
+   "daedalus/structcore/artifacts.py|function|resolve_literals|Binds literals to actual files in a known set.",
+   "daedalus/structcore/artifacts.py|dataclass|Column|Describes a single column/schema field.",
+   "daedalus/structcore/artifacts.py|dataclass|ArtifactSchema|Describes the schema of an artifact or reason for unknown.",
+   "daedalus/structcore/artifacts.py|function|_csv_schema|Reads CSV/TSV header to extract column names.",
+   "daedalus/structcore/artifacts.py|function|_json_schema|Extracts keys from JSON object or first record.",
+   "daedalus/structcore/artifacts.py|function|_npy_schema|Parses NPY header to extract dtype and field names.",
+   "daedalus/structcore/artifacts.py|constant|OPTIONAL_READERS|Maps artifact families to optional dependency packages.",
+   "daedalus/structcore/artifacts.py|constant|SCHEMA_FROM_CODE|Placeholder for tier-1 code-declared schema extraction (not implemented).",
+   "daedalus/structcore/artifacts.py|function|read_schema|Reads schema from a bounded binary blob.",
+   "daedalus/structcore/artifacts.py|dataclass|SchemaComparison|Compares a declared schema with an observed artifact schema.",
+   "daedalus/structcore/artifacts.py|function|to_dict|Converts various dataclasses to dicts (multiple definitions)."
+  ],
+  "handoff": {
+   "suggestion": "Note: The docstring promises a function `compare_schema` but it is not defined in this file. Consider adding it or moving the comparison logic elsewhere. Also, `SchemaComparison.to_dict` is defined but `compare_schema` is only a placeholder reference."
+  }
+ },
+ "name": "c088",
+ "paths": [
+  "daedalus/structcore/artifacts.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 13.3
+}

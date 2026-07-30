@@ -1,0 +1,32 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c010",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/kairos/worktree.py: Provides isolated git worktrees for candidate code with containment guarantees and secure cleanup against symlink/junction attacks.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "SMELL|daedalus/kairos/worktree.py|Public export `remove_tree_no_follow` is listed in __all__ but the actual function definition is `_remove_tree_no_follow` (private). This mismatch may cause ImportError.",
+   "DEPENDS|daedalus/kairos/worktree.py|daedalus.storage (imports require_storage)",
+   "CLAIMS|daedalus/kairos/worktree.py|Module docstring claims containment via no-follow lstat checks and fresh re-classification before each syscall, but also acknowledges unresolvable microsecond windows and a retry path with multiple syscalls per verification."
+  ],
+  "todos": [
+   "daedalus/kairos/worktree.py|constant|ALLOC_DIRNAME|Directory for allocation records inside worktree root, never inside a candidate's workspace.",
+   "daedalus/kairos/worktree.py|constant|ALLOC_SCHEMA|Schema identifier for allocation records.",
+   "daedalus/kairos/worktree.py|class|GitWorktreeManager|Manages creation and lifecycle of per-repo worktree pools with containment checks.",
+   "daedalus/kairos/worktree.py|class|WorktreeContainmentError|Exception for when a cleanup target cannot be proven an allocated worktree.",
+   "daedalus/kairos/worktree.py|class|WorktreeRemovalRace|Exception for when a reparse point appears above a removal in progress."
+  ],
+  "handoff": {
+   "suggestion": "Fix the mismatch in __all__: either rename the private function to remove_tree_no_follow (without underscore) or update __all__ to list _remove_tree_no_follow as the public name (if intentional). Also consider adding `remove_tree_no_follow` as a public alias if the intent is to export it without underscore."
+  }
+ },
+ "name": "c010",
+ "paths": [
+  "daedalus/kairos/worktree.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 24.7
+}

@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r13-runtime-type-inference",
+ "report": {
+  "status": "needs_review",
+  "summary": "MonkeyType (Instagram) records runtime types via sys.setprofile; overhead ~2-5% for typical workloads. PyAnnotate (Dropbox) similar but less maintained. Typilus (Microsoft) uses graph neural nets to predict types statically, not runtime. Pyright (Microsoft) infers types statically with high accuracy but no runtime recording. For dict payloads: MonkeyType records the concrete key-value types (e.g., Dict[str, int]) but collapses heterogeneous containers to Union or Any. PyAnnotate does similar. Typilus can infer union types but not from runtime. Pyright infers TypedDict for homogeneous dicts but",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "MonkeyType overhead may be unacceptable in production; need sampling or off-by-default.",
+   "Heterogeneous containers (e.g., list of mixed types) are poorly handled; fallback to Any loses precision.",
+   "Pyright's TypedDict requires static definition; dynamic dicts need runtime schema inference."
+  ],
+  "todos": [
+   "Evaluate MonkeyType overhead on representative workloads.",
+   "Design a structural type representation for heterogeneous containers (e.g., union of TypedDicts).",
+   "Integrate Pyright's static inference to augment runtime recordings."
+  ],
+  "handoff": {
+   "suggestion": "Start with MonkeyType for runtime recording, but add a sampling layer to control overhead. For dicts, record a schema per call site (e.g., set of observed keys and value types). For heterogeneous containers, record the set of observed element types and use a union type. Combine with Pyright's static analysis to fill in missing types and validate consistency. The most actionable step: prototype a lightweight runtime type collector that outputs JSON schemas for dict payloads, then measure accuracy against ground truth in a test suite."
+  }
+ },
+ "name": "r13-runtime-type-inference",
+ "kind": "research",
+ "elapsed_s": 6.0
+}

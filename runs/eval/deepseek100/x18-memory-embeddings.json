@@ -1,0 +1,23 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "x18-memory-embeddings",
+ "report": {
+  "status": "needs_review",
+  "summary": "The embedding index is based on immutable event projections, not on mutable files. Files are not directly indexed; changes to files that produced events do not invalidate existing projections, and queries may return results for events that reference now-deleted files. This is by design (append-only journal), but could be a risk if callers assume freshness. No mechanism exists to prune or flag stale event projections.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Retrieval may return events referencing obsolete or deleted file states; no built-in invalidation for file changes."
+  ],
+  "todos": [],
+  "handoff": {
+   "skipped_sensitive": [
+    "daedalus/memstore.py"
+   ]
+  }
+ },
+ "name": "x18-memory-embeddings",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 36.5
+}

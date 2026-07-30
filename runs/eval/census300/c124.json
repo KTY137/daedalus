@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c124",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/eval/report.py: Renders evaluation results (Tier 1 recall, Tier 2 LLM success, arms A/B/C, and regression gate) as ASCII tables with honest provenance notes, focus-withheld/errored task accounting, and Windows-safe formatting.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [],
+  "todos": [
+   "daedalus/eval/report.py|constant|HEADER|Provides the header string for Daedalus distillation eval reports.",
+   "daedalus/eval/report.py|function|render_tier1|Renders Tier 1 deterministic slice recall + compression results as ASCII table, with provenance breakdown and focus-withheld/errored sections.",
+   "daedalus/eval/report.py|function|render_arms|Renders A/B/C arms report (distilled slice vs whole-repo vs BM25) as ASCII table, with provenance breakdown and c_beats_a analysis.",
+   "daedalus/eval/report.py|function|render_tier2|Renders Tier 2 LLM task-success results (slice vs whole-repo) as ASCII table, including truncated warning and errored tasks.",
+   "daedalus/eval/report.py|function|render_gate|Renders advisory regression-ratchet gate report (counterfactual recall comparison), with regressions, improvements, new/missing tasks, and errored/focus-withheld sections.",
+   "daedalus/eval/report.py|function|render|Combines all render functions (tier1, optional tier2/arms) into a single output string."
+  ],
+  "handoff": {}
+ },
+ "name": "c124",
+ "paths": [
+  "daedalus/eval/report.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 10.3
+}

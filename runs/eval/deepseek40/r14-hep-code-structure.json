@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "r14-hep-code-structure",
+ "report": {
+  "status": "needs_review",
+  "summary": "HEP analysis code typically follows a data-flow from raw data (e.g., AOD/MiniAOD) through skimming, selection, systematic variation, and statistical inference. Real data-flow units are: (1) event-level processing (ROOT/C++ or PyROOT loops), (2) columnar operations (uproot/awkward-array/coffea), (3) systematic weight calculations, (4) histogram filling, and (5) statistical combination (e.g., Combine, pyhf). Dependency graphs must model: file-level I/O, per-event vs. per-dataset parallelism, systematic variations as branches, and the final likelihood construction. Key systems: CMS uses CMSSW (C+",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "Over-engineering the DAG may reduce physicist adoption; must balance expressiveness with simplicity.",
+   "Columnar frameworks (coffea) may not handle all legacy ROOT-based analyses; migration cost.",
+   "Systematic variation explosion (hundreds of shifts) can make DAGs unwieldy without lazy evaluation."
+  ],
+  "todos": [
+   "Survey existing HEP analysis DAG tools (e.g., Yadage, REANA) for lessons learned.",
+   "Prototype a minimal DAG for a CMS Higgs analysis using coffea + awkward + pyhf.",
+   "Define a schema for systematic variations as DAG nodes with caching."
+  ],
+  "handoff": {
+   "suggestion": "Implement a proof-of-concept DAG for a simple HEP analysis (e.g., ttbar cross-section) using coffea for columnar processing and Snakemake for orchestration, with systematic variations as explicit nodes. Measure wall-time vs. traditional ROOT loops. Report numbers: e.g., 'coffea reduced event-loop time by 10x on 100M events' (actual from literature: coffea benchmarks show ~5-10x speedup over PyROOT loops)."
+  }
+ },
+ "name": "r14-hep-code-structure",
+ "kind": "research",
+ "elapsed_s": 7.7
+}

@@ -1,0 +1,27 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "m45-clones",
+ "report": {
+  "status": "blocked",
+  "summary": "Critical off-by-one in window_runs causes missing last window when file has exactly run_len lines. Error-handling silently degrades fingerprints on tokenizer errors and unterminated block comments. No concurrency/filesystem issues. The docstring for window_runs claims full window coverage but implementation misses the boundary case.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "False negatives in window clone detection: files with exactly run_len significant lines produce no run hashes.",
+   "Silent fingerprint degradation on Python tokenizer errors may cause clone drift.",
+   "Unterminated block comments silently truncate source, risking fabricated clones."
+  ],
+  "todos": [
+   "Fix off-by-one in window_runs: use range(max(0, len(norm) - run_len + 1)).",
+   "Log a warning when Python normalization falls back to regex.",
+   "Consider raising an error or logging when _strip_comments_generic encounters an unterminated block comment."
+  ],
+  "handoff": {
+   "suggestion": "In window_runs, change 'range(max(0, len(norm) - run_len))' to 'range(max(0, len(norm) - run_len + 1))' to include the last possible window. For Python normalization fallback, emit a warning via logging or return a sentinel. For unterminated block comments in _strip_comments_generic, if no close_ found, consider logging and optionally preserving the rest of the source after a reasonable limit."
+  }
+ },
+ "name": "m45-clones",
+ "model": "deepseek-v4-pro",
+ "elapsed_s": 61.6
+}

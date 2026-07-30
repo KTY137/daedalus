@@ -1,0 +1,44 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c077",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_typegraph_regression.py: Contains regression thermometers that assert byte-identity of index artifacts (duplication, defs_by_file, lexical_seed_scores) between builds with and without the type layer, and demonstrates the catastrophic dataclass collision scenario at small scale.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_typegraph_regression.py|daedalus.context_plan",
+   "DEPENDS|tests/test_typegraph_regression.py|daedalus.structcore.clones",
+   "DEPENDS|tests/test_typegraph_regression.py|daedalus.structcore.index",
+   "DEPENDS|tests/test_typegraph_regression.py|daedalus.structcore.languages",
+   "DEPENDS|tests/test_typegraph_regression.py|daedalus.structcore.parse",
+   "WRITES|tests/test_typegraph_regression.py|<tmpdir>/tgreg-cache-*",
+   "WRITES|tests/test_typegraph_regression.py|<tmpdir>/tgreg-tree-*",
+   "READS|tests/test_typegraph_regression.py|tests/fixtures/typegraph/",
+   "READS|tests/test_typegraph_regression.py|<tmpdir>/tgreg-tree-* models.py, clone_a.py, clone_b.py, usage.py",
+   "CLAIMS|tests/test_typegraph_regression.py|The plan calls these non-negotiable, and they are the only tests in the suite whose job is to fail when a FUTURE change breaks the foundation.",
+   "CLAIMS|tests/test_typegraph_regression.py|T1 turns that accident into a guarded invariant.",
+   "CLAIMS|tests/test_typegraph_regression.py|T2 ensures no type or field name enters defs_by_file.",
+   "CLAIMS|tests/test_typegraph_regression.py|T3 ensures BM25 ranking is not silently corrupted by extra type names."
+  ],
+  "todos": [
+   "tests/test_typegraph_regression.py|function|setUpModule|Sets up temporary cache and second tree, pins environment variables so build flags are explicit.",
+   "tests/test_typegraph_regression.py|function|tearDownModule|Restores environment variables and cleans up temporary directories.",
+   "tests/test_typegraph_regression.py|class|T1DuplicationIsByteIdentical|Asserts the duplication block is byte-identical between type-off and type-on builds on the fixture tree; verifies the leak creates a cluster out of nothing.",
+   "tests/test_typegraph_regression.py|class|T1DuplicationIsByteIdenticalOnANonEmptyTree|Repeats T1 on a generated tree with non-empty duplication block; checks cluster members are not type or field names.",
+   "tests/test_typegraph_regression.py|class|TheCatastropheIsReal|Demonstrates that feeding three same-arity dataclasses as CodeUnits to renamed_clusters yields one false cluster, confirming the risk.",
+   "tests/test_typegraph_regression.py|class|T2DefsByFileIsByteIdentical|Asserts defs_by_file and imports_by_file are byte-identical; verifies no type or field name enters the resolver table.",
+   "tests/test_typegraph_regression.py|class|T2DefsByFileOnTheSecondTree|Repeats T2 on the generated tree; confirms models.py defines no symbols and no class/field names are resolvable."
+  ],
+  "handoff": {
+   "suggestion": "No edits needed; this file is a regression test suite for the type layer."
+  }
+ },
+ "name": "c077",
+ "paths": [
+  "tests/test_typegraph_regression.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 10.0
+}

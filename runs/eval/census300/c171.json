@@ -1,0 +1,50 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c171",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_dynamic.py: Offline tests for Phase 2: dynamic decomposition and unified bench/Claude bridge, covering decompose fallback, model parsing, Ikarus spawn, and bridge lane routing.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_dynamic.py|daedalus.file_bridge",
+   "DEPENDS|tests/test_dynamic.py|daedalus.kairos.decompose",
+   "DEPENDS|tests/test_dynamic.py|daedalus.kairos.scheduler",
+   "DEPENDS|tests/test_dynamic.py|daedalus.core",
+   "DEPENDS|tests/test_dynamic.py|daedalus.offload",
+   "DEPENDS|tests/test_dynamic.py|daedalus.doctor",
+   "CLAIMS|tests/test_dynamic.py|Every model/network seam is mocked -- no live Ollama or Claude call is made.",
+   "CLAIMS|tests/test_dynamic.py|When the local model is unreachable, the deterministic split is used.",
+   "CLAIMS|tests/test_dynamic.py|When the local model answers, its JSON breakdown drives the subtasks.",
+   "CLAIMS|tests/test_dynamic.py|process_request must send lane='claude' to ask_claude and local-capable lanes through Ikarus -- both fully mocked.",
+   "SMELL|tests/test_dynamic.py|Patches private functions (_try_ikarus, _ask_claude_report) indicating tight coupling to internal implementation."
+  ],
+  "todos": [
+   "tests/test_dynamic.py|class|DecomposeFallbackTests|When the local model is unreachable, the deterministic split is used.",
+   "tests/test_dynamic.py|function|test_multi_path_splits_one_subtask_per_path|Multiple paths are each assigned a subtask with objective preserved.",
+   "tests/test_dynamic.py|function|test_single_path_is_one_passthrough_subtask|Single path results in exactly one subtask with that path.",
+   "tests/test_dynamic.py|function|test_no_paths_still_returns_one_subtask|No paths returns a single subtask with empty path list.",
+   "tests/test_dynamic.py|class|DecomposeModelTests|When the local model answers, its JSON breakdown drives the subtasks.",
+   "tests/test_dynamic.py|function|test_parses_mocked_json_breakdown|A mocked JSON response from the model is parsed into subtasks.",
+   "tests/test_dynamic.py|function|test_parses_bare_json_array_and_honours_max_subtasks|Bare JSON array is parsed and truncated to max_subtasks.",
+   "tests/test_dynamic.py|function|test_garbage_response_falls_back|Non-JSON response falls back to deterministic per-path split.",
+   "tests/test_dynamic.py|class|IkarusSpawnTests|Tests for Ikarus spawn behavior.",
+   "tests/test_dynamic.py|function|test_spawn_dry_run_returns_a_plan|Dry run returns a plan with assignments, spawned, bounced_to_adam, waves keys.",
+   "tests/test_dynamic.py|class|BridgeLaneRoutingTests|process_request routes claude lane to ask_claude and local-capable lanes through Ikarus.",
+   "tests/test_dynamic.py|function|test_claude_lane_calls_ask_claude_not_offload|Claude lane calls ask_claude and not offload.",
+   "tests/test_dynamic.py|function|test_unknown_or_missing_lane_fails_closed_not_claude|Unknown or missing lane fails closed, never reaching Claude.",
+   "tests/test_dynamic.py|function|test_lane_less_request_fails_closed_through_file_bridge|File without lane key fails closed through file bridge.",
+   "tests/test_dynamic.py|function|test_local_lane_eligible_runs_offload_not_claude|Eligible local lane runs offload, not Claude.",
+   "tests/test_dynamic.py|function|test_local_lane_ineligible_falls_through_to_claude|Ineligible local lane falls through to Claude.",
+   "tests/test_dynamic.py|function|test_local_only_lane_never_falls_through_to_claude|Local_only lane never falls through to Claude; fails with error."
+  ],
+  "handoff": {}
+ },
+ "name": "c171",
+ "paths": [
+  "tests/test_dynamic.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 29.7
+}

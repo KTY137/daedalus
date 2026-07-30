@@ -1,0 +1,47 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c287",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_context_plan.py: Contains integration tests for context_plan functions including lexical_seed_scores, plan_context, and latent_memory_seed_scores using a temp file index and mock embedding backend.\ndaedalus/shift_hook.py: Claude Code hook that prints the current shift time, goal, and remaining window every turn, with a warning if expired.\ndaedalus/arch_hook.py: Claude Code hook that prints a delta of the compressed architecture snapshot every turn.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_context_plan.py|daedalus.context_plan",
+   "DEPENDS|tests/test_context_plan.py|daedalus.memory.embeddings",
+   "DEPENDS|tests/test_context_plan.py|daedalus.structcore",
+   "WRITES|tests/test_context_plan.py|Arbitrary files in tmp_path via _write",
+   "READS|tests/test_context_plan.py|Arbitrary files in tmp_path via _index and plan_context",
+   "CLAIMS|tests/test_context_plan.py|test_lexical_baseline_uses_path_and_symbol_evidence: guarantees lexical_seed_scores uses path and symbol evidence",
+   "CLAIMS|tests/test_context_plan.py|test_context_plan_is_deterministic_budgeted_and_uses_measured_costs: guarantees plan_context is deterministic and respects token budget",
+   "CLAIMS|tests/test_context_plan.py|test_latent_memory_only_maps_hits_with_explicit_file_evidence: guarantees latent_memory_seed_scores only maps events with explicit file evidence",
+   "CLAIMS|tests/test_context_plan.py|test_no_latent_index_is_reported_instead_of_read_as_no_matches: guarantees no latent index returns status 'not_configured' and empty scores",
+   "DEPENDS|daedalus/shift_hook.py|daedalus.shift",
+   "READS|daedalus/shift_hook.py|Project root for shift file via shift_mod.load()",
+   "CLAIMS|daedalus/shift_hook.py|Makes time, goal, remaining window part of agent input every turn",
+   "SMELL|daedalus/shift_hook.py|Uses sys.path.insert which is fragile; silently catches all exceptions",
+   "DEPENDS|daedalus/arch_hook.py|daedalus.arch_memory",
+   "READS|daedalus/arch_hook.py|Project root for architecture snapshot via arch_memory.render_delta()",
+   "CLAIMS|daedalus/arch_hook.py|Injects compressed architecture delta every turn when snapshot exists",
+   "SMELL|daedalus/arch_hook.py|Uses sys.path.insert and silently passes exceptions"
+  ],
+  "todos": [
+   "tests/test_context_plan.py|class|ConstantBackend|Provides a constant embedding backend for testing.",
+   "tests/test_context_plan.py|function|test_lexical_baseline_uses_path_and_symbol_evidence|Tests that lexical_seed_scores uses path and symbol evidence.",
+   "tests/test_context_plan.py|function|test_context_plan_is_deterministic_budgeted_and_uses_measured_costs|Tests determinism and budget adherence of plan_context.",
+   "tests/test_context_plan.py|function|test_latent_memory_only_maps_hits_with_explicit_file_evidence|Tests latent memory mapping with explicit file evidence.",
+   "tests/test_context_plan.py|function|test_no_latent_index_is_reported_instead_of_read_as_no_matches|Tests behavior when no latent index exists.",
+   "daedalus/shift_hook.py|function|main|Renders the shift line and prints it, may append warning if expired."
+  ],
+  "handoff": {}
+ },
+ "name": "c287",
+ "paths": [
+  "tests/test_context_plan.py",
+  "daedalus/shift_hook.py",
+  "daedalus/arch_hook.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 31.5
+}

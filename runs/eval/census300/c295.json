@@ -1,0 +1,43 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c295",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_kairos_evolution.py: Tests for the kairos evolutionary orchestration and shadow shell management, providing fixtures and test cases for candidate generation, selection, and shell manager execution. daedalus/env.py: Server-side environment loading that reads .env file and exposes redacted readiness metadata, with constants for secret and public keys.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_kairos_evolution.py|daedalus.kairos.shadow_shell",
+   "DEPENDS|tests/test_kairos_evolution.py|daedalus.kairos.evolution",
+   "DEPENDS|tests/test_kairos_evolution.py|daedalus.adapters.base",
+   "DEPENDS|tests/test_kairos_evolution.py|daedalus.adapters.events",
+   "READS|daedalus/env.py|.env file (via ENV_PATH)",
+   "CLAIMS|daedalus/env.py|The web UI and VS Code wrapper must never receive secret values; only redacted readiness metadata is exposed.",
+   "CLAIMS|daedalus/env.py|Returns redacted metadata only (from load_env docstring)"
+  ],
+  "todos": [
+   "tests/test_kairos_evolution.py|class|DummyAdapter|A minimal adapter for testing that implements AgentAdapter with dummy methods and async event stream that yields SessionEnded.",
+   "tests/test_kairos_evolution.py|function|mock_worktree_manager|Fixture that returns a MagicMock simulating a worktree manager with create_worktree, commit_candidate, and has_changes methods.",
+   "tests/test_kairos_evolution.py|function|mock_adapter|Fixture that returns a DummyAdapter instance.",
+   "tests/test_kairos_evolution.py|function|test_shadow_shell_manager|Tests that ShadowShellManager.run_task returns a completed CandidateBranch with correct attributes and calls worktree manager methods.",
+   "tests/test_kairos_evolution.py|function|test_evolution_generate|Tests that EvolutionaryOrchestrator.generate_candidates yields the requested number of completed candidates.",
+   "tests/test_kairos_evolution.py|function|test_evolution_select|Tests that select_best returns the candidate with the highest score among completed ones.",
+   "tests/test_kairos_evolution.py|function|test_evolution_never_selects_a_failing_candidate|Tests that select_best returns None when the only candidate has a low score with an error.",
+   "daedalus/env.py|constant|ROOT|The resolved parent directory of the current file, assumed to be the project root.",
+   "daedalus/env.py|constant|ENV_PATH|The path to the .env file at the project root.",
+   "daedalus/env.py|constant|SECRET_KEYS|Tuple of environment variable keys considered secret.",
+   "daedalus/env.py|constant|PUBLIC_KEYS|Tuple of environment variable keys considered public.",
+   "daedalus/env.py|function|load_env|Loads .env file values into os.environ and returns redacted metadata from env_status.",
+   "daedalus/env.py|function|env_status|Returns a dictionary with environment status including provider configurations and public/secret key info."
+  ],
+  "handoff": {}
+ },
+ "name": "c295",
+ "paths": [
+  "tests/test_kairos_evolution.py",
+  "daedalus/env.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 23.2
+}

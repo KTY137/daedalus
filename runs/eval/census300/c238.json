@@ -1,0 +1,28 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c238",
+ "report": {
+  "status": "needs_review",
+  "summary": "daedalus/structcore/__main__.py: Provides the CLI entry point for the structcore module, parsing arguments, calling build_index, then printing or writing the structural index.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|daedalus/structcore/__main__.py|daedalus.structcore.index",
+   "WRITES|daedalus/structcore/__main__.py|<json output file>",
+   "READS|daedalus/structcore/__main__.py|<repo root directory>",
+   "CLAIMS|daedalus/structcore/__main__.py|Prints a derived, multi-language structural summary for distillation targeting."
+  ],
+  "todos": [
+   "daedalus/structcore/__main__.py|function|print_summary|prints a formatted structural summary to stdout",
+   "daedalus/structcore/__main__.py|function|main|parses CLI args, builds index, optionally writes JSON, prints summary, returns 0"
+  ],
+  "handoff": {}
+ },
+ "name": "c238",
+ "paths": [
+  "daedalus/structcore/__main__.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 9.9
+}

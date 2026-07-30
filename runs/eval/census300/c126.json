@@ -1,0 +1,34 @@
+{
+ "provider": "deepseek",
+ "persona": "Wei",
+ "agent": "c126",
+ "report": {
+  "status": "needs_review",
+  "summary": "tests/test_prose_gate.py: Tests for the prose gate's fact preservation, docref denominator, and verdict differentiation.",
+  "files_changed": [],
+  "tests_run": [],
+  "risks": [
+   "DEPENDS|tests/test_prose_gate.py|daedalus.verifier",
+   "DEPENDS|tests/test_prose_gate.py|daedalus.spine.docref_gate",
+   "DEPENDS|tests/test_prose_gate.py|daedalus.spine.docrefs",
+   "CLAIMS|tests/test_prose_gate.py|The prose lane's gate: fact preservation, the docref denominator, and the difference between a check that failed and a check that never ran.",
+   "SMELL|tests/test_prose_gate.py|Duplication of TemporaryDirectory setup pattern across multiple test methods."
+  ],
+  "todos": [
+   "tests/test_prose_gate.py|class|ProseBranchTests|Tests verifier prose branch: fact preservation, deleted facts block, faithful rewrite passes, missing before image fails closed, created file passes, deleted file blocks, advisory mode, docref correction waiver.",
+   "tests/test_prose_gate.py|class|DispatchUsesDiskTruthTests|Tests that unreported but written files are still checked and self-report used when no disk evidence.",
+   "tests/test_prose_gate.py|class|VerdictTests|Tests verdict logic: timeout is inconclusive, red suite is fail, real failure outranks timeout, pass.",
+   "tests/test_prose_gate.py|class|BeforeImageTests|Tests prose_before_images: backups become repo-relative before images, no backups is no evidence.",
+   "tests/test_prose_gate.py|class|DocrefsOverrideTests|Tests docref scanning with overrides: before report from remembered text, override none models non-existent file, override adds document.",
+   "tests/test_prose_gate.py|class|DenominatorTests|Tests docref denominator: deleting corpus is refused, correction passes, still broken fails, verify_fixes checks denominator first.",
+   "tests/test_prose_gate.py|class|DocrefGateTests|Tests docref gate: real correction passes, unfixed ref fails, deleting document fails on denominator, etc."
+  ],
+  "handoff": {}
+ },
+ "name": "c126",
+ "paths": [
+  "tests/test_prose_gate.py"
+ ],
+ "model": "deepseek-v4-flash",
+ "elapsed_s": 21.0
+}
