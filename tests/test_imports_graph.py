@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from daedalus.eval.tasks import AGENT_ENV_ROOT
 from daedalus.structcore import build_index
 from daedalus.structcore.index import resolution_context
 from daedalus.structcore import graph
@@ -112,3 +113,97 @@ class SymbolResolverTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StructcoreCanSeeItsOwnCycles(unittest.TestCase):
+    """THE THERMOMETER for the 2026-07-30 audit finding (Aristaeus, P0).
+
+    Before: ``structcore`` reported **0 of 3** non-trivial strongly connected
+    components in this repo's own import graph, because it had no cycle detection
+    at all. ``topology.spectral_partition`` builds ``nx.Graph()`` -- an
+    undirected projection, by its own label -- and direction is the only thing a
+    cycle is made of. ``graph.py``'s ``seen`` set is a walk guard, not a detector.
+
+    The consequence was not a missing feature but a missing ANSWER: the tool whose
+    job is "what should I distill?" could not find the largest structural knot in
+    the tree it was pointed at, and the 13-module component had to be derived by a
+    throwaway script the product does not ship.
+
+    These tests assert the capability, not the current shape of this repo, with
+    one deliberate exception noted below.
+    """
+
+    def test_a_two_cycle_is_found(self):
+        from daedalus.structcore import nontrivial_components
+        comps = nontrivial_components({"a": ["b"], "b": ["a"], "c": ["a"]})
+        self.assertEqual(comps, (("a", "b"),))
+
+    def test_a_dag_has_no_cyclic_components(self):
+        from daedalus.structcore import nontrivial_components
+        self.assertEqual(
+            nontrivial_components({"a": ["b", "c"], "b": ["d"], "c": ["d"]}), ())
+
+    def test_a_module_only_ever_imported_still_counts_as_a_component(self):
+        # Every target is a node too. Otherwise the component count would depend
+        # on which side of an edge a module happens to sit.
+        from daedalus.structcore import strongly_connected_components
+        comps = strongly_connected_components({"a": ["b"]})
+        self.assertEqual(comps, (("a",), ("b",)))
+
+    def test_a_self_import_is_reported_and_not_mistaken_for_a_leaf(self):
+        from daedalus.structcore import nontrivial_components, self_loops
+        edges = {"a": ["a"], "b": ["c"], "c": []}
+        self.assertEqual(self_loops(edges), ("a",))
+        self.assertEqual(nontrivial_components(edges), (("a",),))
+
+    def test_the_output_is_deterministic_and_ordered_largest_first(self):
+        # These results get committed to receipts and diffed between runs, so set
+        # iteration order is not an acceptable basis for them.
+        from daedalus.structcore import strongly_connected_components
+        edges = {"x": ["y"], "y": ["x"], "p": ["q"], "q": ["r"], "r": ["p"],
+                 "z": []}
+        first = strongly_connected_components(edges)
+        self.assertEqual(first, strongly_connected_components(dict(reversed(
+            list(edges.items())))))
+        sizes = [len(c) for c in first]
+        self.assertEqual(sizes, sorted(sizes, reverse=True))
+
+    def test_deep_chains_do_not_blow_the_stack(self):
+        # Iterative Tarjan on purpose: a recursive version would raise
+        # RecursionError as the repo grew, and it would surface as a crash in
+        # whatever tool asked rather than here.
+        from daedalus.structcore import nontrivial_components
+        n = 4000
+        edges = {f"m{i}": [f"m{i+1}"] for i in range(n)}
+        edges[f"m{n}"] = ["m0"]                      # one giant cycle
+        comps = nontrivial_components(edges)
+        self.assertEqual(len(comps), 1)
+        self.assertEqual(len(comps[0]), n + 1)
+
+    def test_induced_edges_are_the_ones_a_cut_must_consider(self):
+        from daedalus.structcore import component_edges
+        edges = {"a": ["b", "outside"], "b": ["a"], "outside": []}
+        self.assertEqual(component_edges(edges, ("a", "b")),
+                         (("a", "b"), ("b", "a")))
+
+    def test_this_repo_reports_its_own_cyclic_components(self):
+        """The regression this file exists for.
+
+        Asserts the CAPABILITY plus one fact about this repo: the 13-module
+        component is named. If a future distillation legitimately breaks it, this
+        assertion should be UPDATED with the new membership and the commit that
+        cut it -- the point is that shrinking it becomes a visible, deliberate
+        act rather than something nobody can measure either way.
+        """
+        from daedalus.structcore import cycle_report
+        report = cycle_report(repo_root=str(AGENT_ENV_ROOT))
+        self.assertGreaterEqual(
+            report["n_cyclic_components"], 1,
+            "structcore must be able to report the cycles in its own import "
+            "graph; 0 means the detector regressed to the undirected lens")
+        biggest = report["components"][0]
+        self.assertGreaterEqual(biggest["size"], 2)
+        self.assertIn("daedalus/core.py", biggest["modules"])
+        # The induced edges are what any feedback-arc-set proposal is computed
+        # from, so an empty list here would make every such proposal vacuous.
+        self.assertTrue(biggest["induced_edges"])

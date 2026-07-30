@@ -33,6 +33,13 @@ from .forest import (
     KnowledgeForest,
     build_knowledge_forest,
 )
+from .cycles import (
+    component_edges,
+    cycle_report,
+    nontrivial_components,
+    self_loops,
+    strongly_connected_components,
+)
 from .typegraph import (
     DEFAULT_HUB_CAP,
     FIELD_NODE_KIND,
@@ -79,6 +86,14 @@ __all__ = [
     "types_enabled", "TYPE_NODE_KIND", "FIELD_NODE_KIND", "RELATIONS",
     "DEFAULT_HUB_CAP", "TypeGraph", "resolve_type_graph",
     "type_node_id", "field_node_id", "is_type_node_id",
+    # directed cycle structure. Exported because until 2026-07-30 this package
+    # could not answer "is there a cycle" at all -- topology.py's undirected
+    # projection discards the direction a cycle is made of, and the 13-module
+    # component in this very repo had to be found with a script the product did
+    # not contain. Stdlib-only on purpose: a fact this basic must not require
+    # the optional 'math' extra that topology.py degrades without.
+    "strongly_connected_components", "nontrivial_components", "self_loops",
+    "component_edges", "cycle_report",
 ]
 
 
