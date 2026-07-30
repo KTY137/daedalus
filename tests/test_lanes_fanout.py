@@ -66,7 +66,7 @@ class ResumeIsFree(unittest.TestCase):
         (self.dir / f"{task.key}.json").write_text(json.dumps({
             "task_id": "t1", "votes_requested": 3,
             "answers": [{"vote": 1, "report": "cached"}]}), encoding="utf-8")
-        out = F.fan_out([task], self.dir, concurrency=1)
+        out = F.fan_out([task], self.dir, concurrency=1, temperature=0.8)
         self.assertEqual(out["paid_calls"], 0)
         self.assertEqual(out["resumed"], 1)
         self.assertEqual(out["ok"], 1)
@@ -78,7 +78,7 @@ class ResumeIsFree(unittest.TestCase):
         task = F.FanoutTask(task_id="t2", objective="q", votes=2)
         (self.dir / f"{task.key}.json").write_text('{"answers": [{"vo',
                                                    encoding="utf-8")
-        out = F.fan_out([task], self.dir, concurrency=1)
+        out = F.fan_out([task], self.dir, concurrency=1, temperature=0.8)
         self.assertEqual(out["paid_calls"], 2)
         self.assertEqual(out["resumed"], 0)
 
@@ -149,7 +149,7 @@ class Corroboration(unittest.TestCase):
         # 2026-07-30 fan-out gave every agent a different target and its largest
         # agreement cluster was two, out of 1,226 claims.
         task = F.FanoutTask(task_id="v", objective="q", votes=3)
-        out = F.fan_out([task], self.dir, concurrency=2)
+        out = F.fan_out([task], self.dir, concurrency=2, temperature=0.8)
         self.assertEqual(out["paid_calls"], 3)
         got = out["results"][0]
         self.assertEqual(got["votes_collected"], 3)
@@ -165,7 +165,7 @@ class Corroboration(unittest.TestCase):
     def test_paid_calls_is_reported_separately_from_task_count(self):
         tasks = [F.FanoutTask(task_id=f"t{i}", objective="q", votes=3)
                  for i in range(4)]
-        out = F.fan_out(tasks, self.dir, concurrency=4)
+        out = F.fan_out(tasks, self.dir, concurrency=4, temperature=0.8)
         self.assertEqual(out["tasks"], 4)
         self.assertEqual(out["paid_calls"], 12)
 
@@ -235,3 +235,74 @@ class TheBudgetGuardIsNotOptional(unittest.TestCase):
 
 if __name__ == "__main__":       # pragma: no cover
     unittest.main()
+
+
+class FakeCorroborationIsRefused(unittest.TestCase):
+    """votes>1 at temperature 0.0 is one answer counted N times.
+
+    MEASURED 2026-07-30. The decode temperature defaulted to 0.0 and every caller
+    inherited it, so a task asking the same question three "independent" times
+    got three identical answers -- and three copies of one answer are
+    indistinguishable from three agreeing agents in every downstream consumer.
+
+    This module's docstring calls votes "the point, not a feature", which made the
+    claim worse than the bug: the corroboration was load-bearing in the
+    documentation and absent in the decode.
+
+    Refused at the door rather than warned about, because the alternative is a
+    dataset that looks corroborated and has to be discarded after someone builds
+    on it.
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self._orig = F._one_call
+        self.temps: list[float] = []
+
+        def capture(task, vote, repo_root, model, timeout_s, brief, *args, **kw):
+            self.temps.append(kw.get("temperature", args[1] if len(args) > 1 else None))
+            return _answer(task, vote, repo_root, model, timeout_s, brief)
+
+        F._one_call = capture
+
+    def tearDown(self):
+        F._one_call = self._orig
+
+    def test_votes_at_zero_temperature_is_refused_and_costs_nothing(self):
+        task = F.FanoutTask(task_id="v", objective="q", votes=3)
+        out = F.fan_out([task], self.dir, concurrency=1)
+        self.assertEqual(out["state"], "refused")
+        self.assertIn("temperature 0.0", out["reason"])
+        self.assertEqual(out["paid_calls"], 0)
+        self.assertEqual(self.temps, [], "not one call may leave")
+
+    def test_the_refusal_names_how_many_tasks_are_affected(self):
+        tasks = [F.FanoutTask(task_id=f"t{i}", objective="q", votes=3)
+                 for i in range(4)]
+        tasks.append(F.FanoutTask(task_id="single", objective="q", votes=1))
+        out = F.fan_out(tasks, self.dir, concurrency=1)
+        self.assertEqual(out["state"], "refused")
+        self.assertIn("4 task(s)", out["reason"])
+
+    def test_a_single_vote_at_zero_temperature_is_fine(self):
+        # One deterministic opinion is honest. It is only the CLAIM of
+        # independence that the temperature makes false.
+        task = F.FanoutTask(task_id="s", objective="q", votes=1)
+        out = F.fan_out([task], self.dir, concurrency=1)
+        self.assertEqual(out["state"], "ran")
+        self.assertEqual(out["paid_calls"], 1)
+
+    def test_votes_with_a_real_temperature_runs(self):
+        task = F.FanoutTask(task_id="v", objective="q", votes=3)
+        out = F.fan_out([task], self.dir, concurrency=1, temperature=0.8)
+        self.assertEqual(out["state"], "ran")
+        self.assertEqual(out["paid_calls"], 3)
+
+    def test_the_refusal_shape_matches_a_completed_run(self):
+        # Same reasoning as the budget-guard refusal: a consumer must not need
+        # two code paths, and the one it will forget is the refusal.
+        task = F.FanoutTask(task_id="v", objective="q", votes=2)
+        refused = F.fan_out([task], self.dir, concurrency=1)
+        ran = F.fan_out([F.FanoutTask(task_id="o", objective="q")], self.dir,
+                        concurrency=1)
+        self.assertEqual(set(refused), set(ran) | {"reason"})

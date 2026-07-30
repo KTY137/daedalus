@@ -37,8 +37,23 @@ ROOT = Path(__file__).resolve().parents[1]
 # 37 modules -- mostly config and rendering -- and a 37-row ledger is a
 # document nobody opens.
 _SERIALIZE = re.compile(r"json\.dumps\(|canonical_json\(")
+# A NAME-BASED detector over a BEHAVIOUR, which is why this list grows: every
+# time a write is factored out into a helper, the helper's name has to arrive
+# here or the detector goes blind to its callers. ``_write_json_atomic(`` was the
+# first such entry (file_bridge's publisher).
+#
+# ``write_text_atomic``/``write_bytes_atomic`` are the second, and they cost a
+# RED BASELINE to notice: on 2026-07-30 daedalus/atomic.py replaced the inline
+# temp-file-plus-os.replace sequence in loop.py, arch_memory.py, shift.py,
+# file_bridge.py and spine/killswitch.py with one shared publisher. Behaviour
+# unchanged; the detector stopped recognising loop.py as a producer, and the
+# calibration test below correctly refused to trust its own green results.
+#
+# Note the two are matched WITHOUT a leading ``\.`` -- they are module-level
+# functions, not methods, so ``.write_text(`` does not cover them.
 _PERSIST = re.compile(
-    r"""\.write_text\(|open\([^)]*["']a["']|_write_json_atomic\(""")
+    r"""\.write_text\(|open\([^)]*["']a["']|_write_json_atomic\("""
+    r"""|write_text_atomic\(|write_bytes_atomic\(""")
 # A RUN-STATE target: the record lands in runs/ or memory/, or it is a .jsonl.
 # Deliberately NOT a bare `.json"`, which matched every config writer.
 _TARGET = re.compile(r"""\.jsonl|["']runs["'/]|runs/|["']memory["'/]|memory/""")

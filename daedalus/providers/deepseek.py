@@ -459,6 +459,16 @@ class DeepSeekProvider(Provider):
         timeout_s: int = 300,
         policy: Any | None = None,
         writable: bool = False,   # fail-closed: caller must grant write explicitly
+        #: Replace the whole system message. ``None`` keeps ``build_prompt``'s,
+        #: so no existing caller changes. See the comment at the call site for
+        #: why an audit lane needs its own -- the default stack forbids
+        #: chain-of-thought and demonstrates an empty findings list.
+        system_override: str | None = None,
+        #: Decode temperature. 0.0 (the default, and what every caller had) makes
+        #: N samples of one prompt IDENTICAL -- so a fan-out asking the same
+        #: question three "independent" times at 0.0 buys one answer counted
+        #: three times. Corroboration needs > 0.
+        temperature: float = 0.0,
     ) -> dict[str, Any]:
         persona = persona_for(self.caps.name, agent.get("name"))
         # Per-call state. Reset here (not only in __init__) so an instance reused
@@ -514,9 +524,29 @@ class DeepSeekProvider(Provider):
             paths, repo_root, MAX_CONTEXT_CHARS, allow_sensitive=False, policy=policy
         )
         system, user = build_prompt(agent, objective, context)
+        # LANE-SPECIFIC SYSTEM PROMPT, opt-in. MEASURED 2026-07-30: an audit fan-out
+        # over 169 modules returned 2 findings from 715 answers, and the cause was
+        # one layer above the question. ``build_prompt`` prepends
+        # ``token_policy.STATIC_PROMPT_PREFIX``, which says "Minimize tokens ...
+        # Prefer short summaries ... **Do not include chain-of-thought; include
+        # only conclusions and evidence**", and appends ``report_instructions()``,
+        # whose worked example shows ``"risks": []``.
+        #
+        # That stack is correct for the bridge protocol it was written for and
+        # wrong for a review task: every defect worth finding (prose contradicting
+        # code, a guard that cannot fire, an unreachable branch) is a multi-step
+        # COMPARISON, and the highest-authority message in the request forbade the
+        # scratchpad while demonstrating the empty answer. No wording of the user
+        # prompt can outrank that.
+        #
+        # Defaults leave every existing caller byte-identical: ``None`` keeps the
+        # built prompt, ``0.0`` keeps the deterministic decode.
+        if system_override:
+            system = system_override
         try:
             kw = dict(base_url=self.base_url, model=model or self.model, system=system,
-                      api_key=self.api_key, timeout_s=timeout_s, force_json=True, temperature=0.0)
+                      api_key=self.api_key, timeout_s=timeout_s, force_json=True,
+                      temperature=temperature)
             raw = chat_completion(user=user, **kw)
             try:
                 report = coerce_report(extract_json(raw))

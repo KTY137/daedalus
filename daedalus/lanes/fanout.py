@@ -150,7 +150,8 @@ class FanoutResult:
 
 def _one_call(task: FanoutTask, vote: int, repo_root: str, model: str | None,
               timeout_s: int, brief: str,
-              policy: Any | None = None) -> dict[str, Any]:
+              policy: Any | None = None, system_override: str | None = None,
+              temperature: float = 0.0) -> dict[str, Any]:
     """One advisory call. Returns the answer dict; raises on transport failure.
 
     ``policy`` is handed to the provider, which passes it to
@@ -191,6 +192,8 @@ def _one_call(task: FanoutTask, vote: int, repo_root: str, model: str | None,
         model=model,
         timeout_s=timeout_s,
         policy=policy,                     # operator-set egress scope, or None
+        system_override=system_override,   # lane-specific prompt, or None
+        temperature=temperature,           # >0 is what makes votes independent
         writable=False,                    # advisory only, structurally
     )
     return {
@@ -223,6 +226,8 @@ def fan_out(
     #: reach it: a parameter with a docstring, a verification, and no caller is
     #: the exact defect shape this session spent the day removing.
     policy: Any | None = None,
+    system_override: str | None = None,
+    temperature: float = 0.0,
     resume: bool = True,
     on_result: Callable[[FanoutResult], None] | None = None,
     progress_every: int = 25,
@@ -243,6 +248,41 @@ def fan_out(
     out.mkdir(parents=True, exist_ok=True)
     root = str(Path(repo_root).resolve())
     workers = concurrency or default_concurrency()
+
+    # CORROBORATION THAT CANNOT CORROBORATE IS REFUSED, not warned about.
+    #
+    # MEASURED 2026-07-30: the decode temperature defaulted to 0.0, and at 0.0 N
+    # samples of one prompt are IDENTICAL. So a task asking the same question
+    # three "independent" times bought ONE answer counted three times -- and this
+    # module's own docstring calls votes "the point, not a feature", which made
+    # the claim worse than the bug. Three copies of one answer look exactly like
+    # three agreeing agents in every downstream consumer.
+    #
+    # A comment saying ">0 is what makes votes independent" was the only thing
+    # standing between a caller and fake agreement. This repo has a rule about
+    # that: express a restriction as a CAPABILITY, never as an instruction. So
+    # asking for votes you cannot get is an error at the door, where it costs
+    # nothing, rather than a dataset that has to be thrown away later.
+    if any(t.votes > 1 for t in tasks) and temperature <= 0.0:
+        offenders = sum(1 for t in tasks if t.votes > 1)
+        return {
+            "state": "refused",
+            "reason": (
+                f"{offenders} task(s) request votes>1 at temperature={temperature}. "
+                "At temperature 0.0 the decode is deterministic, so every vote "
+                "returns the SAME answer and the agreement it produces is an "
+                "artefact of counting one answer N times. Pass temperature>0 "
+                "(0.6-1.0 for genuine independence) or votes=1 and be honest "
+                "about having one opinion."),
+            "tasks": len(tasks),
+            "ok": 0,
+            "failed": 0,
+            "resumed": 0,
+            "paid_calls": 0,
+            "out_dir": str(out),
+            "concurrency": workers,
+            "results": [],
+        }
 
     # THE GUARD, FIRST, BEFORE ANY CALL CAN LEAVE. Not conditional, not a
     # parameter. See the module docstring for the 170 unpriced calls.
@@ -311,7 +351,7 @@ def fan_out(
             try:
                 res.answers.append(
                     _one_call(task, vote, root, model, timeout_s, brief,
-                              policy))
+                              policy, system_override, temperature))
             except Exception as exc:             # noqa: BLE001 -- one task, not the run
                 res.errors.append(
                     f"vote {vote}: {type(exc).__name__}: {exc}\n"
