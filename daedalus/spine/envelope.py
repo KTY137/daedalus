@@ -82,8 +82,14 @@ direction, and ``tests/test_envelope_join.py`` pins both directions.
 
 THE LEDGER OF UNCONVERTED PRODUCERS
 ------------------------------------
-Three producers are converted end-to-end, chosen so ONE run demonstrates a
-join. The rest are listed rather than forgotten. MEASURED 2026-07-29 by scan;
+FOUR producers are converted end-to-end, chosen so ONE run demonstrates a
+join. The rest are listed rather than forgotten. MEASURED 2026-07-29 by scan,
+plus ``lanes/fanout.py`` on 2026-07-30 -- caught by the drift detector rather
+than declared, which is the mechanism working: the module was written that day,
+its per-task result files were a new island, and the scan found it before a
+reader six months out did. The count lives in this sentence AND in
+``tests/test_envelope_coverage.py``, so a fifth conversion that forgets the
+prose is caught;
 ``UNCONVERTED_PRODUCERS`` below is the machine-readable copy and
 ``tests/test_envelope_coverage.py`` goes RED when a producer appears in neither
 table.
@@ -96,6 +102,7 @@ module                             format           local id        how the trac
 daedalus/spine/ledger.py           SQLite           intent_id       ``intents.trace_id`` column (v2)
 daedalus/loop.py                   JSON doc         run_id          ``trace_id`` + per-attempt copy
 daedalus/file_bridge.py            JSON per file    request key     ``trace_id`` in request AND report
+daedalus/lanes/fanout.py           JSON per task    task key         ``trace_id``, resolved once per run
 =================================  ===============  ==============  ===================================
 
 UNCONVERTED -- module, format, id scheme, one line on conversion cost
@@ -600,6 +607,13 @@ CONVERTED_PRODUCERS = {
         "LoopLedger.trace_id + per-attempt trace_ids, schema daedalus.loop.ledger/2",
     "daedalus/file_bridge.py":
         "trace_id in the outbox request, propagated into the inbox report",
+    "daedalus/lanes/fanout.py":
+        "FanoutResult.trace_id, resolved ONCE per fan_out and written into every "
+        "per-task result file. NOT re-stamped on the resume path: a cached answer "
+        "keeps the trace of the run that PAID for it, because overwriting it "
+        "would claim this run produced something it read off disk. These records "
+        "are a paid external call and its answer, so the trace is what joins a "
+        "bill to the run that incurred it.",
 }
 
 #: Producers NOT wired, each with the reason it is affordable to defer. This is

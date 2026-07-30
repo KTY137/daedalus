@@ -306,3 +306,53 @@ class FakeCorroborationIsRefused(unittest.TestCase):
         ran = F.fan_out([F.FanoutTask(task_id="o", objective="q")], self.dir,
                         concurrency=1)
         self.assertEqual(set(refused), set(ran) | {"reason"})
+
+
+class ResultsCarryTheirRun(unittest.TestCase):
+    """A paid call and its answer must join to the run that spent the money.
+
+    Caught by the drift detector in tests/test_envelope_coverage.py on
+    2026-07-30, which flagged this module as a record producer declaring neither
+    conversion nor a reason -- correctly: these files were a new island whose
+    records joined to nothing.
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        self._orig = F._one_call
+        F._one_call = _answer
+
+    def tearDown(self):
+        F._one_call = self._orig
+
+    def test_a_fresh_result_carries_the_trace_in_scope(self):
+        from daedalus.spine import envelope
+        with envelope.trace_context("t-abc123"):
+            out = F.fan_out([F.FanoutTask(task_id="x", objective="q")],
+                            self.dir, concurrency=1)
+        self.assertEqual(out["results"][0]["trace_id"], "t-abc123")
+        # And on disk, not only in the return value.
+        landed = json.loads((self.dir / f"{out['results'][0]['key']}.json")
+                            .read_text(encoding="utf-8"))
+        self.assertEqual(landed["trace_id"], "t-abc123")
+
+    def test_no_trace_in_scope_is_None_and_never_a_minted_id(self):
+        # current_trace_id never mints. A fresh unrelated id per record would make
+        # the field 100% populated and every join return exactly one row.
+        out = F.fan_out([F.FanoutTask(task_id="y", objective="q")],
+                        self.dir, concurrency=1)
+        self.assertIsNone(out["results"][0]["trace_id"])
+
+    def test_a_resumed_result_keeps_the_trace_of_the_run_that_paid(self):
+        from daedalus.spine import envelope
+        task = F.FanoutTask(task_id="z", objective="q")
+        with envelope.trace_context("run-one"):
+            F.fan_out([task], self.dir, concurrency=1)
+        with envelope.trace_context("run-two"):
+            out = F.fan_out([task], self.dir, concurrency=1)
+        self.assertEqual(out["resumed"], 1)
+        self.assertEqual(out["paid_calls"], 0)
+        self.assertEqual(
+            out["results"][0]["trace_id"], "run-one",
+            "a resumed answer must keep the trace of the run that PAID for it -- "
+            "re-stamping it claims this run produced what it read off disk")

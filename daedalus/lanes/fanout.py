@@ -142,6 +142,17 @@ class FanoutResult:
     meta: dict[str, Any] = field(default_factory=dict)
     #: True when this result was loaded from disk rather than paid for again.
     resumed: bool = False
+    #: The run this answer belongs to, or None. From
+    #: :func:`daedalus.spine.envelope.current_trace_id`, which NEVER mints -- so
+    #: None means "no trace was in scope", not "here is a fresh unrelated id".
+    #:
+    #: Present because the drift detector in tests/test_envelope_coverage.py
+    #: caught this module as an undeclared record producer on 2026-07-30 and it
+    #: was right: these files record a PAID external call and its answer, so a
+    #: trace id correlates a bill to the run that incurred it. That is the join
+    #: anyone reconstructing a spend six months later needs, and its absence is
+    #: exactly the "new island" the detector exists to prevent.
+    trace_id: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -151,6 +162,7 @@ class FanoutResult:
         return {
             "task_id": self.task_id,
             "key": self.key,
+            "trace_id": self.trace_id,
             "votes_requested": self.votes_requested,
             "votes_collected": len(self.answers),
             "answers": self.answers,
@@ -363,6 +375,15 @@ def fan_out(
             "results": [],
         }
 
+    # Resolved ONCE for the whole fan-out: every answer in one run belongs to
+    # that run. Imported here rather than at module scope for the same reason the
+    # provider is -- a caller reading the dataclasses should not pull the spine.
+    try:
+        from ..spine.envelope import current_trace_id
+        trace = current_trace_id()
+    except Exception:                            # noqa: BLE001 -- provenance, not a gate
+        trace = None
+
     lock = threading.Lock()
     results: list[FanoutResult] = []
     counts = {"ok": 0, "failed": 0, "resumed": 0, "calls": 0}
@@ -385,6 +406,10 @@ def fan_out(
                     answers=prior.get("answers") or [],
                     errors=prior.get("errors") or [],
                     meta=prior.get("meta") or dict(task.meta),
+                    # NOT re-stamped: the prior trace is the run that paid for
+                    # this answer. Overwriting it with the current run's id would
+                    # claim this run produced something it read off disk.
+                    trace_id=prior.get("trace_id"),
                     resumed=True)
                 if res.answers:
                     return res
@@ -392,7 +417,8 @@ def fan_out(
                 pass    # unparseable => re-run; a torn result reads as an answer
 
         res = FanoutResult(task_id=task.task_id, key=task.key,
-                           votes_requested=task.votes, meta=dict(task.meta))
+                           votes_requested=task.votes, meta=dict(task.meta),
+                           trace_id=trace)
         brief = _brief_for(task)
         for vote in range(1, max(1, task.votes) + 1):
             try:
@@ -419,7 +445,7 @@ def fan_out(
                 except Exception as exc:         # noqa: BLE001
                     res = FanoutResult(task_id=task.task_id, key=task.key,
                                        votes_requested=task.votes,
-                                       meta=dict(task.meta),
+                                       meta=dict(task.meta), trace_id=trace,
                                        errors=[f"{type(exc).__name__}: {exc}"])
                 with lock:
                     results.append(res)
