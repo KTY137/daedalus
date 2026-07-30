@@ -384,8 +384,15 @@ class RewriteWindowTests(unittest.TestCase):
         expected = (f"Change request:\n{obj}\n\n"
                     "Project context (distilled, read-only -- the neighborhood of this file):\n"
                     f"{slice_ctx}\n\nFILE src/calc.py (current contents):\n{original}")
-        self.assertEqual(user, expected)
+        # The prompt now carries the structural brief (daedalus.lanes.graph_brief)
+        # appended AFTER the file body -- see providers/ollama.py's
+        # _full_file_content. Pinned as a prefix rather than full equality so this
+        # test does not have to hand-render the brief's exact text; the brief's
+        # own module is what pins its format.
+        self.assertTrue(user.startswith(expected), user)
+        self.assertIn("STRUCTURAL BRIEF", user)
         self.assertLess(user.index(slice_ctx), user.index("FILE src/calc.py"))
+        self.assertLess(user.index("FILE src/calc.py"), user.index("STRUCTURAL BRIEF"))
 
     def test_no_slice_is_byte_identical_to_pre_change_prompt(self):
         original = "def add(a, b):\n    return a+b\n"
@@ -397,7 +404,15 @@ class RewriteWindowTests(unittest.TestCase):
             with FakeOllama([(200, _resp(json.dumps({"content": edited})))]) as srv:
                 _provider(srv.url)._run_rewrite(obj, d, ["src/calc.py"], None, 60, None)
             user = srv.requests[0]["messages"][1]["content"]
-        self.assertEqual(user, f"Change request:\n{obj}\n\nFILE src/calc.py (current contents):\n{original}")
+        # Same relaxation as above: byte-identical up through the file body, then
+        # the structural brief. The historic invariant this test pins -- that
+        # NOT supplying a slice does not somehow inject one -- still holds; it is
+        # asserted below via the absence of the slice-context header.
+        expected = f"Change request:\n{obj}\n\nFILE src/calc.py (current contents):\n{original}"
+        self.assertTrue(user.startswith(expected), user)
+        self.assertNotIn("Project context (distilled", user)
+        self.assertIn("STRUCTURAL BRIEF", user)
+        self.assertIn("def add(a, b)", user)
 
     def test_slice_dropped_to_fit_but_file_still_processed(self):
         original = "def f():\n    return 1\n"                                   # tiny

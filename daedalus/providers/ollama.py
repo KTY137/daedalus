@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -9,6 +10,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from ..lanes import BASELINE_POLICY, WriteAttempt, render_brief, run_checks
 from ..sensitivity import path_write_blocked, read_inlined_context
 from ..structcore.tokens import count_tokens
 from ._ollama_native import (
@@ -57,6 +59,13 @@ MAX_AGENT_STEPS = 6
 MAX_READ_CHARS = 16_000
 MAX_REWRITE_FILES = 3       # scoped writes only; bigger fan-outs go through Ikarus
 MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation
+
+#: Structural-brief budget for the LOCAL lane. Far smaller than DeepSeek's
+#: default (daedalus/lanes/graph_brief.DEFAULT_BUDGET_CHARS, 12k): the local
+#: context window is the scarcest resource on this path, and the brief is the
+#: first thing shed when a file's own content already fills it. 1-hop symbols
+#: plus one import line for a typical file fits well inside this.
+_LOCAL_BRIEF_BUDGET_CHARS = 2_000
 
 # --------------------------------------------------------------------------- #
 # WINDOWED rewrite -- an edit that does not require reprinting the file        #
@@ -115,6 +124,18 @@ _ELISION_MARKERS = (
     "remains unchanged", "remain unchanged", "existing code here",
     "... existing code", "unchanged code omitted", "code omitted",
 )
+
+# This lane's own policy over the shared daedalus.lanes baseline. The marker
+# tuple stays a LOCAL literal on purpose -- see daedalus/lanes/__init__.py: it
+# is a claim about what THIS model emits, and deepseek.py keeps its own tuple
+# so the two lanes stay free to diverge without silently re-tuning each other.
+# Everything else about "is this a safe write" (truncation, parses, substitution,
+# unresolved first-party imports) is the shared baseline, wired in below --
+# closing the gap measured 2026-07-30: the two guards added to deepseek.py that
+# night (substitution, invented imports) never reached this file, so the free
+# local default lane was strictly weaker than the paid external one for the
+# exact two failures measured that night.
+_CHECK_POLICY = dataclasses.replace(BASELINE_POLICY, elision_markers=_ELISION_MARKERS)
 
 def _normalize_rewrite_windows(spec: Any, n_lines: int,
                                radius: int = DEFAULT_WINDOW_RADIUS) -> list[tuple[int, int]]:
@@ -725,7 +746,7 @@ class OllamaProvider(Provider):
     # -- rewrite prompts: whole file, or one window at a time ----------------
 
     def _full_file_content(self, objective, rel, original, creating, slice_texts,
-                           dropped, model, timeout_s):
+                           dropped, model, timeout_s, repo_root=None):
         """Ask for the ENTIRE edited file. Returns ``(content, None)`` or
         ``(None, reason)``. Behaviour is byte-for-byte what it was before the
         windowed path existed -- this is an extraction, not a change; ``dropped``
@@ -744,23 +765,43 @@ class OllamaProvider(Provider):
         # index only slices paths that exist). had_slice lets us shed it to
         # fit the window before skipping the file outright.
         had_slice = (not creating) and (rel in slice_texts)
+        # The structural brief (daedalus.lanes.graph_brief): what exists, so a
+        # local model does not have to guess a name the way three of seven
+        # agent-written files did on 2026-07-30 (see deepseek.py for the same
+        # measurement). Kept SMALL here on purpose -- the local context window
+        # is the tightest resource on this whole path, and a brief the caller
+        # cannot afford is worse than none: it is the first thing shed below.
+        # Failure to build it must never block a write.
+        brief = render_brief(repo_root, [rel], hops=1,
+                             budget_chars=_LOCAL_BRIEF_BUDGET_CHARS) if repo_root else ""
+        brief_block = f"\n\n{brief}" if brief else ""
         if creating:
             user = (f"Change request:\n{objective}\n\nFILE {rel} does NOT exist yet. "
-                    "Create it: return the complete initial contents of this new file.")
+                    "Create it: return the complete initial contents of this new file."
+                    f"{brief_block}")
         elif had_slice:
             user = (f"Change request:\n{objective}\n\n"
                     "Project context (distilled, read-only -- the neighborhood of this file):\n"
-                    f"{slice_texts[rel]}\n\nFILE {rel} (current contents):\n{original}")
+                    f"{slice_texts[rel]}\n\nFILE {rel} (current contents):\n{original}"
+                    f"{brief_block}")
         else:
-            user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+            user = (f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
+                    f"{brief_block}")
         # OUTPUT-RESERVE window check (never let the server truncate a rewrite).
         # count_tokens is cl100k -> OVER-counts qwen tokens -> we over-skip
         # (honest escalation) rather than under-count into silent truncation.
         est_in = count_tokens(system) + count_tokens(user)
         output_reserve = count_tokens(original) + OUTPUT_RESERVE_TOKENS
         window = effective_input_window(output_reserve)
+        if est_in > window and brief_block:
+            # Shed the brief FIRST: it is a convenience against a specific,
+            # measured failure mode, not project context the caller curated for
+            # this task the way the slice is.
+            user = user.replace(brief_block, "")
+            brief_block = ""
+            est_in = count_tokens(system) + count_tokens(user)
         if est_in > window:
-            if had_slice:  # shed the distilled context first, then re-check
+            if had_slice:  # shed the distilled context next, then re-check
                 user = f"Change request:\n{objective}\n\nFILE {rel} (current contents):\n{original}"
                 dropped.append(rel)
                 had_slice = False
@@ -1035,7 +1076,7 @@ class OllamaProvider(Provider):
                 original = (disk_original.replace("\r\n", "\n").replace("\r", "\n"))
                 content, reason = self._full_file_content(
                     objective, rel, original, creating, slice_texts, dropped,
-                    model, timeout_s)
+                    model, timeout_s, repo_root=repo_root)
                 if reason:
                     skipped[rel] = reason
                     continue
@@ -1045,14 +1086,17 @@ class OllamaProvider(Provider):
             if content == original:
                 skipped[rel] = "no change produced"
                 continue
-            if len(content) < 0.5 * len(original):
-                # classic full-rewrite failure mode: silent truncation
-                skipped[rel] = "suspected truncation (under half the original size)"
-                continue
-            low_new, low_old = content.lower(), original.lower()
-            elided = next((m for m in _ELISION_MARKERS if m in low_new and m not in low_old), None)
-            if elided:
-                skipped[rel] = f"elision marker in output ('{elided}') -- file not fully rewritten"
+            # Shared baseline (daedalus.lanes): truncation, parses, content
+            # substitution, unresolved first-party imports -- in that order,
+            # cheapest and most specific refusal first. Substitution and
+            # imports are the two guards this lane was measured to be missing
+            # on 2026-07-30; they are not optional extras, they are baseline.
+            refusal = run_checks(WriteAttempt(
+                rel=rel, proposed=content, repo_root=repo_root,
+                original=original, creating=creating,
+            ), policy=_CHECK_POLICY)
+            if refusal:
+                skipped[rel] = refusal
                 continue
             # Backup None = created file (rollback deletes it). Track any parent
             # dirs we create so rollback can prune them too (mirrors the tool loop).

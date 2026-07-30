@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import dataclasses
 import os
 from pathlib import Path
 from typing import Any
 
+from ..lanes import BASELINE_POLICY, WriteAttempt, render_brief, run_checks
+from ..lanes.checks import toplevel_defs as _shared_toplevel_defs
+from ..lanes.checks import (
+    not_substituted as _shared_not_substituted,
+    unresolved_first_party_imports as _shared_unresolved_first_party_imports,
+)
 from ..sensitivity import (
     classify_data,
     path_write_blocked,
@@ -51,184 +58,49 @@ _ELISION_MARKERS = (
     "... existing code", "unchanged code omitted", "code omitted",
 )
 
-#: Below this fraction of surviving top-level definitions, a "rewrite" is
-#: treated as a different file rather than an edited one. 0.5 is deliberately
-#: permissive: a genuine refactor can rename or merge a lot, and refusing a real
-#: change is expensive in both directions -- the work is lost AND the task
-#: escalates to a paid lane. The failures this exists to catch were total
-#: substitutions (0.0 survival), so a loose threshold still stops them.
-_MIN_SYMBOL_SURVIVAL = 0.5
+#: This lane's own policy over the shared daedalus.lanes baseline -- see
+#: providers/ollama.py's identical construction and daedalus/lanes/__init__.py
+#: for why the marker tuple is local while everything else is shared.
+_CHECK_POLICY = dataclasses.replace(BASELINE_POLICY, elision_markers=_ELISION_MARKERS)
 
 #: Below this many top-level definitions, the survival ratio is noise -- losing
-#: one of two functions is an ordinary edit, not a substitution.
-_MIN_SYMBOLS_TO_JUDGE = 3
+#: one of two functions is an ordinary edit, not a substitution. Re-exported
+#: from the shared baseline (below) so existing callers naming this constant
+#: keep working; it is no longer this module's own number.
+_MIN_SYMBOLS_TO_JUDGE = BASELINE_POLICY.min_symbols_to_judge
 
+#: Import roots that belong to THIS repository. Re-exported from the shared
+#: baseline for the same reason.
+_FIRST_PARTY = BASELINE_POLICY.first_party_roots
+
+
+# --------------------------------------------------------------------------
+# The three guards below (substitution, unresolved imports, and the AST helper
+# they share) used to be defined here, and ONLY here. MEASURED 2026-07-30: the
+# night two of them were added, they went into this file and not into
+# ``providers/ollama.py``, and within hours the free local default lane was
+# strictly weaker than the paid external one for the exact two failures just
+# measured. Per-provider copies drift the moment one of them improves.
+#
+# They now live in ``daedalus.lanes.checks`` as the shared baseline every write
+# lane runs, and are re-exported here under their original names so this
+# module's own tests and any external caller of these private functions keep
+# working unchanged. The docstrings, the measurements, and the thresholds moved
+# with them -- read them there.
+# --------------------------------------------------------------------------
 
 def _toplevel_defs(source: str) -> frozenset | None:
-    """Top-level function and class names, or None if the text will not parse.
-
-    Only the TOP level: a rewrite is free to reorganise nested helpers, and
-    counting those would make ordinary refactors look like substitutions.
-    """
-    import ast
-    try:
-        tree = ast.parse(source)
-    except (SyntaxError, ValueError, RecursionError):
-        return None
-    return frozenset(
-        n.name for n in tree.body
-        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))
+    return _shared_toplevel_defs(source)
 
 
 def _substitution_reason(rel: str, original: str, content: str) -> str:
-    """Why this "rewrite" looks like the WRONG FILE, or "" if it looks fine.
-
-    MEASURED 2026-07-30, and the reason this exists. A change request naming two
-    files is sent once per file; asked to rewrite ``daedalus/shift.py`` the model
-    returned the contents of ``tests/test_shift.py``. The module was destroyed
-    and the run reported ``status: done``. Three of five multi-file writes failed
-    exactly this way.
-
-    None of the existing guards could see it. The truncation guard compares
-    SIZE, and a substituted file is a perfectly normal size -- the test module
-    was in fact larger than the module it replaced. The elision-marker guard
-    looks for a model admitting it omitted something, and nothing was omitted:
-    a complete, valid, well-formed file arrived. It was simply the wrong one.
-
-    So this asks the only question that separates the two cases: does the result
-    still contain the thing that was sent? An edit keeps most of a file's
-    top-level names; a substitution keeps none of them.
-
-    Deliberately Python-only. The check needs a parser to be meaningful, and a
-    guess about other languages would either fire on ordinary edits or provide
-    false assurance for files it cannot actually read.
-    """
-    if not rel.endswith(".py"):
-        return ""
-    before = _toplevel_defs(original)
-    if before is None:
-        return ""      # cannot judge what was already unparsable
-    after = _toplevel_defs(content)
-    if after is None:
-        # The original parsed and the replacement does not. Whatever this is, it
-        # is not an improvement, and letting it land would break an import for
-        # every consumer of the module.
-        return "rewrite does not parse as Python while the original did"
-    if len(before) < _MIN_SYMBOLS_TO_JUDGE:
-        return ""
-    survival = len(before & after) / len(before)
-    if survival >= _MIN_SYMBOL_SURVIVAL:
-        return ""
-    lost = sorted(before - after)
-    return (f"suspected content substitution: {len(before & after)} of "
-            f"{len(before)} top-level definitions survive "
-            f"({survival:.0%}); missing {', '.join(lost[:5])}"
-            + (" ..." if len(lost) > 5 else ""))
-
-
-#: Import roots that belong to THIS repository. A missing third-party package is
-#: an environment question and none of this gate's business; a missing
-#: first-party module is a file the model invented.
-_FIRST_PARTY = ("daedalus", "tools", "tests")
+    return _shared_not_substituted(
+        WriteAttempt(rel=rel, proposed=content, repo_root=".", original=original),
+        BASELINE_POLICY)
 
 
 def _unresolved_first_party_imports(content: str, repo_root: str) -> list[str]:
-    """First-party imports in ``content`` that name nothing in the tree.
-
-    MEASURED 2026-07-30, and the second hole this night opened in the write
-    gate. Twenty agents wrote test modules against source files they were
-    given, and three of seven imported things that do not exist:
-    ``daedalus.linting`` (it is ``daedalus.gui.lint``), ``ShiftManager`` from
-    ``daedalus.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault``
-    (it is ``daedalus.wiki.vault``). All three are valid Python, so a syntax
-    gate passes them, and all three reported ``status: done``.
-
-    The check is STATIC on purpose. Importing the file to find out whether its
-    imports resolve would execute module-level code from an untrusted lane --
-    the one thing this repository refuses to do to decide whether to trust
-    something.
-
-    Conservative by construction, because a false refusal costs real work:
-
-    * only first-party roots are judged;
-    * a missing MODULE is reported, since that cannot be a re-export;
-    * a missing NAME is reported only when the module has no star-import and no
-      module-level ``__getattr__`` -- either of which can legitimately provide a
-      name that static reading cannot see.
-    """
-    import ast
-    try:
-        tree = ast.parse(content)
-    except (SyntaxError, ValueError, RecursionError):
-        return []          # a parse failure is a different guard's business
-    root = Path(repo_root)
-    bad: list[str] = []
-
-    def _module_path(dotted: str):
-        parts = dotted.split(".")
-        direct = root.joinpath(*parts).with_suffix(".py")
-        if direct.is_file():
-            return direct
-        pkg = root.joinpath(*parts, "__init__.py")
-        return pkg if pkg.is_file() else None
-
-    def _exports(path) -> tuple[frozenset, bool]:
-        """(top-level names, opaque) -- opaque means static reading is not
-        authoritative for this module."""
-        try:
-            t = ast.parse(path.read_text(encoding="utf-8", errors="replace"))
-        except (OSError, SyntaxError, ValueError):
-            return frozenset(), True
-        names, opaque = set(), False
-        for n in t.body:
-            if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                names.add(n.name)
-                if n.name == "__getattr__":
-                    opaque = True
-            elif isinstance(n, ast.Assign):
-                names.update(t_.id for t_ in n.targets if isinstance(t_, ast.Name))
-            elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
-                names.add(n.target.id)
-            elif isinstance(n, ast.ImportFrom):
-                if any(a.name == "*" for a in n.names):
-                    opaque = True
-                names.update(a.asname or a.name for a in n.names)
-            elif isinstance(n, ast.Import):
-                names.update((a.asname or a.name).split(".")[0] for a in n.names)
-        return frozenset(names), opaque
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name.split(".")[0] in _FIRST_PARTY and not _module_path(alias.name):
-                    bad.append(f"module '{alias.name}' does not exist")
-        elif isinstance(node, ast.ImportFrom):
-            if node.level or not node.module:
-                continue           # relative imports resolve against a package
-            if node.module.split(".")[0] not in _FIRST_PARTY:
-                continue
-            path = _module_path(node.module)
-            if path is None:
-                bad.append(f"module '{node.module}' does not exist")
-                continue
-            names, opaque = _exports(path)
-            if opaque:
-                continue
-            for alias in node.names:
-                if alias.name == "*" or alias.name in names:
-                    continue
-                # `from daedalus import shift` binds a SUBMODULE, which is
-                # perfectly valid and is not named anywhere in the package's
-                # __init__.py. Measured: without this the check fired on 40 of
-                # 223 real files in this repo -- a false-positive rate that
-                # would have made the gate useless and, worse, trained everyone
-                # to ignore it.
-                if _module_path(f"{node.module}.{alias.name}"):
-                    continue
-                bad.append(f"'{node.module}' does not define '{alias.name}'")
-    # Deduplicated but order-preserving: the same bad import repeated ten times
-    # is one problem, and the first occurrence is the one worth naming.
-    return list(dict.fromkeys(bad))
+    return _shared_unresolved_first_party_imports(content, repo_root, _FIRST_PARTY)
 
 
 _REWRITE_SYSTEM = (
@@ -476,16 +348,30 @@ class DeepSeekProvider(Provider):
             # the model answered the objective and returned another file's
             # contents. Leading with the target makes it the frame the request
             # is read inside rather than a detail at the end of it.
+            #
+            # MEASURED 2026-07-30: three of seven agent-written files imported
+            # something that does not exist under the name they guessed
+            # (``daedalus.linting`` for ``daedalus.gui.lint``, ``ShiftManager``
+            # for ``Shift``, ``daedalus.wiki_vault`` for ``daedalus.wiki.vault``)
+            # -- in every case the real thing existed, just not where the model
+            # guessed. No provider module gave it anywhere to look this up; the
+            # brief is that lookup. Failure to build it must never block a
+            # write, so a brief-less prompt (empty string) degrades to the
+            # pre-brief behaviour rather than failing the call.
+            brief = render_brief(repo_root, [rel], hops=1)
+            brief_block = f"\n\n{brief}" if brief else ""
             if creating:
                 user = (f"You are creating exactly one file: {rel}\n\n"
                         f"Change request:\n{objective}\n\n"
                         f"FILE {rel} does NOT exist yet. Return the complete "
-                        "initial contents of THIS file only.")
+                        "initial contents of THIS file only."
+                        f"{brief_block}")
             else:
                 user = (f"You are rewriting exactly one file: {rel}\n\n"
                         f"Change request:\n{objective}\n\n"
                         f"FILE {rel} (current contents):\n{original}\n\n"
-                        f"Return the complete new contents of {rel}.")
+                        f"Return the complete new contents of {rel}."
+                        f"{brief_block}")
             try:
                 calls += 1
                 raw = chat_completion(
@@ -510,34 +396,18 @@ class DeepSeekProvider(Provider):
             if content == original:
                 skipped[rel] = "no change produced"
                 continue
-            if not creating and len(content) < 0.5 * len(original):
-                # classic full-rewrite failure mode: silent truncation
-                skipped[rel] = "suspected truncation (under half the original size)"
+            # Shared baseline (daedalus.lanes): truncation, parses, content
+            # substitution, unresolved first-party imports -- cheapest and most
+            # specific refusal first. This lane's own elision markers ride along
+            # via _CHECK_POLICY; see daedalus/lanes/__init__.py for why the
+            # marker tuple stays local while the rest is shared.
+            refusal = run_checks(WriteAttempt(
+                rel=rel, proposed=content, repo_root=repo_root,
+                original=original, creating=creating,
+            ), policy=_CHECK_POLICY)
+            if refusal:
+                skipped[rel] = refusal
                 continue
-            low_new, low_old = content.lower(), original.lower()
-            elided = next((m for m in _ELISION_MARKERS if m in low_new and m not in low_old), None)
-            if elided:
-                skipped[rel] = f"elision marker in output ('{elided}') -- file not fully rewritten"
-                continue
-            # Did we get back a different FILE rather than an edited one? Neither
-            # guard above can tell: a substituted file is a normal size and
-            # admits to omitting nothing. See _substitution_reason.
-            if not creating:
-                substituted = _substitution_reason(rel, original, content)
-                if substituted:
-                    skipped[rel] = substituted
-                    continue
-            # Does it import things that exist? Checked for created files too --
-            # a brand-new test module against an invented API is exactly the
-            # failure this catches, and it has no "original" to compare against.
-            if rel.endswith(".py"):
-                unresolved = _unresolved_first_party_imports(content, repo_root)
-                if unresolved:
-                    skipped[rel] = ("unresolved first-party imports: "
-                                    + "; ".join(unresolved[:4])
-                                    + (f" (+{len(unresolved) - 4} more)"
-                                       if len(unresolved) > 4 else ""))
-                    continue
             # Backup BEFORE the write, exact bytes; None = created file, which
             # tells rollback to delete rather than restore. Parent dirs we
             # create are tracked so rollback can prune them too.
