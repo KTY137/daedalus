@@ -11,6 +11,7 @@ case states both halves against the same input shape.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from pathlib import Path
@@ -247,9 +248,10 @@ def test_nearest_existing_stops_at_the_first_real_directory(trees):
 # --------------------------------------------------------------------------- #
 def _artifact():
     from daedalus.spine.attempt import PatchArtifact
+    diff = b"--- a\n+++ b\n"
     return PatchArtifact(
         task_id="t", branch="b", base_revision="0" * 40,
-        diff_bytes=b"--- a\n+++ b\n", diff_sha256="deadbeef",
+        diff_bytes=diff, diff_sha256=hashlib.sha256(diff).hexdigest(),
         changed_paths=("a",), created_ts="1970-01-01T00:00:00+00:00")
 
 
@@ -291,4 +293,5 @@ def test_persist_writes_happily_into_a_worktree(trees):
     assert path is not None
     written = Path(path)
     assert written.read_bytes() == b"--- a\n+++ b\n"
-    assert written.name == "deadbeef.patch"
+    assert written.parent.name == hashlib.sha256(b"--- a\n+++ b\n").hexdigest()[:2]
+    assert written.name == hashlib.sha256(b"--- a\n+++ b\n").hexdigest()[2:]

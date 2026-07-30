@@ -37,8 +37,13 @@ import time
 import uuid
 from pathlib import Path
 
-__all__ = ["REPLACE_RETRY_S", "replace_with_retry", "write_text_atomic",
-           "write_bytes_atomic"]
+__all__ = [
+    "REPLACE_RETRY_S",
+    "publish_bytes_once",
+    "replace_with_retry",
+    "write_text_atomic",
+    "write_bytes_atomic",
+]
 
 #: How long to keep retrying a replace that a concurrent reader is blocking.
 #: The contended window is one ``read_bytes`` of a file under a few KiB, so this
@@ -123,3 +128,48 @@ def write_bytes_atomic(path: str | os.PathLike[str], data: bytes, *,
     tmp = _tmp_sibling(target)
     tmp.write_bytes(data)
     replace_with_retry(tmp, target, retry_s)
+
+
+def publish_bytes_once(path: str | os.PathLike[str], data: bytes) -> bool:
+    """Atomically publish immutable ``data`` without replacing ``path``.
+
+    Returns ``True`` when this call created ``path`` and ``False`` when another
+    writer had already created it.  The caller must verify an existing target;
+    this helper deliberately does not decide whether those bytes are equivalent
+    or corrupt.
+
+    A normal ``os.replace`` is atomic but has the wrong contract for a
+    content-addressed store: it can overwrite an object whose identity was
+    already published.  Here the complete sibling temp file is hard-linked into
+    place.  Link creation is one filesystem operation and refuses an existing
+    destination, so readers can observe either no object or the complete
+    object, never a partially written one and never a replacement.
+
+    Hard-link support is therefore a requirement, not an optimisation.  If the
+    filesystem refuses it, the error propagates and the caller fails closed
+    rather than degrading to a visible in-place write.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = _tmp_sibling(target)
+    try:
+        # Exclusive creation keeps an injected/reused temp name from becoming
+        # an overwrite path.  Flush+fsync happens before publication; this
+        # provides complete bytes to the link even if buffered I/O is in use.
+        with tmp.open("xb") as fh:
+            written = fh.write(data)
+            if written != len(data):
+                raise OSError(
+                    f"short write for {tmp}: {written} of {len(data)} bytes")
+            fh.flush()
+            os.fsync(fh.fileno())
+        try:
+            os.link(tmp, target)
+        except FileExistsError:
+            return False
+        return True
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass

@@ -59,22 +59,12 @@ detector: a check that passes only proves the bytes still match: it does not
 prove the SEMANTIC content is still correct once an earlier candidate has
 landed ahead of it.
 
-WHAT THIS MODULE DID NOT DECIDE, UNTIL 2026-07-29. ``daedalus.spine.attempt``
-(and the ``daedalus improve`` CLI built on it) is deliberately apply-less:
-"There is no --apply flag and there will not be one here. Promotion is a
-human act." Auto-landing N concurrent writes is a DIFFERENT contract than
-that one-attempt, human-reviewed shape -- and it is also different from what
-``offload()`` does for a single sequential write outside a gated wave, which
-still auto-lands into the primary checkout with no review step at all.
-Reconciling those was a product decision, not an isolation-engineering one,
-and the owner answered it: "eigentlich automatisch aber das soll
-unteranderem einstellbar sein" (automatic by default, but configurable). See
-PHASE 3 below (``run_write_wave``) for the wiring, and ``daedalus.config``'s
-``write_wave_policy`` docs for the three-level contract. The answer composes
-with, and never bypasses, this repo's proof-of-discrimination gate
-(``daedalus.core.get_governance``) -- "automatic" governs whether a HUMAN
-must click promote, never whether the PROOF that the gate can catch a bad
-patch is still required.
+PHASE 3 -- SEALED HANDOFF (``run_write_wave``). Earlier revisions allowed a
+per-repo setting to call ``promote_candidates`` automatically after gating.
+That still crossed the candidate -> integration boundary without an owner,
+even though primary merge remained manual. The adopted Iron Plan closes that
+path: a write wave may gate and persist candidates, but it always returns them
+held. ``promote_candidates`` remains a separate explicit owner operation.
 """
 
 from __future__ import annotations
@@ -1012,22 +1002,13 @@ def _promote_locked(root: Path, manager: GitWorktreeManager, live: list[GatedCan
 
 
 # --------------------------------------------------------------------------- #
-# PHASE 3 -- wiring the auto-promote POLICY into a build-session write wave   #
+# PHASE 3 -- sealed candidate handoff from a build-session write wave         #
 # --------------------------------------------------------------------------- #
-# This is the "one line change once the product decision is made" the module
-# docstring pointed at, made on 2026-07-29: the owner answered "eigentlich
-# automatisch aber das soll unteranderem einstellbar sein" (automatic by
-# default, but configurable). ``daedalus.build_exec.WaveExecutor.run_wave``'s
-# ``_WRITE_WAVE_POLICY`` call site is the only caller ``run_write_wave`` below
-# is written for -- it replaces that method's old forced-sequential
-# ``scheduler.dispatch(..., parallel=False)`` for the write-mode tasks in a
-# wave with: gate concurrently (Phase 1), then decide per-candidate whether
-# ``promote_candidates`` (Phase 2) runs automatically, using
-# :data:`AUTO_PROMOTE_LEVELS` -- mirroring
-# ``daedalus.config.WRITE_WAVE_POLICY_LEVELS`` exactly; see that module for
-# the full three-level contract and why it composes with, and never bypasses,
-# ``daedalus.core.get_governance``'s ``promotion_allowed``.
-AUTO_PROMOTE_LEVELS = ("never", "low_risk", "always")
+# ``auto_promote`` remains in the call signature so saved build sessions and
+# third-party callers fail closed instead of crashing during migration. The
+# only production-capable value is "never"; legacy values cannot reach
+# ``promote_candidates``.
+AUTO_PROMOTE_LEVELS = ("never",)
 
 
 def _governance_verdict(project: str | None) -> tuple[bool, str, str]:
@@ -1064,17 +1045,11 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
                     *, auto_promote: str, ledger_path=None,
                     cancel: Any = None) -> list[dict]:
     """Execute one build-session wave's WRITE-mode tasks through the gated,
-    isolated-worktree path, then apply ``auto_promote``'s decision about
-    whether the resulting candidates advance to the integration branch
-    automatically or wait for a human.
+    isolated-worktree path and hold every resulting candidate for an explicit
+    owner-controlled promotion decision.
 
-    ``cancel``, when given, is forwarded unchanged to both phases --
-    ``gate_candidates`` (every concurrent attempt in this wave) and, for
-    whichever candidates ``auto_promote`` submits, ``promote_candidates``
-    (their staleness-retry regenerations AND the cumulative re-gate that runs
-    the project's whole test command after each apply -- see
-    ``promote_candidates``' own docstring for why cancelling that specific
-    step is safe). ``None`` (the default) is byte-identical to this
+    ``cancel``, when given, is forwarded to ``gate_candidates`` for every
+    concurrent attempt in this wave. ``None`` (the default) is byte-identical to this
     function's behaviour before ``cancel`` existed: no caller that does not
     pass it is affected. A caller driving a longer-lived loop (pick -> attempt
     -> gate -> promote -> re-pick) across multiple waves can pass one shared
@@ -1105,22 +1080,17 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
     back to ``scheduler.dispatch``, scoped to just their own indices, exactly
     as they would have run before this function existed.
 
-    NEVER writes the primary checkout, at ANY ``auto_promote`` level --
-    inherited from ``promote_candidates``, which lands only into a disposable
-    integration worktree/branch, never ``repo_root`` itself. "auto" here
-    governs candidate -> integration-branch only; integration-branch ->
-    primary checkout stays a human ``git merge``, regardless of this setting.
+    NEVER writes the primary checkout and never calls ``promote_candidates``.
+    Legacy ``auto_promote`` values are reported as denied input and coerced to
+    ``"never"``.
     """
     if len(assignments) != len(tasks):
         raise RuntimeError(
             f"run_write_wave: {len(assignments)} assignment(s) for {len(tasks)} "
             "task(s) -- caller must pass scheduler.accept(tasks, ...)'s own "
             "result, position-matched")
+    requested_auto_promote = auto_promote
     if auto_promote not in AUTO_PROMOTE_LEVELS:
-        # Fail closed on garbage reaching this deep too -- a caller that
-        # skipped daedalus.config.resolve_write_wave_policy's own validation,
-        # or a value from a future level this build doesn't know, must never
-        # be read as MORE permissive than "never".
         auto_promote = "never"
 
     from .scheduler import DEFAULT_AVAILABILITY
@@ -1162,51 +1132,28 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
 
     promotion_allowed, gov_state, gov_verdict = _governance_verdict(scheduler.project)
 
-    to_promote: list[GatedCandidate] = []
     held: list[tuple[GatedCandidate, str]] = []  # (candidate, why-held)
 
     if not promotion_allowed:
-        why = (f"auto_promote={auto_promote!r} but promotion is blocked by "
+        why = (f"promotion is blocked by "
                f"governance (state={gov_state!r}): {gov_verdict}")
         held = [(c, why) for c in candidates]
-    elif auto_promote == "never":
-        held = [(c, "auto_promote='never': held for a human to promote "
-                    "(daedalus.kairos.gated_writes.promote_candidates)")
-                for c in candidates]
-    elif auto_promote == "always":
-        to_promote = list(candidates)
-    else:  # "low_risk"
-        from ..sensitivity import change_risk
-
-        for c in candidates:
-            risk = change_risk(c.assignment.objective, c.assignment.paths,
-                               policy=scheduler.policy)
-            if risk == "low":
-                to_promote.append(c)
-            else:
-                held.append((c, f"auto_promote='low_risk' but this task's "
-                               f"change-risk is {risk!r}, not 'low'; held for "
-                               "a human to promote"))
-
-    promote_report: dict | None = None
-    promoted_by_task: dict[str, dict] = {}
-    refused_by_task: dict[str, dict] = {}
-    if to_promote:
-        promote_report = promote_candidates(
-            str(root), to_promote, project=scheduler.project, availability=avail,
-            ledger_path=ledger_path, cancel=cancel)
-        for entry in promote_report.get("promoted", []):
-            tid = entry.get("task_id")
-            if tid:
-                promoted_by_task[tid] = entry
-        for entry in (list(promote_report.get("refused", []))
-                      + list(promote_report.get("not_gated", []))):
-            tid = entry.get("task_id")
-            if tid:
-                refused_by_task[tid] = entry
+    else:
+        legacy = (
+            f"; denied legacy request {requested_auto_promote!r}"
+            if requested_auto_promote != "never"
+            else ""
+        )
+        held = [
+            (
+                c,
+                "sealed promotion: held for an explicit owner call to "
+                "daedalus.kairos.gated_writes.promote_candidates" + legacy,
+            )
+            for c in candidates
+        ]
 
     held_by_task = {c.result.task_id: why for c, why in held}
-    integration_branch = (promote_report or {}).get("integration_branch")
 
     for pos, i in enumerate(write_idx):
         candidate = candidates[pos]
@@ -1221,6 +1168,8 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
             "attempt_state": res.state, "attempt_branch": res.branch,
             "auto_promote": auto_promote, "governance_state": gov_state,
         }
+        if requested_auto_promote != auto_promote:
+            base["requested_auto_promote"] = requested_auto_promote
         receipt = _provider_receipt(res)
         if receipt is not None:
             base["provider_receipt"] = receipt
@@ -1237,19 +1186,6 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
         if not res.ok or not res.artifact:
             results[i] = {**base, "status": "write_gate_failed",
                          "reason": (res.error or f"attempt state={res.state}")}
-            continue
-        if task_id in promoted_by_task:
-            entry = promoted_by_task[task_id]
-            results[i] = {**base, "status": "gated_promoted",
-                         "reason": entry.get("reason"),
-                         "integration_branch": integration_branch,
-                         "changed_paths": entry.get("changed_paths")}
-            continue
-        if task_id in refused_by_task:
-            entry = refused_by_task[task_id]
-            results[i] = {**base, "status": "gated_refused",
-                         "reason": entry.get("reason"),
-                         "integration_branch": integration_branch}
             continue
         # Clean candidate, not (yet) submitted for promotion: held by policy
         # or by governance -- see `held_by_task` for exactly which.

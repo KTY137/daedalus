@@ -35,6 +35,6 @@
   },
   "test_command": "python -m pytest -q",
   "test_cwd": ".",
-  "_comment_write_wave_policy": "Auto-promotion for concurrent write waves (see daedalus.kairos.gated_writes.run_write_wave). One of 'never' (always human promote), 'low_risk' (auto-promote only change_risk=='low' candidates), 'always' (any clean gated candidate). THIS SETTING DOES NOT BYPASS THE GATE: every level is ANDed against daedalus.core.get_governance()'s promotion_allowed, which is FALSE until runs/spine/gate_discrimination.json proves, at the CURRENT revision, that this repo's test command actually catches a bad patch (kill rate >= 80%, no critical defect class survives -- see daedalus.spine.bootstrap.gate_discrimination). A brand new repo has no such receipt, so 'always' here is armed but inert: nothing auto-promotes until that measurement exists and is fresh against HEAD. 'Promoted' also never means merged to your primary checkout -- it lands in a disposable integration worktree/branch; merging that in stays a human `git merge` at every level, including 'always'.",
-  "write_wave_policy": "always"
+  "_comment_write_wave_policy": "Candidate nomination and promotion are separate. 'never' holds every clean gated candidate for explicit owner-controlled promotion. Legacy 'low_risk' and 'always' inputs are denied by the current runtime rather than arming automatic integration-worktree promotion.",
+  "write_wave_policy": "never"
 }

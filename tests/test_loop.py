@@ -274,7 +274,7 @@ class TestBounds(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
-# 3. GOVERNANCE: red = productive but inert, never "broken"                    #
+# 3. GOVERNANCE: red = productive nomination with promotion locked             #
 # --------------------------------------------------------------------------- #
 class TestGovernance(unittest.TestCase):
     def setUp(self):
@@ -288,12 +288,13 @@ class TestGovernance(unittest.TestCase):
         d.switch.arm(force=True)
         report = run_driver(d, promotion_allowed=False)
         self.assertEqual(len(ex.calls), 2, "red governance stopped the loop")
-        self.assertEqual(report.mode, "inert")
+        self.assertEqual(report.mode, "nominating_locked")
         self.assertEqual(report.promoted, 0)
-        self.assertTrue(any("PRODUCTIVELY BUT INERTLY" in n for n in report.notes))
+        self.assertTrue(any("NOMINATING WITH PROMOTION LOCKED" in n
+                            for n in report.notes))
 
-    def test_inert_run_still_reports_gated_clean_work(self):
-        """The distinction that keeps an inert run from looking like a failure."""
+    def test_promotion_locked_run_still_reports_gated_clean_work(self):
+        """A promotion lock must not erase successfully gated candidate work."""
         d, _ = make_driver(
             self.tmp, bounds=LoopBounds(max_iterations=1),
             script=[{"status": "gated_held", "attempt_state": "clean",
@@ -304,11 +305,11 @@ class TestGovernance(unittest.TestCase):
         self.assertEqual(report.gated_clean, 1)
         self.assertEqual(report.promoted, 0)
 
-    def test_green_governance_reports_promoting_mode(self):
+    def test_green_governance_reports_nominating_mode(self):
         d, _ = make_driver(self.tmp, bounds=LoopBounds(max_iterations=1))
         d.switch.arm(force=True)
         report = run_driver(d, promotion_allowed=True)
-        self.assertEqual(report.mode, "promoting")
+        self.assertEqual(report.mode, "nominating")
 
 
 # --------------------------------------------------------------------------- #

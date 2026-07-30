@@ -1,4 +1,4 @@
-"""The loop driver: pick -> attempt -> gate -> promote -> re-pick, repeatedly.
+"""The loop driver: pick -> attempt -> gate -> nominate -> re-pick, repeatedly.
 
 Every other entry point in this tree runs ONE attempt and exits. This one runs
 until a stated stopping condition says otherwise. That single difference is
@@ -9,11 +9,10 @@ WHAT IT REUSES (it implements none of this):
 
 * :func:`daedalus.spine.picker.build_queue` -- what to work on next, ranked
   from measured sources. The loop never invents its own ranking.
-* :meth:`daedalus.build_exec.WaveExecutor.run_wave` -- attempt + gate +
-  promote, via ``daedalus.kairos.gated_writes.run_write_wave``. The loop never
-  calls ``run_attempt`` or ``promote_candidates`` directly, so it inherits
-  worktree isolation, the cross-process promotion lock, and the governance AND
-  for free rather than re-deriving them.
+* :meth:`daedalus.build_exec.WaveExecutor.run_wave` -- attempt + gate + sealed
+  candidate handoff via ``daedalus.kairos.gated_writes.run_write_wave``. The
+  loop never calls ``run_attempt`` or ``promote_candidates`` directly, so it
+  cannot auto-promote.
 * :class:`daedalus.spine.killswitch.KillSwitch` -- the stop.
 * :mod:`daedalus.budget` -- the ceiling.
 * :mod:`daedalus.progress` -- per-iteration observability, into the log
@@ -29,18 +28,17 @@ be delegated to the picker's own attempt memory.
 RUNNING WHILE GOVERNANCE IS RED IS THE NORMAL CASE, NOT A FAULT. When
 ``daedalus.core.get_governance()`` reports ``promotion_allowed: False`` the
 loop still picks, still attempts, still gates -- and promotes nothing. The
-work is not wasted: every candidate that clears its gate is a real patch
-sitting in an integration worktree, and the receipt that would let it be
-promoted is a separate, human-owned artifact. A loop that refused to run in
-this state would look broken; a loop that promoted anyway would be promoting
-unverified work. So it runs, and it says loudly which of the two it is doing
-(``LoopReport.mode`` is ``"inert"`` rather than ``"promoting"``).
+work is not wasted: every candidate that clears its gate is a persisted patch
+artifact held for owner review. A loop that refused to run in
+this state would look broken; a loop that promoted anyway would violate the
+sealed owner boundary. So it runs, and it says loudly which of the two it is
+doing (``LoopReport.mode`` is ``"nominating_locked"`` rather than
+``"nominating"``).
 
 NEVER WRITES THE PRIMARY CHECKOUT, at any setting. There is no code path from
 this module to a write in ``repo_root`` -- it holds no git subprocess of its
-own, and its one write path (``run_wave``) lands candidates in disposable
-worktrees and promotes, at most, to the integration branch. Integration ->
-primary stays a human ``git merge``.
+own, and its one write path (``run_wave``) returns persisted candidate
+artifacts held for a separate owner-controlled promotion action.
 
 KNOWN GAPS, stated here because a loop is where each of them stops being
 theoretical. None is fixable from this module; all three are visible in the
@@ -55,12 +53,10 @@ report rather than papered over:
   already did an unconditional ``git reset --hard`` + ``clean -fd`` on ANY
   failure, cancellation included -- stopping mid-apply cannot leave the
   integration worktree dirtier than a real gate failure always could.
-* SIBLING INTEGRATION BRANCHES. ``promote_candidates`` mints a fresh branch
-  per call off a freshly read primary HEAD, and primary never moves during a
-  run, so N iterations leave N unmerged siblings that cannot see each other.
-  Two of them touching one file can both pass their gates and still conflict
-  at merge -- a success report a human cannot act on. :meth:`LoopLedger.claim`
-  is the guard; it is honest about being a declared-path heuristic.
+* SIBLING CANDIDATES. Separate held artifacts can touch the same paths and
+  become mutually incompatible before an owner promotes either.
+  :meth:`LoopLedger.claim` reduces that collision risk; it remains an honest
+  declared-path heuristic, not a semantic conflict proof.
 * THE CANDIDATE'S OWN GATE IS DROPPED. See :meth:`LoopDriver._session_for`.
 
 Run it::
@@ -300,11 +296,10 @@ class LoopLedger:
             return False, (
                 f"path {key!r} is already claimed by iteration "
                 f"{claim['iteration']} ({claim['candidate_id']}, branch "
-                f"{claim.get('integration_branch') or 'n/a'}, basis="
-                f"{claim['basis']}). Both would be cut from the SAME primary "
-                "HEAD into sibling integration branches that cannot see each "
-                "other, so both could pass their gates and still conflict when "
-                "a human merges them.")
+                f"{claim.get('integration_branch') or 'none'}, basis="
+                f"{claim['basis']}). Both candidates can pass independently "
+                "while carrying mutually incompatible bytes, so the second is "
+                "held back before this run creates a contradictory nomination.")
         return True, ""
 
     def claimed_by(self, paths: Sequence[str]) -> tuple[str, dict[str, Any]] | None:
@@ -319,15 +314,11 @@ class LoopLedger:
               basis: str, integration_branch: str | None = None) -> list[str]:
         """Reserve ``paths`` for the rest of this run. Returns the keys taken.
 
-        WHY A RUN NEEDS THIS AT ALL, measured rather than assumed:
-        ``gated_writes.promote_candidates`` mints a FRESH integration branch
-        per call -- ``f"kairos-integration-{uuid4().hex[:10]}"``, rooted at a
-        freshly read primary HEAD. This loop calls it once per iteration, and
-        promotion is structurally capped at candidate -> integration branch at
-        every policy level, so primary HEAD never moves underneath the run.
-        N iterations therefore produce N SIBLING branches off one base, none
-        aware of any other. That module's cumulative re-gate reconciles
-        candidates promoted within ONE call; across calls it does nothing.
+        WHY A RUN NEEDS THIS AT ALL: current production waves persist held patch
+        artifacts independently. Two patches cut from the same primary revision
+        can both pass their own gates and still conflict or encode incompatible
+        decisions. Legacy/injected executors may additionally report sibling
+        integration branches; the same collision rule applies.
 
         Without this guard the loop's most dangerous output is not a failure
         but a SUCCESS REPORT: two iterations that fixed the same file both
@@ -335,8 +326,8 @@ class LoopLedger:
         one of them can land. The loop would have reported two wins.
 
         ``basis`` names where the paths came from, because the two sources are
-        not equally trustworthy: ``"changed_paths"`` is MEASURED (the promote
-        report's record of what the patch actually touched) while
+        not equally trustworthy: ``"changed_paths"`` is MEASURED (the artifact
+        manifest's record of what the patch actually touched) while
         ``"declared"`` is the task's path hint, which an agentic worker is not
         bound by -- the same caveat ``kairos.scheduler._paths_overlap`` and
         ``build.wave_path_conflicts`` both carry. A declared-path claim can
@@ -598,9 +589,9 @@ class LoopReport:
     #: nobody greps. Defaulted so every existing construction of LoopReport
     #: (including the tests') still works.
     trace_id: str = ""
-    #: ``"promoting"`` or ``"inert"``. See the module docstring: inert is a
-    #: correct, productive state, not a failure.
-    mode: str = "inert"
+    #: ``"nominating"`` or ``"nominating_locked"``. This loop never promotes;
+    #: the latter means governance currently blocks a later owner promotion.
+    mode: str = "nominating_locked"
     promotion_allowed: bool = False
     governance_state: str = "unknown"
     governance_verdict: str = ""
@@ -622,11 +613,11 @@ class LoopReport:
 
     @property
     def integration_branches(self) -> list[str]:
-        """Every distinct integration branch this run left behind, in order.
+        """Every distinct integration branch reported by an executor, in order.
 
-        Each is a SIBLING of the others: ``promote_candidates`` mints a fresh
-        ``kairos-integration-<uuid>`` per call off a freshly read primary HEAD,
-        and this loop calls it once per iteration. Nothing merges them.
+        The sealed production write-wave path returns none. This compatibility
+        view remains because an injected or historical executor can still
+        return integration-only promotion receipts.
         """
         seen: list[str] = []
         for it in self.iterations:
@@ -638,12 +629,12 @@ class LoopReport:
     @property
     def gated_clean(self) -> int:
         """Iterations that produced a patch which PASSED its gates -- the real
-        measure of a productive-but-inert run."""
+        measure of productive nomination, even while promotion is locked."""
         return sum(1 for it in self.iterations if it.outcome == "clean")
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": "daedalus.loop.report/1",
+            "schema": "daedalus.loop.report/2",
             "run_id": self.run_id, "trace_id": self.trace_id,
             "repo_root": self.repo_root,
             "project": self.project, "bounds": self.bounds.to_dict(),
@@ -697,7 +688,7 @@ def read_spend() -> _Spend:
 # the driver                                                                   #
 # --------------------------------------------------------------------------- #
 class LoopDriver:
-    """Runs pick -> attempt -> gate -> promote -> re-pick until a bound says stop.
+    """Runs pick -> attempt -> gate -> nominate -> re-pick until a bound says stop.
 
     Construction does not start anything. :meth:`run` is the only method with
     effects, and every effect it has goes through a module named in the module
@@ -1043,7 +1034,7 @@ class LoopDriver:
             run_id=self.run_id, trace_id=self.trace_id,
             repo_root=self.repo_root, project=self.project,
             bounds=self.bounds, dry_run=self.dry_run,
-            mode="promoting" if promotion_allowed else "inert",
+            mode="nominating" if promotion_allowed else "nominating_locked",
             promotion_allowed=promotion_allowed,
             governance_state=str(gov.get("state") or "unknown"),
             governance_verdict=str(gov.get("verdict") or ""),
@@ -1052,11 +1043,11 @@ class LoopDriver:
         )
         if not promotion_allowed:
             report.notes.append(
-                f"RUNNING PRODUCTIVELY BUT INERTLY: governance state="
-                f"{report.governance_state!r} blocks promotion, so this loop "
-                "will pick, attempt and gate normally and promote NOTHING. "
-                "Every candidate that clears its gate is a real patch waiting "
-                f"in an integration worktree. Verdict: {report.governance_verdict}")
+                f"NOMINATING WITH PROMOTION LOCKED: governance state="
+                f"{report.governance_state!r} blocks promotion. This loop "
+                "still picks, attempts, gates, and persists clean candidate "
+                "artifacts; it never promotes them. "
+                f"Verdict: {report.governance_verdict}")
 
         spend_at_start = read_spend() if not self.dry_run else _Spend("", 0.0, True)
         if not self.dry_run and not spend_at_start.readable:
@@ -1145,11 +1136,9 @@ class LoopDriver:
             if end.readable and end.period_key == spend_at_start.period_key:
                 report.spend_usd = round(end.spent_usd - spend_at_start.spent_usd, 6)
 
-        # WHAT A HUMAN HAS TO DO NEXT, spelled out rather than left implicit.
-        # Every branch here is a sibling of every other, cut from the same
-        # primary HEAD, and none of them is merged. The loop cannot merge them
-        # (integration -> primary is a human `git merge`, at every policy
-        # level) and it deliberately does not try.
+        # Compatibility reporting for an injected/older executor. The sealed
+        # production write-wave path returns held artifacts and no integration
+        # branches. If an adapter does report branches, none is merged here.
         branches = report.integration_branches
         if branches:
             report.notes.append(
@@ -1257,7 +1246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     p = argparse.ArgumentParser(
         prog="python -m daedalus.loop",
-        description="Run pick -> attempt -> gate -> promote -> re-pick until a "
+        description="Run pick -> attempt -> gate -> nominate -> re-pick until a "
                     "bound stops it. Stop it from anywhere with "
                     "`python -m daedalus.spine.killswitch stop`.")
     p.add_argument("--repo-root", default=None)

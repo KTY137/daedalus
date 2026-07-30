@@ -26,9 +26,15 @@ import json
 import unittest
 from pathlib import Path
 
-from daedalus.config import REPO_CONFIG, resolve_project
+from daedalus.config import (
+    REPO_CONFIG,
+    STARTER,
+    resolve_project,
+    resolve_write_wave_policy,
+)
 from daedalus.sensitivity import (
     _within_write_allow,
+    change_risk,
     load_policy,
     path_write_blocked,
 )
@@ -140,6 +146,20 @@ class ConfinementNarrowsButNeverWidensTests(unittest.TestCase):
         self.assertFalse(path_write_blocked("docs/HANDOFF.md", pol))
         self.assertTrue(path_write_blocked("docs/adrs/ADR-013.md", pol))
 
+    def test_mixed_case_high_risk_entry_is_live_not_decorative(self):
+        pol = load_policy({
+            "policy": {
+                "write_allow": ["Docs/"],
+                "high_risk_paths": ["Docs/MASTER_PLAN.MD"],
+            }
+        })
+        self.assertIn("docs/master_plan.md", pol.high_risk_path_substrings)
+        self.assertTrue(path_write_blocked("docs/MASTER_PLAN.md", pol))
+        self.assertEqual(
+            change_risk("edit documentation", ["DOCS/master_plan.md"], pol),
+            "high",
+        )
+
     def test_simulated_exemption_does_not_tunnel_under_confinement(self):
         # `*_simulated.py` is exempted from the deny lists so a weak model may
         # touch fake hardware backends. Under an explicit confinement that
@@ -214,6 +234,37 @@ class InstalledSelfPolicyTests(unittest.TestCase):
         for rel in (".agentenv/agentenv.json", "daedalus/config.py"):
             with self.subTest(path=rel):
                 self.assertTrue(path_write_blocked(rel, self.pol), rel)
+
+    def test_iron_plan_and_ledger_are_live_high_risk_fences(self):
+        for rel in (
+            "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+            "docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl",
+            "tools/iron_plan_hook_runner.py",
+            ".gitattributes",
+            "tests/test_iron_plan_guard.py",
+        ):
+            with self.subTest(path=rel):
+                self.assertTrue(path_write_blocked(rel, self.pol), rel)
+                self.assertEqual(change_risk("edit documentation", [rel], self.pol),
+                                 "high")
+
+    def test_installed_policy_disables_automatic_write_wave_promotion(self):
+        raw = json.loads((REPO_ROOT / REPO_CONFIG).read_text(encoding="utf-8"))
+        self.assertEqual(raw.get("write_wave_policy"), "never")
+        self.assertEqual(resolve_write_wave_policy(self.pdata), "never")
+        self.assertEqual(
+            resolve_write_wave_policy({"write_wave_policy": "always"}),
+            "never",
+        )
+        self.assertEqual(
+            resolve_write_wave_policy({"write_wave_policy": "low_risk"}),
+            "never",
+        )
+        self.assertEqual(
+            STARTER.get("write_wave_policy"),
+            "never",
+            "newly scaffolded repos must not arm automatic promotion",
+        )
 
 
 if __name__ == "__main__":

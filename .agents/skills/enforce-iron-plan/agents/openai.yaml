@@ -1,0 +1,4 @@
+interface:
+  display_name: "Enforce Iron Plan"
+  short_description: "Keep Daedalus work aligned to its master plan"
+  default_prompt: "Use $enforce-iron-plan to classify this change, map it to the active gate, and verify alignment before editing."

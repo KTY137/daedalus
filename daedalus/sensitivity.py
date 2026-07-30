@@ -246,9 +246,15 @@ def load_policy(project_config: dict | None) -> Policy:
         high_risk_terms=tuple(p.get("high_risk_terms", GENERIC_HIGH_RISK_TERMS)),
         mid_risk_terms=tuple(p.get("mid_risk_terms", GENERIC_MID_RISK_TERMS)),
         # ALWAYS unioned (like the secret denylist): a project can extend the
-        # high-blast-radius floor but never remove it.
+        # high-blast-radius floor but never remove it. Matching happens against
+        # ``_fence_norm`` (forward-slashed and lower-cased), so entries must be
+        # normalised here as well. Otherwise a natural mixed-case policy path
+        # such as ``docs/MASTER_PLAN.md`` is a dead safety rule.
         high_risk_path_substrings=tuple(dict.fromkeys(
-            GENERIC_HIGH_RISK_PATHS + tuple(p.get("high_risk_paths", ())))),
+            _norm(str(path))
+            for path in GENERIC_HIGH_RISK_PATHS + tuple(p.get("high_risk_paths", ()))
+            if str(path).strip()
+        )),
         default_deny=bool(p.get("default_deny", True)),
         # NORMALISED AT LOAD, deliberately. Matching happens against ``_norm``
         # (forward-slashed, lower-cased), so a policy entry like "README" or

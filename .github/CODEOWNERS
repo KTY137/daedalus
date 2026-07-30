@@ -1,0 +1,21 @@
+# Iron Plan authority and its enforcement projections.
+/docs/IKARUS_ARIADNE_MASTER_PLAN.md @KTY137
+/docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl @KTY137
+/AGENTS.md @KTY137
+/CLAUDE.md @KTY137
+/.gitattributes @KTY137
+/.agentenv/agentenv.json @KTY137
+/.agentenv/tool-allowances.json @KTY137
+/.claude/settings.json @KTY137
+/.codex/ @KTY137
+/.agents/skills/enforce-iron-plan/ @KTY137
+/daedalus/config.py @KTY137
+/daedalus/kairos/gated_writes.py @KTY137
+/daedalus/sensitivity.py @KTY137
+/templates/agentenv.json @KTY137
+/.githooks/ @KTY137
+/.github/CODEOWNERS @KTY137
+/.github/workflows/iron-plan.yml @KTY137
+/tools/iron_plan_guard.py @KTY137
+/tools/iron_plan_hook_runner.py @KTY137
+/tests/test_iron_plan_guard.py @KTY137

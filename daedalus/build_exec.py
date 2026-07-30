@@ -45,17 +45,10 @@ task concurrently, each in its own worktree via ``daedalus.spine.attempt
 and returns gated ``PatchArtifact`` candidates -- never a live write in the
 primary checkout at ``repo_root``.
 
-Whether a candidate then auto-advances into a disposable integration
-worktree/branch (``daedalus.kairos.gated_writes.promote_candidates``) or waits
-for a human is this project's ``write_wave_policy`` (``never`` / ``low_risk`` /
-``always`` -- see ``daedalus.config.resolve_write_wave_policy``), and that
-knob is itself ANDed against ``daedalus.core.get_governance()``'s
-``promotion_allowed`` inside ``run_write_wave`` -- no level of it, including
-``always``, promotes anything while this repo's discrimination receipt is
-stale, absent, or unreadable. At EVERY level, "promoted" still never means
-"merged into ``repo_root``": that step stays a human ``git merge`` of the
-integration branch, same as before this was wired. A DRY RUN wave (or a
-write-free wave) is unaffected -- it still goes through
+Every candidate remains held in the external artifact archive until an owner
+explicitly invokes the separate promotion path. ``write_wave_policy`` now
+resolves only to ``never``; historical auto-promotion values are denied. A DRY
+RUN wave (or a write-free wave) is unaffected -- it still goes through
 ``KairosScheduler.dispatch()`` below, because ``gate_candidates`` always runs
 a real ``offload()`` attempt and has no dry-run mode to preview through.
 
@@ -111,16 +104,12 @@ class UnsafeParallelWriteError(RuntimeError):
 _LANDED_STATUSES = {"offloaded"}
 _PLANNED_STATUSES = {"planned"}
 # NOT landed, on purpose: daedalus.kairos.gated_writes.run_write_wave's own
-# statuses ("gated_promoted", "gated_held", "gated_refused",
-# "gated_artifact_lost", "write_gate_failed") all fall through to "bounced"
-# below, even a clean,
-# fully-auto-promoted candidate. That is correct, not an omission --
-# "landed" here has only ever meant repo_root's PRIMARY checkout changed, and
-# a gated candidate never does that, no matter how far it advanced (see
-# run_write_wave's own docstring: promotion lands in a disposable integration
-# worktree/branch, never repo_root). The full status string and reason are
-# never lost -- they ride along in the raw per-task result dict
-# (BuildTask.last_result).
+# current statuses ("gated_held", "gated_artifact_lost",
+# "write_gate_failed") all fall through to "bounced" below. Historical or
+# injected adapters may still return "gated_promoted"/"gated_refused"; those
+# also remain non-landed. "Landed" here has only ever meant repo_root's PRIMARY
+# checkout changed, and the gated path never does that. The full status string
+# and reason are preserved in BuildTask.last_result.
 
 
 #: Attribution for every progress event this module records. A ProgressEvent
@@ -377,9 +366,9 @@ class WaveExecutor:
             succeeded = (_task_status(status) == "landed")
 
         # "applied" means THE PRIMARY CHECKOUT CHANGED. The gated path never
-        # changes it at any promotion level (run_write_wave's docstring), so it
-        # is False there however far the candidate advanced -- a promoted
-        # candidate sits in an integration branch awaiting a human `git merge`.
+        # changes it: current production writes persist a held artifact and do
+        # not invoke promotion. Historical/injected promoted results are also
+        # integration-only, never primary-checkout writes.
         applied: bool | None
         if dry_run:
             applied = None
@@ -449,18 +438,11 @@ class WaveExecutor:
         # while dry_run is True. A LIVE write-containing wave is routed through
         # daedalus.kairos.gated_writes.run_write_wave: every write-mode task
         # gets its own isolated worktree (concurrent, not forced-sequential --
-        # see gate_candidates), and whether the resulting candidate then
-        # auto-advances to the integration branch or waits for a human is this
-        # project's configured `write_wave_policy` (daedalus.config
-        # .resolve_write_wave_policy), itself ANDed against
-        # daedalus.core.get_governance()'s promotion_allowed inside
-        # run_write_wave -- see that function's docstring. NEITHER path ever
-        # writes repo_root's primary checkout for a write-mode task in this
-        # wave: a promoted candidate lands only in a disposable integration
-        # worktree/branch, so BuildTask.status below still coarses every one of
-        # these outcomes to "bounced" (never "landed") -- that is correct, not
-        # a regression, because "landed" in this file has only ever meant "the
-        # primary checkout changed", and none of these outcomes do that.
+        # see gate_candidates), and every resulting candidate is held for an
+        # explicit owner-controlled promotion call. `write_wave_policy`
+        # remains a compatibility field but resolves only to `never`.
+        # This path never writes repo_root's primary checkout, so
+        # BuildTask.status below correctly coarsens the result to "bounced".
         wave_parallel = bool(parallel and not has_writes)
         forced_reason = None
         gated_write_wave = has_writes and not dry_run

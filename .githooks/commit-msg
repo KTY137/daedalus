@@ -1,0 +1,6 @@
+#!/bin/sh
+repo_root="$(git rev-parse --show-toplevel)" || exit 1
+if command -v python3 >/dev/null 2>&1; then
+    exec python3 "$repo_root/tools/iron_plan_guard.py" --repo-root "$repo_root" commit-msg "$1"
+fi
+exec python "$repo_root/tools/iron_plan_guard.py" --repo-root "$repo_root" commit-msg "$1"
