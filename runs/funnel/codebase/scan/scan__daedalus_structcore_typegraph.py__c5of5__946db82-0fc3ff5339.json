@@ -1,0 +1,59 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c5of5__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c5of5__946db82-0fc3ff5339",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 5 of typegraph.py: final return statement constructing TypeGraph object with aggregated nodes, edges, coverage, and counts.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "5 of 5",
+     "purpose": "Final return of TypeGraph object with aggregated nodes, edges, coverage, and counts.",
+     "symbols": [],
+     "claims": [],
+     "observations": [
+      {
+       "what": "The chunk contains only the final return statement and preceding variable assignments; no docstrings or comments with checkable claims are present.",
+       "where": "lines 1121-1137",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6719d239c2b9507809705687fd062ee3c42daa0694a7ebd9e2673adfab6c6c3c",
+    "objective_chars": 1140,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [5/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

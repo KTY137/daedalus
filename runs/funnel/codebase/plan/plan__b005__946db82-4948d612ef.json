@@ -1,0 +1,213 @@
+{
+ "task_id": "plan__b005__946db82",
+ "key": "plan__b005__946db82-4948d612ef",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Proposed 8 work items addressing confirmed/narrowed findings: enforce fails-closed, validate OLLAMA_HOST, add anchor invariant check, trace identity verification propagation, update docstring, fix scope-key mismatch, verify token usage in cost, document truncation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OLLAMA_HOST validation may break existing remote setups if enforced strictly; needs config option.",
+     "Adding anchor invariant check may introduce performance overhead on every anchor insertion.",
+     "Scope-key mismatch fix may require deep refactoring of resolver construction.",
+     "Identity verification propagation fix may require changes in multiple files beyond session."
+    ],
+    "todos": [
+     "Implement fails-closed test and exception re-raise in picker.py",
+     "Add OLLAMA_HOST validation in warm_model.py and update documentation",
+     "Add invariant comparison in _record_identity_anchor",
+     "Trace and fix identity verification propagation",
+     "Update docstring in markdown.py to reflect actual implementation",
+     "Fix scope-key mismatch in gated_writes.py",
+     "Verify and enforce tokens_B_true usage in cost computation",
+     "Document truncation in gui/lint.py docstring"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Enforce fails-closed in picker.py: catch Exception, re-raise or halt",
+       "gate": "0",
+       "why_now": "The broad catch in _run_eval_gate can swallow exceptions, allowing partial results and violating fails-closed. This is a safety-critical flaw that must be fixed before any production use.",
+       "steps": [
+        {
+         "do": "Modify _run_eval_gate in picker.py to re-raise exceptions after logging, or set a flag to halt the main loop.",
+         "file": "daedalus/eval/picker.py",
+         "verified_by": "Write test_picker_handles_exception: mock correctness.py to raise Exception, verify that picker.py stops or re-raises."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The main loop in picker.py checks a return flag or exception to stop."
+      },
+      {
+       "rank": 2,
+       "title": "Validate OLLAMA_HOST is localhost or add explicit warning",
+       "gate": "1",
+       "why_now": "warm_model makes HTTP requests to a configurable host; if set to remote, code violates no-egress requirement. This is a critical security design flaw.",
+       "steps": [
+        {
+         "do": "Add validation in warm_model.py that OLLAMA_HOST is 'localhost' or '127.0.0.1'; if not, raise an error or log a warning.",
+         "file": "daedalus/model/warm_model.py",
+         "verified_by": "Write test_ollama_host_validation: set OLLAMA_HOST to remote, call warm_model, verify it raises ValueError or logs warning."
+        },
+        {
+         "do": "Update documentation to warn against setting OLLAMA_HOST to remote address.",
+         "file": "docs/configuration.md",
+         "verified_by": "Manual inspection of docs."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The requirement is strict no-egress; if remote is allowed, change to configurable option."
+      },
+      {
+       "rank": 3,
+       "title": "Add invariant check in _record_identity_anchor: recompute embedding and compare",
+       "gate": "0",
+       "why_now": "The function claims to check an invariant but does not; if backend changes, anchors become stale. This is a high-severity data integrity issue.",
+       "steps": [
+        {
+         "do": "In _record_identity_anchor, after inserting anchor, recompute its embedding using current backend and compare with stored value; log warning if mismatch.",
+         "file": "daedalus/anchor/_record_identity_anchor.py",
+         "verified_by": "Write test_anchor_invariant_check: mock backend to return different embedding, verify warning is logged."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Recomputing embedding is feasible and not too expensive."
+      },
+      {
+       "rank": 4,
+       "title": "Trace identity verification propagation and ensure failure halts session",
+       "gate": "1",
+       "why_now": "If verify_index_identity fails and the failure is not propagated, the embedding pipeline may silently produce bad data. This is a high-severity data integrity issue.",
+       "steps": [
+        {
+         "do": "Search for all calls to verify_index_identity across codebase; trace how return status is used.",
+         "file": "daedalus/session/identity.py",
+         "verified_by": "Grep output showing all call sites."
+        },
+        {
+         "do": "If any call site ignores failure, modify to propagate failure to session state (e.g., set session status to failed).",
+         "file": "daedalus/session/identity.py",
+         "verified_by": "Write test_identity_verification_propagation: mock verify_index_identity to return False, verify session state is marked failed."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "Session state is accessible and modifiable from call sites."
+      },
+      {
+       "rank": 5,
+       "title": "Update docstring in markdown.py to match actual implementation",
+       "gate": "2",
+       "why_now": "Outdated docstring misleads developers. Low severity but easy to fix.",
+       "steps": [
+        {
+         "do": "Compare docstring claims with implementation in complete markdown.py file; update docstring to accurately describe behavior.",
+         "file": "daedalus/mapping/markdown.py",
+         "verified_by": "Manual review: docstring matches code."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full implementation is available to compare."
+      },
+      {
+       "rank": 6,
+       "title": "Fix scope-key mismatch in gated_writes.py: ensure resolver uses same scope as index",
+       "gate": "1",
+       "why_now": "gated_writes.py may use a resolver built under a different scope than its index, causing data corruption. High severity.",
+       "steps": [
+        {
+         "do": "Trace scope_key usage in gated_writes.py; ensure resolution_context is called with the same scope_key as the index.",
+         "file": "daedalus/mapping/gated_writes.py",
+         "verified_by": "Write test_scope_key_match: create two scopes, write with mismatched keys, verify error or correct behavior."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The resolver can be built with a specific scope_key."
+      },
+      {
+       "rank": 7,
+       "title": "Verify cost computation uses tokens_B_true, not tokens_B",
+       "gate": "1",
+       "why_now": "If cost metrics use truncated token count, cost calculations are inconsistent. Medium severity.",
+       "steps": [
+        {
+         "do": "Grep for 'tokens_B' in daedalus/eval/ and daedalus/mapping/ to identify which variable is used in cost computation.",
+         "file": "daedalus/eval/cost.py",
+         "verified_by": "Grep output shows usage of tokens_B_true."
+        },
+        {
+         "do": "If tokens_B is used incorrectly, change to tokens_B_true.",
+         "file": "daedalus/eval/cost.py",
+         "verified_by": "Write test_cost_uses_tokens_B_true: mock data with different tokens_B and tokens_B_true, verify cost uses the true count."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "tokens_B_true is available in the data passed to cost computation."
+      },
+      {
+       "rank": 8,
+       "title": "Document truncation in gui/lint.py Metric.to_dict",
+       "gate": "2",
+       "why_now": "Docstring claims every metric returns count and elements, but to_dict truncates offenders to 12. Low severity but misleading.",
+       "steps": [
+        {
+         "do": "Update docstring of Metric.to_dict to mention truncation of offenders to 12.",
+         "file": "daedalus/gui/lint.py",
+         "verified_by": "Manual inspection of docstring."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The truncation limit is 12 as observed."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/eval/picker.py",
+      "daedalus/eval/correctness.py",
+      "daedalus/model/warm_model.py",
+      "daedalus/anchor/_record_identity_anchor.py",
+      "daedalus/session/identity.py",
+      "daedalus/mapping/gated_writes.py",
+      "daedalus/eval/cost.py",
+      "daedalus/gui/lint.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d779cd63406483d6b7e3425f481511059f518a6d74d294ca62c6c3e7fcee7af7",
+    "objective_chars": 6534,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 5 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 5,
+  "inputs": 8
+ }
+}

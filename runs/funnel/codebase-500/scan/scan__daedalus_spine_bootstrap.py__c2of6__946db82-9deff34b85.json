@@ -1,0 +1,181 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c2of6__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c2of6__946db82-9deff34b85",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of daedalus/spine/bootstrap.py: defines refresh_sources, GateDiscrimination, _gate_binding; checks claims in docstrings and comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_recorded_head | low | Catches all exceptions silently returning None; may hide file read or parse errors. | Check if callers handle None and if logging is needed.",
+     "refresh_sources | medium | Uses subprocess.run with a large timeout_s default (900s) and captures output; possible resource exhaustion or hang. | Verify timeout is appropriate and consider timeout handling.",
+     "refresh_sources | medium | Exception handling catches BaseException (BLE001 suppressed) and may mask critical errors like KeyboardInterrupt. | Consider catching specific exceptions.",
+     "refresh_sources | low | The function returns a tuple of SourceRefresh; the type hint says tuple, but code returns a single-element tuple on early returns. | Confirm callers expect tuple of length 1.",
+     "GateDiscrimination | low | to_dict() converts surviving_critical tuple to list; asymmetry with constructor. | Ensure consumers expect list.",
+     "_gate_binding | medium | Function signature and docstring present but body not shown; cannot verify claim about receipt bindings. | Review full function implementation."
+    ],
+    "todos": [
+     "Verify that _gate_binding implementation matches its docstring claims.",
+     "Consider adding logging to _recorded_head for debugging.",
+     "Check if refresh_sources timeout_s default is appropriate for all use cases.",
+     "Ensure subprocess.run timeout is properly handled (e.g., TimeoutExpired)."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "2 of 6",
+     "purpose": "Defines helper functions and dataclass for source refresh and gate discrimination.",
+     "symbols": [
+      {
+       "name": "_recorded_head",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads a JSON file (path) and extracts 'repo_state.head'. Returns None on any error or missing data."
+      },
+      {
+       "name": "refresh_sources",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_read",
+        "repository_mutation"
+       ],
+       "note": "Regenerates derived sources by running 'daedalus.cli map' subprocess. Returns tuple of SourceRefresh objects."
+      },
+      {
+       "name": "GateDiscrimination",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass representing whether a gate has proven ability to discriminate good from bad patches."
+      },
+      {
+       "name": "GateDiscrimination.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts GateDiscrimination instance to a plain dict."
+      },
+      {
+       "name": "_gate_binding",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Validates and canonicalizes a discrimination gate description. Returns tuple (dict or None, str or None)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A receipt which merely says 'pytest' -- or whose gate_scope disagrees with its paths -- is not evidence about any gate.",
+       "where": "_gate_binding docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is not present in this chunk; cannot verify the claim."
+      },
+      {
+       "text": "Receipt bindings are narrower than requested bindings: this corpus tool measures only the real pytest gate, while a candidate may request a custom command such as the docref verifier.",
+       "where": "_gate_binding docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is not present; cannot verify the claim about binding logic."
+      },
+      {
+       "text": "The latter is valid as a request but cannot match a pytest receipt.",
+       "where": "_gate_binding docstring",
+       "verdict": "uncheckable",
+       "why": "Function body absent; cannot verify matching logic."
+      },
+      {
+       "text": "A repository that explicitly disabled that source chose the curated queue as its authority; regenerating map anyway would violate both that declaration and shadow mode's no-surprise boundary before an attempt even starts.",
+       "where": "refresh_sources function body comment",
+       "verdict": "kept",
+       "why": "The code checks map_mode from picker_source_mode; if 'disabled', it returns early without regenerating."
+      },
+      {
+       "text": "Exit 0 is NOT the success criterion. The criterion is that the artefact now stamps a revision, because that is what the consumer checks.",
+       "where": "refresh_sources function body comment",
+       "verdict": "kept",
+       "why": "The code sets succeeded based on (code == 0 and after is not None), not code alone."
+      },
+      {
+       "text": "Refresh writes the generated map into the PRIMARY checkout.",
+       "where": "refresh_sources function body comment",
+       "verdict": "uncheckable",
+       "why": "The code runs a subprocess that presumably writes to the checkout, but the actual write is not verified in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_recorded_head catches all exceptions silently, returning None. This may hide file not found, JSON decode errors, or permission issues.",
+       "where": "_recorded_head lines 122-128",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "refresh_sources uses subprocess.run with a large default timeout (900s) and captures output. There is no handling for subprocess.TimeoutExpired.",
+       "where": "refresh_sources line 168",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Exception handling in refresh_sources catches BaseException (due to BLE001 suppression) and may catch SystemExit, KeyboardInterrupt, etc.",
+       "where": "refresh_sources lines 172-173",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "refresh_sources returns a tuple with a single SourceRefresh for early exits, but the return type hint is tuple[SourceRefresh, ...] which is fine.",
+       "where": "refresh_sources lines 152, 155, 185",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "GateDiscrimination.to_dict converts surviving_critical tuple to list, which may cause asymmetry with constructor that expects tuple.",
+       "where": "GateDiscrimination.to_dict line 210",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_gate_binding function signature and docstring are present but the function body is not shown in this chunk.",
+       "where": "_gate_binding lines 215-219",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e321230877b8c2fbcb3d4483e95bbdda6914e6f2824ec6cd0ad82896649c08a",
+    "objective_chars": 5829,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [2/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 121
+ }
+}

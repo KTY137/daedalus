@@ -1,0 +1,98 @@
+{
+ "task_id": "daedalus/kairos/control.py#c1of1#5eb1702d",
+ "key": "daedalus_kairos_control.py_c1of1_5eb1702d-384884708d",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5fb74b56e576dc38a619c84e7e78c7a4132658d8344a65f8a88381c08132d1bd",
+    "objective_chars": 5769,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "D1 | main_dashboard | parameter argv never read in this unit | WRONG CONCLUSION: a caller believes they can pass arguments to main_dashboard"
+    ],
+    "todos": [
+     "Remove argv parameter from main_dashboard or pass it to parser.parse_args"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5fb74b56e576dc38a619c84e7e78c7a4132658d8344a65f8a88381c08132d1bd",
+    "objective_chars": 5769,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5fb74b56e576dc38a619c84e7e78c7a4132658d8344a65f8a88381c08132d1bd",
+    "objective_chars": 5769,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/control.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 3322
+ }
+}

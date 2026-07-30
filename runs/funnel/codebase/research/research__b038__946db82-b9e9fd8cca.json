@@ -1,0 +1,105 @@
+{
+ "task_id": "research__b038__946db82",
+ "key": "research__b038__946db82-b9e9fd8cca",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis identifies three systemic issues: (1) the 'selection' guarantee in correctness.py is undermined by token-inexact providers; (2) the 'fails closed' design in drift.py is contradicted by broad exception catching in picker.py; (3) the 'pure over baseline' claim in picker.py is invalidated by mutable shared state in correctness.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The selection guard in correctness.py assumes providers report exact node sets, but providers like ClaudeCLIProvider are agentic and may produce outputs that don't match the frozen selection, leading to silent mis-measurement.",
+     "The broad exception catch in _run_eval_gate (picker.py) can mask errors from correctness.py, violating the 'fails closed' principle in drift.py and potentially allowing invalid states to propagate.",
+     "The 'pure over baseline' design in picker.py is invalidated if the baseline dict is mutated by correctness.py's evaluate_change, causing stale or inconsistent candidate generation."
+    ],
+    "todos": [
+     "Verify that all providers enforce the same node-level reporting contract as expected by guard_selection.",
+     "Narrow the exception catch in _run_eval_gate to only expected exceptions, or add logging to distinguish programming errors.",
+     "Ensure that baseline dicts are deep-copied or treated as immutable when passed between correctness.py and picker.py."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "selection-guarantee-broken",
+       "claim": "The 'selection' guarantee in correctness.py is invalid because the provider layer can produce results that don't match the frozen selection, and the guard only checks after the fact without enforcement.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/providers/claude_cli.py"
+       ],
+       "mechanism": "correctness.py's guard_selection checks that observed nodes match declared frozen selection, but the provider (e.g., ClaudeCLIProvider) is agentic and may run tasks that produce outputs for nodes not in the selection. The guard can only detect mismatches post-hoc; it cannot prevent the provider from reporting wrong nodes. The provider's capabilities (agentic, write-capable) increase the risk of unintended side effects or node expansion.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all providers are proven to only ever report nodes exactly matching the selection (e.g., by design or testing), or if the guard is enforced before the provider runs (e.g., by restricting the provider's input), then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/correctness.py:guard_selection (docstring and logic)",
+        "daedalus/providers/claude_cli.py:ClaudeCLIProvider.caps (agentic, write-capable)"
+       ]
+      },
+      {
+       "id": "fails-closed-contradiction",
+       "claim": "The 'fails closed' design principle in drift.py (snapshot_freshness) is contradicted by the broad exception catching in picker.py's _run_eval_gate, which can hide failures from correctness.py and allow invalid states to be treated as valid.",
+       "spans": [
+        "daedalus/mapping/drift.py",
+        "daedalus/spine/picker.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "drift.py's snapshot_freshness is designed to fail closed on missing/invalid fields. However, picker.py's _run_eval_gate catches Exception broadly, so if correctness.py's evaluate_change raises an exception (e.g., due to a bug), it is caught and returned as an error string. The picker then may treat this as a non-fatal error and continue, potentially using a partial or incorrect result. This violates the fails-closed principle because the system continues operating on potentially invalid data.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If _run_eval_gate is shown to only catch specific exceptions (e.g., from the subprocess) and re-raise programming errors, or if the caller always checks the error and halts, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/drift.py:snapshot_freshness (docstring: 'FAILS CLOSED on the artifact's own defects')",
+        "daedalus/spine/picker.py:_run_eval_gate (catches Exception broadly, returns error)",
+        "daedalus/eval/correctness.py:evaluate_change (incomplete, may raise)"
+       ]
+      },
+      {
+       "id": "baseline-mutability",
+       "claim": "The 'pure over an already-loaded baseline' design in picker.py's eval_baseline_candidates is invalid because the baseline dict may be mutated by correctness.py's evaluate_change, which shares the same data structure (e.g., CorrectnessResult stores before/after states that reference the same selection object).",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "picker.py's eval_baseline_candidates assumes the baseline dict is immutable and pure. However, correctness.py's CorrectnessResult stores references to BeforeState and selection objects that may be mutated elsewhere. If evaluate_change modifies the baseline dict (e.g., by updating fields in place), subsequent calls to eval_baseline_candidates would see stale or inconsistent data. The shared selection object is particularly risky because it is frozen once but could be mutated by other code paths.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If it is proven that the baseline dict is never mutated after creation (e.g., all fields are read-only or deep-copied), or that evaluate_change never modifies the baseline, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py:eval_baseline_candidates (docstring: 'Pure over an already-loaded baseline')",
+        "daedalus/eval/correctness.py:CorrectnessResult (stores selection and before/after states)",
+        "daedalus/eval/correctness.py:evaluate_change (may modify shared state)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8984b664fcd194e157f7b432b5232b64447d029b361e85fa1a40366d7cfa2e43",
+    "objective_chars": 41246,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 38 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 38,
+  "inputs": 5
+ }
+}

@@ -1,0 +1,49 @@
+{
+ "task_id": "scan__daedalus_spine_envelope.py__c5of7__946db82",
+ "key": "scan__daedalus_spine_envelope.py__c5of7__946db82-1bddc56e12",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. secret content: credential assigned a quoted literal value",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Route this task to Claude or local Ollama."
+    ],
+    "handoff": {
+     "offending": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6df8dbc151d7b2ee69514d116d98077d363909c0b9bc71429bcd2ebdd959b7c2",
+    "objective_chars": 5947,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/envelope.py [5/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/envelope.py",
+  "index": 5,
+  "total": 7,
+  "first_line": 481
+ }
+}

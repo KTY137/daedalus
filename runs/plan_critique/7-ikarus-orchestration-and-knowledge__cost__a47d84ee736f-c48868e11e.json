@@ -1,0 +1,122 @@
+{
+ "task_id": "7-ikarus-orchestration-and-knowledge__cost__a47d84ee736f",
+ "key": "7-ikarus-orchestration-and-knowledge__cost__a47d84ee736f-c48868e11e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 7 makes multiple unverifiable architectural commitments (e.g., typed MissionContract, separate provenance stores) without cost estimates or cheaper alternatives, risking over-engineering.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "7.1 | high | 'Ikarus is persistent in goals and evidence' \u2013 no definition of persistence mechanism (e.g., database, filesystem) or cost (storage, latency). | Check if a lightweight in-memory cache with periodic snapshots suffices for typical goals, and measure the overhead of full persistence.",
+     "7.2 | medium | 'It compiles user intent into a typed MissionContract' \u2013 typed contracts require schema management and validation code, adding build and runtime cost. | Compare with an untyped JSON blob: measure the additional complexity and failure rate introduced by typing.",
+     "7.3 | high | 'creates an artifact DAG' \u2013 DAG construction and traversal impose engineering complexity and potential for cycles. | Evaluate if a simple list of artifacts with dependencies (not a full DAG) meets use cases, and measure the cost of cycle detection.",
+     "7.4 | medium | 'selects stateless or explicitly versioned recipes' \u2013 versioning recipes adds a version resolution mechanism and storage overhead. | Compare with a single mutable recipe that is updated in place: measure the frequency of rollback needs and the cost of version storage.",
+     "7.5 | low | 'monitors budgets and attempts' \u2013 monitoring requires a metrics pipeline and alerting, adding infrastructure cost. | Check if simple logging with manual review suffices for the expected scale; measure the cost of automated monitoring.",
+     "7.6 | medium | 'presents decisions and evidence' \u2013 presentation implies a UI or report generator, adding front-end or formatting cost. | Evaluate if raw JSON output piped to a viewer is sufficient for stakeholders.",
+     "7.7 | high | 'Coordination is artifact-first: MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket' \u2013 the linear pipeline forces strict ordering, potentially blocking parallelism and increasing latency. | Measure the throughput of a pipeline vs. an event-driven architecture where artifacts are produced asynchronously.",
+     "7.8 | medium | 'Typed events and artifacts are authoritative' \u2013 enforcing type authority requires a schema registry and validation at every boundary, increasing runtime cost per event. | Compare with untyped events where structure is agreed upon by convention: measure the error rate and debugging time difference.",
+     "7.9 | low | 'Chat is an interface, not the workflow database.' \u2013 this is a design principle with no direct cost, but it may lead to building a separate workflow database when the chat backend could serve both roles. | Check if the chat backend's existing storage can be reused for workflow state with acceptable performance.",
+     "7.10 | high | 'Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.' \u2013 maintaining two separate versioned stores with projection rules is extremely costly in terms of storage, synchronization, and consistency guarantees. | Compare with a single unified store with tags or labels to distinguish memory types; measure the cost of maintaining two stores and the value of separation."
+    ],
+    "todos": [
+     "For each architectural commitment (typed contracts, DAG, versioned recipes, separate stores), provide a cost estimate and a simpler alternative.",
+     "Specify the persistence mechanism and its cost for goal/evidence persistence.",
+     "Define 'typed' precisely: schema language, validation stage, and migration strategy.",
+     "Clarify whether the artifact DAG is strictly necessary or if a simpler dependency list suffices.",
+     "Describe the monitoring and presentation output format and its consumers.",
+     "Justify the separation of product and research memory stores with a cost-benefit analysis."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "7.1",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "weak",
+       "why": "The claim asserts persistence but doesn't specify the mechanism or cost. Persistence can be achieved cheaply with a simple key-value store or file system. Without a cheaper alternative, the claim is ambiguous about what 'persistent' means operationally."
+      },
+      {
+       "id": "7.2",
+       "claim": "It compiles user intent into a typed MissionContract.",
+       "verdict": "weak",
+       "why": "Typed contracts add schema definition, validation, and migration costs. A cheaper alternative is an untyped JSON contract with runtime checks. The claim doesn't justify the added complexity."
+      },
+      {
+       "id": "7.3",
+       "claim": "It creates an artifact DAG.",
+       "verdict": "weak",
+       "why": "A DAG requires cycle detection, topological ordering, and storage of edges. A simpler list of artifacts with implicit ordering (e.g., timestamps) is cheaper. The claim doesn't explain why a DAG is necessary."
+      },
+      {
+       "id": "7.4",
+       "claim": "It selects stateless or explicitly versioned recipes.",
+       "verdict": "weak",
+       "why": "Versioned recipes require a version resolution mechanism and storage for multiple versions. A cheaper alternative is a single mutable recipe with backups. The claim doesn't quantify the need for versioning."
+      },
+      {
+       "id": "7.5",
+       "claim": "It monitors budgets and attempts.",
+       "verdict": "weak",
+       "why": "Monitoring implies instrumentation, logging, and alerting infrastructure. A cheaper alternative is manual inspection of logs. The claim doesn't specify the required granularity or cost tolerance."
+      },
+      {
+       "id": "7.6",
+       "claim": "It presents decisions and evidence.",
+       "verdict": "weak",
+       "why": "Presentation implies a UI or report generator. A cheaper alternative is raw output (e.g., JSON) consumed by external tools. The claim doesn't define the presentation format or audience."
+      },
+      {
+       "id": "7.7",
+       "claim": "Coordination is artifact-first: MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket.",
+       "verdict": "weak",
+       "why": "This linear pipeline may introduce latency and reduce parallelism. A cheaper alternative is an event-driven architecture where artifacts are produced asynchronously. The claim doesn't justify the strict ordering."
+      },
+      {
+       "id": "7.8",
+       "claim": "Typed events and artifacts are authoritative.",
+       "verdict": "weak",
+       "why": "Enforcing type authority requires schema validation at every boundary, increasing runtime cost. A cheaper alternative is untyped events with documentation. The claim doesn't provide a cost-benefit analysis."
+      },
+      {
+       "id": "7.9",
+       "claim": "Chat is an interface, not the workflow database.",
+       "verdict": "sound",
+       "why": "This is a design principle that separates concerns. It doesn't commit to a specific costly implementation; it merely says chat should not be the persistence layer. The cheapest alternative is to use a dedicated database, which is implied. No cheaper alternative exists if you want separation."
+      },
+      {
+       "id": "7.10",
+       "claim": "Product memory and research adaptive memory are separate, versioned, provenance-bearing stores with explicit projection rules.",
+       "verdict": "wrong",
+       "why": "Maintaining two separate versioned stores with projection rules is extremely costly in engineering effort, storage, and consistency. A cheaper alternative is a single store with tags or a unified schema. The claim does not justify the separation and the cost of maintaining two stores is likely not worth the benefit, especially without evidence that they have different access patterns or consistency requirements."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "41c10931728ce76a036cc71f008f4cbf4ef90c03df6021f4fe9a3d287a0d8a2b",
+    "objective_chars": 1662,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "7-ikarus-orchestration-and-knowledge",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

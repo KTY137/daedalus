@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b038__946db82",
+ "key": "research__b038__946db82-b9e9fd8cca",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three system-spanning patterns: budget exhaustion is not enforced at round boundaries, check fail-closed behavior is not documented, and cycle detection is missing but assumed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget exhaustion may silently extend council duration beyond limits.",
+     "Check failures may be silently converted to refusals, hiding bugs.",
+     "Cycle detection absence may cause infinite loops in structural analysis."
+    ],
+    "todos": [
+     "Verify budget exhaustion handling in round loop.",
+     "Document fail-closed behavior in check policy.",
+     "Integrate cycle detection into structural analysis."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "budget-exhaustion-not-enforced",
+       "claim": "Budget exhaustion is not enforced at the round boundary; the comment in session.py says it's handled at the next iteration, but no evidence of actual enforcement exists across the codebase.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "In session.py, when budget is exhausted, the code does not stop the loop immediately; it waits for the next round start. In ollama.py, fallback uses force_json and temperature=0.0 which may not respect budget constraints.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If session.py contains a check that stops the loop on budget exhaustion before proceeding to the next round, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/session.py: line ~1240 comment",
+        "daedalus/providers/ollama.py: line 1209"
+       ]
+      },
+      {
+       "id": "check-fail-closed-undocumented",
+       "claim": "The fail-closed behavior of run_checks is not documented in the check policy interface, leading to potential silent failures.",
+       "spans": [
+        "daedalus/lanes/checks.py",
+        "daedalus/structcore/cycles.py"
+       ],
+       "mechanism": "run_checks catches exceptions and returns a refusal string, but the calling code may not handle non-empty returns gracefully. The cycle detection module assumes no cycle detection exists, but if checks were in place they would fail closed.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If run_checks' documentation explicitly states that exceptions are caught and returned as refusals, and all callers handle it, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/lanes/checks.py: run_checks docstring",
+        "daedalus/structcore/cycles.py: module docstring claim of no cycle detection"
+       ]
+      },
+      {
+       "id": "cycle-detection-missing",
+       "claim": "Cycle detection is missing in structcore, but the system assumes it exists (e.g., for receipt generation).",
+       "spans": [
+        "daedalus/structcore/cycles.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "cycles.py provides a cycle detection function but it is not integrated elsewhere. session.py produces chain_head and chain_intact fields that imply chain integrity checks, but no cycle detection is used.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If session.py or any other module calls strongly_connected_components and uses its output for cycle detection, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/cycles.py: module docstring claims no cycle detection",
+        "daedalus/council/session.py: chain_intact field but no cycle detection reference"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2ab5b7b38d43b2d6d796dbab27ec7753abb021ea2aa4976e9812c9cceb46c06e",
+    "objective_chars": 11647,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 38 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 38,
+  "inputs": 4
+ }
+}

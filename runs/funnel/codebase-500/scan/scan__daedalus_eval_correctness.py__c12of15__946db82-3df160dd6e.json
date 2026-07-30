@@ -1,0 +1,142 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c12of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c12of15__946db82-3df160dd6e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 12 of correctness.py: implements seeding corpus from real history with _changed_files, _blob, _test_functions, derive_task_from_commit.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "12 of 15",
+     "purpose": "Implement functions for seeding a corpus from real commit history, including diff parsing, blob retrieval, test function extraction, and task derivation from a commit.",
+     "symbols": [
+      {
+       "name": "_changed_files",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns list of (status, relative_path) from git diff --name-status -r --no-renames between a commit and its parent."
+      },
+      {
+       "name": "_blob",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns file content at a given revision for a relative path, or None if git show fails."
+      },
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts pytest node-id -> source mapping from a Python test file using ast; returns dict keyed by function name or ClassName::method_name."
+      },
+      {
+       "name": "derive_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Proposes a candidate correctness task from a real fix commit; returns dict or None. Uses _changed_files, _blob, _test_functions."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The key is the node id form pytest actually accepts -- ``test_x`` for a module-level function, ``ClassName::test_x`` for a method",
+       "where": "_test_functions docstring",
+       "verdict": "kept",
+       "why": "The function builds exactly that: module-level functions keyed by name, class methods keyed as ClassName::method_name."
+      },
+      {
+       "text": "the class qualifier is not optional and getting it wrong makes the node id ``missing``. That is not a hypothetical: the first run of this seeder used unqualified names from ``structcore.extract_units`` (which reports a method as a bare ``test_alive_then_stale``) and the before-state check refuted 19 of 22 candidate nodes in one commit for exactly that reason. The refusal worked; the deriver was still wrong, so it was fixed.",
+       "where": "_test_functions docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring references a historical event and external function 'structcore.extract_units' not present in this chunk; the claim about correctness of the current approach is not verifiable from code alone."
+      },
+      {
+       "text": "``ast`` rather than a regex or the structural extractor: it is stdlib, it is exact about nesting, and pytest node ids are a Python-only concept anyway. A file that does not parse contributes nothing (the caller then mints nothing from it) rather than contributing guesses.",
+       "where": "_test_functions docstring",
+       "verdict": "kept",
+       "why": "The function uses ast.parse, returns {} on SyntaxError, and only processes .py files."
+      },
+      {
+       "text": "The commit's own diff is the oracle, exactly as in ``mint.py``: what the commit ADDED or CHANGED in a test file is a FAIL_TO_PASS candidate, what it left untouched in the same file is a PASS_TO_PASS candidate, and the base is the commit's parent.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references 'mint.py' which is not in this chunk; the logic for f2p/p2p is partially visible (lists are initialized) but the full assignment is not completed in this chunk."
+      },
+      {
+       "text": "NOTHING here is trusted. Every derived node id is a CLAIM that :func:`verify_before_state` then tries to refute by running it on the base; a node id this function gets wrong (a test nested in a class, say, whose real node id carries the class) comes back ``missing`` and takes the task down with it. That is the intended direction: the deriver may be sloppy, the admission gate may not.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "uncheckable",
+       "why": "References verify_before_state which is not in this chunk; the claim about the design is not testable from this code alone."
+      },
+      {
+       "text": "Returns ``None`` when the commit changed no test file -- a real and common case (``efd0ed6`` in this repo's own history is a fix with no test at all), reported by returning nothing rather than by inventing a label.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about specific commit efd0ed6 is not verifiable; the function returns None when resolve_revision fails or when no test files are changed (partially visible, but full logic not in chunk)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _changed_files returns list of tuples; the status character is first element (e.g., 'M', 'A'), but the docstring does not specify the format. The status is checked with startswith('D') in derive_task_from_commit.",
+       "where": "_changed_files",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _test_functions uses ast.get_source_segment to get source text; if that returns None, it falls back to ast.dump(node). This may produce a string representation that is not valid Python, but it is only used as a key? Actually the function returns source segments, not keys; the keys are derived from node names.",
+       "where": "_test_functions",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "derive_task_from_commit initializes overlay, f2p, p2p lists but does not populate them in this chunk; the loop over _changed_files only filters test files and retrieves before/after content and test functions, but does not assign to f2p/p2p. The final return is not shown.",
+       "where": "derive_task_from_commit",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2cd8c21c51d8f5c0b9f0042e67658a7034ca2974fd88e9e13066913925841098",
+    "objective_chars": 5696,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [12/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 12,
+  "total": 15,
+  "first_line": 1321
+ }
+}

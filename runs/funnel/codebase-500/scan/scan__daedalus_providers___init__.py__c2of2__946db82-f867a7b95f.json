@@ -1,0 +1,114 @@
+{
+ "task_id": "scan__daedalus_providers___init__.py__c2of2__946db82",
+ "key": "scan__daedalus_providers___init__.py__c2of2__946db82-f867a7b95f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of providers/__init__.py: defines get_provider, list_providers, _configured, _availability_probe, provider_health, available_providers. No docstrings with claims; comments are internal.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/__init__.py",
+     "chunk": "2 of 2",
+     "purpose": "Defines provider lookup, health check, and availability functions.",
+     "symbols": [
+      {
+       "name": "get_provider",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns provider instance by string name; raises ValueError if unknown."
+      },
+      {
+       "name": "list_providers",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of provider metadata dicts from _PROVIDERS."
+      },
+      {
+       "name": "_configured",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if provider is configured based on env keys; returns True if no key required."
+      },
+      {
+       "name": "_availability_probe",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Probes provider availability; returns (bool, error_string). Handles unimplemented providers."
+      },
+      {
+       "name": "provider_health",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of dicts with provider metadata plus configured/available/error fields."
+      },
+      {
+       "name": "available_providers",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict mapping provider name to bool availability for implemented providers."
+      }
+     ],
+     "claims": [],
+     "observations": [
+      {
+       "what": "Function get_provider is defined here but its definition is split across chunks; this chunk contains only the tail (lines 121-125).",
+       "where": "lines 121-125",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function available_providers has a docstring claiming it checks 'env keys / local server', but this chunk does not contain code that checks local servers; it delegates to provider_health and _availability_probe which may call get_provider().available().",
+       "where": "line 155",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64aabcf21bc679ab3c4bc3b82f9d1fc38e6aeca3bb95e98acaeb7c11ecc8bb9c",
+    "objective_chars": 1899,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/__init__.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/providers/__init__.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

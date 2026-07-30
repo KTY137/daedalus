@@ -1,0 +1,359 @@
+{
+ "task_id": "scan__daedalus_eval_mutate.py__c1of2__946db82",
+ "key": "scan__daedalus_eval_mutate.py__c1of2__946db82-d59de9a0a7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of mutate.py: module docstring, constants, filters, helper functions, Mutant dataclass, trivially_equivalent, _mutate_tree (partial).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_mutate_tree | high | EARLY_RETURN handling uses ast.unparse on whole tree, normalizes formatting; claim says comparison is between mutant and own unparsed original, but original source is not unparsed in this chunk. | Check if caller unparses original before comparison.",
+     "_mutate_tree | medium | DROP_CALL site detection only finds Expr(Call(...)) but real calls can be inside other expressions; may miss many. | Verify coverage of call patterns.",
+     "covered_lines | medium | Reads .coverage SQLite database; schema assumptions may break with coverage.py versions. | Test with actual coverage files.",
+     "trivially_equivalent | medium | Uses _code_fingerprint which excludes line tables and filenames, but includes co_code; bytecode identity may differ for equivalent mutants due to Python version or optimization flags. | Document version dependency."
+    ],
+    "todos": [
+     "_mutate_tree missing implementations for INVERT_CONDITION, WEAKEN_COMPARISON, CHANGE_CONSTANT, DROP_ARGUMENT in this chunk.",
+     "Covered_lines function references 'runs/eval/.coverage' but path may not exist; add fallback logic or warn."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/mutate.py",
+     "chunk": "1 of 2",
+     "purpose": "Module docstring, constants, no-go filters, helper functions, Mutant dataclass, trivially_equivalent, partial _mutate_tree.",
+     "symbols": [
+      {
+       "name": "MUTATE_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String '1'."
+      },
+      {
+       "name": "DROP_CALL",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'drop_call'."
+      },
+      {
+       "name": "INVERT_CONDITION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'invert_condition'."
+      },
+      {
+       "name": "WEAKEN_COMPARISON",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'weaken_comparison'."
+      },
+      {
+       "name": "CHANGE_CONSTANT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'change_constant'."
+      },
+      {
+       "name": "DROP_ARGUMENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'drop_argument'."
+      },
+      {
+       "name": "EARLY_RETURN",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'early_return'."
+      },
+      {
+       "name": "SKIP_PATH_PARTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings."
+      },
+      {
+       "name": "SKIP_FUNCTIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of strings."
+      },
+      {
+       "name": "_DISPLAY_CALLS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of strings."
+      },
+      {
+       "name": "GUARD_NAMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings."
+      },
+      {
+       "name": "_in_main_block",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool; checks if '__name__' and '__main__' in fn_src."
+      },
+      {
+       "name": "_is_display_constant",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool; checks if node is argument to a display call."
+      },
+      {
+       "name": "_looks_like_a_guard",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool; checks if any guard name in fn_src lowercase."
+      },
+      {
+       "name": "covered_lines",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads coverage database; returns dict of file to set of line numbers."
+      },
+      {
+       "name": "Mutant",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields id, defect_class, file, function, line, before, after, operator. Properties find and replace for compatibility."
+      },
+      {
+       "name": "trivially_equivalent",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool; compiles before and after and compares fingerprints."
+      },
+      {
+       "name": "_code_fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple; recursive fingerprint of code object."
+      },
+      {
+       "name": "_fn_source",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple (source, empty string) or None; slices function source from text."
+      },
+      {
+       "name": "_mutate_tree",
+       "kind": "function",
+       "effects": [],
+       "note": "Applies one operator to function source; returns new source or None. Only EARLY_RETURN and DROP_CALL implemented in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "graph_delta reached 12/12 on the hand-written corpus in tools/gate_discrimination.py \u2014 but only after two layers were ADDED specifically to catch the defects the first layers missed, and then validated on those same twelve. That is fitting to the test set. However well-motivated each layer was, a detection rate measured on the examples that motivated it is not evidence of anything.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to code and results outside this chunk (graph_delta, tools/gate_discrimination.py)."
+      },
+      {
+       "text": "mechanical \u2014 AST operators applied to real functions in this repository, not hand-picked incidents, so the corpus cannot be implicitly shaped by what somebody already knew the detector would catch",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Claims about the generator's design are not fully verifiable in this chunk; _mutate_tree uses AST operators but the claim about 'real functions in this repository' cannot be checked without seeing caller."
+      },
+      {
+       "text": "unbounded \u2014 as many as you ask for, which turns n=12 into n=hundreds",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The generation loop is not in this chunk; no evidence of unbounded generation."
+      },
+      {
+       "text": "marker-free \u2014 no 'SEEDED DEFECT' comment exists, so the tautology that inflated the first calibration run to 10/12 is impossible by construction",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The code contains no 'SEEDED DEFECT' marker or similar comments; mutants are generated programmatically without markers."
+      },
+      {
+       "text": "deterministic \u2014 a seed picks the sites, so a claim is reproducible",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The generation loop (which would pass a seed) is not in this chunk; _mutate_tree takes an rng parameter but its use is not shown to be seeded deterministically from outside."
+      },
+      {
+       "text": "It is a plausible defect: a dropped call, an inverted condition, a changed constant, a weakened comparison.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The operators DROP_CALL, INVERT_CONDITION, CHANGE_CONSTANT, WEAKEN_COMPARISON are defined but only DROP_CALL and EARLY_RETURN are partially implemented in this chunk; others not yet implemented."
+      },
+      {
+       "text": "It is NOT necessarily a behaviour-changing one \u2014 some mutants are equivalent (dropping a call whose result is unused and which has no side effect), and equivalent mutants are undetectable by anything, including a perfect test suite.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "trivially_equivalent function attempts to detect bytecode-identical mutants, acknowledging the equivalent mutant problem."
+      },
+      {
+       "text": "Every mutant is checked to still PARSE. A mutant that breaks syntax is not a defect, it is a typo, and any tool would catch it \u2014 counting those would inflate the score for free.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_mutate_tree uses ast.parse and returns None on SyntaxError, ensuring only parseable mutants are generated."
+      },
+      {
+       "text": "A mutant here can never be a product defect.",
+       "where": "comment above SKIP_PATH_PARTS",
+       "verdict": "uncheckable",
+       "why": "The claim is about the SKIP_PATH_PARTS filter; the filter is defined but its effectiveness depends on usage not shown."
+      },
+      {
+       "text": "Cosmetic or self-describing methods: a changed repr is not a defect worth catching, and mutating one only teaches the detector to fire on noise.",
+       "where": "comment above SKIP_FUNCTIONS",
+       "verdict": "kept",
+       "why": "SKIP_FUNCTIONS includes __repr__, __str__, __format__, __hash__, __doc__, main, _cli, render, describe."
+      },
+      {
+       "text": "Constants whose value is display text, not behaviour. Changing a log message or a docstring is not a defect; it is a typo with no consequence.",
+       "where": "comment above _DISPLAY_CALLS",
+       "verdict": "kept",
+       "why": "_DISPLAY_CALLS includes print, log, debug, info, warning, error, critical, format, join, write, fail, skipTest."
+      },
+      {
+       "text": "Guard vocabulary. Real incidents in the hand-written corpus were all removals of exactly this kind of code, so a site matching it is worth far more than a random one. This is a PRIOR on where defects live, not a correctness claim.",
+       "where": "comment above GUARD_NAMES",
+       "verdict": "uncheckable",
+       "why": "The claim about 'real incidents in the hand-written corpus' refers to data outside this chunk."
+      },
+      {
+       "text": "Lines the test suite actually executes, from an existing coverage file. A mutant on a line no test reaches is a GUARANTEED survivor: it cannot be caught by the gate, so measuring it only dilutes the score.",
+       "where": "docstring of covered_lines",
+       "verdict": "uncheckable",
+       "why": "The function reads a coverage database; its correctness depends on the database schema, not fully verifiable here."
+      },
+      {
+       "text": "This reads a coverage database if one is present and returns {} if not \u2014 and the caller must treat {} as 'unknown', never as 'nothing is covered'.",
+       "where": "docstring of covered_lines",
+       "verdict": "kept",
+       "why": "Function returns {} if no database found; returns dict of sets otherwise."
+      },
+      {
+       "text": "One generated defect. Field-compatible with the hand-written corpus's Mutation where it matters (id, defect_class, file), so the same measurement code reads both.",
+       "where": "docstring of Mutant",
+       "verdict": "uncheckable",
+       "why": "Compatibility with Mutation class not verifiable without seeing that class."
+      },
+      {
+       "text": "True if the two sources compile to IDENTICAL bytecode.",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "kept",
+       "why": "Function compiles both sources and compares via _code_fingerprint, which includes co_code."
+      },
+      {
+       "text": "TRIVIAL COMPILER EQUIVALENCE, the cheap half of the equivalent-mutant problem. A mutant that compiles to the same code object cannot change behaviour, so it is undetectable by ANY method -- a perfect test suite, a perfect graph delta, a human.",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "kept",
+       "why": "The function checks bytecode identity; if bytecode is identical, behaviour is identical (ignoring runtime conditions)."
+      },
+      {
+       "text": "Counting such mutants in a denominator silently lowers every score for a reason that has nothing to do with the detector.",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "uncheckable",
+       "why": "Usage of this function in scoring is not shown in this chunk."
+      },
+      {
+       "text": "The literature puts the equivalent-mutant rate at roughly 10-40% (Jia & Harman's 2011 survey, per a research pass on 2026-07-30 -- the attribution is SECOND-HAND and unverified here; the filter below is not, because it is executed).",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "uncheckable",
+       "why": "Literature reference is external; not verifiable from code."
+      },
+      {
+       "text": "Bytecode identity catches only the trivial cases: a genuinely equivalent mutant with different bytecode still slips through, so this is a LOWER bound on equivalence and the residue stays unknown.",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "kept",
+       "why": "The function only checks bytecode identity; it does not claim to catch all equivalent mutants."
+      },
+      {
+       "text": "Compilation is not execution: compile() builds a code object and runs nothing, so this is safe on arbitrary repository source.",
+       "where": "docstring of trivially_equivalent",
+       "verdict": "kept",
+       "why": "Function uses compile() without exec, no side effects."
+      },
+      {
+       "text": "Structural fingerprint of a code object, recursing into nested ones. Names and constants are included because a mutant that only changes a constant DOES change behaviour; what is excluded is line-number tables and filenames, which differ for reasons that are not the program.",
+       "where": "docstring of _code_fingerprint",
+       "verdict": "kept",
+       "why": "The function includes co_code, co_names, co_varnames, co_consts (with repr for non-code objects), co_argcount, co_kwonlyargcount, co_flags masked. It does not include co_filename or co_linetable."
+      },
+      {
+       "text": "(exact source of the function, its lines) or None if it cannot be sliced.",
+       "where": "docstring of _fn_source",
+       "verdict": "kept",
+       "why": "Function returns (joined lines, '') or None; uses node.lineno and end_lineno."
+      },
+      {
+       "text": "Uses ast.unparse on the whole function, which normalises formatting. That is FINE for this purpose and worth stating: the measurement compares the mutant against its own unparsed original, never against the raw file, so normalisation cannot masquerade as a change.",
+       "where": "docstring of _mutate_tree",
+       "verdict": "kept",
+       "why": "The function returns ast.unparse(tree) after mutation; the original source is not unparsed in this chunk, but the claim is about the comparison design, which is not executed here."
+      },
+      {
+       "text": "AFTER the docstring, never before. Inserting ahead of it demotes the docstring from body[0] to an ordinary string expression, which makes a LITERAL appear out of nowhere -- an artefact of the generator that was measured suppressing detection of this operator from ~100% to 37%.",
+       "where": "comment in _mutate_tree EARLY_RETURN",
+       "verdict": "kept",
+       "why": "Code removes leading docstring if present, then inserts early return after the docstring position. The comment explains the rationale."
+      }
+     ],
+     "observations": [
+      {
+       "what": "covered_lines function uses hardcoded path 'runs/eval/.coverage' which may not exist; also uses sqlite3.connect with URI 'file:...?mode=ro'.",
+       "where": "covered_lines",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_mutate_tree only implements EARLY_RETURN and DROP_CALL; other operators are stubbed (sites list built but no mutation applied).",
+       "where": "_mutate_tree",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_mutate_tree DROP_CALL site detection only finds Expr nodes containing Call; calls inside other expressions (e.g., as part of a larger expression) are missed.",
+       "where": "_mutate_tree DROP_CALL",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "trivially_equivalent uses _code_fingerprint which includes co_code; bytecode may differ for equivalent mutants due to Python version or optimization flags.",
+       "where": "trivially_equivalent",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ae3db67d62f288ba7238f8d5c80c2a2c931b2e48598b366d271d836a17ec7ec5",
+    "objective_chars": 12594,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mutate.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/eval/mutate.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,108 @@
+{
+ "task_id": "research__b029__946db82",
+ "key": "research__b029__946db82-7f220ec599",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals that the read-only mode in SpineLedger creates WAL sidecars, and that the AntigravityAdapter's SSH-based dispatch is vulnerable to remote shell injection from model output. These two issues share a pattern: a module's documented guarantees are silently broken by side effects that escape the module's boundary, and no other module accounts for them.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "readonly-wal-sidecars",
+       "claim": "SpineLedger's read-only mode creates WAL sidecars on disk, violating the implicit contract that a read-only operation touches nothing. The lanes module (daedalus/lanes/__init__.py) exports check functions that may be called in read-only contexts, but no component in the codebase is aware of or accounts for these sidecars.",
+       "spans": [
+        "daedalus/spine/ledger.py",
+        "daedalus/lanes/__init__.py"
+       ],
+       "mechanism": "SpineLedger.__init__ opens SQLite with PRAGMA query_only=ON and journal_mode=WAL. WAL mode requires shared memory files (-wal, -shm) even for reads. The lanes module re-exports check functions that may use a ledger in read-only mode; those functions assume no disk mutation occurs. The sidecars are created silently.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that either (a) SpineLedger's read-only mode does not create WAL sidecars (e.g., it uses a different journal mode), or (b) all consumers of the lanes module are aware of and tolerate sidecar creation.",
+       "evidence": [
+        "daedalus/spine/ledger.py: SpineLedger.__init__ (read_only path sets PRAGMA journal_mode=WAL and query_only=ON)",
+        "daedalus/lanes/__init__.py: re-exports check functions that may instantiate SpineLedger in read-only mode"
+       ]
+      },
+      {
+       "id": "ssh-injection-from-model",
+       "claim": "The AntigravityAdapter dispatches model-generated content (a diff) via SSH, and the remote shell re-parses the command line, enabling shell injection. The OllamaAdapter and the lanes module assume output safety checks are sufficient, but they do not account for this injection vector because the injection occurs after output checks, at the SSH layer.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/lanes/__init__.py"
+       ],
+       "mechanism": "AntigravityAdapter._dispatch constructs an argv list for subprocess, but SSH concatenates arguments and passes them to the remote shell. Model output containing shell metacharacters (e.g., backticks, $(), semicolons) will be executed on the remote host. The lanes module exports guards (e.g., not_substituted) that are designed to catch such content, but they run before the SSH dispatch and may not detect all injection vectors, or they are not applied to this path at all.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Evidence that either (a) AntigravityAdapter sanitizes model output before passing to SSH (e.g., quoting or escaping), or (b) the lanes guards are applied to the AntigravityAdapter path and are proven to block all injection attempts.",
+       "evidence": [
+        "daedalus/council/vendors.py: AntigravityAdapter._dispatch passes prompt via stdin_text, but argv is built from untrusted model output (docstring warns of injection)",
+        "daedalus/lanes/__init__.py: exports guards like not_substituted that could catch injection but their application to the AntigravityAdapter path is not confirmed"
+       ]
+      },
+      {
+       "id": "budget-check-duplication",
+       "claim": "Both the OllamaAdapter and the projection worker (daedalus/memory/projection_worker.py) perform token budget checks, but they use different budget sources: the OllamaAdapter uses effective_input_window() from _ollama_native, while the projection worker uses its own DEFAULT_DIMENSION (768) and potentially a different budget mechanism. This can lead to inconsistent budget enforcement across the system.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/memory/projection_worker.py"
+       ],
+       "mechanism": "OllamaAdapter._dispatch checks token count against effective_input_window() before calling the model. The projection worker's main() uses DEFAULT_DIMENSION (768) as embedding width, and its budget logic (if any) is not visible in this chunk. If the projection worker processes model outputs that were budget-checked by the OllamaAdapter, the two budgets may disagree, leading to resource exhaustion or silent truncation.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that either (a) the projection worker uses the same budget source as the OllamaAdapter (e.g., effective_input_window()), or (b) the projection worker does not perform token budget checks and relies solely on the OllamaAdapter's checks.",
+       "evidence": [
+        "daedalus/council/vendors.py: OllamaAdapter._dispatch uses effective_input_window() for budget",
+        "daedalus/memory/projection_worker.py: main() references DEFAULT_DIMENSION and embedding width, but budget logic is not in this chunk"
+       ]
+      },
+      {
+       "id": "availability-probe-inconsistency",
+       "claim": "The available_vendors function in daedalus/council/vendors.py probes vendor availability using cheap methods (which, http_probe), but the AntigravityAdapter is reported as unavailable by default (signed_in=False) and requires operator intervention to enable. This creates a gap: the probe cannot distinguish between 'not installed' and 'not signed in', potentially causing the system to think a vendor is unavailable when it could be made available with configuration.",
+       "spans": [
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "available_vendors checks for agy binary existence and uses agy_signed_in flag (default False). AntigravityAdapter.__init__ sets signed_in=False by default. The probe does not attempt to sign in. If the binary exists but signed_in is False, the vendor is reported as unavailable even though it could be available with correct configuration. This affects vendor selection logic elsewhere.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that either (a) the system never relies on availability probes for vendor selection (e.g., it always attempts to use a vendor regardless of probe result), or (b) there is a separate mechanism to prompt the operator to sign in.",
+       "evidence": [
+        "daedalus/council/vendors.py: available_vendors uses agy_signed_in flag; AntigravityAdapter signed_in defaults to False"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c3784750ef6184c71c0b2142346bf7b84a4a26907fb3d25426af37ce764b1f6",
+    "objective_chars": 48440,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 29 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 29,
+  "inputs": 5
+ }
+}

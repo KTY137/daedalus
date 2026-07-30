@@ -1,0 +1,361 @@
+{
+ "task_id": "scan__daedalus_providers_ollama.py__c1of11__946db82",
+ "key": "scan__daedalus_providers_ollama.py__c1of11__946db82-f4cad2f4fa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1/11 of ollama.py: defines constants, namedtuples, module-level docs, and windowed-rewrite logic setup.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "DEFAULT_MODEL | medium | Comment claims qwen2.5-coder:7b is default per docs/PROVIDERS_RESEARCH.md; that file is not in chunk, so uncheckable. | Confirm docs/PROVIDERS_RESEARCH.md exists and states that default.",
+     "RESCUE_* constants | low | Three namedtuples and four constants define rescue outcomes; any mismatch between comment claims and actual usage in later code could cause silent logic errors. | Verify that RESCUE_CALLS, RESCUE_FINISHED, RESCUE_UNREACHABLE, RESCUE_MALFORMED are used consistently in _schema_rescue and other functions.",
+     "DEFAULT_KEEP_ALIVE | low | Comment says OLLAMA_KEEP_ALIVE env var overrides default '30m', but no code in chunk reads that env var. | Check later chunks for os.getenv('OLLAMA_KEEP_ALIVE').",
+     "MAX_CONTEXT_CHARS, MAX_READ_CHARS, MAX_REWRITE_CHARS | low | Constants are defined but not used in this chunk; their actual enforcement is elsewhere. | Verify they are used in subsequent chunks.",
+     "WINDOW_ANCHOR_FRAC | low | Claim that 'share of original non-blank lines must come back verbatim' is a rule; no enforcement code in chunk. | Check later chunks for WINDOW_ANCHOR_FRAC usage."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/ollama.py",
+     "chunk": "1 of 11",
+     "purpose": "Define constants, namedtuples, and module-level documentation for Ollama provider, including windowed-rewrite parameters.",
+     "symbols": [
+      {
+       "name": "DEFAULT_HOST",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default Ollama server URL: http://127.0.0.1:11434"
+      },
+      {
+       "name": "DEFAULT_MODEL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default model: qwen2.5-coder:7b"
+      },
+      {
+       "name": "DEFAULT_KEEP_ALIVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Keep-alive duration for Ollama model: '30m'"
+      },
+      {
+       "name": "MAX_AGENT_STEPS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum agent steps: 6"
+      },
+      {
+       "name": "MAX_READ_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum read characters: 16,000"
+      },
+      {
+       "name": "MAX_REWRITE_FILES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum rewrite files: 3"
+      },
+      {
+       "name": "MAX_REWRITE_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum rewrite characters: 24,000"
+      },
+      {
+       "name": "_LOCAL_BRIEF_BUDGET_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Local lane brief budget: 2,000 chars"
+      },
+      {
+       "name": "DEFAULT_WINDOW_RADIUS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default window radius for windowed rewrite: 40"
+      },
+      {
+       "name": "MAX_WINDOW_LINES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum window lines: 400"
+      },
+      {
+       "name": "MAX_WINDOWS_PER_FILE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum windows per file: 12"
+      },
+      {
+       "name": "WINDOW_ANCHOR_FRAC",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Window anchor fraction: 0.5"
+      },
+      {
+       "name": "_TOOL_TRUNC_MARKER",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Marker for truncated tool output"
+      },
+      {
+       "name": "RESCUE_CALLS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Rescue outcome: calls"
+      },
+      {
+       "name": "RESCUE_FINISHED",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Rescue outcome: finished"
+      },
+      {
+       "name": "RESCUE_UNREACHABLE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Rescue outcome: unreachable"
+      },
+      {
+       "name": "RESCUE_MALFORMED",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Rescue outcome: malformed"
+      },
+      {
+       "name": "RescueOutcome",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "namedtuple with fields: calls, kind, detail"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Local server. Because nothing leaves the machine, Ollama is trusted with IP, is AGENTIC (drives its own file reads), and MAY WRITE -- but with reduced rights vs Claude: the write-guard blocks device/vendor/secret/high-risk paths, it only writes when the router grants write mode, and it is confined to repo_root.",
+       "where": "line 28",
+       "verdict": "uncheckable",
+       "why": "The claim about trust, write-guard behavior, router, and repo_root confinement refers to code outside this chunk (e.g., write-guard, router). Cannot verify here."
+      },
+      {
+       "text": "DEFAULT_HOST = \"http://127.0.0.1:11434\"  # not \"localhost\" -- avoids IPv6 (::1) miss on Windows",
+       "where": "line 39",
+       "verdict": "kept",
+       "why": "The constant DEFAULT_HOST is exactly that string. The comment explains the choice; no contradiction in this chunk."
+      },
+      {
+       "text": "DEFAULT_MODEL = \"qwen2.5-coder:7b\"  # per docs/PROVIDERS_RESEARCH.md",
+       "where": "line 40",
+       "verdict": "uncheckable",
+       "why": "The claim that this model is the default per docs/PROVIDERS_RESEARCH.md cannot be checked because that file is not in this chunk."
+      },
+      {
+       "text": "BEFORE CHANGING THIS, KNOW WHAT THE AXIS ACTUALLY IS. Measured 2026-07-29 on an RTX 5080, 3 trials x 2 agent-shaped tasks per model, native `tools` array: ...",
+       "where": "lines 41-58",
+       "verdict": "uncheckable",
+       "why": "The claim about empirical measurements, model performance, and _schema_rescue refers to data and code outside this chunk. Cannot verify."
+      },
+      {
+       "text": "How long Ollama keeps the model resident in VRAM after a request. Ollama's default is 5 minutes; past that the next chat turn pays a full reload (measured ~44s cold vs ~1.4s warm first token for qwen2.5-coder:7b on this box). Override with OLLAMA_KEEP_ALIVE (any Ollama duration string, e.g. \"10m\", \"2h\", \"-1\" for forever, \"0\" to disable pinning).",
+       "where": "lines 60-64",
+       "verdict": "uncheckable",
+       "why": "The claim about Ollama's default keep-alive, measured reload times, and env var override refers to external behavior and possibly other code; not verifiable in this chunk."
+      },
+      {
+       "text": "DEFAULT_KEEP_ALIVE = \"30m\"",
+       "where": "line 65",
+       "verdict": "kept",
+       "why": "The constant is defined as '30m'."
+      },
+      {
+       "text": "MAX_AGENT_STEPS = 6",
+       "where": "line 66",
+       "verdict": "kept",
+       "why": "Constant defined as 6."
+      },
+      {
+       "text": "MAX_READ_CHARS = 16_000",
+       "where": "line 67",
+       "verdict": "kept",
+       "why": "Constant defined as 16_000."
+      },
+      {
+       "text": "MAX_REWRITE_FILES = 3       # scoped writes only; bigger fan-outs go through Ikarus",
+       "where": "line 68",
+       "verdict": "uncheckable",
+       "why": "The comment mentions Ikarus, which is not in this chunk. The constant value is kept."
+      },
+      {
+       "text": "MAX_REWRITE_CHARS = 24_000  # full-file rewrite above this risks truncation",
+       "where": "line 69",
+       "verdict": "kept",
+       "why": "Constant defined as 24_000. The comment about truncation risk is a claim about behavior not verifiable here."
+      },
+      {
+       "text": "_LOCAL_BRIEF_BUDGET_CHARS = 2_000",
+       "where": "line 76",
+       "verdict": "kept",
+       "why": "Constant defined as 2_000."
+      },
+      {
+       "text": "MEASURED 2026-07-29, the first live self-improvement runs: three docref attempts against docs/HANDOFF.md (2496 lines / 148_291 bytes) all ended no_change/write_gate_failed. The file never reached the model -- 148 KB is 6x MAX_REWRITE_CHARS, so _run_rewrite skipped it \"too large for full rewrite\" and the write gate correctly saw no diff. Raising the cap does not fix it: the rewrite-only reliability finding was measured on SMALL files, and a 7B model asked to reprint 2500 lines echoes or truncates.",
+       "where": "lines 81-88",
+       "verdict": "uncheckable",
+       "why": "Claims about specific runs, file size, and _run_rewrite behavior refer to code and data outside this chunk. Cannot verify."
+      },
+      {
+       "text": "DEFAULT_WINDOW_RADIUS = 40",
+       "where": "line 99",
+       "verdict": "kept",
+       "why": "Constant defined as 40."
+      },
+      {
+       "text": "MAX_WINDOW_LINES = 400      # past this it is a full rewrite wearing a window's name",
+       "where": "line 100",
+       "verdict": "kept",
+       "why": "Constant defined as 400."
+      },
+      {
+       "text": "MAX_WINDOWS_PER_FILE = 12",
+       "where": "line 102",
+       "verdict": "kept",
+       "why": "Constant defined as 12."
+      },
+      {
+       "text": "WINDOW_ANCHOR_FRAC = 0.5",
+       "where": "line 106",
+       "verdict": "kept",
+       "why": "Constant defined as 0.5."
+      },
+      {
+       "text": "Marker appended when a tool result is head-truncated to make the forced final report call fit the local context window (visible so the model knows it lost tail).",
+       "where": "line 109",
+       "verdict": "uncheckable",
+       "why": "The claim about when and how _TOOL_TRUNC_MARKER is used refers to code outside this chunk. The constant is defined."
+      },
+      {
+       "text": "RESCUE_CALLS = \"calls\"",
+       "where": "line 117",
+       "verdict": "kept",
+       "why": "Constant defined as 'calls'."
+      },
+      {
+       "text": "RESCUE_FINISHED = \"finished\"",
+       "where": "line 120",
+       "verdict": "kept",
+       "why": "Constant defined as 'finished'."
+      },
+      {
+       "text": "RESCUE_UNREACHABLE = \"unreachable\"",
+       "where": "line 123",
+       "verdict": "kept",
+       "why": "Constant defined as 'unreachable'."
+      },
+      {
+       "text": "RESCUE_MALFORMED = \"malformed\"",
+       "where": "line 126",
+       "verdict": "kept",
+       "why": "Constant defined as 'malformed'."
+      },
+      {
+       "text": "RescueOutcome = namedtuple(\"RescueOutcome\", \"calls kind detail\")",
+       "where": "line 128",
+       "verdict": "kept",
+       "why": "The namedtuple is defined with those fields."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends mid-sentence at line 130; the comment about elision markers is incomplete.",
+       "where": "line 130",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several constants (MAX_CONTEXT_CHARS, etc.) are imported from other modules but not defined in this chunk; they are used in comments but not in code here.",
+       "where": "lines 1-130",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module-level comment claims Ollama is 'AGENTIC' and 'MAY WRITE' with reduced rights, but no write logic is present in this chunk.",
+       "where": "line 28",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about DEFAULT_MODEL includes detailed benchmark data and a warning about changing the default without checking structured-output reliability; this is a strong policy claim that cannot be verified in this chunk.",
+       "where": "lines 41-58",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0fa8f1156d531df5075571ece88befa19e11a88444341edb50f74fc6351d09da",
+    "objective_chars": 7020,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/ollama.py [1/11]",
+  "rev": "946db82",
+  "module": "daedalus/providers/ollama.py",
+  "index": 1,
+  "total": 11,
+  "first_line": 1
+ }
+}

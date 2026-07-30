@@ -1,0 +1,104 @@
+{
+ "task_id": "research__b056__946db82",
+ "key": "research__b056__946db82-846a939c1b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of Daedalus: three hypotheses found regarding fence dominance fraction dilution, identity/overlap duplication, and read-only guarantee erosion.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The fence dominance fraction may be diluted by documents that cannot reach anything, as per vendors.py and graph.py.",
+     "The identity/overlap reason may be duplicated in eval/correctness.py, potentially causing inconsistent behavior.",
+     "The read-only guarantee for the primary checkout may be eroded if verbs are used outside the defined set."
+    ],
+    "todos": [
+     "Verify that code_modules excludes documents to confirm dominance fraction is not diluted.",
+     "Check eval/correctness.py for a second implementation of _identity and _overlap_reason.",
+     "Ensure all git verbs used in attempt.py are within READ_ONLY_REPO_VERBS."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "dominance-dilution",
+       "claim": "The fence dominance fraction is diluted because documents are included in the graph nodes, contrary to the claim in graph.py that they are excluded.",
+       "spans": [
+        "daedalus/structcore/graph.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "graph.py's _graph_nodes claims to exclude documents via code_modules, but if code_modules does not filter out documents, documents (which cannot reach anything) would be counted as non-fenced modules, inflating the denominator in dominance fraction calculation. This would make the fence appear weaker than it actually is.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If code_modules explicitly filters out documents (e.g., by checking file extension or content type), then the dilution does not occur.",
+       "evidence": [
+        "daedalus/structcore/graph.py:_graph_nodes docstring claims documents are excluded",
+        "daedalus/structcore/graph.py:_graph_nodes imports code_modules but no filtering shown",
+        "daedalus/council/vendors.py:ClaudeAdapter and CodexAdapter are vendor adapters, not documents, but the graph module's document exclusion is unverified"
+       ]
+      },
+      {
+       "id": "duplicate-identity",
+       "claim": "The identity and overlap_reason functions are duplicated in eval/correctness.py, leading to potentially different answers for the same question, violating the contract that attempt.py is the single source of truth.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/primary_tree"
+       ],
+       "mechanism": "attempt.py imports _identity and _overlap_reason from daedalus.primary_tree, but a comment states that eval/correctness.py grew a second answer that fails open where this one fails closed. If both are used in different contexts, the same input could yield different outcomes for identity and overlap detection, leading to inconsistent behavior.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If eval/correctness.py does not define its own _identity or _overlap_reason, or if it imports from the same source, then no duplication exists.",
+       "evidence": [
+        "daedalus/spine/attempt.py:comment lines 125-131 claim eval/correctness.py grew a second answer",
+        "daedalus/spine/attempt.py:imports _identity and _overlap_reason from daedalus.primary_tree"
+       ]
+      },
+      {
+       "id": "read-only-erosion",
+       "claim": "The read-only guarantee for the primary checkout is eroded because git verbs beyond READ_ONLY_REPO_VERBS are used somewhere else, or the set is incomplete, allowing write operations.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/primary_tree"
+       ],
+       "mechanism": "attempt.py defines READ_ONLY_REPO_VERBS as a frozenset of read-only git verbs and claims these are the only verbs allowed. However, if other modules (like daedalus.primary_tree) use additional verbs or if the set is not enforced, write operations could occur, breaking the no-write property.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If all git commands in the codebase are verified to use only verbs from READ_ONLY_REPO_VERBS, and the set is proven complete, then erosion does not occur.",
+       "evidence": [
+        "daedalus/spine/attempt.py:READ_ONLY_REPO_VERBS constant defined",
+        "daedalus/spine/attempt.py:comment claims adding a verb here is the single place to check",
+        "daedalus/spine/attempt.py:imports _identity, assert_write_allowed from daedalus.primary_tree, suggesting write checks exist"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4786623e5c5c61785884a08d34bebc5241110e179cfa7d9cfb1e3f555c62c209",
+    "objective_chars": 21541,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 56 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 56,
+  "inputs": 4
+ }
+}

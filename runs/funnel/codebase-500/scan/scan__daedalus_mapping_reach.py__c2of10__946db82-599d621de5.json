@@ -1,0 +1,187 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c2of10__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c2of10__946db82-599d621de5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 10: defines constants and frozen dataclasses EntryPoint, ModuleFacts, ReachReport with docstring claims about ordering, propagation, classification, and determinism.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ENTRY_KINDS docstring | medium | Claims display order and module description order; no code enforces this ordering. | Check if code depends on tuple order.",
+     "_PROPAGATION_ORDER docstring | medium | Claims propagation order differs from entry order; no code uses this constant in this chunk. | Verify usage in later chunks.",
+     "CLASSES docstring | medium | Lists classification strings; no code validates or uses them here. | Check if all strings are used elsewhere.",
+     "ReachReport docstring | high | Claims byte-identical to_dict() across runs; depends on frozen dataclasses, but fields like 'counts' use mutable defaults. | Verify that field(default_factory=dict) ensures determinism; also check that all fields are hashable/ordered.",
+     "index_extra_edges docstring | medium | Claims edges are reported but never merged; no merge logic in this chunk. | Verify merge logic elsewhere.",
+     "broken_entries docstring | medium | Claims dead console scripts are never silently dropped; no validation here. | Check validation code.",
+     "weak_edges docstring | medium | Claims imports exist but are not proof of execution; no handling here. | Check usage in analysis."
+    ],
+    "todos": [
+     "Verify that _PROPAGATION_ORDER is used in later chunks to enforce propagation order.",
+     "Confirm that ReachReport's mutable defaults (dict) are replaced with field(default_factory=...) to ensure determinism.",
+     "Ensure that all classification strings in CLASSES are actually used and documented."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "2 of 10",
+     "purpose": "Define constants and frozen dataclasses for entry points, module facts, and reach report.",
+     "symbols": [
+      {
+       "name": "ENTRY_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings: script, module_main, main_guard, cli, http, bus."
+      },
+      {
+       "name": "_PROPAGATION_ORDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings: cli, http, bus, script, module_main, main_guard."
+      },
+      {
+       "name": "CLASSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings: entry, reachable, unknown, shim, orphan, island, test."
+      },
+      {
+       "name": "_MIN_DISPATCH_BRANCHES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant 3."
+      },
+      {
+       "name": "_LOOP_FUNC_HINTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings: watch, serve, loop, poll, run_forever."
+      },
+      {
+       "name": "EntryPoint",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields kind, name, module, function, targets; property ident; method to_dict."
+      },
+      {
+       "name": "ModuleFacts",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields module, classification, reason, entry, depth, path, imports, imported_by, tested_by, is_shim, has_main_guard, dynamic_imports, evidence; method to_dict."
+      },
+      {
+       "name": "ReachReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields root, schema, entry_points, modules, counts, entry_counts, dynamic_surfaces, unparsable, index_extra_edges, broken_entries, weak_edges; methods by_class, islands, shims."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Display order, and the order in which an entry MODULE is described: a file is best characterised by the thing that makes it runnable at all.",
+       "where": "comment before ENTRY_KINDS",
+       "verdict": "uncheckable",
+       "why": "The comment describes intent for display order, but no display logic is in this chunk."
+      },
+      {
+       "text": "Propagation order, which is NOT the same and must not be collapsed into it. The console-script entry's targets are the whole closure of main(), so it reaches every subcommand's module -- run it first and everything downstream is attributed to script:daedalus, which is true and useless. The per-branch entries are strict refinements of it, so they claim first and the coarse entries only pick up what no branch explains.",
+       "where": "comment before _PROPAGATION_ORDER",
+       "verdict": "uncheckable",
+       "why": "The comment explains propagation order rationale, but no propagation logic is in this chunk."
+      },
+      {
+       "text": "A dispatch chain shorter than this is an ordinary conditional, not a command table. Three keeps if x == \"a\" / elif x == \"b\" / else out of the results.",
+       "where": "comment before _MIN_DISPATCH_BRANCHES",
+       "verdict": "uncheckable",
+       "why": "No dispatch detection code is in this chunk."
+      },
+      {
+       "text": "One way in. targets are the modules this specific entry reaches directly -- for a CLI branch that is what the branch body imports, which is how a lazily-imported subcommand target gets attributed to its subcommand rather than to the CLI module at large.",
+       "where": "EntryPoint docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about attribution of lazily-imported subcommand targets is not verifiable from this chunk alone."
+      },
+      {
+       "text": "Everything derived about one module. path is the SHORTEST route from an entry point, module by module, because \"reached by what\" is the useful answer and a boolean is not.",
+       "where": "ModuleFacts docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about shortest path computation is not verifiable from this chunk alone."
+      },
+      {
+       "text": "Contains no clock reading, no absolute path outside root and no set iteration -- two runs over an unchanged tree produce byte-identical to_dict(). That property is the whole point: it is what makes a diff of this report mean \"the architecture moved\" instead of \"the scanner ran\".",
+       "where": "ReachReport docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about determinism depends on the entire implementation, which is not in this chunk."
+      },
+      {
+       "text": "REPORTED, NEVER MERGED: see the module docstring. Every entry here is two engines disagreeing about the import graph, which is a finding in its own right and is why the gate has a kind for it.",
+       "where": "comment on index_extra_edges",
+       "verdict": "uncheckable",
+       "why": "The claim about disagreement between engines and gate kind is not verifiable from this chunk alone."
+      },
+      {
+       "text": "Declared entry points that cannot actually be taken: a [project.scripts] target whose module or function does not exist. Never silently dropped -- a dead console script is a broken promise in packaging metadata.",
+       "where": "comment on broken_entries",
+       "verdict": "uncheckable",
+       "why": "No validation logic is in this chunk."
+      },
+      {
+       "text": "(module, why) for imports that exist in the source but are not proof that anything runs them.",
+       "where": "comment on weak_edges",
+       "verdict": "uncheckable",
+       "why": "No analysis logic for weak edges is in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Constants defined but not used in this chunk; their purpose is documented but not enforced here.",
+       "where": "ENTRY_KINDS, _PROPAGATION_ORDER, CLASSES, _MIN_DISPATCH_BRANCHES, _LOOP_FUNC_HINTS",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ReachReport uses mutable default factory for dict fields (counts, entry_counts) which is correct for frozen dataclass; however, the docstring claims byte-identical to_dict() which requires all fields to be ordered and hashable. The fields include tuples of dataclasses, which should be fine if those dataclasses are also frozen and have consistent iteration order.",
+       "where": "ReachReport class definition",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "EntryPoint and ModuleFacts have to_dict() methods that convert tuple fields to lists; this may affect determinism if list order is not guaranteed (though tuples are ordered).",
+       "where": "EntryPoint.to_dict, ModuleFacts.to_dict",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c5568475877c0b39e1b53ebec070871f1d50386a6d2c189f03cf189aef464ec",
+    "objective_chars": 5488,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [2/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 2,
+  "total": 10,
+  "first_line": 121
+ }
+}

@@ -1,0 +1,147 @@
+{
+ "task_id": "0-authority-model__cost__a47d84ee736f",
+ "key": "0-authority-model__cost__a47d84ee736f-69f8b54d91",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Table claims 2-4 lack enforcement mechanisms; rule types are unfalsifiable without operational definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "2 | high | Table row 'mechanical veto policy' claims authority to restrict capabilities but provides no mechanism for how this policy is enforced at runtime or build time. | Attempt to define a test that verifies a capability restriction is enforced; if no such test can be written, the claim is unenforceable.",
+     "3 | high | Table row 'derived projection' claims authority to load the plan, report drift, block ordinary mutation but does not specify what 'derived projection' means operationally or how blocking is implemented. | Specify a concrete implementation (e.g., a hook that checks checksums) and test that it blocks mutation when drift is detected.",
+     "4 | medium | Table row 'evidence' claims authority to refute status claims and research priors but provides no mechanism for how evidence is evaluated or what constitutes refutation. | Define a process for evidence adjudication (e.g., automated test suite, review board) and test that a known false claim is refuted.",
+     "5 | medium | Table row 'history/backlog' claims authority to supply evidence and proposals but does not specify how proposals become authoritative or how evidence is weighted. | Define a workflow for ADR acceptance and test that a proposal can be traced to a decision.",
+     "6 | high | Claim 'capability policy cannot broaden the plan' is unfalsifiable because 'broaden' is undefined. | Provide a definition of 'broaden' in terms of set inclusion of allowed actions and test that a capability policy that adds an action is rejected.",
+     "7 | high | Claim 'plan cannot grant a capability' is unfalsifiable because 'grant a capability' is undefined. | Define what it means for the plan to grant a capability (e.g., by specifying a function signature) and test that the plan's text alone does not enable execution.",
+     "8 | medium | Claim 'stricter mechanical policy wins' is unclear because 'stricter' is not defined (e.g., by set inclusion of denied actions). | Formalize 'stricter' as 'denies a superset of actions' and test with two policies where one denies strictly more.",
+     "9 | medium | Claim 'only this plan is authoritative for product meaning and sequencing' is unfalsifiable without a definition of 'product meaning' and a way to detect conflicts. | Define 'product meaning' as the set of invariants and goals, and test that a conflicting statement in another document is overridden.",
+     "10 | medium | Rule type 'INVARIANT: cannot change silently' lacks a definition of 'silently' (e.g., without review, without version control). | Define 'silently' as 'without a version control commit that changes the invariant' and test that a change without commit is flagged.",
+     "11 | medium | Rule type 'GATE: a deterministically testable delivery state' is unfalsifiable without specifying what 'deterministically testable' means (e.g., automated test with no external dependencies). | Define 'deterministically testable' as 'a test that returns the same result every run given fixed inputs' and test that a gate claim can be verified by such a test.",
+     "12 | medium | Rule type 'PRIOR: a falsifiable design hypothesis' is unfalsifiable without specifying what constitutes falsification (e.g., a failed test, a counterexample). | Define 'falsifiable' as 'there exists a test that, if it fails, refutes the hypothesis' and test that a prior claim can be associated with such a test.",
+     "13 | low | Rule type 'STATUS: a revision-bound measurement, never timeless truth' is unfalsifiable without specifying what 'revision-bound' means (e.g., tied to a git commit). | Define 'revision-bound' as 'associated with a specific version control hash' and test that a status claim includes that hash.",
+     "14 | low | Rule type 'BACKLOG: non-authoritative proposed work' is unfalsifiable without specifying what 'non-authoritative' means (e.g., can be ignored without violation). | Define 'non-authoritative' as 'not required for delivery' and test that a backlog item can be deleted without breaking a gate."
+    ],
+    "todos": [
+     "Define operational criteria for each authority claim (e.g., how 'mechanical veto policy' is enforced).",
+     "Define 'broaden', 'grant a capability', 'stricter', 'product meaning' for claims 6-9.",
+     "Define 'silently', 'deterministically testable', 'falsifiable', 'revision-bound', 'non-authoritative' for rule types.",
+     "Add a mechanism for resolving conflicts between plan and capability policies beyond the vague 'stricter wins'."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0.1",
+       "claim": "The master plan is the sole semantic authority for defining goals, invariants, priors, and delivery order.",
+       "verdict": "sound",
+       "why": "This is a self-referential definition of authority; it is internally consistent and defines its scope."
+      },
+      {
+       "id": "0.2",
+       "claim": "`.agentenv/agentenv.json` and `.agentenv/tool-allowances.json` are mechanical veto policies that restrict or deny capabilities.",
+       "verdict": "weak",
+       "why": "The claim asserts authority but provides no mechanism for how the veto is enforced. Without a mechanism, the cost to build and maintain this authority is infinite because it cannot be realized."
+      },
+      {
+       "id": "0.3",
+       "claim": "Root instructions, skills, and hooks are derived projections that load the plan, report drift, and block ordinary mutation.",
+       "verdict": "weak",
+       "why": "The term 'derived projection' is undefined, and the mechanism for blocking mutation is unspecified. Building a system that enforces this claim requires defining what 'drift' means and how blocking is implemented, which is a significant cost."
+      },
+      {
+       "id": "0.4",
+       "claim": "Tests, receipts, and experiments are evidence that refute status claims and research priors.",
+       "verdict": "weak",
+       "why": "The claim assumes that evidence can refute claims, but provides no method for adjudication. Without a process, the cost of maintaining this authority is high because every claim could be disputed."
+      },
+      {
+       "id": "0.5",
+       "claim": "ADRs, TODOs, handoffs, and inventories are history/backlog that supply evidence and proposals.",
+       "verdict": "weak",
+       "why": "The claim is vague about how evidence and proposals are supplied. The cost of implementing this is low if a simple log is kept, but the guarantee of authority is weak without a decision process."
+      },
+      {
+       "id": "0.6",
+       "claim": "A capability policy cannot broaden the plan.",
+       "verdict": "unclear",
+       "why": "'Broaden' is not defined. Without a definition, it is impossible to test or enforce this claim, making it unfalsifiable. The cost of building a system that respects this claim is unknown because the condition is ambiguous."
+      },
+      {
+       "id": "0.7",
+       "claim": "The plan cannot grant a capability.",
+       "verdict": "unclear",
+       "why": "'Grant a capability' is undefined. The plan is text; capabilities are presumably runtime permissions. Without a mapping, this claim is unfalsifiable. The cost of enforcing it is high if it requires a formal proof of non-granting."
+      },
+      {
+       "id": "0.8",
+       "claim": "For effects, the stricter mechanical policy wins.",
+       "verdict": "unclear",
+       "why": "'Stricter' is not defined. It could mean more restrictive, but without a partial order, conflicts are unresolvable. The cost of implementing this is moderate if a lattice of policies is defined, but as written it is ambiguous."
+      },
+      {
+       "id": "0.9",
+       "claim": "For product meaning and sequencing, only this plan is authoritative.",
+       "verdict": "unclear",
+       "why": "'Product meaning' is not defined. Without a definition, this claim cannot be tested. The cost of enforcing it is high if it requires a semantic analysis of all documents."
+      },
+      {
+       "id": "0.10",
+       "claim": "Rule type INVARIANT: cannot change silently.",
+       "verdict": "unclear",
+       "why": "'Silently' is not defined. Does it mean without version control? Without review? Without notification? The cost of building a checker depends on the definition; as written, it is unfalsifiable."
+      },
+      {
+       "id": "0.11",
+       "claim": "Rule type GATE: a deterministically testable delivery state.",
+       "verdict": "unclear",
+       "why": "'Deterministically testable' is not defined. Does it require an automated test with no randomness? The cost of implementing is moderate if a test suite is required, but the claim is unfalsifiable without a definition."
+      },
+      {
+       "id": "0.12",
+       "claim": "Rule type PRIOR: a falsifiable design hypothesis.",
+       "verdict": "unclear",
+       "why": "'Falsifiable' is a philosophical term; without an operational definition (e.g., there exists a test that can fail), the claim is unfalsifiable. The cost of maintaining priors is low if they are just hypotheses, but high if they must be associated with tests."
+      },
+      {
+       "id": "0.13",
+       "claim": "Rule type STATUS: a revision-bound measurement, never timeless truth.",
+       "verdict": "unclear",
+       "why": "'Revision-bound' is not defined. Does it mean tied to a git commit? Without a definition, the claim is unfalsifiable. The cost of implementing is low if every status includes a version hash."
+      },
+      {
+       "id": "0.14",
+       "claim": "Rule type BACKLOG: non-authoritative proposed work.",
+       "verdict": "unclear",
+       "why": "'Non-authoritative' is not defined. Does it mean it can be ignored? Without a definition, the claim is unfalsifiable. The cost is low because backlog items are just records."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "316ccb0e5d48d875f4d6c9cdad7315ac42ca541b05406989415c6114a0a2a28c",
+    "objective_chars": 2016,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "0-authority-model",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,329 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c2of5__946db82",
+ "key": "scan__daedalus_structcore_index.py__c2of5__946db82-7e5ece3b4b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2: _PyNaming class with multi-center view logic, _View namedtuple, _per_file_pass, _compute, and build_index stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "self._ambiguous | medium | Ambiguity names are stored but not deduplicated across views; same dotted name in multiple centers may be overcounted in describe() | Check if _ambiguous is cleared per view or aggregated globally",
+     "_compute | medium | ProcessPoolExecutor fallback catches all exceptions, possibly hiding real errors | Add specific exception handling or logging",
+     "build_index | low | Function signature changed (new params) but no docstring update; callers may break | Verify all call sites"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "2 of 5",
+     "purpose": "Define _View namedtuple, _PyNaming class with multi-center alias resolution, parallel analysis helpers, and build_index entry point.",
+     "symbols": [
+      {
+       "name": "_View",
+       "kind": "class",
+       "effects": [],
+       "note": "Namedtuple with fields: tops, known, rel_by_dotted, canon. Represents a single center's view."
+      },
+      {
+       "name": "_PyNaming",
+       "kind": "class",
+       "effects": [],
+       "note": "Manages dotted-name tables per center. Builds views eagerly in __init__."
+      },
+      {
+       "name": "_PyNaming.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes _owner, _name, _ambiguous, and builds all views."
+      },
+      {
+       "name": "_PyNaming._build",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a _View for a given center key. Handles aliases and disambiguation."
+      },
+      {
+       "name": "_PyNaming.name",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dotted module name for a given relative path."
+      },
+      {
+       "name": "_PyNaming.tables_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the _View for the center that owns the given relative path."
+      },
+      {
+       "name": "_PyNaming.describe",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns ambiguity report with count and sample."
+      },
+      {
+       "name": "_PARALLEL_MIN_FILES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Threshold of 100 files below which parallel execution is not used."
+      },
+      {
+       "name": "_CHUNK_SIZE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Chunk size of 40 files for parallel processing."
+      },
+      {
+       "name": "_worker_count",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns number of workers from env or min(8, cpu_count)."
+      },
+      {
+       "name": "_parallel_min",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns parallel threshold from env or default."
+      },
+      {
+       "name": "_per_file_pass",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Analyzes files with caching and parallel pool. Writes to cache via FileCache.put_many and prune."
+      },
+      {
+       "name": "_compute",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Processes pending files, using ProcessPoolExecutor when beneficial."
+      },
+      {
+       "name": "build_index",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Main entry point; collects files, reads them, and initiates analysis (document/wiki/type flags noted but not implemented in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``canon`` maps an accepted ALTERNATE spelling to the file's single canonical dotted name, so a target resolved via an alias still lands on one identity in ``dep_edges``/``fan_in``.",
+       "where": "line 283-285",
+       "verdict": "kept",
+       "why": "The _View namedtuple has a canon field of type dict[str,str], and _build populates it with alias->canon mappings, ensuring canonicalization."
+      },
+      {
+       "text": "A declared ``center`` means \"this subtree IS the project\", so it is also the PACKAGE ROOT",
+       "where": "line 292-293",
+       "verdict": "uncheckable",
+       "why": "The concept of center and its meaning is stated but not verified in this chunk; it refers to external scope.center_of and scope.center."
+      },
+      {
+       "text": "87% of project_tct's map was isolated for this one reason.",
+       "where": "line 295",
+       "verdict": "uncheckable",
+       "why": "This is a historical claim about a specific project not present in the code."
+      },
+      {
+       "text": "The obvious fix -- strip the prefix and let ``internal_tops`` grow -- is unsafe, and the danger is on the *other* side of the membership test.",
+       "where": "line 298-300",
+       "verdict": "uncheckable",
+       "why": "Discusses a fix not implemented in this chunk; refers to parse.py behavior not shown."
+      },
+      {
+       "text": "``internal_tops`` is the eligibility gate, and two of its three uses in ``parse.py`` (the plain ``import x`` branch, and the fallback) admit a name with NO ``known`` check at all.",
+       "where": "line 300-302",
+       "verdict": "uncheckable",
+       "why": "Refers to parse.py code not present in this chunk."
+      },
+      {
+       "text": "Stripping ``TCT_app/`` globally would inject ``controller``, ``devices``, ``gui``, ``data`` -- generic names that collide with real PyPI and vendored packages -- into a table consulted by every file in the repo.",
+       "where": "line 302-304",
+       "verdict": "uncheckable",
+       "why": "Hypothetical scenario not testable from this chunk; refers to external tables."
+      },
+      {
+       "text": "project_tct carries 8516 shell import records today that are inert only because no shell file's top segment can equal ``TCT_app``; widen the global table and any vendored file writing ``import data`` becomes eligible to bind onto a center file.",
+       "where": "line 304-307",
+       "verdict": "uncheckable",
+       "why": "Claims about external project and hypothetical behavior not verifiable in this chunk."
+      },
+      {
+       "text": "So the table is selected by the importer: a file under center C sees C's files by their PACKAGE-RELATIVE name, and everything else in the repo by its repo-root name; a file under no center sees the repo-root table, unchanged",
+       "where": "line 309-312",
+       "verdict": "kept",
+       "why": "In _build, if key is not None and owner matches key, canon is set to package-relative name; otherwise repo-root form is used. For non-center files (key=None), always repo-root form."
+      },
+      {
+       "text": "Shell eligibility therefore cannot move, and a repo with no center declared gets exactly one view that is identical to the old global one.",
+       "where": "line 314-315",
+       "verdict": "kept",
+       "why": "Views are built for each center plus None. With no center, only key=None view exists, which uses repo-root naming for all files."
+      },
+      {
+       "text": "A view strips only its OWN center, which dissolves the multi-center collision case rather than having to arbitrate it: with ``center=[\"a\",\"b\"]`` both containing ``controller/``, inside a's view ``controller.x`` is a's file and b's is still ``b.controller.x``",
+       "where": "line 317-319",
+       "verdict": "kept",
+       "why": "In _build, if key matches owner, the prefix is stripped (len(c)+1). For files owned by a different center, the full repo-root name is used. So in a's view, a's files are relative, b's files retain prefix."
+      },
+      {
+       "text": "a center file whose stripped name matches a repo-root module (``a/controller/x.py`` vs ``controller/x.py``). That one is a genuine ambiguity and is refused, not guessed -- see ``_disambiguate``.",
+       "where": "line 321-323",
+       "verdict": "uncheckable",
+       "why": "Refers to _disambiguate function not shown in this chunk."
+      },
+      {
+       "text": "Both spellings name the same file, so accepting both is not a guess and costs no precision. What we refuse is two IDENTITIES for one file: the repo-root spelling is registered as an ALIAS in this view's lookup tables, and every resolved target is canonicalised back to the package-relative name before it reaches ``dep_edges``.",
+       "where": "line 328-332",
+       "verdict": "kept",
+       "why": "Aliases are stored in canon dict (alias->canonical). The canonical name is the package-relative one. This ensures one identity per file."
+      },
+      {
+       "text": "The alias lives ONLY in its own center's view, and it is that center's own path prefix, so it cannot widen what a shell file is eligible to bind.",
+       "where": "line 334-335",
+       "verdict": "kept",
+       "why": "Aliases are built only for files owned by this center (stripped==True), and only added if spelling not already in by_name. They are stored in the view's canon dict, which is per-view."
+      },
+      {
+       "text": "An alias also never displaces a real module: if some file genuinely owns that spelling in this view, the alias is dropped.",
+       "where": "line 335-336",
+       "verdict": "kept",
+       "why": "In _build, alias is only added if spelling not in by_name. So if a real module already has that dotted name, the alias is not registered."
+      },
+      {
+       "text": "Longest-prefix wins there.",
+       "where": "line 342",
+       "verdict": "uncheckable",
+       "why": "Refers to scope.center_of method behavior not shown in this chunk."
+      },
+      {
+       "text": "Building views lazily on first use would make ``ambiguous`` depend on which files happened to be visited, so the reported ambiguity set -- and therefore the index -- would vary with walk order. There are at most len(center)+1 views.",
+       "where": "line 352-354",
+       "verdict": "kept",
+       "why": "Views are built eagerly in __init__ via a loop over [None, *sorted(scope.center)]. This ensures deterministic order and complete ambiguity detection."
+      },
+      {
+       "text": "The NAME-level edge stays true and is kept in ``known``: the importer really does depend on that module. Only the FILE-level binding is withheld, because which file it is is exactly what we cannot honestly say.",
+       "where": "line 369-371",
+       "verdict": "kept",
+       "why": "In _build, when disambiguation returns None, the name is still added to known set (line 378: known = set(by_name) | set(canon)). So the name is known, but no file binding is stored in rel_by_dotted."
+      },
+      {
+       "text": "Never silent: a name we refused to bind is a dependency the map is NOT showing, and an unreported one is indistinguishable from a file that genuinely has no dependents.",
+       "where": "line 389-390",
+       "verdict": "kept",
+       "why": "describe() returns ambiguous_count and sample, never empty dict. If no ambiguities, count is 0 but dict is still returned."
+      },
+      {
+       "text": "Windows SPAWNS workers (no fork), so each one re-imports tree-sitter, lizard and the whole package before doing any useful work.",
+       "where": "line 398-400",
+       "verdict": "uncheckable",
+       "why": "Comment about Windows behavior; not verifiable from code."
+      },
+      {
+       "text": "Measured break-even on this 8-core box (cache off, so only the pool varies): 72 files -> 1.01x   141 -> 1.14x   467 -> 1.49x   6799 -> 2.75x i.e. it is already neutral around 70 files, so 100 is a safe floor",
+       "where": "line 401-403",
+       "verdict": "uncheckable",
+       "why": "Performance measurement claim; not verifiable from code."
+      },
+      {
+       "text": "Overridable so tests can force the parallel path on a small fixture -- otherwise the pool would only ever be exercised on huge repos.",
+       "where": "line 412-413",
+       "verdict": "kept",
+       "why": "_parallel_min() reads DAEDALUS_SCAN_MIN_PARALLEL env var and returns it if digit, allowing override."
+      },
+      {
+       "text": "ORDER IS LOAD-BEARING and is the whole reason results are index-tagged: ``all_units`` is consumed positionally by the clone passes, so cluster membership and ordering depend on it. Pool completion order is arbitrary, so every result carries its original index and is written back into a preallocated slot -- never appended in completion order.",
+       "where": "line 421-424",
+       "verdict": "kept",
+       "why": "In _per_file_pass, out is preallocated list of None. Results are placed at original index (i) in pending tuple. In _compute, batch results are placed at out[i] using the index from the pending tuple."
+      },
+      {
+       "text": "Any None here means a worker silently dropped a file -- recompute inline rather than shipping a short/misaligned list to the clone passes.",
+       "where": "line 440-442",
+       "verdict": "kept",
+       "why": "After pool, loop checks out[i] is None and calls analyze_file inline for those entries."
+      },
+      {
+       "text": "No usable pool (sandbox, spawn failure, unpicklable payload): the serial path is always correct, just slower.",
+       "where": "line 463-464",
+       "verdict": "kept",
+       "why": "In _compute, except Exception catches any pool failure and falls back to serial processing."
+      },
+      {
+       "text": "Off unless asked for -- see ``documents_enabled`` above for the measurement that decided that. When off, nothing below this flag executes and the returned dict is byte-identical to the pre-document build.",
+       "where": "line 483-485",
+       "verdict": "uncheckable",
+       "why": "Refers to documents_enabled function not shown; the flag docs_on is set but its effect on dict shape is not implemented in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_PyNaming.__init__ builds views eagerly for all centers plus None, ensuring deterministic ambiguity detection.",
+       "where": "lines 352-356",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Alias registration checks spelling not in by_name, preventing displacement of real modules.",
+       "where": "lines 374-376",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_per_file_pass uses FileCache for read/write; cache is closed in finally block.",
+       "where": "lines 427-438",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_index function signature includes new parameters (center, ignore, documents, types, wiki) but no docstring; their usage is partial.",
+       "where": "lines 473-477",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about 'byte-identical to pre-document build' (line 485) is a strong claim that cannot be verified from this chunk alone.",
+       "where": "line 485",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c253ea9429cc23e1660ee342d35fc1bb4c9f9e53d90319ad50bae52594591e9a",
+    "objective_chars": 13578,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

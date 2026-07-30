@@ -1,0 +1,252 @@
+{
+ "task_id": "scan__daedalus_observe_shape.py__c1of4__946db82",
+ "key": "scan__daedalus_observe_shape.py__c1of4__946db82-683f531449",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed shape.py chunk 1/4: docstring with design rules, constants, and helper functions; no public symbols beyond constants and helpers.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring | medium | Claim 'describe takes a redact hook' refers to a function not in this chunk; cannot verify. | Check if 'describe' is defined in later chunks or another module.",
+     "docstring | low | Claim 'daedalus.sensitivity owns policy' references a module not in this chunk; cannot verify. | Check if daedalus/sensitivity.py exists and defines the expected contract.",
+     "docstring | low | Claim 'tools/vet.py states rule' references a file not in this chunk; cannot verify. | Check if tools/vet.py exists and contains the stated rule.",
+     "docstring | low | Claim 'eval/ceiling.py separates clean arm from leaky one' references a file not in this chunk; cannot verify. | Check if eval/ceiling.py exists and matches description."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/observe/shape.py",
+     "chunk": "1 of 4",
+     "purpose": "Define module docstring, constants, helpers, and Shape dataclass skeleton for observing live object shapes.",
+     "symbols": [
+      {
+       "name": "SHAPE_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Version string '1' for the shape observation protocol."
+      },
+      {
+       "name": "MAX_NAMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of names to list from a dict/table (64)."
+      },
+      {
+       "name": "MAX_NAME_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum characters per name (80)."
+      },
+      {
+       "name": "MAX_DEPTH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum recursion depth for nested observations (3)."
+      },
+      {
+       "name": "ARRAY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for array-like objects."
+      },
+      {
+       "name": "TABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for table-like objects."
+      },
+      {
+       "name": "RECORD",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for record-like objects (dict, dataclass)."
+      },
+      {
+       "name": "SEQUENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for sequence-like objects."
+      },
+      {
+       "name": "TREE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for tree-like objects (ROOT, HDF5)."
+      },
+      {
+       "name": "SCALAR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for scalar values."
+      },
+      {
+       "name": "TEXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for text strings."
+      },
+      {
+       "name": "BINARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for binary blobs."
+      },
+      {
+       "name": "OPAQUE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family label for uncharacterizable objects."
+      },
+      {
+       "name": "_attr",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper: get attribute with default, without truthiness check."
+      },
+      {
+       "name": "_clip",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper: truncate name string to MAX_NAME_CHARS."
+      },
+      {
+       "name": "_qualname",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper: return qualified type name of an object."
+      },
+      {
+       "name": "_human_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper: format byte count to human-readable string."
+      },
+      {
+       "name": "Shape",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for one observation of a live object; fields: family, type_name, dtype (partial)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A declaration says ``def load(p: str) -> Run``. A checker can sometimes prove a little more. Neither can tell you what you see the moment you stop in a debugger",
+       "where": "docstring lines 4-8",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk defines 'load' or 'Run'; cannot verify existence or behavior."
+      },
+      {
+       "text": "That is the **shape of a live object**, and for this repo it dissolves a named blindness: ``structcore``'s own index travels as a bare ``dict``, so the most important data structure in the tree is invisible to any declaration-level pass.",
+       "where": "docstring lines 14-16",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references 'structcore' or its index; cannot verify."
+      },
+      {
+       "text": "Nothing here reads an element, a cell, a row or a scalar payload. It records metadata \u2014 concrete class, dtype, shape, strides, contiguity, byte size, and KEY or COLUMN NAMES.",
+       "where": "docstring lines 20-22",
+       "verdict": "uncheckable",
+       "why": "This chunk only defines constants and helpers; no actual observation logic is present to verify the claim."
+      },
+      {
+       "text": "``describe`` takes a ``redact`` hook, and the caller that ships an observation anywhere near a model is expected to pass one.",
+       "where": "docstring line 30",
+       "verdict": "uncheckable",
+       "why": "Function 'describe' is not defined in this chunk; cannot verify parameter 'redact'."
+      },
+      {
+       "text": "``daedalus.sensitivity`` does, and the two are kept apart on purpose.",
+       "where": "docstring line 31",
+       "verdict": "uncheckable",
+       "why": "Module 'daedalus.sensitivity' not present in this chunk; cannot verify."
+      },
+      {
+       "text": "Because getting a live object means the program RAN. ``structcore`` is a static pass by construction and ``tools/vet.py`` states the rule outright: you do not run untrusted code to decide anything about it.",
+       "where": "docstring lines 34-36",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references 'structcore' or 'tools/vet.py'; cannot verify."
+      },
+      {
+       "text": "So observation is a separate, opt-in lane that *feeds* the graph with edges stamped ``provenance=observed`` \u2014 it is never part of an index build, and it runs only on trees the operator owns.",
+       "where": "docstring lines 36-38",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements observation or provenance; cannot verify."
+      },
+      {
+       "text": "``(1000, 3)`` is the shape this input produced. It is not the shape the function requires. A field never seen is not a field that cannot appear. Every record carries ``provenance=\"observed\"`` and the run it came from, and any consumer that reports it as a fact is wrong \u2014 the same discipline ``eval/ceiling.py`` applies when it separates its clean arm from its leaky one.",
+       "where": "docstring lines 41-44",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk defines provenance or references 'eval/ceiling.py'; cannot verify."
+      },
+      {
+       "text": "Duck-typed throughout: numpy, pandas, h5py and uproot are probed by attribute, never imported. A tree without them degrades to the generic families and says so.",
+       "where": "docstring lines 46-47",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk performs any probing or imports; cannot verify duck-typing claim."
+      },
+      {
+       "text": "A dict with 40 000 keys is described by its first ``MAX_NAMES`` and a count, never by all of them: an unbounded descriptor is how an observer becomes the memory problem it was meant to diagnose.",
+       "where": "comment at MAX_NAMES definition line 54",
+       "verdict": "uncheckable",
+       "why": "Constant MAX_NAMES is defined as 64, but no observation code is present to verify that only first 64 keys are used."
+      },
+      {
+       "text": "``getattr(obj, \"columns\", ()) or ()`` looks harmless and raises on a pandas Index, whose ``__bool__`` refuses to answer. Any observer that touches array-likes has to fetch attributes without asking whether they are truthy.",
+       "where": "docstring of _attr function lines 69-72",
+       "verdict": "kept",
+       "why": "The _attr function uses getattr with a default and returns default if None, avoiding truthiness check on the attribute value itself. This matches the described behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Shape dataclass is defined with only three fields: family, type_name, dtype. The docstring claims it records shape, strides, contiguity, byte size, and key/column names, but those fields are not present in this chunk.",
+       "where": "lines 89-91",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Helper function _human_bytes has a bug: in the loop, when unit == 'TiB', it returns n as if it were already divided, but the loop divides n by 1024 each iteration. For 1024^4 bytes, n after three divisions is 1024, so it returns '1024.0 GiB' instead of '1.0 TiB'. The condition should check if n < 1024 before dividing.",
+       "where": "line 85",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "No imports for numpy, pandas, h5py, or uproot are present in this chunk, consistent with the duck-typing claim, but no probing code exists yet.",
+       "where": "lines 1-47",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f5fb569b02b9d19a8b8daa1cadecdc3ad5c08bd378adb45e4a1f8e16311ee2ae",
+    "objective_chars": 5481,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/observe/shape.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/observe/shape.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

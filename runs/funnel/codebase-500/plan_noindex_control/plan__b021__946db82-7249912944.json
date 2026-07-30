@@ -1,0 +1,131 @@
+{
+ "task_id": "plan__b021__946db82",
+ "key": "plan__b021__946db82-7249912944",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 surviving findings: budget-duplication, byte-identity-claim, error-row-shape-contract, opt-in-flags-unwired. All require investigation before actionable steps.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "budget-duplication: Per-adapter budget checks may be missing for some adapters, causing over-budget prompts.",
+     "byte-identity-claim: Non-deterministic dict ordering or inclusion of empty extras could break byte-identity assumptions.",
+     "error-row-shape-contract: If any eval_task_* or run_* function does not use _task_error_row, downstream aggregators may fail.",
+     "opt-in-flags-unwired: index.py may never read opt-in flags, causing missing document/type data even if consumers expect them."
+    ],
+    "todos": [
+     "Search for 'effective_input_window' and 'budget' across all adapter classes in daedalus/council/vendors.py.",
+     "Write a test that calls ReachReport.to_dict twice with same input and checks byte equality.",
+     "Check if index.py's returned dict includes extra when it is empty.",
+     "Search for all definitions of eval_task_* and run_* functions and verify they call _task_error_row in exception handlers.",
+     "grep -n 'DAEDALUS_INDEX_DOCUMENTS\\|DAEDALUS_INDEX_TYPES\\|documents=True\\|types=True' daedalus/structcore/index.py; grep -rn 'documents\\|types' daedalus/eval/correctness.py"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify all eval_task_* and run_* functions use _task_error_row for error cases",
+       "gate": "0",
+       "why_now": "If any function omits _task_error_row, downstream aggregators may misaggregate or fail, blocking the entire evaluation pipeline.",
+       "steps": [
+        {
+         "do": "Search for all definitions of eval_task_* and run_* functions in the codebase and verify they call _task_error_row in exception handlers.",
+         "file": "UNKNOWN",
+         "verified_by": "List all functions found and confirm each has a try/except that calls _task_error_row. If any do not, file a bug."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions eval_task_* and run_* are defined in some file(s) not provided; need to locate them."
+      },
+      {
+       "rank": 2,
+       "title": "Settle byte-identity claim for ReachReport.to_dict and index.py returned dict",
+       "gate": "0",
+       "why_now": "Non-deterministic byte output could cause false negatives in tests or caching mechanisms that rely on byte equality.",
+       "steps": [
+        {
+         "do": "Write a test that calls ReachReport.to_dict twice with same input and asserts byte equality of the JSON output.",
+         "file": "UNKNOWN",
+         "verified_by": "Test passes consistently across multiple runs."
+        },
+        {
+         "do": "Check if index.py's returned dict includes the 'extra' key when it is empty; if so, the byte stream may differ due to empty dict representation.",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "Inspect the return statement of the index-building function; if empty extras are included, consider omitting them."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "ReachReport.to_dict is defined somewhere; index.py function return is not shown in the provided snippet."
+      },
+      {
+       "rank": 3,
+       "title": "Confirm budget enforcement is centralized or consistent across all adapters",
+       "gate": "0",
+       "why_now": "Per-adapter budget checks may be missing for some adapters, leading to over-budget prompts and inconsistent behavior.",
+       "steps": [
+        {
+         "do": "Search for 'effective_input_window' and 'budget' across all adapter classes in daedalus/council/vendors.py.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "List all adapters and whether they have budget checks; if any lack them, file a bug."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file daedalus/council/vendors.py contains all adapter classes."
+      },
+      {
+       "rank": 4,
+       "title": "Check if index.py reads opt-in flags (documents, types) from env vars or parameters",
+       "gate": "1",
+       "why_now": "If flags are never read, the index will lack document/type data even if consumers expect them, causing missing features.",
+       "steps": [
+        {
+         "do": "grep -n 'DAEDALUS_INDEX_DOCUMENTS\\|DAEDALUS_INDEX_TYPES\\|documents=True\\|types=True' daedalus/structcore/index.py",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "If no matches, the flags are not read; file a bug. If matches, verify they are used to conditionally include document/type data."
+        },
+        {
+         "do": "grep -rn 'documents\\|types' daedalus/eval/correctness.py to see if correctness.py expects those features.",
+         "file": "daedalus/eval/correctness.py",
+         "verified_by": "If no matches, correctness.py likely does not require them."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The index-building function is in index.py and correctness.py is the consumer."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9cc41a51b9533385918514f3338dcce5203f0f22fcb8633c620a0293d7394b35",
+    "objective_chars": 12030,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 21 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 21,
+  "inputs": 4
+ }
+}

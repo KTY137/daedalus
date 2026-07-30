@@ -1,0 +1,150 @@
+{
+ "task_id": "8-ariadne-evolution-loop__omission__a47d84ee736f",
+ "key": "8-ariadne-evolution-loop__omission__a47d84ee736f-e219a4a513",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 8 defines a loop but omits definitions for ExperimentSpec, Forest, Context Capsule, evaluation cascade, receipt, sealed path, and interaction experiment, forcing implementers to guess their semantics.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "8.1 | high | 'ExperimentSpec' is undefined; an implementer cannot know what fields or constraints it carries. | Check whether any part of the document defines ExperimentSpec. If not, the claim is unenforceable.",
+     "8.2 | high | 'Forest' is undefined; its structure, construction rules, and validity criteria are absent. | Check whether Forest is defined elsewhere; if not, implementers must guess.",
+     "8.3 | high | 'formulation', 'parent', 'operator axis', 'model', 'evaluation fidelity' are undefined. The selection step cannot be implemented without knowing permissible values. | Search for definitions of these terms; absence forces arbitrary interpretation.",
+     "8.4 | high | 'Context Capsule' is undefined; its composition and verification rules are missing. | Check document for Context Capsule definition; if absent, step 4 is ambiguous.",
+     "8.5 | medium | 'isolated, capability-bounded trial' lacks definition of isolation and capability bounds. | Determine what constitutes isolation and bounds; without it, reproducibility is compromised.",
+     "8.6 | low | 'content-addressed storage' is a known concept but the document doesn't specify the addressing scheme or storage backend. | Implementer must choose a scheme; risk of incompatibility if multiple implementations differ.",
+     "8.7 | medium | 'revision-aware delta' is undefined; its format and computation method are not described. | Check for delta definition; without it, step 7 is ambiguous.",
+     "8.8 | high | 'evaluation cascade' is undefined; the ordering and conditions for 'cheap validity checks to held-out tests' are unspecified. | Document must define the cascade stages and pass/fail criteria; absence forces guesswork.",
+     "8.9 | medium | 'signed/traceable receipt' requires a signing mechanism and traceability scheme not defined. | Identify what constitutes a receipt and how it is signed; missing details undermine auditability.",
+     "8.10 | medium | 'never auto-promote them' is clear but the mechanism that prevents auto-promotion is not defined; relies on undefined 'sealed owner-controlled path'. | Show that the system enforces no auto-promotion; without defined path, rule is unenforceable.",
+     "8.11 | high | 'sealed owner-controlled path' is undefined; no authentication, authorization, or sealing mechanism is described. | Attempt to promote via any path; if no sealed path exists, promotion is undefined.",
+     "8.12 | medium | 'pre-registered interaction experiment' is undefined; its registration process and justification criteria are missing. | Check for definition of interaction experiment; without it, the exception is unenforceable.",
+     "8.13 | medium | 'do not silently co-evolve' is a rule but no mechanism to detect or prevent silent co-evolution is specified. | Show a campaign where two axes change without registration; without detection, rule is aspirational."
+    ],
+    "todos": [
+     "Define ExperimentSpec, Forest, Context Capsule, evaluation cascade, receipt format, sealed path, and interaction experiment.",
+     "Specify the fields and constraints of ExperimentSpec.",
+     "Define Forest structure and construction rules.",
+     "Define formulation, parent, operator axis, model, and evaluation fidelity with permissible values.",
+     "Define Context Capsule composition and verification.",
+     "Define isolation and capability bounds for trials.",
+     "Specify content-addressed storage scheme.",
+     "Define revision-aware delta format.",
+     "Define evaluation cascade stages and pass/fail criteria.",
+     "Define receipt signing and traceability mechanism.",
+     "Define sealed owner-controlled promotion path with authentication and authorization.",
+     "Define interaction experiment registration and justification process.",
+     "Specify mechanism to detect or prevent silent co-evolution."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "8.1",
+       "claim": "Freeze an ExperimentSpec, budget, tasks, metrics, baselines, and seed policy.",
+       "verdict": "weak",
+       "why": "ExperimentSpec is not defined; an implementer cannot know its structure or what freezing entails. The document omits the definition of a central concept."
+      },
+      {
+       "id": "8.2",
+       "claim": "Build the base Forest for an exact source revision.",
+       "verdict": "weak",
+       "why": "Forest is not defined; its structure, construction rules, and validity criteria are absent. The claim assumes a known entity that is not specified."
+      },
+      {
+       "id": "8.3",
+       "claim": "Select formulation, parent, one operator axis, model, and evaluation fidelity.",
+       "verdict": "weak",
+       "why": "None of these terms (formulation, parent, operator axis, model, evaluation fidelity) are defined. The selection step cannot be implemented without knowing permissible values or semantics."
+      },
+      {
+       "id": "8.4",
+       "claim": "Compile a minimal Context Capsule from verified project evidence.",
+       "verdict": "weak",
+       "why": "Context Capsule is not defined; its composition, minimality criteria, and verification rules are missing. The claim requires a concept that has no specification."
+      },
+      {
+       "id": "8.5",
+       "claim": "Run an isolated, capability-bounded trial.",
+       "verdict": "weak",
+       "why": "Isolation and capability bounds are not defined. An implementer must guess what constitutes isolation and how capabilities are bounded, leading to inconsistent interpretations."
+      },
+      {
+       "id": "8.6",
+       "claim": "Store the candidate source tree in content-addressed storage.",
+       "verdict": "sound",
+       "why": "Content-addressed storage is a well-known concept. While the specific scheme is not detailed, the claim is operational and implementable with standard choices."
+      },
+      {
+       "id": "8.7",
+       "claim": "Build a candidate Forest and revision-aware delta.",
+       "verdict": "weak",
+       "why": "Forest is undefined (see 8.2), and 'revision-aware delta' is not defined. The format and computation of the delta are unspecified, forcing implementers to invent a representation."
+      },
+      {
+       "id": "8.8",
+       "claim": "Run the evaluation cascade from cheap validity checks to held-out tests.",
+       "verdict": "weak",
+       "why": "'Evaluation cascade' is not defined; the ordering, stages, and pass/fail criteria are absent. An implementer cannot know what constitutes the cascade or how to progress through it."
+      },
+      {
+       "id": "8.9",
+       "claim": "Emit a signed/traceable receipt and archive all outcomes.",
+       "verdict": "weak",
+       "why": "The receipt format, signing mechanism, and traceability scheme are not defined. Without these, the claim is aspirational; implementers must guess how to sign and trace."
+      },
+      {
+       "id": "8.10",
+       "claim": "Nominate successful candidates; never auto-promote them.",
+       "verdict": "weak",
+       "why": "The prohibition is clear, but the mechanism that prevents auto-promotion is not defined. The claim relies on an undefined 'sealed owner-controlled path' (see 8.11) to enforce it."
+      },
+      {
+       "id": "8.11",
+       "claim": "Promote only through the sealed owner-controlled path.",
+       "verdict": "weak",
+       "why": "'Sealed owner-controlled path' is not defined. No authentication, authorization, or sealing mechanism is described. An implementer cannot build or identify this path."
+      },
+      {
+       "id": "8.12",
+       "claim": "Campaigns factorize evolution: change one major axis at a time unless a pre-registered interaction experiment justifies more.",
+       "verdict": "weak",
+       "why": "'Pre-registered interaction experiment' is not defined; its registration process, justification criteria, and how it overrides the factorization rule are absent."
+      },
+      {
+       "id": "8.13",
+       "claim": "Code, prompts, operators, evaluators, and orchestration do not silently co-evolve in one campaign.",
+       "verdict": "weak",
+       "why": "The rule prohibits silent co-evolution but provides no mechanism to detect or prevent it. Without monitoring or enforcement, the claim is unenforceable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "eda2a5d703c8c327c0864765825b2e11b718588b991b09b00dda85f107510e8d",
+    "objective_chars": 1979,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "8-ariadne-evolution-loop",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

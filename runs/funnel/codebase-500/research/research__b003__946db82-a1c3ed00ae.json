@@ -1,0 +1,103 @@
+{
+ "task_id": "research__b003__946db82",
+ "key": "research__b003__946db82-a1c3ed00ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two patterns: (1) exception handling in gather/picker swallows errors that embedding identity verification does not catch, risking silent data corruption; (2) the 'never raises' contract in picker conflicts with unhandled exceptions in embeddings, breaking the promise.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Silent data corruption: errors in embedding identity verification are not caught by picker's catch-all, but picker claims never to raise. If verify_index_identity raises (e.g., _backend(host) exception), it propagates out of build_queue, violating the contract and potentially crashing the agent.",
+     "Inconsistent state: picker's map and inventory source blocks ignore existing files when snapshots are provided, while embeddings module's verify_index_identity checks anchor provenance. If snapshot is stale, identity verification might pass but data could be outdated, leading to mismatches later.",
+     "Hung candidates: evolution's evaluate catches exceptions from gather but does not re-raise, leaving candidates in inconsistent state. This interacts with picker's 'never raises' claim: if a candidate evaluation fails, the gather exception is logged but not propagated, potentially leaving the queue in a bad state that picker's contract assumes never happens."
+    ],
+    "todos": [
+     "Add exception handling around _backend(host) in verify_index_identity to prevent unhandled exceptions from propagating into picker's queue.",
+     "Review picker's map/inventory snapshot logic to ensure consistency with live data; consider warning when snapshot is used and file exists.",
+     "In evolution evaluate, consider re-raising exceptions after logging or setting candidate state to failed to avoid inconsistent state.",
+     "Verify that picker's 'never raises' contract is enforced by adding tests that inject exceptions in enrichment and source loading."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unhandled-exception-propagates",
+       "claim": "The 'never raises' contract in picker is violated because embedding's verify_index_identity can raise an unhandled exception (e.g., from _backend(host)), which will propagate out of build_queue.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/memory/embeddings.py"
+       ],
+       "mechanism": "Picker's source blocks catch all exceptions (lines 2314-2315, 2368-2375). However, verify_index_identity (embeddings.py line 900) calls _backend(host) without a try-except. If _backend raises (e.g., connection error), the exception is not caught by picker because picker does not wrap the call to verify_index_identity (it is called elsewhere, likely in build_queue). Thus the exception propagates out of build_queue, breaking the 'never raises' contract.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If verify_index_identity catches all exceptions internally and returns an error status instead, or if picker wraps the call to verify_index_identity in a try-except, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py: comment at line 2301-2302: 'Never raises out of build_queue'",
+        "daedalus/memory/embeddings.py: line 900: 'verify_index_identity calls _backend(host) which may raise, but no try-except around it'"
+       ]
+      },
+      {
+       "id": "stale-snapshot-mismatch",
+       "claim": "Picker's map/inventory source blocks ignore existing files when a snapshot is provided, while embeddings' verify_index_identity checks anchor provenance against the live backend. This can cause inconsistency: the snapshot may be stale, but identity verification passes, leading to silent data corruption.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/memory/embeddings.py"
+       ],
+       "mechanism": "Picker's map source (lines 2296-2298) loads map_state from snapshot and ignores the file if snapshot is provided. Similarly for inventory (line 2374-2376). Meanwhile, verify_index_identity (embeddings.py lines 903-907) checks anchor provenance and returns 'unanchored' if missing, but does not verify that the snapshot data matches the live backend. If the snapshot is stale, the index might be out of sync, but identity verification does not detect this.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If picker's snapshot loading always overwrites the file data (so file is not ignored), or if verify_index_identity compares snapshot content with backend, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py: observation 'Map source: when map_snapshot is provided and map_path exists, the code loads map_state from snapshot and ignores the file'",
+        "daedalus/memory/embeddings.py: observation 'verify_index_identity returns status unanchored when anchor_provenance is missing, but does not check for other provenance values'"
+       ]
+      },
+      {
+       "id": "gather-exception-inconsistent",
+       "claim": "Evolution's evaluate method catches exceptions from asyncio.gather and logs them but does not re-raise, leaving candidates in inconsistent state. This interacts with picker's 'never raises' contract: if a candidate evaluation fails, the gather exception is swallowed, potentially leaving the queue in a bad state that picker's contract assumes never happens.",
+       "spans": [
+        "daedalus/kairos/evolution.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "In evolution.py lines 155-158, exceptions from asyncio.gather are caught and logged, but the gather result may be incomplete (some candidates may have failed). The candidate objects may be left with partial data. Picker's build_queue assumes sources never raise, but if a failed candidate is later processed by picker (e.g., via map or inventory), it could cause unexpected behavior.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If evolution's evaluate sets all candidates to a consistent error state before logging the exception, or if picker's source loading is independent of candidate state, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/evolution.py: observation 'The evaluate method catches exceptions from asyncio.gather and logs them, but does not re-raise; any exception in gather causes the whole evaluation to be logged but candidates may be left in inconsistent state.'",
+        "daedalus/spine/picker.py: comment 'Never raises out of build_queue'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b763c60b9a30ada408366e028ded0fa1a2efb1ff2283aa49fceb433eea878fc6",
+    "objective_chars": 12575,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 3 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 3,
+  "inputs": 5
+ }
+}

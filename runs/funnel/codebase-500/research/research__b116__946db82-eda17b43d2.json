@@ -1,0 +1,121 @@
+{
+ "task_id": "research__b116__946db82",
+ "key": "research__b116__946db82-eda17b43d2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file patterns: (1) unresolved external dependencies across modules, (2) silent error handling that could mask failures, (3) inconsistent assumptions about data ordering and schema versioning, (4) missing configuration or fallback mechanisms.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Unresolved external symbols (_terminal_event, IntentEvent, _py_dotted) could cause runtime NameErrors or incorrect behavior if not defined elsewhere.",
+     "Silent exception catching (intents_for_trace, close) may hide database schema mismatches or corruption, leading to data loss or incorrect query results.",
+     "Assumptions about ordering (nodes sorted by id, edges sorted by (source,target)) are not enforced in visible code; consumers may rely on broken invariants.",
+     "Hardcoded BANNED_FACES list cannot be updated without code changes; may become outdated.",
+     "The __init__ alias in _Resolver._view can cause collisions between pkg/__init__.py and pkg.py, leading to refused resolutions."
+    ],
+    "todos": [
+     "Verify that _terminal_event, IntentEvent, _py_dotted are defined in other chunks/modules.",
+     "Review error handling in intents_for_trace and close to ensure they don't mask real issues.",
+     "Confirm that TypeGraph nodes/edges are actually sorted as documented.",
+     "Consider externalizing BANNED_FACES configuration.",
+     "Address the __init__ alias collision in _Resolver._view."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unresolved-external-symbols",
+       "claim": "Multiple modules reference symbols not defined within their visible chunks, risking runtime failures if those symbols are absent or misaligned.",
+       "spans": [
+        "daedalus/spine/ledger.py",
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "ledger.py's _hydrate calls _terminal_event (unseen), and events returns IntentEvent (unseen). typegraph.py's _dotted calls _py_dotted (unseen). If these are not defined in other parts of the codebase, the code will raise NameError. Even if defined, their contracts may differ from the caller's expectations.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all three symbols are defined in other chunks of the same modules with matching signatures and behavior, the risk is mitigated.",
+       "evidence": [
+        "daedalus/spine/ledger.py:_hydrate",
+        "daedalus/spine/ledger.py:events",
+        "daedalus/structcore/typegraph.py:_Resolver._dotted"
+       ]
+      },
+      {
+       "id": "silent-exception-swallowing",
+       "claim": "Error handling in ledger.py's intents_for_trace and close methods may silently swallow exceptions, leading to undetected failures.",
+       "spans": [
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "intents_for_trace catches sqlite3.OperationalError and returns [] if message contains 'no such column'. This could catch unrelated OperationalError messages (e.g., database locked) and return empty list incorrectly. close catches all sqlite3.Error and does nothing, potentially hiding connection closure failures.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the exception handlers are proven to only catch intended errors (e.g., by message content or exception type filtering) and logging is present elsewhere, the risk is lower.",
+       "evidence": [
+        "daedalus/spine/ledger.py:intents_for_trace exception handler",
+        "daedalus/spine/ledger.py:close"
+       ]
+      },
+      {
+       "id": "ordering-assumptions-unenforced",
+       "claim": "Documented ordering guarantees (nodes sorted by id, edges sorted by (source,target,attributes)) are assumed by consumers but not enforced in visible code, risking incorrect behavior if ordering changes.",
+       "spans": [
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "TypeGraph docstring claims nodes are sorted by id and edges are sorted by (source,target,canonical attributes). However, no sorting code is shown in the chunk; the fields default to empty tuple/None. If the sorting is done elsewhere and not guaranteed, consumers relying on order may get wrong results.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If other chunks of typegraph.py show explicit sorting before assignment to nodes/edges, the claim is supported.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py:TypeGraph.nodes",
+        "daedalus/structcore/typegraph.py:TypeGraph.edges"
+       ]
+      },
+      {
+       "id": "missing-configuration-fallback",
+       "claim": "Hardcoded constants and missing fallback mechanisms in lint.py and typegraph.py reduce flexibility and maintainability.",
+       "spans": [
+        "daedalus/gui/lint.py",
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "lint.py's BANNED_FACES is a hardcoded tuple with no configuration mechanism. typegraph.py's _Resolver._view uses a hardcoded __init__ stripping logic that may cause collisions; no fallback or conflict resolution is provided.",
+       "severity": "low",
+       "confidence": "certain",
+       "refuted_by": "If BANNED_FACES is loaded from a config file in other chunks, or if the __init__ collision is handled elsewhere, the risk is reduced.",
+       "evidence": [
+        "daedalus/gui/lint.py:BANNED_FACES",
+        "daedalus/structcore/typegraph.py:_Resolver._view"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "53501daf5059b0c71b87867e81f2097e9b1d9e65c204a81667e13568b7fa44cc",
+    "objective_chars": 20756,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 116 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 116,
+  "inputs": 4
+ }
+}

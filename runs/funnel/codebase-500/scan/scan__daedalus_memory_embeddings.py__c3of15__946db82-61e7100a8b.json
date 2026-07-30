@@ -1,0 +1,236 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c3of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c3of15__946db82-61e7100a8b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 15: defines data classes (OperationStatus, IngestReport, SearchReport, IndexStatus), exception classes, EmbeddingBackend protocol, OllamaEmbeddingBackend implementation, and _pack_embedding function stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SearchReport.freshness docstring | medium | Claim that freshness defaults to \"unanchored\" is correct, but explanation of semantics is uncheckable. | Verify that JournalPosition callers can raise freshness above \"unanchored\" in actual usage.",
+     "IndexStatus.identity_anchor docstring | medium | Docstring claims \"created\" is laid down when index first written, \"adopted\" retrofitted; these are uncheckable. | Confirm that IndexStatus is set accordingly in index creation/adoption logic.",
+     "IndexStatus.revision_pinned docstring | low | Docstring claims it's False when spec alone cannot distinguish weights; uncheckable. | Verify that revision_pinned is set correctly in practice.",
+     "_pack_embedding function stub | high | Function declared but body not present in this chunk; callers will fail. | Implement _pack_embedding or confirm it exists later.",
+     "OllamaEmbeddingBackend.embed | medium | Uses urllib.request.urlopen with timeout; may hang if timeout is large; no retry logic. | Consider adding retry or connection pooling."
+    ],
+    "todos": [
+     "Implement _pack_embedding function body.",
+     "Add retry logic or connection pooling to OllamaEmbeddingBackend.embed for robustness."
+    ],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "3 of 15",
+     "purpose": "Define data classes, exceptions, embedding protocol, Ollama backend, and partial utility function.",
+     "symbols": [
+      {
+       "name": "source",
+       "kind": "constant",
+       "effects": [],
+       "note": "Variable at module level, type Optional[str] with value None."
+      },
+      {
+       "name": "OperationStatus",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: code, message, available, index_id (optional)."
+      },
+      {
+       "name": "IngestReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: status (OperationStatus), attempted (int), projected (int), spec (optional EmbeddingSpec)."
+      },
+      {
+       "name": "SearchReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: status, matches (list of AgentEvent-float tuples), spec (optional), freshness (str default 'unanchored')."
+      },
+      {
+       "name": "IndexStatus",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: status, spec (optional), projection_count, legacy_unversioned_count, freshness (default 'unanchored'), identity_anchor (default 'missing'), revision_pinned (default True)."
+      },
+      {
+       "name": "EmbeddingError",
+       "kind": "class",
+       "effects": [],
+       "note": "Base exception class inheriting RuntimeError."
+      },
+      {
+       "name": "EmbeddingUnavailableError",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for unreachable embedding service."
+      },
+      {
+       "name": "EmbeddingProtocolError",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for malformed response."
+      },
+      {
+       "name": "EmbeddingBackend",
+       "kind": "class",
+       "effects": [],
+       "note": "Protocol with provider attribute and embed method."
+      },
+      {
+       "name": "OllamaEmbeddingBackend",
+       "kind": "class",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Concrete backend using Ollama /api/embed endpoint."
+      },
+      {
+       "name": "OllamaEmbeddingBackend.embed",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Sends POST request to Ollama and returns embeddings list."
+      },
+      {
+       "name": "_pack_embedding",
+       "kind": "function",
+       "effects": [],
+       "note": "Stub function declared but not implemented (body missing)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``\"fresh\"``, ``\"stale\"``, ``\"forked\"`` or ``\"unanchored\"``.  Defaults to ``\"unanchored\"`` - freshness UNKNOWN, not freshness confirmed.  Only a caller-supplied :class:`JournalPosition` can raise it above that.",
+       "where": "SearchReport.freshness docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes semantics of freshness values and dependency on JournalPosition, which are not defined in this chunk."
+      },
+      {
+       "text": "See :attr:`SearchReport.freshness`.",
+       "where": "IndexStatus.freshness docstring",
+       "verdict": "uncheckable",
+       "why": "Points to SearchReport.freshness for semantics, but that attribute's semantics are themselves uncheckable."
+      },
+      {
+       "text": "``\"missing\"``, ``\"created\"`` (laid down when the index was first written, therefore authoritative) or ``\"adopted\"`` (retrofitted over pre-existing vectors, therefore trust-on-first-use).",
+       "where": "IndexStatus.identity_anchor docstring",
+       "verdict": "uncheckable",
+       "why": "The meanings of 'created' and 'adopted' rely on index creation logic not present in this chunk."
+      },
+      {
+       "text": "False when the declared spec alone cannot distinguish two different sets of weights behind one movable model tag.",
+       "where": "IndexStatus.revision_pinned docstring",
+       "verdict": "uncheckable",
+       "why": "The condition for setting revision_pinned is not defined in this chunk."
+      },
+      {
+       "text": "Return exactly one vector per input text.",
+       "where": "EmbeddingBackend.embed docstring",
+       "verdict": "broken",
+       "why": "The docstring claims exactly one vector per text, but the method signature returns list[list[float]]; the implementation in OllamaEmbeddingBackend returns the raw embeddings list from the API, which should satisfy this, but no validation is done. However, the claim is about the protocol's contract; since the protocol does not enforce this, it's broken at the specification level."
+      },
+      {
+       "text": "Ollama's current batched ``POST /api/embed`` transport.",
+       "where": "OllamaEmbeddingBackend docstring",
+       "verdict": "kept",
+       "why": "The class implements a POST to /api/embed with batched input (list of texts)."
+      },
+      {
+       "text": "If not texts, return [].",
+       "where": "OllamaEmbeddingBackend.embed implementation",
+       "verdict": "kept",
+       "why": "The code explicitly checks `if not texts: return []`."
+      },
+      {
+       "text": "Raise EmbeddingUnavailableError on URLError or OSError.",
+       "where": "OllamaEmbeddingBackend.embed implementation",
+       "verdict": "kept",
+       "why": "The except block catches urllib.error.URLError and OSError and raises EmbeddingUnavailableError."
+      },
+      {
+       "text": "Raise EmbeddingProtocolError on JSON decode errors.",
+       "where": "OllamaEmbeddingBackend.embed implementation",
+       "verdict": "kept",
+       "why": "The except block catches json.JSONDecodeError and UnicodeDecodeError and raises EmbeddingProtocolError."
+      },
+      {
+       "text": "Raise EmbeddingProtocolError if response has no embeddings array.",
+       "where": "OllamaEmbeddingBackend.embed implementation",
+       "verdict": "kept",
+       "why": "The code checks if embeddings is not a list and raises EmbeddingProtocolError."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The variable 'source' at module level is of type Optional[str] with value None; its purpose is unclear.",
+       "where": "line 241",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "SearchReport.freshness docstring claims JournalPosition can raise freshness above 'unanchored', but no JournalPosition class is imported or referenced in this chunk.",
+       "where": "SearchReport docstring",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "IndexStatus.identity_anchor docstring describes 'created' and 'adopted' values, but the code only defines the default 'missing'.",
+       "where": "IndexStatus docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "OllamaEmbeddingBackend.embed uses synchronous urllib.request; no async or connection pooling.",
+       "where": "OllamaEmbeddingBackend.embed",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_pack_embedding function is declared but has no body (just a stub).",
+       "where": "line 356",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "OllamaEmbeddingBackend.embed does not validate that the response contains exactly one embedding per input text.",
+       "where": "OllamaEmbeddingBackend.embed",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3c36c4c15e0d12d7cc792c6bfa4c794ee81088d4681f0d7e3da922c01fc162b8",
+    "objective_chars": 4241,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [3/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 3,
+  "total": 15,
+  "first_line": 241
+ }
+}

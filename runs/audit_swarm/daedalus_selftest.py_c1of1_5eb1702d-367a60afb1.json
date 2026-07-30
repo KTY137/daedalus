@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/selftest.py#c1of1#5eb1702d",
+ "key": "daedalus_selftest.py_c1of1_5eb1702d-367a60afb1",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 8 kept, 4 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"This builds a throwaway repo, runs ONE live scoped write through the full offload cascade, and asserts only model-AGNOSTIC facts (a real byte change on disk, the file still compiles, the verifier accepted, zero Claude tokens).\" | run() | BROKEN | \"zero Claude tokens\" is asserted as check \"zero Claude tokens\" with value `res.get(\"action\") == \"offloaded\"`; this does not verify Claude tokens were not used (e.g., a different model could have been used). Also the check duplicates the \"accepted (offloaded)\" check. Line: `(\"zero Claude tokens\", res.get(\"action\") == \"offloaded\")`.",
+     "CLAIM | \"It cleans up after itself.\" | _remove_selftest_repo | KEPT | The finally block calls _remove_selftest_repo, which returns None on success.",
+     "CLAIM | \"Skips cleanly (not fails) when the bench isn't ready.\" | run() | KEPT | If `check()` returns `can_offload_local` false, returns `{\"ok\": False, \"skipped\": True, ...}`.",
+     "CLAIM | \"NOT `import shutil`. The one recursive delete this module had ... goes through `remove_tree_no_follow`.\" | module-level | KEPT | No `import shutil` in the module; uses `remove_tree_no_follow`.",
+     "CLAIM | \"Returns ``None`` on success, or a one-line report of what stopped it.\" | _remove_selftest_repo docstring | KEPT | Returns None on success, or a string on exception.",
+     "CLAIM | \"This was ``shutil.rmtree(repo, ignore_errors=True)`` in a ``finally:``, and it is the same pattern the security round removed from :mod:`daedalus.spine.attempt` one file over.\" | _remove_selftest_repo docstring | UNCHECKABLE | Cannot verify the history or the existence of daedalus.spine.attempt without that code.",
+     "CLAIM | \"Both halves of it were wrong here for the same reasons they were wrong there: 1. ``ignore_errors=True`` is a SILENT delete failure inside a ``finally:``. ... 2. ``repo`` is a ``%TEMP%/daedalus-selftest-*`` directory that a LIVE MODEL has just written into ... ``shutil.rmtree`` is not safe against a reparse point renamed in mid-walk on Windows ...\" | _remove_selftest_repo docstring | KEPT | The docstring explains why the approach was wrong; the code uses remove_tree_no_follow instead.",
+     "CLAIM | \"The model here is far less adversarial than a candidate patch ... That is a reason the window is narrow, not a reason to leave an unguarded recursive delete in a ``finally:``, because \"the model probably behaved\" is not a property this module can check.\" | _remove_selftest_repo docstring | KEPT | The docstring justifies the secure approach; code aligns.",
+     "CLAIM | \"Run the live round-trip and RETURN the result dict (silent -- the CLI layer prints). Unit tests call this directly without console noise.\" | run() docstring | KEPT | run() returns a dict; no printing inside.",
+     "CLAIM | \"Bound BEFORE the try: the finally below attaches a cleanup report to it, and an exception raised before the assignment would otherwise turn a round-trip failure into a NameError in the cleanup handler -- hiding the real error behind the bookkeeping for it.\" | run() comment | KEPT | `result: dict | None = None` is before the try, and finally checks `isinstance(result, dict)`.",
+     "CLAIM | \"FAIL LOUD, never silently substitute. `doctor` just said the local bench was ready and every other lane was forced off above, so a decision that still isn't \"ollama\" means either the bench went down in the gap between that check and this call, or the router did not honor the forced availability (a router bug) -- either way the LOCAL write round-trip this command exists to prove was NOT exercised. Returning here instead of falling into the checks list below matters: an unrelated entry (\"mode is write\") would go red for a reason that does not name the real problem, and the old lenient \"routed to a free lane\" check (the historic bug this replaces) would have let this pass outright.\" | run() comment | KEPT | Code checks `res.get(\"provider\") != \"ollama\"` and returns early with `routing_failed: True`.",
+     "CLAIM | \"zero Claude tokens\" | checks list | BROKEN | The check `(\"zero Claude tokens\", res.get(\"action\") == \"offloaded\")` is identical to the check `(\"accepted (offloaded)\", ...)` and does not verify that no Claude tokens were used. Line: `(\"zero Claude tokens\", res.get(\"action\") == \"offloaded\")`.",
+     "CLAIM | \"Reported, never swallowed: a delete this module could not complete is a finding about the box, and a selftest that hides one is lying about the thing it exists to check.\" | run() finally comment | KEPT | Code sets `result[\"cleanup_error\"]` only if `cleanup_error` is truthy and `result` is a dict.",
+     "D: none"
+    ],
+    "todos": [
+     "Change the \"zero Claude tokens\" check to actually verify that no Claude tokens were used, e.g., by checking `res.get(\"provider\") != \"claude\"` or similar, or remove the check if it cannot be verified.",
+     "Remove the duplicate check \"zero Claude tokens\" which is identical to \"accepted (offloaded)\"."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e00d1490bd5df702c262b3c46c17c16661a8d684845febf51795b1c735773673",
+    "objective_chars": 13616,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 4 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Returns ``None`` on success, or a one-line report of what stopped it.\" | _remove_selftest_repo | KEPT | returns None on success, string on exception",
+     "CLAIM | \"zero Claude tokens\" | run | BROKEN | checks[7] duplicates checks[2] condition; 'zero Claude tokens' is not actually verified by any check",
+     "CLAIM | \"the local lane forced ... but routing produced provider=... action=...\" | run | KEPT | routing_failed path correctly returns early",
+     "CLAIM | \"FAIL LOUD, never silently substitute\" | run | KEPT | routing_failed path returns early with explicit failure",
+     "CLAIM | \"Unit tests call this directly without console noise\" | run | UNCHECKABLE | no unit tests shown; would need to see test code",
+     "CLAIM | \"the finally below attaches a cleanup report to it\" | run | KEPT | finally block adds cleanup_error to result dict",
+     "D1 | _POLICY | module constant | WRONG CONCLUSION: defined but never read in this unit"
+    ],
+    "todos": [
+     "Fix check for 'zero Claude tokens' to actually verify Claude token usage, or remove the claim"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e00d1490bd5df702c262b3c46c17c16661a8d684845febf51795b1c735773673",
+    "objective_chars": 13616,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 5 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Returns ``None`` on success\" | _remove_selftest_repo | KEPT | returns None on success",
+     "CLAIM | \"or a one-line report of what stopped it\" | _remove_selftest_repo | KEPT | returns string on exception",
+     "CLAIM | \"Skips cleanly (not fails) when the bench isn't ready.\" | run | KEPT | returns with skipped=True when check() returns no local bench",
+     "CLAIM | \"zero Claude tokens\" | run checks list | BROKEN | line 145-146: check is 'result still compiles' but second entry is 'zero Claude tokens' which is redundant and checks res.get('action') == 'offloaded', not token count; also action 'offloaded' does not guarantee zero Claude tokens",
+     "CLAIM | \"FAIL LOUD, never silently substitute.\" | run | KEPT | returns with routing_failed=True when provider is not ollama",
+     "CLAIM | \"Does not assume 'checks'/'wrote' exist\" | _emit | KEPT | checks for routing_failed key before accessing checks/wrote",
+     "CLAIM | \"the finally below attaches a cleanup report to it\" | run | UNCHECKABLE | would need to see that result dict is modified in finally block; code shows modification but depends on result being dict and cleanup_error being truthy",
+     "CLAIM | \"an exception raised before the assignment would otherwise turn a round-trip failure into a NameError\" | run | KEPT | result is bound before try to avoid NameError in finally",
+     "D1 | _OBJECTIVE | module-level constant defined and never read in this unit? Actually read on line 121: offload(_OBJECTIVE, ...) | no mechanical hit",
+     "D2 | _remove_selftest_repo | except Exception swallows and continues; docstring says fail-closed? Actually docstring says 'reported, not raised' and function returns string, not raises; no contradiction with prose. | no mechanical hit",
+     "D3 | _remove_selftest_repo | comment says 'GUARDED walker' but check is after delete? Actually the guard is in remove_tree_no_follow, not in this function. | no mechanical hit",
+     "D4 | run | checks list includes 'zero Claude tokens' which checks action=='offloaded' but that condition is already checked in 'accepted (offloaded)' above; condition is redundant but not impossible. | no mechanical hit"
+    ],
+    "todos": [
+     "Remove duplicate check 'zero Claude tokens' or replace with actual token counting logic"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e00d1490bd5df702c262b3c46c17c16661a8d684845febf51795b1c735773673",
+    "objective_chars": 13616,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/selftest.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 11175
+ }
+}

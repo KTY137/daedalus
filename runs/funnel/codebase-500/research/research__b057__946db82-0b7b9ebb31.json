@@ -1,0 +1,139 @@
+{
+ "task_id": "research__b057__946db82",
+ "key": "research__b057__946db82-0b7b9ebb31",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two systemic patterns: (1) git worktree detection is inconsistent across modules, (2) shell injection risk via AntigravityAdapter's remote SSH execution is unmitigated by any other module. Both patterns share assumptions about trust boundaries and execution environments that are not uniformly enforced.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Shell injection via AntigravityAdapter's remote SSH execution; prompt passed on stdin is not sanitized, and no other module validates or escapes the prompt before it reaches the remote shell.",
+     "Git worktree detection inconsistency: _read_gitdir_pointer returns Path for directories instead of None, while other modules assume None for non-worktree .git directories, potentially causing misidentification of worktree type.",
+     "Denial of service via unserialisable metadata: _jsonable degrades unsupported types to repr, but this may produce large or recursive strings that could impact downstream processing.",
+     "Fence computation relies on fenced_fragment function not defined in graph.py; missing definition could cause runtime errors or incorrect reachability calculations."
+    ],
+    "todos": [
+     "Verify fenced_fragment definition location and ensure it is imported correctly in graph.py.",
+     "Audit all callers of _read_gitdir_pointer to confirm they handle Path vs None correctly.",
+     "Add input sanitization for prompts passed to AntigravityAdapter to prevent shell injection.",
+     "Implement a cross-module review of git worktree detection to ensure consistent behavior.",
+     "Review _jsonable's handling of large repr strings and consider adding length limits."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "git-worktree-inconsistency",
+       "claim": "Multiple modules make different assumptions about the return value of .git file reading for worktree detection, leading to inconsistent identification of linked worktrees vs. regular clones.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/mapping/drift.py"
+       ],
+       "mechanism": "In daedalus/spine/attempt.py, _read_gitdir_pointer returns Path if .git is a directory (regular clone) and None only if it is a file with 'gitdir:' pointer. In daedalus/mapping/drift.py, repo_state's docstring claims 'dirty is probed only when there is a .git to probe', but the code does not check for .git existence; it relies on head != 'unknown' and probe_dirty flag. The docstring also incorrectly states that None means 'could not tell', but code may attempt subprocess even without .git. This inconsistency could cause a linked worktree to be treated as a regular clone, or vice versa, affecting snapshot freshness and inventory decisions.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a scan of repo_state in drift.py is found to explicitly check for .git existence before probing dirty (e.g., using os.path.isdir('.git')), or if _read_gitdir_pointer is not used by any consumer that depends on None vs Path distinction.",
+       "evidence": [
+        "daedalus/spine/attempt.py:_read_gitdir_pointer (returns Path for directory .git)",
+        "daedalus/mapping/drift.py:repo_state docstring (claims dirty probed only when .git exists, but code doesn't enforce)",
+        "daedalus/mapping/drift.py:snapshot_freshness (fails open when git cannot answer, relies on render_mod._head returning 'unknown')"
+       ]
+      },
+      {
+       "id": "remote-shell-injection",
+       "claim": "AntigravityAdapter's SSH execution passes unsanitized prompt on stdin to a remote shell, and no other module in the codebase validates or escapes the prompt before it reaches the adapter, creating a systemic shell injection vulnerability.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/mapping/drift.py",
+        "daedalus/structcore/graph.py"
+       ],
+       "mechanism": "In daedalus/council/vendors.py, AntigravityAdapter._dispatch passes the prompt as stdin_text to the runner, which sends it over SSH. The remote shell re-parses the concatenated string, allowing shell metacharacters in the prompt to execute arbitrary commands. No other module (drift.py, graph.py) sanitizes or validates the prompt before it reaches the adapter. The docstring explicitly warns about this but no mitigation is implemented.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If any module is found to sanitize or escape the prompt before passing it to AntigravityAdapter, or if the runner is found to use a mechanism that prevents remote shell interpretation (e.g., encoding or using a non-shell remote command).",
+       "evidence": [
+        "daedalus/council/vendors.py:AntigravityAdapter._dispatch (passes prompt as stdin_text without sanitization)",
+        "daedalus/council/vendors.py:AntigravityAdapter.argv (constructs ssh command with -p - for stdin)",
+        "daedalus/council/vendors.py:AntigravityAdapter docstring (warns about shell injection but does not fix it)"
+       ]
+      },
+      {
+       "id": "missing-fenced-fragment",
+       "claim": "The reachability calculation in graph.py depends on a function fenced_fragment that is not defined in the module, and its definition may be missing or incorrectly imported, potentially causing runtime errors or incorrect fence computations.",
+       "spans": [
+        "daedalus/structcore/graph.py"
+       ],
+       "mechanism": "In daedalus/structcore/graph.py, the code references fenced_fragment (line 383) to determine if a node is fenced. However, the function is not defined in this chunk, and no import statement is visible. If fenced_fragment is not available at runtime, the BFS will fail, leading to incorrect reachability fractions and potentially disabling the fence guard (since empty candidates returns 0.0).",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If fenced_fragment is defined in another chunk of graph.py or imported from another module that is present in the complete codebase, and the import is correct.",
+       "evidence": [
+        "daedalus/structcore/graph.py:line 383 (references fenced_fragment)",
+        "daedalus/structcore/graph.py:line 361-374 (docstring describes denominator choice but not fenced_fragment)"
+       ]
+      },
+      {
+       "id": "snapshot-freshness-fails-open",
+       "claim": "snapshot_freshness fails open when git cannot report HEAD, but this may mask staleness in scenarios where .git is missing or corrupted, potentially leading to use of stale snapshots.",
+       "spans": [
+        "daedalus/mapping/drift.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "In drift.py, snapshot_freshness returns fresh=True with reason 'git could not report HEAD; freshness unknown, failing open' when actual_head is None or 'unknown'. This is a deliberate design choice documented in the docstring. However, in attempt.py, _read_gitdir_pointer returns Path for directory .git (regular clone) and None only for linked worktrees. If a regular clone's .git directory is missing or corrupted, snapshot_freshness will still fail open, potentially accepting a stale snapshot. The combination of these behaviors could allow stale snapshots to be used in decision-making.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If there is a mechanism elsewhere (e.g., in the caller of snapshot_freshness) that validates the snapshot's timestamp or digest before use, or if the 'failing open' is only used in contexts where staleness is not critical.",
+       "evidence": [
+        "daedalus/mapping/drift.py:snapshot_freshness (returns fresh=True when git cannot report HEAD)",
+        "daedalus/spine/attempt.py:_read_gitdir_pointer (returns Path for directory .git, not None)"
+       ]
+      },
+      {
+       "id": "unserialisable-metadata-degradation",
+       "claim": "The degradation of unserialisable metadata to repr in _jsonable may produce large or infinite strings that could cause memory issues or downstream processing failures, and this risk is not mitigated by any other module.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "In attempt.py, _jsonable converts unsupported types to repr(value). If a caller passes a deeply nested or recursive object, repr could produce a very large string. This string is then written to the ledger. No other module (e.g., vendors.py) validates or truncates the metadata before it reaches _jsonable. This could lead to memory exhaustion or ledger corruption.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If there is a size limit or recursion guard in _jsonable (not visible in this chunk), or if all callers ensure metadata is small and non-recursive before calling _jsonable.",
+       "evidence": [
+        "daedalus/spine/attempt.py:_jsonable (returns repr for unsupported types)",
+        "daedalus/council/vendors.py:AntigravityAdapter._dispatch (may pass metadata without size checks)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "836419ac12504672158351232c72944363c1cb01aef09dbbbc73642d57319051",
+    "objective_chars": 23665,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 57 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 57,
+  "inputs": 4
+ }
+}

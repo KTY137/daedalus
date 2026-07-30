@@ -1,0 +1,285 @@
+{
+ "task_id": "scan__daedalus_wiki_vault.py__c1of2__946db82",
+ "key": "scan__daedalus_wiki_vault.py__c1of2__946db82-af709e0985",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of vault.py: vault_rel validator, parse_frontmatter, read_page, discover_pages (partial). All claims in docstrings and comments are checked against visible code; several are uncheckable due to missing code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "vault_rel | high | Symlink check walks the chain but does not handle symlink in vault_root itself. | Add symlink check for vault_root.resolve() chain.",
+     "vault_rel | medium | '..' segment check occurs before normalisation, but the docstring says it's to prevent 'a/../../b' normalising. However, the check rejects any '..' segment, so the stated reason is partially correct but the example is moot. | Clarify docstring or add normalisation test.",
+     "discover_pages | medium | The function is incomplete (ends mid-definition). Its behaviour cannot be verified. | Complete the function.",
+     "read_page | low | Path resolution uses vault_rel which does symlink check, but the docstring says 'never follows a symlink' which is accurate for the check. | No action needed."
+    ],
+    "todos": [
+     "Complete discover_pages implementation.",
+     "Consider adding a check for symlink in vault_root itself."
+    ],
+    "handoff": {
+     "module": "daedalus/wiki/vault.py",
+     "chunk": "1 of 2",
+     "purpose": "Defines vault and page data structures, vault_rel path validator, frontmatter parser, page reader, and partial page discovery.",
+     "symbols": [
+      {
+       "name": "VAULT_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant '1'."
+      },
+      {
+       "name": "PAGE_SUFFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "String '.md'."
+      },
+      {
+       "name": "MAX_PAGES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 5000."
+      },
+      {
+       "name": "MAX_PAGE_BYTES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 2*1024*1024."
+      },
+      {
+       "name": "_RESERVED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of Windows reserved device names."
+      },
+      {
+       "name": "RESERVED_TOP_LEVEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset containing 'vault'."
+      },
+      {
+       "name": "VaultPathError",
+       "kind": "class",
+       "effects": [],
+       "note": "Subclass of ValueError, carries a reason string."
+      },
+      {
+       "name": "vault_rel",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Resolves a vault-relative path, returns (path, '') on success or (None, reason) on refusal."
+      },
+      {
+       "name": "Vault",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with name, root, kind. Has to_dict method."
+      },
+      {
+       "name": "Page",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with rel, title, vault, frontmatter, body, body_sha256, page_type, status, updated. Has to_dict method."
+      },
+      {
+       "name": "parse_frontmatter",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses YAML-ish frontmatter, returns (dict, body string)."
+      },
+      {
+       "name": "_title_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns title from frontmatter, first H1, or filename stem."
+      },
+      {
+       "name": "read_page",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads a page, returns (Page, '') or (None, reason)."
+      },
+      {
+       "name": "discover_pages",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Partial implementation; returns (list of Page, list of refusal dicts)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A folder of plain Markdown files. Deliberately Obsidian vault format",
+       "where": "docstring line 4-5",
+       "verdict": "uncheckable",
+       "why": "The code does not enforce any Obsidian-specific structure beyond .md files and wikilinks are not mentioned in code."
+      },
+      {
+       "text": "Vaults NEST: a global vault the operator owns, and one vault per project.",
+       "where": "docstring line 11-12",
+       "verdict": "uncheckable",
+       "why": "No code implements nesting or distinguishes global vs project vaults beyond the Vault dataclass kind field."
+      },
+      {
+       "text": "Every existing path parameter in web_api.py is an ID matched against ^[A-Za-z0-9._-]{1,160}$ \u2014 / is forbidden, so traversal is impossible by construction.",
+       "where": "docstring line 18-20",
+       "verdict": "uncheckable",
+       "why": "web_api.py is not in this chunk."
+      },
+      {
+       "text": "A wiki page rel MUST contain /.",
+       "where": "docstring line 20",
+       "verdict": "broken",
+       "why": "vault_rel does not require a '/' in rel; a single segment like 'note.md' is accepted."
+      },
+      {
+       "text": "vault_rel is that guard, written before any endpoint exists so the endpoint cannot be written without it.",
+       "where": "docstring line 23-24",
+       "verdict": "uncheckable",
+       "why": "No endpoint code is present; claim about order of writing is uncheckable."
+      },
+      {
+       "text": "It is FAIL-CLOSED: every rejection returns None with a reason, and there is no 'best effort' path that resolves a suspicious spelling into something plausible.",
+       "where": "docstring line 25-26",
+       "verdict": "kept",
+       "why": "vault_rel returns (None, reason) for all refusal cases; no fallback resolution."
+      },
+      {
+       "text": "absolute paths and drive letters -> escapes the vault outright",
+       "where": "docstring line 28",
+       "verdict": "kept",
+       "why": "vault_rel rejects paths starting with '/' or a drive letter pattern."
+      },
+      {
+       "text": "any .. segment BEFORE resolution -> classic traversal; checked pre-resolve because a/../../b normalises to something innocent-looking",
+       "where": "docstring line 29-31",
+       "verdict": "kept",
+       "why": "vault_rel rejects any segment equal to '..' before any normalisation."
+      },
+      {
+       "text": "a resolved path outside the vault -> the backstop, checked after resolve",
+       "where": "docstring line 32",
+       "verdict": "kept",
+       "why": "vault_rel checks resolved.relative_to(root_res) and returns reason if ValueError."
+      },
+      {
+       "text": "symlinks anywhere on the chain -> a link inside the vault can point out",
+       "where": "docstring line 33-34",
+       "verdict": "kept",
+       "why": "vault_rel iterates over parts and checks is_symlink() on each intermediate path."
+      },
+      {
+       "text": ": in a segment -> NTFS alternate data streams (page.md:$DATA writes a hidden fork)",
+       "where": "docstring line 35-36",
+       "verdict": "kept",
+       "why": "vault_rel rejects any segment containing ':'."
+      },
+      {
+       "text": "Windows reserved device names -> CON, NUL, COM1 \u2026 open a device, not a file",
+       "where": "docstring line 37-38",
+       "verdict": "kept",
+       "why": "vault_rel checks stem (before extension) against _RESERVED set."
+      },
+      {
+       "text": "trailing dots or spaces -> Windows silently strips them, so x.md. and x.md are the same file under a different name",
+       "where": "docstring line 39-40",
+       "verdict": "kept",
+       "why": "vault_rel checks seg != seg.rstrip('. ') and rejects if trailing dot or space."
+      },
+      {
+       "text": "a suffix other than .md -> a vault holds prose, not executables",
+       "where": "docstring line 41",
+       "verdict": "kept",
+       "why": "vault_rel checks suffix.lower() != PAGE_SUFFIX (which is '.md')."
+      },
+      {
+       "text": "This module is READ-ONLY. It discovers, parses and validates; it never writes.",
+       "where": "docstring line 43-44",
+       "verdict": "kept",
+       "why": "No write operations (e.g., open for write, write_bytes) are present in this chunk."
+      },
+      {
+       "text": "The write path needs its own gate list plus a Cerberus review, and it does not exist.",
+       "where": "docstring line 44-45",
+       "verdict": "uncheckable",
+       "why": "No write path code is present; claim about non-existence is uncheckable but consistent."
+      },
+      {
+       "text": "Bounded; never follows a symlink.",
+       "where": "read_page docstring",
+       "verdict": "kept",
+       "why": "read_page calls vault_rel which checks symlinks; size bounded by stat check."
+      },
+      {
+       "text": "Refusals are RETURNED, not skipped \u2014 'we could not read four pages' and 'there are no pages' must not look alike.",
+       "where": "discover_pages docstring",
+       "verdict": "uncheckable",
+       "why": "The function is incomplete; the claim about returning refusals cannot be fully verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "vault_rel does not check for symlink in vault_root itself; only checks parts after root.",
+       "where": "vault_rel function, symlink loop",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "A wiki page rel MUST contain '/' claim is false; single segment paths are accepted.",
+       "where": "docstring line 20",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "discover_pages function is incomplete; ends mid-definition.",
+       "where": "line ending after 'if not vault.root.is_dir():'",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring mentions 'Cerberus review' but no Cerberus usage is visible.",
+       "where": "docstring line 44",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4e81119657da225d3c15bd0c83f721583ef57ebdfa62d0eafddcdda5012020c7",
+    "objective_chars": 11571,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/vault.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/vault.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

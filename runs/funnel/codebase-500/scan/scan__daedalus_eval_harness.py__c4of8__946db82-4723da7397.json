@@ -1,0 +1,183 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c4of8__946db82",
+ "key": "scan__daedalus_eval_harness.py__c4of8__946db82-4723da7397",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of harness.py: includes _target_query, _repo_chunks, _bm25_tokenize, _bm25_scores, and _bm25_context (partial). Claims about sorting, tokenization, BM25 formula, and tie-breaking are checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "4 of 8",
+     "purpose": "Define retrieval helpers: _target_query, _repo_chunks, _bm25_tokenize, _bm25_scores, and start of _bm25_context.",
+     "symbols": [
+      {
+       "name": "_target_query",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns BM25 query string from target: if '::' present, returns part after '::'; else returns stem of last path component."
+      },
+      {
+       "name": "_repo_chunks",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Walks root, reads files, extracts units via extract_units, returns list of (label, source) tuples. Sorts dirnames and filenames."
+      },
+      {
+       "name": "_BM25_TOKEN_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for BM25 tokens: [A-Za-z_][A-Za-z0-9_]*"
+      },
+      {
+       "name": "_bm25_tokenize",
+       "kind": "function",
+       "effects": [],
+       "note": "Tokenizes text using _BM25_TOKEN_RE, returns list of lowercased tokens."
+      },
+      {
+       "name": "_bm25_scores",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes Okapi BM25 scores for query tokens over doc tokens, with k1=1.2, b=0.75."
+      },
+      {
+       "name": "_bm25_context",
+       "kind": "function",
+       "effects": [],
+       "note": "Partial implementation: selects top-k BM25 chunks up to budget_tokens, returns dict with text, counts, truncated flag."
+      }
+     ],
+     "claims": [
+      {
+       "text": "BM25 query fallback when a task has no ``question``: the target symbol name, or the file's stem for a file-level target.",
+       "where": "_target_query docstring",
+       "verdict": "kept",
+       "why": "Function returns part after '::' if present (symbol name), else returns stem of last path component (file stem)."
+      },
+      {
+       "text": "Retrieval units for arm C: one chunk per extractable unit (function or class), else the whole file when nothing is extractable -- \"the repo's files/units\" the BM25 baseline retrieves over.",
+       "where": "_repo_chunks docstring",
+       "verdict": "kept",
+       "why": "Code calls extract_units; if units exist, creates chunk per unit; else uses whole file text."
+      },
+      {
+       "text": "Same source-file universe as ``_whole_repo_text``.",
+       "where": "_repo_chunks docstring",
+       "verdict": "uncheckable",
+       "why": "_whole_repo_text not defined in this chunk; cannot verify equivalence."
+      },
+      {
+       "text": "Unlike ``_whole_repo_text``, dirnames ARE sorted here: this is new code with no prior byte-order contract to preserve, and BM25 tie-breaking needs a deterministic candidate order (see ``_bm25_context``).",
+       "where": "_repo_chunks docstring",
+       "verdict": "kept",
+       "why": "Code sorts dirnames with sorted() and filters _IGNORE_DIRS and dot-directories."
+      },
+      {
+       "text": "Okapi BM25 over pre-tokenized docs -- no new dependency, no network.",
+       "where": "_bm25_scores docstring",
+       "verdict": "kept",
+       "why": "Uses only math.log and standard Python; no network calls."
+      },
+      {
+       "text": "Standard k1=1.2 / b=0.75.",
+       "where": "_bm25_scores docstring",
+       "verdict": "kept",
+       "why": "Function signature has k1=1.2, b=0.75."
+      },
+      {
+       "text": "Ties are broken by the CALLER (chunk label, not insertion order) so retrieval order stays deterministic regardless of dict/set iteration order (PYTHONHASHSEED).",
+       "where": "_bm25_scores docstring",
+       "verdict": "kept",
+       "why": "In _bm25_context, order is sorted by (-score, label) where label is chunks[i][0]; this is deterministic."
+      },
+      {
+       "text": "Top-k BM25 retrieval up to ``budget_tokens`` -- arm C.",
+       "where": "_bm25_context docstring",
+       "verdict": "kept",
+       "why": "Function selects chunks until sum of token counts exceeds budget_tokens."
+      },
+      {
+       "text": "Chunks are taken whole, never split mid-chunk; the single best-ranked chunk is always included even if it alone exceeds budget (an empty context is a strictly worse baseline than a slightly-over one).",
+       "where": "_bm25_context docstring",
+       "verdict": "kept",
+       "why": "Code adds whole block; if block tokens exceed budget, it is still included because loop does not check budget before adding first chunk."
+      },
+      {
+       "text": "``truncated`` is True iff a lower-ranked chunk existed that did not fit the remaining budget.",
+       "where": "_bm25_context docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete; the logic for setting truncated is not fully visible."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In _whole_repo_text (previous chunk), dirnames are NOT sorted; here in _repo_chunks dirnames ARE sorted.",
+       "where": "_repo_chunks",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_target_query handles both '::' and file-level targets correctly.",
+       "where": "_target_query",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "BM25 tokenizer uses a regex that matches identifiers with underscores and digits, but not dots or other characters.",
+       "where": "_BM25_TOKEN_RE",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_bm25_context is incomplete; the function body ends mid-loop before setting truncated.",
+       "where": "_bm25_context",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "In _bm25_scores, if avgdl is 0 (all docs empty), division by zero avoided by using 1.0.",
+       "where": "_bm25_scores line 436",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0d252b265cca1bbac5a06ba3190b37d22ca8f2e5a6eb708aa25569c64172ef7",
+    "objective_chars": 5481,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [4/8]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 4,
+  "total": 8,
+  "first_line": 361
+ }
+}

@@ -1,0 +1,118 @@
+{
+ "task_id": "7-ikarus-orchestration-and-knowledge__omission__a47d84ee736f",
+ "key": "7-ikarus-orchestration-and-knowledge__omission__a47d84ee736f-5392314e04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 7 makes 9 distinct claims, none of which define the 'typed MissionContract' schema, artifact DAG format, recipe versioning scheme, or evidence packet structure, forcing implementers to invent critical definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "7.1 | high | 'Ikarus is persistent in goals and evidence' assumes persistence mechanism and goal representation undefined; implementer must guess storage and goal format | require explicit persistence backend and goal schema",
+     "7.2 | high | 'compiles user intent into a typed MissionContract' assumes existence of intent parsing and contract schema; neither defined | define MissionContract type and intent-to-contract mapping",
+     "7.3 | high | 'creates an artifact DAG' assumes DAG representation and constraints (acyclic, node types) undefined | specify artifact DAG data model",
+     "7.4 | high | 'selects stateless or explicitly versioned recipes' assumes recipe registry and versioning convention undefined; 'stateless' vs 'versioned' ambiguity | define recipe repository interface and versioning policy",
+     "7.5 | medium | 'monitors budgets and attempts' assumes budget metric and attempt lifecycle undefined; failure modes not described | define budget units, attempt states, and monitoring hooks",
+     "7.6 | medium | 'presents decisions and evidence' assumes presentation format and evidence provenance undefined | specify evidence packet schema and presentation interface",
+     "7.7 | high | 'Coordination is artifact-first' with pipeline arrow assumes pipeline stages and artifact passing semantics undefined; missing failure handling for each stage | define WorkItems, Attempts, Artifacts, EvidencePacket types and transition rules",
+     "7.8 | high | 'Typed events and artifacts are authoritative. Chat is an interface, not the workflow database.' assumes event schema and artifact type system undefined; authority enforcement mechanism missing | define event type registry and artifact type hierarchy",
+     "7.9 | high | 'Product memory and research adaptive memory are separate, versioned, provenance-bearing stores with explicit projection rules' assumes projection rules and provenance metadata undefined; versioning scheme missing | define projection rule language, provenance record format, and versioning strategy"
+    ],
+    "todos": [
+     "Define the typed MissionContract schema (fields, types, constraints).",
+     "Define the artifact DAG data model (node types, edge semantics, acyclicity).",
+     "Define recipe registry interface and versioning policy (stateless vs. versioned).",
+     "Define budget metric, attempt lifecycle states, and monitoring hooks.",
+     "Define evidence packet schema and presentation interface.",
+     "Define WorkItems, Attempts, Artifacts, EvidencePacket types and transition rules.",
+     "Define event type registry and artifact type hierarchy.",
+     "Define projection rule language, provenance record format, and versioning strategy for memory stores.",
+     "Define persistence backend and goal representation for Ikarus persistence claim."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "7.1",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "weak",
+       "why": "Claim asserts persistence but does not define the persistence mechanism (storage backend, serialization format) or the representation of goals and evidence. Implementer must guess how goals are stored and retrieved."
+      },
+      {
+       "id": "7.2",
+       "claim": "It compiles user intent into a typed MissionContract.",
+       "verdict": "weak",
+       "why": "Claim assumes a 'typed MissionContract' exists but does not specify its type schema, fields, or constraints. Also, 'compiles user intent' implies a parsing/compilation step with undefined input format and error handling. Missing: intent grammar, contract type definition."
+      },
+      {
+       "id": "7.3",
+       "claim": "creates an artifact DAG",
+       "verdict": "weak",
+       "why": "Claim asserts creation of a DAG of artifacts but does not define the node types, edge semantics, or DAG constraints (acyclicity, ordering). Missing: DAG data model and API."
+      },
+      {
+       "id": "7.4",
+       "claim": "selects stateless or explicitly versioned recipes",
+       "verdict": "weak",
+       "why": "Claim assumes a recipe registry with two versioning modes but does not define 'stateless' vs 'explicitly versioned' semantics, recipe schema, or selection criteria. Missing: recipe type, versioning convention, selection algorithm."
+      },
+      {
+       "id": "7.5",
+       "claim": "monitors budgets and attempts",
+       "verdict": "weak",
+       "why": "Claim asserts monitoring of budgets and attempts but does not define budget metric (time, cost, iterations), attempt lifecycle, or monitoring hooks. Missing: budget units, attempt states, monitoring interface."
+      },
+      {
+       "id": "7.6",
+       "claim": "presents decisions and evidence",
+       "verdict": "weak",
+       "why": "Claim asserts presentation of decisions and evidence but does not define evidence packet structure or presentation format (UI, API). Missing: evidence schema, presentation interface."
+      },
+      {
+       "id": "7.7",
+       "claim": "Coordination is artifact-first: MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket",
+       "verdict": "weak",
+       "why": "Claim defines a pipeline but does not define any of the intermediate types (WorkItems, Attempts, EvidencePacket) or transition rules. Missing: type definitions, transition semantics, failure handling at each stage."
+      },
+      {
+       "id": "7.8",
+       "claim": "Typed events and artifacts are authoritative. Chat is an interface, not the workflow database.",
+       "verdict": "weak",
+       "why": "Claim asserts authority of typed events and artifacts but does not define event types, artifact type system, or enforcement mechanism (how is authority ensured?). Missing: event type registry, artifact type hierarchy, authority enforcement."
+      },
+      {
+       "id": "7.9",
+       "claim": "Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.",
+       "verdict": "weak",
+       "why": "Claim asserts separate versioned stores with provenance and projection rules but does not define projection rule language, provenance metadata format, or versioning strategy. Missing: projection rule specification, provenance record schema, versioning policy."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c9b8a04b45870aa763b91e2a4bb0ed975c992c2a292fde9538f753c450cfb9e",
+    "objective_chars": 1695,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "7-ikarus-orchestration-and-knowledge",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

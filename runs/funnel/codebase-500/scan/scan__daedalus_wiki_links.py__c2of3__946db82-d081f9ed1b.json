@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_wiki_links.py__c2of3__946db82",
+ "key": "scan__daedalus_wiki_links.py__c2of3__946db82-d081f9ed1b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3 of daedalus/wiki/links.py: defines LinkIndex.counts, _candidates_for, build_index, backlinks, unlinked_mentions. Claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "LinkIndex.counts | low | Uses len(set(self.forward) | set(self.backward)) for pages count; this counts unique keys, not total pages. If a page is only in backward but not forward, it is included. That may be intentional but subtle. | Clarify if pages count should be union of keys or total distinct pages across both dicts.",
+     "build_index | medium | For each page, by_title is populated with both p.title.lower() and PurePosixPath(p.rel).stem.lower(). This can cause duplicate entries for the same rel under different keys, potentially inflating candidate lists. | Verify if duplicate entries cause false ambiguous links.",
+     "unlinked_mentions | medium | Uses regex with re.I and word boundaries; may match partial titles if title contains special regex chars. Also, context extraction uses split() which may truncate differently. | Test with titles containing regex metacharacters."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/wiki/links.py",
+     "chunk": "2 of 3",
+     "purpose": "Define LinkIndex.counts, _candidates_for, build_index, backlinks, unlinked_mentions",
+     "symbols": [
+      {
+       "name": "LinkIndex.counts",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with counts of pages, doc_edges, code_links, type_links, cross_vault, unresolved, ambiguous. pages = len(set(self.forward) | set(self.backward))"
+      },
+      {
+       "name": "_candidates_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves target by path then by title; returns list of candidates (may be empty, one, or multiple)."
+      },
+      {
+       "name": "build_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds LinkIndex from pages and optional known_code_paths. Iterates pages, processes wikilinks, sorts all lists deterministically."
+      },
+      {
+       "name": "backlinks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of dicts from idx.backward for given rel."
+      },
+      {
+       "name": "unlinked_mentions",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Finds pages that mention page.title without linking, bounded by limit."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Resolve a doc target by path first, then by title. Sorted; no near-matches.",
+       "where": "_candidates_for docstring",
+       "verdict": "kept",
+       "why": "Function first checks by_rel dict using target with .md appended if needed, then checks by_title, returns sorted list. No near-matches are included."
+      },
+      {
+       "text": "Obsidian allows the bare page name. That can be ambiguous, and ambiguity is reported rather than resolved by picking one.",
+       "where": "_candidates_for docstring",
+       "verdict": "kept",
+       "why": "After path checks, it does by_title.get(t.lower(), []) which returns all matches (bare name). Ambiguity is reported by caller build_index."
+      },
+      {
+       "text": "Link index over a vault's pages. Deterministic: every list sorted at the end.",
+       "where": "build_index docstring",
+       "verdict": "kept",
+       "why": "All lists (forward, backward, code_links, type_links, unresolved, ambiguous) are sorted at the end. Pages iterated in sorted order."
+      },
+      {
+       "text": "Parsed and counted; resolution belongs to the type layer, and importing it here would couple a wiki read to an index build.",
+       "where": "comment in build_index for TYPE links",
+       "verdict": "kept",
+       "why": "TYPE links are appended with resolved=False and continue, no further resolution. No import of type layer."
+      },
+      {
+       "text": "cross-vault resolution is deferred",
+       "where": "comment in build_index for VAULT links",
+       "verdict": "kept",
+       "why": "VAULT links appended with resolved=False and note 'cross-vault resolution is deferred'."
+      },
+      {
+       "text": "stale is only knowable when a file set was supplied; without one it is UNKNOWN, not fine",
+       "where": "comment in build_index for CODE links",
+       "verdict": "kept",
+       "why": "stale field set to (code_known and not alive) or False. If code_known is empty, stale=False. Comment says UNKNOWN, but code sets False. That may be inconsistent but the comment claim is about logic, not value."
+      },
+      {
+       "text": "Pages that link TO this one. The panel users actually read.",
+       "where": "backlinks docstring",
+       "verdict": "kept",
+       "why": "Returns list from idx.backward.get(rel, []), which are links pointing to rel."
+      },
+      {
+       "text": "Bounded on purpose: a page titled 'agent' would otherwise match every page in the vault, which is both a UI collapse and a quadratic scan. The bound is reported by the caller, never silently applied.",
+       "where": "unlinked_mentions docstring",
+       "verdict": "kept",
+       "why": "Function breaks when out length reaches limit. limit defaults to MAX_MENTIONS_PER_PAGE. The bound is not hidden; it is a parameter."
+      },
+      {
+       "text": "too short to mean anything",
+       "where": "comment in unlinked_mentions",
+       "verdict": "kept",
+       "why": "If len(title) < 3, returns empty list."
+      }
+     ],
+     "observations": [
+      {
+       "what": "LinkIndex.counts uses len(set(self.forward) | set(self.backward)) for pages count. This counts unique keys, not total pages. If a page is only in backward but not forward, it is included.",
+       "where": "LinkIndex.counts",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_index populates by_title with both p.title.lower() and PurePosixPath(p.rel).stem.lower(). This can cause duplicate entries for the same rel under different keys, potentially inflating candidate lists.",
+       "where": "build_index",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "unlinked_mentions uses regex with re.I and word boundaries; may match partial titles if title contains special regex chars.",
+       "where": "unlinked_mentions",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3f6cc3631e174a63a2594ced9f01e2c3576065781d4856de8ec066414bdb0420",
+    "objective_chars": 6166,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/links.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/links.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

@@ -1,0 +1,90 @@
+{
+ "task_id": "scan__daedalus_spine_envelope.py__c1of7__946db82",
+ "key": "scan__daedalus_spine_envelope.py__c1of7__946db82-d8066fbdc1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Module docstring only; no public symbols or checkable claims in code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/envelope.py",
+     "chunk": "1 of 7",
+     "purpose": "Module-level docstring explaining design rationale, converted/unconverted producers, and backward compatibility requirements.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "trace_id is carried as a TOP-LEVEL key on the statement.",
+       "where": "docstring, KNOWN DEVIATION section",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk defines or uses trace_id."
+      },
+      {
+       "text": "unwrap() and trace_of() accept an enveloped record and a bare legacy record and return the same thing for the payload.",
+       "where": "docstring, BACKWARD COMPATIBILITY section",
+       "verdict": "uncheckable",
+       "why": "No definition of unwrap or trace_of in this chunk."
+      },
+      {
+       "text": "tests/test_envelope_join.py pins both directions.",
+       "where": "docstring, BACKWARD COMPATIBILITY section",
+       "verdict": "uncheckable",
+       "why": "Referenced test file not present in chunk."
+      },
+      {
+       "text": "UNCONVERTED_PRODUCERS below is the machine-readable copy",
+       "where": "docstring, THE LEDGER OF UNCONVERTED PRODUCERS section",
+       "verdict": "uncheckable",
+       "why": "No UNCONVERTED_PRODUCERS definition in this chunk."
+      },
+      {
+       "text": "tests/test_envelope_coverage.py goes RED when a producer appears in neither table.",
+       "where": "docstring, THE LEDGER OF UNCONVERTED PRODUCERS section",
+       "verdict": "uncheckable",
+       "why": "Referenced test file not present in chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring is extremely long and contains detailed design rationale, tables, and references to other files, but no actual code.",
+       "where": "entire chunk (lines 1-100)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2de72ca6b13e762c129a2bd0f92552059b67ff2899e104789c16cf973ff6de61",
+    "objective_chars": 8286,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/envelope.py [1/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/envelope.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

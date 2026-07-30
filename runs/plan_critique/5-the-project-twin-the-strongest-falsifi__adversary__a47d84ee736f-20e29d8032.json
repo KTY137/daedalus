@@ -1,0 +1,109 @@
+{
+ "task_id": "5-the-project-twin-the-strongest-falsifi__adversary__a47d84ee736f",
+ "key": "5-the-project-twin-the-strongest-falsifi__adversary__a47d84ee736f-20e29d8032",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 5.4 says the Knowledge plane is not an authority above source/evidence, but no mechanism prevents a process from treating a Knowledge claim as authoritative, so the rule is unenforceable as written.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "5.4 | high | The Knowledge plane is forbidden from being 'an authority above source/evidence', but nothing defines what 'authority' means or how to detect a violation. A process could formally store a claim in Knowledge and then always defer to it without checking source evidence, defeating the intent. | Show one code path where a candidate uses a Knowledge claim to override a contradictory source without any cross-check; the rule does not forbid this because 'authority' is undefined."
+    ],
+    "todos": [
+     "Define 'authority above source/evidence' operationally, e.g., any use of a Knowledge claim that does not require independent verification from the Code/AST or Data plane.",
+     "Add a mechanical check: every time a Knowledge claim is used to justify a decision, the system must record which source evidence was consulted and how the claim was verified."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "5.1",
+       "claim": "The central research prior is a revision-bound four-plane Project Twin.",
+       "verdict": "weak",
+       "why": "The claim is that the Project Twin is 'the strongest falsifiable prior'. However, the section does not define what 'falsifiable' means in this context, nor does it provide criteria for falsification. An agent could claim to be following the Twin while making it unfalsifiable by never exposing it to a test that could disprove it. The intent is to have a strong prior, but the lack of falsification criteria makes the claim unenforceable."
+      },
+      {
+       "id": "5.2",
+       "claim": "Code/AST plane contains files, symbols, functions, methods, syntax and control structure and does not become a fifth 'AST plane'.",
+       "verdict": "weak",
+       "why": "The claim is that Code/AST does not become a fifth plane. But 'fifth AST plane' is undefined. An agent could add a new plane named 'AST2' that contains refined AST data, claiming it is not a 'fifth AST plane' because it is named differently. The rule does not prevent proliferation of planes that overlap with the defined ones."
+      },
+      {
+       "id": "5.3",
+       "claim": "Type plane contains declared/inferred types, constraints, contracts, interfaces and does not become a universal correctness oracle.",
+       "verdict": "weak",
+       "why": "The claim forbids the Type plane from becoming a 'universal correctness oracle'. But this is vague. An agent could design the Type plane to attempt to prove total correctness of all code, and as long as it does not claim to be 'universal', it might comply. The rule lacks a definition of what constitutes an oracle or how to detect overreach."
+      },
+      {
+       "id": "5.4",
+       "claim": "Data plane contains schemas, tables, fields, formats, fixtures, lineage and does not become an unbounded data lake.",
+       "verdict": "weak",
+       "why": "The claim forbids the Data plane from becoming an 'unbounded data lake'. But 'unbounded' is undefined. An agent could accumulate data indefinitely by never deleting, claiming it is bounded by storage limits. The rule does not specify a mechanism to enforce boundedness or what qualifies as a data lake."
+      },
+      {
+       "id": "5.5",
+       "claim": "Knowledge plane contains documentation, ADRs, issues, concepts, claims, wiki links and does not become an authority above source/evidence.",
+       "verdict": "weak",
+       "why": "The claim forbids the Knowledge plane from being 'an authority above source/evidence'. But 'authority' is not defined. An agent could formally store a claim in Knowledge and then always defer to it without checking source evidence, defeating the intent. The rule has no mechanical check to detect when a Knowledge claim is treated as authoritative."
+      },
+      {
+       "id": "5.6",
+       "claim": "Observation, provenance, evidence, and time are orthogonal lineage dimensions, not additional semantic planes.",
+       "verdict": "weak",
+       "why": "The claim says these are dimensions, not planes. But an agent could still add a new plane named 'Observation' and claim it is a dimension, not a plane, by redefining terms. The rule does not prevent adding entities that function like planes under a different label."
+      },
+      {
+       "id": "5.7",
+       "claim": "The Forest is the immutable, compiled intermediate representation of one project revision.",
+       "verdict": "weak",
+       "why": "The claim asserts immutability, but no mechanism is described to enforce it. An agent could modify the Forest after creation and claim it is a new revision. Without a content-addressed or hash-linked structure, immutability is not mechanically verifiable."
+      },
+      {
+       "id": "5.8",
+       "claim": "The Forest is not a scheduler, chat memory, archive, or oracle.",
+       "verdict": "weak",
+       "why": "The claim lists what the Forest is not, but these terms are undefined. An agent could add scheduling metadata to the Forest and claim it is not a scheduler because it does not execute tasks. The rule does not prevent functional overloading."
+      },
+      {
+       "id": "5.9",
+       "claim": "Sources and candidate trees live in content-addressed storage; the Forest references them and exposes typed intra-plane and verified cross-plane edges.",
+       "verdict": "weak",
+       "why": "The claim assumes content-addressed storage exists, but no such storage is defined or required elsewhere. An agent could store sources in a non-content-addressed location and claim it is 'content-addressed' by hashing the content and using the hash as a key, but without verification, the claim is unenforceable. Also, 'verified cross-plane edges' is not defined."
+      },
+      {
+       "id": "5.10",
+       "claim": "This hypothesis is a 'god-key' candidate, not dogma. It earns its centrality only through the kill criteria in section 13.",
+       "verdict": "weak",
+       "why": "The claim asserts that the hypothesis is not dogma and is subject to kill criteria, but section 13 is not provided. Without seeing the kill criteria, an agent could claim compliance while ignoring any actual falsification. The rule's enforceability depends on external content."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "49d22ad556a10e99da0a2ffc49b1e491d7ddd319c93769ecb69a6bec3ccfab3e",
+    "objective_chars": 2043,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "5-the-project-twin-the-strongest-falsifi",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

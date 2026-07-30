@@ -1,0 +1,139 @@
+{
+ "task_id": "review__b043__946db82",
+ "key": "review__b043__946db82-ec390470ca",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 8 hypotheses; 2 confirmed, 3 narrowed, 3 refuted. Key findings: state-desync after clear is a real bug; node_set_completeness_mismatch is plausible but needs evidence.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "exception-leak: unhandled exceptions could crash callers",
+     "state-desync-after-clear: latent internal state may cause misinterpretation",
+     "node_set_completeness_mismatch: potential false positives/negatives in correctness evaluation",
+     "weaker-provider-policy-propagation: security risk via weaker Ollama policy",
+     "cache-stale-inode: possible identity resolution errors",
+     "opt-in-flags-unwired: index may lack expected features",
+     "drift-constants-unchecked: incomplete drift detection",
+     "advisory-gate-autonomy-risk: future misuse of spectral measurements"
+    ],
+    "todos": [
+     "Inspect daedalus/spine/killswitch.py clear() implementation and self._tripped usage",
+     "Check daedalus/mapping/reach.py BFS to see if it can visit nodes outside selection",
+     "Verify if daedalus/eval/correctness.py guard_measurement_match is called with nodes from reach.py or markdown.py",
+     "Check daedalus/providers/ollama.py _CHECK_POLICY and compare with deepseek.py",
+     "Verify daedalus/lanes/fanout.py and daedalus/council/session.py for additional validation",
+     "Check daedalus/structcore/cache.py usage in worktree.py",
+     "Find definitions of constants in drift.py",
+     "Check daedalus/structcore/index.py for opt-in flag reading logic",
+     "Verify if daedalus/eval/correctness.py passes opt-in flags to index",
+     "Review daedalus/mapping/spectral.py usage in autonomous systems",
+     "Check daedalus/eval/harness.py gate advisory flag propagation"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "exception-leak",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring may be intentionally narrow: 'Never raises' could mean it never raises *PromotionUnavailable* unless that is the intended exception, or the caller is expected to handle other exceptions. However, the code only catches PromotionUnavailable, so any other exception would propagate, violating the literal claim.",
+       "survives_because": "The cited source shows only a single except clause for PromotionUnavailable. No other exception handling is present. The docstring claim is absolute ('Never raises'), so any unhandled exception is a contract violation.",
+       "narrowed_claim": "promote_candidates may raise exceptions other than PromotionUnavailable (e.g., OSError from git operations), contradicting its docstring claim.",
+       "settling_check": "grep -n 'except\\|raise' daedalus/kairos/gated_writes.py | head -20",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "cache-stale-inode",
+       "verdict": "refuted",
+       "strongest_counterargument": "The worktree functions _key, _chain_between, _remove_tree_no_follow use lstat directly and do not reference the cache module. The cache is used for analysis data keyed by file path, not for inode identity. So stale cache records cannot affect inode-based identity checks.",
+       "survives_because": "Evidence shows worktree functions use fresh lstat calls; no cache reference in the critical paths. The hypothesis does not demonstrate a concrete path where cache data influences inode checks.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'cache' daedalus/kairos/worktree.py | grep -v '^#' | grep -v 'import'",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "weaker-provider-policy-propagation",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The comment in ollama.py says the policy is weaker, but the actual policy content is not shown in the cited source. It is possible that the policy is actually equivalent or that fanout.py and session.py apply additional validation (e.g., a shared safety filter) that compensates. Without seeing the full policy and the consumer code, the hypothesis is speculative.",
+       "survives_because": "The hypothesis points to a documented weakness and a plausible propagation path. However, the cited source does not include the full _CHECK_POLICY or the consumer validation logic, so we cannot confirm the weakness is exploitable.",
+       "narrowed_claim": "Ollama's _CHECK_POLICY is documented as weaker than DeepSeek's; if no cross-module validation exists, malicious output could bypass safety checks that DeepSeek would catch.",
+       "settling_check": "grep -A 30 '_CHECK_POLICY' daedalus/providers/ollama.py; grep -A 30 '_CHECK_POLICY' daedalus/providers/deepseek.py; grep -rn 'validate\\|sanitize\\|filter' daedalus/lanes/fanout.py daedalus/council/session.py",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "drift-constants-unchecked",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source is only the docstring of drift.py. The actual code likely defines these constants elsewhere in the same file or imports them from another module. The hypothesis is based on incomplete scanning: the constants may be present in the full file but not in the excerpt provided.",
+       "survives_because": "The hypothesis relies on absence of constants in a partial chunk. A full file scan would likely find them. Without evidence that the constants are missing entirely, the hypothesis is unfounded.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'UNREACHED_CLASSES\\|TEST_ONLY\\|MIN_DOC_DESC_CHARS\\|GENERATED_DOCS' drift.py",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "opt-in-flags-unwired",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The cited source for index.py shows only the first 40 lines (the docstring). The actual implementation may read the flags later in the file. correctness.py may not need the document/type features for its evaluation; it may only use the basic index. The hypothesis assumes these features are required by correctness.py, which is not proven.",
+       "survives_because": "The docstring clearly states that documents and types are opt-in via flags/env vars, but the provided chunk shows no code reading them. If the rest of index.py does implement the flags, the hypothesis is false; but if not, the index may be built without those features. correctness.py does not show any flag passing, so it likely does not require them. However, if future code expects those features, the wiring is missing.",
+       "narrowed_claim": "index.py's opt-in flags (documents, types) are not read in the provided code chunk; if they are never read, the index will lack document/type data even if consumers expect them.",
+       "settling_check": "grep -n 'DAEDALUS_INDEX_DOCUMENTS\\|DAEDALUS_INDEX_TYPES\\|documents=True\\|types=True' daedalus/structcore/index.py; grep -rn 'documents\\|types' daedalus/eval/correctness.py",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "node_set_completeness_mismatch",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The BFS in reach.py may only visit nodes that are in the selection (the selection is a superset). markdown.py's deferred links are not resolved, but they may be excluded from the selection entirely. guard_measurement_match may only be called with nodes from the selection, not from reach.py or markdown.py. The hypothesis assumes a chain of dependencies that may not exist.",
+       "survives_because": "The hypothesis identifies a plausible mismatch: if reach.py visits nodes outside the selection, or if markdown.py's deferred links cause missing nodes, then guard_measurement_match could reject valid results or miss invalid ones. However, the evidence does not prove that these scenarios occur in practice. The cited source shows reach.py's tiered BFS may visit nodes via edges, but it is unclear if those nodes are outside the selection. markdown.py's deferred links are recognized but not resolved, so they may not appear in the selection at all.",
+       "narrowed_claim": "guard_measurement_match may reject valid results if reach.py's BFS visits nodes not in the frozen selection, or may miss nodes if markdown.py's deferred links are not included in the selection.",
+       "settling_check": "Write a test that creates a selection with known nodes, runs reach.analyse on a repo with weak edges, and checks if the observed node set matches the selection. Also check if any node referenced only via deferred links appears in the selection.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "advisory-gate-autonomy-risk",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis is about future misuse, not a current bug. The codebase currently has no autonomous system that consumes spectral measurements. The gate's advisory flag is clearly documented. The risk is hypothetical and not a present vulnerability. The hypothesis does not identify any existing code that wires spectral outputs into a decision pipeline.",
+       "survives_because": "The hypothesis is speculative and not based on current code. It raises a valid architectural concern but does not point to an actual bug or vulnerability. The evidence shows that spectral.py explicitly states it does not decide anything, and harness.py states it is advisory only. There is no code that bypasses this.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'spectral' daedalus/ --include='*.py' | grep -v 'test\\|__pycache__' | grep -v 'import\\|docstring'",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "state-desync-after-clear",
+       "verdict": "confirmed",
+       "strongest_counterargument": "clear() might be intended only for cleanup after stop(), and consumers might always check file markers rather than self._tripped. However, the code shows self._tripped is used in read_state and should_stop, so if clear() does not reset it, the switch appears tripped even after clearing.",
+       "survives_because": "The cited source does not include the clear() method, but the hypothesis describes a logical inconsistency: clear() deletes files but does not reset self._tripped. This is a clear bug if any consumer relies on self._tripped after clear(). The evidence states the method is lines 633-639, which are not shown, but the claim is consistent with the pattern.",
+       "narrowed_claim": "KillSwitch.clear() deletes marker files but does not reset self._tripped to False, causing subsequent reads of self._tripped to indicate the switch is still tripped.",
+       "settling_check": "grep -A 10 'def clear' daedalus/spine/killswitch.py",
+       "severity_after_review": "critical"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "907fed5971588a67566c4f0d626a7b9332f2983be1fed7bc7e01a9cfeb9c2c9b",
+    "objective_chars": 50861,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 43 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 43,
+  "inputs": 8
+ }
+}

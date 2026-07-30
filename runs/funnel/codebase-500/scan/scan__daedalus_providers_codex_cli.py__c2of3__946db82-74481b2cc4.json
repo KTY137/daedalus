@@ -1,0 +1,211 @@
+{
+ "task_id": "scan__daedalus_providers_codex_cli.py__c2of3__946db82",
+ "key": "scan__daedalus_providers_codex_cli.py__c2of3__946db82-74481b2cc4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3: CodexCliProvider class with egress gate, subprocess spawning, and timeout handling.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "codex exec subprocess | high | Subprocess may hang if stdin not closed; code closes stdin via subprocess.DEVNULL, but comment notes historical hang. | Verify that subprocess.DEVNULL prevents hang in all environments.",
+     "encoding utf-8 errors replace | medium | Using errors='replace' may silently corrupt non-UTF-8 output; comment says codex emits UTF-8. | Test with actual codex output containing non-UTF-8 bytes.",
+     "writable flag disk_may_be_dirty | medium | Timeout or non-zero exit sets disk_may_be_dirty=True, but no rollback logic is present in this chunk. | Check if caller handles dirty disk state."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/codex_cli.py",
+     "chunk": "2 of 3",
+     "purpose": "Define CodexCliProvider class with egress gate, subprocess execution, and timeout handling.",
+     "symbols": [
+      {
+       "name": "CodexCliProvider",
+       "kind": "class",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "filesystem_write"
+       ],
+       "note": "External write-capable lane using OpenAI Codex CLI in exec mode."
+      },
+      {
+       "name": "CodexCliProvider.caps",
+       "kind": "constant",
+       "effects": [],
+       "note": "ProviderCapabilities instance with can_write=True, local=False, trusted_with_ip=False, agentic=True."
+      },
+      {
+       "name": "CodexCliProvider.available",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if 'codex' is found in PATH."
+      },
+      {
+       "name": "CodexCliProvider.run",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "filesystem_write"
+       ],
+       "note": "Main execution method: builds prompt, enforces egress gate, spawns codex exec subprocess, handles timeout and errors."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Egress-gated exactly like DeepSeek (trusted_with_ip=False): a task with policy-denied paths/content is refused before any subprocess is spawned.",
+       "where": "class docstring",
+       "verdict": "uncheckable",
+       "why": "No DeepSeek code in this chunk to compare; the egress gate logic is present but the claim of 'exactly like DeepSeek' cannot be verified."
+      },
+      {
+       "text": "edits files in place (workspace-write sandbox)",
+       "where": "caps.can_write",
+       "verdict": "kept",
+       "why": "can_write=True is set, and the subcommand includes --sandbox workspace-write when writable is True."
+      },
+      {
+       "text": "external API -- bytes leave the machine",
+       "where": "caps.local",
+       "verdict": "kept",
+       "why": "local=False is set."
+      },
+      {
+       "text": "NEVER receives denylisted/sensitive content",
+       "where": "caps.trusted_with_ip",
+       "verdict": "kept",
+       "why": "trusted_with_ip=False is set, and the run method checks classify_data and returns blocked_report if sensitive."
+      },
+      {
+       "text": "reads the repo itself",
+       "where": "caps.agentic",
+       "verdict": "kept",
+       "why": "agentic=True is set."
+      },
+      {
+       "text": "300s killed C2's wrapper while codex kept working and the report went out as blocked despite good disk changes.",
+       "where": "timeout_s docstring",
+       "verdict": "uncheckable",
+       "why": "References historical measurement and behavior of codex; no code in this chunk to verify the claim."
+      },
+      {
+       "text": "fail-closed: caller must grant write explicitly",
+       "where": "run() parameter writable: bool = False",
+       "verdict": "kept",
+       "why": "writable defaults to False, and the subcommand uses --sandbox read-only when writable is False."
+      },
+      {
+       "text": "HARD EGRESS GATE (non-negotiable): same enforcement path as DeepSeek. Refuse BEFORE spawning the CLI -- a denied path never reaches codex.",
+       "where": "comment before classify_data",
+       "verdict": "uncheckable",
+       "why": "The egress gate logic is present (classify_data check), but the claim of 'same enforcement path as DeepSeek' cannot be verified without DeepSeek code."
+      },
+      {
+       "text": "debug breadcrumb only -- never fatal",
+       "where": "comment after OSError pass",
+       "verdict": "kept",
+       "why": "The try block writes a file but catches OSError and passes, so it is never fatal."
+      },
+      {
+       "text": "npm installs `codex` as a .CMD shim on Windows; subprocess cannot spawn it by bare name (WinError 2), so resolve the real path.",
+       "where": "comment before shutil.which",
+       "verdict": "kept",
+       "why": "Code uses shutil.which('codex') to resolve the path, which handles .CMD shims on Windows."
+      },
+      {
+       "text": "codex emits UTF-8 (em-dashes, box-drawing chars); WITHOUT an explicit encoding, text=True decodes with the Windows locale (cp1252) and the capture reader-thread dies on bytes like 0x9d -> corrupted/empty output, watcher thread crash (live-fired 2026-07-12, tasks C2/C3). Force UTF-8 and never let a stray byte kill the reader.",
+       "where": "comment before encoding='utf-8'",
+       "verdict": "kept",
+       "why": "Code sets encoding='utf-8' and errors='replace' in subprocess.run."
+      },
+      {
+       "text": "stdin MUST be closed: with a prompt arg, `codex exec` still appends piped/inherited stdin as a <stdin> block and blocks until EOF. Under the file-bridge watcher the inherited stdin never closes -> codex hangs at ~0 CPU (live-fired 2026-07-11, task C1).",
+       "where": "comment before stdin=subprocess.DEVNULL",
+       "verdict": "kept",
+       "why": "Code sets stdin=subprocess.DEVNULL."
+      },
+      {
+       "text": "Codex CLI timed out after {timeout_s}s.",
+       "where": "blocked_report in TimeoutExpired handler",
+       "verdict": "kept",
+       "why": "The message is constructed with the timeout_s parameter."
+      },
+      {
+       "text": "codex was killed mid-run in write mode; the repo may contain partial edits.",
+       "where": "risks list in TimeoutExpired handler",
+       "verdict": "kept",
+       "why": "The risk string is appended when writable is True."
+      },
+      {
+       "text": "Codex CLI could not be launched: {exc}",
+       "where": "blocked_report in OSError handler",
+       "verdict": "kept",
+       "why": "The message includes the exception string."
+      },
+      {
+       "text": "Codex CLI failed with exit code {completed.returncode}: {tail}",
+       "where": "blocked_report in non-zero returncode handler",
+       "verdict": "kept",
+       "why": "The message includes exit code and tail of stderr/stdout."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The class docstring claims egress-gating is exactly like DeepSeek, but no DeepSeek code is present to compare.",
+       "where": "class docstring",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The timeout_s docstring references historical measurements and behavior, but no evidence is in this chunk.",
+       "where": "timeout_s parameter docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The subprocess error handling for non-zero exit code is incomplete; the chunk ends mid-statement.",
+       "where": "end of chunk",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code writes a debug file to RUN_DIR/last_codex_prompt.md but silently ignores OSError; this could hide configuration issues.",
+       "where": "try block writing last_codex_prompt.md",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "16b0f28c6b6938aa550613be456c83fbeffb0d4878e4abe429c150e3ce91743c",
+    "objective_chars": 6340,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/codex_cli.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/providers/codex_cli.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

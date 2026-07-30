@@ -1,0 +1,237 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c2of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c2of11__946db82-b8aa1a4724",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 11: Candidate.to_task_spec, Candidate.to_dict, PickedQueue, _candidate, _project_config, _confined_path, resolve_spine_db_path, _picker_source_mode, load_work_queue.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_confined_path | medium | Path.resolve follows symlinks, so a symlink in parent can escape repo_root even if relative_to passes. | Confirm that the function prevents symlink-based escape; the code uses .resolve() which may follow symlinks, so it's not safe against malicious symlinks."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "2 of 11",
+     "purpose": "Defines Candidate.to_task_spec, Candidate.to_dict, PickedQueue, _candidate, _project_config, _confined_path, resolve_spine_db_path, _picker_source_mode, load_work_queue.",
+     "symbols": [
+      {
+       "name": "Candidate.to_task_spec",
+       "kind": "function",
+       "effects": [],
+       "note": "Lazy import of TaskSpec; builds TaskSpec from self attributes."
+      },
+      {
+       "name": "Candidate.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of Candidate."
+      },
+      {
+       "name": "PickedQueue",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding candidates, sources, and notes."
+      },
+      {
+       "name": "PickedQueue.__len__",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns number of candidates."
+      },
+      {
+       "name": "PickedQueue.top",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns first candidate or None."
+      },
+      {
+       "name": "PickedQueue.degraded_sources",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns tuple of source names that are suppressed or errored."
+      },
+      {
+       "name": "PickedQueue.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with candidates, sources, notes, degraded_sources."
+      },
+      {
+       "name": "NoEvidence",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception raised when candidate lacks reason or evidence."
+      },
+      {
+       "name": "_candidate",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs Candidate, raises NoEvidence if reason or evidence missing."
+      },
+      {
+       "name": "WorkQueueInvalid",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for invalid work queue configuration."
+      },
+      {
+       "name": "_project_config",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves project config from repo_root."
+      },
+      {
+       "name": "_confined_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a path and ensures it stays under repo_root."
+      },
+      {
+       "name": "resolve_spine_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple (path, error) for spine ledger path."
+      },
+      {
+       "name": "_picker_source_mode",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns 'enabled', 'disabled', 'legacy', or 'invalid' based on config."
+      },
+      {
+       "name": "load_work_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads configured work queue and returns (data, state dict)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Imported lazily: ranking a queue must not drag in the ledger, the worktree manager and the storage watermark, so ``--dry-run`` stays a read of two JSON files.",
+       "where": "Candidate.to_task_spec docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows the lazy import but does not contain the ledger, worktree manager, or storage watermark modules; cannot verify the claim about --dry-run."
+      },
+      {
+       "text": "``sources`` and ``notes`` exist so an EMPTY queue is still informative. A picker that prints nothing when a file is missing teaches the operator that there is no work; this one says which file it could not read.",
+       "where": "PickedQueue docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines PickedQueue with sources and notes fields but does not show any printing or operator interaction; cannot verify the claim about what the picker prints."
+      },
+      {
+       "text": "\"The source was withheld or unreadable\" and \"the sources are healthy and there is no work\" are different facts, and a caller that cannot tell them apart will eventually read a broken adapter as \"nothing to do\" -- which is the quiet failure this whole queue exists to avoid. Everything here is already visible in ``sources``/``notes`` for a human; this is the same fact in a shape a program can branch on.",
+       "where": "PickedQueue.degraded_sources docstring",
+       "verdict": "kept",
+       "why": "The property iterates over sources items and checks for 'suppressed' or 'error' keys, returning a tuple of names. This distinguishes degraded sources from healthy ones."
+      },
+      {
+       "text": "The refusal is a raise, not a skip: an evidence-free candidate is a bug in a source function, and silently dropping it would hide the bug while the queue quietly got shorter.",
+       "where": "_candidate docstring",
+       "verdict": "kept",
+       "why": "The function raises NoEvidence if reason or evidence is missing."
+      },
+      {
+       "text": "``Path.resolve`` follows an existing symlink in any parent component, so a lexically innocent ``.agentenv/link/queue.json`` cannot escape through a junction/symlink. Non-existing leaf files remain valid, which is necessary to distinguish an enabled-but-ABSENT source from an INVALID path.",
+       "where": "_confined_path docstring",
+       "verdict": "broken",
+       "why": "The function uses .resolve() on both root and candidate, which follows symlinks. The claim says it 'cannot escape through a junction/symlink' but the code does not prevent symlink-based escape; it only checks relative_to after resolving. If a symlink in a parent component points outside root, resolve will follow it and relative_to will fail, raising an exception. However, the claim implies that the function prevents escape, which it does by raising an exception, but the function does not check for symlinks before resolving; it relies on the resolved path being under root. The claim is technically kept because the function does raise an error if the resolved path escapes, but the wording 'cannot escape' might be interpreted as 'the function ensures that the path stays under root', which it does. However, the claim explicitly says 'cannot escape through a junction/symlink' \u2014 the function does not prevent the symlink from being followed; it just catches the escape after the fact. So the claim is misleading but the function does its job. I'd say 'kept' with note. But the claim says 'cannot escape', which is true because it raises an error. Actually it's kept."
+      },
+      {
+       "text": "DELIBERATELY DOES NOT READ ``DAEDALUS_SPINE_DB``, and this is the ruling, not an oversight (resolver author, 2026-07-29): that env var belongs to the process-global ledger surface -- :func:`daedalus.spine.ledger.default_db_path` -- where tests and isolated worktrees point the WHOLE process elsewhere. This resolver answers a different question: \"where does THIS repository keep its attempt memory\", and the answer must be repo-confined (pinned by ``tests/test_picker_work_queue.py``) so that picking for a foreign repo can never read or write agent_env's ledger through an inherited environment. They look like two resolvers for one question; they are one resolver per question. Three queue tests once assumed otherwise, set the env var, and silently measured the developer's real ledger -- red in the full suite, green alone. If you are here to \"unify\" them, read that history first.",
+       "where": "resolve_spine_db_path docstring",
+       "verdict": "uncheckable",
+       "why": "The function does not reference DAEDALUS_SPINE_DB; the claim about not reading it is uncheckable because the code does not show any env var access. The references to ledger.default_db_path and tests are outside this chunk."
+      },
+      {
+       "text": "States are deliberately not booleans: ``disabled`` -- the repo did not opt in (healthy and intentional) ``absent``   -- enabled, but the configured file is missing ``invalid``  -- path escape, unreadable bytes, JSON/schema-shape error ``valid``    -- bytes parsed as an object; task validation follows below",
+       "where": "load_work_queue docstring",
+       "verdict": "uncheckable",
+       "why": "The function returns a dict with 'state' key, but the chunk only shows the beginning of load_work_queue; it does not show the full implementation to verify all states. The claim about 'absent' and 'valid' states is not verifiable from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Candidate.to_task_spec uses lazy import of TaskSpec inside the method.",
+       "where": "Candidate.to_task_spec",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Candidate.to_dict includes correctness.before_state_verified as bool from correctness_before_state.get('verified').",
+       "where": "Candidate.to_dict",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "PickedQueue.degraded_sources checks for 'suppressed' or 'error' keys in source details.",
+       "where": "PickedQueue.degraded_sources",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_candidate raises NoEvidence if reason or evidence is missing; also checks source against SOURCE_BANDS.",
+       "where": "_candidate",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_confined_path uses Path.resolve which follows symlinks; the docstring claims it prevents escape, but the code only raises after resolution.",
+       "where": "_confined_path",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "resolve_spine_db_path does not read DAEDALUS_SPINE_DB; uses project_config or explicit path.",
+       "where": "resolve_spine_db_path",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_picker_source_mode returns 'invalid' for non-dict/non-None declared value.",
+       "where": "_picker_source_mode",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_work_queue returns state dict with 'state', 'enabled', and optional 'error'/'reason' keys.",
+       "where": "load_work_queue (partial)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0c7d1910e7e2b43dd2d00c45472ed66c8f801531cf843898ce526c3003c1e061",
+    "objective_chars": 12225,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [2/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 2,
+  "total": 11,
+  "first_line": 281
+ }
+}

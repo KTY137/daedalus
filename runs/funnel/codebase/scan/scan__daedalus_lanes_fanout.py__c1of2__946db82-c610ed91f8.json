@@ -1,0 +1,223 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c1of2__946db82",
+ "key": "scan__daedalus_lanes_fanout.py__c1of2__946db82-c610ed91f8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed fanout.py chunk 1 of 2: module docstring, imports, constants, default_concurrency, FanoutTask, FanoutResult, _one_call, and start of fan_out. 10 symbols, 12 claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "fan_out function incomplete | medium | The fan_out function signature is cut off; the rest of the function is in the next chunk. This is expected but means we cannot fully verify its implementation.",
+     "import of DeepSeekProvider inside _one_call | low | The import is deferred to avoid pulling provider stack at module scope. This is intentional per docstring, but the actual import line is present and works if the package is installed."
+    ],
+    "todos": [
+     "Complete review of fan_out function body and remaining claims in chunk 2."
+    ],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "1 of 2",
+     "purpose": "Define fan-out data structures, constants, and helper functions for bounded concurrent advisory calls.",
+     "symbols": [
+      {
+       "name": "DEFAULT_CONCURRENCY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set to 8, documented as measured ceiling."
+      },
+      {
+       "name": "DEFAULT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set to 300 seconds per call."
+      },
+      {
+       "name": "default_concurrency",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns integer from env var DAEDALUS_FANOUT_CONCURRENCY or 8."
+      },
+      {
+       "name": "FanoutTask",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for one question with votes, paths, meta. Has key property."
+      },
+      {
+       "name": "FanoutResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for results of fan-out task, includes to_dict method."
+      },
+      {
+       "name": "_one_call",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "spend"
+       ],
+       "note": "Internal function executing one advisory call via DeepSeekProvider."
+      },
+      {
+       "name": "fan_out",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "network_egress",
+        "spend"
+       ],
+       "note": "Public function to fan-out tasks; signature incomplete in this chunk."
+      },
+      {
+       "name": "FanoutTask.key",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning filename-safe identity with hash."
+      },
+      {
+       "name": "FanoutResult.ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning True if answers list non-empty."
+      },
+      {
+       "name": "FanoutResult.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes result to dictionary."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The volume half of the two-judge plan. Its one job is to run N advisory tasks through the DeepSeek lane at bounded concurrency and land each answer on disk as its own file, so that 1,200 tasks are a *queue* rather than an *event* -- a crash at task 900 costs one task, not nine hundred.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines the data structures and _one_call but does not show the main fan-out loop that writes results to disk. The claim about landing each answer on disk as its own file is not verifiable from this chunk alone."
+      },
+      {
+       "text": "The fan-out scripts that night constructed the provider directly and never called :func:`daedalus.budget.install_process_guard`, so ~170 paid calls left the machine unpriced before anyone noticed. The guard is not optional here and not a parameter -- a fan-out is exactly the shape that turns a missing guard into a bill.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain any call to install_process_guard or any budget guard. The claim refers to external function not present."
+      },
+      {
+       "text": "So ``votes`` is a first-class argument and every result records how many independent answers it is made of.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "FanoutTask has a 'votes' field (default 1) and FanoutResult has 'votes_requested' field. The result also has 'votes_collected' in to_dict."
+      },
+      {
+       "text": "The decode temperature defaulted to 0.0 and every caller inherited it. ... :func:`fan_out` now REFUSES the combination.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show fan_out refusing any combination. The _one_call function accepts a temperature parameter with default 0.0, but no enforcement logic is present in this chunk."
+      },
+      {
+       "text": "A FRESH PROVIDER PER CALL. ``DeepSeekProvider.run`` resets ``self._written`` per call precisely so one instance cannot report a prior call's writes as this one's. Sharing an instance across worker threads would reintroduce that race by another door, so each call gets its own.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "In _one_call, a new DeepSeekProvider() is instantiated for each call (line: provider = DeepSeekProvider())."
+      },
+      {
+       "text": "THE GRAPH GOES IN THE PROMPT. No provider module referenced ``structcore`` until 2026-07-30; the entire context a lane received was raw file bytes, and three of seven agent-written modules imported things that do not exist. Tasks that name paths get :func:`daedalus.lanes.graph_brief.render_brief` prepended.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk imports render_brief from .graph_brief but does not show it being used in _one_call or fan_out. The claim about prepending the brief is not verifiable from this chunk alone."
+      },
+      {
+       "text": "RESULTS ARE PUBLISHED, NOT WRITTEN. Via :mod:`daedalus.atomic`, so a reader tailing the output directory during a four-hour run never sees half a JSON document.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk imports write_text_atomic from ..atomic, but does not show it being used. The claim about atomic writes is not verifiable from this chunk alone."
+      },
+      {
+       "text": "Advisory only. There is no ``writable`` parameter and adding one would be a mistake",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "In _one_call, the call to provider.run includes writable=False, and the function signature does not have a writable parameter."
+      },
+      {
+       "text": "A name that looks like an attack invites someone to 'harden' it later by a route that breaks resume.",
+       "where": "FanoutTask.key docstring",
+       "verdict": "kept",
+       "why": "The key property implements the described sanitization: replaces non-alphanumeric chars, collapses '..', and appends a digest."
+      },
+      {
+       "text": "Imported here, not at module scope: this module is imported by tooling that must not pull the provider stack (and its network config) just to read the dataclasses.",
+       "where": "_one_call docstring",
+       "verdict": "kept",
+       "why": "The import of DeepSeekProvider is inside the function _one_call, not at module scope."
+      },
+      {
+       "text": "It cannot lift the secret floor. ``providers/deepseek.py`` calls :func:`secret_floor_rule` per path independently of ``classify_data``, and that rule is documented as running 'in EVERY lane, no bypass ... cannot be weakened by a project config'.",
+       "where": "_one_call docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to secret_floor_rule in providers/deepseek.py, which is not present in this chunk."
+      },
+      {
+       "text": "policy is handed to the provider, which passes it to :func:`daedalus.sensitivity.classify_data`. Default ``None`` means the project's own policy applies",
+       "where": "_one_call docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows policy being passed to provider.run, but the provider's internal behavior (calling classify_data) is not in this chunk."
+      },
+      {
+       "text": "DIGESTS, NOT BODIES, for the prompt: ... The system message IS kept whole",
+       "where": "_one_call docstring",
+       "verdict": "kept",
+       "why": "The returned dict includes 'sent' with 'objective_sha256' and 'system_override_sha256' (digests) and 'system_override_chars' (whole kept? Actually system_override is not kept whole, only its length and sha256. But the claim says 'system message IS kept whole' - the code does not include the full system_override in the sent dict, only its hash and length. However, the claim says 'the system message IS kept whole' - this is not fully accurate; the code stores its hash and length, not the whole message. Verdict: broken because the code does not keep the whole system message, only its hash and length."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The claim that the system message is kept whole is contradicted by the code: only its hash and length are stored, not the full message.",
+       "where": "_one_call return dict",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "fan_out function signature is cut off; the rest of the function is in the next chunk.",
+       "where": "fan_out definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The import of DeepSeekProvider is inside _one_call, matching the docstring claim about deferred import.",
+       "where": "_one_call body",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "671df29d2b05249aaa34737ceaa72611a63e8b0d58f19617c77c9e7b0d715d27",
+    "objective_chars": 13661,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,242 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c2of3__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c2of3__946db82-ce0fb344bf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of 3 of daedalus/spine/bootstrap.py: gate_discrimination function, ShadowResult dataclass, and start of shadow_run.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gate_discrimination | high | Receipt has no integrity protection; anything that can write runs/spine/ can author a receipt. | Key management decision needed.",
+     "gate_discrimination | medium | The docstring claims 'head is resolved here, not trusted from the caller' but still accepts an explicit head parameter. | Ensure explicit head usage is intentional.",
+     "gate_discrimination | low | The revision clause uses startswith, which may match partial hashes; documented as doctrine. | Confirm that startswith is safe for the use case."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "2 of 3",
+     "purpose": "Implements gate_discrimination, ShadowResult dataclass, and begins shadow_run.",
+     "symbols": [
+      {
+       "name": "gate_discrimination",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads discrimination receipt from disk and judges it. Returns GateDiscrimination."
+      },
+      {
+       "name": "ShadowResult",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing one shadow iteration. Contains properties and methods for verdict and serialization."
+      },
+      {
+       "name": "ShadowResult.promotion_allowed",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property; returns True only if discrimination exists and is proven."
+      },
+      {
+       "name": "ShadowResult.routed_lane",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property; extracts provider from runner_detail."
+      },
+      {
+       "name": "ShadowResult.verdict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a human-readable verdict string based on state and discrimination."
+      },
+      {
+       "name": "ShadowResult.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Serializes the instance to a dictionary."
+      },
+      {
+       "name": "shadow_run",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Begins in this chunk; signature shown but body not included."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The revision clause failed OPEN when HEAD could not be read. The test was ``if head and measured_head and not head.startswith(measured_head)``, so a falsy ``head`` skipped the staleness branch entirely. The caller in :func:`shadow_run` resolves HEAD inside a bare ``except`` that yields ``None`` \u2014 so a repository with no readable ``.git`` turned a receipt from ANY revision into ``proven=True``. ``picker._head_sha``'s own docstring said callers \"fail OPEN on\" None; this one's said \"measured against THE CURRENT REVISION\". Two documents, one code path, opposite claims. ``head`` is now resolved here when not supplied, and an unresolvable revision REFUSES.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code shows head is resolved here if None, and returns a refusal if not head. The revision check uses `if head and measured_head and not head.startswith(measured_head)` which now fails closed when head is None because it returns early."
+      },
+      {
+       "text": "No sanity bound on the counts. ``{\"planted\": 12, \"killed\": 99}`` yielded a kill rate of 825%, which sails past an 80% floor. A rate is now rejected unless ``0 <= killed <= planted``.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code checks `if not (planted_f > 0 and 0 <= killed_f <= planted_f):` and returns a refusal."
+      },
+      {
+       "text": "Still NOT defended, and deliberately named rather than quietly left: the receipt has no integrity protection. Anything that can write ``runs/spine/`` can author a receipt naming the current HEAD, and this function will believe it. That is a key-management decision, not a patch.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code does not include any cryptographic verification of the receipt; it reads and trusts the JSON content."
+      },
+      {
+       "text": "Resolved HERE, not trusted from the caller, and refused when unknown. Passing an explicit head stays supported because tools/bootstrap_receipt.py deliberately asks about a DIFFERENT revision.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code resolves head internally if None, but still accepts an explicit head parameter."
+      },
+      {
+       "text": "A receipt only counts when it is present, parseable, measured against THE CURRENT REVISION, internally consistent, clean on every critical class, and bound to the exact gate being authorised.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code checks each condition: existence, parseability, head match, planted/killed sanity, critical classes, and gate binding."
+      },
+      {
+       "text": "``expected_gate`` has the receipt shape ``{\"argv\", \"gate_paths\", \"gate_scope\"}``.",
+       "where": "gate_discrimination docstring",
+       "verdict": "uncheckable",
+       "why": "The code uses _gate_binding to parse expected_gate but the shape of expected_gate is not defined in this chunk; the docstring claim is about the shape."
+      },
+      {
+       "text": "Callers making a promotion decision set ``require_gate_binding=True``; callers displaying the historical measurement may omit it, but that unbound answer must not be read as authority for an arbitrary candidate gate.",
+       "where": "gate_discrimination docstring",
+       "verdict": "kept",
+       "why": "The code checks `elif require_gate_binding:` and returns refusal if no expected_gate provided."
+      },
+      {
+       "text": "The revision clause is the same doctrine the map and inventory sources follow: a measurement of a tree that no longer exists is not a measurement of this one.",
+       "where": "gate_discrimination docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to map and inventory sources not present in this chunk."
+      },
+      {
+       "text": "TWO OF THESE SIX WERE PROSE UNTIL AN AUDIT FOUND THEM, and both let a forged promotion through:",
+       "where": "gate_discrimination docstring",
+       "verdict": "uncheckable",
+       "why": "This is a historical claim about audits not verifiable from code."
+      },
+      {
+       "text": "Always False while the gate is unproven. There is no override. A parameter here would be the whole design defeated by one keyword argument, which is how the containment module lost its inheritance flag as well.",
+       "where": "ShadowResult.promotion_allowed docstring",
+       "verdict": "kept",
+       "why": "The property returns `bool(self.discrimination and self.discrimination.proven)`; it has no parameters."
+      },
+      {
+       "text": "Which provider the router actually chose, read off the runner's own result rather than off the request.",
+       "where": "ShadowResult.routed_lane docstring",
+       "verdict": "kept",
+       "why": "The code extracts `detail.get(\"provider\")` from runner_detail."
+      },
+      {
+       "text": "Surfaced because `--local-only` DECLARES availability and does not force the choice: measured, the router still selected `claude_cli` with that lane declared unavailable, and the run stopped only because offload refuses to execute a non-free lane. Nothing was billed, but a run that ends in `no_change` for that reason looks identical to one where the model simply had no idea -- and those are completely different problems.",
+       "where": "ShadowResult.routed_lane docstring",
+       "verdict": "uncheckable",
+       "why": "This describes a scenario not present in the code chunk; refers to external behavior."
+      },
+      {
+       "text": "One line a human can act on, with the caveat welded to the result.",
+       "where": "ShadowResult.verdict docstring",
+       "verdict": "kept",
+       "why": "The verdict method returns various strings depending on state and discrimination."
+      }
+     ],
+     "observations": [
+      {
+       "what": "gate_discrimination returns early with refusal if head cannot be resolved, implementing fail-closed.",
+       "where": "gate_discrimination lines ~300-310",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The receipt's planted/killed counts are sanity-checked: killed <= planted and both non-negative, planted > 0.",
+       "where": "gate_discrimination lines ~340-350",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The revision check uses startswith, allowing partial hash matches. This is documented as doctrine.",
+       "where": "gate_discrimination line ~320",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Critical defect classes are checked before the kill rate floor, so a high kill rate with a surviving critical class is rejected.",
+       "where": "gate_discrimination lines ~355-365",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "promotion_allowed property returns False if discrimination is None or not proven; no override parameter.",
+       "where": "ShadowResult.promotion_allowed",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "routed_lane extracts 'provider' from runner_detail; returns None if not present.",
+       "where": "ShadowResult.routed_lane",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "verdict method handles multiple states: 'no_change' with escalation, 'no_change' without, 'gated', and other states.",
+       "where": "ShadowResult.verdict",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk ends mid-function signature for shadow_run; body not included.",
+       "where": "last line of chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e14e9238cddf947502401b2b69c7a85767611df0f0e687358e490af1ae64a881",
+    "objective_chars": 13602,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

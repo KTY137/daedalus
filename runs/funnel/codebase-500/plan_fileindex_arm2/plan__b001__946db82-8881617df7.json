@@ -1,0 +1,145 @@
+{
+ "task_id": "plan__b001__946db82",
+ "key": "plan__b001__946db82-8881617df7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 items from reviewed findings: fix false docstrings in drafts.py, verify compare_to_history checks truncated, locate _refuse_primary_checkout, add floor_check to ollama.run(), and check render_arms for bare by_provenance. All steps reference existing paths.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "compare_to_history may not exist; if it does, it might already check truncated. Need to locate first.",
+     "_refuse_primary_checkout may be defined elsewhere; if missing, must define it or fix call.",
+     "ollama.run() may never be called directly; adding floor_check could be unnecessary if session.py is the only caller.",
+     "render_arms bug may not exist if the line is not present; need to inspect full function."
+    ],
+    "todos": [
+     "Search for compare_to_history definition; if found, inspect for truncated check.",
+     "Search for _refuse_primary_checkout definition; if missing, define or fix _git_in_worktree.",
+     "Search for direct calls to ollama.run() outside session.py.",
+     "Inspect full render_arms function in report.py for bare by_provenance usage.",
+     "Fix docstrings in drafts.py to accurately describe filesystem writes.",
+     "Add floor_check call in ollama.run() if direct calls exist."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix false docstrings in drafts.py to match actual filesystem writes",
+       "gate": "0",
+       "why_now": "Misleading docstrings break developer trust and violate code-as-documentation principle.",
+       "steps": [
+        {
+         "do": "Update module docstring to state that set_status and apply_payload write to filesystem via write_text.",
+         "file": "daedalus/kairos/drafts.py",
+         "verified_by": "grep -n 'write_text' daedalus/kairos/drafts.py confirms writes; docstring no longer claims no filesystem touch."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Docstring is the only place with false claims; no other misleading comments exist in the file."
+      },
+      {
+       "rank": 2,
+       "title": "Verify compare_to_history checks shape.truncated flag",
+       "gate": "1",
+       "why_now": "If compare_to_history ignores truncated flag, missing fields may be silently dropped, compromising correctness of comparisons.",
+       "steps": [
+        {
+         "do": "Search for definition of compare_to_history in daedalus/council/canary.py or other files. If found, inspect whether it reads shape.truncated or the notes field.",
+         "file": "daedalus/council/canary.py",
+         "verified_by": "grep -rn 'def compare_to_history' daedalus/ returns definition; visual inspection shows truncated check."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function exists in the codebase; if not, the finding is moot."
+      },
+      {
+       "rank": 3,
+       "title": "Locate or implement _refuse_primary_checkout in correctness.py",
+       "gate": "0",
+       "why_now": "Missing definition causes NameError at runtime, breaking safety check in _git_in_worktree.",
+       "steps": [
+        {
+         "do": "Search entire codebase for 'def _refuse_primary_checkout'. If not found, add the function or fix the call.",
+         "file": "daedalus/eval/correctness.py",
+         "verified_by": "grep -rn 'def _refuse_primary_checkout' daedalus/ returns definition; if missing, after adding, run test to confirm no NameError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is not defined elsewhere (e.g., imported). If imported, update import instead."
+      },
+      {
+       "rank": 4,
+       "title": "Add floor_check call in ollama.run() or document that session.py is sole entry point",
+       "gate": "1",
+       "why_now": "Direct invocation of ollama.run() bypasses floor_check, potentially leaking secrets.",
+       "steps": [
+        {
+         "do": "Search for direct calls to ollama.run() outside session.py. If any exist, add floor_check call in ollama.run().",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "grep -r 'ollama\\.run\\|from.*ollama.*import.*run' --include='*.py' | grep -v session.py | grep -v test returns no results; if results, add floor_check and verify with test."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Direct calls may exist; if none, no change needed but risk is low."
+      },
+      {
+       "rank": 5,
+       "title": "Inspect render_arms for bare by_provenance variable usage",
+       "gate": "1",
+       "why_now": "If by_provenance is used as bare name, NameError will crash report rendering.",
+       "steps": [
+        {
+         "do": "Examine the full render_arms function in daedalus/eval/report.py for any occurrence of bare 'by_provenance' (not result['by_provenance']).",
+         "file": "daedalus/eval/report.py",
+         "verified_by": "grep -n 'by_provenance' daedalus/eval/report.py shows all uses; if bare name appears, fix to result['by_provenance']."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The line with the bug exists; if not, no change needed."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/kairos/drafts.py",
+      "daedalus/council/canary.py",
+      "daedalus/eval/correctness.py",
+      "daedalus/providers/ollama.py",
+      "daedalus/eval/report.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "122abc00f60868d0a60ff81abd48ec9a4804ade6bbd62d7f288618241b1d2244",
+    "objective_chars": 20073,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 1 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 1,
+  "inputs": 5
+ }
+}

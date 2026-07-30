@@ -1,0 +1,104 @@
+{
+ "task_id": "research__b010__946db82",
+ "key": "research__b010__946db82-bd0cc12882",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified three cross-file patterns: duplicate cross-process lock implementations (budget, council room, promotion), a broken guarantee about council records never feeding memory recall, and a missing gate integration between council's product and spine's gate execution.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Duplicate lock implementations may diverge, leading to race conditions.",
+     "Council records may inadvertently become input to memory recall, violating stated architecture.",
+     "Council's gate product may not be consumed by spine's gate execution, breaking the deterministic gate claim."
+    ],
+    "todos": [
+     "Verify whether council records are ever read by memory recall code.",
+     "Check if daedalus.spine.attempt imports or uses council data.",
+     "Consolidate lock implementations or add cross-references to prevent drift."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-locks",
+       "claim": "The codebase contains at least three independently written cross-process lock implementations (budget lock, room lock, promotion lock) that are claimed to be identical but are not shared, risking divergence and race conditions.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/budget (referenced)",
+        "runs/council/room.py (referenced)"
+       ],
+       "mechanism": "Each lock uses fcntl/msvcrt with timeout/retry, but they are private to their modules and independently maintained. A change to one may not be propagated to the others, leading to inconsistent behavior (e.g., different timeout values, error handling).",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that all lock implementations are actually aliases or delegates to a single shared function, or that they are never used concurrently.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py:_PromotionLock",
+        "daedalus/council/__init__.py:claims about separate store but no lock",
+        "daedalus/spine/picker.py:no lock usage visible"
+       ]
+      },
+      {
+       "id": "council-memory-leak",
+       "claim": "The council module claims that 'council records are never an input to memory recall', but the memory projection worker's run() method uses a journal and watermark that could potentially be the same store as the council transcript, violating the architectural separation.",
+       "spans": [
+        "daedalus/council/__init__.py",
+        "daedalus/memory/projection_worker.py"
+       ],
+       "mechanism": "The council module states its store is separate from the memory ledger. However, the memory projection worker reads from a 'journal' and checks watermarks. If the council transcript path is ever passed to the memory worker (e.g., through configuration), council records would become input to memory recall, breaking the claim.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the memory journal is always a different file path than the council transcript, and that no code path can pass council data to memory recall.",
+       "evidence": [
+        "daedalus/council/__init__.py:claims 'COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL'",
+        "daedalus/memory/projection_worker.py:run() uses journal and watermark"
+       ]
+      },
+      {
+       "id": "gate-missing-integration",
+       "claim": "The council module claims its product is a queue of checks for a deterministic gate, but the spine picker and attempt modules (which execute gates) do not reference council data, meaning the council's product is never consumed by the gate.",
+       "spans": [
+        "daedalus/council/__init__.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "Council docstring says 'A council's product is a queue of CHECKS for the existing deterministic gate'. However, the Candidate class in picker.py has gate_paths and gate_argv fields that are populated from sources other than council (e.g., task spec). There is no evidence in the provided chunks that council data flows into Candidate or PickedQueue. The gate execution may ignore council entirely.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that council's append_roster, append_round, etc. are called before gate execution and their output is used to populate Candidate fields or gate parameters.",
+       "evidence": [
+        "daedalus/council/__init__.py:claims about gate product",
+        "daedalus/spine/picker.py:Candidate.gate_paths, gate_argv"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ae3def8c8398685913e68ec7e16ecf99baa07caccd9c1f0d21259d3a09392064",
+    "objective_chars": 25614,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 10 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 5
+ }
+}

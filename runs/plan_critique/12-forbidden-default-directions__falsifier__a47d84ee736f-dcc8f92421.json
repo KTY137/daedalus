@@ -1,0 +1,127 @@
+{
+ "task_id": "12-forbidden-default-directions__falsifier__a47d84ee736f",
+ "key": "12-forbidden-default-directions__falsifier__a47d84ee736f-dcc8f92421",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most claims are unfalsifiable as written, lacking measurable definitions or observable outcomes, which violates the plan's own scientific standard.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "12.1 | high | 'new public mythological subsystems or parallel control planes' is undefined and unfalsifiable; no operational definition of 'mythological' or 'parallel control plane' | Propose a concrete definition and design an experiment to test if a proposed system falls under this ban.",
+     "12.2 | high | 'direct legacy-to-legacy wiring that bypasses canonical contracts' is unfalsifiable unless 'bypasses' and 'canonical contracts' are defined | Define what constitutes bypassing and identify observable evidence.",
+     "12.3 | high | 'a universal graph score, diffusion number, or \u201cintelligence\u201d scalar' is unfalsifiable because 'universal' and 'intelligence' are not defined | Narrow to a specific measurable scalar and show why it is forbidden.",
+     "12.4 | high | 'an unbounded AST hairball or a fifth AST graph' is unfalsifiable; 'unbounded', 'hairball', and 'fifth' need definition | Specify size limits or structural criteria for AST graphs.",
+     "12.5 | medium | 'chat transcripts as orchestration state' is falsifiable: check if any production system uses chat transcripts for orchestration state | Inspect production state stores for chat transcript data.",
+     "12.6 | high | 'shared mutable memory for product personalization and research adaptation' is unfalsifiable; 'shared mutable memory' and 'adaptation' are vague | Define the memory architecture and what constitutes violation.",
+     "12.7 | high | 'an LLM judgment as a hard correctness or promotion gate' is unfalsifiable; 'hard correctness' and 'promotion gate' need operational definition | Define what counts as a 'hard' gate and how LLM judgment is used.",
+     "12.8 | high | 'simultaneous unregistered co-evolution of code, prompts, evaluators, and policy' is unfalsifiable; 'simultaneous', 'unregistered', and 'co-evolution' are not defined | Define registration process and observable co-evolution indicators.",
+     "12.9 | medium | 'automatic merge/promotion or candidate access to its evaluator' is falsifiable: check if any automated merge/promotion occurs or if candidate can access evaluator | Inspect CI/CD pipeline and access controls.",
+     "12.10 | medium | 'a marketing clone whose comparison protocol is not reproducible' is falsifiable: check if comparison protocol is documented and reproducible | Attempt to reproduce the comparison from documentation.",
+     "12.11 | high | 'new graph planes without demonstrated marginal evidence' is unfalsifiable; 'marginal evidence' is undefined | Define what constitutes marginal evidence and how to demonstrate it."
+    ],
+    "todos": [
+     "Define operational criteria for each forbidden direction to make them falsifiable.",
+     "Replace vague terms like 'mythological', 'hairball', 'intelligence' with measurable properties.",
+     "Specify what counts as 'demonstrated marginal evidence' for new graph planes.",
+     "Provide examples of acceptable falsification experiments for each item."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "12.1",
+       "claim": "Do not add new public mythological subsystems or parallel control planes to production architecture.",
+       "verdict": "unfalsifiable",
+       "why": "'Mythological subsystems' and 'parallel control planes' are not defined. Without operational definitions, no observation can prove or disprove compliance. A falsifiable version would define what a 'mythological subsystem' is (e.g., a system that relies on unverified narratives) and what a 'parallel control plane' is (e.g., a separate decision-making path not governed by canonical contracts)."
+      },
+      {
+       "id": "12.2",
+       "claim": "Do not add direct legacy-to-legacy wiring that bypasses canonical contracts.",
+       "verdict": "unfalsifiable",
+       "why": "'Direct legacy-to-legacy wiring' and 'bypasses canonical contracts' are undefined. Without a clear definition of what constitutes 'bypassing' (e.g., data flow not passing through a specified contract interface) and what the 'canonical contracts' are, the claim cannot be tested. A falsifiable version would define the canonical contracts and specify observable criteria for bypassing."
+      },
+      {
+       "id": "12.3",
+       "claim": "Do not add a universal graph score, diffusion number, or 'intelligence' scalar.",
+       "verdict": "unfalsifiable",
+       "why": "Terms like 'universal graph score', 'diffusion number', and 'intelligence scalar' are not defined. Without a precise definition, it is impossible to determine if a given metric falls under this ban. A falsifiable version would specify the properties that make a score 'universal' or a scalar 'intelligence' (e.g., a single scalar claimed to measure overall system intelligence)."
+      },
+      {
+       "id": "12.4",
+       "claim": "Do not add an unbounded AST hairball or a fifth AST graph.",
+       "verdict": "unfalsifiable",
+       "why": "'Unbounded AST hairball' is undefined (what counts as a hairball? what size is unbounded?). 'Fifth AST graph' assumes a specific count of existing AST graphs, which is not stated. Without a definition of 'AST graph' and a baseline count, the claim cannot be falsified. A falsifiable version would define AST graph boundaries and specify a maximum number or size."
+      },
+      {
+       "id": "12.5",
+       "claim": "Do not use chat transcripts as orchestration state.",
+       "verdict": "falsifiable",
+       "why": "This claim is falsifiable: inspect the production system's state management to see if chat transcripts are used as the state for orchestration. If any production component stores orchestration state as chat transcripts, the claim is violated. The observation would be a code review or runtime inspection showing chat transcript data being used to drive orchestration decisions."
+      },
+      {
+       "id": "12.6",
+       "claim": "Do not use shared mutable memory for product personalization and research adaptation.",
+       "verdict": "unfalsifiable",
+       "why": "'Shared mutable memory' is vague; it could refer to many architectures. 'Product personalization and research adaptation' is also vague. Without a precise definition of what memory is considered 'shared mutable' and what operations count as 'personalization' or 'adaptation', the claim cannot be tested. A falsifiable version would specify the memory model (e.g., a global mutable variable) and the specific use cases that are forbidden."
+      },
+      {
+       "id": "12.7",
+       "claim": "Do not use an LLM judgment as a hard correctness or promotion gate.",
+       "verdict": "unfalsifiable",
+       "why": "'Hard correctness or promotion gate' is undefined. What makes a gate 'hard'? Is it a binary decision? Is it the sole criterion? Without a clear definition of what constitutes using an LLM judgment as a hard gate, it is impossible to test. A falsifiable version would define a 'hard gate' as a decision point where the LLM's output is the only factor that determines promotion, with no human review or other checks."
+      },
+      {
+       "id": "12.8",
+       "claim": "Do not allow simultaneous unregistered co-evolution of code, prompts, evaluators, and policy.",
+       "verdict": "unfalsifiable",
+       "why": "'Simultaneous', 'unregistered', and 'co-evolution' are not defined. Without a definition of what counts as 'simultaneous' (same commit? same deployment?), 'unregistered' (no tracking in a system?), and 'co-evolution' (changes that are interdependent?), the claim cannot be falsified. A falsifiable version would require that changes to these artifacts be registered in a version control system and that no two artifacts be changed in a single commit without explicit authorization."
+      },
+      {
+       "id": "12.9",
+       "claim": "Do not allow automatic merge/promotion or candidate access to its evaluator.",
+       "verdict": "falsifiable",
+       "why": "This claim is falsifiable: check the CI/CD pipeline to see if any automatic merge or promotion occurs without human approval. Also check if a candidate (e.g., a code change) has access to its own evaluator (e.g., the test suite or reviewer). If either condition is found, the claim is violated. The observation would be a review of deployment scripts and access controls."
+      },
+      {
+       "id": "12.10",
+       "claim": "Do not add a marketing clone whose comparison protocol is not reproducible.",
+       "verdict": "falsifiable",
+       "why": "This claim is falsifiable: check if any marketing clone exists and if its comparison protocol is documented and reproducible. If a clone exists and the protocol is not reproducible (e.g., missing steps, proprietary data), the claim is violated. The observation would be an attempt to reproduce the comparison from the provided documentation."
+      },
+      {
+       "id": "12.11",
+       "claim": "Do not add new graph planes without demonstrated marginal evidence.",
+       "verdict": "unfalsifiable",
+       "why": "'Marginal evidence' is undefined. What constitutes marginal evidence? How must it be demonstrated? Without a clear definition, no observation can confirm or deny compliance. A falsifiable version would define marginal evidence as, for example, a statistically significant improvement over the current best alternative in a specific benchmark, with the demonstration method (e.g., peer-reviewed experiment) specified."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b33e3f04aa4d7584ad31705ae1a57a23b30ecfe6176ea3eb8abad5e18ec25fb7",
+    "objective_chars": 1934,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "12-forbidden-default-directions",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

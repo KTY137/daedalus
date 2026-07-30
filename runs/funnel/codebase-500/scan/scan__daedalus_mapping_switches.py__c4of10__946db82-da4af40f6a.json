@@ -1,0 +1,164 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c4of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c4of10__946db82-da4af40f6a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 4 of switches.py: defines _Binding processing functions and _Resolver class for cross-module constant resolution via import bindings.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_import_bindings | medium | Uses info_rel.split('/')[:-1] which assumes info_rel is a relative path; may break if path is absolute or empty. | Check if info_rel is always a relative path.",
+     "_resolve_import_origin | medium | For node.level==1, parts = parts[:len(parts)] (no change); for node.level>1, parts = parts[:len(parts)-(node.level-1)]; if node.level > len(parts)+1, negative slicing yields empty list silently. | Confirm node.level never exceeds depth of info_rel.",
+     "_Resolver._binding | low | Uses `func.lineno` and `func.end_lineno`; if func is not a FunctionDef/AsyncFunctionDef, these attributes may be missing. | Ensure func is always one of those types when passed.",
+     "_Resolver.value | low | Recursion depth limit of 4 may fail for deeply nested imports. | Evaluate if real-world depth exceeds 4."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "4 of 10",
+     "purpose": "Define helper functions and _Resolver class for resolving constant names via import bindings.",
+     "symbols": [
+      {
+       "name": "_name_expr",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts the name expression from a Subscript or Call node."
+      },
+      {
+       "name": "_resolve_name",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves an AST expression to a string constant if possible."
+      },
+      {
+       "name": "_import_bindings",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts all 'from X import NAME' bindings from a module AST, with lexical scope info."
+      },
+      {
+       "name": "_resolve_import_origin",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves the origin file path for an ast.ImportFrom node."
+      },
+      {
+       "name": "_Resolver",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a constant Name to its value by following module imports."
+      },
+      {
+       "name": "_Resolver.value",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Recursively resolves a name to its constant value across modules."
+      },
+      {
+       "name": "_Resolver._binding",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Finds the best matching import binding for a name given scope and line number."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Defaults are routinely written as an imported constant, and this codebase imports two DIFFERENT constants under the SAME name `DEFAULT_MODEL` inside one function. Without the scope and the line number, reconciling defaults across modules would confidently compare the wrong values.",
+       "where": "_import_bindings docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references behavior in other parts of the codebase (importing two constants named DEFAULT_MODEL) that is not present in this chunk."
+      },
+      {
+       "text": "Resolves a constant Name to its value, following module imports.",
+       "where": "_Resolver docstring",
+       "verdict": "kept",
+       "why": "The _Resolver class implements value resolution by looking up bindings and recursing into imported modules."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _name_expr returns node.slice for Subscript nodes only if slice is an expression; otherwise returns None.",
+       "where": "_name_expr",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_resolve_name checks for ast.Constant with str value or ast.Name with str value in consts dict.",
+       "where": "_resolve_name",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_import_bindings uses info_rel.split('/')[:-1] to derive parent directory parts; assumes info_rel is a relative path without leading slash.",
+       "where": "_import_bindings",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_resolve_import_origin handles node.level by slicing parts; for node.level=1, parts unchanged; for node.level>1, removes (node.level-1) trailing parts; for node.level=0, parts becomes empty list.",
+       "where": "_resolve_import_origin",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_Resolver.value has recursion depth limit of 4; returns (False, None) if exceeded.",
+       "where": "_Resolver.value",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Resolver._binding filters bindings by owner span (func.lineno, func.end_lineno) and line number <= lineno; if no local, falls back to globals (owner is None).",
+       "where": "_Resolver._binding",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1dc1739567b431756b4f60c4240de500e753a6bbf1dbd52a59ddeff41a296a96",
+    "objective_chars": 5095,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [4/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 4,
+  "total": 10,
+  "first_line": 361
+ }
+}

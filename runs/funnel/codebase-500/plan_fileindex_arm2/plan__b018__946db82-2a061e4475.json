@@ -1,0 +1,134 @@
+{
+ "task_id": "plan__b018__946db82",
+ "key": "plan__b018__946db82-2a061e4475",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings survived review: 2 confirmed (missing-check-logic high, ungraded-task-handling critical), 1 narrowed (missing-foreign-key-validation medium), 1 needs-evidence (forest-assumptions-violated high). Deliverables: fix race condition, implement check logic, validate foreign key, audit type node filtering.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing the race condition may require a lock or state machine change that affects latency.",
+     "Implementing check logic may uncover design inconsistencies with the existing CheckPolicy class.",
+     "Foreign key validation may require schema migration if constraint is missing.",
+     "Auditing type node filtering may reveal violations that require changes in dss or graph.",
+     "All items depend on code review of full files; partial views may hide existing implementations."
+    ],
+    "todos": [
+     "Review full killswitch.py to design race fix.",
+     "Review full checks.py to find existing check implementations.",
+     "Review full embeddings.py and schema for foreign key enforcement.",
+     "Review dss._estimated_tokens and graph.fenced_dominance for type node filtering.",
+     "Write and run tests for each fix."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix race condition in killswitch._watch_loop that fabricates 'gates_failed' verdicts for cancelled candidates",
+       "gate": "1",
+       "why_now": "Critical bug: cancelled candidates get 'gates_failed' verdict, polluting evaluation metrics and picker scoring. This breaks the core assumption that ungraded tasks are excluded.",
+       "steps": [
+        {
+         "do": "Modify _watch_loop in killswitch.py to ensure that when a gate process is cancelled, the candidate is recorded as 'cancelled' instead of 'gates_failed'. Add a check before recording the verdict: if the process was cancelled, set outcome to cancelled.",
+         "file": "daedalus/spine/killswitch.py",
+         "verified_by": "Write a test (in tests/test_killswitch.py) that simulates the race: start killswitch, cancel gate process, verify attempt.py records 'cancelled' not 'gates_failed'. Run test and confirm pass."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The race condition is reproducible and the fix does not introduce new race conditions. The exact location of the verdict recording is assumed to be in _watch_loop based on the finding; full file review needed."
+      },
+      {
+       "rank": 2,
+       "title": "Implement check logic for CheckPolicy fields in lanes/checks.py",
+       "gate": "1",
+       "why_now": "The scanned chunk defines CheckPolicy fields (elision_markers, min_size_ratio, min_symbol_survival) but lacks the check functions that use them. Without implementation, these policies are dead code and the baseline checks are incomplete.",
+       "steps": [
+        {
+         "do": "Review the full daedalus/lanes/checks.py to locate existing check functions. If missing, implement the checks using the fields. Add functions like elision_check, size_ratio_check, symbol_survival_check that return refusal reasons.",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Write tests in tests/test_lanes_checks.py that instantiate CheckPolicy with various values and verify the checks pass/fail as expected. Run tests."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The check functions are indeed missing from the full file; if they exist elsewhere, this step reduces to verifying they are correctly wired. The exact signature of check functions is unknown; assumed to match the pattern described in docstring."
+      },
+      {
+       "rank": 3,
+       "title": "Add foreign key validation in record_journal_watermark or enforce constraint in schema",
+       "gate": "2",
+       "why_now": "Without validation, orphaned watermark rows can occur if spec.index_id does not exist in the embeddings table. This leads to data integrity issues and potentially incorrect query results.",
+       "steps": [
+        {
+         "do": "In daedalus/memory/embeddings.py, add a check in record_journal_watermark that verifies spec.index_id exists in the embeddings table (e.g., via a SELECT). If not, raise an error or return early. Alternatively, add a foreign key constraint in the database schema.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Write a test that calls record_journal_watermark with a non-existent index_id and expects an error. Run test. Also verify that the database schema (if defined in code) has a foreign key constraint."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function record_journal_watermark exists in embeddings.py (as per cited_source). The full function signature and database connection details are unknown; assumed to be accessible within the same module."
+      },
+      {
+       "rank": 4,
+       "title": "Audit dss._estimated_tokens and graph.fenced_dominance for type node filtering",
+       "gate": "2",
+       "why_now": "If these functions include type nodes in token budgets or routing decisions, it violates the forest.py contract and may cause incorrect allocations. This is a plausible risk that needs evidence.",
+       "steps": [
+        {
+         "do": "Inspect daedalus/structcore/dss.py for _estimated_tokens function and daedalus/structcore/graph.py for fenced_dominance function. Check if they filter out type nodes (e.g., by checking node kind). If not, add filtering.",
+         "file": "daedalus/structcore/dss.py",
+         "verified_by": "Write tests that pass type nodes to these functions and verify they are excluded from calculations. Run tests."
+        },
+        {
+         "do": "Inspect daedalus/structcore/graph.py for fenced_dominance function for type node filtering.",
+         "file": "daedalus/structcore/graph.py",
+         "verified_by": "Write tests that pass type nodes to fenced_dominance and verify they are excluded. Run tests."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions _estimated_tokens and fenced_dominance exist in the specified files. The node kind attribute is assumed to be available (e.g., node.kind). The exact logic may vary; this step may become a no-op if filtering already exists."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/killswitch.py",
+      "daedalus/lanes/checks.py",
+      "daedalus/memory/embeddings.py",
+      "daedalus/structcore/dss.py",
+      "daedalus/structcore/graph.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "72e6a7ac978c424cedc590c84c0582a96e9eec600fc59779af86c3ec17ae3087",
+    "objective_chars": 19471,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 18 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 18,
+  "inputs": 4
+ }
+}

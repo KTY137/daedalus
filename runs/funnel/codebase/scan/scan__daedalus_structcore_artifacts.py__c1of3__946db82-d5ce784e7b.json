@@ -1,0 +1,340 @@
+{
+ "task_id": "scan__daedalus_structcore_artifacts.py__c1of3__946db82",
+ "key": "scan__daedalus_structcore_artifacts.py__c1of3__946db82-d5ce784e7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of artifacts.py: defines artifact families, path literal extraction, resolution candidates, and ArtifactEdge dataclass. Verifies docstring claims about tiers, invariants, and refusal to guess.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "extract_literals | low | MAX_LITERALS_PER_FILE=400 may silently truncate, losing edges; no warning or counting mechanism visible in this chunk. | Check if caller handles truncation or if a count is emitted elsewhere.",
+     "_candidates | medium | PurePosixPath(parent) of from_rel may produce '.' for root; then 'raw' is added again as './raw' duplication logic may be fragile. | Test with from_rel='file.txt' and raw='sub/file'.",
+     "artifact_node_id | low | Uses replace(chr(92), '/') but does not normalize forward slashes; path like 'a\\b/c' becomes 'a/b/c' but 'a//b' stays. | Confirm normalization elsewhere.",
+     "literal_language | low | Falls back to suffix lookup; if suffix not in LITERAL_LANGUAGES returns None. For unknown suffixes, no literals extracted. | This is intentional per docstring.",
+     "LITERAL_RULES | low | Shell redirect pattern (?<![>])> may miss cases where > is preceded by a digit (e.g., '2>') or is part of '>>&'. | Check if shell rules cover common redirections.",
+     "extract_literals | low | line_of uses bisect on starts list built from newline positions; if text ends without newline, last line may be mis-indexed. | Test with file lacking trailing newline.",
+     "LITERAL_LANGUAGES | low | .C (capital C) mapped to 'cpp' not 'c'; may be C source. | Verify intent; C++ .C is common but ambiguous.",
+     "artifact_family | low | Only checks suffix; path like 'foo.root/' (directory) would match. | No defense against directories."
+    ],
+    "todos": [
+     "Add counting of dropped literals due to MAX_LITERALS_PER_FILE.",
+     "Consider normalizing path separators consistently (e.g., pathlib).",
+     "Verify shell redirect pattern handles all common cases.",
+     "Review .C mapping to cpp vs c.",
+     "Add directory check in artifact_family."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/artifacts.py",
+     "chunk": "1 of 3",
+     "purpose": "Define artifact data structures, path literal extraction, and resolution candidates.",
+     "symbols": [
+      {
+       "name": "ARTIFACTS_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant '1' for versioning."
+      },
+      {
+       "name": "MAX_SCHEMA_BYTES",
+       "kind": "constant",
+       "effects": [],
+       "note": "256*1024 bytes for bounded schema reads."
+      },
+      {
+       "name": "MAX_COLUMNS",
+       "kind": "constant",
+       "effects": [],
+       "note": "512 columns maximum."
+      },
+      {
+       "name": "MAX_LITERALS_PER_FILE",
+       "kind": "constant",
+       "effects": [],
+       "note": "400 literals maximum per file."
+      },
+      {
+       "name": "NOT_SUPPORTED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'not_supported'."
+      },
+      {
+       "name": "UNREADABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'unreadable'."
+      },
+      {
+       "name": "READ",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'read'."
+      },
+      {
+       "name": "ARTIFACT_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping suffix to (family, has_schema_reader)."
+      },
+      {
+       "name": "artifact_family",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns artifact family for a path or None."
+      },
+      {
+       "name": "artifact_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns artifact node id string prefixed with 'artifact:'."
+      },
+      {
+       "name": "is_artifact_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if string starts with 'artifact:'."
+      },
+      {
+       "name": "LITERAL_RULES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping language to list of (relation, regex, note) tuples."
+      },
+      {
+       "name": "LITERAL_LANGUAGES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping suffix to language name."
+      },
+      {
+       "name": "LITERAL_FILENAMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping filename (lowercase) to language."
+      },
+      {
+       "name": "_COMPILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regexes per language from LITERAL_RULES."
+      },
+      {
+       "name": "literal_language",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns language for a path based on suffix or filename."
+      },
+      {
+       "name": "PathLiteral",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for a path literal with relation, raw, line, note, language."
+      },
+      {
+       "name": "extract_literals",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts path literals from file text given relative path."
+      },
+      {
+       "name": "_TEX_INPUT_SUFFIXES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of ('.tex',) for LaTeX input resolution."
+      },
+      {
+       "name": "_TEX_FIGURE_SUFFIXES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of figure suffixes for LaTeX figure resolution."
+      },
+      {
+       "name": "_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidate resolved paths for a literal."
+      },
+      {
+       "name": "ArtifactEdge",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for an edge from source to target with relation, line, attributes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The type layer describes **shapes declared in code** \u2014 what a function says it takes and returns. This layer describes **artefacts that move between programs** \u2014 which file a script reads, which it writes, and what schema that file actually carries.",
+       "where": "docstring lines 3-7",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the type layer code; cannot verify claim about it."
+      },
+      {
+       "text": "A path literal, however, is a path literal in LaTeX, C++, Python, Fortran, Verilog and a Makefile alike, which is why this layer generalises where the type layer cannot.",
+       "where": "docstring lines 12-13",
+       "verdict": "kept",
+       "why": "LITERAL_RULES includes entries for all mentioned languages (latex, python, cpp, fortran, verilog, make)."
+      },
+      {
+       "text": "An edge alone says \"this script touches that file\". The interesting question is whether the **schema the code declares** and the **schema the file carries** agree.",
+       "where": "docstring lines 16-17",
+       "verdict": "uncheckable",
+       "why": "Schema comparison (compare_schema) is not in this chunk."
+      },
+      {
+       "text": "So this module extracts artefact schemas as first-class data (``ArtifactSchema``) and offers ``compare_schema`` so a later lane can report the DISAGREEMENT",
+       "where": "docstring lines 19-20",
+       "verdict": "uncheckable",
+       "why": "ArtifactSchema and compare_schema are not defined in this chunk."
+      },
+      {
+       "text": "tier 0  path literals -> artefact edges. No file is opened. Works for every language with a pattern below. This is the cheap universal layer.",
+       "where": "docstring lines 24-25",
+       "verdict": "kept",
+       "why": "extract_literals reads text from string, no I/O; LITERAL_RULES covers many languages."
+      },
+      {
+       "text": "tier 1  schema as DECLARED IN CODE (``TTree::Branch(\"voltage\", \u2026)``, ``read_csv(names=[\u2026])``). Not implemented here yet; the hook is ``SCHEMA_FROM_CODE`` and it reports ``not_supported`` until it exists.",
+       "where": "docstring lines 27-28",
+       "verdict": "uncheckable",
+       "why": "SCHEMA_FROM_CODE not present in this chunk."
+      },
+      {
+       "text": "tier 2  schema read FROM THE ARTEFACT. Implemented with stdlib only for CSV, JSON and NPY. ROOT/HDF5/Parquet need optional readers (``uproot``, ``h5py``, ``pyarrow``); absent, they report ``not_supported`` \u2014 never an empty schema",
+       "where": "docstring lines 30-32",
+       "verdict": "uncheckable",
+       "why": "Schema readers not implemented in this chunk."
+      },
+      {
+       "text": "**Refuse to guess.** A literal that does not resolve to a file present in the file set is DROPPED and COUNTED, never bound to a near-match.",
+       "where": "docstring line 37",
+       "verdict": "uncheckable",
+       "why": "Resolution logic not fully present; _candidates only generates candidates, no matching against file set."
+      },
+      {
+       "text": "A literal matching more than one candidate is AMBIGUOUS and produces no edge.",
+       "where": "docstring line 38",
+       "verdict": "uncheckable",
+       "why": "Ambiguity handling not implemented in this chunk."
+      },
+      {
+       "text": "**Metadata only, never the payload.** A ``.root`` file is gigabytes; its branch list is kilobytes. Schema reads are bounded by ``MAX_SCHEMA_BYTES`` and stop at the header. This layer never ingests data.",
+       "where": "docstring lines 40-41",
+       "verdict": "uncheckable",
+       "why": "Schema reads not implemented; MAX_SCHEMA_BYTES defined but not used."
+      },
+      {
+       "text": "**Reading is not executing.** No file here is imported, run, or evaluated. But parsing a hostile binary is still an attack surface, so every reader is bounded and failure is reported as ``unreadable``, never as an empty schema.",
+       "where": "docstring lines 43-44",
+       "verdict": "uncheckable",
+       "why": "Readers not implemented; UNREADABLE constant defined."
+      },
+      {
+       "text": "**Artefacts are not code.** Artefact nodes get their own id namespace and never enter ``modules``, ``import_edges``, ``all_units`` or the symbol resolver",
+       "where": "docstring lines 46-47",
+       "verdict": "kept",
+       "why": "artifact_node_id returns 'artifact:' prefix; is_artifact_node_id checks it; separate namespace evident."
+      },
+      {
+       "text": "LaTeX omits the extension on \\input and \\includegraphics. Trying candidates is resolution, not guessing, PROVIDED that more than one hit is reported as ambiguous rather than silently taking the first.",
+       "where": "comment lines 127-129",
+       "verdict": "kept",
+       "why": "_candidates adds suffixes for 'includes' and 'figures' relations in latex; ambiguity handling not in this chunk but claim about trying candidates is implemented."
+      },
+      {
+       "text": "A Makefile states producer and product outright \u2014 the only place in this table where direction is declared rather than inferred from a call name.",
+       "where": "comment in _MAKE list",
+       "verdict": "kept",
+       "why": "_MAKE rule uses regex for target (writes) without call name inference."
+      },
+      {
+       "text": "Deliberately by suffix, not by the ``LanguageSpec`` registry: this table includes formats that carry no code units at all (``.tex``, ``Makefile``) and therefore have no spec.",
+       "where": "comment before LITERAL_LANGUAGES",
+       "verdict": "kept",
+       "why": "LITERAL_LANGUAGES maps suffixes directly; .tex and .mk are present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "MAX_LITERALS_PER_FILE is 400; extract_literals returns early if reached, but no warning or counting is emitted in this chunk.",
+       "where": "extract_literals line ~115",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_candidates uses PurePosixPath(parent) of from_rel; if from_rel has no directory part, parent is '.', leading to duplicate candidates.",
+       "where": "_candidates lines ~140-150",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "artifact_node_id replaces backslashes but does not normalize forward slashes (e.g., '//' remains).",
+       "where": "artifact_node_id",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "literal_language checks filename first, then suffix; but LITERAL_FILENAMES keys are lowercase, so 'Makefile' matches but 'MAKEFILE' may not.",
+       "where": "literal_language",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Shell redirect pattern (?<![>])> may not match '2>' or '>>&'.",
+       "where": "_SHELL rule",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "extract_literals uses bisect on starts list built from newline positions; if text does not end with newline, last line number may be off by one.",
+       "where": "extract_literals line_of function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": ".C (capital C) is mapped to 'cpp' but could be C source.",
+       "where": "LITERAL_LANGUAGES",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "artifact_family only checks suffix; path like 'foo.root/' (directory) would match.",
+       "where": "artifact_family",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8c59e966e99a09d3b48db0704ae4323d33fd46bc56f4ee0e2bea60d348043802",
+    "objective_chars": 12978,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/artifacts.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/artifacts.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

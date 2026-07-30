@@ -1,0 +1,178 @@
+{
+ "task_id": "daedalus/dctx.py#c1of1#5eb1702d",
+ "key": "daedalus_dctx.py_c1of1_5eb1702d-227ef0a5a4",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "25 claims: 22 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"THIS MODULE ADDS NO CONTEXT LOGIC\" | compile | KEPT | compile calls semantic_slice and wraps the result; no additional context logic.",
+     "CLAIM | \"the SHA covers STRUCTURAL claims only ... and deliberately excludes: slice_tokens / whole_repo_tokens / reduction_pct and the per-unit tokens\" | _canonical | KEPT | _canonical drops 'tokens' keys from included units and does not include slice_tokens, whole_repo_tokens, etc.",
+     "CLAIM | \"whole_repo_tokens_exact ... excluded\" | _canonical | KEPT | _canonical does not include whole_repo_tokens_exact.",
+     "CLAIM | \"backend ... excluded\" | _canonical | KEPT | _canonical does not include backend.",
+     "CLAIM | \"absolute paths and the repo root ... every path in the receipt is repo-relative\" | compile | KEPT | Paths come from semantic_slice as repo-relative; _unit_digest uses rel path; no absolute paths added.",
+     "CLAIM | \"timestamps -- there are none\" | compile | KEPT | No timestamp field is added to receipt.",
+     "CLAIM | \"with max_tokens set, WHICH neighbours survive _fit_budget is decided by the token estimator, so the kept set -- and therefore the receipt SHA -- is only reproducible under the same tokenizer\" | compile | KEPT | The receipt includes included units whose selection depends on tokenizer; no contradictory code.",
+     "CLAIM | \"Un-budgeted receipts (max_tokens=None, the default) have no such dependency\" | compile | KEPT | When max_tokens is None, the receipt SHA does not depend on tokenizer because no budget fitting occurs.",
+     "CLAIM | \"Absence is REPORTED, never omitted\" | _commit | KEPT | _commit always returns a tuple, never omits commit_sha; receipt always gets commit_sha and commit_status.",
+     "CLAIM | \"the field is always present and always paired with a status naming why it is None\" | compile | KEPT | receipt dict always includes commit_sha and commit_status from _commit.",
+     "CLAIM | \"the same bytes at two paths are two different facts, so the path is hashed too\" | _unit_digest | KEPT | _unit_digest includes rel in the hash.",
+     "CLAIM | \"role/mode as well\" | _unit_digest | KEPT | _unit_digest includes role and mode in the hash.",
+     "CLAIM | \"this digest binds the unit's identity to its CONTAINING FILE's bytes\" | _unit_digest | KEPT | The digest includes the file's text, not just the symbol body.",
+     "CLAIM | \"Everything the module docstring lists as excluded is dropped HERE, in one place\" | _canonical | KEPT | _canonical drops all excluded fields; only one place.",
+     "CLAIM | \"The egress verdict is only meaningful RELATIVE to the predicate that produced it ... when the receipt was minted under a caller-supplied policy that policy is part of the claim and must be in the hash\" | _canonical | KEPT | _canonical conditionally includes egress_policy.",
+     "CLAIM | \"Keyed conditionally: a default-policy receipt ... carries no such field and hashes byte-for-byte as it did before this field existed\" | _canonical | KEPT | egress_policy only added if present in receipt.",
+     "CLAIM | \"labels come from the caller or not at all\" | compile | KEPT | labels parameter is passed through; no derivation.",
+     "CLAIM | \"label_provenance records WHERE they came from\" | compile | KEPT | label_provenance is recorded in receipt.",
+     "CLAIM | \"no labels -> recall is None. Never 1.0\" | compile | KEPT | If not labels, recall is None; recall is only set when labels exist.",
+     "CLAIM | \"label_provenance='hand_reachable' is accepted but is, by definition, the circular case; it is recorded, not rejected\" | compile | KEPT | label_provenance='hand_reachable' passes validation and is recorded.",
+     "CLAIM | \"sorted(): the manifest is a set of claims ... iteration order reaching output\" | compile | KEPT | included list is sorted.",
+     "CLAIM | \"The fail-closed focus-gate path in slice.py returns a result dict WITHOUT trimmed_count; .get keeps a refused slice certifiable instead of crashing\" | compile | KEPT | trimmed_count uses res.get('trimmed_count', 0).",
+     "CLAIM | \"A caller-supplied policy IS part of the egress claim: verify() must re-check under the same allow-list / deny-content\" | compile | KEPT | compile stores egress_policy fingerprint; verify uses it.",
+     "CLAIM | \"Recorded only when non-None so a caller that passes no policy gets a byte-identical receipt to before\" | compile | KEPT | egress_policy only added if policy is not None.",
+     "CLAIM | \"Derived, not hand-maintained: the list of hashed fields cannot drift out of step with _canonical because it IS _canonical's key set\" | compile | BROKEN | Line: hashed_fields is set to sorted(_canonical(receipt)) but _canonical(receipt) returns a dict, not a list of keys; sorted(dict) returns sorted keys, but the comment says 'list of hashed fields' and _canonical returns a dict; the intention is sorted(_canonical(receipt).keys()) but code uses sorted(_canonical(receipt)) which works by coincidence? Actually sorted(dict) returns sorted keys, so it does produce a list of field names. However, the comment says 'key set' which is correct. The claim is that hashed_fields is derived from _canonical's key set, and it is. So this is KEPT.",
+     "CLAIM | \"Only the rule NAME is recorded, never matched text\" | _egress_verdict | KEPT | violations contain only file and rule name.",
+     "CLAIM | \"sorted() throughout: the egress decision is order-independent ... and this projection reaches the receipt SHA\" | _egress_policy_fingerprint | KEPT | All fields are sorted.",
+     "CLAIM | \"Fail-closed on a malformed/absent field: default_deny defaults to True (withhold), never False\" | _policy_from_fingerprint | KEPT | default_deny defaults to True via bool(fp.get('default_deny', True)).",
+     "CLAIM | \"The change-risk fields are left at their generic defaults -- verify only ever calls slice_egress_rule, which does not read them\" | _policy_from_fingerprint | UNCHECKABLE | Need to see slice_egress_rule implementation to confirm it does not read change-risk fields.",
+     "CLAIM | \"A receipt may not claim recall it cannot attribute, and may not claim 1.0 out of thin air\" | _recall_claim_failures | KEPT | The function checks invariants accordingly.",
+     "CLAIM | \"Returns (ok, failures) -- always the SPECIFIC failures, never a bare False\" | verify | KEPT | verify returns a list of specific failure messages.",
+     "CLAIM | \"The commit, the per-unit source digests, the no-secret-egress predicate and the receipt's own integrity are re-derived from disk\" | verify | KEPT | verify recomputes commit, unit digests, egress, and receipt_sha.",
+     "CLAIM | \"The recall claim is checked for INTERNAL CONSISTENCY and against the anti-tautology invariants -- reproducing the number itself would mean re-running the slicer\" | verify | KEPT | verify calls _recall_claim_failures, which checks consistency.",
+     "CLAIM | \"Only the rule name is reported -- a certificate that quoted the secret it certifies the absence of would be an own-goal\" | verify | KEPT | verify only appends rule name, not matched text.",
+     "CLAIM | \"The unconditional secret floor (tier 1) runs regardless of this, so a forged laxer policy still cannot ride a real secret through\" | verify | KEPT | verify always calls slice_egress_rule with the policy; there is no conditional skip. However, the 'unconditional secret floor' concept is not implemented in this unit; the claim is about behavior that relies on slice_egress_rule. Since the code does call slice_egress_rule regardless, the claim is kept.",
+     "D1 | max_tokens parameter in compile | Parameter defined but read nowhere in this unit (only passed to semantic_slice, which is not in this unit) | WRONG CONCLUSION: A caller might think max_tokens is used locally, but it's only passed through.",
+     "D2 | None | No except that swallows and continues.",
+     "D3 | None | No check that runs after the side effect it guards.",
+     "D4 | None | No branch whose condition cannot be true."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "17f28ab8e8c612c579c1d64acd20cb62fe4bde18e493b85c8d171ad56cd13b4f",
+    "objective_chars": 24750,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 14 kept, 3 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"THIS MODULE ADDS NO CONTEXT LOGIC\" | compile | BROKEN | compile calls _egress_verdict which calls slice_egress_rule and _read, adding egress logic beyond the slicer's output",
+     "CLAIM | \"the shared cross-track vocabulary. \"none\" is not a placeholder -- it is the only honest answer when the caller supplied no labels\" | LABEL_PROVENANCE | KEPT | constant tuple includes \"none\", and compile enforces that labels without provenance raises ValueError",
+     "CLAIM | \"Absence is REPORTED, never omitted\" | _commit | KEPT | returns (None, \"git_unavailable\") or (None, \"not_a_git_repo\") on failure, never omits the key",
+     "CLAIM | \"the same bytes at two paths are two different facts, so the path is hashed too\" | _unit_digest | KEPT | hashes DIGEST_VERSION, rel, role, mode, and text; path is part of rel",
+     "CLAIM | \"this digest binds the unit's identity to its CONTAINING FILE's bytes\" | _unit_digest | KEPT | hashes text which is the file content read by _read(root, u[\"file\"])",
+     "CLAIM | \"Everything the module docstring lists as excluded is dropped HERE\" | _canonical | KEPT | drops tokens, whole_repo_tokens, reduction_pct, whole_repo_tokens_exact, backend, absolute paths, timestamps; only includes fields listed",
+     "CLAIM | \"The egress verdict is only meaningful RELATIVE to the predicate that produced it\" | _canonical | KEPT | conditionally includes egress_policy if present in receipt",
+     "CLAIM | \"labels come from the caller or not at all\" | compile | KEPT | labels parameter is optional, and if labels is None no recall calculation is done",
+     "CLAIM | \"no labels -> recall is None. Never 1.0\" | compile | KEPT | recall initialized to None and only set if labels is truthy",
+     "CLAIM | \"the fail-closed focus-gate path in slice.py returns a result dict WITHOUT trimmed_count; .get keeps a refused slice certifiable\" | compile | KEPT | uses res.get(\"trimmed_count\", 0) so missing key does not crash",
+     "CLAIM | \"A caller-supplied policy IS part of the egress claim\" | compile | KEPT | if policy is not None, receipt[\"egress_policy\"] is set via _egress_policy_fingerprint",
+     "CLAIM | \"Re-run the egress gate over everything the slice claims to INCLUDE\" | _egress_verdict | KEPT | iterates over unique files from included and calls slice_egress_rule",
+     "CLAIM | \"Only the rule NAME is recorded, never matched text\" | _egress_verdict | KEPT | violations contain {\"file\": rel, \"rule\": rule} where rule is the rule name, not matched content",
+     "CLAIM | \"the change-risk and write-block fields do not move the egress verdict\" | _egress_policy_fingerprint | UNCHECKABLE | needs to inspect Policy class and slice_egress_rule to verify those fields are not consulted",
+     "CLAIM | \"default_deny defaults to True (withhold), never False\" | _policy_from_fingerprint | KEPT | bool(fp.get(\"default_deny\", True)) defaults to True",
+     "CLAIM | \"Returns (ok, failures) -- always the SPECIFIC failures, never a bare False\" | verify | KEPT | returns tuple with list of failure strings, never just False",
+     "CLAIM | \"The unconditional secret floor (tier 1) runs regardless of this\" | verify | BROKEN | verify does not call any tier-1 function; it only calls slice_egress_rule which may incorporate tier-1 but the docstring claim is not backed by code in this unit",
+     "D1 | label_provenance parameter in compile | parameter accepted but not read in this unit? Actually it is read in the validation and used to set receipt. So no D1.",
+     "D2 | none | no except swallows and continues",
+     "D3 | none | no check-after-side-effect found",
+     "D4 | none | no impossible branch found"
+    ],
+    "todos": [
+     "Remove or qualify the claim 'THIS MODULE ADDS NO CONTEXT LOGIC' because _egress_verdict adds egress logic",
+     "Add a call to the tier-1 secret floor in verify or remove the claim that it runs unconditionally"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "17f28ab8e8c612c579c1d64acd20cb62fe4bde18e493b85c8d171ad56cd13b4f",
+    "objective_chars": 24750,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 10 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the receipt SHA covers STRUCTURAL claims only\" | _canonical | KEPT | The function drops all excluded fields (tokens, backend, paths, timestamps) and includes only structural fields.",
+     "CLAIM | \"The egress verdict is only meaningful RELATIVE to the predicate that produced it\" | _canonical | KEPT | The conditional inclusion of egress_policy in the canonical dict ensures the hash binds the policy to the verdict.",
+     "CLAIM | \"A caller-supplied policy IS part of the egress claim\" | compile | KEPT | The code records egress_policy in the receipt only when policy is not None, and it is folded into receipt_sha via _canonical.",
+     "CLAIM | \"labels come from the caller or not at all\" | compile | KEPT | The function accepts labels as a parameter and does not derive them internally.",
+     "CLAIM | \"label_provenance records WHERE they came from\" | compile | KEPT | The function stores label_provenance in the receipt and validates it against LABEL_PROVENANCE.",
+     "CLAIM | \"no labels -> recall is None. Never 1.0.\" | compile | KEPT | When labels is falsy, recall remains None (initialized as None) and is never set to 1.0.",
+     "CLAIM | \"The fail-closed focus-gate path in slice.py returns a result dict WITHOUT trimmed_count; .get keeps a refused slice certifiable\" | compile, line 171 | KEPT | The code uses res.get(\"trimmed_count\", 0) to handle missing key.",
+     "CLAIM | \"A receipt may not claim recall it cannot attribute, and may not claim 1.0 out of thin air.\" | _recall_claim_failures | KEPT | The function returns failures for recall with label_provenance 'none', or for missing recall when labels are present.",
+     "CLAIM | \"The unconditional secret floor (tier 1) runs regardless of this, so a forged laxer policy still cannot ride a real secret through.\" | verify | KEPT | The egress re-check calls slice_egress_rule with the policy (or None), and the tier-1 checks are independent of the policy.",
+     "CLAIM | \"The floor re-runs on the CURRENT bytes: a secret planted into an already- included file after minting must fail the receipt, not ride along on it.\" | verify | KEPT | The verify function reads the current file contents from disk and re-checks egress, so any new secret would be caught.",
+     "D1 | _policy_from_fingerprint | Parameter 'fp' is used; no unused parameters in this unit. | WRONG CONCLUSION: The function uses all its parameters.",
+     "D2 | none | KEPT | No except clause that swallows and continues where prose says refuse.",
+     "D3 | none | KEPT | No check that runs after the side effect it guards.",
+     "D4 | none | KEPT | All branches appear reachable.",
+     "CLAIM | \"sorted() throughout: the egress decision is order-independent\" | _egress_policy_fingerprint | KEPT | The function uses sorted() on all lists.",
+     "BROKEN | \"The egress verdict is only meaningful RELATIVE to the predicate that produced it, so when the receipt was minted under a caller-supplied policy that policy is part of the claim and must be in the hash -- otherwise the recorded allow-list could be swapped for a laxer one without moving receipt_sha.\" | _canonical, line 107 | BROKEN | The conditional inclusion of egress_policy in _canonical only happens when the key exists in the receipt, but the receipt is built in compile() AFTER _canonical is called (line 192). At the time _canonical is called, egress_policy is not yet in the receipt, so the condition is always false and egress_policy is never included in the canonical dict. This means the policy is NOT in the hash, contradicting the claim that it must be in the hash."
+    ],
+    "todos": [
+     "Move the insertion of egress_policy into the receipt before calling _canonical, or restructure so that _canonical sees the policy."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "17f28ab8e8c612c579c1d64acd20cb62fe4bde18e493b85c8d171ad56cd13b4f",
+    "objective_chars": 24750,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/dctx.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 22313
+ }
+}

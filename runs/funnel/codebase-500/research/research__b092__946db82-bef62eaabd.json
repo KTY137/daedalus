@@ -1,0 +1,98 @@
+{
+ "task_id": "research__b092__946db82",
+ "key": "research__b092__946db82-bef62eaabd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) the token cap multiplier 4 in eval/harness.py is undocumented and may inflate B's token budget, (2) PyTypeFacts docstring falsely claims all fields are tuples while module is str, (3) multiple modules reference external functions not defined in the provided chunks, indicating incomplete coverage.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Undocumented multiplier in eval_task_arms may cause B arm to use larger token budget than claimed, skewing recall comparisons.",
+     "PyTypeFacts docstring misstates field types, which could mislead consumers that rely on tuple immutability guarantees.",
+     "Missing function definitions (_whole_repo_text, _bm25_context, _recall, _render_md) in provided chunks may hide bugs or inconsistencies."
+    ],
+    "todos": [
+     "Verify the token cap multiplier 4 in eval_task_arms and document or justify it.",
+     "Correct PyTypeFacts docstring to accurately reflect field types.",
+     "Ensure all referenced functions are defined and consistent across modules."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "token-cap-multiplier",
+       "claim": "The token cap multiplier 4 used in eval_task_arms for B's capped version is undocumented and may inflate the token budget beyond the intended _DEFAULT_MODEL_CAP_TOKENS, potentially making B appear stronger.",
+       "spans": [
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "In eval_task_arms, text_b_capped is computed with cap_chars=_DEFAULT_MODEL_CAP_TOKENS*4, but the docstring and claims only mention _DEFAULT_MODEL_CAP_TOKENS without the multiplier. This could lead to B having a larger token budget than stated, affecting recall comparisons.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the multiplier 4 is intentional and documented elsewhere (e.g., to account for 4 characters per token), or if the actual token count is still within expected limits, the claim is refuted.",
+       "evidence": [
+        "daedalus/eval/harness.py: observation about multiplier 4 in eval_task_arms"
+       ]
+      },
+      {
+       "id": "pytypefacts-tuple-claim",
+       "claim": "PyTypeFacts docstring claims 'Every field is a tuple', but the module field is a str, contradicting the claim and potentially breaking immutability assumptions.",
+       "spans": [
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "The docstring states that every field is a tuple, implying immutability and safe default_factory usage. However, the field 'module' is declared as str, not tuple. This inconsistency could mislead consumers who rely on the docstring for type guarantees.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If the docstring is interpreted as 'every field that is a collection is a tuple' or if the module field is later changed to a tuple, the claim is refuted.",
+       "evidence": [
+        "daedalus/structcore/parse.py: PyTypeFacts docstring and field definitions showing module as str"
+       ]
+      },
+      {
+       "id": "missing-function-definitions",
+       "claim": "Multiple modules reference functions not defined in the provided chunks, indicating incomplete code coverage and potential for hidden bugs or inconsistencies.",
+       "spans": [
+        "daedalus/eval/harness.py",
+        "daedalus/mapping/render.py"
+       ],
+       "mechanism": "eval_task_arms calls _whole_repo_text, _bm25_context, _recall; _narrative_section calls _render_md. These functions are not defined in the provided chunks, so their behavior cannot be verified against the claims. If they behave differently, the claims about B and C arms and narrative rendering could be invalid.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the missing functions are defined in other chunks of the same files and their implementations match the claims, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/harness.py: claims about _whole_repo_text, _bm25_context, _recall",
+        "daedalus/mapping/render.py: _narrative_section references _render_md"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "631d92aa76ba544eac4a203442620cc3a8b22f5b135023476cfff73df6f92429",
+    "objective_chars": 27767,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 92 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 92,
+  "inputs": 4
+ }
+}

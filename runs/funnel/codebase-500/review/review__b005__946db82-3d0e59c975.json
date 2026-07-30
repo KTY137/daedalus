@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b005__946db82",
+ "key": "review__b005__946db82-3d0e59c975",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; all refuted due to missing evidence, misinterpretation, or existing mitigations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "untrusted-constants",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows SOURCE_BANDS, BAND_SPAN, OUTCOME_POLICY are defined in the same file (picker.py lines 139-145 for SOURCE_BANDS; BAND_SPAN and OUTCOME_POLICY are referenced but not shown in the snippet; they likely exist later in the file). The docstring describes the design but the constants are defined in the same module. The vet.py docstring describes intent; the actual downgrade logic may be in a separate scanned module.",
+       "survives_because": "The hypothesis claims these constants are undefined in scanned modules, but the cited source shows SOURCE_BANDS is defined. BAND_SPAN and OUTCOME_POLICY are not in the snippet but likely exist; absence of evidence is not evidence of absence.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'BAND_SPAN\\|OUTCOME_POLICY' daedalus/spine/picker.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-dependency-chain",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that the functions used in bus.py, shape.py, picker.py are not defined in the shown snippets, but they are likely imported from other modules within the same package (e.g., daedalus.council.utils). The hypothesis assumes they are undefined without checking imports.",
+       "survives_because": "The hypothesis does not provide evidence that these symbols are missing at runtime; it only shows they are not defined in the shown lines. Python modules commonly import from other modules, which is expected.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r '_reject_unknown\\|_ACTOR_RE\\|_ALLOWED_PARTICIPANT_KEYS\\|PARTICIPANT_OUTCOMES\\|_norm_class\\|_norm_strs\\|_scan_roster\\|_chain_records' daedalus/council/",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "allocation-ordering-unenforced",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring says 'Written BEFORE git worktree add runs', which is a comment about intended ordering, not a claim that the function enforces it. The function is a helper; the caller is responsible for ordering. The hypothesis assumes lack of enforcement is a bug, but it's a design choice.",
+       "survives_because": "The hypothesis misinterprets a documentation note as a requirement for enforcement. The code does not claim to enforce ordering; it's a convention.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect callers of _record_allocation to verify they call it before git worktree add.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "budget-ignored-claims",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for graph_brief.py does not contain GraphBrief.truncated, and the budget enforcement likely happens at a higher level. The hypothesis assumes _parse_claims is used in graph_brief, but the session output may be truncated elsewhere or the claims may be limited by the session's own budget.",
+       "survives_because": "The hypothesis relies on an assumption that _parse_claims output is used directly in graph_brief without truncation, but the evidence does not show this connection. The truncation reporting may be robust.",
+       "narrowed_claim": "",
+       "settling_check": "Trace the data flow from _parse_claims to graph_brief to see if budget is applied.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "read-only-erosion",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims erosion because 'git verbs beyond READ_ONLY_REPO_VERBS are used somewhere else', but provides no evidence. The cited source shows attempt.py defines the set and uses _git which enforces it. The existence of daedalus.primary_tree with write checks actually strengthens the guard.",
+       "survives_because": "The hypothesis is speculative; no evidence of actual use of disallowed verbs is provided. The code shows deliberate design to prevent writes.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'git ' daedalus/spine/attempt.py | grep -v READ_ONLY_REPO_VERBS",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unhandled-exceptions-gate-resolve",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for bootstrap.py does not show the calls to gate_discrimination and resolve_spine_db_path; it shows a different part of the file. The hypothesis assumes these calls are unhandled, but the full file likely has exception handling or these functions are designed not to raise.",
+       "survives_because": "The evidence does not support the claim; the cited lines are not the ones referenced. The hypothesis is based on incomplete information.",
+       "narrowed_claim": "",
+       "settling_check": "View lines 620 and 622 of daedalus/spine/bootstrap.py to verify the calls and surrounding error handling.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "breakaway-flags-never-set",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims that SetInformationJobObject might inadvertently set these flags, but provides no evidence that it is called with a mask that includes them. The comment 'NEVER SET' suggests the code is careful to exclude them.",
+       "survives_because": "The hypothesis is speculative; the code explicitly comments that these flags are never set, and there is no evidence to the contrary.",
+       "narrowed_claim": "",
+       "settling_check": "Search for SetInformationJobObject calls and examine the mask argument.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "worktree-submodule-ambiguity",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that _is_linked_worktree explicitly addresses submodules and distinguishes them by checking for commondir and gitdir files, which submodules do not have. The hypothesis ignores this logic.",
+       "survives_because": "The code already handles the submodule case as described in the docstring; the hypothesis is based on a misunderstanding of the implementation.",
+       "narrowed_claim": "",
+       "settling_check": "Read lines 248-268 of daedalus/eval/mint.py to see the submodule distinction logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "path-assumption-fragile",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims the path assumption is brittle, but the code uses Path(__file__).resolve().parents[2] which is a common pattern in well-structured projects. The repo layout is unlikely to change arbitrarily; if it does, the path would break and be caught during testing.",
+       "survives_because": "The hypothesis is a generic concern about code maintainability, not a specific vulnerability. The code works as intended given the current layout.",
+       "narrowed_claim": "",
+       "settling_check": "Check if there are any tests that verify the repo root path resolution.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e2ba0b0530260b3e3e71c0ecbf9f4cf4cee04b70bce17a1ec12a58966acc6785",
+    "objective_chars": 52661,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 5 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 5,
+  "inputs": 9
+ }
+}

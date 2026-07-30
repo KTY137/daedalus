@@ -1,0 +1,49 @@
+{
+ "task_id": "scan__daedalus_providers__openai_compat.py__c1of1__946db82",
+ "key": "scan__daedalus_providers__openai_compat.py__c1of1__946db82-656f40ebce",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. content matches sensitive marker /\\bapi[_-]?key\\b\\s*[=:]/",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Route this task to Claude or local Ollama."
+    ],
+    "handoff": {
+     "offending": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "70ae144b957a99a791957588b8e30f3e8df237311056d8487149ed07c155bccd",
+    "objective_chars": 6936,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/_openai_compat.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/providers/_openai_compat.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

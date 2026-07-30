@@ -1,0 +1,139 @@
+{
+ "task_id": "review__b007__946db82",
+ "key": "review__b007__946db82-97338ee553",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 10 hypotheses: 1 confirmed, 2 narrowed, 3 refuted, 4 needs-evidence.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "digest-inconsistency: potential reproducibility breakage",
+     "nonce-uniqueness: probe collision could invalidate evaluations",
+     "duplicated-gitdir-pointer: divergence risk over time",
+     "gate-contract-unverified: unverified external functions",
+     "multi-char-operator-tokenization: false clone detection"
+    ],
+    "todos": [
+     "Check TaskSpec.body for default field inclusion",
+     "Inspect nonce generation in probe callers",
+     "Verify symlink resolution in _safe_join",
+     "Test AntigravityAdapter with shell metacharacters",
+     "Cross-check _read_gitdir_pointer implementations",
+     "Locate definitions of freeze_selection, validate_task, apply_test_overlay"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "digest-inconsistency",
+       "verdict": "narrowed",
+       "strongest_counterargument": "All optional fields may have default values (e.g., None) and be always included in the body, making digests consistent.",
+       "survives_because": "The claim is plausible if fields are conditionally omitted; but the code may include all fields with defaults. Need evidence.",
+       "narrowed_claim": "If any optional field can be absent from the dict (not set to None), then digest changes for semantically equivalent specs.",
+       "settling_check": "Inspect TaskSpec.body (lines 561-586) to see if all fields are always set in the dict, or if some are conditionally omitted."
+      },
+      {
+       "id": "determinism-assumption-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "External functions may be deterministic (e.g., pure functions), and HEAD is resolved consistently within a single run.",
+       "survives_because": "Without evidence of non-deterministic calls, the hypothesis is speculative. The code claims determinism, so burden of proof is on attacker.",
+       "narrowed_claim": "",
+       "settling_check": "Trace all external calls in semantic_super_sample to verify they are deterministic (no RNG, no system state)."
+      },
+      {
+       "id": "nonce-uniqueness",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The nonce may be generated externally with a global counter or random generator not shown in scanned chunks.",
+       "survives_because": "No evidence of any uniqueness mechanism in the provided code; the check functions rely on nonce uniqueness. This is a real gap.",
+       "narrowed_claim": "Nonce uniqueness is not guaranteed by any code in the scanned modules; if callers do not enforce uniqueness, probes collide.",
+       "settling_check": "Search for nonce generation in callers of build_arrival, build_instruction, etc. (e.g., in test files or higher-level orchestration)."
+      },
+      {
+       "id": "duplicated-gitdir-pointer",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The duplication is intentional and both functions are kept in sync manually; no divergence has occurred yet.",
+       "survives_because": "The risk exists for future divergence; the claim is about potential risk, not current bug.",
+       "narrowed_claim": "If one implementation is updated without the other, incorrect admin dir resolution may occur in one path.",
+       "settling_check": "Compare the two _read_gitdir_pointer implementations side-by-side; check if any recent changes differ."
+      },
+      {
+       "id": "identity-verification-failure-propagation",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The session layer may handle identity verification failures through a different mechanism (e.g., exception propagation, status codes) not shown in the scanned chunks.",
+       "survives_because": "No evidence of propagation in provided code; but may exist in other modules.",
+       "narrowed_claim": "If no other module propagates identity verification refusal to session state, then a verification failure silently breaks the embedding pipeline.",
+       "settling_check": "Search for calls to verify_index_identity across the codebase; trace how its return status is used."
+      },
+      {
+       "id": "ssh-injection-from-model",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The AntigravityAdapter may sanitize model output before constructing the SSH command (e.g., quoting arguments), or the lanes guards may be applied to this path.",
+       "survives_because": "The docstring warns of injection, suggesting the risk is known but not necessarily mitigated. Need to verify actual sanitization.",
+       "narrowed_claim": "If model output is used directly in SSH arguments without escaping, shell injection is possible.",
+       "settling_check": "Inspect AntigravityAdapter._dispatch for any sanitization (e.g., shlex.quote, subprocess with list args)."
+      },
+      {
+       "id": "path-safety-delegation-gap",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The worktree manager may prevent creation of symlinks pointing outside, or the containment check may use realpath elsewhere.",
+       "survives_because": "No symlink resolution is shown in _safe_join or _refuse_primary_checkout; but may exist in other parts of the path.",
+       "narrowed_claim": "If symlinks can exist in the worktree and _safe_join does not resolve them, paths can escape containment.",
+       "settling_check": "Check _safe_join and _refuse_primary_checkout for os.path.realpath calls; also check worktree manager for symlink restrictions."
+      },
+      {
+       "id": "gate-contract-unverified",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The external functions (freeze_selection, etc.) may be defined in other modules and thoroughly tested; the gate's correctness is verified elsewhere.",
+       "survives_because": "No evidence of those functions in provided chunks; their correctness is unknown.",
+       "narrowed_claim": "If freeze_selection, apply_test_overlay, or validate_task have bugs, the gate may accept invalid tasks.",
+       "settling_check": "Locate definitions of freeze_selection, apply_test_overlay, validate_task; review their tests."
+      },
+      {
+       "id": "inventory-version-orphan",
+       "verdict": "refuted",
+       "strongest_counterargument": "INVENTORY_VERSION is defined in inventory.py and imported into tools/__init__.py; there is no evidence of a propagation gap. The claim is vague and low severity.",
+       "survives_because": "The hypothesis lacks concrete evidence of inconsistency; it's a speculative risk without demonstrated impact.",
+       "narrowed_claim": "",
+       "settling_check": "Check that INVENTORY_VERSION is defined in inventory.py and that tools/__init__.py uses the same constant (not a separate copy)."
+      },
+      {
+       "id": "multi-char-operator-tokenization",
+       "verdict": "refuted",
+       "strongest_counterargument": "The regex may be designed for Python tokenization where multi-character operators are not common; or the tokenizer handles multi-character operators in a separate step.",
+       "survives_because": "The hypothesis assumes the regex is the sole tokenizer; but clones.py may use a different tokenizer for non-Python languages. Also, the abstract representation may not be affected if multi-char operators are treated as sequences of single-char tokens.",
+       "narrowed_claim": "",
+       "settling_check": "Examine clones.py around line 163 to see if _GEN_TOKEN is the only tokenizer and whether multi-char operators are handled elsewhere."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "08490cc08d0743d5f1bd0038bd21fcc15d1624baa0de3fbb7c01704625447b70",
+    "objective_chars": 13956,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 7 (10 inputs)",
+  "rev": "946db82",
+  "bucket": 7,
+  "inputs": 10
+ }
+}

@@ -1,0 +1,192 @@
+{
+ "task_id": "scan__daedalus_eval_mint.py__c2of7__946db82",
+ "key": "scan__daedalus_eval_mint.py__c2of7__946db82-9bc67f15cb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of mint.py: defines IDENTIFIER_RE, JUNK_KEYWORDS, LANGUAGE_FAMILIES, MINT_CONFIRM_THRESHOLD, GIT_TIMEOUT, DEFAULT_MINT_STORE_PATH; functions _language_family, _is_junk_label, _git, _is_linked_worktree.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_is_linked_worktree | medium | Function body not present in chunk; can't verify claim about linked worktree detection. | Check the rest of the function implementation in later chunks.",
+     "DEFAULT_MINT_STORE_PATH | medium | Path assumes __file__ is in expected location; may break if module is moved. | Verify that the path resolves to a valid location at runtime."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mint.py",
+     "chunk": "2 of 7",
+     "purpose": "Define identifier regex, junk keywords, language families, mint threshold, git helper, and worktree detection function.",
+     "symbols": [
+      {
+       "name": "_IDENTIFIER_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for identifier shape: starts with letter, digit, or $, followed by word characters or $."
+      },
+      {
+       "name": "_JUNK_KEYWORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of lowercase keywords considered junk; case-sensitive matching."
+      },
+      {
+       "name": "_LANGUAGE_FAMILIES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping language names to family names; used for cross-language grouping."
+      },
+      {
+       "name": "_language_family",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the family key for a language name; None stays None."
+      },
+      {
+       "name": "_is_junk_label",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if name is not an identifier or is in _JUNK_KEYWORDS."
+      },
+      {
+       "name": "MINT_CONFIRM_THRESHOLD",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer threshold for mint confirmation before label influences headline."
+      },
+      {
+       "name": "_GIT_TIMEOUT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Float timeout for git subprocess calls."
+      },
+      {
+       "name": "DEFAULT_MINT_STORE_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to persisted mint store JSON file."
+      },
+      {
+       "name": "_git",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git command in repo_root; returns stdout or None on failure."
+      },
+      {
+       "name": "_is_linked_worktree",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if repo_root is a git linked worktree (implementation not in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Keyword check: deliberately NARROW, and case-SENSITIVE. Real reserved words are fixed-case in every language here (always lowercase) -- a PascalCase match (``New``, ``Default``, ``Case``, ``Switch``) is essentially never grammar-recovery noise and near-always a real exported identifier (a Go constructor named ``New``, a C#/Java ``Default``/``Case`` member, a class literally named ``Switch``). The set below is further limited to words that are reserved in EVERY supported language and implausible as a real symbol name in any of them -- unlike ``new``/``delete``/``default``/``case``/``switch``/``static``/``of``/``in``, which are ordinary, common identifiers in at least one supported language (Python has none of these as keywords at all) and were previously flagged as junk regardless of case, silently deflating recall for real symbols like a Python/Django ``delete`` view method or a Go ``New`` constructor.",
+       "where": "comment before _IDENTIFIER_RE",
+       "verdict": "uncheckable",
+       "why": "The claim references behavior of a previous version ('previously flagged as junk regardless of case') and assumptions about languages not fully defined in this chunk. The code defines _JUNK_KEYWORDS as lowercase only, and _is_junk_label does case-sensitive matching, consistent with the claim, but the broader historical context is not verifiable from this chunk alone."
+      },
+      {
+       "text": "CROSS-LANGUAGE FAMILY (label hygiene, lane A1): languages the slicer's own import graph routinely crosses, so a label source in the 'other' member is NOT cross-language for recall purposes -- imports.py resolves a C/C++ ``#include \"foo.h\"`` regardless of whether the includer is ``.c`` or ``.cpp`` (``.h`` is its own LanguageSpec, name \"c\"), and a ``.ts`` file's ``import`` can resolve straight to a co-located ``.js`` module. Every LanguageSpec name NOT listed here maps to its own singleton family (its prior, unchanged behavior) -- this is purely additive grouping, not a relaxation of the filter for any language pair not named below.",
+       "where": "comment before _LANGUAGE_FAMILIES",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behavior of imports.py and LanguageSpec not present in this chunk. The code defines _LANGUAGE_FAMILIES mapping, but the effects on recall and cross-language resolution cannot be verified from this chunk alone."
+      },
+      {
+       "text": "The cross-language filter's equality key for ``lang_name`` -- see ``_LANGUAGE_FAMILIES`` above. ``None`` (no LanguageSpec) stays ``None`` and therefore never equals any real family, same fail-closed behavior as before this grouping existed.",
+       "where": "_language_family docstring",
+       "verdict": "kept",
+       "why": "The function returns None if lang_name is None, and otherwise returns the family from _LANGUAGE_FAMILIES or the original name. This matches the docstring claim."
+      },
+      {
+       "text": "True if ``name`` cannot be a real symbol label -- see the JUNK FILTER comment above. Checked name-shape-first (a non-identifier like ``<anonymous>`` never reaches the keyword set at all). The keyword check is intentionally case-SENSITIVE (see the comment above ``_JUNK_KEYWORDS`` for why) -- ``name`` is matched as-is, never lowercased.",
+       "where": "_is_junk_label docstring",
+       "verdict": "kept",
+       "why": "The function first checks _IDENTIFIER_RE.match(name); if it fails, returns True (non-identifier filtered). Then checks name in _JUNK_KEYWORDS (case-sensitive). This matches the docstring."
+      },
+      {
+       "text": "Below this many independent confirmations a mint stays quarantined and is excluded from go/no-go. Rationale: a SINGLE diff-derived label can be a false positive from mechanical noise our line-based unit diff can't see through (a reformat-only touch that happens to shift a docstring, a rename that round-trips to byte-identical source under a new name, a generated-file regen) -- one confirmation only rules out 'this one mint was a fluke', not 'this label generalizes'. Three independent mints landing on the same must_include set is a defensible floor before the label influences a headline number, while staying low enough to actually accumulate from real (comparatively infrequent) commit/offload activity instead of never firing.",
+       "where": "comment before MINT_CONFIRM_THRESHOLD",
+       "verdict": "uncheckable",
+       "why": "The comment describes the rationale and behavior of the threshold, but the actual usage of MINT_CONFIRM_THRESHOLD is not in this chunk. The constant is defined, but the claim about quarantining and go/no-go cannot be verified from this chunk alone."
+      },
+      {
+       "text": "Persisted mint store -- the load path that was missing entirely before this fix. Without it, mint_task_from_landed_edit/mint_from_commit returned in-memory dicts that evaporated at process exit and daedalus.eval.tasks.TASKS stayed a hardcoded literal forever, so an 'independent_diff'/'temporal_churn' label could never actually join the corpus. Sibling of harness.py's DEFAULT_BASELINE_PATH: same directory, same 'JSON file, sorted keys, schema-versioned' contract. Absence of the file (a fresh checkout, or a repo where nothing has ever been minted) means 'nothing minted yet', not an error -- see ``load_minted_tasks``.",
+       "where": "comment before DEFAULT_MINT_STORE_PATH",
+       "verdict": "uncheckable",
+       "why": "The claim references functions (mint_task_from_landed_edit, mint_from_commit, load_minted_tasks) and constants (DEFAULT_BASELINE_PATH) not present in this chunk. The constant DEFAULT_MINT_STORE_PATH is defined, but the behavior described cannot be verified from this chunk alone."
+      },
+      {
+       "text": "Run git in ``repo_root``; stdout on success, ``None`` on ANY failure (missing git, not a repo, bad ref, timeout, non-zero exit). Minting must degrade to 'nothing minted', never raise -- a caller looping over commits or landed edits cannot be allowed to die on the first unreadable one.",
+       "where": "_git docstring",
+       "verdict": "kept",
+       "why": "The function wraps subprocess.run in try/except, returns None on OSError, SubprocessError, or non-zero returncode. This matches the docstring claim."
+      },
+      {
+       "text": "True if ``repo_root`` is a git LINKED WORKTREE, not a primary checkout. A minted task stores ``repo`` as an ABSOLUTE PATH (see ``_mint_from_diffs``) and the mint store is append-only, so that path has to stay resolvable for the whole life of the corpus. A linked worktree is by construction temporary: ``daedalus.spine.attempt`` creates one per candidate and deletes it in a ``finally:``. Minting from one therefore writes a task that can NEVER be evaluated again -- ``daedalus.eval.tasks.resolve_task_repo`` takes the absolute-path branch, finds the directory gone, and raises 'cannot resolve task repo label' for the rest of that task's life. One dead row per attempt, forever, in a store nothing prunes.",
+       "where": "_is_linked_worktree docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is not included in this chunk (only the docstring). The claim describes the function's purpose and consequences, but the implementation cannot be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _is_linked_worktree is declared but its implementation is cut off at the end of the chunk; the docstring makes strong claims about its behavior and consequences that cannot be verified from this chunk.",
+       "where": "_is_linked_worktree",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "DEFAULT_MINT_STORE_PATH is defined using __file__ and os.path.dirname; this assumes the module file is in a writable location, which may not be appropriate for all deployments (e.g., read-only filesystems).",
+       "where": "DEFAULT_MINT_STORE_PATH",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The regex _IDENTIFIER_RE allows identifiers starting with $ (e.g., $foo), which is valid in JavaScript but may be unexpected for other languages. The comment about identifier shape does not mention this exception.",
+       "where": "_IDENTIFIER_RE",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _JUNK_KEYWORDS set includes '<anonymous>' which is not a keyword; it's a special identifier shape. The comment says 'non-identifier like <anonymous> never reaches the keyword set', but '<anonymous>' is in the keyword set. However, it would be caught by the regex first (since it starts with '<'), so it never reaches the keyword check. The comment is accurate.",
+       "where": "_JUNK_KEYWORDS",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b1ee92520e0594aec812fe21b3d04bbe85c823be883ce28125948aed0584c083",
+    "objective_chars": 6799,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mint.py [2/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/mint.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 121
+ }
+}

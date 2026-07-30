@@ -1,0 +1,146 @@
+{
+ "task_id": "13-kill-criteria__contradiction__a47d84ee736f",
+ "key": "13-kill-criteria__contradiction__a47d84ee736f-bd76a6601b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 13 kill criteria are self-consistent; no internal contradictions found within this document.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "claims": [
+      {
+       "id": "13.1",
+       "claim": "Stop or redesign when full representation does not beat code-only or BM25 retrieval.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.2",
+       "claim": "Stop or redesign when degree-preserving randomized cross-plane edges perform equivalently.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.3",
+       "claim": "Stop or redesign when four independent indices perform equivalently to cross-plane fusion.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.4",
+       "claim": "Stop or redesign when a plane has no marginal contribution in ablation.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.5",
+       "claim": "Stop or redesign when graph movement does not predict or cause behavioral improvement.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.6",
+       "claim": "Stop or redesign when graph-conditioned prioritization does not beat random or evaluator-only choice.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.7",
+       "claim": "Stop or redesign when the gain disappears after temporal and knowledge-leakage scrubbing.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.8",
+       "claim": "Stop or redesign when extra context tokens explain the whole gain.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.9",
+       "claim": "Stop or redesign when graph construction/query cost worsens the quality/cost frontier.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.10",
+       "claim": "Stop or redesign when revision-atomic snapshots cannot be maintained at usable cost.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.11",
+       "claim": "Stop or redesign when embedding proposals cannot achieve useful precision after verification cost.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.12",
+       "claim": "Stop or redesign when benefits disappear on held-out repositories, under equal context budgets, or in cross-project transfer.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.13",
+       "claim": "A kill result does not silently delete this plan; archive evidence, stop affected track, submit amendment.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.14",
+       "claim": "For comparative campaigns: seal evaluator from candidate, identical problem definitions and budgets, cover multiple task classes, run 5-10 seeds when stochastic.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.15",
+       "claim": "Report algorithm quality, sample efficiency, repository evolution, product reliability separately.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.16",
+       "claim": "Reject results when code, prompts, memory, model, search policy, and evaluator changed together.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      },
+      {
+       "id": "13.17",
+       "claim": "Prevent leakage from gold patches, private tests, post-cutoff text, post-task edges, previous solutions, snapshot mixing, evaluator paths/outputs, model-generated hypotheses re-entering Knowledge plane as facts.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in the document."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5798d601f1977cc09aefd7768ab90cb16c18c39697d75cfa3e0afc51f7b0048f",
+    "objective_chars": 2807,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "13-kill-criteria",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

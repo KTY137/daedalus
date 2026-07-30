@@ -1,0 +1,145 @@
+{
+ "task_id": "plan__b013__946db82",
+ "key": "plan__b013__946db82-b8065567b7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings: enforce document import edges in index, fix undefined variables in report.py, ensure spectral key handling in picker, add logging for missing forest edges.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Changes to index.py may affect all downstream consumers; need regression tests.",
+     "Adding logging to forest.py may change behavior if callers rely on silent defaults.",
+     "Undefined variables in report.py may be defined earlier; grep may show they exist, making this item moot."
+    ],
+    "todos": [
+     "Explicitly set import_edges to empty for documents in build_index and document it.",
+     "Grep report.py for units, renamed, near, windows, fenced; if missing, add definitions.",
+     "Inspect map_candidates and callers; add default handling for missing spectral keys.",
+     "Add logging in forest.build_forest when index keys are missing; add test with incomplete index."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Enforce that documents have no import edges in index",
+       "gate": "1",
+       "why_now": "Currently relies on implicit assumption; if violated, churn.py produces wrong results.",
+       "steps": [
+        {
+         "do": "In daedalus/structcore/index.py, in build_index, after determining is_document, set import_edges to empty list for documents and add a comment documenting the invariant.",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "grep for 'import_edges' in build_index; run tests/test_structcore.py"
+        },
+        {
+         "do": "Add a test in tests/test_structcore.py that verifies documents have empty import_edges.",
+         "file": "tests/test_structcore.py",
+         "verified_by": "pytest tests/test_structcore.py -k document_import"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "build_index function exists and uses is_document from markdown."
+      },
+      {
+       "rank": 2,
+       "title": "Fix undefined variables in report.py",
+       "gate": "1",
+       "why_now": "Potential NameError at runtime; blocks correct report generation.",
+       "steps": [
+        {
+         "do": "Run grep -n 'units\\|renamed\\|near\\|windows\\|fenced' daedalus/structcore/report.py to check if variables are defined earlier.",
+         "file": "daedalus/structcore/report.py",
+         "verified_by": "Observe output; if variables present, no change needed; if missing, define them."
+        },
+        {
+         "do": "If variables missing, add appropriate definitions (likely from _clone_rows or other functions) before their use.",
+         "file": "daedalus/structcore/report.py",
+         "verified_by": "pytest tests/test_report.py or manual inspection"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The grep will reveal whether variables are defined; if not, we need to understand the intended logic."
+      },
+      {
+       "rank": 3,
+       "title": "Ensure spectral keys are handled safely in picker.py",
+       "gate": "1",
+       "why_now": "Callers may assume spectral keys always present, causing KeyError when enrichment omitted.",
+       "steps": [
+        {
+         "do": "Inspect map_candidates function in daedalus/spine/picker.py (or wherever it resides) and all callers for handling of missing spectral keys.",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "grep -r 'map_candidates' to find callers; manual review"
+        },
+        {
+         "do": "Add default value or guard for spectral key access; add test with missing spectral data.",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "pytest tests/test_spine_picker.py or relevant test"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "map_candidates is in daedalus/spine/picker.py; if not, adjust file path."
+      },
+      {
+       "rank": 4,
+       "title": "Add logging for missing keys in forest.build_forest",
+       "gate": "1",
+       "why_now": "Silent omission of edges can mislead downstream metrics without warning.",
+       "steps": [
+        {
+         "do": "In daedalus/structcore/forest.py, in build_forest, add logging.warning when index.get() returns default empty structures, indicating missing keys.",
+         "file": "daedalus/structcore/forest.py",
+         "verified_by": "Add test that passes incomplete index and checks log output"
+        },
+        {
+         "do": "Add test in tests/test_forest.py that verifies logging occurs for missing keys.",
+         "file": "tests/test_forest.py",
+         "verified_by": "pytest tests/test_forest.py -k incomplete_index"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "build_forest uses index.get() with defaults; logging is appropriate."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/structcore/index.py",
+      "daedalus/structcore/report.py",
+      "daedalus/structcore/forest.py",
+      "daedalus/structcore/markdown.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "27f246476a1598c7ab589e65283df57160d8bb85f8b4450d08e20098dbb33084",
+    "objective_chars": 15905,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 13 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 13,
+  "inputs": 4
+ }
+}

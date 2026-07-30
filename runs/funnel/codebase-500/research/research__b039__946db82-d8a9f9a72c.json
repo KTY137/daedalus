@@ -1,0 +1,138 @@
+{
+ "task_id": "research__b039__946db82",
+ "key": "research__b039__946db82-d8a9f9a72c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file patterns: budget guard not enforced in fanout; missing exception handling for _secret_floor_rule; inconsistent data structures (edges as dict of strings); temperature enforcement absent in fanout; write-guard claims unverifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget guard not installed in fanout path, risking unbilled provider calls.",
+     "secret_floor_rule exception could crash _first_offending_path and block refusal receipt.",
+     "Data structure inconsistency (edges values may be strings) could cause silent corruption in cycle analysis.",
+     "Temperature enforcement missing in fanout, allowing deterministic 'agreement' from identical samples.",
+     "Write-guard claims for Ollama provider cannot be verified from available code, potentially allowing unauthorized writes."
+    ],
+    "todos": [
+     "Verify that daedalus.budget.install_process_guard is called in fan_out function.",
+     "Add exception handling around secret_floor_rule call in _first_offending_path.",
+     "Ensure edges values are iterables of strings, not strings, in cycle_report and self_loops.",
+     "Implement temperature > 0 check in fan_out function.",
+     "Review write-guard implementation for Ollama provider to confirm it blocks sensitive paths."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "missing-budget-guard",
+       "claim": "The fanout module does not install the budget process guard, allowing unbilled provider calls to escape pricing.",
+       "spans": [
+        "daedalus/lanes/fanout.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "fanout.py docstring states the guard was not called by fan-out scripts, and the code in the provided chunk shows no import or call to daedalus.budget.install_process_guard. Meanwhile, session.py's _append_budget_round records budget exhaustion but only after the fact, assuming the guard is already in place. Without the guard, provider calls can proceed unpriced, and the budget recording in session.py does not prevent unbilled usage.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the fan_out function (not in this chunk) is shown to call install_process_guard, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/lanes/fanout.py: docstring (line 4)",
+        "daedalus/council/session.py: _append_budget_round"
+       ]
+      },
+      {
+       "id": "secret-floor-rule-exception",
+       "claim": "The function _first_offending_path in session.py does not handle exceptions from secret_floor_rule, which could crash the refusal receipt logic.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/sensitivity"
+       ],
+       "mechanism": "_first_offending_path calls secret_floor_rule(path, '') without a try-except. If secret_floor_rule raises an exception (e.g., due to malformed path or rule), the exception propagates, potentially crashing the budget round recording or turn processing.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If secret_floor_rule is guaranteed not to raise exceptions (e.g., always returns False on error), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/session.py: _first_offending_path",
+        "daedalus/sensitivity: secret_floor_rule (imported, not in chunk)"
+       ]
+      },
+      {
+       "id": "edges-data-structure-inconsistency",
+       "claim": "The cycle analysis functions assume edges values are iterables of strings, but the index may store them as strings, causing silent corruption.",
+       "spans": [
+        "daedalus/structcore/cycles.py",
+        "daedalus/structcore/index.py"
+       ],
+       "mechanism": "In self_loops, the code iterates over edges[src] (expecting iterable). If edges[src] is a string, iteration yields characters. Similarly, cycle_report computes n_modules by iterating over edges[s] values; if they are strings, it counts characters as modules. This would produce incorrect cycle reports.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the index always stores edges as lists/sets of strings (never single strings), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/cycles.py: self_loops line 123",
+        "daedalus/structcore/cycles.py: cycle_report line 148"
+       ]
+      },
+      {
+       "id": "temperature-not-enforced",
+       "claim": "The fanout module does not enforce temperature > 0 for votes, allowing deterministic 'agreement' from identical samples.",
+       "spans": [
+        "daedalus/lanes/fanout.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "fanout.py docstring states that temperature > 0 is required for meaningful votes, but the provided chunk shows no temperature check. The Ollama provider constants include no default temperature. If the fan_out function does not enforce temperature > 0, callers can use temperature=0 and get identical responses, falsely inflating agreement.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the fan_out function (not in chunk) is shown to validate temperature > 0, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/lanes/fanout.py: docstring (lines 17-25)",
+        "daedalus/providers/ollama.py: constants (no temperature constant)"
+       ]
+      },
+      {
+       "id": "write-guard-unverified",
+       "claim": "The Ollama provider's write-guard claims cannot be verified from the available code, risking unauthorized writes.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/lanes/fanout.py"
+       ],
+       "mechanism": "ollama.py claims the write-guard blocks sensitive paths and is confined to repo_root, but no write-guard code is present in the chunk. fanout.py states it does not implement write checks. If the write-guard is missing or misconfigured, the Ollama provider could write to unauthorized locations.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the write-guard implementation is shown in other chunks and correctly restricts writes, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/providers/ollama.py: line 28",
+        "daedalus/lanes/fanout.py: docstring (lines 37-40)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "94babb20bf70743532662fa606733b9c86491604538bf33b2a7d369f266371b0",
+    "objective_chars": 28178,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 39 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 39,
+  "inputs": 4
+ }
+}

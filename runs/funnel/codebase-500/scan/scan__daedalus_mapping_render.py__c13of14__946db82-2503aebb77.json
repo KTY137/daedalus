@@ -1,0 +1,326 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c13of14__946db82",
+ "key": "scan__daedalus_mapping_render.py__c13of14__946db82-2503aebb77",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 13 of 14 of daedalus/mapping/render.py; found acceptance logic, text summary function, and CLI argument parser. No critical issues.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "main | low | --accept logic computes default until as today+14 days using date.fromisoformat, but if that fails, falls back to today. This may silently produce a different date than intended. | Verify if the fallback to today is intentional and document edge cases.",
+     "main | low | The state dict copies snapshot fields verbatim; if any field is missing, it defaults to empty list or dict. This could mask missing data. | Ensure snapshot always contains all expected keys or handle missing keys explicitly."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "13 of 14",
+     "purpose": "Implements acceptance recording, text summary generation, and CLI entry point for architecture map generation.",
+     "symbols": [
+      {
+       "name": "_render_text_summary",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates a human-readable text summary from the data dictionary. Returns a string; does not write to disk."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry point for 'daedalus map'. Parses arguments, resolves paths, and calls drift module functions. Does not perform I/O itself."
+      }
+     ],
+     "claims": [
+      {
+       "text": "d_since = since or today.isoformat()",
+       "where": "line 1441",
+       "verdict": "kept",
+       "why": "The code uses 'since' if truthy, else today's ISO format."
+      },
+      {
+       "text": "if not until: ... until = (base + timedelta(days=14)).isoformat()",
+       "where": "lines 1442-1447",
+       "verdict": "kept",
+       "why": "The code computes a default until date 14 days after base."
+      },
+      {
+       "text": "existing = drift_mod.parse_acceptances(snapshot.get(\"acceptances\"), today=today)",
+       "where": "line 1449",
+       "verdict": "uncheckable",
+       "why": "Function 'parse_acceptances' is imported from drift module; not defined in this chunk."
+      },
+      {
+       "text": "kept = [a for a in existing if a.item != item]",
+       "where": "line 1450",
+       "verdict": "kept",
+       "why": "List comprehension filters out acceptances with matching item."
+      },
+      {
+       "text": "candidate = drift_mod.parse_acceptances(...)[0]",
+       "where": "lines 1451-1454",
+       "verdict": "uncheckable",
+       "why": "Same as above; parse_acceptances not in this chunk."
+      },
+      {
+       "text": "if not candidate.valid: return False, f\"refused: {candidate.problem}\"",
+       "where": "line 1455",
+       "verdict": "uncheckable",
+       "why": "candidate.valid and candidate.problem depend on parse_acceptances return type."
+      },
+      {
+       "text": "acceptances = sorted(kept + [candidate], key=lambda a: (a.item, a.until, a.since))",
+       "where": "line 1457-1458",
+       "verdict": "uncheckable",
+       "why": "Sort key uses attributes of acceptance objects; not defined in this chunk."
+      },
+      {
+       "text": "state = { ... }  # Carried over from the snapshot VERBATIM ... write_snapshot re-signs the digest",
+       "where": "lines 1459-1472",
+       "verdict": "uncheckable",
+       "why": "Comment describes behavior of write_snapshot which is not in this chunk."
+      },
+      {
+       "text": "drift_mod.write_snapshot(snap_path, state, acceptances)",
+       "where": "line 1473",
+       "verdict": "uncheckable",
+       "why": "write_snapshot function is from drift module; not defined here."
+      },
+      {
+       "text": "replaced = \" (replacing the previous acceptance for it)\" if len(kept) != len(existing) else \"\"",
+       "where": "line 1474",
+       "verdict": "kept",
+       "why": "Condition checks if any acceptance was removed."
+      },
+      {
+       "text": "return True, (f\"accepted {item} until {until}{replaced}\\n  recorded in {snap_path}; ...\")",
+       "where": "lines 1475-1477",
+       "verdict": "kept",
+       "why": "Return statement matches the code."
+      },
+      {
+       "text": "def _render_text_summary(data: dict, out_path: Path | None) -> str:",
+       "where": "line 1483",
+       "verdict": "kept",
+       "why": "Function signature matches the code."
+      },
+      {
+       "text": "lines = [f\"architecture map: {data['root']}\", \"  \" + Stamp(...).one_line()]",
+       "where": "lines 1486-1490",
+       "verdict": "uncheckable",
+       "why": "Stamp class and its one_line method are not defined in this chunk."
+      },
+      {
+       "text": "from .reach import CLASSES",
+       "where": "line 1491",
+       "verdict": "uncheckable",
+       "why": "CLASSES constant is imported from reach module; not in this chunk."
+      },
+      {
+       "text": "lines.append(\"  modules=%d  %s\" % (counts[\"modules\"], \"  \".join(f\"{c}={counts.get(c, 0)}\" for c in CLASSES)))",
+       "where": "lines 1492-1493",
+       "verdict": "uncheckable",
+       "why": "Depends on CLASSES from reach module."
+      },
+      {
+       "text": "lines.append(\"  entry_points=%d (broken %d)  env_switches=%d (dark %d)  param_gates=%d (dark %d)  doc_drift=%d\" % (...))",
+       "where": "lines 1494-1496",
+       "verdict": "kept",
+       "why": "The format string matches the code; values come from counts dict."
+      },
+      {
+       "text": "lines.append(\"  gate: unreached=%d (islands %d, unknown %d, shims %d; test-only %d)  dark_switches=%d  engine_disagreements=%d\" % (...))",
+       "where": "lines 1497-1499",
+       "verdict": "kept",
+       "why": "Format string matches code; counts keys are present."
+      },
+      {
+       "text": "if not narr[\"present\"]: ... elif narr[\"missing\"]: ... else: ...",
+       "where": "lines 1500-1507",
+       "verdict": "kept",
+       "why": "Conditional branches match the code."
+      },
+      {
+       "text": "if out_path is not None: lines.append(f\"  wrote {out_path}\")",
+       "where": "line 1508",
+       "verdict": "kept",
+       "why": "Conditional append matches code."
+      },
+      {
+       "text": "return \"\\n\".join(lines)",
+       "where": "line 1509",
+       "verdict": "kept",
+       "why": "Return statement matches code."
+      },
+      {
+       "text": "ap = argparse.ArgumentParser(prog=\"daedalus map\", description=...)",
+       "where": "lines 1512-1514",
+       "verdict": "kept",
+       "why": "Argument parser creation matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--repo\", default=\".\")",
+       "where": "line 1515",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--out\", default=None, help=f\"default {MAP_REL}\")",
+       "where": "line 1516",
+       "verdict": "uncheckable",
+       "why": "MAP_REL constant not defined in this chunk."
+      },
+      {
+       "text": "ap.add_argument(\"--narrative\", default=None, help=f\"default {NARRATIVE_REL}\")",
+       "where": "line 1517",
+       "verdict": "uncheckable",
+       "why": "NARRATIVE_REL constant not defined in this chunk."
+      },
+      {
+       "text": "ap.add_argument(\"--snapshot\", default=None, help=\"default docs/architecture-state.json\")",
+       "where": "line 1518-1519",
+       "verdict": "kept",
+       "why": "Argument definition matches code; help string is present."
+      },
+      {
+       "text": "ap.add_argument(\"--json\", action=\"store_true\", help=\"machine-readable payload to stdout; writes nothing\")",
+       "where": "lines 1520-1521",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--check\", action=\"store_true\", help=\"gate mode: ...\")",
+       "where": "lines 1522-1524",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--accept\", metavar=\"ITEM\", default=None, help=\"record a dated acceptance, e.g. island:daedalus/x.py\")",
+       "where": "lines 1525-1526",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--why\", default=\"\", help=\"required with --accept\")",
+       "where": "line 1527",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--until\", default=\"\", help=\"ISO date; default +14 days\")",
+       "where": "line 1528",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--since\", default=\"\", help=\"ISO date; default today\")",
+       "where": "line 1529",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--who\", default=\"\")",
+       "where": "line 1530",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "ap.add_argument(\"--no-git\", action=\"store_true\", help=\"skip the working-tree dirty probe\")",
+       "where": "lines 1531-1532",
+       "verdict": "kept",
+       "why": "Argument definition matches code."
+      },
+      {
+       "text": "args = ap.parse_args(list(argv) if argv is not None else None)",
+       "where": "line 1533",
+       "verdict": "kept",
+       "why": "Parsing call matches code."
+      },
+      {
+       "text": "root = Path(args.repo).resolve()",
+       "where": "line 1535",
+       "verdict": "kept",
+       "why": "Path resolution matches code."
+      },
+      {
+       "text": "out_path = Path(args.out) if args.out else root / MAP_REL",
+       "where": "line 1536",
+       "verdict": "uncheckable",
+       "why": "MAP_REL constant not defined in this chunk."
+      },
+      {
+       "text": "narr_path = Path(args.narrative) if args.narrative else root / NARRATIVE_REL",
+       "where": "line 1537",
+       "verdict": "uncheckable",
+       "why": "NARRATIVE_REL constant not defined in this chunk."
+      },
+      {
+       "text": "from . import drift as drift_mod",
+       "where": "line 1538",
+       "verdict": "uncheckable",
+       "why": "Import statement; drift module not in this chunk."
+      },
+      {
+       "text": "snap_path = Path(args.snapshot) if args.snapshot else root / drift_mod.SNAPSHOT_REL",
+       "where": "line 1539",
+       "verdict": "uncheckable",
+       "why": "SNAPSHOT_REL constant from drift module not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Default until calculation uses date.fromisoformat on d_since; if that fails, falls back to today, which may differ from intended behavior.",
+       "where": "lines 1442-1447",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "State dict copies snapshot fields with defaults of empty list/dict; missing keys in snapshot could lead to silent data loss.",
+       "where": "lines 1459-1472",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The comment about 'today matters here' references a scenario with --since 2999-01-01, but the logic does not enforce any cap; it's just a note.",
+       "where": "lines 1451-1454",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3fa1c8fde156c247f1509ca51ab64f167f33c3816ff6fd4c8732f5fcf9c6315d",
+    "objective_chars": 6865,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [13/14]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 13,
+  "total": 14,
+  "first_line": 1441
+ }
+}

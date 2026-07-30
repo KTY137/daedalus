@@ -1,0 +1,155 @@
+{
+ "task_id": "plan__b014__946db82",
+ "key": "plan__b014__946db82-ac38fdd214",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Plan: 4 items addressing unchecked dict access, missing not_substituted function, build_index contract, and unparsed claims handling. All paths are from findings; 2 items depend on inspection not yet performed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "not_substituted function may already be complete; inspection may find no issue.",
+     "build_index may be defined elsewhere and already tested; inspection may find contract satisfied.",
+     "Unparsed claims handling may already be robust; changes may be unnecessary.",
+     "KeyError fixes may introduce new bugs if assumptions about data structure are wrong."
+    ],
+    "todos": [
+     "Inspect daedalus/lanes/checks.py lines 199-250 to verify not_substituted completeness.",
+     "Run `grep -r 'def build_index' daedalus/structcore/` to locate implementation.",
+     "Inspect session.py quorum and render methods for parsed=False handling.",
+     "Inspect ollama.py schema rescue logic for failure modes.",
+     "Write unit tests for render.py, docrefs.py, parse.py with incomplete data to trigger KeyError.",
+     "Add existence checks for dictionary key access in render.py, docrefs.py, parse.py."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Add existence checks for nested dict access in render.py, docrefs.py, parse.py",
+       "gate": "1",
+       "why_now": "Confirmed high-severity risk of KeyError crashes in multiple files; blocks reliable operation of rendering, docref resolution, and parsing.",
+       "steps": [
+        {
+         "do": "Wrap nested dict accesses with .get() or try/except in daedalus/mapping/render.py",
+         "file": "daedalus/mapping/render.py",
+         "verified_by": "Run test suite and verify no KeyError traces; run `pytest tests/test_mapping_render.py` if exists, else manual test with incomplete data."
+        },
+        {
+         "do": "Wrap nested dict accesses with .get() or try/except in daedalus/spine/docrefs.py",
+         "file": "daedalus/spine/docrefs.py",
+         "verified_by": "Run test suite and verify no KeyError traces; run `pytest tests/test_docrefs_false_positives.py` if exists, else manual test with incomplete data."
+        },
+        {
+         "do": "Wrap nested dict accesses with .get() or try/except in daedalus/structcore/parse.py",
+         "file": "daedalus/structcore/parse.py",
+         "verified_by": "Run test suite and verify no KeyError traces; run `pytest tests/test_structcore.py` if exists, else manual test with incomplete data."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions in these files use dict access patterns that can fail; actual callers may always provide valid data."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect not_substituted function in checks.py and add missing implementation if needed",
+       "gate": "1",
+       "why_now": "High-severity finding: the function's implementation is not visible; if missing, write lanes may not detect unsubstituted template variables, leading to security or correctness issues.",
+       "steps": [
+        {
+         "do": "Open daedalus/lanes/checks.py and read lines 199-250 to inspect not_substituted function",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Check that function body contains logic to identify unsubstituted template variables (e.g., regex for {{...}}). If missing, implement it."
+        },
+        {
+         "do": "If function is missing or incomplete, implement not_substituted(attempt: WriteAttempt) -> str that returns a reason if any unsubstituted placeholder remains",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Write a unit test in tests/test_lanes_checks.py that passes a WriteAttempt with unsubstituted content and expects a non-empty refusal."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is expected to detect unsubstituted template placeholders; the exact placeholder syntax is assumed to be {{...}}."
+      },
+      {
+       "rank": 3,
+       "title": "Locate build_index implementation and verify CLI contract",
+       "gate": "1",
+       "why_now": "Medium-severity: the contract between CLI and core logic for structcore indexing is untested; if missing, the build command may silently do nothing.",
+       "steps": [
+        {
+         "do": "Run `grep -r 'def build_index' daedalus/structcore/` to find the function definition",
+         "file": "UNKNOWN",
+         "verified_by": "If found, inspect that it accepts the expected arguments (documents, types) and returns a result. If not found, implement build_index in daedalus/structcore/index.py."
+        },
+        {
+         "do": "If build_index is missing, implement it with signature build_index(documents: list[str], types: list[str]) -> dict",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "Write a test that calls build_index with sample documents and types and verifies the output structure."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "build_index is expected to be defined; if not, the implementation should be straightforward."
+      },
+      {
+       "rank": 4,
+       "title": "Handle unparsed claims in council session quorum and render",
+       "gate": "1",
+       "why_now": "Medium-severity: if an unparsed claim reaches the session, quorum counting or rendering may be incorrect, potentially causing deadlocks or misreported results.",
+       "steps": [
+        {
+         "do": "Inspect session.py quorum property and render method for handling of parsed=False claims",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Check that claims with parsed=False are counted as responded but not used in rendering. If not handled, add logic to skip unparsed claims or mark them as errors."
+        },
+        {
+         "do": "Inspect ollama.py schema rescue logic to ensure it prevents unparsed claims from reaching session",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "Check that rescue returns a valid parsed claim or raises; if it returns unparsed, add fallback."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The session currently assumes all claims are parsed; the rescue in ollama.py may not cover all failure modes."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/lanes/checks.py",
+      "daedalus/mapping/render.py",
+      "daedalus/spine/docrefs.py",
+      "daedalus/structcore/parse.py",
+      "daedalus/council/session.py",
+      "daedalus/providers/ollama.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2c4a97af24dba6115312aeb57df7138217abd65f488c0310b24444755ada2b85",
+    "objective_chars": 16010,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 14 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 14,
+  "inputs": 4
+ }
+}

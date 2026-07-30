@@ -1,0 +1,143 @@
+{
+ "task_id": "plan__b021__946db82",
+ "key": "plan__b021__946db82-7249912944",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 narrowed findings need test creation: budget enforcement per-adapter, byte-identity determinism, error-row usage, opt-in flags wiring.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget gaps in non-Ollama adapters could allow over-budget prompts.",
+     "Non-deterministic dict iteration may break byte-identity tests.",
+     "Missing _task_error_row calls cause inconsistent error handling.",
+     "Unread opt-in flags leave index without document/type data.",
+     "Proposed tests may fail if assumptions about code structure are wrong."
+    ],
+    "todos": [
+     "Write test for per-adapter budget enforcement in daedalus/council/vendors.py.",
+     "Write test for ReachReport.to_dict byte-identity across runs.",
+     "Write test for index.py returned dict byte-identity with empty extras.",
+     "Verify all eval_task_* and run_* functions call _task_error_row.",
+     "Verify DAEDALUS_INDEX_DOCUMENTS and DAEDALUS_INDEX_TYPES flags are read.",
+     "Merge findings into a single test module if appropriate."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify per-adapter budget enforcement in vendors.py",
+       "gate": "1",
+       "why_now": "Narrowed finding warns that budget checks may be missing in non-Ollama adapters, risking over-budget prompts.",
+       "steps": [
+        {
+         "do": "Search for 'effective_input_window' and 'budget' in daedalus/council/vendors.py to enumerate which adapters have budget checks.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "grep output listing occurrences per adapter class."
+        },
+        {
+         "do": "Write a test that instantiates each adapter (ClaudeAdapter, CodexAdapter, OllamaAdapter, AntigravityAdapter) and verifies they reject prompts exceeding their budget limit.",
+         "file": "tests/test_budget.py",
+         "verified_by": "pytest test_budget.py -k 'test_per_adapter_budget' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Each adapter has a budget limit accessible for testing; test may need mocking."
+      },
+      {
+       "rank": 2,
+       "title": "Test byte-identity of ReachReport.to_dict and index.py dict",
+       "gate": "1",
+       "why_now": "Narrowed finding questions determinism; byte-identity is critical for cache and diff stability.",
+       "steps": [
+        {
+         "do": "Write a test that calls ReachReport.to_dict twice with the same input and asserts byte equality of the JSON output.",
+         "file": "daedalus/mapping/reach.py",
+         "verified_by": "pytest test_byte_identity.py -k 'test_reach_report_to_dict_byte_identical' passes."
+        },
+        {
+         "do": "Write a test that builds an index with empty extras and checks that the returned dict does not include the extras key (or includes it consistently).",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "pytest test_byte_identity.py -k 'test_index_dict_empty_extras_consistent' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "ReachReport.to_dict and index.py build functions are importable and deterministic given same input."
+      },
+      {
+       "rank": 3,
+       "title": "Verify all eval_task_* functions use _task_error_row",
+       "gate": "2",
+       "why_now": "High severity: missing error row call leads to inconsistent error handling and potential aggregator failures.",
+       "steps": [
+        {
+         "do": "Search for all eval_task_* and run_* function definitions in daedalus/eval/harness.py and verify each calls _task_error_row in exception handlers.",
+         "file": "daedalus/eval/harness.py",
+         "verified_by": "grep output showing each function's exception handler includes _task_error_row."
+        },
+        {
+         "do": "Write a test that mocks each eval_task_* function to raise an exception and asserts _task_error_row is called.",
+         "file": "tests/test_eval.py",
+         "verified_by": "pytest test_eval.py -k 'test_task_error_row_called' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "All eval_task_* functions are defined in harness.py and use a common exception handling pattern."
+      },
+      {
+       "rank": 4,
+       "title": "Verify opt-in flags DAEDALUS_INDEX_DOCUMENTS and DAEDALUS_INDEX_TYPES are read",
+       "gate": "2",
+       "why_now": "Medium severity: if flags are never read, index lacks document/type data, breaking downstream consumers.",
+       "steps": [
+        {
+         "do": "Search daedalus/structcore/index.py for 'DAEDALUS_INDEX_DOCUMENTS', 'DAEDALUS_INDEX_TYPES', and 'documents=True', 'types=True' to confirm flags are read.",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "grep output shows at least one occurrence of each flag."
+        },
+        {
+         "do": "Write a test that sets the environment variable and checks that the index includes document/type data.",
+         "file": "tests/test_structcore.py",
+         "verified_by": "pytest test_structcore.py -k 'test_opt_in_flags_enable_features' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The flag logic is implemented later in the file beyond the first 30 lines; test may require building a full index."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4cd2ee864db871ebd2ba624ee700ccf69e573d4659f71c9b74fda5e804b68fea",
+    "objective_chars": 150240,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 21 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 21,
+  "inputs": 4
+ }
+}

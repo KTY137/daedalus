@@ -1,0 +1,186 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c4of4__946db82",
+ "key": "scan__daedalus_eval_harness.py__c4of4__946db82-5c42690443",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed run_gate function and its docstring claims; verified per-task regression logic, advisory-only guardrail, error/focus_withheld splitting, and no CI wiring. Some claims about external functions (all_tasks, run_tier1, load_baseline) are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "run_gate docstring | medium | Claim about no CI in repo (no .github/workflows) is uncheckable; if CI is later added, the advisory-only nature could be violated. | Check if .github/workflows exists in repo root.",
+     "run_gate docstring | low | Claim that mean-preserving-swap test is in tests/test_eval_oracle.py is uncheckable; if test is missing or different, docstring is misleading. | Locate and verify test/test_eval_oracle.py contains such a test."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "4 of 4",
+     "purpose": "Define run_gate function with regression detection logic and detailed docstring.",
+     "symbols": [
+      {
+       "name": "run_gate",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads baseline.json, runs tasks, compares per-task recall, returns regression report. Writes nothing but reads baseline file."
+      }
+     ],
+     "claims": [
+      {
+       "text": "ADVISORY regression ratchet. Replays ``tasks`` (default TASKS) against a stored baseline.json and flags any PRIMARY-tier task whose recall DECREASED.",
+       "where": "run_gate docstring line 1-2",
+       "verdict": "kept",
+       "why": "Code does: tasks = all_tasks() if tasks is None; baseline = load_baseline(p); loops per_task, checks PRIMARY tier, compares recall, records regressions if cur_recall < base_recall."
+      },
+      {
+       "text": "Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves (see tests/test_eval_oracle.py for the mean-preserving-swap test that proves this).",
+       "where": "run_gate docstring line 3-4",
+       "verdict": "uncheckable",
+       "why": "Code does per-task comparison; the claim about a test in another file is uncheckable from this chunk."
+      },
+      {
+       "text": "Workflow before shipping a slice-heuristic change: python -m daedalus.eval --gate. Expect PASS. A FAIL means either a real regression (fix the slicer) or an intentional, reviewed label change -- in which case update the baseline EXPLICITLY (never automatically): python -m daedalus.eval --update-baseline",
+       "where": "run_gate docstring line 5-7",
+       "verdict": "uncheckable",
+       "why": "The CLI arguments --gate and --update-baseline are not defined in this chunk; the workflow description is uncheckable."
+      },
+      {
+       "text": "GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action.",
+       "where": "run_gate docstring line 8-10",
+       "verdict": "kept for advisory only; uncheckable for CI claim",
+       "why": "Returned dict includes 'advisory': True. The claim about no CI is uncheckable (no .github/workflows in chunk). The 'must never be wired' is a policy claim, unenforceable in code."
+      },
+      {
+       "text": "ERRORED tasks (see ``run_tier1``) have no recall to compare and are SPLIT by tier, not folded into ``regressions``: * PRIMARY tier  -- FAILS the gate loudly (``errored_primary``, named in the rendered report). A broken primary-corpus task means the gate itself can no longer vouch for that task at all, which must scream exactly like a real recall regression would. * QUARANTINE tier -- reported only (``errored_quarantine``), never fails the gate -- flywheel debris (an unconfirmed minted task whose target moved/vanished) must not be able to block a developer's gate run.",
+       "where": "run_gate docstring line 11-16",
+       "verdict": "kept",
+       "why": "Code: if 'error' in t, row is added to errored_primary if _is_primary_tier, else errored_quarantine. After loop, 'passed' requires len(errored_primary)==0, so PRIMARY errors cause failure; QUARANTINE errors do not."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file -- lane A1) are likewise SPLIT OUT, not folded into ``regressions``: a task that TRANSITIONS to focus-withheld this run has no ``recall`` to compare (fail-closed is not \"recall dropped to 0\"), so treating it as a regression would be a false alarm on the fence doing its job. Reported in its own ``focus_withheld`` section, regardless of tier, and never fails the gate.",
+       "where": "run_gate docstring line 17-21",
+       "verdict": "kept",
+       "why": "Code: if t.get('focus_withheld'), appends to focus_withheld list and continues (skips regression check). focus_withheld is not used in determining 'passed', so never fails the gate."
+      },
+      {
+       "text": "tasks = all_tasks() if tasks is None else tasks",
+       "where": "run_gate body line 1",
+       "verdict": "uncheckable",
+       "why": "all_tasks is not defined in this chunk."
+      },
+      {
+       "text": "baseline = load_baseline(p)",
+       "where": "run_gate body line 2",
+       "verdict": "uncheckable",
+       "why": "load_baseline is not defined in this chunk."
+      },
+      {
+       "text": "result = run_tier1(tasks)",
+       "where": "run_gate body line 3",
+       "verdict": "uncheckable",
+       "why": "run_tier1 is not defined in this chunk."
+      },
+      {
+       "text": "if not _is_primary_tier(t[\"label_tier\"]): continue  # quarantine is never gated, see module docstring",
+       "where": "run_gate body line 4",
+       "verdict": "kept",
+       "why": "Code does: if not _is_primary_tier(t[\"label_tier\"]): continue. This skips non-primary tasks from regression comparison."
+      },
+      {
+       "text": "checked.append(t[\"id\"])",
+       "where": "run_gate body line 5",
+       "verdict": "kept",
+       "why": "Line exists in code, appends to checked list when baseline task is found."
+      },
+      {
+       "text": "if cur_recall < base_recall: regressions.append(...)",
+       "where": "run_gate body line 6-8",
+       "verdict": "kept",
+       "why": "Code performs this comparison and appends to regressions list."
+      },
+      {
+       "text": "elif cur_recall > base_recall: improved.append(...)",
+       "where": "run_gate body line 9-10",
+       "verdict": "kept",
+       "why": "Code performs this comparison and appends to improved list."
+      },
+      {
+       "text": "missing_tasks = sorted(set(baseline_tasks) - current_ids)",
+       "where": "run_gate body line 11",
+       "verdict": "kept",
+       "why": "Line exists, computes missing tasks."
+      },
+      {
+       "text": "return {\"passed\": len(regressions) == 0 and len(errored_primary) == 0, \"advisory\": True, ...}",
+       "where": "run_gate body line 12",
+       "verdict": "kept",
+       "why": "Return dict contains exactly these keys and logic."
+      }
+     ],
+     "observations": [
+      {
+       "what": "run_gate reads baseline.json from disk via load_baseline; no write operations observed.",
+       "where": "run_gate body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims there is no CI (no .github/workflows), but this cannot be verified from this chunk alone.",
+       "where": "run_gate docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring references a test in tests/test_eval_oracle.py for mean-preserving-swap; not present in this chunk.",
+       "where": "run_gate docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function uses _is_primary_tier but that function is not defined in this chunk; assumed to exist elsewhere.",
+       "where": "run_gate body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "All error handling for errored tasks and focus_withheld is correctly split and does not affect 'passed' for quarantine/focus_withheld.",
+       "where": "run_gate body",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6365dbf24657f3dc5afce57c7cb5081395e6a20a7d83040982409b463872de6a",
+    "objective_chars": 5110,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

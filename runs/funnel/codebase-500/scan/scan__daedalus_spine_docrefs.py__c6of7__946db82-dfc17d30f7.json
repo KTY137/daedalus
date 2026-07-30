@@ -1,0 +1,164 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c6of7__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c6of7__946db82-dfc17d30f7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of docrefs.py: defines scan() and check_denominator() and verify_fix_counts() with docstring claims; enumerates symbols and checks claims against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "scan | medium | The docstring claims 'Never raises.' but the code may raise exceptions from Path operations or iter_doc_files; the try/except only covers OSError on read_text. | Add a try/except around the entire loop or verify that all operations are covered.",
+     "scan | low | The overrides dict is built from _rel_key(k) but the key type in overrides is 'repo-relative doc path'; the mapping may not match if k is not a string. | Ensure that all keys in overrides are strings before calling _rel_key.",
+     "verify_fix_counts | medium | The function signature uses 'target: Reference | Mapping[str, Any]' but the body only calls check_denominator and does not use target; the docstring claims it is for callers that never held the before-report, but the function is incomplete. | Either implement the rest of verify_fix or remove the unused parameter."
+    ],
+    "todos": [
+     "Review scan() for additional exception safety beyond OSError.",
+     "Complete verify_fix_counts() implementation or clarify its status.",
+     "Add type guards for overrides keys in scan()."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "6 of 7",
+     "purpose": "Defines scan() and verify helper functions with docstring claims.",
+     "symbols": [
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "network_egress",
+        "spend",
+        "repository_mutation",
+        "none"
+       ],
+       "note": "Reads files from disk, may modify cache dict (mutable default not used)."
+      },
+      {
+       "name": "check_denominator",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Pure function, no side effects."
+      },
+      {
+       "name": "verify_fix_counts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Calls check_denominator; unused parameter 'target'."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Measure the whole prose corpus against the tree. Never raises.",
+       "where": "scan docstring",
+       "verdict": "uncheckable",
+       "why": "The claim 'Never raises' cannot be fully verified from this chunk alone; only OSError on read_text is caught, but other exceptions (e.g., from Path operations) are not handled."
+      },
+      {
+       "text": "overrides maps a repo-relative doc path to the text to scan INSTEAD of whatever is on disk, or to None meaning 'this file does not exist in the snapshot being measured'.",
+       "where": "scan docstring",
+       "verdict": "kept",
+       "why": "The code at line 627-628 checks if over[rel] is None and continues; if not None, it uses the override text. If the path is not in over, it reads from disk."
+      },
+      {
+       "text": "The MODULE tree is read from repo_root on both sides. That is deliberate: the denominator compares two prose snapshots against ONE tree, so a difference in resolving is attributable to the prose edit and to nothing else.",
+       "where": "scan docstring",
+       "verdict": "uncheckable",
+       "why": "This claim refers to the tree being read from repo_root, but the code only shows scan() reading doc_files and overrides; the tree reading (presumably in resolve_reference) is not visible in this chunk."
+      },
+      {
+       "text": "An override may ADD a document the snapshot on disk no longer has -- the deletion case, which is the one the denominator exists to catch.",
+       "where": "scan docstring",
+       "verdict": "kept",
+       "why": "Lines 624-628 handle overrides that are not in seen: if over[rel] is not None, the document is added to planned with path=None, and later at line 632-633 if text is None it continues (skip), else it scans the override text."
+      },
+      {
+       "text": "None means the denominator HELD.",
+       "where": "check_denominator docstring",
+       "verdict": "kept",
+       "why": "The function returns None if resolving_after >= resolving_before, which indicates no destruction."
+      },
+      {
+       "text": "Extracted so the ordering that makes this module safe is STRUCTURAL rather than a paragraph of prose asking the next caller to be careful. Every path that judges a prose fix goes through here first, because verify_fix_counts calls it on its first line and there is no other way in.",
+       "where": "check_denominator docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about verify_fix_counts calling it on its first line is visible (line 680), but 'every path that judges a prose fix goes through here first' cannot be verified from this chunk alone."
+      },
+      {
+       "text": "It takes counts, not reports, because the count is all the rule needs and a caller that only has a remembered number (the queue's pick-time measurement, carried on a gate command line) must be able to apply the same rule as one holding both full reports.",
+       "where": "check_denominator docstring",
+       "verdict": "kept",
+       "why": "The function signature takes int resolving_before and int resolving_after, not reports."
+      },
+      {
+       "text": "verify_fix with the before-side reduced to its one load-bearing number, for callers that never held the before-report.",
+       "where": "verify_fix_counts docstring",
+       "verdict": "uncheckable",
+       "why": "The function is incomplete; it only calls check_denominator and returns if destroyed, but does not perform the rest of verify_fix. The claim cannot be verified from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "scan() uses a mutable default argument 'cache: dict = {}' which is shared across calls; this can cause unexpected behavior if the cache is modified.",
+       "where": "line 610",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "verify_fix_counts has an unused parameter 'target' which is not referenced in the function body.",
+       "where": "line 677",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of scan() claims 'Never raises' but the code only catches OSError; other exceptions (e.g., ValueError from relative_to) are not caught.",
+       "where": "line 604",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The overrides dictionary keys are processed with _rel_key(k) but the mapping may not match if the caller provides keys with different formats.",
+       "where": "line 609",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9b93b2a2e560709321f50ca0d7777adbf037ab9d60c9189600d9f39b3a407904",
+    "objective_chars": 5743,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 601
+ }
+}

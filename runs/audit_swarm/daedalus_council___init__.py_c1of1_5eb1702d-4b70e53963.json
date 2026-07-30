@@ -1,0 +1,112 @@
+{
+ "task_id": "daedalus/council/__init__.py#c1of1#5eb1702d",
+ "key": "daedalus_council___init__.py_c1of1_5eb1702d-4b70e53963",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 2 kept, 0 broken, 2 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"never a verdict\" | __init__.py:1-2 | KEPT | The docstring states the module produces EVIDENCE, never a verdict, and no code in this unit produces a verdict.",
+     "CLAIM | \"It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise\" | __init__.py:4-5 | UNCHECKABLE | Would need to inspect all imported submodules (bus.py) and all callers to verify no such capability exists; this unit only re-exports symbols.",
+     "CLAIM | \"COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL\" | __init__.py:24-25 | UNCHECKABLE | Would need to inspect the memory recall code path to confirm no cross-contamination; not present in this unit.",
+     "CLAIM | \"it is a SEPARATE store from the memory ledger and shares no code path with it\" | __init__.py:22-24 | KEPT | The code defines a separate store path (council_store_path) and imports only bus functions; no memory ledger imports are present."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "88617056d0c50105ab8e5a0b9af08b84399dfc720fec1fb8208873cf6b7b1998",
+    "objective_chars": 5714,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 0 kept, 0 broken, 3 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise\" | __init__.py | UNCHECKABLE | would need to audit every imported function in bus.py to verify none perform writing/editing/applying/promotion; also need to check that no other module in the package imports such capabilities",
+     "CLAIM | \"COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL\" | __init__.py | UNCHECKABLE | would need to audit the memory recall code path (not in this unit) to confirm it never reads from the council store",
+     "CLAIM | \"Dissent is recorded verbatim and is never averaged away, which is why nothing in this package carries an approve / reject / score / majority / consensus / confidence field\" | __init__.py | UNCHECKABLE | would need to audit all classes and functions in this package (including bus.py and any other modules) to confirm absence of such fields"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "88617056d0c50105ab8e5a0b9af08b84399dfc720fec1fb8208873cf6b7b1998",
+    "objective_chars": 5714,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 0 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"never a verdict\" | module docstring | KEPT | The module exports only bus utilities, no approve/reject fields, and the docstring states the package produces checks, not verdicts.",
+     "CLAIM | \"no writing, editing, applying or promotion capability anywhere, by construction\" | module docstring | UNCHECKABLE | Would need to audit all submodules (bus.py) and any other code that imports from this package to confirm no such capability exists.",
+     "CLAIM | \"nothing in this package carries an approve / reject / score / majority / consensus / confidence field\" | module docstring | KEPT | The exported symbols (ENTRY_VERSION, TURN_STATUS, etc.) and bus functions do not include any such fields based on their names and signatures.",
+     "CLAIM | \"ABSENCE OF THE FIELD is the control\" | module docstring | KEPT | No approve/reject/score/majority/consensus/confidence field is present in the exports or visible in this unit.",
+     "CLAIM | \"COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL\" | module docstring | UNCHECKABLE | Would need to inspect memory recall code (not in this unit) to verify that council records are never read by memory recall.",
+     "CLAIM | \"append-only, hash-chained, offline-verifiable dcouncil/1 store\" | module docstring | KEPT | The bus module exports verify_chain, transcript_head, and load_transcript, which support append-only, hash-chained, offline-verifiable storage.",
+     "D1 | append_roster | defined in bus.py, imported here; not used in this unit | WRONG CONCLUSION: callers may believe append_roster is used in this package, but it is only re-exported; unused in this unit.",
+     "D2 | no except blocks | N/A | KEPT | No except blocks exist in this unit, so D2 does not apply."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "88617056d0c50105ab8e5a0b9af08b84399dfc720fec1fb8208873cf6b7b1998",
+    "objective_chars": 5714,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/__init__.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 3265
+ }
+}

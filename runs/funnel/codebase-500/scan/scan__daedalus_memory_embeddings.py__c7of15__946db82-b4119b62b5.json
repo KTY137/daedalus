@@ -1,0 +1,125 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c7of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c7of15__946db82-b4119b62b5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 7 of embeddings.py: implements _ensure_index, _spec_from_row, _projection_count, _anchor_row, anchor_provenance, _record_identity_anchor. All methods are present and logic is complete.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_ensure_index | medium | The function calls _spec_from_row and compares with spec; if _spec_from_row returns a different object due to missing fields, collision detection may fail. | Verify that _spec_from_row returns all fields from EmbeddingSpec.",
+     "_record_identity_anchor | low | The docstring claims 'costs no extra embedding call', but this is uncheckable as no embedding call is shown. | Confirm that the candidate projection is already stored and no embedding call is made.",
+     "anchor_provenance | low | Returns 'missing' if row is None, else str(row['provenance']). The docstring says returns 'missing', 'created' or 'adopted', but only 'missing' is guaranteed. | Check that provenance values in DB are exactly 'created' or 'adopted'."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "7 of 15",
+     "purpose": "Contains helper methods for embedding index management and identity anchor recording.",
+     "symbols": [
+      {
+       "name": "_ensure_index",
+       "kind": "function",
+       "effects": [],
+       "note": "Inserts index metadata into DB; verifies by reading back and comparing."
+      },
+      {
+       "name": "_spec_from_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Static method; converts a sqlite3.Row to EmbeddingSpec."
+      },
+      {
+       "name": "_projection_count",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns count of projections for a given index_id."
+      },
+      {
+       "name": "_anchor_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Fetches the identity anchor row for an index, joining with event_projections."
+      },
+      {
+       "name": "anchor_provenance",
+       "kind": "function",
+       "effects": [],
+       "note": "Public method returning 'missing', 'created', or 'adopted' based on anchor row provenance."
+      },
+      {
+       "name": "_record_identity_anchor",
+       "kind": "function",
+       "effects": [],
+       "note": "Records an identity anchor using the first projection if none exists."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``\"missing\"``, ``\"created\"`` or ``\"adopted\"`` for this index.",
+       "where": "line 781 (docstring of anchor_provenance)",
+       "verdict": "uncheckable",
+       "why": "The code only returns 'missing' or the provenance from the row; it does not enforce that provenance is 'created' or 'adopted'. The actual values depend on DB contents not shown."
+      },
+      {
+       "text": "Re-using a real projection rather than a synthetic probe text means the anchor costs no extra embedding call at index-creation time and checks precisely the invariant that matters: *the vectors already in this index are still what this backend produces.*",
+       "where": "line 790 (docstring of _record_identity_anchor)",
+       "verdict": "uncheckable",
+       "why": "The chunk shows the method selects an existing projection and inserts an anchor; no embedding call is visible. The claim about 'vectors already in this index are still what this backend produces' cannot be verified as no check is performed in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_ensure_index inserts then reads back to verify; if insert fails silently, the read returns None and a RuntimeError is raised.",
+       "where": "_ensure_index method (lines 737-757)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "anchor_provenance returns the provenance as a string directly from the row; no validation that it is one of the expected values.",
+       "where": "anchor_provenance (line 783)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_record_identity_anchor checks for existing anchor and returns early; then selects the first projection ordered by created_at and projection_id.",
+       "where": "_record_identity_anchor (lines 795-821)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d221bf9a658ef426dcbb048fc96c5cd8c096411bf1e982969cf8741ba20c70a",
+    "objective_chars": 5185,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [7/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 7,
+  "total": 15,
+  "first_line": 721
+ }
+}

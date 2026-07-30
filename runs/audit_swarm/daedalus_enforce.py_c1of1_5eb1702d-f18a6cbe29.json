@@ -1,0 +1,115 @@
+{
+ "task_id": "daedalus/enforce.py#c1of1#5eb1702d",
+ "key": "daedalus_enforce.py_c1of1_5eb1702d-f18a6cbe29",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 4 kept, 0 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The watcher must be running\" (in docstring of _block) | _block | KEPT | The docstring includes a code block for the watcher command, which is part of the return value, so the claim is kept.",
+     "CLAIM | \"Prefer `local_only` while Claude tokens are exhausted\" (in docstring of _block) | _block | KEPT | The docstring includes this rule in the Rules section, which is part of the return value.",
+     "CLAIM | \"Do not bypass Ikarus for local/Ollama work\" (in docstring of _block) | _block | KEPT | The docstring includes this rule in the Rules section, which is part of the return value.",
+     "CLAIM | \"Read reports from ... inbox\" (in docstring of _block) | _block | KEPT | The docstring includes this rule in the Rules section, which is part of the return value.",
+     "CLAIM | \"Check recovery memory at ... memory/todos.local.md\" (in docstring of _block) | _block | KEPT | The docstring includes this rule in the Rules section, which is part of the return value.",
+     "CLAIM | \"_replace_or_append replaces the block between BEGIN and END if both exist and end > start\" (implied by docstring) | _replace_or_append | KEPT | The code checks start != -1 and end != -1 and end > start, and returns the replacement accordingly.",
+     "D1 | source parameter in _enforce_file | source is used when calling _block(project, source) | No mechanical issue found.",
+     "D2 | No except clauses that swallow and continue | No such clauses exist.",
+     "D3 | No check that runs after the side effect its comment says it guards | No such pattern found.",
+     "D4 | No branch whose condition cannot be true given the assignments above it | No such branch found."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c1bdda9784c343a989c0f032530c6702044c812fd5cbd502643d21d2859f7478",
+    "objective_chars": 5742,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 3 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Token-safe local path\" | _block | KEPT | The local_only string is defined and used in the block.",
+     "CLAIM | \"Normal routed path\" | _block | KEPT | The auto string is defined and used in the block.",
+     "CLAIM | \"The watcher must be running\" | _block | KEPT | The watch command is included in the block.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c1bdda9784c343a989c0f032530c6702044c812fd5cbd502643d21d2859f7478",
+    "objective_chars": 5742,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 2 kept, 0 broken, 2 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"enforce_repo writes enforcement state to .agentenv/enforcement.json\" | enforce_repo | KEPT | writes state to .agentenv/enforcement.json",
+     "CLAIM | \"_enforce_file writes updated content back to the file\" | _enforce_file | KEPT | writes updated content to path",
+     "CLAIM | \"_replace_or_append replaces block between BEGIN and END markers\" | _replace_or_append | UNCHECKABLE | would need to test edge cases like multiple BEGIN/END or overlapping markers to verify behavior exactly",
+     "CLAIM | \"enforce_repo returns dict with keys repo_root, project, enforced, files\" | enforce_repo | UNCHECKABLE | would need to see that the dict is exactly as described (no extra keys) and that 'files' contains exactly the touched files in order"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c1bdda9784c343a989c0f032530c6702044c812fd5cbd502643d21d2859f7478",
+    "objective_chars": 5742,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/enforce.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 3302
+ }
+}

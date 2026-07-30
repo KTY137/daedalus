@@ -1,0 +1,112 @@
+{
+ "task_id": "daedalus/adapters/base.py#c1of1#5eb1702d",
+ "key": "daedalus_adapters_base.py_c1of1_5eb1702d-a90c083f2f",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0b85b5442434c14250a3de1c862e6575e4053b4ea24ea2595a37dd8ee2071dcc",
+    "objective_chars": 3827,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 8 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Return the capabilities of this adapter.\" | capabilities | KEPT | The abstract method returns AgentCapabilities as per type hint.",
+     "CLAIM | \"Create a new session and return the session ID.\" | create_session | KEPT | The abstract method returns str, matching the claim.",
+     "CLAIM | \"Send a message to the agent session.\" | send | KEPT | The abstract method takes session_id and message, consistent with the claim.",
+     "CLAIM | \"Iterate over events from the agent session.\" | events | KEPT | The abstract method returns AsyncIterator[AgentEvent], matching the claim.",
+     "CLAIM | \"Approve a pending tool request.\" | approve | KEPT | The abstract method takes session_id, call_id, and optional result, consistent with approval.",
+     "CLAIM | \"Reject a pending tool request.\" | reject | KEPT | The abstract method takes session_id, call_id, and reason, consistent with rejection.",
+     "CLAIM | \"Interrupt the agent session.\" | interrupt | KEPT | The abstract method takes session_id, consistent with interruption.",
+     "CLAIM | \"Terminate the agent session.\" | terminate | KEPT | The abstract method takes session_id, consistent with termination."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0b85b5442434c14250a3de1c862e6575e4053b4ea24ea2595a37dd8ee2071dcc",
+    "objective_chars": 3827,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 8 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Return the capabilities of this adapter.\" | capabilities | KEPT | The abstract method returns AgentCapabilities per its annotation and docstring.",
+     "CLAIM | \"Create a new session and return the session ID.\" | create_session | KEPT | The abstract method returns str per its annotation and docstring.",
+     "CLAIM | \"Send a message to the agent session.\" | send | KEPT | The abstract method takes message and session_id per its signature and docstring.",
+     "CLAIM | \"Iterate over events from the agent session.\" | events | KEPT | The abstract method returns AsyncIterator[AgentEvent] per its annotation and docstring.",
+     "CLAIM | \"Approve a pending tool request.\" | approve | KEPT | The abstract method takes session_id, call_id, result per its signature and docstring.",
+     "CLAIM | \"Reject a pending tool request.\" | reject | KEPT | The abstract method takes session_id, call_id, reason per its signature and docstring.",
+     "CLAIM | \"Interrupt the agent session.\" | interrupt | KEPT | The abstract method takes session_id per its signature and docstring.",
+     "CLAIM | \"Terminate the agent session.\" | terminate | KEPT | The abstract method takes session_id per its signature and docstring."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0b85b5442434c14250a3de1c862e6575e4053b4ea24ea2595a37dd8ee2071dcc",
+    "objective_chars": 3827,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/adapters/base.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1381
+ }
+}

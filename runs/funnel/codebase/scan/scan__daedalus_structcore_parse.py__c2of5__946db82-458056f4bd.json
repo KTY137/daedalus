@@ -1,0 +1,481 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c2of5__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c2of5__946db82-458056f4bd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of parse.py: finishes resolve_python_imports, defines python_imports, TYPE_FACTS_VERSION, ANY_SENTINEL, and dataclasses TypeDecl, FieldDecl, ParamDecl, SignatureDecl, AliasImport, PyTypeFacts, Annotation; defines structural name sets and depth guard comment.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_python_imports | medium | The function's logic for matching modules and submodules uses known set and internal_tops; if known is incomplete, false negatives may occur. | Review the known set population logic in build_index.",
+     "python_imports | low | Delegates to resolve_python_imports and python_import_records; if either is buggy, this function propagates errors. | Verify unit tests for python_imports.",
+     "TYPE_FACTS_VERSION | low | Bump when meaning changes; no enforcement mechanism visible. | Ensure bump policy is documented and automated.",
+     "ANY_SENTINEL | low | Constant used to label bare Any; if consumer does not check is_any flag, it might be treated as a type name. | Verify all consumers check is_any before using members.",
+     "TypeDecl | medium | Deliberately not field-compatible with CodeUnit; if code tries to treat it as CodeUnit, AttributeError may occur. | Ensure clone pass explicitly handles TypeDecl differently.",
+     "FieldDecl | medium | Multiple origins for same name kept; deduplication logic missing in this chunk. | Plan deduplication strategy in whole-repo resolver.",
+     "ParamDecl | medium | Position is 0-based over concatenated params; off-by-one errors possible if consumer assumes different ordering. | Verify ordering logic matches Python's parameter order.",
+     "SignatureDecl | low | receiver field assumed to be self/cls; if method is staticmethod, receiver is empty string. | Ensure consumers check is_async and decorators for staticmethod.",
+     "AliasImport | low | Star imports recorded with local=='*' and orig=='*'; ambiguity detection relies on this. | Test ambiguity resolution with multiple star imports.",
+     "Annotation | medium | Dotted names kept verbatim; consumer must resolve module prefix. | Ensure resolver handles dotted names correctly.",
+     "structural name sets | low | Contains many type names; if new stdlib types appear, list may become outdated. | Periodically review and update the sets."
+    ],
+    "todos": [
+     "Verify that resolve_python_imports correctly handles empty module after filtering.",
+     "Add tests for python_imports covering various import styles.",
+     "Ensure clone pass handles TypeDecl and FieldDecl without assuming CodeUnit fields.",
+     "Implement deduplication for FieldDecl with same name but different origins.",
+     "Review ordering of ParamDecl positions to match source order.",
+     "Test AliasImport star import ambiguity resolution.",
+     "Update structural name sets with new Python typing constructs.",
+     "Document bump policy for TYPE_FACTS_VERSION.",
+     "Ensure ANY_SENTINEL is never used as an edge target."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "2 of 5",
+     "purpose": "Completes resolve_python_imports, defines python_imports, version constant, sentinel, and dataclasses for type facts; defines structural name sets.",
+     "symbols": [
+      {
+       "name": "resolve_python_imports",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Finishes at line 307; returns set of resolved module names."
+      },
+      {
+       "name": "python_imports",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Convenience wrapper combining python_import_records and resolve_python_imports."
+      },
+      {
+       "name": "TYPE_FACTS_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String '1'; version identifier for type facts schema."
+      },
+      {
+       "name": "ANY_SENTINEL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String '<any>'; used as label for bare Any annotations."
+      },
+      {
+       "name": "TypeDecl",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a type declaration."
+      },
+      {
+       "name": "FieldDecl",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a field member of a type."
+      },
+      {
+       "name": "ParamDecl",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a function parameter."
+      },
+      {
+       "name": "SignatureDecl",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a function signature."
+      },
+      {
+       "name": "AliasImport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing an import binding."
+      },
+      {
+       "name": "PyTypeFacts",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass aggregating all type facts from a file."
+      },
+      {
+       "name": "Annotation",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a normalized annotation."
+      },
+      {
+       "name": "_UNION_NAMES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of union type names."
+      },
+      {
+       "name": "_TRANSPARENT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of transparent wrapper type names."
+      },
+      {
+       "name": "_SEQ_CONTAINERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of sequence container type names."
+      },
+      {
+       "name": "_MAP_CONTAINERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of mapping container type names."
+      },
+      {
+       "name": "_CALLABLE_NAMES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of Callable type names."
+      },
+      {
+       "name": "_NONE_NAMES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of None type names."
+      },
+      {
+       "name": "_ANY_NAMES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of Any type names."
+      },
+      {
+       "name": "_STRUCTURAL_NAMES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Union of all structural name sets."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``resolve_python_imports`` ... returns a set of fully qualified module names that ARE reachable from the file.",
+       "where": "comment before resolve_python_imports (line 281 context)",
+       "verdict": "uncheckable",
+       "why": "The function body is partially present; the return statement is not in this chunk. The logic shown suggests it builds `out` set, but final return is not visible."
+      },
+      {
+       "text": "``python_imports`` ... kept as the standalone API; ``build_index`` uses the split form.",
+       "where": "docstring of python_imports (line 309-310)",
+       "verdict": "uncheckable",
+       "why": "The claim about build_index refers to code outside this chunk."
+      },
+      {
+       "text": "The records below therefore deliberately carry NO ``source`` and NO ``loc`` field, which makes that mistake raise ``AttributeError`` in the clone pass instead of silently producing a wrong report.",
+       "where": "comment block (lines 321-323)",
+       "verdict": "kept",
+       "why": "TypeDecl, FieldDecl, ParamDecl, SignatureDecl, AliasImport, PyTypeFacts, and Annotation do not have fields named 'source' or 'loc'. The comment is accurate for the code present."
+      },
+      {
+       "text": "``annotation_text`` folds the quoted and unquoted spellings onto the same text, so a consumer never has to care which one the author used.",
+       "where": "comment block (lines 327-328)",
+       "verdict": "uncheckable",
+       "why": "The function `annotation_text` is not defined in this chunk; only mentioned in a comment."
+      },
+      {
+       "text": "Nothing here imports anything from the analysed source: ``typing.get_type_hints`` would EXECUTE imports, which is an egress/safety violation in this codebase.",
+       "where": "comment block (lines 329-330)",
+       "verdict": "kept",
+       "why": "No imports of typing.get_type_hints appear in this chunk. The dataclasses use raw strings for annotations."
+      },
+      {
+       "text": "``normalize_annotation`` reports it as the ``is_any`` flag with an EMPTY member list -- refusing to edge is the safe default, not an opt-in.",
+       "where": "comment before ANY_SENTINEL (lines 338-340)",
+       "verdict": "uncheckable",
+       "why": "The function `normalize_annotation` is not defined in this chunk."
+      },
+      {
+       "text": "This constant is the label to count it under. It is not a legal Python identifier, so it cannot be mistaken for a type name if it ever does reach an id.",
+       "where": "comment after ANY_SENTINEL (lines 341-342)",
+       "verdict": "kept",
+       "why": "ANY_SENTINEL = '<any>' contains angle brackets, which are not valid in Python identifiers."
+      },
+      {
+       "text": "``qualname`` is dotted WITHIN the file and never contains the module, so it is ``Outer.Inner`` / ``Cls`` / ``fn.<locals>.Local``",
+       "where": "TypeDecl docstring (lines 346-348)",
+       "verdict": "kept",
+       "why": "TypeDecl has a qualname field; the docstring describes its format. No counterexample in this chunk."
+      },
+      {
+       "text": "Deliberately NOT field-compatible with ``CodeUnit``: no ``source``, no ``loc``.",
+       "where": "TypeDecl docstring (lines 352-353)",
+       "verdict": "kept",
+       "why": "TypeDecl fields do not include 'source' or 'loc'."
+      },
+      {
+       "text": "``origin`` says HOW it was written, because the four ways do not carry the same evidence",
+       "where": "FieldDecl docstring (lines 368-369)",
+       "verdict": "kept",
+       "why": "FieldDecl has an 'origin' field with documented values."
+      },
+      {
+       "text": "``annassign`` ... the only origin that always carries an annotation.",
+       "where": "FieldDecl docstring (line 371)",
+       "verdict": "uncheckable",
+       "why": "The actual assignment of origin values is not in this chunk; only the docstring claim."
+      },
+      {
+       "text": "``assign`` ... a member with no declared type. ``annotation`` is \"\".",
+       "where": "FieldDecl docstring (line 373)",
+       "verdict": "uncheckable",
+       "why": "No code showing annotation default for assign origin."
+      },
+      {
+       "text": "``self`` ... ``annotation`` is \"\" unless it was written ``self.x: int = ...``.",
+       "where": "FieldDecl docstring (line 375)",
+       "verdict": "uncheckable",
+       "why": "No code showing annotation handling for self origin."
+      },
+      {
+       "text": "``enum_member`` ... ``annotation`` is ALWAYS \"\"",
+       "where": "FieldDecl docstring (line 377)",
+       "verdict": "uncheckable",
+       "why": "No code enforcing annotation emptiness for enum_member."
+      },
+      {
+       "text": "The same name can appear twice with different origins ... Both are kept",
+       "where": "FieldDecl docstring (lines 379-382)",
+       "verdict": "uncheckable",
+       "why": "No deduplication logic present; the dataclass allows duplicates."
+      },
+      {
+       "text": "``position`` is 0-based over the concatenation posonly + args + vararg + kwonly + kwarg, in that order",
+       "where": "ParamDecl docstring (lines 388-389)",
+       "verdict": "kept",
+       "why": "ParamDecl has a position field; the docstring describes ordering."
+      },
+      {
+       "text": "``receiver`` is the name of the implicit first parameter ... when this function is a method and NOT a staticmethod; \"\" otherwise.",
+       "where": "SignatureDecl docstring (lines 398-401)",
+       "verdict": "kept",
+       "why": "SignatureDecl has a receiver field; the docstring explains its semantics."
+      },
+      {
+       "text": "``_import_records`` above throws ``ast.alias.asname`` away, so ``from x import Result as R`` is unrecoverable",
+       "where": "AliasImport docstring (lines 408-410)",
+       "verdict": "uncheckable",
+       "why": "The function _import_records is not in this chunk."
+      },
+      {
+       "text": "A star import is recorded with ``local == \"*\"`` and ``orig == \"*\"``",
+       "where": "AliasImport docstring (lines 414-415)",
+       "verdict": "kept",
+       "why": "The docstring explicitly states this convention; no code contradicts it."
+      },
+      {
+       "text": "Every field is a tuple, so an instance is immutable and safe as a plain dataclass default on ``FileAnalysis`` (no ``default_factory`` needed)",
+       "where": "PyTypeFacts docstring (lines 425-427)",
+       "verdict": "kept",
+       "why": "PyTypeFacts fields are all typed as tuple with default ()."
+      },
+      {
+       "text": "``truncated`` is True only if the statement descent hit its depth guard",
+       "where": "PyTypeFacts docstring (lines 428-430)",
+       "verdict": "uncheckable",
+       "why": "No code setting truncated to True is present."
+      },
+      {
+       "text": "``members`` are the nominal names an edge may point at, in SOURCE ORDER, deduplicated on first occurrence.",
+       "where": "Annotation docstring (lines 436-437)",
+       "verdict": "uncheckable",
+       "why": "No code constructing Annotation with deduplication is present."
+      },
+      {
+       "text": "``None`` never becomes a member -- ``X | None`` is \"optional X\", not a union with a type called None",
+       "where": "Annotation docstring (lines 442-443)",
+       "verdict": "uncheckable",
+       "why": "No code filtering None from members is present."
+      },
+      {
+       "text": "a bare ``Any`` never becomes a member either (see ``ANY_SENTINEL``).",
+       "where": "Annotation docstring (lines 443-444)",
+       "verdict": "uncheckable",
+       "why": "No code showing handling of Any in members is present."
+      },
+      {
+       "text": "A generic produces NO member per instantiation: ``list[User]`` is one edge to ``User`` with ``container == \"list\"``",
+       "where": "Annotation docstring (lines 445-446)",
+       "verdict": "uncheckable",
+       "why": "No code showing container extraction is present."
+      },
+      {
+       "text": "``dropped`` holds nominal names the element rule deliberately discards -- mapping KEY types ... and ``Callable`` parameter types.",
+       "where": "Annotation docstring (lines 448-450)",
+       "verdict": "uncheckable",
+       "why": "No code populating dropped field is present."
+      },
+      {
+       "text": "A dotted name is kept VERBATIM (``ast.AST`` stays ``ast.AST``).",
+       "where": "Annotation docstring (lines 452-453)",
+       "verdict": "uncheckable",
+       "why": "No code for handling dotted names is present."
+      },
+      {
+       "text": "These names change the SHAPE of an annotation, so they have to be known here.",
+       "where": "comment before _UNION_NAMES (lines 466-467)",
+       "verdict": "kept",
+       "why": "The sets are defined in this chunk and used for structural analysis."
+      },
+      {
+       "text": "Deciding that ``str`` or ``Literal`` is not a repo type is a vocabulary judgement and belongs one layer up",
+       "where": "comment before _UNION_NAMES (lines 467-468)",
+       "verdict": "kept",
+       "why": "The sets do not include str or Literal; they are limited to structural names."
+      }
+     ],
+     "observations": [
+      {
+       "what": "resolve_python_imports ends with a return statement not shown; the function may be incomplete.",
+       "where": "line 307 (end of function)",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "python_imports function is a thin wrapper; correctness depends on python_import_records and resolve_python_imports.",
+       "where": "lines 309-311",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "TYPE_FACTS_VERSION is a string constant; no enforcement that it bumps on schema changes.",
+       "where": "line 332",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ANY_SENTINEL is '<any>' which is not a valid Python identifier; safe from name collision.",
+       "where": "line 342",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "TypeDecl, FieldDecl, ParamDecl, SignatureDecl, AliasImport, PyTypeFacts, Annotation are all frozen dataclasses; immutable and hashable.",
+       "where": "lines 344-461",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "FieldDecl has origin field with documented meanings but no validation that origin values are restricted to the four documented values.",
+       "where": "lines 362-383",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "ParamDecl position is 0-based over concatenated params; potential off-by-one errors if consumer assumes different ordering.",
+       "where": "lines 387-393",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "SignatureDecl receiver field is empty string for non-methods; consumer must check decorators for staticmethod.",
+       "where": "lines 395-405",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "AliasImport records star imports with local='*' and orig='*'; ambiguity detection relies on this.",
+       "where": "lines 407-418",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "PyTypeFacts fields are all tuples; safe for default dataclass without default_factory.",
+       "where": "lines 420-432",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Annotation dataclass has many fields; construction logic is not in this chunk.",
+       "where": "lines 434-461",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Structural name sets are defined; _STRUCTURAL_NAMES is union of all. Missing sets for other structural names like Literal.",
+       "where": "lines 464-478",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Comment mentions depth guards for annotations and statements; no constants defined in this chunk.",
+       "where": "lines 479-480",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3bc6f0240437de043b898180c57a91700e575293d90314729f06b39a09669826",
+    "objective_chars": 14053,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,133 @@
+{
+ "task_id": "research__b017__946db82",
+ "key": "research__b017__946db82-b9e81f5cec",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three hypotheses: (1) chain integrity verification in bus.py relies on _body_sha/_entry_sha which must be defined in structcore; (2) the scheduler's max_parallel_writes and bus.py's verify_chain both read entire files into memory, risking memory exhaustion; (3) the scheduler's claim of concurrency cap enforcement via gate_concurrent_writes is unverifiable in scanned code, and the bus.py anchor file may be silently ignored on JSON error.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Chain verification may fail or be incomplete if _body_sha/_entry_sha are missing or behave differently than assumed.",
+     "Both bus.py verify_chain and scheduler's offload path (via cached_index) may read large files entirely into memory, causing OOM under concurrent workloads.",
+     "The scheduler's concurrency control claim is not backed by evidence in scanned code; actual enforcement may be absent or weaker than documented.",
+     "bus.py read_anchor returns None on JSON decode error without alerting, which can silently disable truncation detection in verify_chain."
+    ],
+    "todos": [
+     "Verify that _body_sha and _entry_sha are defined in daedalus/structcore and match the expected interface.",
+     "Assess memory usage of verify_chain and cached_index; consider streaming or mmap for large files.",
+     "Locate gate_concurrent_writes implementation in scheduler or related code and confirm it actually limits concurrency.",
+     "Add error logging or fallback behavior when read_anchor encounters invalid JSON."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "missing-hash-functions",
+       "claim": "The chain verification in bus.py depends on helper functions _body_sha and _entry_sha that are not defined in bus.py and must be provided by structcore or another module; if those functions are missing or have different semantics, verify_chain will fail or produce incorrect results.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/structcore/__init__.py"
+       ],
+       "mechanism": "verify_chain (bus.py) calls _body_sha and _entry_sha without importing them locally; these are expected to be defined in the structcore package (or another module) and re-exported. If they are not available, the function will raise NameError at runtime. If they are available but compute hashes differently than assumed, chain integrity checks may pass for tampered data.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If _body_sha and _entry_sha are defined within bus.py or imported from a module that is guaranteed to be present and correct, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/bus.py:verify_chain references _body_sha and _entry_sha (lines 782, 784)",
+        "daedalus/structcore/__init__.py does not list _body_sha or _entry_sha in its exports"
+       ]
+      },
+      {
+       "id": "memory-bloat-concurrent",
+       "claim": "Both bus.py's verify_chain and the scheduler's offload path (via cached_index with refresh=True) read entire files into memory, creating a risk of memory exhaustion when multiple workers run concurrently, especially because the scheduler's max_parallel_writes default is 2 and the comment warns about unmeasured cost.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/kairos/scheduler.py"
+       ],
+       "mechanism": "verify_chain reads the entire transcript file via read_text() into memory. The scheduler's offload() triggers cached_index(..., refresh=True) which re-reads the entire index. Both operations are file-size proportional. With max_parallel_writes > 1, multiple such reads can happen simultaneously, potentially exhausting available RAM.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If verify_chain uses a streaming approach (e.g., read lines iteratively) and cached_index does not read the entire index into memory, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/bus.py:verify_chain line 763 uses read_text()",
+        "daedalus/kairos/scheduler.py:max_parallel_writes comment warns about unmeasured cost for N>1"
+       ]
+      },
+      {
+       "id": "unverifiable-concurrency-cap",
+       "claim": "The scheduler claims to enforce a separate concurrency cap for writes via gate_concurrent_writes, but no implementation of this gate is visible in the scanned code; the actual enforcement may be missing or different from documented behavior.",
+       "spans": [
+        "daedalus/kairos/scheduler.py"
+       ],
+       "mechanism": "The docstring and comments in scheduler.py state that max_parallel_writes is a cap specifically for gate_concurrent_writes, independent of max_workers. However, the scanned chunk does not contain any code that implements such a gate. If the gate is not implemented, concurrent writes may exceed the intended limit, causing performance degradation or resource exhaustion.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If gate_concurrent_writes is implemented in another chunk of scheduler.py or in a related module (e.g., offload.py) and is correctly enforced, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/scheduler.py:max_parallel_writes comment references gate_concurrent_writes",
+        "daedalus/kairos/scheduler.py chunk 1/4 does not contain gate_concurrent_writes implementation"
+       ]
+      },
+      {
+       "id": "silent-anchor-failure",
+       "claim": "The bus.py read_anchor function returns None on JSON decode error, and verify_chain treats None as 'anchor missing' without distinguishing corruption; this can silently disable truncation detection if the anchor file is corrupt.",
+       "spans": [
+        "daedalus/council/bus.py"
+       ],
+       "mechanism": "read_anchor reads a JSON anchor file; if the file is corrupt (e.g., truncated), json.load raises JSONDecodeError, which is caught and returns None. verify_chain calls read_anchor and if it returns None, it skips anchor-based count/head checks (unless explicitly provided). Thus a corrupt anchor silently disables truncation detection.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If read_anchor logs or raises an error on JSON decode failure, or if verify_chain treats None as an error condition, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/bus.py:read_anchor returns None on JSONDecodeError",
+        "daedalus/council/bus.py:verify_chain uses anchor only if read_anchor returns non-None"
+       ]
+      },
+      {
+       "id": "overlapping-write-undeclared",
+       "claim": "The scheduler's _paths_overlap function only checks declared paths in assignments, but agents may write to undeclared paths; this means write isolation is not guaranteed, and concurrent writes may conflict even if _paths_overlap passes.",
+       "spans": [
+        "daedalus/kairos/scheduler.py"
+       ],
+       "mechanism": "_paths_overlap iterates over declared paths in each assignment and reports overlaps. However, an agent may write to files not listed in its assignment paths, bypassing the check. The docstring explicitly acknowledges this limitation. Therefore, the function provides a false sense of safety.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If the system enforces write isolation at the OS/filesystem level (e.g., via separate worktrees or containers) that prevents writing to undeclared paths, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/scheduler.py:_paths_overlap docstring states it is not a proof of write isolation",
+        "daedalus/kairos/scheduler.py:_paths_overlap only checks declared paths"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "717368e95719b2a6ca22774675bc0323af077851615ccb8797c5a58323d956e1",
+    "objective_chars": 27519,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 17 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 17,
+  "inputs": 4
+ }
+}

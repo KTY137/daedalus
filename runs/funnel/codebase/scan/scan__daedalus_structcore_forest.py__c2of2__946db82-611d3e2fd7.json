@@ -1,0 +1,259 @@
+{
+ "task_id": "scan__daedalus_structcore_forest.py__c2of2__946db82",
+ "key": "scan__daedalus_structcore_forest.py__c2of2__946db82-611d3e2fd7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of forest.py; verified node kind discrimination, edge construction, and type/document layer gating against the code present.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 285-295 | medium | Node kind discrimination uses attributes dict but module['kind'] may not exist; defaults to 'source_file' | Verify that modules dict always has 'kind' key or handle missing gracefully.",
+     "line 355-360 | low | Type edge source gate allows module_ids and type_ids; if a type node id accidentally in module_ids, it's skipped; could lose legitimate edges | Confirm that type ids never collide with module ids upstream.",
+     "line 375-380 | medium | Temporal pair dedup uses sorted((a,b)) but a and b are strings; if ids differ only by case, sorting may not be consistent | Ensure ids are case-sensitive or add normalization."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/forest.py",
+     "chunk": "2 of 2",
+     "purpose": "Build nodes, edges, hyperedges from index; add second, third, fourth node kinds; construct KnowledgeForest.",
+     "symbols": [
+      {
+       "name": "build_forest",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructs KnowledgeForest from index data; handles multiple node kinds and edge layers."
+      },
+      {
+       "name": "ForestNode",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported; used to create nodes with id, kind, attributes."
+      },
+      {
+       "name": "ForestEdge",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported; used to create edges with source, target, relation, directed, weight, evidence, attributes."
+      },
+      {
+       "name": "ForestHyperedge",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported; used to create hyperedges with id, relation, members, weight, evidence, attributes."
+      },
+      {
+       "name": "KnowledgeForest",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported; returned dataclass containing root, nodes, edges, hyperedges, provenance."
+      },
+      {
+       "name": "_TYPE_NODE_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported; set of allowed type node kinds."
+      },
+      {
+       "name": "_is_type_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; checks if node id is in type namespace."
+      },
+      {
+       "name": "_CLONE_RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported; mapping from cluster key to relation name."
+      },
+      {
+       "name": "_clone_members",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; extracts member ids from cluster."
+      },
+      {
+       "name": "_hyperedge_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; generates unique id for hyperedge."
+      },
+      {
+       "name": "_RESERVED_RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported; set of relation names to skip."
+      },
+      {
+       "name": "_canonical_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; produces deterministic key for attributes dict."
+      },
+      {
+       "name": "module_ids",
+       "kind": "variable",
+       "effects": [],
+       "note": "Set of module node ids from index."
+      },
+      {
+       "name": "modules",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dict mapping module id to attributes."
+      },
+      {
+       "name": "heat_by_module",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dict mapping module id to heat data."
+      },
+      {
+       "name": "fan_in",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dict mapping module id to fan-in count."
+      },
+      {
+       "name": "index",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dict containing all index data: nodes, edges, etc."
+      },
+      {
+       "name": "temporal_pairs",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of temporal co-change pairs from index."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module's own docstring already said documents could be added 'as new node kinds and relation layers without changing this contract', and this is that, in full: one discriminator read, no new field, no new dataclass, no schema bump.",
+       "where": "line 281-284",
+       "verdict": "kept",
+       "why": "The code reads attributes.get('kind') and sets kind to 'document' or 'source_file'; no new dataclass, no schema bump. The docstring claim is satisfied by this code."
+      },
+      {
+       "text": "heat_score/churn come out 0 because documents are held out of module_heat upstream, which is deliberate, not missing data.",
+       "where": "line 285-295 (comment after kind assignment)",
+       "verdict": "kept",
+       "why": "The code updates attributes with heat_score and churn from heat_by_module; if module not in heat_by_module, defaults to 0. Document nodes get kind 'document' but heat data comes from module; if documents are not in module_ids, they won't be in heat_by_module, so heat_score=0. The claim is consistent with the code."
+      },
+      {
+       "text": "type_ids is a SEPARATE set from module_ids on purpose, and this is the single most load-bearing line of the addition. module_ids is not a convenience variable: it is the membership gate of four other layers (imports, document links, co-change and clone-hyperedge members). Widen it and a type node becomes eligible to be a clone-group member or an import endpoint, which is a fabricated fact about the repository, not a cosmetic leak. So type nodes get their own set, and every gate below names exactly the sets it accepts.",
+       "where": "line 297-306",
+       "verdict": "kept",
+       "why": "The code defines type_ids as a separate set. Later gates: imports (line 345) checks source and target in module_ids, not type_ids; document links (line 365) checks module_ids; co-change (line 390) checks module_ids; clone hyperedges (line 400) checks member in module_ids. Type nodes are excluded from those layers. The claim is verified."
+      },
+      {
+       "text": "Absent key -> empty loop -> byte-identical forest, so an index built without the type layer produces the forest it always produced.",
+       "where": "line 307-308",
+       "verdict": "kept",
+       "why": "The code uses index.get('type_nodes') or (), which returns empty iterable if key absent. The loop over type_rows will be empty, and type_ids remains empty. No type nodes added. The forest is identical to one without type layer."
+      },
+      {
+       "text": "Three refusals, none of them redundant: a row that is not one of the two type kinds is not this layer's business; an id in the namespace of files would collide with a real file in build_forest_hierarchy (which raises on two ids mapping to one path) and is refused rather than renamed; and an id outside the type:/field: namespace cannot be told apart from a path by any downstream reader.",
+       "where": "line 317-322",
+       "verdict": "kept",
+       "why": "The code checks: (1) kind not in _TYPE_NODE_KINDS -> continue; (2) not _is_type_node_id(node_id) or node_id in module_ids -> continue; (3) node_id in type_ids -> continue. These match the three refusals. The claim is fully supported."
+      },
+      {
+       "text": "A separate relation, not extra imports edges: the multiplex graph exists so two kinds of relation can coexist without either one being read as the other. A link says 'this document refers to that file'; an import says 'this code cannot run without that file'. Merging them would silently move fan_in and every reachability answer derived from the import layer, including the safety fence's dominance fraction.",
+       "where": "line 354-358",
+       "verdict": "kept",
+       "why": "The code creates edges with relation 'documents' (line 370), separate from 'imports' (line 351). The comment explains the rationale; the code implements separation."
+      },
+      {
+       "text": "Absent key -> empty loop -> byte-identical forest, so an index built without documents produces the forest it always produced.",
+       "where": "line 359-360",
+       "verdict": "kept",
+       "why": "The code uses index.get('document_links') or (), so if key absent, loop is empty. No document edges added. Forest unchanged."
+      },
+      {
+       "text": "The endpoint gate is asymmetric and that is not an oversight: a TARGET is always a type-kind node, while a SOURCE may also be a file, because consumes/produces start at a FUNCTION and functions are not forest nodes -- so those two attach to the file that declares the function and carry its identity in attributes['function_ref'].  Anything else is dropped in silence rather than manufactured: an edge to a type node the index did not publish is missing evidence, and inventing the endpoint would make the forest disagree with the index it was normalised from.",
+       "where": "line 383-388",
+       "verdict": "kept",
+       "why": "The code checks target not in type_ids -> continue; source not in module_ids and source not in type_ids -> continue. So target must be type node, source can be module or type. The claim is consistent."
+      },
+      {
+       "text": "Deduplicated on the FULL row, not on the pair: one function can legitimately consume the same type twice through two different parameters, and collapsing those two would delete the param evidence that makes the edge worth publishing.",
+       "where": "line 397-400",
+       "verdict": "kept",
+       "why": "The dedup key includes relation, source, target, and _canonical_key(attributes). So two rows with same source, target, relation but different attributes (e.g., different param) are kept. The claim is verified."
+      },
+      {
+       "text": "Two byte-identical rows, on the other hand, are one fact stated twice.",
+       "where": "line 399-400",
+       "verdict": "kept",
+       "why": "If two rows have identical source, target, relation, and attributes (canonical key same), they will have same key and second is skipped. The claim is consistent."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Node kind discrimination for modules uses attributes dict which may not have 'kind' key; defaults to 'source_file' if missing.",
+       "where": "line 285-295",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Type node id check uses _is_type_node_id and also checks node_id not in module_ids; if a type node id accidentally collides with a module id, it is skipped (not refused with error).",
+       "where": "line 322",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Temporal pair dedup uses sorted((a, b)) after converting to strings; if a and b are identical after sorting, they are considered same pair regardless of original order.",
+       "where": "line 392",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Hyperedge weight calculation uses cluster.get('similarity') or cluster.get('shared_runs') or cluster.get('count') or 1.0; order of precedence may affect weight.",
+       "where": "line 407-409",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "Provenance includes 'backend', 'scope_key', 'ignored', 'tokenizer' from index; no validation that these keys exist or have correct types.",
+       "where": "line 419-423",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3c9859fe95c36bba7cfd6366df4fa22254d321896fc42e5aacc083a78bdeafe2",
+    "objective_chars": 11254,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/forest.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/forest.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

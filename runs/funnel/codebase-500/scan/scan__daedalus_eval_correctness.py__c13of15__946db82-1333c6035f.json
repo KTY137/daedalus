@@ -1,0 +1,177 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c13of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c13of15__946db82-1333c6035f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 13/15: implements seed_task_from_commit and the tail of derive_task_from_commit; claims about measurement, dropping rules, and return values are mostly checkable against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "seed_task_from_commit | medium | The function may raise an exception from runner or disposable_worktree; the except clause catches Exception but not BaseException, and the except clause is inside a try block that covers both the before_run and after_run measurements. If an exception occurs during after_run after before_run succeeded, the diagnostics will contain 'reason' about base state measurement failure, which is misleading. | Add more specific exception handling or re-raise after logging.",
+     "derive_task_from_commit (return dict) | low | The return dict includes 'test_overlay' which is sorted(set(overlay)) but the variable 'overlay' is not defined in this chunk; it's built earlier in the function. If overlay is empty, the key still exists with an empty list. No risk if the earlier code populates it correctly. | Verify that overlay is always defined before this point."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "13 of 15",
+     "purpose": "Implements seed_task_from_commit and the tail of derive_task_from_commit",
+     "symbols": [
+      {
+       "name": "derive_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns a dict with task candidate or None; uses _git_read to get commit subject."
+      },
+      {
+       "name": "seed_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Measures a candidate task by running tests in a disposable worktree before and after applying the reference fix."
+      }
+     ],
+     "claims": [
+      {
+       "text": "THE LISTS ARE MEASURED, NEVER CLAIMED.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The function measures actual test statuses (before_run, after_run) and filters nodes based on those measurements, not just the commit's diff."
+      },
+      {
+       "text": "derive_task_from_commit proposes node ids off the commit's diff; every one of them is a guess",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The derivation logic is not in this chunk; the candidate dictionary is obtained via a call to derive_task_from_commit."
+      },
+      {
+       "text": "base + test overlay -> the BEFORE statuses; base + test overlay + reference fix -> the AFTER statuses",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The code creates a worktree at base, applies test overlay, runs before_run, then applies the reference patch (excluding overlay), and runs after_run."
+      },
+      {
+       "text": "FAIL_TO_PASS not passing BEFORE, passing AFTER, and TOUCHED by the commit",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "The filtering logic: node must be in changed (touched), before_status not in PROVEN_NOT_PASSING (i.e., not passing), after_status == STATUS_PASSED."
+      },
+      {
+       "text": "PASS_TO_PASS passing BEFORE and passing AFTER",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "kept",
+       "why": "Explicit if branch: before_status == STATUS_PASSED and after_status == STATUS_PASSED -> p2p.append(node)."
+      },
+      {
+       "text": "Everything else is DROPPED WITH ITS REASON RECORDED on the task (dropped_candidates)",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The dropped dict is built but there is no code in this chunk that stores it into the task output; that likely happens later or in another function."
+      },
+      {
+       "text": "a test named ..._still_... that the fix ADDED but which already passed on the base (demoted to the regression set)",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "This is an example from the repo's history; no such logic is visible in this chunk."
+      },
+      {
+       "text": "an xfail-marked test that is red before AND after the reference fix, so it can never witness anything (dropped)",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The code does not check xfail markers; it only checks before_status and after_status. The dropping logic for before_status not in PROVEN_NOT_PASSING might cover it, but not explicitly."
+      },
+      {
+       "text": "A task with no surviving FAIL_TO_PASS node is NOT admitted -- (None, diagnostics) with the reason.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the return statement after building f2p; it only builds the lists. The decision to return None if f2p is empty is not shown."
+      },
+      {
+       "text": "efd0ed6 in this repo is such a commit: a real fix that shipped no test at all.",
+       "where": "docstring of seed_task_from_commit",
+       "verdict": "uncheckable",
+       "why": "This is a historical example; no code referencing this commit exists in the chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function seed_task_from_commit returns a tuple (dict | None, dict). The docstring says it returns (None, diagnostics) if candidate is None, but the code shows return None, diagnostics for that case. For the exception case, it also returns None, diagnostics. However, after building f2p and p2p, there is no return statement in this chunk; it is presumably in the next chunk.",
+       "where": "seed_task_from_commit function body",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable 'overlay' used in derive_task_from_commit's return dict is not defined in this chunk; it must be defined earlier in the function. This chunk only shows the tail of derive_task_from_commit.",
+       "where": "derive_task_from_commit return dict",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims that dropped nodes are recorded on the task (dropped_candidates), but the chunk only builds a local 'dropped' dict. There is no code to attach it to the returned task dictionary.",
+       "where": "seed_task_from_commit docstring and body",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The diagnostic dict includes 'candidate_fail_to_pass' and 'candidate_pass_to_pass' as lists, but the candidate dictionary from derive_task_from_commit may have keys 'fail_to_pass' and 'pass_to_pass' (as seen in the return dict). The code copies them correctly.",
+       "where": "seed_task_from_commit lines: diagnostics['candidate_fail_to_pass'] = list(candidate['fail_to_pass']) etc.",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function uses STATUS_NOT_RUN and PROVEN_NOT_PASSING constants which are not defined in this chunk; they must be imported or defined elsewhere.",
+       "where": "seed_task_from_commit body: STATUS_NOT_RUN, PROVEN_NOT_PASSING",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring mentions 'max_pass_to_pass' parameter defaulting to 6, but the code shows 'max_pass_to_pass: int = 6' in the signature. This is consistent.",
+       "where": "seed_task_from_commit signature",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The derive_task_from_commit function returns a dict with key 'subject' decoded from git show output. The subject is obtained from _git_read and decoded as utf-8 with replace. This is visible in the chunk.",
+       "where": "derive_task_from_commit return dict",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f8143f931acde15dc3cfb4d9f363200e5f239465819669570c79db4fc021e616",
+    "objective_chars": 6642,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [13/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 13,
+  "total": 15,
+  "first_line": 1441
+ }
+}

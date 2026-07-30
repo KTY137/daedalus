@@ -1,0 +1,106 @@
+{
+ "task_id": "daedalus/langgraph_adapter.py#c1of1#5eb1702d",
+ "key": "daedalus_langgraph_adapter.py_c1of1_5eb1702d-92eede4deb",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 0 kept, 1 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Build the production graph when LangGraph is installed.\" | build_graph | BROKEN | The function raises NotImplementedError instead of building a graph.",
+     "CLAIM | \"The stdlib harness keeps the state contract small and serializable.\" | build_graph | UNCHECKABLE | No code in this unit defines or uses a stdlib harness; need to see the rest of the codebase.",
+     "D: none"
+    ],
+    "todos": [
+     "Change `raise NotImplementedError(...)` to actual graph-building code, or update the docstring to say the function is a stub."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffda64f4479d05e485166a1d261740e91af2d79d513b6c2ec1a7bb885458cc57",
+    "objective_chars": 3264,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Build the production graph when LangGraph is installed\" | build_graph | KEPT | The function raises NotImplementedError, which matches the docstring's intent that wiring is deferred, not broken.",
+     "CLAIM | \"The stdlib harness keeps the state contract small and serializable. This adapter is intentionally thin so a future LangGraph graph can reuse the same state keys instead of inventing a second orchestration model.\" | build_graph | KEPT | These are design rationale statements, not checkable claims about current behavior; the code does not contradict them."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffda64f4479d05e485166a1d261740e91af2d79d513b6c2ec1a7bb885458cc57",
+    "objective_chars": 3264,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Build the production graph when LangGraph is installed\" | build_graph | KEPT | The function checks availability and raises if not installed, otherwise raises NotImplementedError (graph building deferred).",
+     "CLAIM | \"This adapter is intentionally thin so a future LangGraph graph can reuse the same state keys instead of inventing a second orchestration model\" | build_graph | KEPT | The docstring describes intent, and the code is indeed thin (just a check and NotImplementedError)."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffda64f4479d05e485166a1d261740e91af2d79d513b6c2ec1a7bb885458cc57",
+    "objective_chars": 3264,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/langgraph_adapter.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 814
+ }
+}

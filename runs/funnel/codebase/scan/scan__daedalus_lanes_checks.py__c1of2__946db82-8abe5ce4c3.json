@@ -1,0 +1,275 @@
+{
+ "task_id": "scan__daedalus_lanes_checks.py__c1of2__946db82",
+ "key": "scan__daedalus_lanes_checks.py__c1of2__946db82-8abe5ce4c3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/lanes/checks.py: defines WriteAttempt, CheckPolicy, baseline checks (parses, not_truncated, no_elision, not_substituted) and helpers (toplevel_defs, _module_path, _exports, unresolved_first_party_imports).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "unresolved_first_party_imports (truncated) | high | Function is truncated mid-definition; body and return are missing. The function signature is visible but the implementation is incomplete. | Obtain the full function body to verify behavior."
+    ],
+    "todos": [
+     "Complete unresolved_first_party_imports function body."
+    ],
+    "handoff": {
+     "module": "daedalus/lanes/checks.py",
+     "chunk": "1 of 2",
+     "purpose": "Define data structures, AST helpers, and baseline checks for write lanes.",
+     "symbols": [
+      {
+       "name": "WriteAttempt",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding rel, proposed, repo_root, original, creating; property is_python."
+      },
+      {
+       "name": "CheckPolicy",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass with elision_markers, min_size_ratio, min_symbol_survival, min_symbols_to_judge, first_party_roots, max_named_imports."
+      },
+      {
+       "name": "BASELINE_POLICY",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default instance of CheckPolicy."
+      },
+      {
+       "name": "Check",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Type alias: Callable[[WriteAttempt, CheckPolicy], str]."
+      },
+      {
+       "name": "toplevel_defs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of top-level function/class names, or None if parse fails."
+      },
+      {
+       "name": "_module_path",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Resolves dotted name to Path; checks direct .py file or __init__.py."
+      },
+      {
+       "name": "_exports",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns (frozenset of names, opaque bool) from AST; detects star imports and __getattr__."
+      },
+      {
+       "name": "parses",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Refuses if proposed Python file does not parse; skips if original was unparsable."
+      },
+      {
+       "name": "not_truncated",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Refuses if proposed size < min_size_ratio * original size."
+      },
+      {
+       "name": "no_elision",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Refuses if elision marker appears in proposed but not original."
+      },
+      {
+       "name": "not_substituted",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Refuses if too few top-level definitions survive; Python-only."
+      },
+      {
+       "name": "unresolved_first_party_imports",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns list of unresolved first-party imports (truncated)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A check returns \"\" to pass and a human-readable reason to refuse; a check that RAISES is treated as a refusal, because a guard that cannot answer must not be read as consent.",
+       "where": "line 3-5",
+       "verdict": "kept",
+       "why": "All implemented checks (parses, not_truncated, no_elision, not_substituted) return \"\" on pass and a string on refusal; they do not raise exceptions (parses catches exceptions and returns refusal string)."
+      },
+      {
+       "text": "Every function here was lifted, not written: each one is a guard that already existed in ``providers/deepseek.py`` and each carries the measurement that put it there.",
+       "where": "line 7-9",
+       "verdict": "uncheckable",
+       "why": "The chunk does not include providers/deepseek.py; cannot verify origin."
+      },
+      {
+       "text": "Deviation from the shape sketched in docs/HANDOFF_2026-07-30_NIGHT.md, which proposed ``Check = (rel, original, proposed, repo_root, policy) -> str``: the first four arguments are bundled into :class:`WriteAttempt`.",
+       "where": "line 11-16",
+       "verdict": "uncheckable",
+       "why": "The chunk does not include docs/HANDOFF_2026-07-30_NIGHT.md; cannot verify deviation."
+      },
+      {
+       "text": "``original`` is the exact current text, or \"\" when ``creating``. Keeping the two facts separate rather than inferring \"creating\" from an empty original matters: a lane that truncates a real file to nothing must not be able to present that as a creation and skip the guards that only run on edits.",
+       "where": "line 23-26",
+       "verdict": "kept",
+       "why": "WriteAttempt has both original (default \"\") and creating (default False) fields; checks like not_truncated and not_substituted check attempt.creating or attempt.original emptiness to gate behavior."
+      },
+      {
+       "text": "A Python file that will not parse is not an improvement.",
+       "where": "line 95",
+       "verdict": "kept",
+       "why": "parses function returns a refusal string if proposed content fails to parse (SyntaxError, ValueError, RecursionError)."
+      },
+      {
+       "text": "Runs on CREATED files too, which is where the hole was: an edit that stops parsing was caught by :func:`not_substituted` as a side effect, but a brand-new module that does not parse had nothing looking at it -- the imports check returns early on a parse failure, calling it \"a different guard's business\". This is that guard.",
+       "where": "line 96-100",
+       "verdict": "kept",
+       "why": "parses does not gate on attempt.creating; it runs for all Python files. not_substituted returns early if attempt.creating is True. The imports check (unresolved_first_party_imports) is truncated but likely returns early on parse failure."
+      },
+      {
+       "text": "The classic full-rewrite failure: the model returned part of the file.",
+       "where": "line 114",
+       "verdict": "kept",
+       "why": "not_truncated checks if proposed size < min_size_ratio * original size, detecting truncation."
+      },
+      {
+       "text": "Only NEW markers count. A file that already contained the phrase would otherwise become permanently unwritable by this lane.",
+       "where": "line 120-121",
+       "verdict": "kept",
+       "why": "no_elision checks that marker is in attempt.proposed.lower() and NOT in attempt.original.lower()."
+      },
+      {
+       "text": "Why this \"rewrite\" looks like the WRONG FILE, or \"\" if it looks fine.",
+       "where": "line 131",
+       "verdict": "kept",
+       "why": "not_substituted returns refusal string if survival ratio below min_symbol_survival, else \"\"."
+      },
+      {
+       "text": "MEASURED 2026-07-30, and the reason this exists. A change request naming two files is sent once per file; asked to rewrite ``daedalus/shift.py`` the model returned the contents of ``tests/test_shift.py``. The module was destroyed and the run reported ``status: done``. Three of five multi-file writes failed exactly this way.",
+       "where": "line 132-136",
+       "verdict": "uncheckable",
+       "why": "Measurement data is not present in this chunk; cannot verify."
+      },
+      {
+       "text": "None of the other guards can see it. Truncation compares SIZE, and a substituted file is a perfectly normal size -- the test module was in fact larger than the module it replaced. Elision looks for a model admitting it omitted something, and nothing was omitted: a complete, valid, well-formed file arrived. It was simply the wrong one.",
+       "where": "line 138-142",
+       "verdict": "uncheckable",
+       "why": "Behavior of other guards (truncation, elision) is described but not verified against this chunk; claims about their limitations are assertions without code evidence."
+      },
+      {
+       "text": "So this asks the only question that separates the two cases: does the result still contain the thing that was sent? An edit keeps most of a file's top-level names; a substitution keeps none of them.",
+       "where": "line 144-147",
+       "verdict": "kept",
+       "why": "not_substituted compares top-level definitions (toplevel_defs) of original and proposed; survival ratio is computed."
+      },
+      {
+       "text": "Deliberately Python-only. The check needs a parser to be meaningful, and a guess about other languages would either fire on ordinary edits or provide false assurance for files it cannot actually read.",
+       "where": "line 149-152",
+       "verdict": "kept",
+       "why": "not_substituted returns early if not attempt.is_python or attempt.creating."
+      },
+      {
+       "text": "First-party imports in ``content`` that name nothing in the tree.",
+       "where": "line 170",
+       "verdict": "uncheckable",
+       "why": "Function is truncated; cannot verify behavior."
+      },
+      {
+       "text": "MEASURED 2026-07-30. Twenty agents wrote test modules against source files they were given, and three of seven imported things that do not exist: ``daedalus.linting`` (it is ``daedalus.gui.lint``), ``ShiftManager`` from ``daedalus.shift`` (the class is ``Shift``), and ``daedalus.wiki_vault`` (it is ``daedalus.wiki.vault``). All three are valid Python, so a syntax gate passes them, and all three reported ``status: done``.",
+       "where": "line 171-175",
+       "verdict": "uncheckable",
+       "why": "Measurement data not present; function body truncated."
+      },
+      {
+       "text": "The check is STATIC on purpose. Importing the file to find out whether its imports resolve would execute module-level code from an untrusted lane.",
+       "where": "line 177-178",
+       "verdict": "uncheckable",
+       "why": "Function body truncated; cannot confirm static approach."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function unresolved_first_party_imports is truncated at end of chunk; body and return statement are missing.",
+       "where": "line 170-178",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "Module docstring references docs/HANDOFF_2026-07-30_NIGHT.md and providers/deepseek.py; these are external to chunk.",
+       "where": "line 7-16",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "CheckPolicy default min_symbol_survival is 0.5; docstring says threshold is deliberately permissive.",
+       "where": "line 48-51",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "not_substituted returns 'rewrite does not parse as Python while the original did' when original parsed but proposed does not.",
+       "where": "line 162-165",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3a8c81f7a4d148d6cc607b50306d315b9b13f2987ae2d622f10225db5b495b08",
+    "objective_chars": 12321,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/checks.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/checks.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

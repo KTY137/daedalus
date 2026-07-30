@@ -1,0 +1,223 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c3of10__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c3of10__946db82-b8d727fea2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of typegraph.py: defines field_ref, function_ref, is_type_node_id, PlainNaming, _py_dotted, types_by_file, and resolution outcome constants.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "3 of 10",
+     "purpose": "Define stable identity helpers, PlainNaming, types_by_file, and resolution outcome constants.",
+     "symbols": [
+      {
+       "name": "field_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns string 'field:module#qualname.field_name'."
+      },
+      {
+       "name": "function_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns string 'module#qualname'."
+      },
+      {
+       "name": "is_type_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if node_id starts with 'type:' or 'field:'."
+      },
+      {
+       "name": "_PlainView",
+       "kind": "class",
+       "effects": [],
+       "note": "NamedTuple with rel_by_dotted and canon fields."
+      },
+      {
+       "name": "PlainNaming",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with _names and _view fields."
+      },
+      {
+       "name": "_py_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts relative path rel to dotted name."
+      },
+      {
+       "name": "types_by_file",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict rel->{qualname: TypeDecl} from facts_by_rel."
+      },
+      {
+       "name": "RESOLVED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'resolved'."
+      },
+      {
+       "name": "UNRESOLVED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'unresolved'."
+      },
+      {
+       "name": "AMBIGUOUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'ambiguous'."
+      },
+      {
+       "name": "EXTERNAL",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'external'."
+      },
+      {
+       "name": "BUILTIN",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'builtin'."
+      },
+      {
+       "name": "VOCABULARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'vocabulary'."
+      },
+      {
+       "name": "_OUTCOMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of all six outcome strings."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Deliberately NOT a forest node id: functions are not forest nodes today (the forest's nodes are files and documents), so ``consumes``/``produces`` attach to the FILE node and carry this string in their attributes.",
+       "where": "function_ref docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk creates or uses 'consumes'/'produces' attributes; no forest node definition is present."
+      },
+      {
+       "text": "Join it to a ``CodeUnit`` on ``(module, line)`` -- never on ``name``, which is a bare leaf and collapses ``Cls.emit`` onto ``emit``.",
+       "where": "function_ref docstring",
+       "verdict": "uncheckable",
+       "why": "No CodeUnit class or usage appears in this chunk."
+      },
+      {
+       "text": "True for a ``type``/``field`` node id. For forest and dss guards.",
+       "where": "is_type_node_id docstring",
+       "verdict": "kept",
+       "why": "The function returns True iff node_id starts with 'type:' or 'field:', matching the docstring claim."
+      },
+      {
+       "text": "The repo-root dotted namespace, for callers that have no ``_PyNaming``.",
+       "where": "PlainNaming docstring",
+       "verdict": "uncheckable",
+       "why": "_PyNaming is not defined in this chunk."
+      },
+      {
+       "text": "``index.build_index`` passes its own ``_PyNaming`` (the authority: it knows about declared package roots and center-relative spellings). This is the no-center view, which is what an unconfigured repo gets anyway, and it exists so tools and tests can resolve without importing ``index`` -- which they must not do, because ``index`` imports THIS module.",
+       "where": "PlainNaming docstring",
+       "verdict": "uncheckable",
+       "why": "index module and its build_index function are not in this chunk."
+      },
+      {
+       "text": "Only two members are used from either object, so they are interchangeable by duck typing: ``name(rel)`` and ``tables_for(rel).rel_by_dotted`` / ``.canon``.",
+       "where": "PlainNaming docstring",
+       "verdict": "uncheckable",
+       "why": "No usage of name() or tables_for() from an external object is shown; .canon is set to empty dict in from_rels."
+      },
+      {
+       "text": "Mirrors index._disambiguate: a .pyi is a stub DECLARING its .py sibling, not a rival module; two genuine modules claiming one dotted name is a real ambiguity and is refused, not tie-broken.",
+       "where": "PlainNaming.from_rels comment",
+       "verdict": "uncheckable",
+       "why": "index._disambiguate not present in this chunk; logic here only uses .pyi exclusion and single-candidate tie-break."
+      },
+      {
+       "text": "``a/b.py`` -> ``a.b``. Same rule as ``index._py_dotted``.",
+       "where": "_py_dotted docstring",
+       "verdict": "kept",
+       "why": "The function strips .py suffix and replaces '/' with '.', matching the example."
+      },
+      {
+       "text": "rel -> {qualname: TypeDecl}: THE table invariant I2 demands.",
+       "where": "types_by_file docstring",
+       "verdict": "uncheckable",
+       "why": "Invariant I2 not defined in this chunk."
+      },
+      {
+       "text": "It is never merged into ``graph.SymbolResolver.defs_by_file`` and never passed to ``graph.build_resolver``.",
+       "where": "types_by_file docstring",
+       "verdict": "uncheckable",
+       "why": "graph module and its classes/functions not present in this chunk."
+      },
+      {
+       "text": "Keyed by the full in-file ``qualname`` (``Outer.Inner``, not ``Inner``), because a leaf-name key would make two nested classes with the same leaf name collide and force a tie-break.",
+       "where": "types_by_file docstring",
+       "verdict": "uncheckable",
+       "why": "No example of nested classes or leaf-name key usage shown; the function uses decl.qualname as key."
+      },
+      {
+       "text": "A qualname declared twice in one file (an ``if``/``try`` pair) keeps the FIRST by line: both spellings share one node id, so there is nothing to arbitrate. The count is published as ``duplicate_declarations``.",
+       "where": "types_by_file docstring",
+       "verdict": "broken",
+       "why": "The function uses dict.setdefault, which keeps the first occurrence, matching 'keeps the FIRST by line'. However, 'the count is published as duplicate_declarations' is uncheckable because no such count is returned or stored in this function."
+      }
+     ],
+     "observations": [
+      {
+       "what": "types_by_file uses dict.setdefault to keep first decl, but docstring claims duplicate count is published; no such count in code.",
+       "where": "types_by_file docstring vs implementation",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "PlainNaming.from_rels sets canon to empty dict; docstring says .canon is used, but it's never populated.",
+       "where": "PlainNaming.from_rels",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "66ecae1949b93eb1bc620f16cff896f2a60bfdf6394a1c22bb9af066809f65c8",
+    "objective_chars": 5428,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [3/10]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 3,
+  "total": 10,
+  "first_line": 241
+ }
+}

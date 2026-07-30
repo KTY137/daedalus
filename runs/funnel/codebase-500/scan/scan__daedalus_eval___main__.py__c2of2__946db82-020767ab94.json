@@ -1,0 +1,87 @@
+{
+ "task_id": "scan__daedalus_eval___main__.py__c2of2__946db82",
+ "key": "scan__daedalus_eval___main__.py__c2of2__946db82-020767ab94",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 2 of daedalus/eval/__main__.py: main() tail, command-line actions for baseline, gate, tier1, arms, tier2.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/__main__.py",
+     "chunk": "2 of 2",
+     "purpose": "Implement main() command-line branching for baseline, gate, tier1, arms, tier2.",
+     "symbols": [
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Entry point; calls harness.write_baseline, harness.run_gate, run_tier1, run_arms, run_tier2."
+      }
+     ],
+     "claims": [],
+     "observations": [
+      {
+       "what": "Explicit --update-baseline branch calls harness.write_baseline and prints path.",
+       "where": "line 121-123",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "--gate branch calls harness.run_gate and prints ASCII gate, returns 0 if passed else 1.",
+       "where": "line 125-128",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Default path runs tier1, optionally arms and tier2, then renders and prints ASCII output.",
+       "where": "line 130-136",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() returns 0 on success (baseline, default), 1 on gate failure.",
+       "where": "lines 123, 128, 136",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "21c49935ac3aee37322dcc8f53502c7a9d2f149573d920efa16e14c09c3158d1",
+    "objective_chars": 1135,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__main__.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/eval/__main__.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

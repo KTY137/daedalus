@@ -1,0 +1,158 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c6of10__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c6of10__946db82-b5a47e4d7e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of reach.py: defines _branch_payload, _iter_funcs, _collect_funcs, _is_forever, _scan_dynamic, _resolve, _package_parents; includes docstrings and comments with checkable claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_scan_dynamic | medium | Non-literal argument to import_module/__import__ is recorded as a dynamic site; the comment says it's a 'hole in the static picture' but the code does not verify that the argument is actually a string or that the call is to the correct function. | Check that the function name check is sufficient and that the lineno attribute exists.",
+     "_package_parents | low | The function assumes known_rels contains paths with forward slashes; if rel uses backslashes or is a dotted name, the split will be incorrect. | Verify input format consistency."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "6 of 10",
+     "purpose": "Define functions for collecting function-level imports, dynamic imports, and resolving package parent relationships.",
+     "symbols": [
+      {
+       "name": "_branch_payload",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a list of two tuples: ('records', tuple of import records) and ('names', tuple of referenced names and attributes) from the body of an if node."
+      },
+      {
+       "name": "_iter_funcs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generator that yields (qualified_name, function_node) for every FunctionDef and AsyncFunctionDef in the AST, recursing into nested functions and classes."
+      },
+      {
+       "name": "_collect_funcs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Populates src.func_records, src.func_names, src.func_loops, and src.func_calls by iterating over all functions in the tree."
+      },
+      {
+       "name": "_is_forever",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if the node is a While loop with a constant True test."
+      },
+      {
+       "name": "_DOTTED_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex matching a dotted Python identifier (e.g., 'foo.bar.baz')."
+      },
+      {
+       "name": "_scan_dynamic",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scans the AST for calls to import_module or __import__; if the first argument is a string literal, adds it to src.dyn_targets; otherwise records the location in src.dynamic."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a set of relative paths from import records, using resolve_python_imports and a dotted-to-relative mapping."
+      },
+      {
+       "name": "_package_parents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a list of __init__.py paths that are parents of the given relative path, limited to those in known_rels."
+      }
+     ],
+     "claims": [
+      {
+       "text": "orelse is deliberately excluded: for an elif chain the orelse IS the next branch, and folding it in would credit every subcommand with every later subcommand's imports.",
+       "where": "_branch_payload docstring",
+       "verdict": "kept",
+       "why": "The function only processes node.body and does not include node.orelse, consistent with the claim."
+      },
+      {
+       "text": "A literal argument is a REAL edge and is treated as one. A non-literal one is a hole in the static picture; it is recorded so the report can say a module is unknown instead of accusing it of being an island.",
+       "where": "_scan_dynamic docstring",
+       "verdict": "kept",
+       "why": "The code adds literal string arguments to src.dyn_targets and records non-literal arguments with file and line number in src.dynamic."
+      },
+      {
+       "text": "``__init__.py`` files Python imports as a side effect of importing this module. These edges are real at runtime -- omitting them would report a package's ``__init__`` as an island whenever nothing imports it by name.",
+       "where": "_package_parents docstring",
+       "verdict": "kept",
+       "why": "The function constructs parent __init__.py paths and includes them if they are in known_rels."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_scan_dynamic uses ast.Attribute check for fn.attr == 'import_module' but does not check the object; e.g., something.import_module would be caught regardless of the object.",
+       "where": "_scan_dynamic, line ~634",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_package_parents splits rel by '/' and assumes it is a forward-slash path; if rel is a dotted name, the split will not produce expected parent paths.",
+       "where": "_package_parents, line ~664",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The comment 'every import, at every scope depth -- this is where lazy CLI branch imports live' is not directly verifiable in this chunk; it describes behavior of _collect_funcs which scans all functions.",
+       "where": "Comment before _collect_funcs call (line ~604)",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d690403730efdf58e89c1c4041a9bfda85821243e57a7ca58d87e21decfb7148",
+    "objective_chars": 5224,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [6/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 6,
+  "total": 10,
+  "first_line": 601
+ }
+}

@@ -1,0 +1,189 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c9of11__946db82",
+ "key": "scan__daedalus_structcore_index.py__c9of11__946db82-2a22ba12da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 9 of 11: builds the final index dict with extra layers (documents, types, wiki) and defines _scope_key. Claims about cache keying and layer gating are stated but not verifiable within this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_scope_key | medium | The function is defined but its usage in _INDEX_CACHE and _RESOLVER_CACHE is not shown; if callers don't use it, the cache key drift problem persists. | Check call sites for _scope_key usage.",
+     "extra.update(type_blocks) | medium | type_blocks is used but not defined in this chunk; if it is not a dict, this will raise. | Ensure type_blocks is a dict elsewhere.",
+     "doc_records, doc_ignored, doc_totals | medium | These variables are referenced but not defined in this chunk; if not defined earlier, NameError. | Confirm they are defined in the enclosing function.",
+     "TYPE3_EXCLUDED_LANGUAGES | medium | Referenced but not defined in this chunk; if missing, NameError. | Ensure constant is defined.",
+     "ignored | doc_ignored | low | The set union uses '|' but doc_ignored might not be a set; if it's a list, concatenation works but type mismatch. | Check type of doc_ignored.",
+     "scope.describe() | low | Referenced but not defined; if scope object lacks describe method, AttributeError. | Verify scope has describe().",
+     "tokens.tokenizer_name() | low | Referenced but not defined; if tokens module missing function, AttributeError. | Ensure tokens module is imported and has tokenizer_name.",
+     "graph.SymbolResolver | low | Referenced in type annotation but not imported in this chunk; if not imported, NameError. | Check imports.",
+     "doc_ignored, doc_records, doc_totals | low | These are used but not defined in this chunk; if they are not set earlier, they will raise NameError. | Ensure they are defined in the enclosing function."
+    ],
+    "todos": [
+     "Verify that type_blocks is defined and is a dict.",
+     "Ensure doc_records, doc_ignored, doc_totals are defined before use.",
+     "Check that TYPE3_EXCLUDED_LANGUAGES is defined.",
+     "Confirm that scope object has a describe() method.",
+     "Verify tokens module has tokenizer_name() function.",
+     "Ensure graph.SymbolResolver is imported.",
+     "Check call sites for _scope_key to confirm it is actually used as cache key."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "9 of 11",
+     "purpose": "Finalizes the index dictionary with all optional layers and defines _scope_key for cache identity.",
+     "symbols": [
+      {
+       "name": "_scope_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a string key for cache identity based on root, scope, documents, types, wiki flags."
+      }
+     ],
+     "claims": [
+      {
+       "text": "SAME GATE, SAME REASON as ``documents``: three keys that are simply absent when the layer is off",
+       "where": "line 970-972",
+       "verdict": "uncheckable",
+       "why": "The claim refers to the 'documents' layer gating which is not shown in this chunk. The code only shows the 'types_on' gate."
+      },
+      {
+       "text": "``type_nodes`` and ``type_edges`` are a SEPARATE NODE NAMESPACE ... for the reason a document link is not an import",
+       "where": "line 974-979",
+       "verdict": "uncheckable",
+       "why": "The claim describes a design reason but the actual keys 'type_nodes' and 'type_edges' are not present in this chunk; only 'type_blocks' is used."
+      },
+      {
+       "text": "the three keys below are the ONLY thing this layer adds",
+       "where": "line 980",
+       "verdict": "uncheckable",
+       "why": "The 'three keys' are not shown; only 'type_blocks' is added. The claim cannot be verified."
+      },
+      {
+       "text": "NEVER let exclusion be silent -- a shrunken duplication report that does not say what it dropped reads exactly like a clean bill of health",
+       "where": "line 991-992",
+       "verdict": "uncheckable",
+       "why": "The claim refers to the 'duplication' key which is present but the behavior of 'exclusion' is not verifiable from this chunk alone."
+      },
+      {
+       "text": "Documents obey the same scope, so a shell document is a withheld file exactly like a shell source file and is counted as one.",
+       "where": "line 994-995",
+       "verdict": "uncheckable",
+       "why": "The scope behavior for documents is not shown; only the count addition is visible."
+      },
+      {
+       "text": "SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``",
+       "where": "line 1014-1015",
+       "verdict": "uncheckable",
+       "why": "The usage of _scope_key in caches is not shown in this chunk."
+      },
+      {
+       "text": "They are two views of one build and MUST agree; when they were keyed by different expressions they drifted apart",
+       "where": "line 1015-1017",
+       "verdict": "uncheckable",
+       "why": "Historical behavior not verifiable from this chunk."
+      },
+      {
+       "text": "An unscoped repo keeps its bare path key, so nothing changes for repos that never configure this.",
+       "where": "line 1018",
+       "verdict": "uncheckable",
+       "why": "The behavior for unscoped repos is not demonstrated in this chunk."
+      },
+      {
+       "text": "``documents`` is part of the key for the same reason ``scope`` is: a document-bearing index is a DIFFERENT index",
+       "where": "line 1019-1022",
+       "verdict": "kept",
+       "why": "The function _scope_key includes 'documents' parameter and uses it in the key (line 1013 shows it in signature)."
+      },
+      {
+       "text": "a type-bearing index carries three keys the other does not",
+       "where": "line 1026-1027",
+       "verdict": "uncheckable",
+       "why": "The three keys are not shown; only 'type_blocks' is added. Cannot verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _scope_key is defined but its return value is not shown being used in any cache.",
+       "where": "line 1011-1027",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The variable 'type_blocks' is used but not defined in this chunk.",
+       "where": "line 982",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Variables 'doc_records', 'doc_ignored', 'doc_totals' are referenced but not defined in this chunk.",
+       "where": "lines 996, 997",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Constant 'TYPE3_EXCLUDED_LANGUAGES' is referenced but not defined in this chunk.",
+       "where": "line 1043",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The 'scope' object's 'describe' method is called but not defined in this chunk.",
+       "where": "line 998",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function 'tokens.tokenizer_name()' is called but not imported or defined in this chunk.",
+       "where": "line 1061",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Type annotation 'graph.SymbolResolver' is used but not imported in this chunk.",
+       "where": "line 1011",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The set union 'ignored | doc_ignored' assumes doc_ignored is a set; if it is a list, the '|' operator will fail.",
+       "where": "line 1000",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e6623b494863eac6e3a26473c037f12d80665a30531dd9a7df1aa3bf5bab3c4",
+    "objective_chars": 7810,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [9/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 9,
+  "total": 11,
+  "first_line": 961
+ }
+}

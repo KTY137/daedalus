@@ -1,0 +1,155 @@
+{
+ "task_id": "scan__daedalus_structcore_markdown.py__c6of8__946db82",
+ "key": "scan__daedalus_structcore_markdown.py__c6of8__946db82-bb0f6bf9c0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of 8: wiki target resolution logic, KnowledgeLinks dataclass, and knowledge_links function. No critical issues.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/markdown.py",
+     "chunk": "6 of 8",
+     "purpose": "Implements resolve_wiki_target, resolve_wiki_links, KnowledgeLinks dataclass, and knowledge_links function.",
+     "symbols": [
+      {
+       "name": "resolve_wiki_target",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a single wikilink target to (rel or None, status). Appends default_ext only when raw name matches nothing."
+      },
+      {
+       "name": "resolve_wiki_links",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of (DocLink, target or None, status) for every wikilink in document order. Handles deferred and self-links."
+      },
+      {
+       "name": "KnowledgeLinks",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass holding all relations asserted by one document, plus counts for unresolved/ambiguous/deferred/external."
+      },
+      {
+       "name": "KnowledgeLinks.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts KnowledgeLinks instance to a dict with lists for targets and counts."
+      },
+      {
+       "name": "knowledge_links",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Combines standard links and wikilinks, resolved, with counts. Returns KnowledgeLinks."
+      }
+     ],
+     "claims": [
+      {
+       "text": "default_ext is appended ONLY as a second round, when the name as written matches nothing: [[Note]] finds Note.md, while ![[chart.png]] still finds the png rather than hunting for chart.png.md.",
+       "where": "resolve_wiki_target docstring",
+       "verdict": "kept",
+       "why": "In the code, forms = [raw]; if default_ext and not raw.lower().endswith(default_ext): forms.append(raw + default_ext). Then for form in forms: ... This ensures the default_ext is tried only after the raw form fails."
+      },
+      {
+       "text": "[(link, target or None, status)] for every wikilink, in document order.",
+       "where": "resolve_wiki_links docstring",
+       "verdict": "kept",
+       "why": "The function returns out, which is built by iterating parse.wiki_links in order and appending (link, target, status)."
+      },
+      {
+       "text": "A document linking to itself is not an edge -- the rule internal_links already applies, restated here rather than left to the caller.",
+       "where": "resolve_wiki_links, comment inside if target == parse.document",
+       "verdict": "kept",
+       "why": "When target == parse.document, the code appends (link, None, WIKI_RESOLVED) and continues, effectively treating it as resolved but not an edge."
+      },
+      {
+       "text": "Deliberately NOT folded into internal_links: that function is the contract index.py builds document_links from today, and doc->code is a different relation from doc->doc.",
+       "where": "KnowledgeLinks docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring references internal_links and index.py which are not present in this chunk."
+      },
+      {
+       "text": "Standard links AND wikilinks, resolved, with every refusal counted.",
+       "where": "knowledge_links docstring",
+       "verdict": "kept",
+       "why": "The function calls internal_links (standard links) and resolve_wiki_links (wikilinks), and counts ambiguous, deferred, unresolved."
+      },
+      {
+       "text": "doc_targets is a superset of internal_links' first return value: same standard-markdown edges, plus the wikilink ones.",
+       "where": "knowledge_links docstring",
+       "verdict": "uncheckable",
+       "why": "The function does call internal_links and uses its first return value (std_targets) as the initial set for doc_targets, but the internal_links function is not in this chunk."
+      },
+      {
+       "text": "code_targets is kept apart on purpose (see KnowledgeLinks), and type_refs carries names this module never tried to resolve.",
+       "where": "knowledge_links docstring",
+       "verdict": "kept",
+       "why": "The code maintains separate sets: code, types. For links with kind 'type', it adds to types and does not attempt resolution."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function resolve_wiki_target uses raw.lower().endswith(default_ext) to decide whether to append default_ext. This may cause issues if default_ext is empty (which is allowed) because raw.lower().endswith('') is always True, so the condition will be False and the extension won't be appended. However, the docstring says default_ext is appended only as a second round; the code's logic seems correct because if default_ext is empty, no second form is needed.",
+       "where": "resolve_wiki_target, line with 'if default_ext and not raw.lower().endswith(default_ext):'",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In resolve_wiki_links, when target == parse.document, the code appends (link, None, WIKI_RESOLVED). This departs from the function's general pattern of returning the target as the second element; here it returns None for self-links. The docstring says 'target or None', so this is consistent.",
+       "where": "resolve_wiki_links, inside 'if target == parse.document:'",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The variable 'types' in knowledge_links is only populated when status == WIKI_DEFERRED and link.kind == 'type'. However, the KnowledgeLinks dataclass has a field 'type_refs' that is documented as 'RESOLVED BY NOBODY'. This matches the code.",
+       "where": "knowledge_links, loop handling deferred",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "46050320da83895a6963ccb25673552f115cd4d185c541a635e3fe5d2dc5d571",
+    "objective_chars": 5246,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/markdown.py [6/8]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/markdown.py",
+  "index": 6,
+  "total": 8,
+  "first_line": 601
+ }
+}

@@ -1,0 +1,105 @@
+{
+ "task_id": "research__b027__946db82",
+ "key": "research__b027__946db82-2ccb5101ed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified cross-file assumptions: 1) Ollama host routing may bypass egress classification; 2) Provider capabilities may not be consulted by canary/council for egress decisions; 3) Cache eviction may leave stale records that affect worktree identity checks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Ollama host routing may bypass egress classification",
+     "Provider capabilities may not be consulted by canary/council for egress decisions",
+     "Cache eviction may leave stale records that affect worktree identity checks"
+    ],
+    "todos": [
+     "Verify if build_roster passes explicit host to Ollama adapter, and whether that host is checked against egress classification.",
+     "Check if session.live_egress_seats uses ProviderCapabilities.local to decide egress status.",
+     "Check if _remove_tree_no_follow uses the cache and whether stale cache entries can cause inode identity to be reused incorrectly."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "ollama-host-egress-bypass",
+       "claim": "Ollama host passed explicitly to build_roster may bypass egress classification because the classification is based on provider name, not host.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/providers/base.py"
+       ],
+       "mechanism": "build_roster accepts an explicit 'host' parameter for Ollama. The egress classification in live_egress_lanes delegates to session.live_egress_seats, which likely uses provider name (e.g., 'ollama') to decide if it's local. If the host is a remote machine but the provider name is still 'ollama', the egress classifier may incorrectly mark it as local, bypassing egress controls.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If session.live_egress_seats uses the actual host (not just provider name) to determine local/egress, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/canary.py:build_roster docstring (line 841) states host is passed explicitly and local flag is based on host",
+        "daedalus/council/canary.py:live_egress_lanes docstring (line 923) states classification is delegated to session.live_egress_seats",
+        "daedalus/providers/base.py:ProviderCapabilities.local field is defined but not referenced in canary module"
+       ]
+      },
+      {
+       "id": "provider-capabilities-ignored",
+       "claim": "The canary/council modules may not consult ProviderCapabilities when deciding egress or cost, leading to incorrect classification.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/providers/base.py"
+       ],
+       "mechanism": "live_egress_lanes calls session.live_egress_seats, which likely classifies lanes. If that function does not check ProviderCapabilities.local for each provider, a provider that is actually remote could be misclassified as local. The canary module has no reference to ProviderCapabilities, so it cannot verify egress status based on provider capabilities.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If session.live_egress_seats (or the code it calls) reads ProviderCapabilities.local for every adapter and uses it to determine egress, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/canary.py:live_egress_lanes docstring (line 923) delegates to session.live_egress_seats",
+        "daedalus/providers/base.py:ProviderCapabilities defined with local field",
+        "daedalus/council/canary.py: no import or usage of ProviderCapabilities observed"
+       ]
+      },
+      {
+       "id": "cache-stale-inode",
+       "claim": "Cache eviction may leave stale records that cause inode identity checks in worktree to incorrectly consider a path as still existing.",
+       "spans": [
+        "daedalus/structcore/cache.py",
+        "daedalus/kairos/worktree.py"
+       ],
+       "mechanism": "The cache module stores analysis data keyed by file path. The worktree module uses inode-based identity (_key) to track files and directories. If a file is deleted and recreated with a different inode, but the cache still has an old record for that path, the worktree's chain_between or _remove_tree_no_follow might rely on stale cached data, causing incorrect identity resolution.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the worktree functions never read from the cache (they use lstat directly) and the cache is not used for path identity, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/cache.py:_decode uses subscript access to read cache entries; cache miss triggers recompute",
+        "daedalus/kairos/worktree.py:_key returns (st_dev, st_ino) from lstat, which is fresh per call",
+        "daedalus/kairos/worktree.py:_chain_between uses _key to walk path components; no cache reference observed"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1dc5c0a3ca6c067af8eafbc67475bd3f61d8fd93d1d59134b9fac44f33b92100",
+    "objective_chars": 23388,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 27 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 27,
+  "inputs": 4
+ }
+}

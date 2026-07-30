@@ -1,0 +1,105 @@
+{
+ "task_id": "scan__daedalus_mapping_spectral.py__c6of6__946db82",
+ "key": "scan__daedalus_mapping_spectral.py__c6of6__946db82-b4d6281d2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of 6: defines spectral_evidence function and the tail of analyse's return dict. No public symbols beyond the function. Claims about behaviour are verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/spectral.py",
+     "chunk": "6 of 6",
+     "purpose": "Define spectral_evidence and finalise analyse return dict",
+     "symbols": [
+      {
+       "name": "spectral_evidence",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Flattens analyse reading into per-module evidence rows"
+      }
+     ],
+     "claims": [
+      {
+       "text": "The picker enriches an EXISTING candidate's evidence with these; it never creates a candidate from them and never lets them move a band.",
+       "where": "spectral_evidence docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to behaviour of 'the picker' which is not defined in this chunk."
+      },
+      {
+       "text": "A module that is not in the graph gets no row, so a caller that looks one up gets nothing rather than a zero that reads like a measurement.",
+       "where": "spectral_evidence docstring",
+       "verdict": "kept",
+       "why": "The function computes modules from partition and values; if a module is absent from both, it is not added to out. The return dict will have no entry for that module."
+      },
+      {
+       "text": "spectral_fiedler_value is None for a module outside the Fiedler scope (an island, or any node off the largest component). None means NOT MEASURED -- never 0.0, which would read as 'sits on the seam'.",
+       "where": "spectral_evidence docstring",
+       "verdict": "kept",
+       "why": "The line `'spectral_fiedler_value': values.get(module)` uses .get() which returns None if module is not in values. The docstring's claim about None vs 0.0 is upheld by this code."
+      },
+      {
+       "text": "Flatten a full analyse() reading into per-module evidence rows.",
+       "where": "spectral_evidence docstring",
+       "verdict": "kept",
+       "why": "The function takes a reading dict and returns a dict mapping module to a dict of evidence fields. This matches the description."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function spectral_evidence uses reading.get('available') to early-exit if not available.",
+       "where": "line 618",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function builds a set of modules from partition values and falls back to values keys if partition is empty.",
+       "where": "line 628",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function iterates over sorted modules and constructs a per-module dict with fields like spectral_package, spectral_package_leak_rate, etc.",
+       "where": "lines 631-641",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6b5c855c7481f816f17b054fa7697a2dbee0d590fd76f2e92a3f6869d9c5b1a9",
+    "objective_chars": 3685,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/spectral.py [6/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/spectral.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 601
+ }
+}

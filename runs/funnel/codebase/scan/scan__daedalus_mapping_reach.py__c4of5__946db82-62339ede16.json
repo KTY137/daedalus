@@ -1,0 +1,257 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c4of5__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c4of5__946db82-62339ede16",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 5 of daedalus/mapping/reach.py: completes reachability analysis with BFS, classification, and report assembly; defines helper functions _is_test, _literal_corpus, _evidence, and _discover_entries (partial).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_discover_entries | medium | Function is incomplete in this chunk; callers may rely on full definition. | Verify that the rest of the function is present in the next chunk and that the signature matches usage."
+    ],
+    "todos": [
+     "Complete _discover_entries function (continues in next chunk)."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "4 of 5",
+     "purpose": "Finish reachability analysis: build edge sets, run tiered BFS, classify modules, and define helper functions for test detection, literal corpus extraction, and evidence gathering.",
+     "symbols": [
+      {
+       "name": "index_extra",
+       "kind": "constant",
+       "effects": [],
+       "note": "Local variable holding list of extra edges from structural index that are not already in explicit edges."
+      },
+      {
+       "name": "edges",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping each module to its set of outgoing edges (explicit imports plus package parents)."
+      },
+      {
+       "name": "reverse",
+       "kind": "constant",
+       "effects": [],
+       "note": "Reverse edge map: for each module, set of modules that import it."
+      },
+      {
+       "name": "tests",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of module rels identified as test modules via _is_test."
+      },
+      {
+       "name": "tested_by",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping each module to set of test modules that import it."
+      },
+      {
+       "name": "entries",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of EntryPoint objects discovered by _discover_entries."
+      },
+      {
+       "name": "broken_entries",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of strings describing entries that could not be resolved."
+      },
+      {
+       "name": "claim",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping module rel to (entry_ident, path_tuple) after tiered BFS."
+      },
+      {
+       "name": "entry_modules",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of module rels that are themselves entry points."
+      },
+      {
+       "name": "tiered BFS (lines 879-908)",
+       "kind": "function",
+       "effects": [],
+       "note": "Per-tier BFS using per-tier visited set to allow crossing claimed nodes; only first tier to arrive writes the claim."
+      },
+      {
+       "name": "literal_corpus",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of (owner, text) pairs from non-test modules and agent JSON files, used for dynamic evidence."
+      },
+      {
+       "name": "dynamic_surfaces",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sorted list of dynamic import strings from all sources."
+      },
+      {
+       "name": "facts",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of ModuleFacts namedtuples after classification."
+      },
+      {
+       "name": "counts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary counting modules per classification."
+      },
+      {
+       "name": "entry_counts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary counting entries per kind."
+      },
+      {
+       "name": "ReachReport return (line 947)",
+       "kind": "constant",
+       "effects": [],
+       "note": "Return value: ReachReport namedtuple with all results."
+      },
+      {
+       "name": "_is_test",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if module rel is a test module based on naming conventions."
+      },
+      {
+       "name": "_literal_corpus",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of (owner, text) pairs from non-test modules and agent JSON files."
+      },
+      {
+       "name": "_evidence",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of evidence strings why a module is not an island, based on literal corpus."
+      },
+      {
+       "name": "_discover_entries",
+       "kind": "function",
+       "effects": [],
+       "note": "Discovers entry points from console scripts and __main__; partial in this chunk (continues)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``explicit`` is deliberately not touched here. structcore has no branch context, so its edge set contains the dead-branch and swallowed-import edges ``_split_imports`` withheld two blocks up; merging them back turned every one of those refusals into a silent ``reachable``.",
+       "where": "lines 843-846",
+       "verdict": "uncheckable",
+       "why": "The claim refers to '_split_imports' and 'structcore' which are outside this chunk; the code here does not modify 'explicit', which is consistent, but cannot verify the reason about structcore."
+      },
+      {
+       "text": "PER-TIER visited set, deliberately not the global ``claim``. Sharing them stopped a tier's walk dead at any module some other entry had already claimed -- ``spine/picker.py`` carries a __main__ guard, so it was claimed at depth 0 and the ``cli:improve`` walk never got through it to attempt.py or worktree.py, which then degraded to the coarsest attribution available. Traversal must cross claimed nodes; only the first tier to ARRIVE writes the claim.",
+       "where": "lines 879-882",
+       "verdict": "kept",
+       "why": "The code implements a per-tier visited set (line 886) and uses claim.setdefault to only write the first arrival (line 896). The example about spine/picker.py is not verifiable from this chunk, but the mechanism is as described."
+      },
+      {
+       "text": "(owner, text) pairs of every string literal a NON-test module carries, plus agent/persona JSON.",
+       "where": "line 955",
+       "verdict": "kept",
+       "why": "The function _literal_corpus collects from non-test modules (line 961) and agent JSON files (line 963)."
+      },
+      {
+       "text": "A test naming a module proves the test imports it, not that anything dispatches to it -- counting test literals here would launder an island into ``unknown`` and hide exactly what we are looking for.",
+       "where": "lines 956-958",
+       "verdict": "kept",
+       "why": "The function explicitly skips test modules (line 961), consistent with the claim."
+      },
+      {
+       "text": "Owners are kept (rather than one concatenated blob) for two reasons: a module's own docstring must not be evidence for itself, and \"who names it\" is the only part of this signal a human can act on.",
+       "where": "lines 958-960",
+       "verdict": "kept",
+       "why": "The function returns a list of (owner, text) tuples, preserving ownership. The code does not self-evidence because _evidence excludes the module's own literals (line 984)."
+      },
+      {
+       "text": "Matching is on the DOTTED name or the path, never on a bare stem: \"core\" or \"status\" appears in prose everywhere, and a stem match would mark half the tree ``unknown`` -- a report that says \"I don't know\" about everything is as useless as one that lies.",
+       "where": "lines 976-979",
+       "verdict": "kept",
+       "why": "The probes list (line 982) includes dotted and rel, but does not include the bare stem; stem is only used to check __init__ (line 981)."
+      },
+      {
+       "text": "A module's OWN literals are excluded: this file's docstring names this file, and self-evidence would make every module that documents itself permanently unknowable.",
+       "where": "lines 979-980",
+       "verdict": "kept",
+       "why": "In _evidence, line 984 checks if owner == rel and skips if so."
+      },
+      {
+       "text": "``entry`` is the strongest claim in this report -- \"a human types this and it runs\". It is therefore the one claim that gets verified rather than believed: the module must exist AND define the named function.",
+       "where": "lines 1004-1006",
+       "verdict": "kept",
+       "why": "The code checks that the module exists in known_rels (line 1015) and that the attribute is in src.toplevel (line 1021)."
+      },
+      {
+       "text": "A dead target (`pkg = \"pkg.cli:nosuchfunc\"`) raises the moment anyone runs it, and granting it ``entry`` would paint the whole closure behind it green on the strength of a line in packaging metadata that nothing executes.",
+       "where": "lines 1006-1009",
+       "verdict": "kept",
+       "why": "The code adds to broken list when module not found (line 1018) or attribute not found (line 1022), not to entries."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The tiered BFS uses a per-tier visited set, but the frontier list is sorted each iteration; this may affect performance but correctness remains.",
+       "where": "lines 886-908",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _discover_entries function is incomplete in this chunk; it defines add and func_targets locals and processes console scripts, but the rest of the function is missing.",
+       "where": "line 1028",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The classification logic for 'unknown' modules uses 'weak' and 'ev' evidence; if weak is non-empty, the reason becomes about dead branches, overriding any literal evidence. This is intentional per the comment.",
+       "where": "lines 924-932",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The 'island' classification includes a note about test coverage, but the condition for 'orphan' is checked before 'island', so modules that import nothing and are not imported become 'orphan', not 'island'.",
+       "where": "lines 934-941",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a73184edf099ec81a7b911823132a299f3c1115fed1c6d27216fa657ee3648ec",
+    "objective_chars": 13384,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

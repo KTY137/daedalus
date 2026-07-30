@@ -1,0 +1,124 @@
+{
+ "task_id": "research__b054__946db82",
+ "key": "research__b054__946db82-6f0d12882f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Hypotheses span council adapters, drift snapshot, attempt persistence, and graph resolver: shared assumptions about error handling, deterministic ordering, and boundary enforcement create risks when modules disagree.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Cross-module assumption that failures are reported as return values not exceptions may be violated if a module raises unexpectedly.",
+     "Deterministic ordering in graph resolver may not match ordering assumptions in attempt persistence.",
+     "Drift snapshot digest keys may not be validated by all modules that read snapshots."
+    ],
+    "todos": [
+     "Verify that all modules consuming error returns handle them without assuming exception safety.",
+     "Check if drift snapshot validation is enforced before attempt persistence writes artifacts.",
+     "Ensure deterministic ordering in graph resolver is compatible with any ordering-dependent logic in attempt ledger."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "error-reporting-vs-raising",
+       "claim": "Multiple modules (council adapters, attempt persistence) claim to report failures via return values rather than raising exceptions, but this contract is not enforced across all callers, risking unhandled exceptions.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "CouncilAdapter docstring says 'A refusal is a STATUS, not an exception'; _persist_artifact returns (None, error_str) on exception; _cleanup returns (False, error_str). However, run_attempt docstring claims 'Returns, never raises' but calls TaskAttempt.run() which may raise. If any caller expects exceptions, silent failures or crashes occur.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that TaskAttempt.run() is wrapped in try/except in run_attempt or that all callers of these functions handle tuple returns without exception.",
+       "evidence": [
+        "daedalus/council/vendors.py:CouncilAdapter docstring",
+        "daedalus/spine/attempt.py:_persist_artifact docstring",
+        "daedalus/spine/attempt.py:_cleanup docstring",
+        "daedalus/spine/attempt.py:run_attempt docstring"
+       ]
+      },
+      {
+       "id": "deterministic-ordering-assumption",
+       "claim": "The graph resolver (SymbolResolver) enforces deterministic ordering of imports to avoid hash seed variability, but other modules (attempt persistence, drift snapshot) may assume ordering that is not guaranteed, leading to non-reproducible behavior.",
+       "spans": [
+        "daedalus/structcore/graph.py",
+        "daedalus/spine/attempt.py",
+        "daedalus/mapping/drift.py"
+       ],
+       "mechanism": "SymbolResolver.__post_init__ sorts imports_by_file values into tuples for deterministic iteration. However, attempt persistence (_resolve_and_finish) uses _jsonable and canonical_json which may depend on key ordering; drift snapshot uses digest keys that may be order-sensitive. If any of these modules rely on a different ordering (e.g., set iteration), results may differ across runs.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all modules using ordering (e.g., canonical_json, digest keys) explicitly sort their inputs or use ordered data structures.",
+       "evidence": [
+        "daedalus/structcore/graph.py:SymbolResolver.__post_init__ docstring",
+        "daedalus/spine/attempt.py:_resolve_and_finish (calls _jsonable, canonical_json)",
+        "daedalus/mapping/drift.py:docstring mentions DIGEST_KEY over canonical bytes"
+       ]
+      },
+      {
+       "id": "boundary-enforcement-on-artifacts",
+       "claim": "Council adapter claims that 'the adapter -- not the caller -- renders the evidence blocks' and 'a gate that only REPORTS withheld paths while the caller ships the bytes anyway is worse than no gate', but attempt persistence may bypass this by persisting artifacts without evidence validation.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "CouncilAdapter.assemble docstring says it renders evidence blocks and withholds paths. However, _persist_artifact in attempt.py writes PatchArtifact to ArtifactStore without checking if evidence was properly rendered. If assemble is not called before persist, or if evidence is omitted, the gate is bypassed.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that _persist_artifact is always called after assemble, or that ArtifactStore validates evidence completeness.",
+       "evidence": [
+        "daedalus/council/vendors.py:CouncilAdapter.assemble docstring",
+        "daedalus/spine/attempt.py:_persist_artifact"
+       ]
+      },
+      {
+       "id": "snapshot-digest-consistency",
+       "claim": "Drift snapshot claims that 'every mechanical list is covered by a DIGEST_KEY over the canonical bytes' and that hand-editing invalidates the snapshot, but the graph resolver and attempt persistence may produce data that does not respect these digest keys, allowing silent corruption.",
+       "spans": [
+        "daedalus/mapping/drift.py",
+        "daedalus/structcore/graph.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "Drift docstring says digest keys validate snapshot integrity. However, graph.py's name_index and build_resolver produce data that may be written into snapshots without digest computation. Attempt persistence writes artifacts that may be included in snapshots. If any module writes data that bypasses digest validation, the snapshot can be corrupted without detection.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all data written to snapshots goes through a function that computes and verifies digest keys, or that digest validation is applied at read time.",
+       "evidence": [
+        "daedalus/mapping/drift.py:docstring lines ~165-170",
+        "daedalus/structcore/graph.py:name_index, build_resolver",
+        "daedalus/spine/attempt.py:_persist_artifact"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2a7fbc049a52276ae71987f1da1a2fe21b3783319b0b3dbcdbb7ad67342370ee",
+    "objective_chars": 25405,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 54 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 54,
+  "inputs": 4
+ }
+}

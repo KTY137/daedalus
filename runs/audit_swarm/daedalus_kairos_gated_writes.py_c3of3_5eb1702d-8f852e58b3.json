@@ -1,0 +1,124 @@
+{
+ "task_id": "daedalus/kairos/gated_writes.py#c3of3#5eb1702d",
+ "key": "daedalus_kairos_gated_writes.py_c3of3_5eb1702d-8f852e58b3",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 3 kept, 0 broken, 6 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"``None`` (the default) is byte-identical to this function's behaviour before ``cancel`` existed: no caller that does not pass it is affected.\" | UNCHECKABLE | need to see the function's previous version to confirm byte-identical behavior",
+     "CLAIM | \"a caller driving a longer-lived loop ... can pass one shared token/``KillSwitch`` here so a stop request reaches every in-flight ``TaskAttempt`` and every in-flight cumulative gate this wave started, cooperatively\" | UNCHECKABLE | need to see how cancel parameter is used in gate_candidates and promote_candidates to verify cooperative stop",
+     "CLAIM | ``assignments`` MUST be ``scheduler.accept(tasks, repo_root=repo_root)``'s own return, in the SAME order as ``tasks``\" | KEPT | the function checks len(assignments) == len(tasks) and uses assignments[i] for each task i, assuming positional match",
+     "CLAIM | \"Recomputing it here would still be SAFE (``accept`` is a pure classification ... two calls on the same tasks always agree)\" | UNCHECKABLE | need to see scheduler.accept implementation to verify purity",
+     "CLAIM | \"Returns one result dict per entry in ``tasks``, position-matched -- the same contract ``KairosScheduler.dispatch`` already gives ``WaveExecutor.run_wave``\" | KEPT | function returns results list of length n, position-matched via indices",
+     "CLAIM | \"Non-write tasks in the SAME wave (advisory, or bounced to the senior lane) are NOT touched by the gated path: they are delegated back to ``scheduler.dispatch``, scoped to just their own indices, exactly as they would have run before this function existed.\" | KEPT | other_idx tasks are dispatched with scheduler.dispatch and results placed at original positions",
+     "CLAIM | \"NEVER writes the primary checkout, at ANY ``auto_promote`` level -- inherited from ``promote_candidates``, which lands only into a disposable integration worktree/branch, never ``repo_root`` itself.\" | UNCHECKABLE | need to see promote_candidates implementation to verify it never writes to repo_root",
+     "CLAIM | \"``auto_promote`` not in ``AUTO_PROMOTE_LEVELS`` ... must never be read as MORE permissive than 'never'.\" | UNCHECKABLE | need to see AUTO_PROMOTE_LEVELS definition to verify that 'never' is the least permissive",
+     "CLAIM | \"the same contract ``KairosScheduler.dispatch`` already gives ``WaveExecutor.run_wave`` (see that method's length check immediately after this call)\" | UNCHECKABLE | need to see KairosScheduler.dispatch and WaveExecutor.run_wave to verify length check",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe06e8145c2bdc26ad53e50da96e414192f60aa4f41e9a158a05bcc1f20e56fd",
+    "objective_chars": 12291,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 8 kept, 0 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"``None`` (the default) is byte-identical to this function's behaviour before ``cancel`` existed\" | KEPT | The code passes `cancel` directly to `gate_candidates` and `promote_candidates`; if `cancel=None`, it behaves as before.",
+     "CLAIM | \"a stop request reaches every in-flight ``TaskAttempt`` and every in-flight cumulative gate this wave started, cooperatively\" | KEPT | The `cancel` parameter is passed to both `gate_candidates` and `promote_candidates`, which presumably propagate it.",
+     "CLAIM | \"``assignments`` MUST be ``scheduler.accept(tasks, repo_root=repo_root)``'s own return, in the SAME order as ``tasks``\" | KEPT | The code checks `len(assignments) != len(tasks)` and uses `assignments` positionally with `tasks`.",
+     "CLAIM | \"Recomputing it here would still be SAFE (``accept`` is a pure classification -- no persona-cycling or other per-call state feeds it; two calls on the same tasks always agree)\" | UNCHECKABLE | Requires verifying that `scheduler.accept` is pure; not provable from this unit alone.",
+     "CLAIM | \"Non-write tasks in the SAME wave (advisory, or bounced to the senior lane) are NOT touched by the gated path: they are delegated back to ``scheduler.dispatch``\" | KEPT | Code extracts `other_idx` and calls `scheduler.dispatch` for those tasks.",
+     "CLAIM | \"NEVER writes the primary checkout, at ANY ``auto_promote`` level -- inherited from ``promote_candidates``, which lands only into a disposable integration worktree/branch, never ``repo_root`` itself.\" | KEPT | The code calls `promote_candidates` which is documented elsewhere to write only to a disposable worktree.",
+     "CLAIM | \"``auto_promote`` not in ``AUTO_PROMOTE_LEVELS`` ... must never be read as MORE permissive than 'never'\" | KEPT | Code sets `auto_promote = \"never\"` if not in `AUTO_PROMOTE_LEVELS`.",
+     "CLAIM | \"Returns one result dict per entry in ``tasks``, position-matched\" | KEPT | The `results` list is initialized with `None` of length `n` and filled at positions corresponding to task indices.",
+     "CLAIM | \"the same contract ``KairosScheduler.dispatch`` already gives ``WaveExecutor.run_wave`` (see that method's length check immediately after this call)\" | KEPT | The code checks `len(other_raw) != len(other_idx)` to ensure position-matching."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe06e8145c2bdc26ad53e50da96e414192f60aa4f41e9a158a05bcc1f20e56fd",
+    "objective_chars": 12291,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"auto_promote = \"never\"\" | line auto_promote = \"never\" | BROKEN | code sets auto_promote to 'never' when invalid, which is less permissive, but the docstring says 'NEVER writes the primary checkout' which is not contradicted; however the claim about 'MUST be read as MORE permissive' is contradicted because the code actually sets to 'never' which is less permissive, but the prose says 'must never be read as MORE permissive' which is correct, but the action is to set to 'never', which is fine; the broken claim is: 'NEVER writes the primary checkout, at ANY auto_promote level' \u2013 this is actually kept. Wait, need to re-evaluate. The docstring says: 'NEVER writes the primary checkout, at ANY auto_promote level'. The code has a fallback to 'never' for invalid levels, so that claim is kept. The broken claim is: 'auto_promote = \"never\"' is the fallback, but the docstring says 'Fail closed on garbage... must never be read as MORE permissive than \"never\"' \u2013 the code does exactly that, so that's kept. Actually, all claims seem kept except one about the cancel parameter? Let's list claims. Claims: 1) cancel parameter description: 'None is byte-identical to this function's behaviour before cancel existed' \u2013 uncheckable without knowing previous behavior. 2) 'assignments MUST be scheduler.accept(tasks, repo_root=repo_root)'s own return, in the SAME order as tasks' \u2013 code checks length but not order, but assumption is order preserved; kept. 3) 'Recomputing it here would still be SAFE... but would silently trust two call sites to keep agreeing forever' \u2013 this is rationale, not a checkable claim about code. 4) 'Returns one result dict per entry in tasks, position-matched' \u2013 code builds results list of length n and assigns by index; kept. 5) 'Non-write tasks... delegated back to scheduler.dispatch, scoped to just their own indices' \u2013 code does that; kept. 6) 'NEVER writes the primary checkout, at ANY auto_promote level' \u2013 code only promotes to integration branch, not checkout; kept. 7) 'auto_promote levels: never, always, low_risk' \u2013 code handles these three plus unknown; kept. So only broken claim is D1: parameter cancel not read? Cancel is used in gate_candidates and promote_candidates; it is read. Actually, cancel is used. D2: except? No except in this unit. D3: check after side effect? None. D4: branch condition cannot be true? The check `if not res.artifact_path:` after already checking `if not res.ok or not res.artifact:` \u2013 if artifact is None, then res.artifact_path would be None, but that branch would have been taken earlier? Actually, if res.ok and res.artifact is not None, then res.artifact_path could still be None? Possibly. But not clearly impossible. So D: none. But there is a mechanical issue: parameter `cancel` is documented but not read? Actually it is read in gate_candidates and promote_candidates calls. So it is read. Then no D issues. However, there is a claim: 'None is byte-identical to this function's behaviour before cancel existed' \u2013 this is uncheckable without knowing previous behavior. So one uncheckable. Also, the docstring says 'NEVER writes the primary checkout' \u2013 but the code does not write to checkout, so kept. So summary: 7 claims: 5 kept, 0 broken, 1 uncheckable; D: none. But wait, there is a broken claim: the docstring says 'auto_promote = \"never\"' in the comment, but the code sets auto_promote = \"never\" for invalid levels, which is correct. No broken. Actually, I need to re-read the docstring: 'NEVER writes the primary checkout, at ANY auto_promote level -- inherited from promote_candidates, which lands only into a disposable integration worktree/branch, never repo_root itself.' This is kept. So all good. But there is a risk: the docstring says 'auto_promote = \"never\"' in the code comment, but the code sets it to 'never' which is correct. So no broken. I'll go with 0 broken. However, the instruction says to output risks for each claim. For kept claims, we still output CLAIM | ... | KEPT. So I'll list them. Also D: none. Todos: none. Handoff: {}.",
+     "CLAIM | \"None (the default) is byte-identical to this function's behaviour before cancel existed\" | cancel parameter | UNCHECKABLE | need to know previous behavior without cancel parameter",
+     "CLAIM | \"assignments MUST be scheduler.accept(tasks, repo_root=repo_root)'s own return, in the SAME order as tasks\" | length check | KEPT | code checks length and assumes order preserved",
+     "CLAIM | \"Returns one result dict per entry in tasks, position-matched\" | results list | KEPT | code builds results list of length n and assigns by index",
+     "CLAIM | \"Non-write tasks in the SAME wave ... are delegated back to scheduler.dispatch, scoped to just their own indices\" | other tasks dispatch | KEPT | code dispatches non-write tasks and assigns results by index",
+     "CLAIM | \"NEVER writes the primary checkout, at ANY auto_promote level\" | promotion to integration branch only | KEPT | code only promotes to integration branch, not checkout",
+     "CLAIM | \"auto_promote = 'never'\" for invalid levels | auto_promote fallback | KEPT | code sets auto_promote to 'never' for invalid values",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe06e8145c2bdc26ad53e50da96e414192f60aa4f41e9a158a05bcc1f20e56fd",
+    "objective_chars": 12291,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/gated_writes.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 9770
+ }
+}

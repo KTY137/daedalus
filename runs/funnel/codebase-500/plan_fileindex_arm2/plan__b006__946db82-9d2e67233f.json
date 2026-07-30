@@ -1,0 +1,155 @@
+{
+ "task_id": "plan__b006__946db82",
+ "key": "plan__b006__946db82-9d2e67233f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Plan to fix _human_bytes PiB bug, implement available_vendors, add missing 'matches' field in SearchReport, wire _emit_ok calls in slice.py, and harden root path resolution.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing _human_bytes may affect all callers expecting TiB for large sizes.",
+     "available_vendors implementation may break if vendors.py has other incomplete stubs.",
+     "Adding 'matches' field may change SearchReport shape; lint.py compare() fix is essential.",
+     "Wiring _emit_ok in slice.py may reveal missing egress gate logic elsewhere.",
+     "Root path refactor may break if files move; tests must cover both current and future depths."
+    ],
+    "todos": [
+     "Gate 0: Fix _human_bytes in daedalus/council/vendors.py to reach PiB.",
+     "Gate 0: Implement available_vendors in daedalus/council/vendors.py.",
+     "Gate 0: Ensure SearchReport always includes 'matches' field in daedalus/memory/embeddings.py.",
+     "Gate 1: Wire _emit_ok calls in daedalus/structcore/slice.py.",
+     "Gate 1: Refactor root path resolution to use a shared function."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix _human_bytes to return PiB for sizes >= 1024 TiB",
+       "gate": "0",
+       "why_now": "Current implementation never reaches PiB; very large byte sizes are misrepresented as TiB, causing incorrect output.",
+       "steps": [
+        {
+         "do": "Modify _human_bytes to continue dividing until n < 1024, allowing unit to advance to PiB. Change loop condition to 'while n >= 1024' and ensure unit progression stops at PiB.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "Run _human_bytes(1024**5) and assert output equals '1.0 PiB'."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The _human_bytes function exists in vendors.py; the exact line numbers are unknown."
+      },
+      {
+       "rank": 2,
+       "title": "Implement available_vendors function",
+       "gate": "0",
+       "why_now": "available_vendors is listed in __all__ but not implemented; any code calling it will fail with AttributeError.",
+       "steps": [
+        {
+         "do": "Implement available_vendors to return a list of available vendor names by inspecting registered providers.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "Run 'python -c \"from daedalus.council.vendors import available_vendors; print(available_vendors())\"' and verify it returns a non-empty list."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function signature is known; the exact implementation details depend on how vendors are registered."
+      },
+      {
+       "rank": 3,
+       "title": "Ensure SearchReport always includes 'matches' field",
+       "gate": "0",
+       "why_now": "lint.py compare() uses next() without default, raising StopIteration if 'matches' is missing. This causes crashes.",
+       "steps": [
+        {
+         "do": "Inspect daedalus/memory/embeddings.py lines 1499-1503. If SearchReport is returned without 'matches', add an empty list for 'matches'.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Run 'grep -n \"matches\" daedalus/memory/embeddings.py' and verify all SearchReport returns include 'matches' key."
+        },
+        {
+         "do": "In daedalus/gui/lint.py line 249, change next() to next(..., []) to provide a default empty list.",
+         "file": "daedalus/gui/lint.py",
+         "verified_by": "Run test_lint.py or manually invoke compare() with a report missing 'matches' and confirm no StopIteration."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The exact line numbers in embeddings.py are correct; the lint.py fix is straightforward."
+      },
+      {
+       "rank": 4,
+       "title": "Wire _emit_ok calls in slice.py to enforce egress gates",
+       "gate": "1",
+       "why_now": "_emit_ok is defined but never called in the provided chunk; egress gates are not enforced, allowing potential data leaks.",
+       "steps": [
+        {
+         "do": "Search the full daedalus/structcore/slice.py for all places where emission occurs and add calls to _emit_ok before emitting.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "Run 'grep -n \"_emit_ok\" daedalus/structcore/slice.py' and confirm at least one call exists in emission paths."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The emission paths are identifiable; the _emit_ok function signature is compatible."
+      },
+      {
+       "rank": 5,
+       "title": "Harden root path resolution against future directory depth changes",
+       "gate": "1",
+       "why_now": "Current ROOT = Path(__file__).resolve().parents[2] is fragile; a subpackage move would break it.",
+       "steps": [
+        {
+         "do": "Refactor both daedalus/memory/__init__.py and daedalus/spine/ledger.py to compute ROOT via a shared function (e.g., from daedalus import ROOT) or by using a marker file.",
+         "file": "daedalus/memory/__init__.py",
+         "verified_by": "Run 'python -c \"from pathlib import Path; from daedalus.memory import ROOT as ROOT1; from daedalus.spine.ledger import ROOT as ROOT2; assert ROOT1 == ROOT2\"' and confirm equality."
+        },
+        {
+         "do": "Update daedalus/spine/ledger.py similarly.",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "Same check as above."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "A shared root definition can be placed in daedalus/__init__.py or a similar location."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/vendors.py",
+      "daedalus/memory/embeddings.py",
+      "daedalus/structcore/slice.py",
+      "daedalus/memory/__init__.py",
+      "daedalus/spine/ledger.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78a52a598ef5fddd0274cb242ed2c6eb09b49e7524cd6d783fe671675182579d",
+    "objective_chars": 22350,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 6 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 6,
+  "inputs": 5
+ }
+}

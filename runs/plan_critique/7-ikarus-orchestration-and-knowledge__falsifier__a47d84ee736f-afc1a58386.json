@@ -1,0 +1,97 @@
+{
+ "task_id": "7-ikarus-orchestration-and-knowledge__falsifier__a47d84ee736f",
+ "key": "7-ikarus-orchestration-and-knowledge__falsifier__a47d84ee736f-afc1a58386",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most claims are unfalsifiable as written; they assert architecture properties without defining observable criteria, making them non-scientific in a plan that claims to be empirical.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "7.1 | high | 'Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.' is unfalsifiable because 'persistent', 'goals', 'evidence', 'unconstrained immortal chat' are undefined. | Define operational metrics: e.g., show a log where goals persist across sessions or evidence is retained; otherwise no test can kill it.",
+     "7.2 | high | 'It compiles user intent into a typed MissionContract...' is unfalsifiable as a design claim without defining 'compiles', 'typed', 'MissionContract'. | Show a concrete example of user input and the resulting MissionContract; if no such mapping exists, the claim is untestable.",
+     "7.3 | medium | '...creates an artifact DAG...' is unfalsifiable without defining 'artifact DAG' and observable properties. | Instrument the system to output a DAG structure; if no DAG is produced, claim fails.",
+     "7.4 | medium | '...selects stateless or explicitly versioned recipes...' is unfalsifiable without defining 'selects', 'stateless', 'explicitly versioned'. | Show a selection trace; if no selection logic exists, claim fails.",
+     "7.5 | medium | '...monitors budgets and attempts...' is unfalsifiable without defining 'monitors', 'budgets', 'attempts'. | Show a budget violation alert or attempt counter; if none exist, claim fails.",
+     "7.6 | medium | '...presents decisions and evidence.' is unfalsifiable without defining 'presents', 'decisions', 'evidence'. | Show a UI or log output; if no presentation occurs, claim fails.",
+     "7.7 | high | 'Coordination is artifact-first:' with pipeline 'MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket' is unfalsifiable without defining the arrow semantics. | Show a trace of one artifact's lifecycle; if the pipeline order is violated, claim fails.",
+     "7.8 | high | 'Typed events and artifacts are authoritative.' is unfalsifiable without defining 'authoritative' and what it excludes. | Show that an untyped event is rejected; if any untyped event affects state, claim fails.",
+     "7.9 | high | 'Chat is an interface, not the workflow database.' is unfalsifiable without defining 'workflow database' and proving chat does not function as one. | Show that a chat message cannot modify workflow state directly; if it can, claim fails.",
+     "7.10 | high | 'Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.' is unfalsifiable without defining 'separate', 'versioned', 'provenance-bearing', 'explicit projection rules'. | Show schemas and version histories; if stores are not versioned or provenance is missing, claim fails."
+    ],
+    "todos": [
+     "For each claim, add a measurable criterion that would confirm or refute it (e.g., 'Ikarus retains goals across at least 10 sessions' for 7.1).",
+     "Replace 'typed MissionContract' with a concrete schema or reference to one.",
+     "Define the arrow semantics in the pipeline (e.g., 'each WorkItem references exactly one MissionContract').",
+     "Specify what counts as 'authoritative' for typed events (e.g., 'state transitions are only accepted from validated event types').",
+     "Remove or operationalize 'explicit projection rules' by providing a rule language or example."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "7.1",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "unfalsifiable",
+       "why": "The terms 'persistent', 'goals', 'evidence', 'unconstrained immortal chat' are undefined. No observable condition can distinguish a system that satisfies this from one that does not. To make it falsifiable, define persistence quantitatively (e.g., goals survive restarts, evidence is stored and retrievable) and specify what behavior would violate the 'not an unconstrained immortal chat' clause."
+      },
+      {
+       "id": "7.2",
+       "claim": "It compiles user intent into a typed MissionContract, creates an artifact DAG, selects stateless or explicitly versioned recipes, monitors budgets and attempts, and presents decisions and evidence.",
+       "verdict": "unfalsifiable",
+       "why": "This is a list of design intentions without operational definitions. 'Compiles', 'typed MissionContract', 'artifact DAG', 'selects', 'stateless', 'explicitly versioned', 'monitors', 'budgets', 'attempts', 'presents', 'decisions', 'evidence' are all undefined. No single experiment can test the whole claim. Each sub-claim needs a concrete observable criterion."
+      },
+      {
+       "id": "7.3",
+       "claim": "Coordination is artifact-first: MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket",
+       "verdict": "unfalsifiable",
+       "why": "The arrow '->' is undefined. It could mean data flow, causal dependency, ordering, or something else. Without a precise semantics (e.g., 'every WorkItem is created from a MissionContract and produces Attempts'), no observation can confirm or refute the pipeline. Define the relation and show a trace."
+      },
+      {
+       "id": "7.4",
+       "claim": "Typed events and artifacts are authoritative.",
+       "verdict": "unfalsifiable",
+       "why": "'Authoritative' is vague. Does it mean that only typed events can trigger state changes? That untyped events are ignored? That typed artifacts are the single source of truth? Without a clear rule, any behavior can be rationalized. Operationalize: e.g., 'The system rejects any event that does not conform to a declared schema.'"
+      },
+      {
+       "id": "7.5",
+       "claim": "Chat is an interface, not the workflow database.",
+       "verdict": "unfalsifiable",
+       "why": "This distinguishes chat from a database, but doesn't specify what properties a workflow database has that chat lacks. For example, if chat messages can create, read, update, or delete workflow state, then chat functions as a database. Define 'workflow database' (e.g., 'persistent, queryable, transactional store') and show that chat does not have those properties."
+      },
+      {
+       "id": "7.6",
+       "claim": "Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.",
+       "verdict": "unfalsifiable",
+       "why": "'Separate' could mean different tables, different schemas, or different systems. 'Versioned' and 'provenance-bearing' are not defined (e.g., every write creates a new version? Provenance includes who and when?). 'Explicit projection rules' is undefined (e.g., SQL views, map functions?). Without concrete definitions, no test can verify these properties."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "56ab1e8538fbe838ec388d2148313575c54b71e6349a9529b90b6a015b7cceee",
+    "objective_chars": 1741,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "7-ikarus-orchestration-and-knowledge",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,118 @@
+{
+ "task_id": "6-latent-atlas-and-cross-plane-discovery__omission__a47d84ee736f",
+ "key": "6-latent-atlas-and-cross-plane-discovery__omission__a47d84ee736f-9e6691b35b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 6 makes multiple architectural claims but omits definitions of key terms (Node Card, verifier, evaluator, Forest) and failure modes, forcing implementers to guess critical semantics.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "6.1 | high | 'Node Cards' are undefined: no specification of schema, fields, or constraints, so implementers must guess what constitutes a valid card, risking incompatible implementations.",
+     "6.2 | high | 'minimum contract' lists identity, revision, plane, provenance, relation-candidate shape but does not define them, leaving ambiguity about required fields and their semantics.",
+     "6.3 | high | 'latent layer is a hypothesis machine' is metaphorical; no specification of how proposals are generated, scored, or stored, making the architecture underspecified.",
+     "6.4 | high | 'typed cross-plane bindings' are not defined: what types, what planes, how binding is represented, and what 'typed' means are omitted.",
+     "6.5 | high | 'verifier' is named but not specified: no algorithm, rules, or authority for checking source evidence, revision compatibility, type/rule constraints, or task relevance.",
+     "6.6 | medium | 'unverified similarities remain proposals and expire or are retested' lacks expiry policy, retest trigger, or storage mechanism, forcing implementers to invent lifecycle management.",
+     "6.7 | high | '4fold Project-Twin IR' is undefined: no explanation of what 'Project-Twin IR' is, how it relates to the latent atlas, or what the '4fold' qualifier means.",
+     "6.8 | high | 'Forest is the teacher' is metaphorical: no definition of Forest, its interface, or how it teaches the latent atlas.",
+     "6.9 | high | 'evaluator is the truth boundary' is undefined: no specification of evaluator, its inputs, outputs, or how it determines truth."
+    ],
+    "todos": [
+     "Define Node Card schema with required and optional fields.",
+     "Specify the minimum contract fields (identity, revision, plane, provenance, relation-candidate shape) with precise semantics.",
+     "Define the latent layer hypothesis machine: inputs, outputs, scoring, storage, and lifecycle.",
+     "Specify typed cross-plane bindings: types, planes, representation, and constraints.",
+     "Define the verifier: algorithm, rules, authority, and verification criteria.",
+     "Specify expiry and retesting policy for unverified similarities.",
+     "Define '4fold Project-Twin IR' with concrete components and relationships.",
+     "Define Forest: its role, interface, and teaching mechanism.",
+     "Define evaluator: its inputs, outputs, and how it establishes truth."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "6.1",
+       "claim": "Embeddings may consume schema-light Node Cards: stable node identity, revision, plane, source locator, compact content, local neighborhood, and provenance.",
+       "verdict": "weak",
+       "why": "The term 'Node Cards' is not defined anywhere in this section or provided context. The claim lists fields but does not specify their types, constraints, or whether they are mandatory. An implementer must guess the schema."
+      },
+      {
+       "id": "6.2",
+       "claim": "A shared embedding space can retrieve possible relations without a single giant ontology, but it never receives a literally schema-free graph: identity, revision, plane, provenance, and relation-candidate shape are the minimum contract.",
+       "verdict": "weak",
+       "why": "The 'minimum contract' lists terms (identity, revision, plane, provenance, relation-candidate shape) that are not defined. What constitutes each? Are they fields, metadata, or something else? The claim asserts a constraint but omits the meaning of its components."
+      },
+      {
+       "id": "6.3",
+       "claim": "The latent layer is a hypothesis machine. It proposes typed cross-plane bindings with score and rationale.",
+       "verdict": "weak",
+       "why": "'Hypothesis machine' is a metaphor. The claim omits how proposals are generated, what algorithm or process is used, how scores are computed, and what form the rationale takes. No specification of inputs or outputs."
+      },
+      {
+       "id": "6.4",
+       "claim": "It proposes typed cross-plane bindings with score and rationale.",
+       "verdict": "weak",
+       "why": "'Typed cross-plane bindings' are not defined. What types are allowed? What are the planes? How is a binding represented? The claim asserts a capability but leaves all details unspecified."
+      },
+      {
+       "id": "6.5",
+       "claim": "A verifier checks source evidence, revision compatibility, type/rule constraints, and task relevance before an edge becomes trusted.",
+       "verdict": "weak",
+       "why": "The 'verifier' is named but not defined. No specification of its interface, algorithm, authority, or what constitutes 'source evidence', 'revision compatibility', 'type/rule constraints', or 'task relevance'. An implementer must invent these."
+      },
+      {
+       "id": "6.6",
+       "claim": "Unverified similarities remain proposals and expire or are retested.",
+       "verdict": "weak",
+       "why": "The claim omits the expiry policy (time-based? event-based?), retest triggers, and the mechanism for storage/management of proposals. Without these, an implementer cannot implement the lifecycle."
+      },
+      {
+       "id": "6.7",
+       "claim": "Canonical formula: 4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion",
+       "verdict": "weak",
+       "why": "'4fold Project-Twin IR' is not defined. What is Project-Twin IR? What does '4fold' mean? How does this formula decompose into components? The claim is an opaque label without specification."
+      },
+      {
+       "id": "6.8",
+       "claim": "Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary.",
+       "verdict": "weak",
+       "why": "'Forest', 'teacher', 'hypothesis machine', 'evaluator', and 'truth boundary' are all metaphorical. No definitions, interfaces, or roles are specified. An implementer cannot derive concrete behavior from these terms."
+      },
+      {
+       "id": "6.9",
+       "claim": "Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary.",
+       "verdict": "weak",
+       "why": "Same as 6.8, but this claim also asserts a relationship among three entities. The omission of definitions for Forest and evaluator means the architecture's core components are underspecified."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "196603ab3b91601bc9a0d944a23360332def9d2bf173e40753f01748ecf33216",
+    "objective_chars": 1929,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "6-latent-atlas-and-cross-plane-discovery",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

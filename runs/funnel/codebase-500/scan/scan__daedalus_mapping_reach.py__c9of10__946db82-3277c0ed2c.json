@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c9of10__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c9of10__946db82-3277c0ed2c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Enumerated symbols and claims in chunk 9 of daedalus/mapping/reach.py",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "9 of 10",
+     "purpose": "Finalize classification logic, build report, and define helper functions for evidence gathering and entry discovery.",
+     "symbols": [
+      {
+       "name": "_is_test",
+       "kind": "function",
+       "effects": [],
+       "note": "Determines if a module path is a test file based on naming conventions."
+      },
+      {
+       "name": "_literal_corpus",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Collects string literals from non-test modules and agent JSON files."
+      },
+      {
+       "name": "_evidence",
+       "kind": "function",
+       "effects": [],
+       "note": "Finds why a module is not an island by matching dotted name or path in literals from other modules."
+      },
+      {
+       "name": "_discover_entries",
+       "kind": "function",
+       "effects": [],
+       "note": "Discovers entry points from configuration and returns list of EntryPoint objects and broken entries."
+      }
+     ],
+     "claims": [
+      {
+       "text": "if weak or ev: ... reason = ... 'named by a string literal; a dynamic dispatch may reach it, which a static walk cannot prove either way'",
+       "where": "lines 961-966",
+       "verdict": "kept",
+       "why": "The code sets reason to that string when weak or ev is true and weak is false."
+      },
+      {
+       "text": "if weak: ... reason = ... 'imported only where the import is not evidence that anything runs it (a dead branch or a swallowed ImportError); reachability is not established'",
+       "where": "lines 967-973",
+       "verdict": "kept",
+       "why": "When weak is true, the code overrides reason with that string."
+      },
+      {
+       "text": "if src.is_shim: ... classification='shim', reason='re-exports only; nothing reaches it by name'",
+       "where": "lines 975-978",
+       "verdict": "kept",
+       "why": "The code creates a ModuleFacts with classification='shim' and the specified reason."
+      },
+      {
+       "text": "if not explicit.get(rel) and not reverse.get(rel): ... classification='orphan', reason='on disk; imports nothing and nothing imports it'",
+       "where": "lines 979-982",
+       "verdict": "kept",
+       "why": "The code creates a ModuleFacts with classification='orphan' and that reason when both explicit and reverse are empty for rel."
+      },
+      {
+       "text": "else: ... classification='island', reason='no path from any entry point' plus cover string",
+       "where": "lines 983-986",
+       "verdict": "kept",
+       "why": "The code creates a ModuleFacts with classification='island' and a reason that includes the cover string."
+      },
+      {
+       "text": "_is_test: base = rel.rsplit('/', 1)[-1]; return (base.startswith('test_') or base.endswith('_test.py') or rel.startswith('tests/') or '/tests/' in rel or base == 'conftest.py')",
+       "where": "lines 994-997",
+       "verdict": "kept",
+       "why": "The code exactly matches the described logic."
+      },
+      {
+       "text": "_literal_corpus: (owner, text) pairs of every string literal a NON-test module carries, plus agent/persona JSON.",
+       "where": "lines 999-1000",
+       "verdict": "kept",
+       "why": "The function iterates over non-test sources and appends their literals, then reads agent JSON files."
+      },
+      {
+       "text": "A test naming a module proves the test imports it, not that anything dispatches to it -- counting test literals here would launder an island into unknown and hide exactly what we are looking for.",
+       "where": "lines 1001-1005",
+       "verdict": "kept",
+       "why": "The function explicitly skips rels in tests set, preventing test literals from being included."
+      },
+      {
+       "text": "Owners are kept (rather than one concatenated blob) for two reasons: a module's own docstring must not be evidence for itself, and 'who names it' is the only part of this signal a human can act on.",
+       "where": "lines 1005-1008",
+       "verdict": "kept",
+       "why": "The function returns a list of tuples (owner, text) preserving owner identity."
+      },
+      {
+       "text": "_evidence: Matching is on the DOTTED name or the path, never on a bare stem: 'core' or 'status' appears in prose everywhere, and a stem match would mark half the tree unknown -- a report that says 'I don't know' about everything is as useless as one that lies.",
+       "where": "lines 1015-1021",
+       "verdict": "kept",
+       "why": "The probes list includes dotted and rel, and not a bare stem; the function matches probe in text."
+      },
+      {
+       "text": "A module's OWN literals are excluded: this file's docstring names this file, and self-evidence would make every module that documents itself permanently unknowable.",
+       "where": "lines 1021-1023",
+       "verdict": "kept",
+       "why": "The function skips owner == rel."
+      },
+      {
+       "text": "_discover_entries: ...",
+       "where": "lines 1025-1035",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk; no claims about its behaviour can be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends mid-function _discover_entries, lacking the body that processes entries.",
+       "where": "line 1035",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The classification logic uses variables weak, ev, explicit, reverse, tested_by, entries, dynamic_surfaces, unparsable, index_extra, broken_entries, weak_edges that are not defined in this chunk, but presumably come from earlier code.",
+       "where": "lines 961-990",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _literal_corpus reads agent JSON files from glob patterns 'agents/*.json' and '*/agents/*.json'.",
+       "where": "lines 1009-1013",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "98faff452e3594bf199e5d6a8d0b4b692e3a19c217ec205d630f50df0eb21d7a",
+    "objective_chars": 5807,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [9/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 9,
+  "total": 10,
+  "first_line": 961
+ }
+}

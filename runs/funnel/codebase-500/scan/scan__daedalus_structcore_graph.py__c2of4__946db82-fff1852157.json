@@ -1,0 +1,209 @@
+{
+ "task_id": "scan__daedalus_structcore_graph.py__c2of4__946db82",
+ "key": "scan__daedalus_structcore_graph.py__c2of4__946db82-fff1852157",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 4 of daedalus/structcore/graph.py: defines callees, callers, fenced_fragment, canonical_node, and helpers; includes comments about ordering, safety reachability, and REACH_VISIT_CAP.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "callees | medium | Order of hits is sorted by name, which may not reflect actual call order; could affect deterministic output but not correctness. | Check if any consumer relies on call order beyond determinism.",
+     "callers | medium | Falls back to name match when resolver lacks import info; may include false positives. | Verify that the fallback is acceptable for all use cases.",
+     "fenced_fragment | medium | Uses substring match (f in norm); may produce false positives if fragment is a substring of a longer path. | Consider if false positives are acceptable given the 'err in allowed direction' comment.",
+     "canonical_node | low | Uses posixpath.normpath but does not handle all edge cases (e.g., symlinks). | Test with symbolic links or mount points.",
+     "REACH_VISIT_CAP | medium | The cap of 5000 is arbitrary; a pathological graph could still exceed it before the cap is hit. | Add a mechanism to detect and report truncation accurately."
+    ],
+    "todos": [
+     "Verify that the sorted order in callees does not break any downstream code that relied on the previous hash-dependent order.",
+     "Add tests for fenced_fragment with edge cases like empty fragment, overlapping fragments, and case sensitivity.",
+     "Consider adding a warning log when REACH_VISIT_CAP is hit."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/graph.py",
+     "chunk": "2 of 4",
+     "purpose": "Defines call-edge approximation, safety-class reachability helpers, and path normalization functions.",
+     "symbols": [
+      {
+       "name": "callees",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of CodeUnit that focus most likely calls; uses resolver for resolution if provided."
+      },
+      {
+       "name": "callers",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of CodeUnit that likely call focus; uses resolver to filter by import relationship."
+      },
+      {
+       "name": "REACH_VISIT_CAP",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum number of nodes to visit in reachability traversal; set to 5000."
+      },
+      {
+       "name": "_fence_norm",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes a relative path for fence matching: forward slashes, lowercased, root-anchored with leading '/'."
+      },
+      {
+       "name": "fenced_fragment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the first fenced fragment matching rel, or None; uses substring match."
+      },
+      {
+       "name": "canonical_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the canonical index node for a rel path, or None if not in index; uses posixpath.normpath."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Without ``resolver``: pure name match over ``candidates`` (v1 behavior).",
+       "where": "callees docstring",
+       "verdict": "kept",
+       "why": "The code returns [u for u in candidates if u.name in used and u.name != focus.name] when resolver is None."
+      },
+      {
+       "text": "With ``resolver``: each referenced name is resolved local->imported first; only names the resolver can't place fall back to a candidate name match.",
+       "where": "callees docstring",
+       "verdict": "kept",
+       "why": "The code uses resolver.resolve(name, focus.module); if resolved is not None and not focus, adds resolved; else checks by_name."
+      },
+      {
+       "text": "Without ``resolver``: pure name match (v1 behavior).",
+       "where": "callers docstring",
+       "verdict": "kept",
+       "why": "When resolver is None, referencing is built by name match and returned directly."
+      },
+      {
+       "text": "With ``resolver``: a referencing unit counts only if it is in ``focus``'s file or in a file that IMPORTS ``focus``'s file (dropping false edges to same-named symbols in unrelated modules); if the resolver has no import info for that file, it falls back to the name match so no real caller is lost.",
+       "where": "callers docstring",
+       "verdict": "kept",
+       "why": "The code checks u.module == focus.module or resolver.imports(u.module, focus.module); if u.module not in resolver.imports_by_file, adds u."
+      },
+      {
+       "text": "The leading slash is deliberate and is NOT what ``sensitivity._norm`` does.",
+       "where": "_fence_norm docstring",
+       "verdict": "uncheckable",
+       "why": "The function sensitivity._norm is not defined in this chunk; cannot verify the contrast."
+      },
+      {
+       "text": "The generic fence ships fragments like ``/controller`` and ``/safety``, which a repo-relative rel (``controller/hv_interlock.py``) cannot contain -- so anchoring here catches top-level fenced trees that a bare substring test misses.",
+       "where": "_fence_norm docstring",
+       "verdict": "kept",
+       "why": "The function adds a leading '/' to norm, ensuring that a fragment like '/controller' will match a normalized path like '/controller/hv_interlock.py' via substring check."
+      },
+      {
+       "text": "It can only ever match MORE than the literal check, which is the direction this whole module is allowed to err in.",
+       "where": "_fence_norm docstring",
+       "verdict": "kept",
+       "why": "The function normalizes case and slashes and adds leading slash, which increases matches compared to a literal string comparison."
+      },
+      {
+       "text": "Fragment order comes from the policy tuple (a total order), so the reported reason is stable.",
+       "where": "fenced_fragment docstring",
+       "verdict": "uncheckable",
+       "why": "The function iterates over fenced_paths; the order of that iterable is not defined in this chunk."
+      },
+      {
+       "text": "Spelling is a BYPASS CLASS, not a cosmetic detail: the fence is keyed on graph membership, so ``Utils/Clamp.py`` (Windows hands back either case), ``./utils/clamp.py`` and ``utils/../utils/clamp.py`` all used to miss the node and read as 'no known dependents' -- i.e. as safe. Resolve the spelling before deciding, never after.",
+       "where": "canonical_node docstring",
+       "verdict": "kept",
+       "why": "The function uses posixpath.normpath and strips leading './' to canonicalize the path before lookups."
+      },
+      {
+       "text": "A leaf that 5000 modules transitively depend on is either a pathological graph or a blast radius so large that escalating is right anyway, so the cap is not a correctness compromise -- but the caller MUST treat ``truncated`` as 'could not prove safe', never as 'safe'.",
+       "where": "comment before REACH_VISIT_CAP",
+       "verdict": "uncheckable",
+       "why": "The constant is defined but its usage (truncation handling) is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "callees sorts used names to ensure deterministic order, avoiding PYTHONHASHSEED dependence.",
+       "where": "callees function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "callers uses resolver.imports_by_file to check if import info exists; if not, falls back to including the unit.",
+       "where": "callers function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_fence_norm adds a leading '/' to the normalized path; the docstring explains this differs from sensitivity._norm.",
+       "where": "_fence_norm function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "fenced_fragment uses a substring check (f in norm) which may produce false positives if a fragment is a substring of a longer path component.",
+       "where": "fenced_fragment function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "canonical_node uses posixpath.normpath but does not resolve symlinks or handle case-insensitive filesystems beyond lowercasing in _fence_norm (which is not used here).",
+       "where": "canonical_node function",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "REACH_VISIT_CAP is set to 5000; the comment cautions that truncation must be treated as 'could not prove safe'.",
+       "where": "constant definition",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "397785b7be3a2482f6c1e1e666f10576e6c70ac4bdd7af2ffb084d037daa5ecb",
+    "objective_chars": 6430,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/graph.py [2/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/graph.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 121
+ }
+}

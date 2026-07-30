@@ -1,0 +1,126 @@
+{
+ "task_id": "WHOLE-DOCUMENT__falsifier__a47d84ee736f",
+ "key": "WHOLE-DOCUMENT__falsifier__a47d84ee736f-8c1918a752",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Multiple cross-section conflicts: Gate 0 demands a 'vendor-neutral Agent Contract' but sections 7-8 assume Ikarus/Ariadne as orchestration; Kill criteria and delivery gates are unfalsifiable as written; Amendment protocol conflicts with authority model's 'sole semantic authority' claim; Section 5's 'strongest falsifiable prior' is not actually falsifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Section 10 (Gate 0) vs Section 7/8 | high | Gate 0 requires a 'vendor-neutral Agent Contract / Runtime Manifest' but sections 7-8 define Ikarus and Ariadne as the orchestration and evolution loop, implying a specific architecture that may not be vendor-neutral. This creates a conflict between the gate's requirement and the product concepts. | Check whether the Agent Contract defined in Gate 0 can accommodate the Ikarus/Ariadne architecture without modification; if not, the gate is incompatible with the product design.",
+     "Section 5 vs Section 13 | high | The 'strongest falsifiable prior' (Project Twin) is claimed to be falsifiable via kill criteria, but the kill criteria (section 13) include many conditions that are vague or unfalsifiable (e.g., 'benefits disappear on held-out repositories' without specifying effect size or statistical test). Thus the prior is not actually falsifiable as written. | Attempt to design a concrete experiment that would kill the prior under the given criteria; if impossible, the claim is unfalsifiable.",
+     "Section 0 vs Section 15 | medium | Section 0 claims this plan is 'sole semantic authority' and lists artifact classes with specific authorities, but Section 15 allows amendments with repository-owner approval. The amendment protocol can change the plan, potentially undermining the 'sole semantic authority' claim if amendments are frequent or change core invariants. | Check if the amendment protocol allows changes that contradict the authority model (e.g., giving another artifact class authority over the plan). If so, the authority model is not enforced.",
+     "Section 13 vs Section 10 (Gate 0) | medium | Kill criteria in section 13 include conditions that require full system operation (e.g., 'graph movement does not predict or cause behavioral improvement'), but Gate 0 has not yet delivered the canonical kernel, making these criteria untestable until after Gate 0 is complete. This creates a temporal conflict: the kill criteria cannot be evaluated before the system is built. | Attempt to evaluate any kill criterion before Gate 0 closes; if impossible, the criteria are not actionable until after significant investment.",
+     "Section 3 vs Section 12 | low | Section 3 says 'Only three top-level product/research concepts are public' and forbids creating another mythological product, but Section 12 lists 'new public mythological subsystems' as forbidden. This is redundant but not contradictory; however, the plan does not define what constitutes a 'public' concept vs an internal module, leading to ambiguity. | Check whether any internal module could be mistaken for a public concept under the definitions; if so, the rule is ambiguous.",
+     "Section 4 (Invariant 5) vs Section 8 (step 10) | low | Invariant 5 says 'Sealed promotion. No candidate auto-merges or self-promotes. Promotion requires an evidence packet, policy checks, and explicit owner approval.' Section 8 step 10 says 'Nominate successful candidates; never auto-promote them.' These are consistent but the term 'explicit owner approval' is not defined, creating ambiguity about what constitutes approval. | Attempt to promote a candidate with an automated approval mechanism; if it succeeds, the invariant is violated.",
+     "Section 2 vs Section 10 (Gate 5) | medium | Section 2 says the research ambition is to outperform AlphaEvolve, but Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available. \"Beats AlphaEvolve\" is permitted only for directly comparable public artifact scores under budget-equal measurements.' This creates a conflict between the stated ambition and the practical limitation. | Attempt to make a claim of outperforming AlphaEvolve under the Gate 5 constraints; if it is impossible due to lack of public benchmarks, the ambition is unachievable as stated.",
+     "Section 6 vs Section 12 | medium | Section 6 introduces a 'Latent Atlas' as a hypothesis machine that proposes typed cross-plane bindings, but Section 12 forbids 'a universal graph score, diffusion number, or \"intelligence\" scalar' and 'an LLM judgment as a hard correctness or promotion gate.' The Latent Atlas uses embeddings and a verifier; if the verifier is an LLM, it might violate the forbidden direction. | Check whether the verifier in Section 6 is deterministic or LLM-based; if LLM-based, it conflicts with Section 12's prohibition.",
+     "Section 7 vs Section 12 | low | Section 7 describes Ikarus as persistent in goals and evidence, with separate stores for product memory and research adaptive memory. Section 12 forbids 'shared mutable memory for product personalization and research adaptation.' The plan claims they are separate, but if they are not properly isolated, this could be violated. | Test whether product memory and research adaptive memory can influence each other; if they can, the forbidden direction is violated.",
+     "Section 8 vs Section 12 | medium | Section 8 describes the Ariadne evolution loop, which includes selecting 'one operator axis' and 'model' per campaign, but Section 12 forbids 'simultaneous unregistered co-evolution of code, prompts, evaluators, and policy.' The loop allows changing one axis at a time, which seems compliant, but the term 'unregistered' is not defined, leaving ambiguity. | Attempt to run a campaign that changes multiple axes without registering an interaction experiment; if it passes review, the rule is not enforced."
+    ],
+    "todos": [
+     "Define 'vendor-neutral Agent Contract' explicitly in Gate 0 to ensure compatibility with Ikarus/Ariadne architecture.",
+     "Make kill criteria in Section 13 falsifiable by specifying measurable thresholds and statistical tests.",
+     "Resolve conflict between Section 2's ambition and Gate 5's limitation on AlphaEvolve comparison.",
+     "Define 'explicit owner approval' in Invariant 5 to clarify the promotion mechanism.",
+     "Specify what constitutes a 'public' concept vs internal module to avoid ambiguity in Section 3.",
+     "Clarify that the verifier in Section 6 is deterministic or not an LLM judgment to comply with Section 12.",
+     "Ensure product memory and research adaptive memory are fully isolated as required by Section 12.",
+     "Define 'unregistered co-evolution' in Section 12 to make the rule enforceable.",
+     "Add a note that kill criteria can only be evaluated after Gate 0 is complete, or adjust the gates.",
+     "Consider whether the amendment protocol should be constrained to prevent changes that contradict the authority model."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "Section 0 vs Section 15",
+       "claim": "The plan is the sole semantic authority, but amendments can change it.",
+       "verdict": "weak",
+       "why": "The authority model in Section 0 claims sole semantic authority, but Section 15 allows amendments with owner approval. This creates a potential contradiction: if amendments can change the plan, then the plan is not truly the sole authority because it can be overridden. However, the plan can be amended to change itself, so it remains the authority as long as amendments follow the protocol. The conflict is more about stability and trust than logical contradiction."
+      },
+      {
+       "id": "Section 5 vs Section 13",
+       "claim": "The Project Twin is the strongest falsifiable prior and is falsifiable via kill criteria.",
+       "verdict": "weak",
+       "why": "Section 5 claims the Project Twin is a 'god-key candidate' and the central research prior, but the kill criteria in Section 13 are vague and not fully falsifiable. For example, 'benefits disappear on held-out repositories' does not specify what constitutes a benefit or how to measure disappearance. Without concrete thresholds or statistical tests, the prior cannot be definitively falsified. The claim of falsifiability is therefore weak."
+      },
+      {
+       "id": "Section 2 vs Section 10 (Gate 5)",
+       "claim": "The research ambition is to outperform AlphaEvolve, but Gate 5 limits comparisons.",
+       "verdict": "weak",
+       "why": "Section 2 states the ambition to outperform AlphaEvolve, but Gate 5 says AlphaEvolve is closed and comparisons are only possible on directly comparable public artifact scores. This creates a tension: the ambition may be unachievable if no public benchmarks exist. The plan should either adjust the ambition or provide a path to achieve it."
+      },
+      {
+       "id": "Section 10 (Gate 0) vs Section 7/8",
+       "claim": "Gate 0 requires a vendor-neutral Agent Contract, but sections 7-8 assume a specific orchestration.",
+       "verdict": "weak",
+       "why": "Gate 0 requires a 'vendor-neutral Agent Contract / Runtime Manifest' which suggests an abstraction layer for different agents. However, sections 7-8 describe Ikarus and Ariadne as specific orchestration and evolution components. If the Agent Contract is truly vendor-neutral, it should accommodate other orchestration patterns, but the plan does not show how Ikarus/Ariadne fit into that contract. This could lead to either a non-vendor-neutral contract or a mismatch with the product design."
+      },
+      {
+       "id": "Section 3 vs Section 12",
+       "claim": "Only three public concepts exist, and no new mythological subsystems should be added.",
+       "verdict": "sound",
+       "why": "These two sections are consistent. Section 3 defines the three public concepts and forbids creating additional ones. Section 12 reinforces this by forbidding 'new public mythological subsystems.' There is no conflict, but the definition of 'public' vs 'internal' is ambiguous, which could lead to disputes."
+      },
+      {
+       "id": "Section 4 (Invariant 5) vs Section 8 (step 10)",
+       "claim": "Promotion requires explicit owner approval and no auto-promotion.",
+       "verdict": "sound",
+       "why": "Both sections consistently forbid auto-promotion and require owner approval. However, the term 'explicit owner approval' is not defined, leaving a gap in enforceability."
+      },
+      {
+       "id": "Section 6 vs Section 12",
+       "claim": "Latent Atlas proposes cross-plane bindings, but forbidden directions include LLM judgment as hard gate.",
+       "verdict": "weak",
+       "why": "Section 6 introduces a Latent Atlas that uses embeddings and a verifier. If the verifier is an LLM, it might violate Section 12's prohibition on 'an LLM judgment as a hard correctness or promotion gate.' The plan does not specify the verifier's nature, so it's unclear if there is a conflict. This ambiguity is a risk."
+      },
+      {
+       "id": "Section 7 vs Section 12",
+       "claim": "Ikarus uses separate stores for product and research memory, but forbidden direction includes shared mutable memory.",
+       "verdict": "sound",
+       "why": "Section 7 explicitly separates product memory and research adaptive memory into different stores with explicit projection rules, which aligns with Section 12's prohibition on shared mutable memory. However, the implementation must ensure isolation."
+      },
+      {
+       "id": "Section 8 vs Section 12",
+       "claim": "Ariadne loop changes one axis at a time, avoiding unregistered co-evolution.",
+       "verdict": "weak",
+       "why": "Section 8's loop allows changing one major axis per campaign, which seems to comply with Section 12's forbidding of 'simultaneous unregistered co-evolution.' However, the term 'unregistered' is not defined, and the loop does not explicitly require registration of interaction experiments. This could allow co-evolution if multiple campaigns run in parallel."
+      },
+      {
+       "id": "Section 13 vs Section 10 (Gate 0)",
+       "claim": "Kill criteria can be evaluated to stop the track, but Gate 0 must be completed first.",
+       "verdict": "weak",
+       "why": "The kill criteria in Section 13 require a full system to evaluate (e.g., graph movement, cross-plane fusion). However, Gate 0 has not yet delivered the canonical kernel, so these criteria cannot be tested until after significant investment. The plan does not address this temporal dependency, making the kill criteria less actionable early on."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "945ec763fcfae456a3c424d65bf98d8c900c61c6acf1f4860fe925a65267aca0",
+    "objective_chars": 18653,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "WHOLE-DOCUMENT",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

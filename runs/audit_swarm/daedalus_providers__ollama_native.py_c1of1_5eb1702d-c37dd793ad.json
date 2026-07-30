@@ -1,0 +1,150 @@
+{
+ "task_id": "daedalus/providers/_ollama_native.py#c1of1#5eb1702d",
+ "key": "daedalus_providers__ollama_native.py_c1of1_5eb1702d-c37dd793ad",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"it cannot request a larger context window -- an over-budget /v1 request is head-truncated at ~2050 tokens with the 4096 default ctx\" | docstring | UNCHECKABLE | would need to inspect the /v1 shim code to verify this behavior",
+     "CLAIM | \"The native /api/chat endpoint honors options.num_ctx, format:\\\"json\\\" and keep_alive -- the three fields the shim silently drops\" | docstring | KEPT | code sends these fields conditionally",
+     "CLAIM | \"DeepSeek is a real external OpenAI API and keeps using _openai_compat; only the local Ollama provider uses this module\" | docstring | KEPT | no cross-module references contradict",
+     "CLAIM | \"Env OLLAMA_NUM_CTX overrides the default ... the value is clamped to >= 2048\" | num_ctx_value | KEPT | line 53: return max(2048, val)",
+     "CLAIM | \"An unset or non-integer env value falls back to the default -- this never raises\" | num_ctx_value | KEPT | except catches TypeError/ValueError and returns default",
+     "CLAIM | \"Usable input tokens = the full requested context minus generation reserve\" | effective_input_window | KEPT | line 67: return max(0, num_ctx_value() - max(0, output_reserve))",
+     "CLAIM | \"Callers must fail loud against this reserved input budget\" | effective_input_window | BROKEN | line 67: the function returns a number; it does not enforce any failure; the docstring prescribes caller behavior not implemented here",
+     "CLAIM | \"Native tool_calls arrive as {'function': {'name', 'arguments': <dict>}} with NO id\" | _adapt_message | KEPT | line 88: call.get('id') or f'call_{i}'",
+     "CLAIM | \"arguments to be a JSON STRING ... So we re-serialize arguments with json.dumps\" | _adapt_message | KEPT | line 86: args = json.dumps(args if args is not None else {})",
+     "CLAIM | \"synthesize call_N ids\" | _adapt_message | KEPT | line 88: f'call_{i}'",
+     "CLAIM | \"The tool_calls key is OMITTED entirely when the native response has none\" | _adapt_message | KEPT | line 91: out['tool_calls'] is set only if native_calls is truthy",
+     "CLAIM | \"Native /api/chat unmarshals arguments into an object and 400s on a string, so here we parse it back to a dict and drop the OpenAI-only id/type keys\" | _native_messages | KEPT | lines 109-111 parse string to dict; line 114 drops id and type",
+     "CLAIM | \"Messages without tool_calls pass through untouched (same object)\" | _native_messages | KEPT | line 105: out.append(m) (same object reference)",
+     "CLAIM | \"Raises ProviderHTTPError on any HTTP error or an unreachable host, mirroring _openai_compat._post\" | native_chat | KEPT | lines 145-150 raise ProviderHTTPError on HTTPError, URLError, TimeoutError",
+     "D1 | output_reserve | parameter of effective_input_window | defined with default and read in the function body, so not a D1",
+     "D2 | none | no except that swallows and continues",
+     "D3 | none | no check-after-side-effect pattern detected",
+     "D4 | none | no impossible branch conditions"
+    ],
+    "todos": [
+     "Change effective_input_window docstring to describe what it returns, not what callers should do; or add a separate validation that raises when input exceeds budget."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "abc5d5f9c007c93185f494745731c5ee0ee3cb50df85e7990001912cc51d5f2d",
+    "objective_chars": 12813,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 7 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Native Ollama ``/api/chat`` client (stdlib-only)\" | _ollama_native.py | KEPT | uses only stdlib modules (json, urllib, os, typing).",
+     "CLAIM | \"the value is clamped to ``>= 2048``\" | num_ctx_value | KEPT | returns max(2048, val).",
+     "CLAIM | \"An unset or non-integer env value falls back to the default -- this never raises\" | num_ctx_value | KEPT | catches TypeError, ValueError and returns default.",
+     "CLAIM | \"Usable input tokens = the full requested context minus generation reserve\" | effective_input_window | KEPT | returns max(0, num_ctx_value() - max(0, output_reserve)).",
+     "CLAIM | \"Callers must fail loud against this reserved input budget rather than let the server truncate\" | effective_input_window | UNCHECKABLE | no caller code in unit to verify fail-loud behavior.",
+     "CLAIM | \"the ``tool_calls`` key is OMITTED entirely when the native response has none\" | _adapt_message | KEPT | only adds key when native_calls is truthy.",
+     "CLAIM | \"Messages without ``tool_calls`` pass through untouched (same object)\" | _native_messages | KEPT | appends m directly when not calls.",
+     "CLAIM | \"``num_predict`` is optional and omitted by default\" | native_chat | KEPT | only adds num_predict when not None.",
+     "CLAIM | ``format:\"json\"`` is sent only when ``force_json``\" | native_chat | KEPT | only adds format when force_json is truthy.",
+     "CLAIM | \"Raises :class:`ProviderHTTPError` on any HTTP error or an unreachable host\" | native_chat | BROKEN | line 178: catches TimeoutError but not socket.timeout or other timeout exceptions; TimeoutError is not raised by urlopen, so timeout may not be caught.",
+     "D1 | force_json | default is False but docstring says \"bool keeps every existing caller byte-identical; a dict opts that call into schema-constrained decoding\" | WRONG CONCLUSION: caller passing True gets format='json' but docstring implies True is for boolean mode, which is misleading.",
+     "D2 | except urllib.error.HTTPError | swallows and raises ProviderHTTPError | KEPT | docstring says raises ProviderHTTPError, so this is correct.",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Change except TimeoutError to except (urllib.error.URLError, socket.timeout) or use a broader timeout catch to match docstring."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "abc5d5f9c007c93185f494745731c5ee0ee3cb50df85e7990001912cc51d5f2d",
+    "objective_chars": 12813,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 13 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the three fields the shim silently drops\" | module docstring | KEPT | module docstring lists num_ctx, format, keep_alive; native_chat sends all three conditionally.",
+     "CLAIM | \"Env ``OLLAMA_NUM_CTX`` overrides the default\" | num_ctx_value | KEPT | reads env var and returns overridden value if integer.",
+     "CLAIM | \"the value is clamped to ``>= 2048``\" | num_ctx_value | KEPT | returns max(2048, val).",
+     "CLAIM | \"An unset or non-integer env value falls back to the default -- this never raises\" | num_ctx_value | KEPT | returns DEFAULT_NUM_CTX if env is None or cannot be parsed.",
+     "CLAIM | \"Callers must fail loud against this reserved input budget\" | effective_input_window | KEPT | returns max(0, num_ctx_value() - max(0, output_reserve)), but the actual enforcement is left to callers; the function itself does not fail loud.",
+     "CLAIM | \"The ``tool_calls`` key is OMITTED entirely when the native response has none\" | _adapt_message | KEPT | the key 'tool_calls' is only added if native_calls is non-empty; otherwise key is absent.",
+     "CLAIM | \"re-serialize arguments with ``json.dumps``\" | _adapt_message | KEPT | line: if not isinstance(args, str): args = json.dumps(args if args is not None else {}).",
+     "CLAIM | \"synthesize ``call_N`` ids\" | _adapt_message | KEPT | line: 'id': call.get('id') or f'call_{i}'.",
+     "CLAIM | \"Messages without ``tool_calls`` pass through untouched (same object)\" | _native_messages | KEPT | line: if not calls: out.append(m) continues, appending the same object reference.",
+     "CLAIM | \"Native ``/api/chat`` unmarshals ``arguments`` into an object and 400s on a string, so here we parse it back to a dict\" | _native_messages | KEPT | lines: if isinstance(args, str): try: args = json.loads(args or '{}') except ...",
+     "CLAIM | \"drop the OpenAI-only ``id``/``type`` keys\" | _native_messages | KEPT | line: nm = {k: v for k, v in m.items() if k != 'tool_calls'} and then nm['tool_calls'] = native_calls, which only contains 'function' key.",
+     "CLAIM | \"``keep_alive`` and ``tools`` only when provided\" | native_chat | KEPT | lines: if keep_alive is not None: body['keep_alive'] = keep_alive; if tools: body['tools'] = tools.",
+     "CLAIM | \"Raises :class:`ProviderHTTPError` on any HTTP error or an unreachable host\" | native_chat | KEPT | except blocks for HTTPError, URLError, TimeoutError all raise ProviderHTTPError.",
+     "CLAIM | \"``num_predict`` is optional and omitted by default\" | native_chat | KEPT | line: if num_predict is not None: body['options']['num_predict'] = ...",
+     "CLAIM | \"``format:'json'`` is sent only when ``force_json``\" | native_chat | KEPT | line: if force_json: body['format'] = ...",
+     "CLAIM | \"``think`` is likewise opt-in\" | native_chat | KEPT | line: if think is not None: body['think'] = bool(think).",
+     "D1 | num_ctx | parameter of native_chat | read nowhere in this unit | WRONG CONCLUSION: a caller might think the parameter is used, but it is only used in the body assignment: 'num_ctx': num_ctx or num_ctx_value(). That reads it, so it is used."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "abc5d5f9c007c93185f494745731c5ee0ee3cb50df85e7990001912cc51d5f2d",
+    "objective_chars": 12813,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/providers/_ollama_native.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 10356
+ }
+}

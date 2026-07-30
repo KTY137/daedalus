@@ -1,0 +1,139 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c4of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c4of8__946db82-ee812dd2ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of publish.py: renders council deliberation as markdown with structured sections.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 361-362 | medium | Docstring claims no I/O, no network, no gate. This is uncheckable; external calls may exist elsewhere.",
+     "line 369-371 | low | Comment says absence of approve/reject field is a control; legacy aliases kept. Uncheckable without full verdict schema.",
+     "line 385-386 | low | Advisory banner is unconditional; comment says verdict without marker is contract violation. Uncheckable without caller contract."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "4 of 8",
+     "purpose": "Render one council deliberation as markdown with structured sections.",
+     "symbols": [
+      {
+       "name": "render_verdict_markdown",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Renders a council verdict into markdown string; no I/O or side effects."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Order is deliberate and load-bearing: outcome and the quorum honesty line lead, so a degraded council is the first thing a reader sees and cannot be skimmed past.",
+       "where": "Docstring lines 361-362",
+       "verdict": "kept",
+       "why": "The code renders outcome (line 366) and quorum honesty (lines 393-406) at the top, before other sections."
+      },
+      {
+       "text": "Then EVERY dissent verbatim with its author -- BEFORE the convergence, because the dissent is the only part that could not have come from asking one model twice.",
+       "where": "Docstring lines 362-363",
+       "verdict": "kept",
+       "why": "Dissent section (line 415) appears before convergence section (line 446)."
+      },
+      {
+       "text": "Then where the vendors converged, evidence digests, per-vendor cost/latency, the deliberation itself, and finally the provenance footer (bus path + chain head) that lets a reader verify all of it offline.",
+       "where": "Docstring lines 363-365",
+       "verdict": "uncheckable",
+       "why": "The chunk ends at evidence digests (line 459); per-vendor cost/latency, deliberation, and provenance footer are not present in this chunk."
+      },
+      {
+       "text": "Pure: no I/O, no network, no gate.",
+       "where": "Docstring line 365",
+       "verdict": "uncheckable",
+       "why": "The code in this chunk performs no I/O, but the claim refers to the entire function; cannot verify without seeing the rest of the function."
+      },
+      {
+       "text": "CONVERGENCE, not 'majority'. A majority is a DECISION; convergence is an OBSERVATION about what the vendors said. The council package carries no approve/reject/score/majority/consensus field on purpose -- absence of the field is the control, not a docstring -- and a rendering that reintroduces the word structurally reintroduces the temptation to read it as a verdict. The legacy aliases are kept only so an older payload still renders.",
+       "where": "Comment lines 369-377",
+       "verdict": "uncheckable",
+       "why": "The comment references the council package's field design, which is not in this chunk."
+      },
+      {
+       "text": "The advisory banner is UNCONDITIONAL. A verdict arriving without the marker is a contract violation, so we say so instead of quietly rendering it as if it carried authority.",
+       "where": "Comment lines 385-387",
+       "verdict": "kept",
+       "why": "The code unconditionally adds advisory banner (lines 388-389) and then checks advisory field (lines 390-393)."
+      },
+      {
+       "text": "Quorum honesty, at the top. A short council is a weaker signal and that must be impossible to miss -- it is a warning block, not a footnote.",
+       "where": "Comment lines 396-398",
+       "verdict": "kept",
+       "why": "Quorum section is placed after outcome and advisory, before dissents, and uses warning block for degraded quorum (lines 399-405)."
+      },
+      {
+       "text": "DISSENT LEADS. Not a stylistic choice: the dissent is the only content in this document that could not have been produced by asking one model twice. Convergence among vendors with overlapping training data is cheap; the objection is what four egress paths were actually paid for. Rendering it after -- and therefore below -- the agreement makes the informative half read as a footnote to the uninformative half.",
+       "where": "Comment lines 410-414",
+       "verdict": "kept",
+       "why": "Dissent section (line 415) is rendered before convergence section (line 446)."
+      },
+      {
+       "text": "A vendor that did not speak has no content; an empty fence is noise that makes a silent turn look like an empty answer.",
+       "where": "Comment lines 440-441",
+       "verdict": "kept",
+       "why": "Code only adds verbatim block if text is non-empty (lines 443-444)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Docstring claims no I/O, no network, no gate. This is uncheckable because the chunk does not include the full function body.",
+       "where": "line 365",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Comment about 'absence of the field is the control' references council package design not present in this chunk.",
+       "where": "lines 369-371",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Advisory banner is unconditional; comment says verdict without marker is contract violation, but marker check is not shown.",
+       "where": "lines 385-386",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "60ebe5eca0e19902bc51a4d9586877cedd74f864868bb4b2830650b30d256779",
+    "objective_chars": 6705,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [4/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 4,
+  "total": 8,
+  "first_line": 361
+ }
+}

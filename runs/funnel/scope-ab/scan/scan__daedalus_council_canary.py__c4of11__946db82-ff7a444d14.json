@@ -1,0 +1,193 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c4of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c4of11__946db82-ff7a444d14",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of canary.py: implements probes 2 (instruction) and 3 (anchoring), plus start of probe 4 (comprehension). Defines _FENCE_RE, build_instruction, expect_instruction, _normalise, check_instruction, _anchor_pair, build_anchoring, expect_anchoring, check_anchoring, _summaries.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "4 of 11",
+     "purpose": "Defines probes for instruction-following, anchoring, and partial comprehension.",
+     "symbols": [
+      {
+       "name": "_FENCE_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to strip code fences from replies."
+      },
+      {
+       "name": "build_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns prompt string asking for exact 'OK-{nonce}' reply."
+      },
+      {
+       "name": "expect_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns expected answer 'OK-{nonce}'."
+      },
+      {
+       "name": "_normalise",
+       "kind": "function",
+       "effects": [],
+       "note": "Strips transport artefacts (fences, quotes, whitespace) from reply."
+      },
+      {
+       "name": "check_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if reply matches expected exact answer; returns (success, reason)."
+      },
+      {
+       "name": "_anchor_pair",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (prompt_body, decoy, correct) for anchoring probe."
+      },
+      {
+       "name": "build_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns prompt body for anchoring probe."
+      },
+      {
+       "name": "expect_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns correct answer for anchoring probe."
+      },
+      {
+       "name": "check_anchoring",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks reply for anchoring on decoy; returns (success, reason)."
+      },
+      {
+       "name": "_summaries",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (lines, target_index) for comprehension probe; defined partially."
+      },
+      {
+       "name": "_NUMBER_WORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from number words to integers."
+      },
+      {
+       "name": "_NUMBER_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match digits or number words."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The tail came back but the head did not: the prompt was HEAD-truncated (over-budget Ollama) or the lane never saw the opening bytes.",
+       "where": "line 362 (comment in head_ok check)",
+       "verdict": "uncheckable",
+       "why": "The comment explains a condition that depends on logic outside this chunk (the head_ok variable and surrounding code). The chunk does not contain that logic."
+      },
+      {
+       "text": "Strip TRANSPORT artefacts only -- never content.",
+       "where": "docstring of _normalise",
+       "verdict": "kept",
+       "why": "The function removes code fences, surrounding quotes, and whitespace as described, and does not remove other content."
+      },
+      {
+       "text": "Anything the model actually chose to say survives this and is judged.",
+       "where": "docstring of _normalise",
+       "verdict": "kept",
+       "why": "The function only strips fences, quotes, and trailing dots; other content is preserved."
+      },
+      {
+       "text": "It knew the answer and said more anyway. That is the degradation this probe exists for -- a lane that is alive and no longer obedient.",
+       "where": "comment in check_instruction (line 410)",
+       "verdict": "kept",
+       "why": "The code checks if want in reply but not exact equality, and returns 'not_exact', matching the description."
+      },
+      {
+       "text": "Detect a lane that copied the decoy instead of answering.",
+       "where": "docstring of check_anchoring",
+       "verdict": "kept",
+       "why": "The function returns False with 'anchored_on_decoy' if decoy is present in reply words."
+      },
+      {
+       "text": "Reported as a QUALITY signal by :data:`PROBES`: a model anchoring on a prior turn is alive, reachable and useless for reasoning work. Calling that a liveness failure would page someone about a model choice; calling it nothing is how it went unnoticed for a day.",
+       "where": "docstring of check_anchoring",
+       "verdict": "uncheckable",
+       "why": "The claim references PROBES (not in this chunk) and describes how the signal is used elsewhere. The code itself only defines the check function; the usage is outside this chunk."
+      },
+      {
+       "text": "Decoy present WINS over a correct word also being present: a reply containing both is a reply that regurgitated the transcript.",
+       "where": "comment in check_anchoring (line 454)",
+       "verdict": "kept",
+       "why": "The code checks has_decoy first and returns 'anchored_on_decoy' if true, regardless of has_correct."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _summaries function is defined but its body is incomplete in this chunk (ends after three lines). It uses _SUMMARY_DECOYS which is not defined in this chunk.",
+       "where": "line 466-468",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _anchor_pair function uses _ANCHOR_SETS, _ORDINALS, and _rng which are not defined in this chunk.",
+       "where": "line 420-433",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The check_instruction function uses _normalise but the condition 'if want in (reply or \"\")' uses raw reply, not the normalised text. This may be intentional but is inconsistent with the variable naming.",
+       "where": "line 409",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _NUMBER_WORDS and _NUMBER_RE are defined but not used within this chunk; they are likely used in the continuation of _summaries or subsequent functions.",
+       "where": "lines 463-464",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7f228970771729311e592f439506a2e7631072ccb0f80955a64e223dc1456a48",
+    "objective_chars": 6179,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [4/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 4,
+  "total": 11,
+  "first_line": 361
+ }
+}

@@ -1,0 +1,126 @@
+{
+ "task_id": "review__b049__946db82",
+ "key": "review__b049__946db82-eef93c765a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 8 hypotheses: 5 refuted, 2 narrowed, 1 confirmed. Key findings: lock-discipline-gap refuted by lock in _chain_records; inconsistent-git-snapshots refuted by single-call design; unknown-id-error-propagation refuted by missing callers; fence-norm-mismatch refuted by same normalization; incomplete-derivation confirmed; unverifiable-shared-walk narrowed; modularity-threshold-unenforced refuted; root-path-inconsistency narrowed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "derive_task_from_commit returns incomplete dict, causing eval pipeline to produce no valid tasks",
+     "ROOT path inconsistency could scatter state files if module depth differs"
+    ],
+    "todos": [
+     "Fix derive_task_from_commit to populate f2p/p2p lists and return the dict",
+     "Verify ROOT resolution in memory/__init__.py and spine/ledger.py match actual directory depth",
+     "Confirm shared data pipeline in render.py exists by examining analyse_once",
+     "Check graph_delta.py for actual import from tools/gate_discrimination.py"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "lock-discipline-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _chain_records acquires _WRITE_LOCK internally (line 537: 'with _WRITE_LOCK:'), so the docstring warning is advisory for external callers, not a missing lock. The lock protects the read-then-write inside _chain_records, and public append functions call _chain_records, so the lock is enforced.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'with _WRITE_LOCK' daedalus/council/bus.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "inconsistent-git-snapshots",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows both git_churn and co_change_pairs are called from the same module (churn.py) during a single analysis run, not concurrently. The codex_cli.py provider is unrelated to churn analysis. The two git invocations are sequential within one function, so the window for inconsistency is negligible; any change between them would be a separate commit, not a race.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'co_change_pairs' daedalus/structcore/churn.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unknown-id-error-propagation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source from fanout.py and ollama.py shows no call to restrict_scores. The hypothesis asserts a call chain without evidence; the spans provided do not contain any invocation of restrict_scores. Without a demonstrated caller, the claim is speculative.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'restrict_scores' daedalus/lanes/fanout.py daedalus/providers/ollama.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "fence-norm-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for drift.py (lines 623-672) does not show DocIndex.build or any fence matching logic. The hypothesis claims drift.py normalizes differently but provides no evidence. graph.py's _fence_norm is used within graph.py for fence matching; drift.py may not use fences at all. Without code showing drift.py's normalization, the mismatch is unsubstantiated.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'fence' daedalus/mapping/drift.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "incomplete-derivation",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The cited source (lines 1403-1442) shows the function initializes overlay, f2p, p2p lists but never appends to f2p or p2p; it only appends to overlay. The loop ends without populating f2p/p2p, and the function returns None at the end (no return statement visible, so it returns None). This confirms the hypothesis.",
+       "survives_because": "The code indeed never populates f2p/p2p and returns None, making the function incomplete.",
+       "narrowed_claim": "derive_task_from_commit returns None because it never populates f2p/p2p lists and has no return statement for the dict.",
+       "settling_check": "python -c \"from daedalus.eval.correctness import derive_task_from_commit; print(derive_task_from_commit('.', 'HEAD'))\"",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "unverifiable-shared-walk",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The cited source for render.py (lines 31-80) describes analyse_once as running both engines once and handing reports to page, gate, and re-baseline. The claim may be implemented in a different part of render.py not shown, or in a caller. The docstring is a design statement, not evidence of missing code.",
+       "survives_because": "The cited source does not show the actual implementation of analyse_once or how data is passed. The claim of shared walk is unverifiable from the given chunks, but may be implemented elsewhere.",
+       "narrowed_claim": "The shared data pipeline described in render.py's docstring is not visible in the provided code chunks; it may exist in other parts of the module or in caller modules.",
+       "settling_check": "grep -n 'analyse_once' daedalus/mapping/render.py; grep -rn 'analyse_once' daedalus/",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "modularity-threshold-unenforced",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for mint.py (lines 13-62) shows no reference to modularity thresholds; it uses MINT_CONFIRM_THRESHOLD for label confidence, unrelated to spectral analysis. The hypothesis asserts a dependency without evidence. spectral.py's docstring thresholds are advisory for interpretation, not used in decision logic elsewhere.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'modularity' daedalus/eval/",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "root-path-inconsistency",
+       "verdict": "narrowed",
+       "strongest_counterargument": "Both modules use parents[2] and are located at daedalus/memory/__init__.py and daedalus/spine/ledger.py. The package depth from repo root is: repo/daedalus/memory/__init__.py (3 levels) and repo/daedalus/spine/ledger.py (3 levels). So parents[2] resolves to the same root. The hypothesis assumes different depths but the cited source shows consistent depth.",
+       "survives_because": "The directory structure is stable and both files are at the same depth relative to repo root, so parents[2] yields the same root. However, if the package structure changes (e.g., adding a subpackage), the assumption could break.",
+       "narrowed_claim": "ROOT = Path(__file__).resolve().parents[2] works correctly for the current structure but is fragile to future changes in directory depth.",
+       "settling_check": "python -c \"from pathlib import Path; print(Path('daedalus/memory/__init__.py').resolve().parents[2] == Path('daedalus/spine/ledger.py').resolve().parents[2])\"",
+       "severity_after_review": "low"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3fdd1ac823e8cf28cd9dec1859d531982d018ceb4acbda3d4d83b9c6cdb02b8a",
+    "objective_chars": 67069,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 49 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 49,
+  "inputs": 8
+ }
+}

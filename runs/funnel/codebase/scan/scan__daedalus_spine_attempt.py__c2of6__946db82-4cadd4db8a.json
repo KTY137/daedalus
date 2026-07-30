@@ -1,0 +1,243 @@
+{
+ "task_id": "scan__daedalus_spine_attempt.py__c2of6__946db82",
+ "key": "scan__daedalus_spine_attempt.py__c2of6__946db82-4cadd4db8a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of attempt.py: defines _resolve_cancel, _read_gitdir_pointer, _inherited_config_args, _git_env, _git, and TaskSpec. Claims about git hardening, config inheritance, and correctness are checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_git | high | The function uses subprocess.run with shell=False but constructs command list from user-provided args. If args contain shell metacharacters, they are passed as arguments to git, not interpreted by shell, so risk is low. However, the function trusts the caller to provide safe args. | Check that all callers sanitize args or that args are never user-controlled."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/attempt.py",
+     "chunk": "2 of 6",
+     "purpose": "Define git hardening utilities and TaskSpec dataclass, with extensive docstring claims about security, config inheritance, and correctness.",
+     "symbols": [
+      {
+       "name": "_resolve_cancel",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts cancel argument to a callable returning bool. Handles callable, threading.Event-like objects, and raises TypeError otherwise."
+      },
+      {
+       "name": "_GIT_EXEC_CONFIG",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of config keys that name executable programs, each pinned empty via -c."
+      },
+      {
+       "name": "_read_gitdir_pointer",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads .git file in a linked worktree to get admin directory path. Returns None if not a linked worktree."
+      },
+      {
+       "name": "_GIT_INHERITED_CONFIG",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of config keys that affect file content (not executables), safe to inherit."
+      },
+      {
+       "name": "_inherited_config_args",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Reads allowed config keys from real environment via _git with harden=False and caches result. Silent on failure."
+      },
+      {
+       "name": "_git_env",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns environment dict for git: disables system/user config, removes leaky variables."
+      },
+      {
+       "name": "_git",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Single choke point for git invocations. Hardens by adding --git-dir, --work-tree, inherited config, and exec config pins. Blocks writes to primary checkout. Returns raw bytes."
+      },
+      {
+       "name": "TaskSpec",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for task specification, including correctness fields."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every one of them is pinned empty on the command line, where no config file can override it.",
+       "where": "docstring of _GIT_EXEC_CONFIG",
+       "verdict": "kept",
+       "why": "In _git, each key is added via '-c' flag after inherited config, and '-c' values cannot be overridden by config files."
+      },
+      {
+       "text": "Returns None when the shape is not the expected one -- a plain directory (an ordinary clone rather than a linked worktree), a missing file, or an unreadable one.",
+       "where": "docstring of _read_gitdir_pointer",
+       "verdict": "kept",
+       "why": "Code checks is_dir() returns True -> returns Path; else reads text, catches OSError -> returns None; if not startswith('gitdir:') -> returns None."
+      },
+      {
+       "text": "None means 'do not pin', which leaves git's normal discovery in place; it is the pre-existing behaviour, so a caller is never worse off than before this existed.",
+       "where": "docstring of _read_gitdir_pointer",
+       "verdict": "uncheckable",
+       "why": "The claim about pre-existing behavior and caller safety cannot be verified from this chunk alone; it references external caller expectations."
+      },
+      {
+       "text": "None of them can name a program, so all of them are safe to carry over.",
+       "where": "docstring of _GIT_INHERITED_CONFIG",
+       "verdict": "kept",
+       "why": "The listed keys (core.autocrlf, etc.) are content-related and do not name executables; the code inherits them via -c."
+      },
+      {
+       "text": "Emptying GIT_CONFIG_GLOBAL removes core.autocrlf along with everything else, and on Windows that setting is what makes a CRLF working tree compare equal to an LF index.",
+       "where": "docstring of _GIT_INHERITED_CONFIG",
+       "verdict": "uncheckable",
+       "why": "The claim about Windows CRLF behavior and the effect of emptying GIT_CONFIG_GLOBAL cannot be verified from code alone; it refers to external git behavior."
+      },
+      {
+       "text": "Failure is silent BY DESIGN and is the safe direction: a key we cannot read is simply not passed, which leaves git's own default.",
+       "where": "docstring of _inherited_config_args",
+       "verdict": "kept",
+       "why": "The function catches all exceptions (except: continue) and does not propagate errors; missing keys are omitted from args."
+      },
+      {
+       "text": "GIT_EXTERNAL_DIFF and friends are dropped rather than emptied: an empty value for some of these is a *valid command*, not an absence.",
+       "where": "docstring of _git_env",
+       "verdict": "kept",
+       "why": "The function calls env.pop(...) for listed keys, removing them from environment entirely."
+      },
+      {
+       "text": "Output is not decoded: a patch digest must be taken over the bytes git emitted, so a lossy decode can never change what was hashed.",
+       "where": "docstring of _git",
+       "verdict": "kept",
+       "why": "The function returns proc.stdout and proc.stderr as bytes; no decoding is performed."
+      },
+      {
+       "text": "GIT IS A PROCESS LAUNCHER, AND THE CANDIDATE CHOOSES WHAT IT LAUNCHES. This was measured on this box (git 2.38.1.windows.1), not reasoned about.",
+       "where": "docstring of _git",
+       "verdict": "uncheckable",
+       "why": "The claim about measurement and git being a process launcher cannot be verified from code; it references external measurement."
+      },
+      {
+       "text": "Three properties close it, and all three are needed: 1. --git-dir/--work-tree ON THE COMMAND LINE. 2. _git_env, so the system and user config cannot supply a filter. 3. _GIT_EXEC_CONFIG pinned with -c, which no config file can override, for the keys that name a program directly.",
+       "where": "docstring of _git",
+       "verdict": "kept",
+       "why": "The code applies all three: --git-dir and --work-tree via pre list, _git_env() via env parameter, and _GIT_EXEC_CONFIG via -c flags."
+      },
+      {
+       "text": "This runs in the PARENT process, before the gate, and the plan of containing only the gate leaves it entirely open.",
+       "where": "docstring of _git",
+       "verdict": "uncheckable",
+       "why": "The claim about execution context (parent process, before gate) cannot be verified from this chunk; it references external architecture."
+      },
+      {
+       "text": "The attack also needs only worktree-local writes plus reads, and daedalus.spine.containment states CONFIDENTIALITY: NONE -- a write-contained candidate can still read and still plant these bytes.",
+       "where": "docstring of _git",
+       "verdict": "uncheckable",
+       "why": "The claim about containment module and attack surface cannot be verified from this chunk; it references external module."
+      },
+      {
+       "text": "A second copy of this comparison had already appeared in eval/correctness.py and had already diverged on the fail-closed case, which is the failure mode this codebase keeps re-living. There is now one comparison, asked in one direction for a write and in both for a working directory.",
+       "where": "comment after _resolve_cancel",
+       "verdict": "uncheckable",
+       "why": "The claim about _identity and _overlap_reason moving and about eval/correctness.py cannot be verified from this chunk; it references external code."
+      },
+      {
+       "text": "harden=False is only for reading git config, not 'git {verb}'",
+       "where": "docstring of _git",
+       "verdict": "kept",
+       "why": "The code rejects harden=False for any verb other than 'config' with a ValueError."
+      },
+      {
+       "text": "ONE subprocess call in this module, and a test asserts there is exactly one -- a second would be a way around the primary-checkout guard above.",
+       "where": "docstring of _git",
+       "verdict": "uncheckable",
+       "why": "The claim about a test asserting exactly one subprocess call cannot be verified from this chunk; it references external tests."
+      },
+      {
+       "text": "The single choke point (see the module docstring). cwd inside the primary checkout is restricted to READ_ONLY_REPO_VERBS; anything else raises PrimaryCheckoutWrite before the process is spawned.",
+       "where": "docstring of _git",
+       "verdict": "kept",
+       "why": "The code checks verb against READ_ONLY_REPO_VERBS and raises PrimaryCheckoutWrite if verb is not in that set and cwd overlaps repo_root."
+      },
+      {
+       "text": "Present but unverified/mismatched is refused at gate time by daedalus.eval.correctness.correctness_gate itself, never treated as passing; that fail-closed behaviour is the existing, tested one, not reimplemented here.",
+       "where": "docstring of TaskSpec.correctness_before_state",
+       "verdict": "uncheckable",
+       "why": "The claim about correctness_gate behavior cannot be verified from this chunk; it references external module."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _resolve_cancel function wraps callables and Event-like objects but does not handle other cancellation mechanisms like threading.Condition or asyncio events.",
+       "where": "_resolve_cancel",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_read_gitdir_pointer uses Path.read_text with errors='replace', which may mangle non-UTF-8 paths. However, gitdir paths are typically ASCII, so risk is low.",
+       "where": "_read_gitdir_pointer",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_git_env modifies a copy of os.environ (dict(os.environ)) and returns it, but the caller may not use it (if harden=False, env=None is passed). This is intentional.",
+       "where": "_git_env",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _git function uses subprocess.run with timeout parameter; if timeout is exceeded, subprocess.TimeoutExpired is raised, which is not caught. This could propagate up.",
+       "where": "_git",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about _identity and _overlap_reason being moved is an inline note; the actual functions are not present in this chunk, so their behavior is uncheckable.",
+       "where": "comment after _resolve_cancel",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3804df5ff1a233511e965c0ed8a66ad96bee72e9d686664826bc420909eabb71",
+    "objective_chars": 14322,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/attempt.py [2/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/attempt.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 281
+ }
+}

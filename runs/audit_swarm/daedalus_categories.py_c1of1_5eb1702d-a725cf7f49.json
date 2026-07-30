@@ -1,0 +1,157 @@
+{
+ "task_id": "daedalus/categories.py#c1of1#5eb1702d",
+ "key": "daedalus_categories.py_c1of1_5eb1702d-a725cf7f49",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Storage mirrors agents_registry.py\" | module docstring | UNCHECKABLE | need to see agents_registry.py to verify claim about storage structure",
+     "CLAIM | \"Never mutates the shipped global file\" | docstring | KEPT | _write_path_for returns CATEGORIES_PATH only when repo_root is None, and update writes to that path only when repo_root is None, but update raises ValueError when repo_root is None because patch includes lane or tier not in LANES or MODEL_TIERS? Actually it writes to the path returned by _write_path_for, which when repo_root is None is CATEGORIES_PATH, which is the shipped global file. So the claim is broken.",
+     "CLAIM | \"Fail-closed validation\" | validate | KEPT | validate returns a list of errors; empty list means ok; no exceptions are swallowed; callers can check errors",
+     "CLAIM | \"Fill defaults so a partial spec becomes a complete, stably-ordered category\" | normalize | KEPT | normalize returns a dict with all keys in a fixed order, filling defaults for missing keys",
+     "CLAIM | \"Global agents/categories.json merged with a per-repo .agentenv/categories.json override (matched by id; repo fields win)\" | load | KEPT | load reads CATEGORIES_PATH then merges per-repo file, repo fields overwrite global via {**by_id.get(c['id'], {}), **c}",
+     "CLAIM | \"Merge patch over the current category and write the per-repo override (or the global file when repo_root is None)\" | update | BROKEN | line 105: when repo_root is None, _write_path_for returns CATEGORIES_PATH (the global file), contradicting 'Never mutates the shipped global file'",
+     "CLAIM | \"This is a UI/default-fill hint only \u2014 it never bypasses the authoritative lane gate\" | preset_for | KEPT | preset_for returns a suggestion; no routing logic",
+     "D1 | repo_root parameter in preset_for | parameter is read (passed to get) | none",
+     "D1 | repo_root parameter in get_categories_joined | parameter is read (passed to load_agents and load) | none",
+     "D1 | repo_root parameter in update | parameter is read (passed to get and _write_path_for) | none",
+     "D1 | repo_root parameter in load | parameter is read | none",
+     "D2 | except: return [] in _read_categories_file | the function returns empty list on error, which is fail-open but the docstring doesn't claim fail-closed for this internal function | none",
+     "D3 | none | none",
+     "D4 | none | none"
+    ],
+    "todos": [
+     "In update, when repo_root is None, write to a different location (e.g., always require repo_root) or update the docstring to acknowledge that the global file is mutated when no repo_root is given"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d88b6301431cf051f873a84345a0ff24cb6e4c00aafe95fcacb0cfffa68d409",
+    "objective_chars": 8948,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 10 kept, 2 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"This module NEVER makes a routing decision itself\" | _write_dir_for, _write_path_for, _read_categories_file, validate, normalize, load, get, update, preset_for, get_categories_joined | KEPT | All functions only handle categories metadata; routing is delegated.",
+     "CLAIM | ``preset_for`` only returns a *suggested* {lane, tier} for a role to pre-fill a form or a badge \u2014 nothing here can override or bypass the fail-closed lane gate in ``core.process_bridge_payload`` | preset_for | KEPT | Returns lane and tier from category or defaults; does not perform routing.",
+     "CLAIM | Storage mirrors ``agents_registry.py``: - ``agents/categories.json`` -- global, shipped seed (a JSON list). - ``<repo_root>/.agentenv/categories.json`` -- per-repo override, written by ``update()``. Never mutates the shipped global file | CATEGORIES_PATH, _write_path_for, update | KEPT | CATEGORIES_PATH is global; update writes to per-repo path; _write_path_for returns per-repo when repo_root given.",
+     "CLAIM | ``_write_dir_for`` returns the directory where an edited/new category is written (never the shipped global file) | _write_dir_for | KEPT | Returns .agentenv subdir when repo_root given, else parent of CATEGORIES_PATH (which is not the global file itself).",
+     "CLAIM | ``_read_categories_file`` returns a list of dicts with an 'id' key | _read_categories_file | KEPT | Filters list items: is dict and has non-empty 'id'.",
+     "CLAIM | ``validate`` is fail-closed validation. Returns a list of human-readable errors ([] = ok) | validate | KEPT | Returns list of error messages; empty list on success.",
+     "CLAIM | ``normalize`` fills defaults so a partial spec becomes a complete, stably-ordered category | normalize | KEPT | Returns dict with all fields; defaults for missing fields.",
+     "CLAIM | ``load`` merges global and per-repo overrides (matched by id; repo fields win) | load | KEPT | Merges by id with repo fields overwriting global.",
+     "CLAIM | ``update`` merges ``patch`` over the current category and writes the per-repo override (or the global file when ``repo_root`` is None) | update | BROKEN | When repo_root is None, _write_path_for returns CATEGORIES_PATH (global file), contradicting the docstring that says it writes the per-repo override (or global when repo_root is None). The docstring explicitly says \"or the global file when ``repo_root`` is None\", so the code matches that part. But the claim says \"per-repo override (or the global file...)\" \u2014 that is accurate. Actually the claim is kept: the code does write to global file when repo_root is None. Re-evaluating: the docstring says \"Merge ``patch`` over the current category and write the per-repo override (or the global file when ``repo_root`` is None).\" The code does exactly that. So KEPT. But note: _write_path_for when repo_root is None returns CATEGORIES_PATH (global file). That is what docstring says. So KEPT.",
+     "CLAIM | ``update`` raises ``KeyError`` if the category doesn't exist anywhere | update | KEPT | Lines: if current is None: raise KeyError(...).",
+     "CLAIM | ``update`` raises ``ValueError`` if the merged result fails validation | update | KEPT | Lines: if errors: raise ValueError(...).",
+     "CLAIM | ``preset_for`` returns suggested {lane, tier} from category field; never bypasses authoritative lane gate | preset_for | KEPT | Returns lane and tier from category or defaults; no routing.",
+     "CLAIM | ``get_categories_joined`` returns categories joined with the agent roles tagged into them | get_categories_joined | KEPT | Iterates categories and filters agents by category id.",
+     "CLAIM | Module docstring: \"This module NEVER makes a routing decision itself\" | (module) | KEPT | No routing logic in this unit.",
+     "D1 | repo_root | parameter in update, load, get, preset_for, get_categories_joined | WRONG CONCLUSION: A caller may pass repo_root expecting it to be used, but in load, get, preset_for, get_categories_joined it is used; in update it is used. Actually all functions use repo_root. No unused parameter found.",
+     "D1 | active_agents | parameter in get_categories_joined | WRONG CONCLUSION: Passed to load_agents, which is imported from .router. But load_agents is defined in another unit; we cannot see if it uses active_agents. However, the parameter is read in this unit (passed to load_agents). So it is used. No D1.",
+     "D2 | except (OSError, json.JSONDecodeError): return [] | _read_categories_file | WRONG CONCLUSION: The docstring says \"returns a list of dicts with an 'id' key\" but does not claim fail-closed. However, the module docstring says \"NEVER makes a routing decision\" but does not say refuse on error. So no contradiction. But check: the except swallows errors and returns empty list. That is not a claim violation. However, the docstring says \"Fail-closed validation\" only for validate function, not for _read_categories_file. So D2 not triggered.",
+     "D2 | except (OSError, json.JSONDecodeError): return [] | _read_categories_file | WRONG CONCLUSION: The module docstring says \"NEVER makes a routing decision\" and does not claim fail-closed for file reading. So no D2.",
+     "D3 | after writing, no check that write succeeded | update | WRONG CONCLUSION: The code writes and returns path; no claim about checking write success. So no D3.",
+     "D4 | if repo_root: ... else: return CATEGORIES_PATH.parent | _write_dir_for | WRONG CONCLUSION: The condition is always possible; no contradiction.",
+     "D4 | if repo_root: ... else: return CATEGORIES_PATH | _write_path_for | WRONG CONCLUSION: The condition is always possible."
+    ],
+    "todos": [
+     "CLAIM | \"update writes the per-repo override (or the global file when repo_root is None)\" \u2014 The docstring says it writes the per-repo override (or the global file when repo_root is None). The code does that. So no BROKEN. Actually re-check: the claim is that it writes per-repo override (or global when repo_root is None). The code writes to _write_path_for(repo_root). When repo_root is None, _write_path_for returns CATEGORIES_PATH (global). So that matches. So no BROKEN. But there is a potential issue: the docstring says \"Merge ``patch`` over the current category and write the per-repo override (or the global file when ``repo_root`` is None).\" The code does exactly that. So KEPT. No todo.",
+     "CLAIM | \"update writes the per-repo override (or the global file when repo_root is None)\" \u2014 The docstring says it writes the per-repo override (or the global file when repo_root is None). The code does that. So KEPT. No todo.",
+     "Actually, I need to re-evaluate: the docstring says \"write the per-repo override (or the global file when ``repo_root`` is None)\". The code writes to _write_path_for(repo_root). When repo_root is None, _write_path_for returns CATEGORIES_PATH (global). So that matches. So the claim is kept. No broken claims found. But the instructions say to output todos only for BROKEN. So todos should be empty? But the example included a todo. Let's re-check all claims for broken.",
+     "Claim: \"``update`` writes the per-repo override (or the global file when ``repo_root`` is None)\" \u2014 The docstring says: \"Merge ``patch`` over the current category and write the per-repo override (or the global file when ``repo_root`` is None).\" The code: path = _write_path_for(repo_root). When repo_root is None, _write_path_for returns CATEGORIES_PATH (global). So the behavior matches the docstring. So KEPT.",
+     "Claim: \"``_write_dir_for`` returns the directory where an edited/new category is written (never the shipped global file)\" \u2014 The docstring says: \"Where an edited/new category is written (never the shipped global file).\" The code: if repo_root: return Path(repo_root) / \".agentenv\"; else: return CATEGORIES_PATH.parent. When repo_root is None, it returns the parent of the global file, which is not the global file itself. But it is the directory containing the global file. Is that \"never the shipped global file\"? It returns a directory, not a file. So it's fine. KEPT.",
+     "No broken claims found. So todos should be empty. But the output format requires todos as a list. I'll output an empty list."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d88b6301431cf051f873a84345a0ff24cb6e4c00aafe95fcacb0cfffa68d409",
+    "objective_chars": 8948,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 9 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"This module NEVER makes a routing decision itself\" | line 1 (docstring) | KEPT | no routing logic present",
+     "CLAIM | \"preset_for only returns a *suggested* {lane, tier} for a role to pre-fill a form or a badge \u2014 nothing here can override or bypass the fail-closed lane gate in core.process_bridge_payload\" | preset_for | KEPT | returns dict with no side effects",
+     "CLAIM | \"Storage mirrors agents_registry.py: - agents/categories.json -- global, shipped seed (a JSON list). - <repo_root>/.agentenv/categories.json -- per-repo override, written by update(). Never mutates the shipped global file.\" | _write_path_for, update | KEPT | _write_path_for returns per-repo path when repo_root given, else global; update writes to that path, never touches shipped global except when repo_root is None",
+     "CLAIM | \"Fail-closed validation. Returns a list of human-readable errors ([] = ok).\" | validate | KEPT | returns list of strings, empty on success",
+     "CLAIM | \"Fill defaults so a partial spec becomes a complete, stably-ordered category.\" | normalize | KEPT | returns a dict with all keys in fixed order, defaults for missing keys",
+     "CLAIM | \"Global agents/categories.json merged with a per-repo .agentenv/categories.json override (matched by id; repo fields win)\" | load | KEPT | merges by id with dict spread, repo fields overwrite",
+     "CLAIM | \"Merge patch over the current category and write the per-repo override (or the global file when repo_root is None). Raises KeyError if the category doesn't exist anywhere, ValueError if the merged result fails validation.\" | update | BROKEN | docstring says writes to per-repo override or global when repo_root is None; but update calls _write_path_for(repo_root) which returns CATEGORIES_PATH (global) when repo_root is None, which contradicts 'Never mutates the shipped global file' from module docstring",
+     "CLAIM | \"Suggested {lane, tier} for an agent role, from its category field. This is a UI/default-fill hint only \u2014 it never bypasses the authoritative lane gate in provider_router/core.process_bridge_payload.\" | preset_for | KEPT | returns dict with no side effects",
+     "CLAIM | \"Categories joined with the agent roles tagged into them (for core.get_categories).\" | get_categories_joined | KEPT | joins categories with agents by category field",
+     "CLAIM | \"preset_for only returns a *suggested* {lane, tier} for a role to pre-fill a form or a badge \u2014 nothing here can override or bypass the fail-closed lane gate in core.process_bridge_payload.\" | preset_for | KEPT | no bypass mechanism",
+     "D1 | update | parameter patch is read; repo_root used in _write_path_for | WRONG CONCLUSION: no unused parameters",
+     "D2 | _read_categories_file | except (OSError, json.JSONDecodeError): return [] | KEPT | silent swallow is appropriate for file read",
+     "D3 | none | KEPT | no such pattern",
+     "D4 | none | KEPT | no impossible branches"
+    ],
+    "todos": [
+     "update docstring of update to clarify that when repo_root is None, it writes to the global shipped file (contradicting module docstring), or change behavior to never write global file"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d88b6301431cf051f873a84345a0ff24cb6e4c00aafe95fcacb0cfffa68d409",
+    "objective_chars": 8948,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/categories.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 6505
+ }
+}

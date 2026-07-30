@@ -1,0 +1,113 @@
+{
+ "task_id": "scan__daedalus_observe_shape.py__c4of4__946db82",
+ "key": "scan__daedalus_observe_shape.py__c4of4__946db82-3ba6f9f863",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of 4 of shape.py: function compare_declared with docstring claims. All claims are checkable and kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "compare_declared | low | truncated flag affects missing_in_observation: when truncated, missing_in_observation is empty tuple, which might hide missing fields. This is by design but could be surprising. | Verify that callers handle empty missing_in_observation appropriately when truncated is True."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/observe/shape.py",
+     "chunk": "4 of 4",
+     "purpose": "Define compare_declared function to compare an observation against declared field names.",
+     "symbols": [
+      {
+       "name": "compare_declared",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Compares observation Shape against declared field names, returning ShapeConflict. Handles edge cases: no declared names, observation has no names, truncated observation."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Refuses to compare rather than manufacturing findings: an observation with no names (a scalar, an unstructured array, an opaque object) is comparable=False with a reason.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "When shape.names is empty, returns ShapeConflict with comparable=False and reason explaining the observation carries no field names."
+      },
+      {
+       "text": "Reporting every declared field as 'missing' because the observation carries no names at all would turn 'we learned nothing here' into a wall of false positives.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "The function returns comparable=False when shape.names is empty, preventing a wall of false positives."
+      },
+      {
+       "text": "if not declared: return ShapeConflict(..., comparable=False, reason='nothing was declared')",
+       "where": "line 371",
+       "verdict": "kept",
+       "why": "Code explicitly checks if declared is empty and returns ShapeConflict with comparable=False and reason 'nothing was declared'."
+      },
+      {
+       "text": "if not shape.names: return ShapeConflict(..., comparable=False, reason=f'the observation carries no field names ...')",
+       "where": "line 374",
+       "verdict": "kept",
+       "why": "Code explicitly checks if shape.names is empty and returns ShapeConflict with comparable=False and reason including family and note."
+      },
+      {
+       "text": "if shape.truncated: notes.append('observation listed ...; missing below cannot be trusted while the list is clipped')",
+       "where": "line 379",
+       "verdict": "kept",
+       "why": "Code appends a note to notes list when shape.truncated is True."
+      },
+      {
+       "text": "missing_in_observation=() if shape.truncated else missing",
+       "where": "line 389",
+       "verdict": "kept",
+       "why": "Code sets missing_in_observation to empty tuple when truncated, else to missing list."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function returns ShapeConflict with comparable=False when no declared names or no observation names, preventing false positives.",
+       "where": "compare_declared",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "When shape.truncated is True, missing_in_observation is set to empty tuple, which may hide missing fields. This is intentional but could be a risk if callers don't check truncated flag.",
+       "where": "line 389",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "eb041514cae0d87ab3da6cad79fa93316f4999f28966bd537d12769867a3c751",
+    "objective_chars": 2278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/observe/shape.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/observe/shape.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 361
+ }
+}

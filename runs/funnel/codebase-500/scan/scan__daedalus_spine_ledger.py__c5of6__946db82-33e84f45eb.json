@@ -1,0 +1,212 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c5of6__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c5of6__946db82-33e84f45eb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 5 of ledger.py: defines _resolve, _append_event, _terminal_event, get, open_intents, recent_intents, intents_matching_payload.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_resolve | high | canonical_json(detail) called before transaction; if it raises, detail is not serialized but lock is not acquired. That is intentional per comment. | Confirm that canonical_json does not have side effects.",
+     "_resolve | medium | Raises UnknownIntent or IntentAlreadyResolved; callers must handle these. | Check if exceptions are documented.",
+     "open_intents | medium | Returns list of Intent with state=STATE_INTENDED; assumes no terminal event exists. | Verify that _row_to_intent works with state parameter.",
+     "recent_intents | low | Non-positive limit returns empty list; comment says 'truthful answer'. | Confirm behavior matches expectation.",
+     "intents_matching_payload | medium | Substring match on TEXT; relies on canonical_json format. | If payload format changes, matching may break.",
+     "intents_matching_payload | low | LIKE metacharacters are escaped; not shown in code. | Verify escaping logic elsewhere."
+    ],
+    "todos": [
+     "Review intents_matching_payload for escaping of LIKE metacharacters.",
+     "Ensure canonical_json is imported and functional.",
+     "Verify STATE_COMPLETED, STATE_FAILED, STATE_INTENDED constants are defined."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "5 of 6",
+     "purpose": "Defines resolution logic, terminal event detection, and read methods for intents.",
+     "symbols": [
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Resolves an intent by appending an event; raises if unknown or already resolved."
+      },
+      {
+       "name": "_append_event",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Inserts a row into intent_events; returns lastrowid."
+      },
+      {
+       "name": "_terminal_event",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Fetches the latest terminal event (COMPLETED or FAILED) for an intent."
+      },
+      {
+       "name": "get",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns an Intent by id, or None."
+      },
+      {
+       "name": "open_intents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns intents with no terminal event, oldest first; used as crash-recovery worklist."
+      },
+      {
+       "name": "recent_intents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns all intents, newest first, with optional kind filter and limit."
+      },
+      {
+       "name": "intents_matching_payload",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns intents whose payload contains a key-value pair; substring match."
+      }
+     ],
+     "claims": [
+      {
+       "text": "canonical_json before opening the transaction: an unserialisable result must fail without leaving a half-open write lock.",
+       "where": "lines 483-484",
+       "verdict": "kept",
+       "why": "The code calls canonical_json(detail) before entering the with self._txn() block, so if it raises, no transaction is opened."
+      },
+      {
+       "text": "resolution is once-only, so a second state is refused rather than silently absorbed",
+       "where": "line 494",
+       "verdict": "kept",
+       "why": "The code checks if a prior terminal event exists and raises IntentAlreadyResolved if so."
+      },
+      {
+       "text": "open_intents is the crash-recovery worklist: anything here either never had its effect performed, or had it performed and lost the acknowledgement",
+       "where": "lines 518-520",
+       "verdict": "uncheckable",
+       "why": "The docstring describes semantics that depend on external usage; the code only returns intents without terminal events."
+      },
+      {
+       "text": "recent_intents is the read that closes the loop's return path",
+       "where": "line 531",
+       "verdict": "uncheckable",
+       "why": "This describes intended usage outside the code chunk."
+      },
+      {
+       "text": "Without it the picker re-selects the same candidate forever (measured: five recorded gate-failed attempts left the top five of the queue unchanged).",
+       "where": "lines 534-536",
+       "verdict": "uncheckable",
+       "why": "Refers to external behavior not verifiable from this code."
+      },
+      {
+       "text": "Newest first because every caller wants recency; limit is applied in SQL so a long-lived ledger does not have to be hydrated in full",
+       "where": "lines 537-540",
+       "verdict": "kept",
+       "why": "SQL orders by id DESC and uses LIMIT clause when limit is provided."
+      },
+      {
+       "text": "A non-positive limit returns nothing, which is the truthful answer to 'give me zero rows' and keeps a caller's arithmetic (limit=n-1) from silently meaning 'all'.",
+       "where": "lines 540-543",
+       "verdict": "kept",
+       "why": "Code returns [] if limit is not None and int(limit) <= 0."
+      },
+      {
+       "text": "A row limit is a WINDOW, not a bound: with it, the oldest attempts silently fall out of memory and their tasks become selectable again",
+       "where": "lines 559-562",
+       "verdict": "uncheckable",
+       "why": "Describes behavior of a hypothetical limit-based approach, not present in this code."
+      },
+      {
+       "text": "Matching is a substring test against the payload TEXT, which is exact here rather than approximate because every payload is written through canonical_json: sorted keys, no whitespace, ensure_ascii. So a recorded key/value pair always appears verbatim as 'key':'value'.",
+       "where": "lines 563-567",
+       "verdict": "uncheckable",
+       "why": "The substring matching logic is not shown in this chunk; only the filtering of empty values is present."
+      },
+      {
+       "text": "LIKE metacharacters in either are escaped, so a value containing % matches only a literal %.",
+       "where": "lines 567-568",
+       "verdict": "uncheckable",
+       "why": "Escaping logic is not shown in this chunk; only value filtering is present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_resolve calls canonical_json(detail) before the transaction, ensuring serialization failure does not leave a half-open lock.",
+       "where": "lines 483-485",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_resolve raises UnknownIntent if row is None, and IntentAlreadyResolved if a terminal event exists.",
+       "where": "lines 488-494",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "open_intents uses NOT EXISTS with STATE_COMPLETED and STATE_FAILED to find intents without terminal events.",
+       "where": "lines 521-525",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "recent_intents returns [] for non-positive limit, as documented.",
+       "where": "lines 544-545",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "intents_matching_payload filters out empty strings from values list but does not show the actual matching logic.",
+       "where": "line 569",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5139965d9dd3813b94947d7d7d93d20b9ed5f2348a753985ffa44ea706d361b6",
+    "objective_chars": 6479,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 481
+ }
+}

@@ -1,0 +1,142 @@
+{
+ "task_id": "plan__b023__946db82",
+ "key": "plan__b023__946db82-e6cd203a25",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings narrowed to actionable items: 1 critical (killswitch clear()), 2 high (session lifecycle, stale index), 1 low (env restoration). Steps reference only files in index.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "KillSwitch.clear() not resetting self._tripped is a critical bug that could cause the switch to appear permanently tripped after clearing, preventing loop restart.",
+     "Session objects in subprocess_adapter.py may be missing attributes (timeout_s, started_at, cwd) leading to AttributeError in events() method.",
+     "If any consumer uses search() wrapper instead of search_report(), stale/drifted indexes may go undetected, causing incorrect embedding-based decisions.",
+     "Env var restoration sets empty string instead of deleting key; if any consumer distinguishes empty from missing, traces could be misattributed."
+    ],
+    "todos": [
+     "Fix KillSwitch.clear() to reset self._tripped to False after deleting marker files.",
+     "Audit session creation in subprocess_adapter.py and picker.py for attribute initialization guarantees.",
+     "Audit all callers of embeddings.search() to ensure they check freshness or switch to search_report().",
+     "Verify if any consumer of DAEDALUS_TRACE_ID treats empty string differently from missing; adjust restoration if needed.",
+     "Add unit tests for KillSwitch.clear() resetting state, session attribute defaults, search() wrapper usage, and env var restoration."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix KillSwitch.clear() to reset self._tripped to False",
+       "gate": "0",
+       "why_now": "Critical bug: clear() deletes marker files but leaves self._tripped=True, causing subsequent reads to indicate switch still tripped. This blocks loop restart and violates the fail-closed contract.",
+       "steps": [
+        {
+         "do": "Add self._tripped = False at the end of clear() method",
+         "file": "daedalus/spine/killswitch.py",
+         "verified_by": "pytest tests/test_killswitch.py -k 'test_clear_resets_tripped' (add test that calls clear() then checks self._tripped is False)"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "clear() method exists in killswitch.py; if not, this item is invalid."
+      },
+      {
+       "rank": 2,
+       "title": "Audit session creation for attribute initialization in subprocess_adapter.py and picker.py",
+       "gate": "1",
+       "why_now": "High severity: if Session objects lack timeout_s, started_at, cwd, events() in subprocess_adapter.py will raise AttributeError. Need to confirm all creation paths set these attributes.",
+       "steps": [
+        {
+         "do": "Run grep -rn 'class Session' daedalus/ to find session definition and check for dataclass defaults",
+         "file": "UNKNOWN",
+         "verified_by": "Observe output lists all Session class definitions and their __init__ or dataclass defaults"
+        },
+        {
+         "do": "Trace creation paths in subprocess_adapter.py and picker.py to verify attributes are set before events() access",
+         "file": "daedalus/adapters/subprocess_adapter.py",
+         "verified_by": "Manual code review; add assertion in events() to verify attributes exist (or add unit test that creates a Session and calls events())"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Session class is defined somewhere in daedalus/; if not found, this item is moot."
+      },
+      {
+       "rank": 3,
+       "title": "Audit callers of search() wrapper to ensure freshness checks",
+       "gate": "1",
+       "why_now": "High severity: if any consumer uses search() instead of search_report(), it cannot detect stale/drifted indexes, risking use of outdated embeddings.",
+       "steps": [
+        {
+         "do": "Grep for 'search(' in all .py files under daedalus/ to identify callers",
+         "file": "daedalus/structcore/embeddings.py",
+         "verified_by": "List of files containing 'search(' (excluding test files) \u2014 then manually inspect each caller"
+        },
+        {
+         "do": "For each caller, determine if it uses search() or search_report(); if search(), verify it also checks freshness via other means or switch to search_report()",
+         "file": "daedalus/structcore/embeddings.py",
+         "verified_by": "Manual code review; add unit test confirming search_report is used where freshness matters"
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "search() function exists in embeddings.py and is a compatibility shim; if not, this item is invalid."
+      },
+      {
+       "rank": 4,
+       "title": "Verify env var restoration handles empty string correctly",
+       "gate": "1",
+       "why_now": "Low severity: docstring says 'UNSET' but code sets empty string. If any consumer treats empty string as set (e.g., os.environ.get returns '' which is falsy in boolean), traces could be misattributed. Low risk but easy to fix.",
+       "steps": [
+        {
+         "do": "Grep for 'DAEDALUS_TRACE_ID' usage in daedalus/ to identify all consumers",
+         "file": "daedalus/spine/envelope.py",
+         "verified_by": "List of files referencing DAEDALUS_TRACE_ID"
+        },
+        {
+         "do": "For each consumer, check if they distinguish between empty and missing (e.g., 'os.environ.get(TRACE_ID_ENV)' vs 'TRACE_ID_ENV in os.environ')",
+         "file": "daedalus/spine/envelope.py",
+         "verified_by": "Manual code review; if any consumer distinguishes, update restoration to delete key instead of setting empty string"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "prior_env could be empty string; if never empty in practice, this item is low priority."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/killswitch.py",
+      "daedalus/adapters/subprocess_adapter.py",
+      "daedalus/structcore/embeddings.py",
+      "daedalus/spine/envelope.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ea7f60ff3235c80e67d6abd791b224417616e50429cc222927c1d95156740c16",
+    "objective_chars": 145629,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 23 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 23,
+  "inputs": 4
+ }
+}

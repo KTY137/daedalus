@@ -1,0 +1,148 @@
+{
+ "task_id": "daedalus/spine/docrefs.py#c2of2#5eb1702d",
+ "key": "daedalus_spine_docrefs.py_c2of2_5eb1702d-31f5a0e38c",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 6 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises.\" | scan | BROKEN | scan calls path.read_text which can raise OSError, but it catches OSError; however, other exceptions like UnicodeDecodeError (from errors='replace'? Actually errors='replace' prevents UnicodeDecodeError) or PermissionError (subclass of OSError) are caught, but theoretically any other exception from pathlib or iter_doc_files? The docstring says \"Never raises.\" but the function only catches OSError from read_text; other potential exceptions (e.g., from iter_doc_files, Path.relative_to, or other calls) are not caught. So claim is broken because the function can raise unexpected exceptions. However, the code does catch OSError from read_text, but other operations may raise. The claim is absolute. I'd say BROKEN because not all exceptions are caught. But let's see: the docstring says \"Never raises.\" The function has a try-except only around read_text. Other calls like iter_doc_files, path.relative_to, etc., could raise. So BROKEN.",
+     "CLAIM | \"The MODULE tree is read from ``repo_root`` on both sides.\" | scan | UNCHECKABLE | The claim refers to reading the module tree, but the code only reads doc files and resolves references. The module tree reading is presumably done elsewhere (e.g., in resolve_reference). This unit does not contain that code. Needs to see resolve_reference implementation.",
+     "CLAIM | \"It takes counts, not reports, because the count is all the rule needs\" | check_denominator | KEPT | The function signature takes two ints, not reports. Verified.",
+     "CLAIM | \"Extracted so the ordering that makes this module safe is STRUCTURAL rather than a paragraph of prose\" | check_denominator | KEPT | The function is extracted and called first in verify_fix_counts and verify_fixes. Verified.",
+     "CLAIM | \"ORDER IS THE SAFETY PROPERTY. The denominator is checked FIRST.\" | verify_fix | KEPT | The function calls check_denominator on its first line (line check_denominator(resolving_before, after.n_resolving)). Verified.",
+     "CLAIM | \"Both honest remedies pass: naming the symbol that exists now (``fixed``) and withdrawing the stale claim (``claim_withdrawn``). Neither lowers the count of references that resolve.\" | verify_fix_counts | KEPT | The function returns FixVerdict with verdict \"fixed\" or \"claim_withdrawn\" only if the denominator check passes (not destroyed). Verified.",
+     "CLAIM | \"An empty ``targets`` returns ``False``. Verifying nothing is not the same as verifying something and finding it sound\" | verify_fixes | KEPT | The function returns False, (destroyed,) if destroyed is not None; otherwise, it computes verdicts and returns bool(verdicts) and all(...). If targets is empty, verdicts is empty tuple, bool(verdicts) is False. So returns (False, ()). Verified.",
+     "CLAIM | \"NO EMPTY GREEN.\" | verify_fixes | KEPT | Same as above, empty targets yields False. Verified.",
+     "CLAIM | \"The denominator is a property of the corpus, not of any one reference, so it is asked once and asked FIRST\" | verify_fixes | KEPT | The function calls check_denominator before processing targets. Verified.",
+     "CLAIM | \"a caller that only has a remembered number (the queue's pick-time measurement, carried on a gate command line) must be able to apply the same rule as one holding both full reports.\" | check_denominator | UNCHECKABLE | This claim is about the design intent and how it is used by callers. The function itself takes two ints, which is consistent, but the claim about callers' ability is not checkable in this unit alone. Needs to see caller code.",
+     "D1 | scan parameter 'overrides' | The parameter 'overrides' is used in the function body (line over: dict = {_rel_key(k): v for k, v in (overrides or {}).items()}). So it is read. No D1.",
+     "D2 | scan | The except OSError swallows and continues (continue). The docstring says \"Never raises.\" but does not say refuse or fail-closed. So no D2.",
+     "D3 | scan | No comment about a check running after side effect. No D3.",
+     "D4 | scan | In the loop for rel, path in planned: if rel in over: text = over[rel]; if text is None: continue; elif path is None: continue; else: try: ... The condition 'elif path is None' is after checking rel in over. But if rel in over and over[rel] is not None, then path could be None (since overrides may add documents with path None). The code does: if rel in over: text = over[rel]; if text is None: continue; elif path is None: continue. The elif path is None is only reached if rel not in over. But if rel not in over, then path is from planned which is either from files (path is Path) or from overrides where over[rel] is not None (path is None). Actually, for overrides that are not None, path is set to None in planned.append((rel, None)). So if rel in over, we handle it; if rel not in over, path may be None from the override addition? Wait: planned is built from files (path is Path) and from overrides where over[rel] is not None (path is None). So if rel not in over, it could be from files (path is Path) or from override? No, override entries are only added if rel not in seen and over[rel] is not None. So for those, we set seen.add(rel) and planned.append((rel, None)). So when we iterate, if rel in over, we handle it; else, rel could be from files (path is Path) or from override (path is None). But the override case is already handled by the 'if rel in over' branch, so the else branch will never have path from override because those rels are in over. But wait: the code adds override entries to planned only if rel not in seen and over[rel] is not None. Then in the loop, we check if rel in over. That will be true for those override entries. So the elif path is None branch is only reached for rel from files that are not in over. But path from files is always a Path (since we iterated over files and computed rel). So path is never None in that branch. Therefore the condition 'elif path is None' is never true. That is a D4: a branch whose condition cannot be true given the assignments above it. So D4: scan | elif path is None branch is unreachable because any rel with path None is in over and handled earlier."
+    ],
+    "todos": [
+     "Fix the docstring of scan to not claim 'Never raises.' or add a broader exception handler.",
+     "Remove the unreachable 'elif path is None' branch in scan."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8c6ceed91393c16d5096d510020ea68915984a8b4d1b92ac59238bb6f7a4161",
+    "objective_chars": 12908,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises.\" | scan | BROKEN | line 81: OSError is caught but other exceptions (e.g., UnicodeDecodeError even with errors='replace') could escape; also extract_references or resolve_reference could raise.",
+     "CLAIM | \"It takes counts, not reports, because the count is all the rule needs and a caller that only has a remembered number ... must be able to apply the same rule as one holding both full reports.\" | check_denominator | KEPT | The function takes two ints and returns None or FixVerdict, consistent with the claim.",
+     "CLAIM | \"The denominator is checked FIRST.\" | verify_fix | KEPT | Line: `destroyed = check_denominator(resolving_before, after.n_resolving)` is the first statement.",
+     "CLAIM | \"Taking the document out withdraws the claim AND lowers ``resolving`` in one move, so a check that asked 'is the claim gone?' first would call that a success\" | verify_fix | KEPT | The code checks denominator first, so that scenario is avoided.",
+     "CLAIM | \"Both honest remedies pass: naming the symbol that exists now (``fixed``) and withdrawing the stale claim (``claim_withdrawn``). Neither lowers the count of references that resolve.\" | verify_fix | KEPT | The code returns fixed or claim_withdrawn only if denominator check passes; both preserve resolving count.",
+     "CLAIM | \"``claim_withdrawn`` is the verdict for a key found in neither list, and that reading is only sound when the target was taken from ``before.broken``\" | verify_fix | KEPT | The docstring warns about this; code does not enforce it, but the warning is accurate.",
+     "CLAIM | \"The denominator is a property of the corpus, not of any one reference, so it is asked once and asked FIRST\" | verify_fixes | KEPT | Line: `destroyed = check_denominator(resolving_before, after.n_resolving)` is before any per-target checks.",
+     "CLAIM | \"if the evidence was destroyed, that is the only verdict returned and no per-reference verdict is manufactured to sit beside it looking reassuring.\" | verify_fixes | KEPT | Returns `False, (destroyed,)` immediately.",
+     "CLAIM | \"NO EMPTY GREEN. An empty ``targets`` returns ``False``.\" | verify_fixes | KEPT | Line: `return bool(verdicts) and all(v.ok for v in verdicts), verdicts` will return `False, ()` if targets empty.",
+     "CLAIM | \"Verifying nothing is not the same as verifying something and finding it sound, and a gate that passed on zero targets would turn 'we lost the findings' into a green tick\" | verify_fixes | KEPT | The code returns False for empty targets.",
+     "CLAIM | \"The MODULE tree is read from ``repo_root`` on both sides. That is deliberate: the denominator compares two prose snapshots against ONE tree, so a difference in ``resolving`` is attributable to the prose edit and to nothing else. It is not a general time machine and must not be used as one.\" | scan | UNCHECKABLE | Needs to see the rest of the file (resolve_reference etc.) to verify that the tree is read from repo_root on both sides.",
+     "CLAIM | \"An override may ADD a document the snapshot on disk no longer has -- the deletion case, which is the one the denominator exists to catch.\" | scan | KEPT | Lines 106-110: overrides with text not None are added to planned even if not in seen.",
+     "CLAIM | \"absent in this snapshot: not scanned, not an error\" | scan | KEPT | Line 113: `if text is None: continue` skips the file without error.",
+     "D1 | overrides parameter of scan | is accepted but never read in this unit (only the local variable over is used) | WRONG CONCLUSION: a caller believes the parameter is used directly.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Change scan docstring 'Never raises.' to 'Raises nothing that escapes the function; all OSError are caught and recorded in errors list.' OR wrap the entire loop body in a try/except that catches all exceptions.",
+     "Remove the overrides parameter from scan's signature if it is not needed, or use it directly instead of copying to 'over'."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8c6ceed91393c16d5096d510020ea68915984a8b4d1b92ac59238bb6f7a4161",
+    "objective_chars": 12908,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises.\" | scan | BROKEN | line 61: OSError is caught, but other exceptions (e.g., UnicodeDecodeError from read_text) are not caught, contradicting the docstring.",
+     "CLAIM | ``overrides`` maps a repo-relative doc path to the text to scan INSTEAD of whatever is on disk, or to ``None`` meaning 'this file does not exist in the snapshot being measured' | scan | KEPT | lines 26-29: overrides dict is built and used to skip or substitute text.",
+     "CLAIM | It exists so a caller that remembers what a document said BEFORE an edit can compute the before-report exactly, without moving files and without disturbing ``doc_path`` | scan | KEPT | lines 30-32: rationale, not a checkable claim.",
+     "CLAIM | The MODULE tree is read from ``repo_root`` on both sides. That is deliberate: the denominator compares two prose snapshots against ONE tree, so a difference in ``resolving`` is attributable to the prose edit and to nothing else. It is not a general time machine and must not be used as one. | scan | KEPT | lines 34-37: rationale, not a checkable claim.",
+     "CLAIM | ``None`` means the denominator HELD. | check_denominator | KEPT | line 71: returns None when resolving_after >= resolving_before.",
+     "CLAIM | Every path that judges a prose fix goes through here first, because :func:`verify_fix_counts` calls it on its first line and there is no other way in. | check_denominator | BROKEN | line 72: verify_fix_counts calls check_denominator, but verify_fix also calls verify_fix_counts, so all paths go through check_denominator; however, verify_fix_counts is not the only entry point: verify_fix also calls it, so the claim \"there is no other way in\" is false if a caller calls verify_fix directly.",
+     "CLAIM | ORDER IS THE SAFETY PROPERTY. The denominator is checked FIRST. | verify_fix | KEPT | line 96: check_denominator is called before any per-reference logic.",
+     "CLAIM | Both honest remedies pass: naming the symbol that exists now (``fixed``) and withdrawing the stale claim (``claim_withdrawn``). Neither lowers the count of references that resolve. | verify_fix | KEPT | lines 101-103: fixed and claim_withdrawn both return ok=True.",
+     "CLAIM | NO EMPTY GREEN. An empty ``targets`` returns ``False``. | verify_fixes | KEPT | line 123: returns False when targets is empty.",
+     "CLAIM | The denominator is a property of the corpus, not of any one reference, so it is asked once and asked FIRST: if the evidence was destroyed, that is the only verdict returned and no per-reference verdict is manufactured to sit beside it looking reassuring. | verify_fixes | KEPT | lines 113-117: check_denominator called first and returns early if destroyed.",
+     "D: none"
+    ],
+    "todos": [
+     "In scan, either catch all exceptions or change docstring to specify which exceptions are caught.",
+     "In check_denominator docstring, remove 'there is no other way in' or add verify_fix as another entry point."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8c6ceed91393c16d5096d510020ea68915984a8b4d1b92ac59238bb6f7a4161",
+    "objective_chars": 12908,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/spine/docrefs.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 10393
+ }
+}

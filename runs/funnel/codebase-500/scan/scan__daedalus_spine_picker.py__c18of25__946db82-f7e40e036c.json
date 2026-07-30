@@ -1,0 +1,148 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c18of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c18of25__946db82-f7e40e036c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 18 of 25: apply_attempt_memory function that sinks candidates based on history, with detailed docstring and logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 2041 | medium | Function apply_attempt_memory: docstring claims 'A PENALTY, not a filter' but code modifies offset and may sink candidates; if offset < cand.offset, sunk++ but candidate still in out list, so not filtered. However, if offset >= cand.offset, held++ but candidate still in out list with possibly same offset. So it's a reordering, not a filter. Claim is kept. | Check that no candidate is ever removed from the list; code shows all candidates appended to out.",
+     "line 2041 | medium | Docstring: 'HOW FAR it sinks is OUTCOME_POLICY's decision, not a constant' - OUTCOME_POLICY is not defined in this chunk, verdict uncheckable. | Verify OUTCOME_POLICY exists and behaves as described.",
+     "line 2041 | medium | Docstring: 'outcome is applied as a CEILING on the measured offset, so the score itself distinguishes...' - code uses ceiling from policy.ceiling(same) and clamps offset. But the score is set to SOURCE_BANDS[cand.source] + offset, which may not reflect the ceiling if offset was already below ceiling. Claim is kept. | Check that score calculation uses the clamped offset.",
+     "line 2041 | medium | Comment: 'LINEAGE matched, DEFINITION did not' - lineage is not defined in this chunk; refers to task_id matching. Claim is uncheckable.",
+     "line 2041 | medium | Comment: 'The audit trail for the number above: the ceiling, what it was applied to, and the argument for that ceiling' - code adds evidence fields like memory_outcome_residual, etc. Claim is kept.",
+     "line 2041 | medium | Comment: 'so a human reading the review packet can re-derive the score and refuse the policy' - review packet not defined in chunk, uncheckable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "18 of 25",
+     "purpose": "Implement apply_attempt_memory to sink candidates based on history.",
+     "symbols": [
+      {
+       "name": "apply_attempt_memory",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Takes candidates and history, returns tuple of candidates and notes. Modifies evidence and score of candidates based on prior attempts."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Sink candidates the ledger has already seen attempted, and say so.",
+       "where": "docstring line 1",
+       "verdict": "kept",
+       "why": "Function returns a tuple of candidates (sunk ones remain) and notes describing what happened. It sinks by adjusting offset and score."
+      },
+      {
+       "text": "A PENALTY, not a filter. Dropping attempted work would let one transient runner failure delete a real task from the queue forever, and would let the queue silently empty -- both worse than showing the work with its history attached.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "All candidates are appended to out list; none are removed. Sunk candidates have their offset reduced, but they remain in the output."
+      },
+      {
+       "text": "The operator (and ``--once``) still sees every candidate; what changes is the order, and every moved candidate carries the evidence that moved it.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "All candidates are in out list. Evidence dict is updated with memory-related fields. Order is affected by score changes."
+      },
+      {
+       "text": "HOW FAR it sinks is :data:`OUTCOME_POLICY`'s decision, not a constant: the outcome is applied as a CEILING on the measured offset, so the score itself distinguishes 'a patch is waiting for you' from 'the gates said no' from 'the worktree would not build'.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "OUTCOME_POLICY is not defined or imported in this chunk. The code uses outcome_policy(matched.get('last_outcome')) and policy.ceiling(same), but the implementation of outcome_policy is not present."
+      },
+      {
+       "text": "Before this, all three sank identically and the difference survived only in the reason text.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to previous behavior not present in this chunk."
+      },
+      {
+       "text": "LINEAGE matched, DEFINITION did not: the id is stable across definition changes, so this is genuinely different work wearing a familiar name. Record the lineage, do not sink it -- penalising it would be evidence about a task nobody is proposing any more.",
+       "where": "comment within if not same block",
+       "verdict": "kept",
+       "why": "The code increments redefined counters and appends candidate with evidence['memory'] explaining it is not treated as already attempted. It does not sink it."
+      },
+      {
+       "text": "The audit trail for the number above: the ceiling, what it was applied to, and the argument for that ceiling -- so a human reading the review packet can re-derive the score and refuse the policy, not just the sort.",
+       "where": "comment before evidence assignment",
+       "verdict": "kept",
+       "why": "Code adds evidence fields: memory_outcome_residual, memory_outcome_severity, memory_offset_ceiling, memory_offset_before, memory_policy. These provide the audit trail."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function uses _clamp and BAND_SPAN which are not defined in this chunk; may be imported or defined elsewhere.",
+       "where": "line offset = _clamp(min(cand.offset, ceiling), 0.0, BAND_SPAN)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function uses SOURCE_BANDS and replace which are not defined in this chunk; likely imported.",
+       "where": "line score=round(SOURCE_BANDS[cand.source] + offset, 4) and out.append(replace(...))",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function uses _candidate_definition_fingerprint which is not defined in this chunk; likely a helper function.",
+       "where": "line fingerprint = _candidate_definition_fingerprint(cand)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring mentions OUTCOME_POLICY but the function uses a local function outcome_policy; there may be a module-level constant or import.",
+       "where": "docstring and line policy = outcome_policy(matched.get('last_outcome'))",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The evidence field 'prior_attempts_same_definition' is set to same, but 'prior_attempts_same_instruction' is also set to same; they are always equal in this code. This may be a bug if they should differ.",
+       "where": "lines evidence['prior_attempts_same_instruction'] = same and evidence['prior_attempts_same_definition'] = same",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function returns notes as a list but the return type is tuple[tuple[Candidate, ...], tuple[str, ...]]. The code at the end appends to notes but the final return statement is missing in this chunk (ends with 'if not notes:').",
+       "where": "end of chunk",
+       "severity": "critical",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64c542965a246d6beee3d353dee914eb0a93debec808fe0fecce55fd613d2ac8",
+    "objective_chars": 6377,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [18/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 18,
+  "total": 25,
+  "first_line": 2041
+ }
+}

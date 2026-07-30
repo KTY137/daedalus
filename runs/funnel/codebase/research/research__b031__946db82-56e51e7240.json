@@ -1,0 +1,149 @@
+{
+ "task_id": "research__b031__946db82",
+ "key": "research__b031__946db82-56e51e7240",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: (1) Inconsistent 'nothing was applied' claim between picker.py docstring and code; (2) Missing injection seam in picker.py contradicts docstring; (3) Eval module claims isolation from structcore but no verification; (4) Shape module's _human_bytes bug affects egress/observation; (5) Checks module's broad except contradicts fail-closed safety; (6) Parser's _params_of assumes ast.arguments without check.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Picker.py review_packet claims three statements that nothing was applied, but code shows only two; human reviewer may rely on that guarantee.",
+     "Picker.py _default_attempt docstring describes injection seam (attempt_fn param) that does not exist; testing dry-run behavior may be impossible without refactoring.",
+     "Eval module claims isolation from structcore but no code in scanned chunk enforces it; changes to structcore could break eval silently.",
+     "Shape module _human_bytes bug always returns bytes, never KiB+; egress observers relying on this for size estimation will be misled.",
+     "Checks module run_checks catches Exception broadly (BLE001); a broken check may mask errors or produce confusing refusals.",
+     "Parser _params_of accesses posonlyargs without checking existence; malformed AST nodes could cause AttributeError."
+    ],
+    "todos": [
+     "Verify review_packet in full file for three 'nothing applied' assertions.",
+     "Check _default_attempt function signature in full file; fix docstring or add parameter.",
+     "Add cross-module test ensuring eval does not import structcore internals.",
+     "Fix _human_bytes bug in shape.py.",
+     "Consider narrowing except clause in run_checks to specific exceptions.",
+     "Add guard in _params_of for missing posonlyargs."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "nothing-applied-count",
+       "claim": "The review_packet function in picker.py claims to state 'nothing was applied' in three places, but the scanned chunk shows only two statements. If the full file does not contain a third, the docstring is misleading and a reviewer may miss that the guarantee is weaker than advertised.",
+       "spans": [
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "review_packet docstring says 'states in three places that nothing was applied'. The code in the chunk shows one 'NOTHING HAS BEEN APPLIED' and one 'nothing has been run'. A third location may exist in the full file or the docstring is inaccurate.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Full review_packet function contains three distinct statements that nothing was applied.",
+       "evidence": [
+        "daedalus/spine/picker.py:review_packet docstring",
+        "daedalus/spine/picker.py:review_packet body (lines not fully shown)"
+       ]
+      },
+      {
+       "id": "missing-injection-seam",
+       "claim": "The _default_attempt function in picker.py claims to accept an attempt_fn parameter as an injection seam, but the scanned signature does not include such a parameter. This means the dry-run testing strategy described in the docstring is not implemented, potentially allowing attempts to run during dry-run if the seam is missing.",
+       "spans": [
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "Docstring describes a seam that does not exist; the function always calls run_attempt. Dry-run safety relies on this seam to substitute a no-op, but without it, dry-run may trigger real attempts.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Full _default_attempt function signature includes attempt_fn parameter.",
+       "evidence": [
+        "daedalus/spine/picker.py:_default_attempt docstring",
+        "daedalus/spine/picker.py:_default_attempt signature"
+       ]
+      },
+      {
+       "id": "eval-structcore-isolation",
+       "claim": "The eval module claims it is isolated from structcore, importing only its stable public API and never mutating it. However, no code in the scanned chunk enforces this; a future change could inadvertently couple them, breaking the isolation promise.",
+       "spans": [
+        "daedalus/eval/__init__.py",
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "Eval docstring asserts isolation but the chunk only exports symbols; structcore parse.py is a separate module with no import from eval. The guarantee is not tested or enforced at the code level.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Presence of a test or import guard that prevents eval from importing structcore internals.",
+       "evidence": [
+        "daedalus/eval/__init__.py docstring line 18",
+        "daedalus/structcore/parse.py module"
+       ]
+      },
+      {
+       "id": "human-bytes-bug",
+       "claim": "The _human_bytes function in shape.py has a bug that always returns bytes, never KiB or higher, due to incorrect loop logic. This affects any egress or observation that uses this function for size estimation, potentially underestimating memory usage.",
+       "spans": [
+        "daedalus/observe/shape.py",
+        "daedalus/observe/shape.py"
+       ],
+       "mechanism": "Loop condition `if n < 1024 or unit == \"TiB\"` is true on first iteration (unit='B'), so it returns n/1 (unchanged). Division n /= 1024 happens after the check but return uses n/1 which is original n. Thus only bytes output.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Test showing _human_bytes returns KiB or higher for large inputs.",
+       "evidence": [
+        "daedalus/observe/shape.py:_human_bytes lines 107-113"
+       ]
+      },
+      {
+       "id": "broad-except-blind",
+       "claim": "The run_checks function in checks.py catches Exception broadly (noqa BLE001), which means a broken check that raises an unexpected exception will produce a refusal with confusing error info rather than failing fast. This contradicts the fail-closed philosophy described in the docstring, as a truly catastrophic error might be masked.",
+       "spans": [
+        "daedalus/lanes/checks.py"
+       ],
+       "mechanism": "Except clause catches all Exceptions, converts to refusal string. If a check raises a SystemExit or KeyboardInterrupt (not Exception), those propagate; but other unexpected errors are swallowed.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Evidence that run_checks only catches specific exceptions relevant to checks.",
+       "evidence": [
+        "daedalus/lanes/checks.py:run_checks except clause"
+       ]
+      },
+      {
+       "id": "posonlyargs-missing",
+       "claim": "The _params_of function in parse.py accesses args.posonlyargs without checking if it exists; if node.args is not ast.arguments (e.g., malformed AST), it will raise AttributeError. This could crash the parser on unusual or malformed function definitions.",
+       "spans": [
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "Code expects args to be ast.arguments; if not, accessing .posonlyargs fails.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Evidence that _params_of checks for ast.arguments before accessing posonlyargs.",
+       "evidence": [
+        "daedalus/structcore/parse.py:_params_of"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2fd09b1f5a50ead360f7bf3ea31d1838f0dcd78d418f463a814dce6c7bfe4269",
+    "objective_chars": 32751,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 31 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 31,
+  "inputs": 5
+ }
+}

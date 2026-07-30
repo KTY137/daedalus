@@ -1,0 +1,191 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c6of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c6of11__946db82-e1c0e824fc",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of 11: implements inventory_island/stale candidates, eval miss/regression/errored candidates, hotspot candidates (partial). Checks prose vs structured counts; loads baseline and runs eval gate via helper functions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "inventory_island offset calculation: 30.0 * min(len(tests), 3) / 3.0 + 10.0 * min(len(entrypoints), 2) / 2.0 | low | Offset uses hardcoded caps and denominators; if tests or entrypoints exceed caps, offset saturates. This may underweight features with many tests/entrypoints. | Check whether offset should scale unbounded or use different formula.",
+     "hotspot_candidates top parameter: top = 5 | low | Hardcoded default; if no argument given, only top 5 hotspots are queued. This may miss important hotspots if the index has many. | Confirm that top=5 is intentional and document if configurable.",
+     "eval_baseline_candidates returns note about full recall tasks: note is always returned as a single-element tuple | low | The note is always included even if there are zero full-recall tasks (full=0). Message still says '0 task(s) recorded at recall 1.0'. This is harmless but could be confusing. | Decide if note should be conditional on full > 0.",
+     "_run_eval_gate catches Exception broadly: except Exception as e | medium | Broad except may hide programming errors (e.g., NameError) that should propagate. | Consider catching only expected exceptions (e.g., ImportError, OSError) and letting others raise."
+    ],
+    "todos": [
+     "Verify that hotspot_candidates correctly handles empty scores list (already handled).",
+     "Consider making top parameter configurable or document default.",
+     "Review offset formulas for inventory_island and inventory_stale candidates.",
+     "Consider narrowing exception handling in _run_eval_gate."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "6 of 11",
+     "purpose": "Implements candidate generation from inventory structured features (islands/stale), eval baseline misses, eval gate regressions/errors, and hotspot modules (partial).",
+     "symbols": [
+      {
+       "name": "inventory_island_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidates from structured feature entries in inventory. Checks prose vs structured counts and appends notes on discrepancies."
+      },
+      {
+       "name": "_eval_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns instruction string for eval miss candidates."
+      },
+      {
+       "name": "eval_baseline_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidates from stored eval baseline misses. Notes that recall 1.0 means 'nothing recorded as missing', not current pass."
+      },
+      {
+       "name": "eval_gate_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidates from fresh eval gate result: regressions and errored primary tasks. Notes if gate failed."
+      },
+      {
+       "name": "_load_baseline",
+       "kind": "function",
+       "effects": [],
+       "note": "Loads eval baseline from daedalus.eval.harness.load_baseline. Returns (baseline, error)."
+      },
+      {
+       "name": "_run_eval_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs eval gate via daedalus.eval.harness.run_gate. Returns (result, error). Catches Exception broadly."
+      },
+      {
+       "name": "hotspot_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidates from index hotspots (churn x complexity). Only top N rows queued. Partial implementation in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Only the structured feature entries are used. The top-level ``islands`` / ``stale`` arrays are prose -- one string per item, no tests, no entrypoints, no area -- which is precisely the 'no evidence' case this module refuses to queue. They are counted and reported as a note instead, so a discrepancy between the prose summary and the structured entries is VISIBLE rather than quietly resolved in favour of whichever the picker happened to read.",
+       "where": "docstring above inventory_island_candidates",
+       "verdict": "kept",
+       "why": "The code reads structured features from 'areas' list and processes only those with status island/stale. It counts prose_islands and prose_stale from inventory.get('islands') and inventory.get('stale'), then compares with counts from structured features. If mismatched, it appends notes describing the discrepancy. No candidates are generated from prose arrays."
+      },
+      {
+       "text": "Pure over an already-loaded baseline. Reading a stored measurement costs nothing, but it measures the past: a task recorded at recall 1.0 is NOT evidence that it passes now, only evidence that nothing was recorded as missing when the baseline was last written by hand. That limit is returned as a note so it reaches the operator's terminal, not just this docstring. Use ``--eval`` for a fresh verdict.",
+       "where": "docstring of eval_baseline_candidates",
+       "verdict": "kept",
+       "why": "The function takes a baseline dict (already loaded), iterates over tasks, skips those with recall >= 1.0, and generates candidates for those below 1.0. It returns a note saying 'eval baseline: X task(s) recorded at recall 1.0 -- that is \"nothing RECORDED as missing\", not \"the eval passes now\"; pass --eval for a fresh run'. The function does not run any fresh eval."
+      },
+      {
+       "text": "Pure over the gate's returned dict (the run itself happens in :func:`_run_eval_gate`), so ranking a regression is testable without an index build. Regressions and errored PRIMARY tasks both become candidates: a task that can no longer be evaluated is not a task that passes.",
+       "where": "docstring of eval_gate_candidates",
+       "verdict": "kept",
+       "why": "The function takes gate_result dict (already returned by _run_eval_gate). It processes 'regressions' and 'errored_primary' lists, generating candidates for each. It does not run the gate itself. The function handles both regressions and errored primary tasks."
+      },
+      {
+       "text": "A named seam rather than an inline import: it is the one place the picker reaches into ``daedalus.eval``, so it is the one place a test has to displace to stay hermetic, and the one place to look when the cheap eval source goes quiet.",
+       "where": "docstring of _load_baseline",
+       "verdict": "kept",
+       "why": "The function imports from daedalus.eval.harness inside the function body, making it a single point of contact. This design allows tests to mock or replace that import by patching the function."
+      },
+      {
+       "text": "Isolated so the opt-in cost (a full Tier-1 replay, which builds a structural index per repo) lives in exactly one place, and so a broken eval cannot take the whole queue down with it.",
+       "where": "docstring of _run_eval_gate",
+       "verdict": "kept",
+       "why": "The function wraps the call to run_gate in a try-except, returning (None, error) on exception. This prevents a broken eval from propagating exceptions to the caller."
+      },
+      {
+       "text": "Candidates from ``idx['hotspots']`` -- churn x complexity, as scored by :func:`daedalus.structcore.index.score_modules`.",
+       "where": "docstring of hotspot_candidates",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the definition of daedalus.structcore.index.score_modules, nor does it show how hotspots are computed. The code reads 'hotspots' from index and uses 'score', 'churn' fields, but the scoring function is not visible."
+      },
+      {
+       "text": "Pure over an index dict. Only the first ``top`` rows are queued: the ranking has a long, flat tail, and a queue full of 'this file is biggish' would drown the sources that carry a sharper signal.",
+       "where": "docstring of hotspot_candidates",
+       "verdict": "kept",
+       "why": "The function takes index dict and top parameter (default 5). It slices rows[:max(0, int(top))] to limit candidates. The docstring explains the rationale."
+      },
+      {
+       "text": "A hotspot is the WEAKEST evidence here, and its band says so. Churn x complexity says rot is likely, not that a specific defect exists -- so these tasks are refactors judged by the existing suite, never behaviour changes.",
+       "where": "docstring of hotspot_candidates",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the band assignment for hotspot candidates (the code is incomplete). The claim about band and task type cannot be verified from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "inventory_island_candidates uses hardcoded caps in offset calculation: min(len(tests), 3) and min(len(entrypoints), 2). This saturates at 3 tests and 2 entrypoints, which may not reflect actual evidence weight.",
+       "where": "line 1432-1433 (approximate, within inventory_island_candidates)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "inventory_island_candidates offset for stale uses only entrypoints, no tests. This is asymmetric with island offset which uses both.",
+       "where": "line 1447 (approximate, within inventory_island_candidates)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "eval_baseline_candidates returns a note even if there are zero full-recall tasks (full=0). The note says '0 task(s) recorded at recall 1.0'. This is always returned as a single-element tuple; may be intentional but could be confusing.",
+       "where": "line 1508-1510 (approximate, within eval_baseline_candidates)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_run_eval_gate catches Exception broadly, which may hide programming errors (e.g., NameError, TypeError) that should propagate.",
+       "where": "line 1555 (approximate, within _run_eval_gate)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "hotspot_candidates uses top parameter with default 5. If called without arguments, only top 5 hotspots are queued regardless of index size. This may miss important hotspots.",
+       "where": "line 1569 (function signature)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "hotspot_candidates iterates over rows[:max(0, int(top))] but does not sort rows by score. It assumes rows are already sorted descending by score. If not, the top N may not be the highest-scored.",
+       "where": "line 1584 (approximate, within hotspot_candidates)",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2e866fc2dd5e85f548600e74634979ebdda4d73d5561eabe6bde49aea321b65d",
+    "objective_chars": 13785,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [6/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 6,
+  "total": 11,
+  "first_line": 1401
+ }
+}

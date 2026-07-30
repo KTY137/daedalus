@@ -1,0 +1,160 @@
+{
+ "task_id": "daedalus/spine/picker.py#c1of6#5eb1702d",
+ "key": "daedalus_spine_picker.py_c1of6_5eb1702d-5c74d781d2",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 10 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Every candidate carries three things and is refused without them: reason, score, evidence\" | _candidate | KEPT | The function raises NoEvidence if reason is empty or evidence is falsy; score is always present via band_offset.",
+     "CLAIM | \"a candidate with an empty reason or empty evidence raises rather than entering the queue\" | _candidate | KEPT | Raises NoEvidence for empty reason or falsy evidence.",
+     "CLAIM | \"score = BAND + offset\" | Candidate.__init__ | KEPT | Score is computed as SOURCE_BANDS[source] + offset in _candidate.",
+     "CLAIM | \"The BAND is a PRIOR, chosen by a human, not a measurement\" | SOURCE_BANDS | KEPT | SOURCE_BANDS is a dict constant with hardcoded values, not computed from measurements.",
+     "CLAIM | \"The OFFSET, within [0, BAND_SPAN], is the measurement\" | _clamp | KEPT | offset is clamped to [0.0, BAND_SPAN] in _candidate.",
+     "CLAIM | \"Two candidates from the same source are ordered by evidence and nothing else\" | rank | UNCHECKABLE | The rank function is not defined in this chunk; would need to see rank to verify ordering.",
+     "CLAIM | \"Sources that require a fresh eval run or a whole-repo structural index are OFF unless asked for (--eval, --hotspots)\" | main | UNCHECKABLE | main is declared but not defined in this chunk; would need to see main to verify.",
+     "CLAIM | \"the picker stays fast enough to run before every attempt\" | load_work_queue | KEPT | load_work_queue reads only local files and does not trigger eval or hotspots.",
+     "CLAIM | \"main can run at most ONE attempt (--once)\" | main | UNCHECKABLE | main is not defined in this chunk; would need to see main to verify.",
+     "CLAIM | \"an attempt produces inert bytes\" | main | UNCHECKABLE | main not defined; would need to see attempt module.",
+     "CLAIM | \"There is no --apply\" | main | UNCHECKABLE | main not defined; would need to see main.",
+     "CLAIM | \"The refusal is a raise, not a skip\" | _candidate | KEPT | _candidate raises NoEvidence instead of returning None or skipping.",
+     "CLAIM | \"Validation is whole-file and fail-closed: one malformed ready task makes the source invalid\" | work_queue_candidates | BROKEN | work_queue_candidates raises WorkQueueInvalid on malformed task, which propagates up; but the function returns a tuple and the caller may catch the exception and treat source as invalid. However, the claim says \"makes the source invalid\" but the function raises an exception rather than returning an invalid state. The caller must handle the exception to mark source invalid; if unhandled, the entire picker crashes. The claim implies fail-closed behavior at source level, but the code raises an exception that could crash the picker if not caught. Line: work_queue_candidates raises WorkQueueInvalid.",
+     "CLAIM | \"Non-ready tasks are valid records but are not candidates\" | work_queue_candidates | KEPT | Code distinguishes non_ready tasks and does not add them to candidates list.",
+     "D1 | _picker_source_mode | parameter 'name' is defined but not used in the function body; the function uses config.get('picker_sources') and returns a string based on that, but 'name' is never referenced. This is a mechanical defect: the parameter is unused.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In work_queue_candidates, instead of raising WorkQueueInvalid on malformed task, return an invalid source state (e.g., (None, {state: 'invalid', error: ...}) so that one bad task does not crash the picker but invalidates the source per the claim.",
+     "Remove unused parameter 'name' from _picker_source_mode or use it to look up the specific source in config."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a0021cade9baf84ada10d65c44a2119914a54166caa377da1440125b20b5e76f",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 13 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"NO TASK WITHOUT EVIDENCE ... :func:`_candidate` enforces this: a candidate with an empty reason or empty evidence raises rather than entering the queue.\" | _candidate | KEPT | The function checks reason, evidence, and source, raising NoEvidence if any are missing.",
+     "CLAIM | \"A queue that can be filled with opinion is a queue that will be, and an unvalidated metric must never gate autonomy -- so the metric has to stay auditable all the way to the terminal.\" | UNCHECKABLE | Would need to see the review_packet and how it renders evidence; not in this chunk.",
+     "CLAIM | \"score = BAND + offset\" | Candidate.__init__ | KEPT | In _candidate, score is computed as SOURCE_BANDS[source] + offset, where offset is clamped to [0, BAND_SPAN].",
+     "CLAIM | \"SOURCE_BANDS ... is a PRIOR, chosen by a human, not a measurement\" | SOURCE_BANDS | KEPT | The dictionary is defined with fixed values; the docstring and comments emphasize it's a prior.",
+     "CLAIM | \"The OFFSET, within [0, BAND_SPAN], is the measurement\" | _candidate | KEPT | The offset is clamped to [0.0, BAND_SPAN].",
+     "CLAIM | \"Two candidates from the same source are ordered by evidence and nothing else.\" | UNCHECKABLE | This claim about ordering within same source is not verifiable from this chunk; would need to see the rank function or sorting logic.",
+     "CLAIM | \"Once a candidate has been ATTEMPTED, the ledger's record ... puts a CEILING on its offset (:data:`OUTCOME_POLICY`).\" | OUTCOME_POLICY | UNCHECKABLE | OUTCOME_POLICY is referenced but not defined in this chunk; need its definition to check.",
+     "CLAIM | \"Sources that require a fresh eval run or a whole-repo structural index are OFF unless asked for (``--eval``, ``--hotspots``).\" | main | UNCHECKABLE | The main function is not fully shown; need to see how it handles --eval and --hotspots.",
+     "CLAIM | \"The default queue is built from files already on disk, so the picker stays fast enough to run before every attempt.\" | build_queue | UNCHECKABLE | build_queue is not shown; need to see its implementation.",
+     "CLAIM | \":func:`main` can run at most ONE attempt (``--once``)\" | main | UNCHECKABLE | main is not shown; need to see its argument parsing.",
+     "CLAIM | \"an attempt produces inert bytes (see :class:`daedalus.spine.attempt.PatchArtifact`)\" | UNCHECKABLE | PatchArtifact is not in this chunk; need to see that class.",
+     "CLAIM | \"There is no ``--apply``\" | main | UNCHECKABLE | main not shown; need to see its CLI arguments.",
+     "CLAIM | \"EXIT_CANDIDATE = 0 ... 0 means, and only ever means, a gated candidate exists.\" | EXIT_CANDIDATE | KEPT | The constant is defined as 0 and the comment states it means a gated candidate exists.",
+     "CLAIM | \"EXIT_NO_CHANGE = 2 ... because 'a candidate is waiting for you' and 'the runner changed nothing' are different facts\" | EXIT_NO_CHANGE | KEPT | Defined as 2 with the stated rationale.",
+     "CLAIM | \"EXIT_SOURCE_UNAVAILABLE = 3 ... 0 still means, and only ever means, that work is waiting.\" | EXIT_SOURCE_UNAVAILABLE | KEPT | Defined as 3 with the stated rationale.",
+     "CLAIM | \"The refusal is a raise, not a skip: an evidence-free candidate is a bug in a source function, and silently dropping it would hide the bug while the queue quietly got shorter.\" | _candidate | KEPT | The function raises NoEvidence; it does not skip silently.",
+     "D1 | DEFAULT_LIMIT | Defined as 10, never read in this chunk. | WRONG CONCLUSION: A caller who sets this expects it to affect the queue limit, but it is not used.",
+     "D1 | EXIT_BY_STATE | Defined but never referenced in this chunk. | WRONG CONCLUSION: A caller might expect it to map states to exit codes, but it is unused here."
+    ],
+    "todos": [
+     "Remove or use DEFAULT_LIMIT, or document it as unused.",
+     "Remove or use EXIT_BY_STATE, or document it as unused."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a0021cade9baf84ada10d65c44a2119914a54166caa377da1440125b20b5e76f",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 8 kept, 3 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A candidate with an empty reason or empty evidence raises rather than entering the queue\" | _candidate | BROKEN | line 309-310: raises only if reason is empty or evidence is falsy, but empty evidence (e.g., empty dict) is caught; however evidence is checked with `if not evidence:` which is correct for empty dict; but the claim says \"empty reason or empty evidence\" \u2014 the code also requires source in SOURCE_BANDS; so the claim is incomplete but not broken. Actually the claim is kept because the code does raise for empty reason or empty evidence. Wait, let me re-evaluate: the claim says \"A candidate with an empty reason or empty evidence raises.\" The code at lines 309-310 raises if reason is empty, and line 311 raises if evidence is falsy. That matches. So KEPT. But then there is also a check for source not in SOURCE_BANDS which is not mentioned in the claim. That is a separate claim elsewhere. So this claim is KEPT.",
+     "CLAIM | \"score = BAND + offset\" | _candidate | KEPT | line 316: score = round(SOURCE_BANDS[source] + offset, 4). Matches.",
+     "CLAIM | \"The OFFSET, within [0, BAND_SPAN]\" | _candidate | KEPT | line 315: offset = _clamp(float(band_offset), 0.0, BAND_SPAN). Matches.",
+     "CLAIM | \"Cross-band comparison is therefore NOT a claim that one island beats one hotspot on evidence\" | module docstring | BROKEN | line 208-209: BAND_SPAN is kept strictly smaller than the gap between bands, but the gap between map_island (800) and map_shim (700) is 100, and BAND_SPAN is 50, so a measurement cannot cross bands. However, the claim says \"Cross-band comparison is therefore NOT a claim that one island beats one hotspot on evidence.\" This is a statement about interpretation, not a checkable claim about code. So UNCHECKABLE.",
+     "CLAIM | \"Sources that require a fresh eval run or a whole-repo structural index are OFF unless asked for (--eval, --hotspots)\" | module docstring | UNCHECKABLE | requires checking main() or CLI parsing not in this unit.",
+     "CLAIM | \"main can run at most ONE attempt (--once)\" | module docstring | UNCHECKABLE | main is not fully present in this chunk; only signature and early lines are shown.",
+     "CLAIM | \"an attempt produces inert bytes (see PatchArtifact)\" | module docstring | UNCHECKABLE | requires code in daedalus.spine.attempt not in this unit.",
+     "CLAIM | \"There is no --apply\" | module docstring | UNCHECKABLE | main not fully present.",
+     "CLAIM | \"The two map_* bands sit ABOVE the inventory ones\" | comment | KEPT | SOURCE_BANDS: map_island=800, map_shim=700, inventory_island=400, inventory_stale=300. So map bands are above inventory. KEPT.",
+     "CLAIM | \"docs/FEATURE_INVENTORY.json is HAND-WRITTEN and was measured thirty commits stale\" | comment | BROKEN | This is a claim about the file's nature, not about code in this unit. UNCHECKABLE.",
+     "CLAIM | \"docs/architecture-state.json is GENERATED and covered by a digest and a drift gate\" | comment | UNCHECKABLE | requires knowledge of architecture-state.json generation not in this unit.",
+     "CLAIM | \"queue must be an object\" | load_work_queue | KEPT | line 421: if not isinstance(data, Mapping): return error. KEPT.",
+     "CLAIM | \"One malformed ready task makes the source invalid instead of silently shortening the operator's queue\" | work_queue_candidates | KEPT | line 461: raises WorkQueueInvalid on malformed task. KEPT.",
+     "CLAIM | \"Non-ready tasks are valid records but are not candidates\" | work_queue_candidates | BROKEN | The code does not show handling of non-ready tasks; it iterates over all tasks and raises on malformed ones, but does not skip non-ready tasks. The claim says non-ready tasks are not candidates, but the code doesn't filter them. However, this chunk ends before the loop body that would decide readiness. So UNCHECKABLE.",
+     "D1 | _picker_source_mode | name parameter is read; but the function is defined but never called in this unit. However, it may be called elsewhere. So not a mechanical hit.",
+     "D1 | _queue_repo_path | defined but not called in this unit. Could be called elsewhere. Not a hit.",
+     "D3 | None found",
+     "D4 | None found"
+    ],
+    "todos": [
+     "Clarify the claim about empty reason/evidence to include source check or update code to match claim exactly.",
+     "Add filtering for non-ready tasks in work_queue_candidates to match the claim."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a0021cade9baf84ada10d65c44a2119914a54166caa377da1440125b20b5e76f",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/spine/picker.py",
+  "chunk": 1,
+  "chunks": 6,
+  "bytes": 28009
+ }
+}

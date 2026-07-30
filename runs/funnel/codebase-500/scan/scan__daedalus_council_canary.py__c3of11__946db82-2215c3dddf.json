@@ -1,0 +1,181 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c3of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c3of11__946db82-2215c3dddf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of canary.py: defines probe corpora, filler/arrival functions, and check_arrival logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "3 of 11",
+     "purpose": "Define probe corpora, filler helper, arrival probe builder and checker.",
+     "symbols": [
+      {
+       "name": "_FILLER_WORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of filler words used in padding lines."
+      },
+      {
+       "name": "_TAIL_WORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of tail words, disjoint from _FILLER_WORDS."
+      },
+      {
+       "name": "_ANCHOR_SETS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of anchor sets (tuples of 3 strings)."
+      },
+      {
+       "name": "_ORDINALS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of ordinal strings."
+      },
+      {
+       "name": "_SUMMARY_DECOYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of decoy summary strings."
+      },
+      {
+       "name": "_SUMMARY_TARGETS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of target summary strings containing 'roll' or 'revert'."
+      },
+      {
+       "name": "_filler",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates padding lines of random filler words."
+      },
+      {
+       "name": "ARRIVAL_PAD_LINES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Number of padding lines for arrival probe (40)."
+      },
+      {
+       "name": "build_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a prompt with a nonce at start and a tail word at end."
+      },
+      {
+       "name": "expect_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns expected correct reply for arrival probe."
+      },
+      {
+       "name": "check_arrival",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if reply contains both head nonce and tail word."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The prompt varies every run (a probe a model has memorised measures nothing) while the checker still knows the right answer without carrying state between the two halves of a probe.",
+       "where": "lines 241-243",
+       "verdict": "uncheckable",
+       "why": "This claim describes design intent but is not verifiable from the code in this chunk. It references a nonce-based variation and checker behavior that depends on _rng and nonce, which are defined elsewhere."
+      },
+      {
+       "text": "Disjoint from :data:`_FILLER_WORDS` on purpose: the arrival tail token must not be findable anywhere in the padding, or a reply could satisfy the tail check by quoting the middle of the prompt.",
+       "where": "lines 255-257",
+       "verdict": "kept",
+       "why": "The code defines _TAIL_WORDS separately from _FILLER_WORDS, and a manual check shows no overlap between the two tuples. The claim is consistent with the code."
+      },
+      {
+       "text": "Invented one-line summaries. None of these describes a real file in this repo, and none of them may contain \"roll\"/\"revert\" -- the comprehension probe's answer is defined by being the ONLY line that does.",
+       "where": "lines 272-274",
+       "verdict": "uncheckable",
+       "why": "The claim references a 'comprehension probe' and repo contents not present in this chunk. The given tuples _SUMMARY_DECOYS and _SUMMARY_TARGETS exist, but the claim's full context (e.g., that decoys lack 'roll'/'revert' and targets contain them) cannot be fully verified without the comprehension probe implementation."
+      },
+      {
+       "text": "~40 lines of filler is roughly 800 tokens: long enough that a transport which truncates has something to truncate, and far enough under the Ollama usable input window that the probe itself never provokes the failure it measures.",
+       "where": "lines 288-290",
+       "verdict": "uncheckable",
+       "why": "The claim about token count and Ollama input window cannot be verified from this code alone. The constant ARRIVAL_PAD_LINES is set to 40, and _filler generates 12 words per line, but tokenization is not defined here."
+      },
+      {
+       "text": "A long prompt with a token at the VERY START and a word at the VERY END.",
+       "where": "lines 293-295 (docstring)",
+       "verdict": "kept",
+       "why": "build_arrival returns a string starting with 'NONCE-{nonce}\\n' and ending with 'TAILWORD: {tail}', consistent with the claim."
+      },
+      {
+       "text": "Both incidents were truncation, in OPPOSITE DIRECTIONS, so one token cannot catch both.",
+       "where": "lines 296-298",
+       "verdict": "uncheckable",
+       "why": "The claim refers to incidents (Ollama HEAD-truncation, npm .cmd shim) that are not verifiable from this code."
+      },
+      {
+       "text": "Requiring BOTH tokens back is what makes a single cheap probe cover both.",
+       "where": "lines 305-306",
+       "verdict": "uncheckable",
+       "why": "The claim about coverage of incidents cannot be verified from this code alone."
+      },
+      {
+       "text": "Accept only if BOTH ends of the prompt demonstrably arrived.",
+       "where": "line 322 (docstring)",
+       "verdict": "kept",
+       "why": "check_arrival returns True only if head_ok and tail_ok are both true, which checks for nonce and tail word presence."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check_arrival returns early with True or False strings, but does not handle the case where only one of head_ok/tail_ok is true (returns None implicitly).",
+       "where": "lines 326-331",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function check_arrival is defined but the chunk ends mid-function (missing return for partial match).",
+       "where": "line 331",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "343669c8e389faaaa8084aa2e7a9f0a2dd9deeb4651c90ee8b4ca209becd54d7",
+    "objective_chars": 5395,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [3/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 3,
+  "total": 11,
+  "first_line": 241
+ }
+}

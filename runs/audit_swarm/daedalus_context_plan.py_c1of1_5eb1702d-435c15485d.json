@@ -1,0 +1,169 @@
+{
+ "task_id": "daedalus/context_plan.py#c1of1#5eb1702d",
+ "key": "daedalus_context_plan.py_c1of1_5eb1702d-435c15485d",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 2 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Paths receive two copies of their terms because they encode module ownership\" | lexical_seed_scores docstring | BROKEN | Path terms are added twice to the document list, but BM25 normalization via average length and document length means doubling terms does not double the final score; the rationale is misleading.",
+     "CLAIM | \"Source bodies are intentionally not rescanned on every request.\" | lexical_seed_scores docstring | BROKEN | The function does not scan source bodies at all, so the claim is vacuously true but misleading; the code never even attempts to rescan, so there is no intention to be upheld.",
+     "CLAIM | \"The latent half is an optional enrichment.  A corrupt or locked index must not take down the plan the caller actually asked for -- but it must be named in the receipt rather than read as 'found nothing'.\" | latent_memory_seed_scores | KEPT | The broad except catches all exceptions and returns a LatentSeedResult with status ERROR and a descriptive message, so the plan continues and the receipt will reflect the error.",
+     "CLAIM | ``effective_weight`` is 0.0 whenever nothing was weighted, so a configured weight can never imply an influence that did not happen. | _latent_source docstring | KEPT | effective_latent_weight property returns self.latent_weight if self.latent_applied else 0.0, and latent_applied requires latent_influenced non-empty and latent_weight > 0."
+    ],
+    "todos": [
+     "Fix docstring of lexical_seed_scores: remove claim about doubling path terms or adjust code to actually double the score contribution.",
+     "Fix docstring of lexical_seed_scores: rephrase 'intentionally not rescanned' to accurately reflect that source bodies are never scanned."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78210878a7411c4c895367228d5c897669a826d92d89e29178ee04901372b543",
+    "objective_chars": 23729,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 9 kept, 3 broken, 2 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Paths receive two copies of their terms\" | lexical_seed_scores | KEPT | Docstring says two copies, code does `*path_terms, *path_terms`.",
+     "CLAIM | \"Source bodies are intentionally not rescanned on every request\" | lexical_seed_scores | UNCHECKABLE | No code in this unit shows whether source bodies are rescanned or not; would need to see caching in the index.",
+     "CLAIM | \"latent seed limit must be positive\" | latent_memory_seed_scores | KEPT | Raises ValueError for limit < 1.",
+     "CLAIM | \"The latent half is an optional enrichment. A corrupt or locked index must not take down the plan\" | latent_memory_seed_scores | KEPT | Exception is caught and returns a LatentSeedResult with status error.",
+     "CLAIM | \"it must be named in the receipt rather than read as 'found nothing'\" | latent_memory_seed_scores | BROKEN | Returns status LATENT_STATUS_ERROR but message says \"failed\" not \"found nothing\"; however the receipt includes status and message, so it is named. The claim is about naming in receipt, which is satisfied. Actually check: the claim says \"must be named in the receipt\". The function returns a LatentSeedResult with status and message. The receipt (via _latent_source) includes status and reason. So it is named. But the claim also says \"rather than read as 'found nothing'\" which implies the status should not be mistaken. The status is 'error', so it's not 'found nothing'. So KEPT.",
+     "CLAIM | \"True when the index served a query, even if it matched nothing\" | LatentSeedResult.answered | KEPT | Property returns self.status == LATENT_STATUS_READY, which is set when the index is consulted and a report is obtained.",
+     "CLAIM | \"The sentinel used when the caller did not opt in to latent seeds\" | latent_not_requested | KEPT | Returns a LatentSeedResult with status disabled and requested=False.",
+     "CLAIM | \"True only when latent evidence actually carried mass into the fusion\" | HybridSeedResult.latent_applied | KEPT | Returns bool(self.latent_influenced) and self.latent_weight > 0.",
+     "CLAIM | \"The weight that was really in play, not the one merely configured\" | HybridSeedResult.effective_latent_weight | KEPT | Returns self.latent_weight if self.latent_applied else 0.0.",
+     "CLAIM | \"latent_weight is a setting. When the latent side contributed no seeds, nothing was weighted by it\" | HybridSeedResult.effective_latent_weight | KEPT | Same property, returns 0.0 when not applied.",
+     "CLAIM | \"a reader who sees only the configured 0.35 would credit the plan to a source that said nothing\" | HybridSeedResult.effective_latent_weight | KEPT | The property returns 0.0 when latent_applied is False, so the reader can see effective_latent_weight is 0.",
+     "CLAIM | \"Answers, without reading the seed block: was it consulted, did it answer, how much did it contribute, and -- if it contributed nothing -- why\" | ContextPlanningResult._latent_source | BROKEN | The returned dict includes 'requested', 'consulted', 'answered', 'status', 'reason', 'mapper_version', 'index_id', 'candidates', 'mapped_events', 'seed_files', 'influenced_files', 'declared_weight', 'effective_weight'. It does not include 'how much did it contribute' as a separate field; contribution is inferred from influenced_files and effective_weight. The claim says \"how much did it contribute\" which is arguably covered by influenced_files and effective_weight. However the claim also says \"if it contributed nothing -- why\". The 'reason' field gives the message, which may explain why. So this is borderline but I'll mark KEPT.",
+     "CLAIM | \"effective_weight is 0.0 whenever nothing was weighted\" | ContextPlanningResult._latent_source | KEPT | effective_weight is derived from self.seed_result.effective_latent_weight, which returns 0.0 if not applied.",
+     "CLAIM | \"No source material is emitted or rewritten\" | plan_context | UNCHECKABLE | No code in this unit writes files or emits source material; would need to check the DSS and other functions for side effects.",
+     "D1 | config | plan_context | parameter defined but never read in this unit | WRONG CONCLUSION: a caller believes they can pass a DSSConfig to tune DSS, but it is not used.",
+     "D2 | except Exception as exc: | latent_memory_seed_scores | swallows and continues where prose says must not take down plan but must be named in receipt | WRONG CONCLUSION: caller expects the plan to fail if latent is critical, but it continues.",
+     "D3 | none | | |",
+     "D4 | if path is not None and not path.exists(): | latent_memory_seed_scores | path is Path(db_path) if str(db_path) != ':memory:' else None; path is None when db_path is ':memory:', then the condition is False. But the condition checks path is not None, so it's fine. No D4."
+    ],
+    "todos": [
+     "Use the `config` parameter in the call to `semantic_super_sample`.",
+     "none"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78210878a7411c4c895367228d5c897669a826d92d89e29178ee04901372b543",
+    "objective_chars": 23729,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 1 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Paths receive two copies of their terms\" | lexical_seed_scores | KEPT | Path terms are added twice in the document list.",
+     "CLAIM | \"Source bodies are intentionally not rescanned on every request\" | lexical_seed_scores | UNCHECKABLE | Would need to see if the index caches symbol names from parser output; no code here proves or disproves that bodies are not rescanned.",
+     "CLAIM | \"A corrupt or locked index must not take down the plan the caller actually asked for -- but it must be named in the receipt rather than read as 'found nothing'\" | latent_memory_seed_scores | KEPT | The broad except catches any exception and returns a LatentSeedResult with status ERROR and message including the exception details.",
+     "CLAIM | \"latent_weight is a setting. When the latent side contributed no seeds, nothing was weighted by it\" | HybridSeedResult.effective_latent_weight | BROKEN | effective_latent_weight returns self.latent_weight if self.latent_applied else 0.0, but latent_applied returns bool(self.latent_influenced) and self.latent_weight > 0. However, if latent.scores is empty but latent_weight > 0, latent_influenced will be empty (since no scores to add), and latent_applied is False, so effective_latent_weight is 0.0, which is correct. The claim says \"nothing was weighted by it\" but the code still adds latent_weight * score for each score (which is zero) and then normalises. The claim is about the weight being in play, not about the effect on scores. The property effective_latent_weight returns 0.0 when latent_applied is False. That matches the claim. However, the claim says \"nothing was weighted by it\" but the code does not apply the weight to any non-zero scores because there are none. So the claim is KEPT? Wait, the claim says \"When the latent side contributed no seeds, nothing was weighted by it\". That is true. But the property effective_latent_weight returns 0.0, which is correct. However, the docstring says \"The weight that was really in play, not the one merely configured. ``latent_weight`` is a setting. When the latent side contributed no seeds, nothing was weighted by it, and a reader who sees only the configured 0.35 would credit the plan to a source that said nothing.\" This is accurate. So KEPT. Actually I misread; the claim is about the docstring of effective_latent_weight. That docstring is consistent with the code. So KEPT.",
+     "CLAIM | \"the latent half is an optional enrichment\" | latent_memory_seed_scores | KEPT | The function returns a LatentSeedResult with error status if the index is missing or corrupt, and the caller can choose to not call it via use_latent flag.",
+     "CLAIM | \"every other code is a reason the source was asked but could not answer, and must survive into the receipt: a silent zero is indistinguishable from a considered zero otherwise\" | module-level constants | KEPT | The module defines LATENT_STATUS_DISABLED, LATENT_STATUS_READY, LATENT_STATUS_ERROR, and the functions return appropriate statuses that are carried into the receipt via LatentSeedResult.to_dict() and ContextPlanningResult._latent_source().",
+     "CLAIM | \"the current baseline deliberately keeps the sources distinct\" | module docstring | KEPT | The code has separate LexicalSeedResult and LatentSeedResult dataclasses and functions, and they are fused in fuse_seed_scores. The docstring's description of lexical and latent sources matches the implementation.",
+     "D1 | latent_memory_seed_scores parameter 'project' | read nowhere in this unit | WRONG CONCLUSION: a caller believes they can filter by project, but the parameter is passed to ProjectionFilter and used. Actually it is used: filters=ProjectionFilter(project=project) if project else None. So it is read. No D1.",
+     "D1 | plan_context parameter 'rename_confidence' | read nowhere in this unit? It is passed to semantic_super_sample. That is outside this unit. But the parameter is defined here and passed to an external function. That counts as being read? The rule says \"defined in this unit and read nowhere in this unit\". Since it is passed to a function outside this unit, it is not read in this unit. So D1 applies. Actually the rule says \"read nowhere in this unit\". It is read in the sense that it is used as an argument to semantic_super_sample, but that call is inside this unit. So it is read in this unit. So no D1.",
+     "D1 | plan_context parameter 'rename_map' | same reasoning: used in call to semantic_super_sample inside this unit. No D1.",
+     "D1 | plan_context parameter 'temporal_pairs' | used in build_knowledge_forest call. No D1.",
+     "D1 | plan_context parameter 'previous_scores' | used in semantic_super_sample call. No D1.",
+     "D1 | plan_context parameter 'config' | used in semantic_super_sample call. No D1.",
+     "D1 | plan_context parameter 'embedding_backend' | used in latent_memory_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'embedding_model' | used in latent_memory_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'embedding_host' | used in latent_memory_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'vector_db' | used in latent_memory_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'use_latent' | used in conditional. No D1.",
+     "D1 | plan_context parameter 'lexical_limit' | used in lexical_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'token_budget' | used in semantic_super_sample call. No D1.",
+     "D1 | plan_context parameter 'project' | used in latent_memory_seed_scores call. No D1.",
+     "D1 | plan_context parameter 'idx' | used in cached_index call. No D1.",
+     "D1 | plan_context parameter 'objective' | used. No D1.",
+     "D1 | plan_context parameter 'repo_root' | used. No D1.",
+     "D1 | lexical_seed_scores parameter 'limit' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'limit' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'backend' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'model' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'host' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'project' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'db_path' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'forest' | used. No D1.",
+     "D1 | latent_memory_seed_scores parameter 'objective' | used. No D1.",
+     "D1 | fuse_seed_scores parameters all used. No D1.",
+     "D1 | _normalise_max parameter 'scores' | used. No D1.",
+     "D1 | _symbol_names parameter 'idx' | used. No D1.",
+     "D1 | _metadata_strings parameter 'value' | used. No D1.",
+     "D1 | _contains_explicit_path parameters 'text' and 'path' | used. No D1.",
+     "D1 | _terms parameter 'text' | used. No D1.",
+     "D1 | _digest parameter 'value' | used. No D1.",
+     "D1 | _canonical_json parameter 'value' | used. No D1.",
+     "D2 | except Exception as exc: # noqa: BLE001 | latent_memory_seed_scores | WRONG CONCLUSION: the comment says \"must not take down the plan\" and the except catches and returns an error result, so it does not swallow and continue; it returns early. Not a D2.",
+     "D3 | none found.",
+     "D4 | none found."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78210878a7411c4c895367228d5c897669a826d92d89e29178ee04901372b543",
+    "objective_chars": 23729,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/context_plan.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 21284
+ }
+}

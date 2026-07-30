@@ -1,0 +1,289 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c1of2__946db82",
+ "key": "scan__daedalus_kairos_scheduler.py__c1of2__946db82-9b96d183d8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 2 of daedalus/kairos/scheduler.py. Defines FREE_LANES, DEFAULT_AVAILABILITY, _paths_overlap, Assignment, KairosScheduler with accept/plan/dispatch/gate_concurrent_writes. Many docstring claims about external modules are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "dispatcher.py | medium | The module docstring references Ikarus, Adam, and external modules not present in this chunk. These claims are uncheckable; the chunk only defines the scheduler class and its methods. | Check the full codebase for the referenced modules and verify the claims.",
+     "KairosScheduler.__post_init__ | medium | Loads project data and policy from external modules (load_project, load_policy) which are not defined in this chunk. The behavior of those functions is uncheckable. | Verify that those functions exist and behave as expected.",
+     "KairosScheduler.accept | medium | Uses route_and_select from provider_router, which is imported but not defined in this chunk. The routing logic is uncheckable. | Verify the route_and_select implementation.",
+     "KairosScheduler.dispatch | high | Calls offload from offload module, which is not defined in this chunk. The actual execution behavior is uncheckable. | Verify the offload function's interface and behavior.",
+     "KairosScheduler.dispatch | high | The docstring claims about write-mode concurrency safety and rollback hazards are detailed but cannot be verified against this code alone. The actual safety depends on external modules. | Review the offload, gated_writes, and TaskAttempt implementations.",
+     "KairosScheduler.gate_concurrent_writes | high | This method is incomplete in the chunk (truncated). Its full behavior and the referenced external modules (TaskAttempt, GatedCandidate, gated_writes) are uncheckable. | Examine the rest of the method and the external modules.",
+     "KairosScheduler.dispatch | medium | Uses ThreadPoolExecutor for parallel execution but the behavior depends on the _run_one function which calls offload. The actual concurrency safety is uncheckable. | Verify that offload is thread-safe and that the worktree isolation works as claimed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "1 of 2",
+     "purpose": "Defines the KairosScheduler class and related dataclasses for bounded task scheduling and dispatch.",
+     "symbols": [
+      {
+       "name": "FREE_LANES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of lane names that Ikarus may dispatch; excludes senior Claude lane."
+      },
+      {
+       "name": "DEFAULT_AVAILABILITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default availability dict: local bench on, external benches dormant."
+      },
+      {
+       "name": "_paths_overlap",
+       "kind": "function",
+       "effects": [],
+       "note": "Diagnostic function to check overlapping write paths in assignments."
+      },
+      {
+       "name": "Assignment",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a single task assignment."
+      },
+      {
+       "name": "KairosScheduler",
+       "kind": "class",
+       "effects": [],
+       "note": "Main scheduler class with methods accept, plan, dispatch, gate_concurrent_writes."
+      },
+      {
+       "name": "KairosScheduler.__post_init__",
+       "kind": "method",
+       "effects": [],
+       "note": "Initializes bench cycle and loads project configuration if project is set."
+      },
+      {
+       "name": "KairosScheduler.accept",
+       "kind": "method",
+       "effects": [],
+       "note": "Clears tasks and returns assignments; bounces work belonging to senior crew."
+      },
+      {
+       "name": "KairosScheduler.plan",
+       "kind": "method",
+       "effects": [],
+       "note": "Dry run: returns assignment plan with waves and counts."
+      },
+      {
+       "name": "KairosScheduler.dispatch",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs accepted work; sequential by default, parallel for advisory-only if parallel=True."
+      },
+      {
+       "name": "KairosScheduler.gate_concurrent_writes",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Incomplete in this chunk; intended for concurrent write gating."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Kairos never talks to the user, never decides trust, and bounces anything that belongs to the senior crew back to the trusted orchestration layer.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines the scheduler but does not contain code that enforces these claims globally; they refer to the overall system design."
+      },
+      {
+       "text": "Adam owns trust, safety, and the senior Claude crew. He hands Ikarus only the work he has already cleared as low-risk and offloadable.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Adam and Ikarus are not defined in this chunk; the claim refers to external roles."
+      },
+      {
+       "text": "Ikarus then: dynamically spawns local workers from a bounded pool, briefs each with a scoped task + the owning specialist's domain, enforces their reduced rights, returns a consolidated report for Adam / the owning specialist to review.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "This describes behavior of Ikarus, which is not implemented in this chunk; the methods here (accept, dispatch) are part of that, but the full claim is uncheckable."
+      },
+      {
+       "text": "FREE_LANES = ('ollama', 'deepseek', 'codex_cli') \u2014 'Free' means free of CLAUDE tokens: ollama is truly free/local; deepseek and codex_cli are external and spend their own (cheap/subscription) budget.",
+       "where": "line 32-34",
+       "verdict": "kept",
+       "why": "The constant is defined exactly as claimed; the comment explains the meaning."
+      },
+      {
+       "text": "DEFAULT_AVAILABILITY = {'claude_cli': True, 'ollama': True, 'deepseek': False, 'codex_cli': False} \u2014 Default posture: local bench on, external benches dormant (no DeepSeek key, Codex only when the CLI is detected by doctor at dispatch time).",
+       "where": "line 37-38",
+       "verdict": "kept",
+       "why": "The constant is defined as claimed; the comment explains the default posture."
+      },
+      {
+       "text": "_paths_overlap: Diagnostic overlap among declared write hints. This is not a proof of write isolation: an agent may touch an undeclared path.",
+       "where": "line 40-47",
+       "verdict": "kept",
+       "why": "The function checks overlap of declared write paths; the docstring accurately states its limitation."
+      },
+      {
+       "text": "max_parallel_writes: Concurrency cap SPECIFICALLY for gate_concurrent_writes, independent of max_workers. Deliberately conservative and separately configurable: every concurrent write-mode offload() triggers a FULL structcore re-index, and that cache's single-flight lock is keyed by RESOLVED ROOT \u2014 so N worktrees, N distinct roots, N UNSHARED full re-index builds competing for CPU/RAM at once.",
+       "where": "line 60-68",
+       "verdict": "uncheckable",
+       "why": "The claim references structcore and cached_index which are not defined in this chunk; the attribute exists but its behavior depends on external code."
+      },
+      {
+       "text": "accept: Only low-risk work that Adam would offload is taken; anything that routes back to Claude is bounced to Adam.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The method uses route_and_select to decide; the routing logic is not in this chunk. The claim about 'low-risk' and 'Adam' is uncheckable."
+      },
+      {
+       "text": "plan: Dry run: who gets spawned, in how many bounded waves.",
+       "where": "method docstring",
+       "verdict": "kept",
+       "why": "The method calls accept and calculates waves based on max_workers; it returns a plan without executing."
+      },
+      {
+       "text": "dispatch: Sequential by default (parallel=False): each live write is verified by diffing a WHOLE-repo content-hash snapshot around that one run (offload._repo_snapshot), which catches even writes outside --paths -- but two such runs on one repo concurrently would cross-attribute disk_changed.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references offload._repo_snapshot which is not defined in this chunk; the behavior is uncheckable."
+      },
+      {
+       "text": "dispatch: Writable concurrency stays sequential with whole-repository snapshots until Forge gives every attempt its own workcell/worktree.",
+       "where": "method docstring",
+       "verdict": "kept",
+       "why": "The code enforces sequential execution for writes when parallel=True and has_writes is True (can_parallel = parallel and not has_writes). The claim is consistent with the code."
+      },
+      {
+       "text": "dispatch: Pairwise-disjoint declared strings are not evidence that agentic writers stay within those strings.",
+       "where": "method docstring",
+       "verdict": "kept",
+       "why": "The comment in the code states this explicitly; the method does not rely on declared path disjointness for safety."
+      },
+      {
+       "text": "dispatch: The hazard this closes is not misattribution \u2014 it is destruction: every offload() gets a fresh provider whose rollback snapshot is per-call while the FILES are shared, so if task A's verify fails after task B landed a verified write to the same file, A's rollback writes its own stale pre-run bytes over B's finished work, with no error raised.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes behavior of offload and rollback which are not in this chunk; the hazard analysis is uncheckable."
+      },
+      {
+       "text": "dispatch: Separate checkouts remove that by construction rather than by convention: `isolate_paths` and disjoint declared paths never could, because an agentic writer is not bound by the strings it was handed.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references separate checkouts and isolate_paths which are not implemented in this chunk; the behavior is uncheckable."
+      },
+      {
+       "text": "dispatch: The isolation now EXISTS \u2014 see gate_concurrent_writes() below, which runs each write through daedalus.spine.attempt.TaskAttempt (its own worktree, its own hardened patch capture) fanned out concurrently, and daedalus.kairos.gated_writes.promote_candidates(), which lands gated candidates one at a time behind a cross-process lock with cumulative re-gating.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "References external modules (daedalus.spine.attempt, daedalus.kairos.gated_writes) not present in this chunk."
+      },
+      {
+       "text": "dispatch: dispatch() keeps its existing auto-land contract for a single write (offload() has always auto-landed a sequential one), and does not silently switch write-mode dispatch to the gated-candidate shape \u2014 that is a product decision.",
+       "where": "method docstring",
+       "verdict": "kept",
+       "why": "The code does not call gate_concurrent_writes or promote_candidates; it uses offload directly. The claim is consistent."
+      },
+      {
+       "text": "gate_concurrent_writes: Safe concurrent WRITE dispatch: PHASE 1 only (gating, not landing). Returns one GatedCandidate per accepted write task.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The method is incomplete in this chunk (truncated); the claim cannot be verified."
+      },
+      {
+       "text": "gate_concurrent_writes: Every write task runs CONCURRENTLY, each through TaskAttempt in its own worktree.",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "References TaskAttempt and worktree isolation not present in this chunk."
+      },
+      {
+       "text": "gate_concurrent_writes: The primary checkout at repo_root is NEVER touched by this call \u2014 that is TaskAttempt's own structural guarantee (see tests/test_spine_attempt.py::test_happy_path_artifact_and_primary_untouched).",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "References external test file and TaskAttempt; not verifiable in this chunk."
+      },
+      {
+       "text": "gate_concurrent_writes: Advisory-only tasks are bounced (this method only accepts write-mode work; use plan/accept for routing verdict on mixed tasks, or dispatch to actually run them).",
+       "where": "method docstring",
+       "verdict": "uncheckable",
+       "why": "The method body is incomplete; cannot verify this behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring makes broad claims about system roles (Adam, Ikarus) and behavior that are not directly implemented in this chunk.",
+       "where": "module docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "KairosScheduler.__post_init__ loads project data and policy from external modules (load_project, load_policy) which are not defined in this chunk. The behavior depends on those modules.",
+       "where": "KairosScheduler.__post_init__",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "KairosScheduler.accept relies on route_and_select from provider_router, which is imported but not defined in this chunk. The routing logic is opaque.",
+       "where": "KairosScheduler.accept",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "KairosScheduler.dispatch calls offload from offload module, which is not defined in this chunk. The actual execution and safety guarantees depend on that external function.",
+       "where": "KairosScheduler.dispatch",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of dispatch contains extensive claims about write concurrency hazards and isolation mechanisms that reference external modules (offload, gated_writes, TaskAttempt) not present in this chunk.",
+       "where": "KairosScheduler.dispatch docstring",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "gate_concurrent_writes method is incomplete (truncated at end of chunk). Its full implementation and claims cannot be assessed.",
+       "where": "KairosScheduler.gate_concurrent_writes",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code uses ThreadPoolExecutor for parallel dispatch but the thread safety of _run_one (which calls offload) is not guaranteed by this chunk.",
+       "where": "KairosScheduler.dispatch",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "744af8d8a8311f605873f2178baec5c48fd2e0da24bdf5ae71855e9a2cedc7f9",
+    "objective_chars": 14928,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

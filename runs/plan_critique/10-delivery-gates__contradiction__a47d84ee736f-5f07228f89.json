@@ -1,0 +1,181 @@
+{
+ "task_id": "10-delivery-gates__contradiction__a47d84ee736f",
+ "key": "10-delivery-gates__contradiction__a47d84ee736f-5f07228f89",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Gate progression contradicts itself: Gate 0 requires 'no new feature path or state store outside the canonical contracts' but later gates explicitly add new schemas, stores, and resolution mechanisms.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "10.0.1 | critical | Gate 0 mandates 'no new feature path or state store outside the canonical contracts' but Gate 2 adds 'function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators' which imply new state stores and feature paths. | Check if Gate 2's additions require new contracts or state stores beyond those defined in Gate 0.",
+     "10.0.2 | high | Gate 0 requires 'enforceable write/egress/spend/secrets/concurrency/kill policies' but Gate 1 introduces 'bias_voltage' as a new property, which may require new policy types not covered by Gate 0's list. | Verify whether 'bias_voltage' falls under any of the enumerated policy types.",
+     "10.1 | medium | Gate 1 requires 'no auto-merge' but Gate 2 adds 'revision atomicity' which could conflict with the no-auto-merge rule if atomicity implies automatic conflict resolution. | Clarify whether 'revision atomicity' implies any form of auto-merge.",
+     "10.2 | medium | Gate 2 adds 'four-plane ablations' but Gate 0's contract schema may not include 'plane' as a concept, implying a new feature path. | Check if 'plane' is defined in the canonical schemas from Gate 0.",
+     "10.3 | low | Gate 3 requires 'freeze public tasks, evaluator versions, budgets' but Gate 4 introduces a new hypothesis that may require changes to evaluator versions or budgets. | Determine if Gate 4's hypothesis can be tested without modifying the frozen items from Gate 3."
+    ],
+    "todos": [
+     "Remove or qualify the 'no new feature path or state store' constraint from Gate 0 to allow later gates to extend the system.",
+     "Define 'plane' in the canonical schemas if it is to be used in later gates.",
+     "Clarify relationship between 'no auto-merge' (Gate 1) and 'revision atomicity' (Gate 2).",
+     "Ensure Gate 3's freeze does not preclude Gate 4's required changes."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "10.0.1",
+       "claim": "Gate 0 requires 'no new feature path or state store outside the canonical contracts'.",
+       "verdict": "contradicted",
+       "why": "Gate 2 adds 'function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators' which necessarily require new feature paths and state stores not defined in Gate 0's canonical contracts. Also Gate 1 introduces 'bias_voltage' which is not a canonical schema field."
+      },
+      {
+       "id": "10.0.2",
+       "claim": "Gate 0 requires 'enforceable write/egress/spend/secrets/concurrency/kill policies'.",
+       "verdict": "weak",
+       "why": "Later gates introduce new concepts (e.g., 'bias_voltage', 'planes', 'crosslinks') that may require new policy types not covered by the enumerated list. The claim is too restrictive for the full scope of the project."
+      },
+      {
+       "id": "10.0.3",
+       "claim": "Gate 0 requires 'no new feature path or state store outside the canonical contracts'.",
+       "verdict": "contradicted",
+       "why": "Gate 2 explicitly adds new features (function/method resolution, etc.) and Gate 1 adds a new property 'bias_voltage', both of which imply new state stores or feature paths."
+      },
+      {
+       "id": "10.0.4",
+       "claim": "Gate 0 requires 'real adapter fixtures for start, stream, tool events, structured output, timeout, cancellation, workspace isolation, and cost'.",
+       "verdict": "unclear",
+       "why": "Later gates (e.g., Gate 2) introduce new concepts like 'crosslinks' and 'four-plane ablations' that may require new adapter fixtures not listed. The claim may be incomplete."
+      },
+      {
+       "id": "10.0.5",
+       "claim": "Gate 0 requires 'policy coverage tests for Claude, Codex, Ollama, Web/API, MCP/File Bridge, Python entrypoints, and isolated worktrees'.",
+       "verdict": "sound",
+       "why": "No contradiction found; this is a specific list that can be extended later without conflict."
+      },
+      {
+       "id": "10.0.6",
+       "claim": "Gate 0 exit condition: 'a fault-injection matrix demonstrates fail-closed protected effects and fail-open read-only inspection'.",
+       "verdict": "weak",
+       "why": "Later gates introduce new effects and state stores (e.g., four-plane ablations) that may not be covered by the initial fault-injection matrix, potentially requiring re-testing."
+      },
+      {
+       "id": "10.1.1",
+       "claim": "Gate 1: 'Prove one vertical mission: propagate Event.voltage -> bias_voltage across Python, Markdown, and CSV.'",
+       "verdict": "contradicted",
+       "why": "'bias_voltage' is not part of any canonical schema defined in Gate 0, implying a new feature path outside the canonical contracts, violating Gate 0's constraint."
+      },
+      {
+       "id": "10.1.2",
+       "claim": "Gate 1: 'Ikarus produces one MissionContract; the four planes produce two typed WorkItems; attempts run in isolation; restart/replay works; tests, schema checks, and link checks produce an EvidencePacket.'",
+       "verdict": "weak",
+       "why": "The term 'four planes' is not defined in Gate 0's canonical schemas, suggesting a new concept not covered by the canonical contracts. Also 'EvidencePacket' may be a new schema."
+      },
+      {
+       "id": "10.1.3",
+       "claim": "Gate 1: 'No auto-merge.'",
+       "verdict": "contradicted",
+       "why": "Gate 2 introduces 'revision atomicity' which could be interpreted as a form of automatic merge or conflict resolution, conflicting with the no-auto-merge rule."
+      },
+      {
+       "id": "10.2.1",
+       "claim": "Gate 2: 'Add function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators, and four-plane ablations.'",
+       "verdict": "contradicted",
+       "why": "These additions constitute new feature paths and likely new state stores (e.g., for crosslinks, evidence locators), directly violating Gate 0's 'no new feature path or state store outside the canonical contracts'."
+      },
+      {
+       "id": "10.2.2",
+       "claim": "Gate 2: 'Do not scale before the full graph beats simpler representations.'",
+       "verdict": "sound",
+       "why": "No contradiction found; this is a performance constraint that does not conflict with other gates."
+      },
+      {
+       "id": "10.3.1",
+       "claim": "Gate 3: 'Freeze public tasks, evaluator versions, budgets, model/hardware reporting, seed policy, and statistical reporting.'",
+       "verdict": "contradicted",
+       "why": "Gate 4 introduces a new research hypothesis that may require changes to evaluator versions or budgets, conflicting with the freeze. Also Gate 5 may require new evaluator code."
+      },
+      {
+       "id": "10.3.2",
+       "claim": "Gate 3: 'Required baselines are Random Search, Best-of-N, a single-LLM loop, simple local mutation, BM25, embeddings, code-only graph, four separate indices, evaluator-only selection, archive/MAP-Elites, and a transparent AlphaEvolve-like proxy.'",
+       "verdict": "weak",
+       "why": "The 'code-only graph' and 'four separate indices' may require state stores not defined in Gate 0's canonical contracts, potentially violating Gate 0. Also 'AlphaEvolve-like proxy' may be a new feature path."
+      },
+      {
+       "id": "10.3.3",
+       "claim": "Gate 3: 'Measure success rate, best-so-far AUC, wall time, tokens, compute, variance, diversity, regressions, and human intervention.'",
+       "verdict": "sound",
+       "why": "No contradiction found; metrics are independent of other gate constraints."
+      },
+      {
+       "id": "10.4.1",
+       "claim": "Gate 4: 'Test Graph-conditioned Representation Search first: use verified Project Twin structure to select and compress context or operators, then compare against budget-equal retrieval and evaluator-only baselines.'",
+       "verdict": "weak",
+       "why": "The 'Project Twin structure' is not defined in Gate 0's canonical contracts; it may require new schemas or state stores. Also 'budget-equal retrieval' may conflict with Gate 3's freeze on budgets if budgets are modified."
+      },
+      {
+       "id": "10.4.2",
+       "claim": "Gate 4: 'Freeze generator, model, token budget, and evaluator.'",
+       "verdict": "contradicted",
+       "why": "Gate 3 already freezes evaluator versions and budgets; this duplicates and may conflict if Gate 4 requires different frozen values. Also Gate 5 may require releasing evaluator code, violating the freeze."
+      },
+      {
+       "id": "10.4.3",
+       "claim": "Gate 4: 'Controls include edge rewiring, relation-label permutation, cross-plane bridges off, stale snapshots, and an oracle graph.'",
+       "verdict": "weak",
+       "why": "'Cross-plane bridges' and 'oracle graph' are not defined in Gate 0's canonical contracts, implying new feature paths."
+      },
+      {
+       "id": "10.4.4",
+       "claim": "Gate 4: 'One hypothesis, one pre-registered protocol, complete ablations.'",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "10.5.1",
+       "claim": "Gate 5: 'Release reproducible task definitions, evaluator code/version, receipts, cost/latency tables, ablations, failures, and a claim bounded by observed evidence.'",
+       "verdict": "contradicted",
+       "why": "Gate 3 freezes evaluator versions, but Gate 5 requires releasing evaluator code/version, implying the version may change. Also releasing code may require new feature paths."
+      },
+      {
+       "id": "10.5.2",
+       "claim": "Gate 5: 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available.'",
+       "verdict": "sound",
+       "why": "No contradiction found; this is a statement of fact."
+      },
+      {
+       "id": "10.5.3",
+       "claim": "Gate 5: 'Beats AlphaEvolve is permitted only for directly comparable public artifact scores under budget-equal measurements; otherwise state the narrower proxy/task result.'",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6f4114064495ab10f01ddbc4baad0537da86978333fbe00e467fe677c1ffba0b",
+    "objective_chars": 4087,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "10-delivery-gates",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

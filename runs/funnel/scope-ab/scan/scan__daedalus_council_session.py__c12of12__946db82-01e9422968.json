@@ -1,0 +1,139 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c12of12__946db82",
+ "key": "scan__daedalus_council_session.py__c12of12__946db82-01e9422968",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 12 of session.py: defines helpers _first_offending_path, _unavailable_turn, _append_budget_round, _chained, _turn_ref.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_first_offending_path | low | Secret floor rule import inside function may cause circular import or performance issue. | Check if import is safe and if caching is needed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "12 of 12",
+     "purpose": "Define helper functions for council session: budget turns, unavailable turns, chained reads, turn references.",
+     "symbols": [
+      {
+       "name": "_first_offending_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns first path that triggers secret_floor_rule, or empty string."
+      },
+      {
+       "name": "_unavailable_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a dict representing an unavailable turn."
+      },
+      {
+       "name": "_append_budget_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends a budget round to the chain and updates turns and outcomes."
+      },
+      {
+       "name": "_chained",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads turns of a given round from the chain on disk."
+      },
+      {
+       "name": "_turn_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a TurnRef from a turn_id and record dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The first path whose PATH channel fires, for the refusal receipt.",
+       "where": "_first_offending_path docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to 'PATH channel' which is not defined in this chunk."
+      },
+      {
+       "text": "A blown budget is a RECORDED round, not a shortened one.",
+       "where": "_append_budget_round docstring",
+       "verdict": "kept",
+       "why": "Function appends a round with budget turns; does not shorten anything."
+      },
+      {
+       "text": "Read this round's turns back FROM THE CHAIN.",
+       "where": "_chained docstring",
+       "verdict": "kept",
+       "why": "Function loads transcript from store and filters by round and turn record."
+      },
+      {
+       "text": "Round 2 prompts are built from these, not from the in-memory replies: a turn the secret floor refused is a receipt on disk, and re-feeding the raw reply would smuggle the refused bytes into another vendor's prompt.",
+       "where": "_chained docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to building of Round 2 prompts, which is outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _first_offending_path imports secret_floor_rule inside the function body.",
+       "where": "_first_offending_path, line ~1325",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _append_budget_round uses _budget_turn, _role_for, append_round, _chained, _turn_ref which are external to this chunk.",
+       "where": "_append_budget_round",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function _chained uses load_transcript which is not defined in this chunk.",
+       "where": "_chained",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function _turn_ref constructs a TurnRef with fields from a record dict, including nested meta.",
+       "where": "_turn_ref",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4e4522ec919add40962a44508d24f47ea7cf5f82a4c4dba51302cf72eab60a8f",
+    "objective_chars": 4828,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [12/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 12,
+  "total": 12,
+  "first_line": 1321
+ }
+}

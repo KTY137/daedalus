@@ -1,0 +1,155 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c7of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c7of8__946db82-670bbbae7e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 7 of publish.py: publish_to_pr() with secret floor, gate, dry_run; read_pr_thread() reads PR comments; _parse_comment() stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "read_pr_thread: STAT_REFUSED_SECRET on pr/repo screen | medium | screen_egress for read may be overly broad; no evidence of data sent | check if screen_egress is intended for read operations in other files"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "7 of 8",
+     "purpose": "Defines publish_to_pr() and read_pr_thread() functions with egress gating, dry-run support, and PR comment reading.",
+     "symbols": [
+      {
+       "name": "publish_to_pr",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "none"
+       ],
+       "note": "Renders verdict, runs egress gate, optionally spawns gh process (unless dry_run or gate hit). Returns PublishResult."
+      },
+      {
+       "name": "read_pr_thread",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "none"
+       ],
+       "note": "Reads PR comments via gh process, returns ThreadResult with turns. Includes egress gate on pr/repo."
+      },
+      {
+       "name": "_parse_comment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private helper to convert a gh comment JSON object to PRTurn. Handles two author shapes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises for an operational failure -- every outcome is a status in PUBLISH_STATUSES.",
+       "where": "publish_to_pr docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to PUBLISH_STATUSES which is not defined in this chunk; no exception handling is visible beyond return statements."
+      },
+      {
+       "text": "dry_run=True renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "Code: if dry_run: return PublishResult(status=STATUS_DRY_RUN, markdown=body, ...) after gate, before runner invocation."
+      },
+      {
+       "text": "The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "Code: screen_egress is called before the dry_run check, so gate always runs."
+      },
+      {
+       "text": "The body goes to gh on STDIN via --body-file -: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.",
+       "where": "publish_to_pr docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about the method of passing body (--body-file -) is not visible in this chunk; the actual invocation of gh is done by runner(argv, body) but argv is built by _gh_argv which is not shown."
+      },
+      {
+       "text": "EGRESS GATE. Runs before the runner exists as far as this function is concerned -- on refusal we return without ever constructing a call.",
+       "where": "publish_to_pr comment",
+       "verdict": "kept",
+       "why": "Code: screen_egress is called before any runner invocation; if hit returns early."
+      },
+      {
+       "text": "The matched text is never echoed, and the markdown is withheld so a caller cannot log the refused body.",
+       "where": "publish_to_pr comment",
+       "verdict": "kept",
+       "why": "Code: detail string does not include body; markdown is not included in the PublishResult for STATUS_REFUSED_SECRET."
+      },
+      {
+       "text": "Never raises for an operational failure; every outcome is a status in READ_STATUSES.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to READ_STATUSES which is not defined in this chunk; no exception handling is visible beyond return statements."
+      },
+      {
+       "text": "Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to 'hash-chained bus' and council appending, which are concepts outside this chunk."
+      },
+      {
+       "text": "One gh comment object -> one PRTurn. Tolerant of the two author shapes gh uses (author.login from the GraphQL-backed pr view --json, user.login from the REST-backed gh api).",
+       "where": "_parse_comment docstring",
+       "verdict": "kept",
+       "why": "Code: author_obj = _field(raw, 'author', 'user', default=None); then checks if isinstance(author_obj, (str, bytes)). This handles both 'author' and 'user' keys."
+      }
+     ],
+     "observations": [
+      {
+       "what": "publish_to_pr uses screen_egress with a dict containing 'council comment body' key, but the body value is the rendered markdown which may contain sensitive data. The gate is applied before sending, matching the docstring.",
+       "where": "line ~729-738",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "read_pr_thread also applies screen_egress on the pr reference and repo slug, but this is a read operation; no data is being sent to GitHub (only metadata). This might be overly restrictive if screen_egress is intended for outgoing data only.",
+       "where": "line ~790-795",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_parse_comment handles two possible keys ('author', 'user') but the fallback default=None means if neither exists, author_obj is None, and then isinstance(None, (str, bytes)) is False, leading to else branch which may fail if not handled. However, the code snippet ends before that branch.",
+       "where": "line ~820-823",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9d3b0576566f1b8336b7df354a4591eca58b74fe114d8d5aa788de1e63eede10",
+    "objective_chars": 5899,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [7/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 7,
+  "total": 8,
+  "first_line": 721
+ }
+}

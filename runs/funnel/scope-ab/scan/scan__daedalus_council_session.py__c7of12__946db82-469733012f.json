@@ -1,0 +1,166 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c7of12__946db82",
+ "key": "scan__daedalus_council_session.py__c7of12__946db82-469733012f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 7 of 12 of session.py: helper functions for turn envelopes and dry_run_plan stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_turn_from_reply | medium | Docstring claims 'the adapter already refused: the bytes never left the process' but this chunk does not show adapter's refusal logic; claim uncheckable. | Verify adapter's floor refusal behavior in adapter code.",
+     "_turn_from_reply | medium | Docstring claims 'the bus so ITS floor mints the canonical refused receipt' but this chunk does not show bus floor logic; claim uncheckable. | Verify bus floor receipt minting elsewhere.",
+     "_turn_from_reply | medium | Docstring claims 'status/reason are pre-scan placeholders the bus overwrites' but this chunk does not show bus overwrite logic; claim uncheckable. | Verify bus processing of this turn.",
+     "_floor_refusal_turn | medium | Docstring claims 'the receipt drops content, refs, evidence and the free-text meta' but this chunk does not show receipt generation; claim uncheckable. | Verify receipt generation in bus.",
+     "_floor_refusal_turn | medium | Docstring claims 'status/reason are never what lands on disk' but this chunk does not show disk writing; claim uncheckable. | Verify bus disk write logic.",
+     "dry_run_plan | low | Function stub with no body; docstring missing. | Implement dry_run_plan or add docstring."
+    ],
+    "todos": [
+     "Complete dry_run_plan implementation."
+    ],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "7 of 12",
+     "purpose": "Helper functions for building turn envelopes and dry_run_plan stub.",
+     "symbols": [
+      {
+       "name": "_turn_from_reply",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps VendorReply to a bus turn envelope. Called from dispatch logic."
+      },
+      {
+       "name": "_floor_refusal_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a stand-in turn for a participant never called due to floor refusal."
+      },
+      {
+       "name": "_budget_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a turn for budget exhaustion."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [],
+       "note": "Stub function; no body or docstring yet."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Map one VendorReply onto a bus turn envelope.",
+       "where": "_turn_from_reply docstring",
+       "verdict": "kept",
+       "why": "The function returns a dict intended as a turn envelope."
+      },
+      {
+       "text": "The adapter already refused: the bytes never left the process.",
+       "where": "_turn_from_reply docstring, 'refused_by_floor' branch",
+       "verdict": "uncheckable",
+       "why": "The claim about adapter behavior is not verifiable in this chunk; it references external adapter logic."
+      },
+      {
+       "text": "Hand the bus the evidence refs so ITS floor mints the canonical refused receipt (a caller may not assert that status -- an asserted refusal is an unverified claim that a scan happened).",
+       "where": "_turn_from_reply docstring, 'refused_by_floor' branch",
+       "verdict": "uncheckable",
+       "why": "The claim about bus floor minting receipts is not verifiable in this chunk."
+      },
+      {
+       "text": "Where the hit was on the content channel of a file we do not show, this lands as an honest unavailable/transport_error and the rule label rides on the record.",
+       "where": "_turn_from_reply docstring, 'refused_by_floor' branch",
+       "verdict": "uncheckable",
+       "why": "The claim about hit location and record labeling is not verifiable in this chunk."
+      },
+      {
+       "text": "Chained stand-in for a participant that was never called.",
+       "where": "_floor_refusal_turn docstring",
+       "verdict": "kept",
+       "why": "The function builds a turn dict for a participant that was not called."
+      },
+      {
+       "text": "The turn carries the OFFENDING PATH as an evidence ref precisely so the bus's own path-channel scan fires and mints the refused receipt naming the rule label.",
+       "where": "_floor_refusal_turn docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about bus path-channel scan and receipt minting is not verifiable in this chunk."
+      },
+      {
+       "text": "The receipt drops content, refs, evidence and the free-text meta, so the offending bytes never reach the file -- not in the turn and not in the receipt.",
+       "where": "_floor_refusal_turn docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about receipt behavior is not verifiable in this chunk."
+      },
+      {
+       "text": "status/reason below are the pre-scan placeholders the bus overwrites; they are never what lands on disk when the scan fires.",
+       "where": "_floor_refusal_turn docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about bus overwriting and disk writing is not verifiable in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _turn_from_reply handles multiple reply statuses (ok, refused_by_floor, timeout) and maps them to turn statuses (spoke/anomaly, unavailable, unavailable).",
+       "where": "_turn_from_reply",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _floor_refusal_turn sets status to 'unavailable' and reason to 'transport_error' as placeholders.",
+       "where": "_floor_refusal_turn",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _budget_turn sets status to 'budget_exhausted' and content empty.",
+       "where": "_budget_turn",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "dry_run_plan is a stub with no implementation or docstring; it will cause errors if called.",
+       "where": "dry_run_plan",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "All three helper functions construct dicts with common keys: actor, vendor, model, independence_class, role, lane, blind, meta.",
+       "where": "_turn_from_reply, _floor_refusal_turn, _budget_turn",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5378a376957125e49f7dc268d8f6ba96daf5406097ff63d76cba98d1b2dbf6ec",
+    "objective_chars": 6271,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [7/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 7,
+  "total": 12,
+  "first_line": 721
+ }
+}

@@ -1,0 +1,155 @@
+{
+ "task_id": "daedalus/adapters/subprocess_adapter.py#c1of1#5eb1702d",
+ "key": "daedalus_adapters_subprocess_adapter.py_c1of1_5eb1702d-fa4f6c7f35",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 12 kept, 4 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"This is a process/event normalization layer, not a universal agent protocol: each CLI still needs a verified command profile and provider-specific event parser.\" | module docstring | KEPT | The code relies on profiles and _parse_typed_event for provider-specific parsing.",
+     "CLAIM | \"Built-in profiles are limited to CLIs whose local ``--help`` contract is exercised by tests and whose execution is one-shot.\" | module docstring | KEPT | Profiles are defined for claude and codex, and the adapter is designed for one-shot execution.",
+     "CLAIM | \"These profiles describe one-shot, non-interactive invocations.\" | comment above RUNTIME_PROFILES | KEPT | Profiles have no interactive features.",
+     "CLAIM | \"Antigravity isn't listed: no ``agy`` executable or stable JSON protocol exists on this machine, and a desktop/IDE session does not imply a callable CLI contract.\" | comment above RUNTIME_PROFILES | UNCHECKABLE | Requires checking existence of agy executable and JSON protocol, which is external.",
+     "CLAIM | \"Run a configured CLI in a bounded working directory and normalize output.\" | SubprocessAdapter docstring | KEPT | Class runs CLI in cwd and normalizes output via _parse_line.",
+     "CLAIM | \"Either config or command must be provided\" | __init__ docstring | KEPT | Raises ValueError if both are None.",
+     "CLAIM | \"repo_root is not a directory\" raises ValueError | __init__ | KEPT | Code checks root.is_dir() and raises.",
+     "CLAIM | \"session cwd is not a directory\" raises ValueError | create_session | KEPT | Code checks cwd.is_dir() and raises.",
+     "CLAIM | \"timeout_s must be positive\" raises ValueError | create_session | KEPT | Code checks timeout_s <= 0 and raises.",
+     "CLAIM | \"{profile} has no model option\" raises ValueError | create_session | KEPT | Code checks self._config.model_arg and raises.",
+     "CLAIM | \"{profile} does not accept a prompt\" raises ValueError | create_session | KEPT | Code checks prompt_mode == 'none' and raises.",
+     "CLAIM | \"session {session_id} not found or stdin unavailable\" raises RuntimeError | _write_stdin | KEPT | Code checks session is None or stdin is None.",
+     "CLAIM | \"session {session_id} stdin is closed\" raises RuntimeError | _write_stdin | KEPT | Code checks stdin.is_closing().",
+     "CLAIM | \"session {session_id} not found\" raises RuntimeError | events | KEPT | Code checks session is None or stdout is None.",
+     "CLAIM | \"one-shot CLI profiles do not expose a portable approval protocol\" raises NotImplementedError | approve | KEPT | Method raises NotImplementedError.",
+     "CLAIM | \"one-shot CLI profiles do not expose a portable approval protocol\" raises NotImplementedError | reject | KEPT | Method raises NotImplementedError.",
+     "D1 | _runtime_name | __init__ | Parameter 'runtime_name' is assigned to self._runtime_name but never read in this unit. | WRONG CONCLUSION: A caller believes the runtime name is used for something, but it's only stored.",
+     "D2 | none | none | none",
+     "D3 | none | none | none",
+     "D4 | none | none | none"
+    ],
+    "todos": [
+     "Remove unused self._runtime_name assignment or add usage.",
+     "In _parse_typed_event, the condition for 'assistant' event type uses 'message' key but the profile for claude uses 'assistant' with no 'message' key; the code may not parse correctly. Adjust to handle the actual structure."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1607efb4985a851f823cfa5d74e4377ef80d9aa239a9a3bb0c4ccb02ed4679b7",
+    "objective_chars": 18544,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 10 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"one-shot, non-interactive invocations\" | RUNTIME_PROFILES | KEPT | The profiles and adapter methods enforce one-shot semantics.",
+     "CLAIM | \"each CLI still needs a verified command profile and provider-specific event parser\" | module docstring | KEPT | The adapter relies on profiles and has provider-specific parsing.",
+     "CLAIM | \"Built-in profiles are limited to CLIs whose local ``--help`` contract is exercised by tests and whose execution is one-shot\" | module docstring | KEPT | The built-in profiles are for claude and codex, and the adapter treats them as one-shot.",
+     "CLAIM | \"This is a process/event normalization layer, not a universal agent protocol\" | module docstring | KEPT | The adapter normalizes subprocess output into events.",
+     "CLAIM | \"Lifecycle events are still observable, but aren't misrepresented as text generated by the model\" | _parse_typed_event | KEPT | Unknown event types return AgentMessage with role='system'.",
+     "CLAIM | \"one-shot CLI profiles do not expose a portable approval protocol\" | approve/reject docstrings | KEPT | Both methods raise NotImplementedError.",
+     "CLAIM | \"execution is one-shot\" | module docstring | KEPT | create_session spawns a process and yields events until EOF, no reuse.",
+     "CLAIM | \"stderr is captured and attached to SessionEnded\" | events method | KEPT | SessionEnded includes stderr from the stderr_task.",
+     "CLAIM | \"timeout_s must be positive\" | create_session | KEPT | Raises ValueError if timeout_s <= 0.",
+     "CLAIM | \"session_id format includes command stem and uuid hex\" | create_session | KEPT | session_id is built as f\"{stem}_{uuid.hex[:8]}\".",
+     "CLAIM | \"stdin is closed after prompt if close_stdin_after_prompt is True\" | create_session | KEPT | Lines 147-148 close stdin after writing prompt.",
+     "CLAIM | \"_stop_process terminates then kills after timeout\" | _stop_process | KEPT | The method terminates, waits 5s, kills if timeout.",
+     "D1 | retry_s | __init__ parameter | WRONG CONCLUSION: A caller may believe they can set retry_s, but it is never read.",
+     "D4 | 'if not line: continue' after decoding | events method | WRONG CONCLUSION: A caller might think empty lines are yielded, but they are skipped."
+    ],
+    "todos": [
+     "Remove 'retry_s' parameter from __init__ or actually use it.",
+     "Fix the 'if not line: continue' to be consistent with docstring or remove the claim about yielding empty lines."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1607efb4985a851f823cfa5d74e4377ef80d9aa239a9a3bb0c4ccb02ed4679b7",
+    "objective_chars": 18544,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"These profiles describe one-shot, non-interactive invocations.\" | RUNTIME_PROFILES | KEPT | The profiles are for one-shot use; no resume or hidden_state_access is set.",
+     "CLAIM | \"Antigravity isn't listed\" | RUNTIME_PROFILES | KEPT | No 'antigravity' key exists in RUNTIME_PROFILES.",
+     "CLAIM | \"no ``agy`` executable or stable JSON protocol exists on this machine\" | RUNTIME_PROFILES | UNCHECKABLE | Requires checking the filesystem for an 'agy' executable, which is outside this unit.",
+     "CLAIM | \"a desktop/IDE session does not imply a callable CLI contract\" | RUNTIME_PROFILES | UNCHECKABLE | This is a design rationale; no code in this unit can verify it.",
+     "CLAIM | \"Run a configured CLI in a bounded working directory and normalize output.\" | SubprocessAdapter | KEPT | The adapter uses a repo_root and normalizes events via _parse_line.",
+     "CLAIM | \"Either config or command must be provided\" | __init__ | KEPT | Raises ValueError if both are missing.",
+     "CLAIM | \"repo_root is not a directory\" | __init__ | KEPT | Raises ValueError if root.is_dir() is False.",
+     "CLAIM | \"one-shot CLI profiles do not expose a portable approval protocol\" | approve | KEPT | Raises NotImplementedError.",
+     "CLAIM | \"one-shot CLI profiles do not expose a portable approval protocol\" | reject | KEPT | Raises NotImplementedError.",
+     "CLAIM | \"Lifecycle events are still observable, but aren't misrepresented as text generated by the model.\" | _parse_typed_event | KEPT | Returns AgentMessage with role='system' for unknown event types.",
+     "CLAIM | \"session cwd is not a directory\" | create_session | KEPT | Raises ValueError if cwd.is_dir() is False.",
+     "CLAIM | \"timeout_s must be positive\" | create_session | KEPT | Raises ValueError if timeout_s <= 0.",
+     "CLAIM | \"{self._config.command} profile has no model option\" | create_session | KEPT | Raises ValueError if model_arg is None and model is provided.",
+     "CLAIM | \"{self._config.command} profile does not accept a prompt\" | create_session | BROKEN | Line 150: raises ValueError only when prompt_mode is 'none' and prompt is truthy; but if prompt_mode is 'none' and prompt is empty, no error is raised, implying it accepts an empty prompt.",
+     "D1 | retry_s | __init__ | Parameter 'retry_s' is defined in the signature but never read in the unit. | WRONG CONCLUSION: a caller might believe they can configure a retry timeout, but it is ignored."
+    ],
+    "todos": [
+     "Change create_session to raise ValueError when prompt_mode is 'none' regardless of prompt being empty, or remove the condition for 'none'.",
+     "Remove the 'retry_s' parameter from __init__ or use it in the code."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1607efb4985a851f823cfa5d74e4377ef80d9aa239a9a3bb0c4ccb02ed4679b7",
+    "objective_chars": 18544,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/adapters/subprocess_adapter.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 16084
+ }
+}

@@ -1,0 +1,130 @@
+{
+ "task_id": "plan__b007__946db82",
+ "key": "plan__b007__946db82-36a9da9eed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 items ordered: 1) add None guard for shutil.which in codex_cli.py, 2) validate sha256 vs payload in subject_for, 3) disambiguate untracked=-1 in consumers, 4) verify _verify_reachable in worktree.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Adding None check may change behavior if callers rely on TypeError",
+     "Validating sha256 may break existing callers that pass mismatched values",
+     "Disambiguating untracked may require changing return values or adding fields"
+    ],
+    "todos": [
+     "Write test for subject_for with mismatched sha256 and payload",
+     "Write test for untracked=-1 ambiguity in docref_gate and harness",
+     "Write test for _verify_reachable correctness"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Add None guard for shutil.which('codex') in daedalus/providers/codex_cli.py",
+       "gate": "1",
+       "why_now": "Without a None check, calling shutil.which('codex') returns None when codex is not installed, and the subsequent usage (likely passing to subprocess) will raise TypeError. This is a high-severity crash on a documented code path.",
+       "steps": [
+        {
+         "do": "In daedalus/providers/codex_cli.py, locate the shutil.which('codex') call (likely in the `available` or `run` method). Add a None check: if result is None, raise a clear error or return False for availability.",
+         "file": "daedalus/providers/codex_cli.py",
+         "verified_by": "Run `python -c \"from daedalus.providers.codex_cli import CodexCLIProvider; print(CodexCLIProvider.available())\"` without codex installed; should return False without raising TypeError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The shutil.which('codex') call is in the `available` method or similar; exact line not confirmed."
+      },
+      {
+       "rank": 2,
+       "title": "Validate sha256 matches payload in subject_for in daedalus/spine/envelope.py",
+       "gate": "1",
+       "why_now": "If both sha256 and payload are provided, subject_for does not verify they match, leading to inconsistent ledger entries with a digest that doesn't correspond to the payload.",
+       "steps": [
+        {
+         "do": "In daedalus/spine/envelope.py, modify subject_for to check: if both sha256 and payload are given, compute sha256 of payload and compare; if mismatch, raise ValueError.",
+         "file": "daedalus/spine/envelope.py",
+         "verified_by": "Write a unit test that calls subject_for with sha256='abc' and payload='payload' (mismatch) and expects ValueError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "subject_for is defined in daedalus/spine/envelope.py as shown in the index."
+      },
+      {
+       "rank": 3,
+       "title": "Disambiguate untracked=-1 sentinel in consumers of git_stamp in docref_gate.py and harness.py",
+       "gate": "1",
+       "why_now": "The sentinel -1 for untracked count is ambiguous between 'not probed' and 'error'. Consumers may misinterpret it, leading to incorrect logic. The settling check is to grep for usage.",
+       "steps": [
+        {
+         "do": "Run `grep -r 'untracked' daedalus/spine/docref_gate.py daedalus/eval/harness.py` to find all uses of the untracked field from git_stamp. If any consumer uses untracked value for logic decisions without also checking probe_dirty or other fields, add a check to disambiguate (e.g., treat -1 as 'unknown' and handle accordingly).",
+         "file": "daedalus/spine/docref_gate.py",
+         "verified_by": "After changes, run existing tests for docref_gate and harness to ensure no regression."
+        },
+        {
+         "do": "If consumers in docref_gate.py or harness.py use untracked without disambiguation, add a helper function or comment to clarify the sentinel's meaning and guard against misuse.",
+         "file": "daedalus/eval/harness.py",
+         "verified_by": "Code review confirms all untracked uses are now guarded or documented."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The grep will find actual uses; the exact nature of the fix depends on what the grep reveals."
+      },
+      {
+       "rank": 4,
+       "title": "Verify _verify_reachable is defined and effective in daedalus/kairos/worktree.py",
+       "gate": "1",
+       "why_now": "If _verify_reachable is missing or a no-op, the containment guarantee of worktree cleanup is broken, allowing attacker-influenced paths to escape deletion scope.",
+       "steps": [
+        {
+         "do": "Search for 'def _verify_reachable' in daedalus/kairos/worktree.py. If missing, implement it to verify that a path is within the allocated worktree before deletion. If present, review its implementation to ensure it correctly checks containment.",
+         "file": "daedalus/kairos/worktree.py",
+         "verified_by": "Write a unit test that creates a worktree, replaces it with a junction to primary checkout, and asserts that cleanup raises WorktreeContainmentError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The function may exist; if not, the implementation must follow the containment logic described in the docstring."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/providers/codex_cli.py",
+      "daedalus/spine/envelope.py",
+      "daedalus/spine/docref_gate.py",
+      "daedalus/eval/harness.py",
+      "daedalus/kairos/worktree.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "44f30c21ea2b204a69114076da2628f881cca001446aee535a1dbba01c86667f",
+    "objective_chars": 154738,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 7 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 7,
+  "inputs": 5
+ }
+}

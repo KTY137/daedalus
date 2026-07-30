@@ -1,0 +1,236 @@
+{
+ "task_id": "scan__daedalus_tools_inventory.py__c1of1__946db82",
+ "key": "scan__daedalus_tools_inventory.py__c1of1__946db82-7316c6b3a8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed inventory.py: collects skills and MCP servers with vet verdicts, deterministic build, renders table. Claims about shadowing, error handling, and adversarial fix verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "collect_skills | medium | Key fix for adversarial shadowing: key changed from (name, scope) to (name, sroot). Code matches comment. | Verify that the two project scopes now produce separate records when names collide.",
+     "render | low | render function uses inv['summary']['by_outcome'] which may not exist if vet_mod.summarise does not return that key. | Check vet_mod.summarise output shape.",
+     "main | low | main function is uncovered (pragma: no cover) and uses sys.argv directly; brittle for testing. | Add test coverage or refactor."
+    ],
+    "todos": [
+     "Verify that vet_mod.summarise returns a dict with keys 'cleared', 'by_outcome', 'blocking', 'unscannable' as used in render.",
+     "Consider adding integration tests for build() with real skill/MCP files."
+    ],
+    "handoff": {
+     "module": "daedalus/tools/inventory.py",
+     "chunk": "1 of 1",
+     "purpose": "Provides deterministic inventory of skills and MCP servers with vet verdicts.",
+     "symbols": [
+      {
+       "name": "INVENTORY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Version string '1'."
+      },
+      {
+       "name": "SKILL_SCOPES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (scope, relative path) for project skills."
+      },
+      {
+       "name": "USER_SKILL_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of user skill directories."
+      },
+      {
+       "name": "MCP_SCOPES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (scope, relative path) for MCP config files."
+      },
+      {
+       "name": "ToolRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one tool with provenance and verdict."
+      },
+      {
+       "name": "ToolRecord.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes ToolRecord to dict."
+      },
+      {
+       "name": "_read_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads JSON file, returns (data, error)."
+      },
+      {
+       "name": "collect_skills",
+       "kind": "function",
+       "effects": [],
+       "note": "Collects skills from project and user scopes, returns (records, errors)."
+      },
+      {
+       "name": "collect_mcp_servers",
+       "kind": "function",
+       "effects": [],
+       "note": "Collects MCP servers from config files, returns (records, errors)."
+      },
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds full inventory dict with summary and errors."
+      },
+      {
+       "name": "_Shim",
+       "kind": "class",
+       "effects": [],
+       "note": "Minimal dataclass for vet summarise compatibility."
+      },
+      {
+       "name": "_summary",
+       "kind": "function",
+       "effects": [],
+       "note": "Calls vet_mod.summarise and removes version."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders inventory as formatted table string."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI entry point, prints inventory as JSON or table."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derived, never hand-maintained \u2014 regenerate and it is true by construction, the same contract structcore holds for the code index.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "The module reads files (skills, MCP configs) and computes the inventory; no hand-maintained data."
+      },
+      {
+       "text": "It does not install, enable, start or route. It reads files and returns data.",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "All functions are pure data collection; no side effects like installation or routing."
+      },
+      {
+       "text": "Project scope wins over user scope on a name collision, and BOTH are reported so a shadowed skill is visible rather than silently absent.",
+       "where": "comment above SKILL_SCOPES",
+       "verdict": "kept",
+       "why": "collect_skills iterates roots in order (project first), and the dedup key uses (name, sroot) so same name in different directories are both included."
+      },
+      {
+       "text": "A malformed config is reported, never skipped: 'we could not read the tool list' must never render as 'there are no tools'.",
+       "where": "comment in _read_json",
+       "verdict": "kept",
+       "why": "_read_json returns (empty dict, error message) on parse failure; error is propagated to build and included in 'errors' list and 'degraded' flag."
+      },
+      {
+       "text": "KEYED ON THE ROOT, not on the scope label. ... A hostile skill became invisible to the trust gate by choosing a name that already existed. ... Keying on the root still collapses a genuine duplicate (the same directory scanned twice) and no longer collapses two different files that happen to share a name",
+       "where": "comment in collect_skills",
+       "verdict": "kept",
+       "why": "The code uses key = (sk.name, str(sroot)), which is root-based. The comment describes the fix correctly."
+      },
+      {
+       "text": "Read errors are NEVER folded into the summary counts. 'Could not read the tool list' and 'there are no tools' produce the same empty list, and a caller must be able to tell them apart.",
+       "where": "comment in build",
+       "verdict": "kept",
+       "why": "build returns separate 'errors' list and 'degraded' flag; summary counts only reflect successfully parsed tools."
+      },
+      {
+       "text": "Deterministic: every list sorted by (kind, scope, name).",
+       "where": "docstring of build",
+       "verdict": "kept",
+       "why": "build sorts records using key=lambda r: (r.kind, r.scope, r.name)."
+      },
+      {
+       "text": "It does not install, enable, start or route. Provisioning is a separate lane, and capability routing belongs to provider_router",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "Provider_router not shown; no code contradicts the claim."
+      },
+      {
+       "text": "skills.py could parse a SKILL.md and had no consumer but its own tests; control_plane.py could list the MCP servers in .mcp.json and did nothing with them. This module is the seam",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "skills_mod and vet_mod are imported but their implementations not shown."
+      },
+      {
+       "text": "the annotation said set[str] while the code put tuples in it, which is how the key's actual shape stopped being anybody's business.",
+       "where": "comment in collect_skills",
+       "verdict": "uncheckable",
+       "why": "The annotation is not visible in this chunk; code uses set[tuple[str, str]]."
+      }
+     ],
+     "observations": [
+      {
+       "what": "collect_skills uses key = (sk.name, str(sroot)) to avoid shadowing, as described in adversarial review comment.",
+       "where": "collect_skills, lines ~95-100",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_read_json returns empty dict on FileNotFoundError and on parse error; errors are collected and returned.",
+       "where": "_read_json",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build function sorts records and returns summary via _summary which calls vet_mod.summarise.",
+       "where": "build",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "render function uses keys 'by_outcome', 'cleared', 'blocking', 'unscannable' from summary dict; these depend on vet_mod.summarise output.",
+       "where": "render, lines ~150-155",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "main function is marked pragma: no cover and uses sys.argv directly.",
+       "where": "main",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb1975b1bad13562f7a259a747dea315037a329e1d60234b350b375bba27db18",
+    "objective_chars": 10839,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/inventory.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/tools/inventory.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

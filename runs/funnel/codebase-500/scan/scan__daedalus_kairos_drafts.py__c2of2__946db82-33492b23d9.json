@@ -1,0 +1,128 @@
+{
+ "task_id": "scan__daedalus_kairos_drafts.py__c2of2__946db82",
+ "key": "scan__daedalus_kairos_drafts.py__c2of2__946db82-33492b23d9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of drafts.py: two public functions, set_status and apply_payload, with docstring claims about status transitions, idempotency, and no filesystem writes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "set_status line 121 | medium | Function writes to filesystem despite docstring claim of no filesystem touch for 'applied' status. | Check if the docstring is misleading or if 'applied' status is special-cased elsewhere.",
+     "apply_payload line 145 | low | Call to set_status may raise ValueError if status is invalid, but set_status is called with 'applied' which is valid. | Ensure 'applied' is always in _STATUSES."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/drafts.py",
+     "chunk": "2 of 2",
+     "purpose": "Defines set_status and apply_payload functions for draft lifecycle management.",
+     "symbols": [
+      {
+       "name": "set_status",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Updates draft JSON file with new status and timestamp."
+      },
+      {
+       "name": "apply_payload",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Calls set_status which writes to filesystem, then returns packet dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Transition a draft's lifecycle. Returns the updated draft, or None if the id is unknown; raises ValueError on an invalid status.",
+       "where": "set_status docstring",
+       "verdict": "kept",
+       "why": "Code checks status against _STATUSES and raises ValueError; returns None if p is None or not file; returns updated draft dict."
+      },
+      {
+       "text": "This does NOT touch the filesystem of the target repo -- 'applied' only marks the proposal as handled",
+       "where": "set_status docstring",
+       "verdict": "broken",
+       "why": "The function writes to the draft file via p.write_text(), which is a filesystem write (though not to the target repo, but to the drafts directory). The claim says 'does NOT touch the filesystem' but it does."
+      },
+      {
+       "text": "Idempotent.",
+       "where": "set_status docstring",
+       "verdict": "kept",
+       "why": "Calling set_status multiple times with same draft_id and status will overwrite the file with same content, no side effects beyond the write."
+      },
+      {
+       "text": "The review packet a human / the Claude lane needs to ACTUALLY apply a draft: the objective, the target paths, and the proposal text. Marks the draft 'applied' (handled) but performs no write itself -- returning the packet IS the handoff.",
+       "where": "apply_payload docstring",
+       "verdict": "broken",
+       "why": "The function calls set_status which writes to the filesystem. So it does perform a write, contradicting 'performs no write itself'."
+      },
+      {
+       "text": "None if the id is unknown.",
+       "where": "apply_payload docstring",
+       "verdict": "kept",
+       "why": "If get_draft returns None, the function returns None."
+      }
+     ],
+     "observations": [
+      {
+       "what": "set_status writes to the draft file, contradicting the docstring claim that it does not touch filesystem.",
+       "where": "set_status line 121",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "apply_payload calls set_status which writes, contradicting the claim that it performs no write itself.",
+       "where": "apply_payload line 145",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of set_status mentions 'applied' only marks the proposal as handled, but the function does not differentiate statuses; it writes for any status.",
+       "where": "set_status line 121",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "No validation that draft_id is non-empty string; _safe_path may return None for invalid inputs.",
+       "where": "set_status line 121",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "df99983fc7087d73ee269c33c374bffba73be33ff87eee57cb46ea97d72f1fef",
+    "objective_chars": 2409,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/drafts.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/drafts.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

@@ -1,0 +1,147 @@
+{
+ "task_id": "daedalus/kairos/drafts.py#c1of1#5eb1702d",
+ "key": "daedalus_kairos_drafts.py_c1of1_5eb1702d-b37cd4364d",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 4 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"never overwrite an existing draft from the same second\" | save_draft | BROKEN | The loop increments n but does not re-check existence for the new path before writing; only the initial path is checked, and the first alternative path is written unconditionally.",
+     "CLAIM | \"Newest-first summaries of every stored draft\" | list_drafts | KEPT | The code sorts files reverse alphabetically, which for timestamps yields newest first.",
+     "CLAIM | \"Transition a draft's lifecycle. ... raises ValueError on an invalid status\" | set_status | KEPT | The code checks status against _STATUSES and raises ValueError if not found.",
+     "CLAIM | \"Idempotent\" | set_status | KEPT | Writing the same status again produces no error and the same JSON content.",
+     "CLAIM | \"Marks the draft 'applied' (handled) but performs no write itself\" | apply_payload | BROKEN | apply_payload calls set_status which writes the updated draft to disk, contradicting \"performs no write itself\".",
+     "CLAIM | \"A draft id is our own timestamp-slug stem. It arrives from the CLI and from URL path segments (/api/drafts/<id>/apply), so it MUST NOT be trusted into a filesystem path -- reject anything that isn't a plain stem (no separators, no traversal). Closes the path-traversal gap Minos would have flagged.\" | _ID_RE | KEPT | The regex only allows alphanumerics, dots, underscores, hyphens; no slashes or traversal sequences.",
+     "CLAIM | \"Returns None for anything suspicious (.., separators, absolute paths, symlink escapes)\" | _safe_path | UNCHECKABLE | The symlink escape check depends on .resolve() behavior; whether it catches all symlink escapes requires knowledge of the filesystem and whether DRAFT_DIR itself could be a symlink.",
+     "D1 | _slug | parameter max_len is never read in this unit",
+     "D2 | list_drafts | except (OSError, json.JSONDecodeError): continue | WRONG CONCLUSION: The docstring says 'Newest-first summaries of every stored draft' but silently skips corrupted files without warning, which may hide data loss."
+    ],
+    "todos": [
+     "In save_draft, move the existence check inside the loop so that each candidate path is checked before writing.",
+     "In apply_payload, either remove the call to set_status (and inline the status update without writing) or update the docstring to state that the draft is marked applied by writing to disk."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c012db1bae290852418e37af534ffc89af3d0655b6da7fc776fbc134b30142f6",
+    "objective_chars": 8631,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 9 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"never overwrite an existing draft from the same second\" | save_draft | KEPT | The while loop increments suffix until path does not exist.",
+     "CLAIM | \"Newest-first summaries of every stored draft\" | list_drafts | KEPT | sorted with reverse=True on glob results.",
+     "CLAIM | \"Transition a draft's lifecycle. Returns the updated draft, or None if the id is unknown; raises ValueError on an invalid status.\" | set_status | KEPT | Checks status in _STATUSES, returns None if p is None or not is_file, returns dict on success.",
+     "CLAIM | \"This does NOT touch the filesystem of the target repo\" | set_status | KEPT | Only writes to DRAFT_DIR, no repo filesystem access.",
+     "CLAIM | \"Idempotent\" | set_status | KEPT | Re-reading and writing same status produces same file content.",
+     "CLAIM | \"The review packet a human / the Claude lane needs to ACTUALLY apply a draft: the objective, the target paths, and the proposal text.\" | apply_payload | KEPT | Returns packet with those fields.",
+     "CLAIM | \"Marks the draft 'applied' (handled) but performs no write itself\" | apply_payload | BROKEN | apply_payload calls set_status which writes to the draft file, so it does perform a write.",
+     "CLAIM | \"None if the id is unknown.\" | apply_payload | KEPT | Returns None if get_draft returns None.",
+     "CLAIM | \"Resolve a draft id to its file ONLY if the id is a plain stem that stays inside DRAFT_DIR. Returns None for anything suspicious (``..``, separators, absolute paths, symlink escapes).\" | _safe_path | KEPT | Checks _ID_RE, then resolves and relative_to, catches ValueError and OSError.",
+     "CLAIM | \"A draft id is our own timestamp-slug stem. It arrives from the CLI and from URL path segments (/api/drafts/<id>/apply), so it MUST NOT be trusted into a filesystem path\" | _ID_RE | UNCHECKABLE | The claim about URL path segments is external; the regex enforces plain stem but cannot verify the origin.",
+     "CLAIM | \"Closes the path-traversal gap Minos would have flagged.\" | _ID_RE | KEPT | Regex and resolve check prevent traversal.",
+     "CLAIM | \"pending -> applied|dismissed (future)\" | save_draft | KEPT | Initial status is 'pending', comment indicates future transitions.",
+     "D1 | _STATUSES | Defined but not read in this unit (only referenced in set_status which is in this unit, but that reads it). Actually it is read in set_status, so no mechanical issue.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In apply_payload, either remove the call to set_status (change claim to 'marks the draft applied by writing to the draft file') or adjust the claim to say 'performs no write to the target repo'."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c012db1bae290852418e37af534ffc89af3d0655b6da7fc776fbc134b30142f6",
+    "objective_chars": 8631,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 8 kept, 4 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"persisted to runs/drafts/<ts>-<slug>.json\" | save_draft | KEPT | File naming matches pattern.",
+     "CLAIM | \"listed, reviewed, applied, and cleaned up later\" | list_drafts, get_draft, apply_payload, delete_draft | KEPT | Functions exist for each operation.",
+     "CLAIM | \"deliberately NOT automated\" | apply_payload | KEPT | apply_payload returns a packet and does not perform edits.",
+     "CLAIM | \"reject anything that isn't a plain stem (no separators, no traversal)\" | _ID_RE | KEPT | Regex allows only alphanumeric, dot, underscore, hyphen.",
+     "CLAIM | \"Resolve a draft id to its file ONLY if the id is a plain stem that stays inside DRAFT_DIR\" | _safe_path | KEPT | Checks _ID_RE and resolves path relative to DRAFT_DIR.",
+     "CLAIM | \"never overwrite an existing draft from the same second\" | save_draft | KEPT | Loop appends -n suffix when path exists.",
+     "CLAIM | \"Newest-first summaries of every stored draft\" | list_drafts | KEPT | Sorted glob reverse=True.",
+     "CLAIM | \"raises ValueError on an invalid status\" | set_status | KEPT | Raises ValueError for invalid status.",
+     "CLAIM | \"Marks the draft 'applied' (handled) but performs no write itself\" | apply_payload | BROKEN | Line 126 calls set_status(draft_id, \"applied\") which writes to disk.",
+     "CLAIM | \"None if the id is unknown\" | apply_payload | KEPT | Returns None if get_draft returns None.",
+     "CLAIM | \"Idempotent\" | set_status | BROKEN | Writing status_changed timestamp each time changes file content, so not idempotent.",
+     "CLAIM | \"returns the updated draft, or None if the id is unknown\" | set_status | KEPT | Returns None if p is None or not file, otherwise returns updated dict.",
+     "D1 | _SLUG_RE | module-level constant defined but never used directly in this unit (only used via _slug function) | WRONG CONCLUSION: _SLUG_RE is used inside _slug, so it is used.",
+     "D1 | _STATUSES | module-level constant defined and used in set_status | WRONG CONCLUSION: _STATUSES is used.",
+     "D1 | _ID_RE | module-level constant defined and used in _safe_path | WRONG CONCLUSION: _ID_RE is used.",
+     "D1 | _slug | function defined and used in save_draft | WRONG CONCLUSION: _slug is used.",
+     "D4 | branch that cannot be true given assignments above it | _safe_path | KEPT | The try block catches ValueError and OSError, but the condition p.resolve().relative_to(DRAFT_DIR.resolve()) can raise ValueError if not relative, so the branch is reachable."
+    ],
+    "todos": [
+     "In apply_payload, remove the call to set_status or change the docstring to reflect that it does write.",
+     "In set_status, remove the status_changed field or make it conditional to achieve idempotence."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c012db1bae290852418e37af534ffc89af3d0655b6da7fc776fbc134b30142f6",
+    "objective_chars": 8631,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/drafts.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 6185
+ }
+}

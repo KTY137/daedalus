@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c2of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c2of8__946db82-fee061bbcf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 8: defines RunResult, Runner, _subprocess_runner, PublishResult, PRTurn, ThreadResult, _field, _as_list. Claims checked: subprocess runner behaviour, dataclass fields, function aliasing.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "2 of 8",
+     "purpose": "Define result dataclasses, runner type, subprocess runner, and field/list helper functions.",
+     "symbols": [
+      {
+       "name": "RunResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with returncode, stdout, stderr; docstring mentions fake is three fields."
+      },
+      {
+       "name": "Runner",
+       "kind": "constant",
+       "effects": [],
+       "note": "Callable type alias: (Sequence[str], str|None) -> RunResult."
+      },
+      {
+       "name": "_subprocess_runner",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Default runner invoking gh via subprocess; handles FileNotFoundError, OSError, TimeoutExpired."
+      },
+      {
+       "name": "PublishResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with status, detail, markdown, comment_url."
+      },
+      {
+       "name": "PRTurn",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with author, created_at, body, url."
+      },
+      {
+       "name": "ThreadResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with status, detail, turns."
+      },
+      {
+       "name": "_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads first non-None value from names as mapping key or attribute; alias-tolerant."
+      },
+      {
+       "name": "_as_list",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes value to list; handles Mapping, str/bytes, Iterable, None."
+      }
+     ],
+     "claims": [
+      {
+       "text": "this module reads, so a fake is three fields, not a mock framework.",
+       "where": "line 122",
+       "verdict": "uncheckable",
+       "why": "Refers to module's use of RunResult as fake; no usage code in this chunk."
+      },
+      {
+       "text": "Default runner: actually invoke ``gh``. Never raises -- a launch failure becomes a RunResult the classifier can map to a status.",
+       "where": "_subprocess_runner docstring",
+       "verdict": "kept",
+       "why": "Function catches exceptions and returns RunResult; does not raise."
+      },
+      {
+       "text": "gh installs as a .CMD shim under some Windows package managers; subprocess cannot spawn it by bare name (WinError 2), so resolve the real path first -- the same lesson codex_cli.py records for the codex shim.",
+       "where": "comment before shutil.which",
+       "verdict": "uncheckable",
+       "why": "Refers to codex_cli.py not present in this chunk."
+      },
+      {
+       "text": "gh emits UTF-8 (smart quotes in PR titles, box drawing); without an explicit encoding text=True decodes with the Windows locale and a stray byte kills the capture thread.",
+       "where": "comment before encoding",
+       "verdict": "kept",
+       "why": "encoding='utf-8', errors='replace' are set explicitly."
+      },
+      {
+       "text": "Always pass input (possibly \"\"): it closes the child's stdin, so gh cannot block waiting on an inherited handle that never reaches EOF.",
+       "where": "comment before input",
+       "verdict": "kept",
+       "why": "input=stdin_text if stdin_text is not None else '' ensures non-None string."
+      },
+      {
+       "text": "``markdown`` is populated on ``dry_run`` and ``published``; it is EMPTY on ``refused_secret`` -- handing the caller a body the floor just rejected invites it straight back into a log file.",
+       "where": "PublishResult docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk sets markdown based on status; logic is elsewhere."
+      },
+      {
+       "text": "First present, non-None value among ``names``, read as a mapping key or an attribute. Deliberately alias-tolerant: this renderer must keep working while the council's own dataclasses are still being named.",
+       "where": "_field docstring",
+       "verdict": "kept",
+       "why": "Function iterates names, checks Mapping.get or getattr, returns first non-None."
+      },
+      {
+       "text": "dict-keyed collections (e.g. {vendor: stats}) are flattened into rows carrying their key, so a mapping and a list of rows render identically.",
+       "where": "comment in _as_list",
+       "verdict": "kept",
+       "why": "Code iterates items and creates rows with 'vendor' key."
+      }
+     ],
+     "observations": [
+      {
+       "what": "RunResult docstring says 'this module reads, so a fake is three fields, not a mock framework.' This is a comment about usage, not a technical claim that can be verified here.",
+       "where": "line 122",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_subprocess_runner handles FileNotFoundError and OSError separately but both return returncode 127. Could be simplified.",
+       "where": "_subprocess_runner",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_as_list treats Mapping as iterable of items, but Mapping is Iterable; the isinstance check for Mapping comes before Iterable, so Mapping branch is used. This is intentional.",
+       "where": "_as_list",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1529b5cea642b3d89a0401a1873deabb7053ea3ad55af766a2e708a3d1666b9d",
+    "objective_chars": 5905,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [2/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 2,
+  "total": 8,
+  "first_line": 121
+ }
+}

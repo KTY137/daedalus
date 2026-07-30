@@ -1,0 +1,179 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c4of5__946db82",
+ "key": "scan__daedalus_lanes_fanout.py__c4of5__946db82-febedc81ff",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed fanout.py chunk 4: defines task execution, resume logic, thread pool, progress reporting, and result aggregation. No critical issues.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 363-372 | medium | refusal return uses len(tasks) but tasks may be undefined if guard_error occurs before tasks definition. | Check if tasks is defined in the scope of the refusal block."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "4 of 5",
+     "purpose": "Defines task execution loop, resume logic, thread pool management, progress reporting, and result dictionary construction.",
+     "symbols": [
+      {
+       "name": "trace",
+       "kind": "constant",
+       "effects": [],
+       "note": "Assigned once via current_trace_id() or None."
+      },
+      {
+       "name": "lock",
+       "kind": "constant",
+       "effects": [],
+       "note": "threading.Lock() for synchronizing results and counts."
+      },
+      {
+       "name": "results",
+       "kind": "constant",
+       "effects": [],
+       "note": "Empty list to collect FanoutResult objects."
+      },
+      {
+       "name": "counts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary with keys ok, failed, resumed, calls initialized to 0."
+      },
+      {
+       "name": "_brief_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns rendered brief string for a task, or empty string if task.paths is empty."
+      },
+      {
+       "name": "_run_task",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Executes a single task: checks resume file, runs votes via _one_call, writes result atomically. Returns FanoutResult."
+      },
+      {
+       "name": "refusal return",
+       "kind": "constant",
+       "effects": [],
+       "note": "Returned when budget guard fails; includes state 'refused' and placeholder fields."
+      },
+      {
+       "name": "final return",
+       "kind": "constant",
+       "effects": [],
+       "note": "Returned after successful execution; includes state 'ran' and aggregated counts."
+      }
+     ],
+     "claims": [
+      {
+       "text": "a caller reading `paid_calls` would crash exactly when the answer it needed was 'zero, nothing was spent'.",
+       "where": "line 361-362",
+       "verdict": "kept",
+       "why": "The refusal return sets paid_calls to 0, so a caller reading that key gets 0, not crash. The comment says 'crash' but the code returns 0; the claim is that the return avoids crash, which it does."
+      },
+      {
+       "text": "Import here rather than at module scope for the same reason the provider is -- a caller reading the dataclasses should not pull the spine.",
+       "where": "line 374-376",
+       "verdict": "uncheckable",
+       "why": "The import is inside the function; reason references external design decision not visible in this chunk."
+      },
+      {
+       "text": "NOT re-stamped: the prior trace is the run that paid for this answer.",
+       "where": "line 409-411",
+       "verdict": "kept",
+       "why": "Resumed result uses prior.get('trace_id') and does not overwrite with current trace."
+      },
+      {
+       "text": "unparseable => re-run; a torn result reads as an answer.",
+       "where": "line 416-417",
+       "verdict": "kept",
+       "why": "On OSError or ValueError, the exception is caught and execution falls through to re-run (no return)."
+      },
+      {
+       "text": "one task, not the run",
+       "where": "line 432-433",
+       "verdict": "kept",
+       "why": "Exception is caught per vote and appended to res.errors, not propagated."
+      },
+      {
+       "text": "a callback must not kill the queue",
+       "where": "line 450-452",
+       "verdict": "kept",
+       "why": "on_result exception is caught and ignored."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Refusal return references `tasks` but `tasks` is a parameter; if guard_error occurs before tasks is defined, NameError would occur. However, in typical flow tasks is defined earlier.",
+       "where": "line 363-372",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "Resume logic reads prior file and uses its trace_id; ensures trace is preserved from original run.",
+       "where": "line 395-415",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Thread pool executor with as_completed; results appended in order of completion, not submission order.",
+       "where": "line 436-448",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Progress print uses `paid_calls` from counts['calls']; matches refusal return key.",
+       "where": "line 453-456",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Final return includes `state: ran` and aggregated ok/failed/resumed counts; does not include paid_calls (unlike refusal).",
+       "where": "line 460-462",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "uninstall is called in finally block if not None; exception ignored.",
+       "where": "line 457-459",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "475894a14417c3e00db46272d64e1e53e20649d861e52b7d2bcd1a068aa3f073",
+    "objective_chars": 5794,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 361
+ }
+}

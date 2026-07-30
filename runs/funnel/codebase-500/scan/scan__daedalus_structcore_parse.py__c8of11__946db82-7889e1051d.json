@@ -1,0 +1,177 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c8of11__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c8of11__946db82-7889e1051d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 of 11 of daedalus/structcore/parse.py: contains functions for generic splitting, annotation checks, union ID generation, and helper functions for declaration classification.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "8 of 11",
+     "purpose": "Provides utility functions for generic type splitting, annotation checking, and declaration kind classification.",
+     "symbols": [
+      {
+       "name": "split_generic",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Uses lru_cache, parses raw string into AST, returns tuple of container and element texts."
+      },
+      {
+       "name": "is_any_annotation",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if normalized annotation is Any."
+      },
+      {
+       "name": "union_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates stable group ID for union site edges."
+      },
+      {
+       "name": "_decl_kind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Classifies ClassDef into typeddict, namedtuple, enum, protocol, dataclass, or class."
+      },
+      {
+       "name": "_decorator_texts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of unparsed decorator texts."
+      },
+      {
+       "name": "_base_texts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of unparsed base and keyword texts."
+      },
+      {
+       "name": "_params_of",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns parameters in reading order and receiver candidate name."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One level of generic: ``(container spelling, element texts)``.",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "The function returns a tuple of (container, element_texts)."
+      },
+      {
+       "text": "``list[User]`` -> ``(\"list\", (\"User\",))``; ``dict[str, User]`` -> ``(\"dict\", (\"User\",))`` because a mapping's KEY is not its element; ``Callable[[int], User]`` -> ``(\"Callable\", (\"User\",))``.",
+       "where": "split_generic docstring",
+       "verdict": "uncheckable",
+       "why": "The examples are not executed in this chunk; the logic for _slice_elements, _dotted_tail, annotation_text, and the constants _CALLABLE_NAMES, _MAP_CONTAINERS, _SEQ_CONTAINERS are not defined here."
+      },
+      {
+       "text": "A bare nominal is ``(\"\", (raw,))``, and an unknown generic is ``(\"\", (\"MyGeneric[int]\",))`` -- no container, because we refuse to guess that an unrecognised subscript is a container at all.",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "The function returns ('', (text,)) when node is not a Subscript or when tail is not recognized."
+      },
+      {
+       "text": "True for a bare ``Any``/``typing.Any`` -- the sentinel a caller must refuse to edge to. ``dict[str, Any]`` is NOT bare Any; it is a dict whose element type is unknown, which is a different fact and a different number.",
+       "where": "is_any_annotation docstring",
+       "verdict": "uncheckable",
+       "why": "The function depends on normalize_annotation which is not defined in this chunk."
+      },
+      {
+       "text": "Stable group id shared by every member edge of ONE union SITE.",
+       "where": "union_id docstring",
+       "verdict": "kept",
+       "why": "The function returns a string based on module, owner, role, param, which is stable."
+      },
+      {
+       "text": "Derived entirely from the site's identity, never from a counter over a set or dict: a counter would renumber whenever iteration order shifted, and two processes would then disagree byte-for-byte on an id that is supposed to mean 'these edges are alternatives to each other'.",
+       "where": "union_id docstring",
+       "verdict": "kept",
+       "why": "The function returns an f-string using the parameters, no counter involved."
+      },
+      {
+       "text": "Base-derived kinds win over decorator-derived ones, because a base changes what the declaration IS (a TypedDict is a dict shape, an Enum's members are values) while ``@dataclass`` only changes what is generated for it.",
+       "where": "_decl_kind docstring",
+       "verdict": "kept",
+       "why": "The function checks bases before decorators, returning 'typeddict', 'namedtuple', 'enum', 'protocol' before checking for dataclass."
+      },
+      {
+       "text": "Fixed order, so the answer never depends on dict order.",
+       "where": "_decl_kind docstring",
+       "verdict": "kept",
+       "why": "The function uses a fixed sequence of if-elif checks, not dependent on set/dict iteration order."
+      },
+      {
+       "text": "Parameters in reading order, plus the receiver candidate name.",
+       "where": "_params_of docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk; the full implementation is not present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _params_of is incomplete in this chunk; it only defines variables but does not return.",
+       "where": "line 891",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function split_generic uses _parse_expr, _dotted_tail, _slice_elements, annotation_text, and constants _CALLABLE_NAMES, _MAP_CONTAINERS, _SEQ_CONTAINERS which are not defined in this chunk.",
+       "where": "split_generic",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9f5a4693a3b8a218c1a99f69093ddaa130142d818bd44c222214517d0e8b81de",
+    "objective_chars": 5163,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [8/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 8,
+  "total": 11,
+  "first_line": 841
+ }
+}

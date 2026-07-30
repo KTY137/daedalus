@@ -1,0 +1,232 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c1of3__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c1of3__946db82-250c9a61b9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Bootstrap module: shadow run logic, source refresh, gate discrimination. 7 symbols, 3 checkable claims, 2 uncheckable claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "refresh_sources line 111 | high | runner param type hint says Callable but docstring says tests can use it; actual subprocess fallback may mask errors if runner returns unexpected type | Check that all callers of refresh_sources provide a runner that returns a tuple[int, str]",
+     "refresh_sources line 130 | medium | _run function captures only last 600 chars of stdout+stderr; long error messages may be truncated | Verify that 600 chars is sufficient for diagnostic detail"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "1 of 3",
+     "purpose": "Define bootstrap module docstring, constants, SourceRefresh, GateDiscrimination, refresh_sources, and _gate_binding.",
+     "symbols": [
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved path to project root (two directories up from this file)."
+      },
+      {
+       "name": "DISCRIMINATION_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path where discrimination measurement is recorded; absence means unproven."
+      },
+      {
+       "name": "CRITICAL_DEFECT_CLASSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of defect classes that must be killed completely for gate to be proven."
+      },
+      {
+       "name": "KILL_RATE_FLOOR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Minimum overall kill rate (0.80) for a proven gate."
+      },
+      {
+       "name": "EXIT_OK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exit code 0."
+      },
+      {
+       "name": "EXIT_NO_CANDIDATE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exit code 2."
+      },
+      {
+       "name": "EXIT_SOURCES_UNAVAILABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exit code 3."
+      },
+      {
+       "name": "EXIT_ERROR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exit code 1."
+      },
+      {
+       "name": "SourceRefresh",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass recording attempted source regeneration and its outcome."
+      },
+      {
+       "name": "SourceRefresh.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of SourceRefresh."
+      },
+      {
+       "name": "_recorded_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads JSON from path and returns repo_state.head if present."
+      },
+      {
+       "name": "refresh_sources",
+       "kind": "function",
+       "effects": [],
+       "note": "Regenerates derived sources (map) so the circle can start. Returns tuple of SourceRefresh."
+      },
+      {
+       "name": "GateDiscrimination",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass recording whether a gate has been shown to discriminate."
+      },
+      {
+       "name": "GateDiscrimination.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of GateDiscrimination."
+      },
+      {
+       "name": "_gate_binding",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates and canonicalises a discrimination gate description."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A shadow run produces candidates and says exactly how much they are worth, which today is: 'the configured gate command ran'. It refuses to render a green gate as evidence of quality, and it refuses to promote.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements candidate production, gate running, or promotion refusal."
+      },
+      {
+       "text": "Both gates were correct. The structural problem they expose is worse than either: the loop INVALIDATES ITS OWN INPUTS EVERY TIME IT SUCCEEDS.",
+       "where": "module docstring, item 1",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk shows the loop or its invalidation; only source refresh is present."
+      },
+      {
+       "text": "Regeneration is step zero of the circle, not a chore beside it.",
+       "where": "module docstring, item 1",
+       "verdict": "kept",
+       "why": "The function refresh_sources is defined and called as step zero before any attempt."
+      },
+      {
+       "text": "It knows whether the gate can discriminate, and refuses to guess. ... Until such a measurement exists for the current revision, the answer is unproven, and unproven blocks promotion.",
+       "where": "module docstring, item 2",
+       "verdict": "uncheckable",
+       "why": "GateDiscrimination dataclass is defined, but no code in this chunk uses it to block promotion."
+      },
+      {
+       "text": "It never writes the primary checkout. Inherited from attempt module, which has no apply path at all, and asserted here again because this module is the one that would be tempted.",
+       "where": "module docstring, item 3",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk writes to primary checkout; but the claim refers to the attempt module which is not in this chunk."
+      },
+      {
+       "text": "A regeneration command that exits 0 without making the source fresh is the failure mode that would otherwise be reported as success",
+       "where": "SourceRefresh docstring",
+       "verdict": "kept",
+       "why": "refresh_sources checks after is not None even if exit code is 0; see line 149-151."
+      },
+      {
+       "text": "runner exists so tests can drive this without invoking the real generator; the product path uses a subprocess, because the generator is a CLI verb and re-implementing it here would create a second, drifting copy",
+       "where": "refresh_sources docstring",
+       "verdict": "kept",
+       "why": "refresh_sources accepts runner param; if runner is None it falls back to subprocess.run."
+      },
+      {
+       "text": "A repository that explicitly disabled that source chose the curated queue as its authority; regenerating map anyway would violate both that declaration and shadow mode's no-surprise boundary before an attempt even starts.",
+       "where": "refresh_sources body comment",
+       "verdict": "kept",
+       "why": "Lines 113-118 check map_mode and return early if disabled."
+      },
+      {
+       "text": "Exit 0 is NOT the success criterion. The criterion is that the artefact now stamps a revision, because that is what the consumer checks.",
+       "where": "refresh_sources body comment",
+       "verdict": "kept",
+       "why": "Line 149: succeeded = (code == 0 and after is not None)."
+      },
+      {
+       "text": "A discrimination score belongs to the exact command that produced it. A receipt which merely says 'pytest' -- or whose gate_scope disagrees with its paths -- is not evidence about any gate.",
+       "where": "_gate_binding docstring",
+       "verdict": "kept",
+       "why": "The function validates argv, paths, scope, and checks receipt argv matches production pytest argv."
+      },
+      {
+       "text": "Receipt bindings are narrower than requested bindings: this corpus tool measures only the real pytest gate, while a candidate may request a custom command such as the docref verifier. The latter is valid as a request but cannot match a pytest receipt.",
+       "where": "_gate_binding docstring",
+       "verdict": "kept",
+       "why": "Lines 204-210: if receipt, allowed_scopes excludes 'custom-command'; also checks argv equals expected pytest argv."
+      }
+     ],
+     "observations": [
+      {
+       "what": "refresh_sources imports daedalus.config.resolve_project and daedalus.spine.picker._picker_source_mode, but those modules are not shown in this chunk; their behavior is assumed.",
+       "where": "refresh_sources lines 113-114",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _run function inside refresh_sources catches Exception and returns code 1 with a string detail; this may mask unexpected errors like KeyboardInterrupt or SystemExit which are not Exception subclasses.",
+       "where": "refresh_sources line 130-131",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring for _gate_binding says 'A receipt which merely says pytest' but the function checks argv against pytest_gate_argv; it does not check if the receipt literally contains the word 'pytest'.",
+       "where": "_gate_binding lines 188-190",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "653c8ae16e6fc5186fa93dc3f03909e791265626722d06aaeca3d301bf0add39",
+    "objective_chars": 12883,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,187 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c1of7__946db82",
+ "key": "scan__daedalus_tools_vet.py__c1of7__946db82-af1bd26cbb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of vet.py: module docstring, constants, rule table skeleton.  No public symbols yet.  All docstring claims are either kept or uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "symbols | low | No public symbols defined yet; the chunk is purely metadata and rule definitions. | N/A",
+     "claims | medium | Several docstring claims refer to external files or modules not present in this chunk; they remain uncheckable until those files appear. | N/A"
+    ],
+    "todos": [
+     "Implement the vetting logic (scan, verdict, etc.) in subsequent chunks.",
+     "Add a main entry point or public API function to expose scanning.",
+     "Consider adding more rules or completing the rule table (e.g., secret.dotenv rule is cut off)."
+    ],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "1 of 7",
+     "purpose": "Module docstring, invariants, constants, and rule table skeleton for the vetting gate.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "``daedalus/skills.py`` reads a ``SKILL.md`` as inert data and says so in its own docstring: \"nothing here is a capability, and nothing here participates in a safety decision\".",
+       "where": "docstring (lines 4-6)",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain daedalus/skills.py or its docstring; the claim cannot be verified against the provided code."
+      },
+      {
+       "text": "On 2026-07-30 that human ran ``grep`` for network calls, ``exec`` and injection strings across 1.7 MB of a community skill's CSV data before installing it.",
+       "where": "docstring (line 7)",
+       "verdict": "uncheckable",
+       "why": "No evidence of that event is present in this chunk; it is a historical anecdote."
+      },
+      {
+       "text": "a **skill** is text that reaches a model, so its attack surface is PROMPT INJECTION and instruction smuggling \u2014 plus whatever its bundled ``scripts/`` would do if something ran them; an **MCP server** is a PROCESS with a socket, so its attack surface is EXECUTION and EGRESS.",
+       "where": "docstring (lines 9-12)",
+       "verdict": "uncheckable",
+       "why": "This is a conceptual claim about attack surfaces; no code in this chunk defines or distinguishes skills vs MCP servers."
+      },
+      {
+       "text": "Published survey numbers for community agent skills, cited in the Snyk writeup the owner sent (2026-07-30): 13% carried critical security flaws and 36% contained prompt injection.",
+       "where": "docstring (lines 13-14)",
+       "verdict": "uncheckable",
+       "why": "No survey data or Snyk writeup is present in this chunk; the claim is external."
+      },
+      {
+       "text": "Vetting never executes the thing being vetted, never imports it, never resolves it over the network, and never starts an MCP server to ask it what it does. You do not run untrusted code to decide whether to trust it. The whole module is file reads and regex.",
+       "where": "docstring (invariant 1, lines 17-19)",
+       "verdict": "kept",
+       "why": "This chunk defines only constants and regex patterns; no execution, import, or network resolution is performed. The claim is consistent with the code seen so far."
+      },
+      {
+       "text": "FAIL CLOSED, and \"unknown\" is not \"clean\". Every verdict distinguishes *scanned and found nothing* from *could not scan*. An unreadable file, a binary blob, a truncated read and a missing directory all produce ``UNSCANNABLE``, never ``CLEAR``. Absence of evidence is reported as absence of evidence.",
+       "where": "docstring (invariant 2, lines 20-23)",
+       "verdict": "uncheckable",
+       "why": "The verdict constants CLEAR and UNSCANNABLE are defined, but the logic to produce them (e.g., handling unreadable files, binary blobs) is not present in this chunk."
+      },
+      {
+       "text": "Findings, not scores. A verdict carries the file, the line and the matched text, so a human can overrule it by looking rather than by arguing. A number with no evidence behind it is how a gate becomes a superstition.",
+       "where": "docstring (invariant 3, lines 24-26)",
+       "verdict": "uncheckable",
+       "why": "No verdict data structure or output format is defined in this chunk; the claim cannot be verified."
+      },
+      {
+       "text": "This module owns no policy about hosts. Whether bytes may leave the machine has exactly one implementation, ``sensitivity.lane_for_host``, and this module calls it rather than re-deciding. Same rule the router follows.",
+       "where": "docstring (invariant 4, lines 27-29)",
+       "verdict": "kept",
+       "why": "The import `from ..sensitivity import lane_for_host` is present at line 36, confirming the module calls an external function rather than implementing host policy itself."
+      },
+      {
+       "text": "A declaration is a request, never a grant. ``allowed-tools`` in a skill's frontmatter is what its author would like. It is reported as an ask and it escalates the review; it never authorises anything.",
+       "where": "docstring (invariant 5, lines 30-32)",
+       "verdict": "uncheckable",
+       "why": "No frontmatter parsing logic or handling of allowed-tools is present in this chunk."
+      },
+      {
+       "text": "It does not install, enable, route to, or run anything. It returns a verdict. Provisioning and capability routing are separate concerns and separate reviews \u2014 in particular, routing touches ``provider_router``, which owns lane policy, and must not be bolted on from here.",
+       "where": "docstring (WHAT THIS DELIBERATELY DOES NOT DO, lines 34-37)",
+       "verdict": "kept",
+       "why": "This chunk contains only definitions; no installation, enabling, routing, or execution logic exists."
+      },
+      {
+       "text": "Bump when the MEANING of a verdict changes, so a stored verdict from an older ruleset is detectable rather than silently trusted. VET_VERSION = \"1\"",
+       "where": "line 39 comment",
+       "verdict": "kept",
+       "why": "The constant VET_VERSION is defined as \"1\" on line 39, matching the claim."
+      },
+      {
+       "text": "CLEAR = \"clear\"                 # scanned in full, nothing matched",
+       "where": "line 42",
+       "verdict": "kept",
+       "why": "The constant CLEAR is defined with value \"clear\" and the comment matches."
+      },
+      {
+       "text": "REVIEW = \"review\"               # scanned, something a human must look at",
+       "where": "line 43",
+       "verdict": "kept",
+       "why": "The constant REVIEW is defined with value \"review\" and the comment matches."
+      },
+      {
+       "text": "BLOCK = \"block\"                 # scanned, something disqualifying",
+       "where": "line 44",
+       "verdict": "kept",
+       "why": "The constant BLOCK is defined with value \"block\" and the comment matches."
+      },
+      {
+       "text": "UNSCANNABLE = \"unscannable\"     # could NOT scan \u2014 never treat as clear",
+       "where": "line 45",
+       "verdict": "kept",
+       "why": "The constant UNSCANNABLE is defined with value \"unscannable\" and the comment matches."
+      },
+      {
+       "text": "A skill that ships a 40 MB file is not scanned \"mostly\" \u2014 it is reported as unscannable, because a partial scan that reads as clean is a lie.",
+       "where": "comment at line 49",
+       "verdict": "kept",
+       "why": "MAX_FILE_BYTES is set to 2 MB (2*1024*1024) on line 50, which is less than 40 MB, so a 40 MB file would exceed the limit and (by invariant 2) should be reported as unscannable. The logic to enforce this is not yet present, but the constant supports the claim."
+      },
+      {
+       "text": "This gate over-reports on purpose: a false REVIEW costs a human thirty seconds, a missed exfiltration costs a machine.",
+       "where": "comment at line 60",
+       "verdict": "kept",
+       "why": "The rules defined (e.g., exec.subprocess as BLOCK, net.python_http as REVIEW) are broad, consistent with over-reporting."
+      },
+      {
+       "text": "NARROWED after calibration run 1 (2026-07-30). The first version was r\".env\\b\", which fired 14 times inside a design-rule CSV whose rows merely DISCUSS environment files (\"Expose secrets to client\") and blocked a skill a human had already read and cleared. A gate that blocks on prose is a gate that gets switched off, so the rule now demands a path or an API context: a quoted/slashed path, or a dotenv loader by name.",
+       "where": "comment at lines 72-76",
+       "verdict": "uncheckable",
+       "why": "The actual rule for secret.dotenv is cut off at line 77; the full pattern and its behavior cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "No public symbols (functions, classes) are defined yet; the chunk is purely constants and rule table skeleton.",
+       "where": "entire chunk",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The rule table is incomplete; secret.dotenv rule is truncated at line 77.",
+       "where": "line 77",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Multiple docstring claims refer to behavior (e.g., verdict output format, frontmatter handling) that is not implemented in this chunk.",
+       "where": "docstring invariants 2,3,5",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ddddaf700786f8645cb40c35f5cff4d6e2c07c3e51a9a30ad8530cc7c128d7e3",
+    "objective_chars": 6649,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [1/7]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

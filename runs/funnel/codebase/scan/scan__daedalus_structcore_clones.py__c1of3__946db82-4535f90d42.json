@@ -1,0 +1,242 @@
+{
+ "task_id": "scan__daedalus_structcore_clones.py__c1of3__946db82",
+ "key": "scan__daedalus_structcore_clones.py__c1of3__946db82-4535f90d42",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of clones.py: defines normalization, fingerprint, abstract tokenization for clone detection.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "normalize_source | medium | Python path uses tokenize; fallback uses _normalize_generic which calls _strip_comments_generic. If spec is None, generic path uses default markers. | Verify that when spec is None, _strip_comments_generic uses correct defaults.",
+     "_strip_comments_generic | high | Comment stripping is string-literal aware but may mishandle escaped quotes inside strings. The logic for unterminated strings stops at newline, but the string copy loop does not handle escaped backslashes before quotes correctly (e.g., '\\\\' should not close). | Test with strings containing escaped quotes.",
+     "_python_abstract_tokens | medium | FSTRING tokens added for py3.12+, but the code does not handle f-string expressions inside the string. It treats the whole f-string as STR, which may lose structure. | Verify behavior with f-strings on Python <3.12.",
+     "_generic_abstract_tokens | medium | Uses regex _GEN_TOKEN which may not cover all language-specific tokens (e.g., multi-character operators like '->'). | Test with languages having multi-char operators.",
+     "abstract_normalize | low | The docstring claims two renamed units share the string exactly, but edge cases like different comments or whitespace after stripping could still cause differences. | Ensure that comments are stripped before abstraction.",
+     "_fingerprint_of_tokens | uncheckable | The function is incomplete in this chunk; its behavior and usage (e.g., in near_clusters) cannot be verified. | Complete the function and check callers."
+    ],
+    "todos": [
+     "Complete _fingerprint_of_tokens function (chunk ends before return).",
+     "Add unit tests for _strip_comments_generic string-literal awareness.",
+     "Add tests for abstract tokenization on non-Python languages.",
+     "Verify f-string handling across Python versions.",
+     "Document that spec.string_delims must include all quote types used in the language."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/clones.py",
+     "chunk": "1 of 3",
+     "purpose": "Define normalization, fingerprint, and abstract tokenization functions for clone detection.",
+     "symbols": [
+      {
+       "name": "_WS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for collapsing whitespace."
+      },
+      {
+       "name": "normalize_source",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalize source by stripping comments/docstrings/whitespace; Python uses tokenize, other languages use comment-aware lexical strip."
+      },
+      {
+       "name": "_normalize_python",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalize Python source using tokenize, dropping comments, docstrings, and whitespace."
+      },
+      {
+       "name": "_strip_comments_generic",
+       "kind": "function",
+       "effects": [],
+       "note": "String-literal-aware comment stripper for non-Python languages."
+      },
+      {
+       "name": "_normalize_generic",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalize generic source by stripping comments and collapsing whitespace."
+      },
+      {
+       "name": "fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Compute a 12-character SHA1 hex digest of the normalized source."
+      },
+      {
+       "name": "_GENERIC_KEYWORDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of cross-language keywords kept verbatim in abstract tokenization."
+      },
+      {
+       "name": "_GEN_TOKEN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex pattern for tokenizing generic source into strings, numbers, identifiers, operators."
+      },
+      {
+       "name": "_python_abstract_tokens",
+       "kind": "function",
+       "effects": [],
+       "note": "Abstract token stream for Python using stdlib tokenize; returns None on error."
+      },
+      {
+       "name": "_generic_abstract_tokens",
+       "kind": "function",
+       "effects": [],
+       "note": "Best-effort abstract tokenization for non-Python languages."
+      },
+      {
+       "name": "_abstract_tokens",
+       "kind": "function",
+       "effects": [],
+       "note": "Dispatch to Python or generic abstract tokenization."
+      },
+      {
+       "name": "abstract_normalize",
+       "kind": "function",
+       "effects": [],
+       "note": "Structure-preserving abstraction: identifiers->ID, numbers->NUM, strings->STR."
+      },
+      {
+       "name": "_fingerprint_of_tokens",
+       "kind": "function",
+       "effects": [],
+       "note": "Incomplete; computes fingerprint from an already-abstracted token list."
+      }
+     ],
+     "claims": [
+      {
+       "text": "normalize_source: Python uses the exact ``tokenize`` path from codemap; other languages use a comment-aware lexical strip.",
+       "where": "line 22-24",
+       "verdict": "kept",
+       "why": "The function dispatches to _normalize_python for Python and _normalize_generic otherwise, which calls _strip_comments_generic."
+      },
+      {
+       "text": "fingerprint: returns a 12-character SHA1 hex digest of the normalized source.",
+       "where": "line 128",
+       "verdict": "kept",
+       "why": "The function computes hashlib.sha1(...).hexdigest()[:12]."
+      },
+      {
+       "text": "_strip_comments_generic: STRING-LITERAL AWARE, and that is load-bearing rather than a nicety. The previous implementation searched raw text for comment markers, so a marker appearing INSIDE a string literal silently deleted real code and made different functions hash identically",
+       "where": "lines 59-73",
+       "verdict": "kept",
+       "why": "The code checks for string delimiters before comment markers, and copies string contents verbatim."
+      },
+      {
+       "text": "_strip_comments_generic: Single left-to-right pass, because the three states are mutually exclusive: inside a string, comment markers are text; outside one, a quote opens a string.",
+       "where": "lines 74-78",
+       "verdict": "kept",
+       "why": "The loop processes characters sequentially, checking strings first, then block comments, then line comments."
+      },
+      {
+       "text": "_strip_comments_generic: Which quotes open a string is per-language (``spec.string_delims``): Rust's ``'a`` is a lifetime, not a literal, and consuming to the next ``'`` would eat the code",
+       "where": "lines 79-81",
+       "verdict": "kept",
+       "why": "The function uses spec.string_delims if provided, else defaults to double and single quotes."
+      },
+      {
+       "text": "_strip_comments_generic: Unterminated literals stop at end-of-line rather than running to EOF, so a stray quote degrades one line instead of the rest of the file.",
+       "where": "lines 82-84",
+       "verdict": "kept",
+       "why": "Inside the string copy loop, if c == '\\n' is encountered, it breaks out of the loop, stopping at end-of-line."
+      },
+      {
+       "text": "_python_abstract_tokens: Abstract token stream via the stdlib ``tokenize`` lexer (precise). NAME that isn't a keyword -> ID; NUMBER -> NUM; STRING -> STR (block docstrings dropped, matching ``normalize_source``); keywords + operators kept verbatim.",
+       "where": "lines 166-170",
+       "verdict": "kept",
+       "why": "The code maps NAME to ID if not keyword, NUMBER to NUM, STRING to STR, and drops block docstrings. Operators are appended as is."
+      },
+      {
+       "text": "_python_abstract_tokens: Returns None on a tokenizer error so the caller can fall back to generic.",
+       "where": "lines 170-171",
+       "verdict": "kept",
+       "why": "The except clause returns None."
+      },
+      {
+       "text": "_generic_abstract_tokens: Best-effort abstraction for non-Python languages: strip comments, then map each lexical token to ID / NUM / STR / <keyword> / <operator-char>.",
+       "where": "lines 198-200",
+       "verdict": "kept",
+       "why": "It calls _strip_comments_generic, then uses _GEN_TOKEN to tokenize and classifies tokens."
+      },
+      {
+       "text": "abstract_normalize: Two renamed-but-otherwise-identical units share this string exactly (the Type-2 signal).",
+       "where": "lines 215-217",
+       "verdict": "kept",
+       "why": "It returns a space-joined string of abstract tokens; identical after abstraction will produce same string."
+      },
+      {
+       "text": "_fingerprint_of_tokens: Exists so a caller that needs both the token bag and the fingerprint for the same unit can abstract once and derive both, instead of tokenizing the same string twice (see ``near_clusters``). ``abstract_fingerprint`` delegates here so there is exactly ONE definition of the fingerprint",
+       "where": "lines 220-226",
+       "verdict": "uncheckable",
+       "why": "The function is incomplete and no callers are shown in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _fingerprint_of_tokens function is cut off mid-definition; it has no return statement in this chunk.",
+       "where": "line 226",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims that _strip_comments_generic is string-literal aware, but the string copy loop does not handle escaped backslashes before the closing quote (e.g., '\\\\' should not close the string).",
+       "where": "lines 102-107",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _python_abstract_tokens function uses getattr for fstring token names, but does not handle f-string expressions inside the string; it treats the whole f-string as a single STR token, which may lose structural information.",
+       "where": "lines 172-174",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _GEN_TOKEN regex may not match multi-character operators (e.g., '->', '::', '==') because it matches only a single character for operators.",
+       "where": "line 163",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The claim about 'abstract_fingerprint' delegating to _fingerprint_of_tokens is uncheckable because the function is incomplete and not shown.",
+       "where": "lines 224-226",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d95c040a304374452a9edde25fd4e8040b2b0e0e20275963be2371639fdf273a",
+    "objective_chars": 12643,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/clones.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/clones.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

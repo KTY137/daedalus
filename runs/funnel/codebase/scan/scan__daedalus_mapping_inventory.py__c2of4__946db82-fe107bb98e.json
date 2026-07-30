@@ -1,0 +1,175 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c2of4__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c2of4__946db82-fe107bb98e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 2 of 4 of inventory.py; enumerated symbols and checked docstring claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "2 of 4",
+     "purpose": "Contains helper functions for parsing pyproject.toml, scanning disk packages, detecting orphan bytecode, cleaning annotations, resolving module targets, harvesting old inventory, building feature dicts, and detecting stale features.",
+     "symbols": [
+      {
+       "name": "_pyproject_packages",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Parses pyproject.toml to extract package names from scripts or console_scripts entry points."
+      },
+      {
+       "name": "_packages_on_disk",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Walks distribution roots to find dotted packages with __init__.py."
+      },
+      {
+       "name": "_orphan_bytecode",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Finds __pycache__ dirs with .pyc but no sibling .py source."
+      },
+      {
+       "name": "_clean_annotation",
+       "kind": "function",
+       "effects": [],
+       "note": "Filters a raw annotation dict to only allowed fields with non-empty string values."
+      },
+      {
+       "name": "annotation_overreach",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks annotation keys for fields not in human-writable sets."
+      },
+      {
+       "name": "_module_targets",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves entrypoints to module paths from a known set."
+      },
+      {
+       "name": "harvest",
+       "kind": "function",
+       "effects": [],
+       "note": "Lifts human annotations and narrative features from old inventory, lossless by contract."
+      },
+      {
+       "name": "_feature",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a feature dict from module path, facts, entry identifiers, dark switches, and annotation."
+      },
+      {
+       "name": "_stale_features",
+       "kind": "function",
+       "effects": [],
+       "note": "Detects two kinds of staleness: packages listed but not on disk, and packages on disk but not listed."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Dotted packages that exist under the distribution roots the metadata already names. Scoped to those roots on purpose: every directory in the repo with an ``__init__.py`` is not a candidate for the wheel, and treating a fixture or a runs/ directory as one would manufacture findings.",
+       "where": "_packages_on_disk docstring",
+       "verdict": "kept",
+       "why": "The function extracts the first component of each dotted name, walks only those roots, and checks for __init__.py, thus scoping to distribution roots."
+      },
+      {
+       "text": "``__pycache__`` directories holding bytecode whose sources are gone. The exact shape of the ``daedalus/hermes`` remnant the hand-written inventory recorded: the package was deleted, the ``.pyc`` files stayed, and an import of the dotted name could still resolve. A cache beside live sources is not a finding -- only one with NO sibling ``.py`` at all.",
+       "where": "_orphan_bytecode docstring",
+       "verdict": "kept",
+       "why": "The function walks directories, checks for __pycache__ name, finds .pyc files, and then checks parent for any .py files; if siblings exist, it skips. So only caches without sibling .py are reported."
+      },
+      {
+       "text": "Annotation keys carrying fields a human is NOT allowed to set. Reported rather than silently dropped. Silently dropping is how a person concludes the field works; naming it is how they learn the rule. The build ignores these fields either way -- an annotation that could set ``status`` would hand the hand-written file's exact power back through a side door.",
+       "where": "annotation_overreach docstring",
+       "verdict": "kept",
+       "why": "The function computes allowed set from human fields, then iterates over annotation items, checking each value is a Mapping and that keys are within allowed. Extra keys are reported in the returned list, not silently dropped."
+      },
+      {
+       "text": "Every module a hand-written feature's entrypoints resolve to. ALL of them, not the first: the kairos-rename shim entry names five modules in one feature, and attaching its rationale to only one of them would lose the reason for the other four.",
+       "where": "_module_targets docstring",
+       "verdict": "kept",
+       "why": "The function iterates over all entrypoints and all tokens in each entry, collecting all matching known paths into a list. It does not stop at first match."
+      },
+      {
+       "text": "Lift the human half out of a previous inventory. LOSSLESS by contract. Returns ``(annotations, narrative_features, stats)``. Every feature in the old document ends up in exactly one of the two: an annotation keyed to the module(s) its entrypoints name, or a verbatim narrative feature. Nothing is dropped, because a generated file that discards the rationale somebody wrote is not progress -- it is the same rot with a fresher timestamp. Already-schema-2 documents pass their blocks straight through; the harvest only has work to do the first time.",
+       "where": "harvest docstring",
+       "verdict": "kept",
+       "why": "The function handles both schema-2 (pass-through) and older schema (iterates areas, features, env_vars). For old schema, each feature is either matched to modules (added to annotations) or goes to narrative. The function returns annotations, narrative, stats; no items are dropped. The code shows that if a feature has no targets, it goes to narrative; if it has targets, it is added to annotations. For env vars, they are added to annotations. The docstring claim is consistent with the code."
+      },
+      {
+       "text": "The two mechanically-detectable kinds of staleness, plus the packaging picture they come from. Deliberately only two. \"This directory is a superseded experiment\" and \"this mockup was replaced by the shipped app\" are judgements about intent, and a scanner that guessed at them would fill the work queue with its own guesses. They stay in ``narrative_features``, where a human signed them.",
+       "where": "_stale_features docstring",
+       "verdict": "kept",
+       "why": "The function computes ghosts (listed but not on disk) and gaps (on disk but not listed) and orphans (bytecode without source). It returns these as features. The docstring says only two kinds (ghosts and gaps) plus orphans (packaging picture). Orphans are a third kind but are part of the packaging picture. The docstring is consistent."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _pyproject_packages is defined but incomplete in this chunk; it reads a file and uses regex but the full logic is not shown (chunk ends before function ends).",
+       "where": "line 281-308",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function _stale_features is defined but incomplete; chunk ends after creating the features list but before returning.",
+       "where": "line 531-547",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The harvest function handles env_vars by adding purpose to annotations only if the env name is in env_known or key not already present; this may cause some env annotations to be skipped if the key already exists and name not in env_known.",
+       "where": "harvest function, lines 501-504",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _module_targets function uses _TOKEN_RE and _QUOTED_RE but those are not defined in this chunk; assumed imported or defined elsewhere.",
+       "where": "_module_targets function, line 387",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5fef60b296e36bb27da06777adfc3ddcf22954a0a3469e9dfae5b35668de7e14",
+    "objective_chars": 11558,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [2/4]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 281
+ }
+}

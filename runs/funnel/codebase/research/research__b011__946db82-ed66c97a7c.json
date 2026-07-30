@@ -1,0 +1,106 @@
+{
+ "task_id": "research__b011__946db82",
+ "key": "research__b011__946db82-ed66c97a7c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two key patterns: (1) Multiple modules assume deterministic ordering and idempotency but rely on external data structures not validated, and (2) The canary module's claim that probes are synthetic and deterministic is consistent with graph analysis but conflicts with potential external environment variable reads.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The canary module's claim of deterministic checkers may be undermined if any checker uses environment variables that are scanned by switches.py and may change between runs.",
+     "The graph module's fenced_reachability and fenced_dominance assume import_edges and reverse edges exist in idx dict, but switches.py scanning may miss env vars that affect imports, causing incomplete graph.",
+     "Multiple modules assume idempotency (close in cancel.py, fenced_reachability) but rely on shared mutable state (_LIVE set, idx dict) that could be corrupted if not properly synchronized.",
+     "The canary module's synthetic probes claim to have no repo file reads, but switches.py scans env vars that could be read by probes via adapters, creating a hidden dependency."
+    ],
+    "todos": [
+     "Verify that the idx dict used in graph.py is populated correctly and includes all relevant import edges, including those affected by environment variables.",
+     "Check if canary probes or their checkers ever read environment variables that switches.py would classify as switches, potentially breaking determinism.",
+     "Ensure that the _LIVE set in cancel.py is properly locked and that close() is thread-safe across all callers.",
+     "Validate that the deterministic ordering in graph.py (sorted frontier) is consistent across all callers and not accidentally broken by future changes."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "env-var-leak",
+       "claim": "The canary module's claim that probes are deterministic and synthetic is contradicted by the possibility that any probe checker or adapter reads environment variables that switches.py scans, introducing non-determinism across runs.",
+       "spans": [
+        "canary.py",
+        "switches.py"
+       ],
+       "mechanism": "switches.py scans all Python source files for environment variable reads. If canary's checker functions or any imported adapter reads an env var (e.g., OLLAMA_HOST), the probe result becomes dependent on that variable's value, which may change between runs, violating the canary's guarantee of deterministic results.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that no probe checker or any code reachable from a probe reads any environment variable, or that all env var reads are explicitly passed as parameters and not relied upon for correctness.",
+       "evidence": [
+        "canary.py: docstring claims deterministic checkers",
+        "switches.py: _PLATFORM_ENV and scanning logic"
+       ]
+      },
+      {
+       "id": "shared-mutable-state",
+       "claim": "Multiple modules assume idempotency and thread-safety but rely on shared mutable state (e.g., _LIVE set in cancel.py, idx dict in graph.py) without consistent locking or validation across all callers.",
+       "spans": [
+        "cancel.py",
+        "graph.py",
+        "switches.py"
+       ],
+       "mechanism": "cancel.py uses _LIVE set with a lock in close(), but other modules may access or modify similar global state without synchronization. graph.py assumes idx dict has certain keys but does not validate them, and switches.py scans files that could change the state of idx. This creates a hidden coupling where changes in one module can break assumptions in another.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that all accesses to shared state are properly locked and that idx dict is immutable after initialization or validated before use.",
+       "evidence": [
+        "cancel.py: _LIVE_LOCK used in close()",
+        "graph.py: idx.get() without validation",
+        "switches.py: _SKIP_DIRS affects which files are scanned"
+       ]
+      },
+      {
+       "id": "determinism-assumption",
+       "claim": "Both canary.py and graph.py rely on deterministic ordering (sorted lists, seeds) but the determinism can be broken by external factors such as file system order or environment variable values that are not controlled.",
+       "spans": [
+        "canary.py",
+        "graph.py"
+       ],
+       "mechanism": "canary.py uses random.Random seeded with nonce for deterministic probe generation, but if any external state (e.g., system time, file contents) affects the probe builder, determinism breaks. graph.py uses sorted() for determinism, but the underlying import graph depends on file system scanning order which may vary across platforms or runs.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all sources of non-determinism in probe generation and graph construction are either controlled or irrelevant, and that tests confirm deterministic output across multiple runs.",
+       "evidence": [
+        "canary.py: _rng uses deterministic seed",
+        "graph.py: sorted frontier and neighbour lists"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "499b41a2feba0bc30db7464fd0fbc528f22dcc62d252c26f012581bd6d1b9c5d",
+    "objective_chars": 31120,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 11 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 11,
+  "inputs": 5
+ }
+}

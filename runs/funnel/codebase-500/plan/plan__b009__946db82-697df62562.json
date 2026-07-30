@@ -1,0 +1,107 @@
+{
+ "task_id": "plan__b009__946db82",
+ "key": "plan__b009__946db82-697df62562",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 findings survive: missing refresh_todo_snapshot in memory/__init__.py (confirmed), egress detection gap in vet.py (needs-evidence), and type-node leak in forest.py (narrowed). One finding refuted; one needs evidence but plausible.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Missing refresh_todo_snapshot may cause todo list to become stale or break append_event entirely.",
+     "Missing lane_for_host in vet.py would cause MCP egress detection to fail silently, allowing tools to make network calls without being flagged.",
+     "Type nodes leaking into file layers could corrupt reachability analysis and produce incorrect module classifications."
+    ],
+    "todos": [
+     "Define refresh_todo_snapshot in daedalus/memory/__init__.py or import it from existing module.",
+     "Add lane_for_host to daedalus/tools/vet.py if missing, or verify it is imported/defined elsewhere.",
+     "Add _is_type_node_id filter in build_forest_hierarchy in daedalus/structcore/forest.py to prevent type node leakage."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Define refresh_todo_snapshot in daedalus/memory/__init__.py",
+       "gate": "1",
+       "why_now": "The function is called but not defined, which will raise a NameError at runtime, breaking append_event and any caller that writes to memory.",
+       "steps": [
+        {
+         "do": "Add function definition for refresh_todo_snapshot that reads TODO_PATH, appends new event, and writes back. Alternatively, import it from the correct module if it exists elsewhere.",
+         "file": "daedalus/memory/__init__.py",
+         "verified_by": "Run tests/test_memstore.py::test_append_load_fold_roundtrip and confirm pass; also run test_agent_env.py::test_done_events_close_matching_todos."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function should read the existing todo file, append a new entry derived from the event, and write it back. The exact logic is not specified; assume it follows the pattern of other snapshot functions in the codebase."
+      },
+      {
+       "rank": 2,
+       "title": "Fix missing lane_for_host in daedalus/tools/vet.py",
+       "gate": "2",
+       "why_now": "If lane_for_host is not defined or imported, MCP egress detection will fail, allowing tools to make network calls without being flagged as egress.",
+       "steps": [
+        {
+         "do": "Search the full vet.py for 'lane_for_host' definition or import. If missing, add import from correct module (likely daedalus/adapters/transport.py or daedalus/providers/base.py) or define the function locally.",
+         "file": "daedalus/tools/vet.py",
+         "verified_by": "Run tests/test_egress_coverage.py::test_the_egress_detector_actually_fires and confirm it passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function lane_for_host exists elsewhere in the codebase; the assumption is that it is defined in daedalus/adapters/transport.py or similar. If not, need to implement it."
+      },
+      {
+       "rank": 3,
+       "title": "Add _is_type_node_id filter in build_forest_hierarchy in daedalus/structcore/forest.py",
+       "gate": "2",
+       "why_now": "Without this filter, type nodes may leak into file layers, potentially corrupting reachability analysis and producing incorrect module classifications.",
+       "steps": [
+        {
+         "do": "In build_forest_hierarchy, after building hyperedges, filter out any node that matches _is_type_node_id from the file layer.",
+         "file": "daedalus/structcore/forest.py",
+         "verified_by": "Run tests/test_typegraph_forest.py::TheForestCarriesTheLayer and confirm it passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function _is_type_node_id is already defined in forest.py and works correctly; the fix is to ensure it is called in build_forest_hierarchy."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/memory/__init__.py",
+      "daedalus/tools/vet.py",
+      "daedalus/structcore/forest.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "296fece2e2e228712083c502456d29eb850cae2831ec9509ccd5014bacd3ac86",
+    "objective_chars": 148332,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 9 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 9,
+  "inputs": 5
+ }
+}

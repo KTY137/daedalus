@@ -1,0 +1,216 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c2of12__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c2of12__946db82-f768ecdb7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of worktree.py: defines WorktreeRemovalRace, _worktree_root_for, _lexical, _key, _is_within, _is_reparse_point, _path_identity; includes docstrings and comments with claims about behaviour.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_worktree_root_for | medium | Uses env var DAEDALUS_WORKTREE_ROOT; if set to a symlink, _lexical is not used to resolve it before containment checks. | Check if caller applies _lexical to the root before use.",
+     "_is_reparse_point | high | getattr(st, 'st_reparse_tag', 0) may not exist on all platforms; docstring claims it is absent on Linux/macOS, but code still calls it. If attribute is missing, getattr returns 0 and function returns False, meaning symlinks on those platforms are NOT detected by this branch, only by the S_ISLNK/islink branch. The docstring acknowledges this but the risk is that if a future Python version adds the attribute for non-reparse files, the belt-and-braces check could return false positives.",
+     "_is_reparse_point | medium | On Windows, st_file_attributes may not include FILE_ATTRIBUTE_REPARSE_POINT for all reparse points (e.g., some third-party ones). The belt-and-braces check on st_reparse_tag catches those, but if st_reparse_tag is not populated (e.g., on some filesystems), reparse points may be missed.",
+     "_path_identity | low | Docstring claims lstat populates st_dev and st_ino for a directory on Windows 11, CPython 3.10.11. This is platform-specific and may not hold on other Windows versions or Python builds."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "2 of 12",
+     "purpose": "Define worktree exception, root resolution, lexical path utilities, reparse detection, and path identity function.",
+     "symbols": [
+      {
+       "name": "WorktreeRemovalRace",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception raised when a reparse point appears above an ongoing removal. Inherits from WorktreeContainmentError."
+      },
+      {
+       "name": "_worktree_root_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves the root directory for candidate worktrees based on env var or platform defaults. Returns a Path."
+      },
+      {
+       "name": "_lexical",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns absolute-and-normalised path without touching filesystem (no symlink resolution)."
+      },
+      {
+       "name": "_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a case-folded, normalised string for comparison."
+      },
+      {
+       "name": "_is_within",
+       "kind": "function",
+       "effects": [],
+       "note": "Lexically checks if child path is parent or under it."
+      },
+      {
+       "name": "_is_reparse_point",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if path is a symlink, junction, mount point, or any reparse point (via lstat attributes)."
+      },
+      {
+       "name": "_path_identity",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (st_dev, st_ino) from lstat, or None if path does not exist."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Distinct from every other containment refusal, and the distinction is the whole point: the others mean \"nothing was removed\", this one means \"the walk stopped partway, on purpose\".",
+       "where": "WorktreeRemovalRace docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to other containment refusal classes not present in this chunk."
+      },
+      {
+       "text": "Worktrees must live OUTSIDE the primary checkout so they never pollute git status or whole-repo snapshot attribution.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about git status and snapshot attribution is not verifiable from this code alone."
+      },
+      {
+       "text": "DAEDALUS_WORKTREE_ROOT env override (still namespaced per repo).",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "Code checks os.environ.get('DAEDALUS_WORKTREE_ROOT') and uses it as base if set."
+      },
+      {
+       "text": "%LOCALAPPDATA%/daedalus/worktrees.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "Code uses Path(local_appdata) / 'daedalus' / 'worktrees' when LOCALAPPDATA is set."
+      },
+      {
+       "text": "tempfile.gettempdir()/daedalus/worktrees when LOCALAPPDATA is unset.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "kept",
+       "why": "Code uses Path(tempfile.gettempdir()) / 'daedalus' / 'worktrees' when LOCALAPPDATA is unset."
+      },
+      {
+       "text": "Each repo gets its own subdirectory keyed by a short digest of the resolved repo path so distinct checkouts never collide.",
+       "where": "_worktree_root_for docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about digest being of the resolved repo path is not verifiable because the input repo_path may not be resolved; the code uses str(repo_path) directly."
+      },
+      {
+       "text": "os.path.normpath collapses .. textually; unlike resolve() it cannot be redirected by a symlink, which is exactly the property needed before a containment decision.",
+       "where": "_lexical docstring",
+       "verdict": "kept",
+       "why": "The function uses os.path.normpath and os.path.abspath, which are lexical operations and do not follow symlinks."
+      },
+      {
+       "text": "Comparison form: case-folded on Windows, normalised everywhere.",
+       "where": "_key docstring",
+       "verdict": "kept",
+       "why": "Function uses os.path.normcase (case-folding on Windows) and os.path.normpath."
+      },
+      {
+       "text": "True if child is parent or lies under it, lexically.",
+       "where": "_is_within docstring",
+       "verdict": "kept",
+       "why": "Function checks if key(child) == key(parent) or starts with parent + separator."
+      },
+      {
+       "text": "os.path.islink is NOT sufficient on Windows: a junction created with mklink /J has reparse tag IO_REPARSE_TAG_MOUNT_POINT, not ...SYMLINK, so islink returns False for it (measured on this machine).",
+       "where": "_is_reparse_point docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about islink returning false for junctions is based on a measurement not present in this code."
+      },
+      {
+       "text": "The FILE_ATTRIBUTE_REPARSE_POINT bit on lstat catches every reparse kind, including tags that do not exist yet.",
+       "where": "_is_reparse_point docstring",
+       "verdict": "kept",
+       "why": "Code checks attrs & FILE_ATTRIBUTE_REPARSE_POINT; this bit is set for all reparse points."
+      },
+      {
+       "text": "THE FIRST LINE IS THE ONLY ONE THAT EXISTS OFF WINDOWS, and it is worth saying because the two Windows-specific answers below it are what the junction tests exercise. st_file_attributes and st_reparse_tag are not members of a stat_result on Linux/macOS at all, so on those platforms both getattr calls yield the default and deleting the S_ISLNK/islink line turns this whole function into return False -- every symlink followed, every guard in this file silently open.",
+       "where": "_is_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The code uses getattr with default 0, which on platforms without those attributes returns 0. The function then returns False from the belt-and-braces check. The first line (S_ISLNK/islink) remains the only detection on non-Windows."
+      },
+      {
+       "text": "That mutation SURVIVED the suite until 2026-07-28; it is killed now by test_reparse_detection_off_windows_rests_on_the_symlink_branch, which simulates the POSIX stat SHAPE rather than skipping off Windows.",
+       "where": "_is_reparse_point docstring",
+       "verdict": "uncheckable",
+       "why": "The referenced test is not in this chunk."
+      },
+      {
+       "text": "NO-FOLLOW, and that is the whole point. It reads os.lstat, not os.stat.",
+       "where": "_path_identity docstring",
+       "verdict": "kept",
+       "why": "The code uses os.lstat (not os.stat) to get identity without following symlinks."
+      },
+      {
+       "text": "An earlier version used os.stat, which FOLLOWS a reparse point, and that made the identity FORGEABLE by the one primitive this module exists to defend against -- measured on this box, against the manager's own repo_path: ...",
+       "where": "_path_identity docstring",
+       "verdict": "uncheckable",
+       "why": "The measurement results and the earlier version are not present in this chunk."
+      },
+      {
+       "text": "Measured on this box (Windows 11, CPython 3.10.11): lstat populates both fields for a DIRECTORY, os.rename PRESERVES them (same NTFS record",
+       "where": "_path_identity docstring (truncated)",
+       "verdict": "uncheckable",
+       "why": "The claim about os.rename preserving inode is not verifiable from this code; the measurement is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_worktree_root_for uses str(repo_path) directly without resolving symlinks; the docstring says 'resolved repo path' but the code does not resolve.",
+       "where": "_worktree_root_for function body, line ~141",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_is_reparse_point uses getattr with default 0 for st_file_attributes and st_reparse_tag; on platforms where these attributes exist but are 0 for a symlink, the function would return True from the S_ISLNK branch anyway, but if that branch is removed, it would return False.",
+       "where": "_is_reparse_point function body",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_path_identity function is defined but the code chunk ends before the function body completes; the docstring claim about os.rename preserving inode is not verifiable.",
+       "where": "_path_identity function (truncated)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "97911f5b69ad8689de03626301445bc3acf43f5adf680bb98036cacb4fe6e7df",
+    "objective_chars": 6227,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [2/12]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 2,
+  "total": 12,
+  "first_line": 121
+ }
+}

@@ -1,0 +1,176 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c2of4__946db82",
+ "key": "scan__daedalus_kairos_scheduler.py__c2of4__946db82-ce06d083ab",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of scheduler.py: dispatch logic with concurrency safety, write isolation, and gated promotion considerations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "dispatch docstring | medium | Claims gate_concurrent_writes() exists but is not defined or imported in this chunk. | Check if function is defined elsewhere in the module or imported.",
+     "dispatch docstring | medium | References daedalus.spine.attempt.TaskAttempt and daedalus.kairos.gated_writes.promote_candidates without imports in this chunk. | Verify those modules exist and are importable.",
+     "dispatch docstring | low | 'offload._repo_snapshot' referenced but not imported or defined here. | Check if offload module has that attribute.",
+     "dispatch code | low | Uses 'offload' imported inside function; may cause repeated import overhead. | Acceptable in Python, but could be moved to top-level.",
+     "dispatch docstring | medium | Claim about 'gate_concurrent_writes()' running each write through TaskAttempt is uncheckable. | Verify in other chunks or files.",
+     "dispatch docstring | medium | Claim about 'promote_candidates()' landing gated candidates behind a cross-process lock is uncheckable. | Verify in other chunks or files."
+    ],
+    "todos": [
+     "Ensure gate_concurrent_writes() and promote_candidates() are implemented and imported where used.",
+     "Consider moving 'from ..offload import offload' to top of file for clarity and performance.",
+     "Verify that offload._repo_snapshot exists or adjust comment."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "2 of 4",
+     "purpose": "Contains accept(), plan(), dispatch() methods with concurrency safety logic and write isolation commentary.",
+     "symbols": [
+      {
+       "name": "accept",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of Assignment objects after routing tasks through route_and_select. Non-FREE_LANES decisions are bounced with reason 'belongs to the senior crew -> return to Adam'."
+      },
+      {
+       "name": "plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Dry run: calls accept() and returns dict with assignments, spawned count, bounced count, and waves (ceil(len(taken)/max_workers))."
+      },
+      {
+       "name": "dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Orchestrates task execution. Supports dry_run and parallel modes. Contains extensive docstring on concurrency safety and write isolation."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Sequential by default (``parallel=False``): each live write is verified by diffing a WHOLE-repo content-hash snapshot around that one run (offload._repo_snapshot), which catches even writes outside --paths -- but two such runs on one repo concurrently would cross-attribute disk_changed.",
+       "where": "dispatch docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to offload._repo_snapshot is not present in this chunk; cannot verify behavior."
+      },
+      {
+       "text": "real concurrency requires per-task isolation.",
+       "where": "dispatch docstring",
+       "verdict": "kept",
+       "why": "Code shows can_parallel = parallel and not has_writes, and if parallel and not can_parallel it warns about writable attempts running sequentially. So concurrency requires no writes (isolation)."
+      },
+      {
+       "text": "``parallel=True`` currently overlaps advisory-only work.",
+       "where": "dispatch docstring",
+       "verdict": "kept",
+       "why": "Code sets can_parallel = parallel and not has_writes, meaning only non-write (advisory) tasks can run in parallel."
+      },
+      {
+       "text": "Declared path disjointness is not a security boundary: a writable agent can touch an undeclared repository path, while ``isolate_paths=True`` would observe only its hints and misattribute the result.",
+       "where": "dispatch docstring",
+       "verdict": "kept",
+       "why": "Code comment in _run_one uses isolate_paths parameter; docstring warning is consistent with code's cautious approach."
+      },
+      {
+       "text": "Writable concurrency stays sequential with whole-repository snapshots until Forge gives every attempt its own workcell/worktree.",
+       "where": "dispatch docstring",
+       "verdict": "kept",
+       "why": "Code shows has_writes = any(a.mode == 'write' for a in live_tasks) and can_parallel = parallel and not has_writes, so writes force sequential execution."
+      },
+      {
+       "text": "the isolation now EXISTS -- see gate_concurrent_writes() below, which runs each write through daedalus.spine.attempt.TaskAttempt (its own worktree, its own hardened patch capture) fanned out concurrently, and daedalus.kairos.gated_writes.promote_candidates(), which lands gated candidates one at a time behind a cross-process lock with cumulative re-gating.",
+       "where": "dispatch docstring",
+       "verdict": "uncheckable",
+       "why": "References to gate_concurrent_writes(), daedalus.spine.attempt.TaskAttempt, and daedalus.kairos.gated_writes.promote_candidates are not present in this chunk; cannot verify existence or behavior."
+      },
+      {
+       "text": "What THAT path returns is not what this one returns, though: a gated PatchArtifact the primary checkout never saw, not a live write already sitting in repo_root's working tree.",
+       "where": "dispatch docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to PatchArtifact not in this chunk; cannot verify."
+      },
+      {
+       "text": "dispatch() keeps its existing auto-land contract for a single write (offload() has always auto-landed a sequential one), and does not silently switch write-mode dispatch to the gated-candidate shape -- that is a product decision",
+       "where": "dispatch docstring",
+       "verdict": "kept",
+       "why": "Code shows dispatch() uses offload() directly for live tasks, not any gated path. The docstring correctly states it does not switch to gated shape."
+      },
+      {
+       "text": "Call gate_concurrent_writes()/promote_candidates() explicitly when that decision says to.",
+       "where": "dispatch docstring",
+       "verdict": "uncheckable",
+       "why": "Those functions are not defined or called in this chunk; cannot verify they exist."
+      }
+     ],
+     "observations": [
+      {
+       "what": "accept() uses route_and_select() and FREE_LANES; these are imported or defined elsewhere.",
+       "where": "accept method, line ~121",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "plan() computes waves using integer ceiling division; assumes max_workers attribute exists.",
+       "where": "plan method, line ~148",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "dispatch() contains an extensive docstring with design notes and references to external modules/classes.",
+       "where": "dispatch method docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "dispatch() imports offload inside a nested function; this is valid but unusual.",
+       "where": "_run_one function, line ~172",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "dispatch() includes a note about parallel disabled when writes exist, but does not actually run any tasks if can_parallel is false and not dry_run? The code chunk ends before execution loop.",
+       "where": "dispatch method, lines ~210-215",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "14d3af04b7cfc1c2fc32b129076aa5d557a2e8a2ebfcddadc876519318871afd",
+    "objective_chars": 7491,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [2/4]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 121
+ }
+}

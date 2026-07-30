@@ -1,0 +1,396 @@
+{
+ "task_id": "scan__daedalus_spine_envelope.py__c2of7__946db82",
+ "key": "scan__daedalus_spine_envelope.py__c2of7__946db82-688fa1e676",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of envelope.py: defines canonical_json and exports public symbols. Module docstring lists conversion candidates; claims about external files are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "module docstring | medium | References many external modules (daedalus/build.py, daedalus/progress.py, etc.) and makes claims about their trace_id, record shape, and cost. These claims cannot be verified from this chunk alone. | Check each referenced file to confirm the stated record shape and trace_id field.",
+     "ledger.default_db_path vs picker.resolve_spine_db_path | medium | Docstring claims a live divergence between ledger.py:157 and picker.py:438 but this chunk does not include those lines. | Inspect ledger.py and picker.py to verify the divergence.",
+     "UNCONVERTED_PRODUCERS | low | Docstring mentions UNCONVERTED_PRODUCERS constant but it is not defined in this chunk. | Ensure UNCONVERTED_PRODUCERS is defined elsewhere in the module.",
+     "CONVERTED_PRODUCERS | low | Docstring mentions CONVERTED_PRODUCERS but it is not defined in this chunk. | Ensure CONVERTED_PRODUCERS is defined elsewhere."
+    ],
+    "todos": [
+     "Verify the claims about external modules' trace_id fields.",
+     "Confirm the divergence between ledger.py and picker.py.",
+     "Define UNCONVERTED_PRODUCERS and CONVERTED_PRODUCERS if not already defined."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/envelope.py",
+     "chunk": "2 of 7",
+     "purpose": "Define canonical JSON serialization and export public symbols; include docstring listing conversion candidates.",
+     "symbols": [
+      {
+       "name": "canonical_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a JSON string with sort_keys=True, separators=(',',':'), ensure_ascii=True. Raises ValueError on non-serializable input."
+      },
+      {
+       "name": "canonical_sha",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "GEN_AI",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "IN_TOTO_STATEMENT_TYPE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "LOCAL_TO_GEN_AI",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "PREDICATE_BRIDGE_REPORT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "PREDICATE_BRIDGE_REQUEST",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "PREDICATE_LOOP_LEDGER",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "PREDICATE_SPINE_INTENT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "TRACE_ID_ENV",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "TRACE_KEY",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "CONVERTED_PRODUCERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "UNCONVERTED_PRODUCERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "adopt_trace",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "bind_trace_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "current_trace_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "gen_ai_attributes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "is_statement",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "new_trace_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "stamp",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "statement",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "subject_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "trace_context",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "trace_of",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      },
+      {
+       "name": "unwrap",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Exported but not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``ledger.default_db_path()``, which honours ``DAEDALUS_SPINE_DB``. NOT ``picker.resolve_spine_db_path()``, which ignores that variable (picker.py:438 vs ledger.py:157 -- a live divergence Codex owns; it is not fixed here).",
+       "where": "module docstring, 'WHICH SPINE DB PATH THIS READS THROUGH'",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the implementation of ledger.default_db_path or picker.resolve_spine_db_path, nor the files ledger.py or picker.py."
+      },
+      {
+       "text": "``sort_keys`` makes two dicts built in different insertion orders produce byte-identical text; ``separators`` strips the whitespace a pretty-printer would vary; ``ensure_ascii`` pins the bytes so a digest does not depend on the reader's encoding.",
+       "where": "docstring of canonical_json",
+       "verdict": "kept",
+       "why": "The function call uses sort_keys=True, separators=(',',':'), ensure_ascii=True, matching the claim."
+      },
+      {
+       "text": "Mirrors ``memstore._body_sha``'s discipline: one place, one answer to 'what bytes did we hash?'.",
+       "where": "docstring of canonical_json",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain memstore._body_sha; cannot verify the mirror claim."
+      },
+      {
+       "text": "Lives HERE rather than in ledger.py, and ledger.py imports it back, for one structural reason: ledger.py is a CONSUMER of this module (its rows carry a trace and project to statements), so the dependency has to run envelope <- ledger or it is a cycle.",
+       "where": "comment block above canonical_json",
+       "verdict": "uncheckable",
+       "why": "The chunk does not include ledger.py; cannot verify the import direction or cycle avoidance."
+      },
+      {
+       "text": "The definition did not change; the names are still re-exported from ledger.py and from daedalus.spine, so every existing import path still resolves.",
+       "where": "comment block above canonical_json",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain ledger.py or daedalus.spine __init__; cannot verify re-exports."
+      },
+      {
+       "text": "daedalus/build.py JSON/run slug + created LOW. BuildSession.save() -> runs/build/<slug>-<ts>.json.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/build.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/progress.py JSONL unit_id + batch_id LOW. Six thin record_* helpers over one append; stamp the append and all six inherit it.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/progress.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/runbook.py JSON/run run_id LOW. runs/<run_id>.json. Its run_id is literally one of the six colliding schemes this module exists to reconcile.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/runbook.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/memstore.py JSONL entry_sha + prev MEDIUM. Same hash-chain constraint, plus entry_version is a published contract with confirm/flag record types.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/memstore.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/memory/__init__.py JSONL task_id LOW. One append_event, additive dict.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/memory/__init__.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/metrics.py JSONL (none -- ts only) LOW. Seven-key dict, no id at all today; trace_id would be its FIRST correlator.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/metrics.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/council/canary.py JSONL run_id + schema LOW. Additive, but schema is pinned by a reader (canary.py:1180) so the version bump needs a both-versions read.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/council/canary.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/kairos/drafts.py JSON/run id + created LOW. runs/drafts/<ts>-<slug>-n.json, additive, no chain.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/kairos/drafts.py; cannot verify the record shape."
+      },
+      {
+       "text": "runs/council/stream_hook.py text log ts + role LOW. Append-only .stream_hook.log; one field on the line, as the bridge's LATEST.log already does.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain runs/council/stream_hook.py; cannot verify the record shape."
+      },
+      {
+       "text": "runs/council/summarize.py markdown turn_id MEDIUM. Appends PROSE into room.md -- the trace would have to live in the entry marker, not in a JSON key.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain runs/council/summarize.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/adapters/transport.py JSONL caller-supplied UNKNOWN. Path and record shape both come from the caller; needs a survey of sinks before it can be costed.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/adapters/transport.py; cannot verify the record shape."
+      },
+      {
+       "text": "daedalus/file_bridge.py (heartbeat) JSON epoch N/A BY DESIGN. Per-WATCHER liveness, not per-run; it outlives any one trace and has no run to correlate to.",
+       "where": "module docstring table row",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain daedalus/file_bridge.py; cannot verify the record shape."
+      },
+      {
+       "text": "The scan also flags nine modules that serialise JSON into runs/ or memory/ and are NOT run records -- latest-only mirrors, config scaffolds, cursors, sealed fixtures. They are listed in UNCONVERTED_PRODUCERS with the reason, because a detector whose output is not fully accounted for is a detector people learn to ignore.",
+       "where": "module docstring paragraph after table",
+       "verdict": "uncheckable",
+       "why": "UNCONVERTED_PRODUCERS is not defined in this chunk; cannot verify its contents."
+      }
+     ],
+     "observations": [
+      {
+       "what": "canonical_json function is defined; it returns a JSON string with specific parameters.",
+       "where": "lines 161-172",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Many public symbols are exported via __all__ but not defined in this chunk; they must be defined elsewhere in the module.",
+       "where": "__all__ list",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Module docstring makes many claims about external files; these cannot be verified from this chunk.",
+       "where": "module docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring claims a divergence between ledger.py and picker.py regarding DAEDALUS_SPINE_DB environment variable, but the relevant code is not in this chunk.",
+       "where": "module docstring, 'WHICH SPINE DB PATH THIS READS THROUGH'",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3b9b37df5bcfe20fe9ee5b545e190c73796129e998c090458ea2baf36b719689",
+    "objective_chars": 7612,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/envelope.py [2/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/envelope.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 121
+ }
+}

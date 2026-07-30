@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_eval_report.py__c1of4__946db82",
+ "key": "scan__daedalus_eval_report.py__c1of4__946db82-e074851089",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of 4 of daedalus/eval/report.py: module docstring, constants, helper functions, and partial render_tier1. Claims about ASCII safety, provenance notes, focus-withheld handling, and rendering behavior are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_tier1 | medium | The function is incomplete; it starts a loop but does not finish rendering. The missing code may change behavior or introduce bugs. | Review the remaining chunks to see the complete implementation."
+    ],
+    "todos": [
+     "Complete the render_tier1 function in subsequent chunks."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/report.py",
+     "chunk": "1 of 4",
+     "purpose": "Define module docstring, constants, helper functions, and start of render_tier1.",
+     "symbols": [
+      {
+       "name": "HEADER",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for the eval header."
+      },
+      {
+       "name": "_PROVENANCE_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping provenance keys to disclaimer strings."
+      },
+      {
+       "name": "_rule",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates a horizontal rule for ASCII table."
+      },
+      {
+       "name": "_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates a row for ASCII table."
+      },
+      {
+       "name": "_focus_withheld_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates lines for focus-withheld tasks."
+      },
+      {
+       "name": "_table",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates an ASCII table from headers and rows."
+      },
+      {
+       "name": "_pct",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats a float as percentage string."
+      },
+      {
+       "name": "_provenance_breakdown_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders the provenance breakdown block."
+      },
+      {
+       "name": "render_tier1",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders Tier 1 results (incomplete in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "No unicode box-drawing, no fancy glyphs: only ``+ - |`` so it prints on a raw Windows console.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The code uses only '+', '-', and '|' characters in _rule, _row, and _table."
+      },
+      {
+       "text": "\"hand_reachable\" recall is partly self-graded and MUST NOT be blended with independently-derived recall into one headline number.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_PROVENANCE_NOTE['hand_reachable'] explicitly states it is partially self-graded and should be treated as an upper bound, not blended."
+      },
+      {
+       "text": "Errored rows carry no recall/compression/slice_tokens/... at all -- they get their own ERRORED section below, not a row in this recall/compression table.",
+       "where": "render_tier1 comment",
+       "verdict": "uncheckable",
+       "why": "The comment describes behavior of code not in this chunk (the ERRORED section and harness._task_error_row)."
+      },
+      {
+       "text": "FOCUS-WITHHELD rows are excluded the same way, into their own section below.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The loop in render_tier1 skips tasks with 'focus_withheld' key (t.get('focus_withheld')), and _focus_withheld_lines function is defined to generate a separate section."
+      },
+      {
+       "text": "Absent (result.get) for any hand-built result dict that predates this field, and adds no lines when there are none.",
+       "where": "_focus_withheld_lines docstring",
+       "verdict": "kept",
+       "why": "The function uses result.get('focus_withheld_ids') and returns empty list if falsy."
+      },
+      {
+       "text": "Always shows both tiers (even when empty) and always prints the honesty note -- this block is the deliverable of this sprint.",
+       "where": "_provenance_breakdown_lines docstring",
+       "verdict": "kept",
+       "why": "The function always prints 'PROVENANCE BREAKDOWN' header and iterates over 'primary' and 'quarantine' tiers, even if n_tasks==0 (it skips adding rows but still prints header). The honesty note is printed via _PROVENANCE_NOTE calls."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_tier1 is incomplete; it starts a loop but does not finish the function body.",
+       "where": "render_tier1 function, line ~80",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module docstring claims 'hand_reachable' recall is partly self-graded and must not be blended; this is enforced by comments and _PROVENANCE_NOTE but the actual blending prevention is in external code.",
+       "where": "module docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _focus_withheld_lines is defined but not called in this chunk.",
+       "where": "_focus_withheld_lines",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e69621ac573d0924d1f0105c3b3514d6ee2684ad20be5b6001e669b639d66045",
+    "objective_chars": 5587,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/report.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/eval/report.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

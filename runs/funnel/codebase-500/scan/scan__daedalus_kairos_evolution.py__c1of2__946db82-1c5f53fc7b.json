@@ -1,0 +1,160 @@
+{
+ "task_id": "scan__daedalus_kairos_evolution.py__c1of2__946db82",
+ "key": "scan__daedalus_kairos_evolution.py__c1of2__946db82-1c5f53fc7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of 2 of evolution.py: class EvolutionaryOrchestrator with generate_candidates and start of evaluate_candidates. Claims about eval timeout, shell manager factory, candidate generation, and pytest invocation are partially checkable; import provenance check is uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "DEFAULT_EVAL_TIMEOUT_S | medium | Hardcoded 600s timeout for candidate evaluation; may be too short or too long for some tasks. | Review if timeout should be configurable per task.",
+     "generate_candidates | low | All candidates run concurrently with no concurrency limit; may overwhelm system resources. | Consider adding a semaphore or limit parameter.",
+     "evaluate_candidates | medium | Uses sys.executable -m pytest with a timeout but does not handle process that hangs beyond timeout; gather may wait forever if timeout not enforced. | Verify that asyncio.wait_for is used or subprocess timeout is implemented.",
+     "evaluate_candidates | high | Relies on check_import_provenance to validate candidate worktree; if that function is missing or incorrect, evaluation may be silently invalid. | Ensure check_import_provenance exists and is correctly implemented."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/evolution.py",
+     "chunk": "1 of 2",
+     "purpose": "Define EvolutionaryOrchestrator class with candidate generation and evaluation methods.",
+     "symbols": [
+      {
+       "name": "DEFAULT_EVAL_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Wall-clock ceiling for one candidate's test run, set to 600.0 seconds."
+      },
+      {
+       "name": "EvolutionaryOrchestrator",
+       "kind": "class",
+       "effects": [],
+       "note": "Experimental candidate runner: generate isolated branches, run tests, retain passing candidates."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Accepts a callable that returns a ShadowShellManager instance."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.generate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns N ShadowShellManager instances in parallel to attempt the task."
+      },
+      {
+       "name": "EvolutionaryOrchestrator.evaluate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Evaluates candidates using pytest concurrently. Only partially defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Wall-clock ceiling for ONE candidate's test run. Without it a candidate that hangs blocks the whole `gather` below forever, and the run has no way to end.",
+       "where": "comment above DEFAULT_EVAL_TIMEOUT_S",
+       "verdict": "uncheckable",
+       "why": "The constant is defined but its usage (e.g., passed to asyncio.wait_for or subprocess timeout) is not shown in this chunk."
+      },
+      {
+       "text": "Spawns N ShadowShellManager instances in parallel to attempt the task.",
+       "where": "generate_candidates docstring",
+       "verdict": "kept",
+       "why": "The code creates a list of tasks by calling self.shell_manager_factory() N times and awaits asyncio.gather."
+      },
+      {
+       "text": "Evaluates candidates using pytest concurrently. Populates candidate.score and candidate.error.",
+       "where": "evaluate_candidates docstring",
+       "verdict": "uncheckable",
+       "why": "The method is partially shown; it starts an async subprocess but does not complete the evaluation or show assignment to candidate.score/error."
+      },
+      {
+       "text": "THE INTERPRETER IS PART OF THE MEASUREMENT. This shells out to sys.executable -m pytest, never to a bare pytest, and the difference is not cosmetic -- it decides WHICH TREE gets scored.",
+       "where": "evaluate_candidates docstring",
+       "verdict": "kept",
+       "why": "The code uses sys.executable, '-m', 'pytest' as arguments to create_subprocess_exec."
+      },
+      {
+       "text": "A failure here VOIDS THE EVALUATION and is not a candidate score. -1.0 is this module's own 'not evaluated' marker (used above for an incomplete candidate); 0.0 would mean 'measured, and bad'",
+       "where": "comment inside evaluate_single",
+       "verdict": "kept",
+       "why": "The code sets candidate.score = -1.0 when check_import_provenance fails or candidate is incomplete."
+      },
+      {
+       "text": "VERIFY the docstring's argument instead of trusting it. `-m` plus this cwd makes the candidate win by sys.path ORDERING, and nothing enforced that ordering still holds -- a set PYTHONPATH, a candidate whose daedalus/ was destroyed, or a future 'simplification' back to bare `pytest` all produce the same worst-shaped failure: tests pass, score is high, wrong tree. See daedalus.eval.provenance.",
+       "where": "comment before check_import_provenance call",
+       "verdict": "uncheckable",
+       "why": "The claim refers to daedalus.eval.provenance which is not in this chunk. The call to check_import_provenance is present but its implementation is unseen."
+      }
+     ],
+     "observations": [
+      {
+       "what": "DEFAULT_EVAL_TIMEOUT_S is defined but not used in this chunk.",
+       "where": "line 18",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "generate_candidates uses asyncio.gather with return_exceptions=True, but the loop appends results to valid_candidates only if they are CandidateBranch or Exception; other types (e.g., None) are silently ignored.",
+       "where": "generate_candidates method",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "evaluate_single sets candidate.score = -1.0 and returns early if candidate is not completed or has error, but does not await any subprocess in those cases.",
+       "where": "evaluate_single function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Provenance check imports from daedalus.eval.provenance which is not in this chunk; its behavior is unverifiable.",
+       "where": "line 2 and line 78",
+       "severity": "high",
+       "confidence": "possible"
+      },
+      {
+       "what": "The subprocess is created but the chunk ends before handling the process output or timeout.",
+       "where": "end of chunk",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "068b74a58373193295950184de08acbcbe48483f31afa34b3760a674bad52646",
+    "objective_chars": 6178,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/evolution.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/evolution.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

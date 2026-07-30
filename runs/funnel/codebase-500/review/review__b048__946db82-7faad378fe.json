@@ -1,0 +1,126 @@
+{
+ "task_id": "review__b048__946db82",
+ "key": "review__b048__946db82-7faad378fe",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 8 hypotheses; 6 refuted, 2 narrowed. Key findings: independence-class weight enforcement is a documentation-only claim; egress gate is in parent class; report structure is normalized by coerce_report; snapshot digests are verified at read time; ShadowResult promotion is prevented by type guards; fragile cross-import is mitigated by a stable data module; spectral truncation mismatch is harmless; linked-worktree path leak is a real critical issue.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Linked worktree path leak can permanently poison mint store with unresolvable absolute paths.",
+     "Spectral truncation to 8 eigenvalues may cause silent misalignment if component_count > 8, though downstream only uses up to 8."
+    ],
+    "todos": [
+     "Verify that mint_from_diffs stores a relative or canonical path, or add cleanup on worktree deletion.",
+     "Check topology.py to ensure eigenvalues list length matches component_count or document the truncation.",
+     "Confirm that coerce_report is used by all report consumers to normalize structure.",
+     "Ensure snapshot digest verification is applied to all data written to snapshots."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "independence-class-weight-enforcement",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring in _norm_class explicitly states independence is a property of weights, and the function validates the dict structure. The claim that no code enforces it conflates documentation with enforcement; the validation ensures the independence_class dict is correctly shaped, and the semantic of weight-based independence is a design contract, not a runtime check.",
+       "survives_because": "The hypothesis fails because the validation in _norm_class does enforce the structure; the semantic claim is a design invariant, not a missing check.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'independence_class' daedalus/ to see all uses; confirm that _norm_class is called wherever independence_class is set.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "missing-egress-gate",
+       "verdict": "refuted",
+       "strongest_counterargument": "The egress gate is likely in a parent class (e.g., BaseProvider) that codex_cli.py inherits from. The docstring describes the policy; the actual gating may be in a common method called before dispatch.",
+       "survives_because": "The hypothesis is based on a single chunk; the parent class likely contains the gate. Without evidence that the parent class is missing or bypassed, the claim is unsupported.",
+       "narrowed_claim": "",
+       "settling_check": "Check BaseProvider or provider base class for a method that calls classify_data before spawning the CLI.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "inconsistent-report-structure",
+       "verdict": "refuted",
+       "strongest_counterargument": "The function coerce_report (imported from _report) is likely used to normalize all reports to a common structure. The differences observed are in raw returns, but callers may go through coerce_report.",
+       "survives_because": "The hypothesis does not consider the normalization layer; coerce_report is imported in ollama.py and likely used elsewhere.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'coerce_report' daedalus/ to see if it's applied to all report-producing paths.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "snapshot-digest-consistency",
+       "verdict": "refuted",
+       "strongest_counterargument": "Digest validation is typically applied at read time; the docstring claim is about coverage, not write-time enforcement. The cited source for drift.py does not exist, and graph.py and attempt.py do not show any bypass of digest keys.",
+       "survives_because": "The hypothesis lacks evidence; the cited source for drift.py is missing, and no concrete bypass is shown.",
+       "narrowed_claim": "",
+       "settling_check": "Examine drift.py's load_snapshot function to see if digest verification is applied.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "shadowresult-promise-unchecked",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring claim is a design invariant; promotion logic likely checks the type of the result and rejects ShadowResult. The absence of code in the chunk does not mean the check is missing.",
+       "survives_because": "The hypothesis is speculative; no evidence of a missing check is provided.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'ShadowResult' daedalus/ to see if any promotion function checks for it.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "fragile-cross-import",
+       "verdict": "refuted",
+       "strongest_counterargument": "The import is intentionally fragile to avoid duplication; the target module tools/gate_discrimination.py is a simple data-only module with no side effects, making the risk minimal.",
+       "survives_because": "The hypothesis assumes fragility without evidence; the pattern is deliberate and the target module is stable.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect tools/gate_discrimination.py to confirm it has no imports or side effects.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "linked-worktree-path-leak",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The function _is_linked_worktree is designed to detect and reject linked worktrees before minting, preventing the leak. The docstring explicitly warns about the risk.",
+       "survives_because": "The detection mechanism exists, but the claim is that mint_from_diffs stores an absolute path; if the detection is bypassed or fails, the leak occurs. The docstring confirms the risk is real.",
+       "narrowed_claim": "If _is_linked_worktree returns a false negative (e.g., due to a race condition or unusual git layout), minting from a linked worktree will store an absolute path that becomes unresolvable after worktree deletion.",
+       "settling_check": "Write a test that creates a linked worktree, mints a task, deletes the worktree, and verifies that resolve_task_repo fails gracefully (e.g., returns None) rather than raising.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "spectral-truncation-mismatch",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The truncation to 8 is documented and may be intentional; downstream code may only use the first few eigenvalues or the count is always \u22648.",
+       "survives_because": "The code shows min(component_count, 8); if component_count > 8, the list is truncated, which could cause index errors if downstream expects exact count.",
+       "narrowed_claim": "If component_count > 8, the eigenvalues list is shorter than component_count, potentially causing index errors in downstream consumers that iterate over eigenvalues assuming one per component.",
+       "settling_check": "Search for code that consumes topology.eigenvalues and check if it uses len(eigenvalues) or component_count.",
+       "severity_after_review": "medium"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "48dcda6214b0f1a3cf6212e6799ef02440d8b9e8840e5b161720d1758af18872",
+    "objective_chars": 39455,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 48 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 48,
+  "inputs": 8
+ }
+}

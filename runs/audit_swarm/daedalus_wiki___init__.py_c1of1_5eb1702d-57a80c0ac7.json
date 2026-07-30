@@ -1,0 +1,111 @@
+{
+ "task_id": "daedalus/wiki/__init__.py#c1of1#5eb1702d",
+ "key": "daedalus_wiki___init__.py_c1of1_5eb1702d-57a80c0ac7",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 3 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"READ-ONLY by construction.\" | docstring | BROKEN | The module only re-exports symbols; nothing enforces read-only access to vault files. The docstring's claim is aspirational, not enforced by this code.",
+     "CLAIM | \"Vault format compatibility is deliberate: Obsidian itself is closed and cannot be embedded, but plain `.md` + `[[wikilinks]]` + YAML frontmatter is the de-facto standard, so a user can open the same folder in Obsidian and keep working.\" | docstring | KEPT | The module re-exports functions that handle .md files, wikilinks, and YAML frontmatter, supporting the described format.",
+     "CLAIM | \"The write path needs its own gate list and a Cerberus review \u2014 ``kairos.gated_writes`` is a provider-attempt pipeline, not a write fence, and wiring a human editor's PUT through it would fail every save silently.\" | docstring | KEPT | The module does not export any write functions; it is read-only as advertised.",
+     "CLAIM | \"See docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md.\" | docstring | KEPT | This is a reference to external documentation; no code contradicts it."
+    ],
+    "todos": [
+     "Remove or rephrase the claim 'READ-ONLY by construction' from the docstring, or add enforcement (e.g., a read-only file system wrapper) to make it true."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cabf70d962f082b147236d0701e7d4037da75fcfecaf356a9805b58fb83372f7",
+    "objective_chars": 3820,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "1 claim: 0 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"READ-ONLY by construction\" | docstring | BROKEN | The module exports Vault, Page, etc. which may have write methods; check not possible without seeing vault.py and links.py.",
+     "D: none"
+    ],
+    "todos": [
+     "Either remove the claim or add a write fence to all exported classes/functions."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cabf70d962f082b147236d0701e7d4037da75fcfecaf356a9805b58fb83372f7",
+    "objective_chars": 3820,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "1 claim: 0 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"READ-ONLY by construction\" | __init__.py | BROKEN | The module docstring claims read-only, but the module imports write-related symbols (e.g., Vault, Page) whose implementations may permit writes; no enforcement is visible.",
+     "D1 | __all__ | The __all__ list is defined but never used in this unit. | WRONG CONCLUSION: A caller might assume __all__ restricts star imports, which it does, but the claim about \"READ-ONLY by construction\" is unsupported."
+    ],
+    "todos": [
+     "Remove the claim \"READ-ONLY by construction\" from the docstring, or add explicit write prevention in the imported modules."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cabf70d962f082b147236d0701e7d4037da75fcfecaf356a9805b58fb83372f7",
+    "objective_chars": 3820,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/wiki/__init__.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1374
+ }
+}

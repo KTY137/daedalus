@@ -1,0 +1,180 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c3of4__946db82",
+ "key": "scan__daedalus_eval_harness.py__c3of4__946db82-f7a2b58b0b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of harness.py: arms aggregation, run_tier2 with LLM calls, baseline snapshot/write, and detailed comments on c_beats_a logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_ask | medium | Exception handling too broad; catches all exceptions and returns empty string, potentially hiding bugs. | Add specific exception types or log the error.",
+     "run_tier2 | medium | B text is capped at cap_tokens*4 chars before token counting; tokens_B reflects truncated text, not full repo. | Ensure documentation clarifies this behavior.",
+     "run_tier2 | medium | Provider detection only checks Ollama; other providers are not supported. | If other providers are expected, add detection logic.",
+     "snapshot_baseline | low | Baseline snapshots only tasks without error or focus_withheld; tasks with errors become 'new' next run, which may be unexpected. | Document this behavior clearly."
+    ],
+    "todos": [
+     "Review _ask to ensure it handles provider errors without silently returning empty string.",
+     "Verify that run_tier2's B truncation is correctly documented and matches expectations.",
+     "Check if baseline snapshot should include errored tasks with a placeholder recall value."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "3 of 4",
+     "purpose": "Implement arms aggregation, Tier 2 LLM evaluation with provider detection, and baseline snapshot/write logic.",
+     "symbols": [
+      {
+       "name": "_arms_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregate per-task arms results into summary stats."
+      },
+      {
+       "name": "run_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Run deterministic A/B/C comparison over tasks; model-free, offline."
+      },
+      {
+       "name": "_score",
+       "kind": "function",
+       "effects": [],
+       "note": "Check if answer contains all substrings (case-insensitive) and return fraction."
+      },
+      {
+       "name": "detect_provider",
+       "kind": "function",
+       "effects": [],
+       "note": "Probe local Ollama HTTP endpoint; return provider descriptor or None."
+      },
+      {
+       "name": "_ask",
+       "kind": "function",
+       "effects": [],
+       "note": "Single text-only turn against provider; never raises."
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [],
+       "note": "Opt-in Tier 2: compare distilled-slice vs whole-repo-concat task success + tokens."
+      },
+      {
+       "name": "load_baseline",
+       "kind": "function",
+       "effects": [],
+       "note": "Read baseline.json or return empty baseline if file does not exist."
+      },
+      {
+       "name": "snapshot_baseline",
+       "kind": "function",
+       "effects": [],
+       "note": "Build baseline structure from current recall of tasks; does not touch disk."
+      },
+      {
+       "name": "write_baseline",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Write baseline snapshot to disk; explicit-only, never auto-called."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tie-inclusive on purpose: a strict '>' here silently counted a BM25 tie as an A win, contradicting the 'C>=A' column header (report.py) and this function's own docstring ('if C ties or beats A ... that is reported loudly, not smoothed over'). recall_A==1.0 on every current hand_reachable task makes a strict C win impossible, so with '>' the tie case -- dumb retrieval matching the product at equal cost, the commercially damning one -- was the ONLY case that could ever fire and it was being absorbed into 'no'.",
+       "where": "line ~610 (comment in dict literal for c_beats_a)",
+       "verdict": "kept",
+       "why": "The comment explains the change from '>' to '>=' for c_beats_a. The code shows 'c_beats_a': recall_c >= recall_a, which matches the comment's claim of tie-inclusive behavior."
+      },
+      {
+       "text": "B's tokens were ALREADY measured with the real tokenizer before this change (count_tokens is exact whenever tiktoken is installed) -- that part was honest. What was NOT honest: B is capped at cap_tokens * 4 chars before being measured, so tokens_B silently reflected a TRUNCATED text, not the real whole-repo size. tokens_B_true (added here) is the untruncated whole-repo token count, so a truncated B can never be mistaken for the real baseline.",
+       "where": "docstring of run_tier2",
+       "verdict": "kept",
+       "why": "The code uses cap_chars = cap_tokens * 4 to truncate B text, then count_tokens(ctx_b) for tokens_B. It also computes whole_true_tokens_cache[repo] from full untruncated text. The per_task dict includes 'tokens_B_true' from that cache. The claim is consistent with the code."
+      },
+      {
+       "text": "ERRORED tasks (run_tier1) have no recall to snapshot and are skipped here -- they simply get no baseline entry, which makes them a 'new task' (not silently a pass) the next time run_gate sees them resolve successfully. FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file) are skipped for the same reason: there is no recall key to snapshot, and re-baselining a fence-refused task would silently launder 'never measured' into 'passing'.",
+       "where": "docstring of snapshot_baseline",
+       "verdict": "kept",
+       "why": "The code filters tasks: 'for t in result[\"per_task\"] if \"error\" not in t and not t.get(\"focus_withheld\")'. This matches the claim that errored and focus_withheld tasks are skipped."
+      },
+      {
+       "text": "Only a local Ollama HTTP endpoint is probed (free, no key, no egress). The probe is a 2s GET to /api/tags -- it does nothing unless Tier 2 is requested.",
+       "where": "docstring of detect_provider",
+       "verdict": "kept",
+       "why": "The code does: urllib.request.urlopen(host + '/api/tags', timeout=2). It only checks Ollama. The timeout is 2 seconds. It only runs when called (Tier 2)."
+      },
+      {
+       "text": "Never call this from an automatic code path -- a baseline that updates itself is not a ratchet, it is a no-op.",
+       "where": "docstring of write_baseline",
+       "verdict": "uncheckable",
+       "why": "The claim about automatic code paths is a usage directive; the code itself does not prevent automatic calls. The function is public and could be called from anywhere. No guard is present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment on c_beats_a explains a deliberate change from '>' to '>=' to handle ties correctly.",
+       "where": "line ~610",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_tier2 computes tokens_B from truncated text (capped at cap_tokens*4 chars) and also stores tokens_B_true from full text.",
+       "where": "run_tier2 body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "detect_provider only supports Ollama; other providers are not probed.",
+       "where": "detect_provider function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_ask catches all exceptions and returns empty string, potentially hiding errors.",
+       "where": "_ask function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "snapshot_baseline filters out errored and focus_withheld tasks, as documented.",
+       "where": "snapshot_baseline body",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ab68d108dab8e3b8e0b30b45f27e65558e89c14607dfeeb4ea832abdd121f1dc",
+    "objective_chars": 13327,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

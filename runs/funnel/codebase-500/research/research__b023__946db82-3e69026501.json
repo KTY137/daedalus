@@ -1,0 +1,104 @@
+{
+ "task_id": "research__b023__946db82",
+ "key": "research__b023__946db82-3e69026501",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses identified: 1) Normalisation gaps (canary.py) vs. bounded reads (artifacts.py) both assume clean input; 2) Decoy check (canary.py) vs. schema known property (artifacts.py) both use presence-over-semantics logic; 3) Worktree retention (worktree.py) vs. canary probes both assume no interference from other modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Normalisation may miss artefacts introduced by other modules (e.g., bounded reads in artifacts.py truncate JSON, but canary.py normalisation does not handle truncation artifacts).",
+     "Decoy-first logic in check_anchoring and known property in ArtifactSchema both use presence/status as proxy for semantics; if another module sets status incorrectly, both may misreport.",
+     "Worktree retention logic assumes no other module modifies refs; if canary probes or other code create branches, worktree may incorrectly retain branches.",
+     "The three modules each assume clean boundaries that are not enforced by the other modules."
+    ],
+    "todos": [
+     "Verify that _normalise in canary.py is applied uniformly across all probe checks, especially after bounded reads from artifacts.py.",
+     "Check if any code outside artifacts.py sets ArtifactSchema.status to READ without actually populating columns.",
+     "Review if canary probes or any other module create git branches that could affect worktree's refs_containing logic.",
+     "Add integration tests that feed truncated or malformed inputs through all three modules."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "normalisation-vs-bounded-reads",
+       "claim": "The normalisation in canary.py assumes the reply is a clean, complete string, but artifacts.py's bounded reads (MAX_SCHEMA_BYTES) can truncate data, introducing artifacts that normalisation does not handle, causing false positives/negatives in probes.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/structcore/artifacts.py"
+       ],
+       "mechanism": "artifacts.py reads at most MAX_SCHEMA_BYTES from a file; if a JSON file is truncated, _json_schema returns a note about truncation but the schema may be incomplete. canary.py's _normalise only strips code fences, quotes, and dots; it does not handle truncated JSON or other truncation artifacts. If a truncated reply is passed to check_instruction or check_anchoring, the normalisation may not remove truncation markers, causing a mismatch or false detection.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that canary.py's probes never receive data from artifacts.py's bounded reads, or that _normalise is extended to handle truncation artifacts.",
+       "evidence": [
+        "daedalus/structcore/artifacts.py:_json_schema returns detail about bounded read",
+        "daedalus/council/canary.py:_normalise only strips code fences, quotes, dots"
+       ]
+      },
+      {
+       "id": "decoy-first-vs-known-property",
+       "claim": "Both canary.py's check_anchoring and artifacts.py's ArtifactSchema.known use a 'presence-over-semantics' heuristic: decoy presence wins over correct answer, and status==READ is considered known even if columns are empty. This pattern is duplicated and may lead to false conclusions when data is incomplete.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/structcore/artifacts.py"
+       ],
+       "mechanism": "In canary.py, check_anchoring returns 'anchored_on_decoy' if decoy word is present, ignoring whether the correct answer is also present. In artifacts.py, ArtifactSchema.known returns True if status==READ, ignoring whether columns list is empty. Both assume that a single indicator (presence of decoy, status flag) is sufficient to determine a complex state (anchoring, known schema). This can cause false positives: a reply containing both decoy and correct answer is flagged as anchored; a schema with status READ but no columns is considered known.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that check_anchoring also checks correct answer presence before decoy, or that known property requires non-empty columns.",
+       "evidence": [
+        "daedalus/council/canary.py:check_anchoring returns decoy first",
+        "daedalus/structcore/artifacts.py:ArtifactSchema.known only checks status"
+       ]
+      },
+      {
+       "id": "worktree-retention-vs-probe-interference",
+       "claim": "worktree.py's branch retention logic assumes no other module creates or modifies git refs, but canary.py or other modules might create branches (e.g., for probing), causing worktree to incorrectly retain branches that are actually safe to delete.",
+       "spans": [
+        "daedalus/kairos/worktree.py",
+        "daedalus/council/canary.py"
+       ],
+       "mechanism": "worktree.py's _refs_containing returns list of refs containing a tip SHA; if no other ref contains it, the branch is retained to avoid orphaning commits. If canary.py or any other code creates a temporary branch that includes that tip, _refs_containing would include that branch and allow deletion. Conversely, if a branch is created but not tracked by worktree, it may be incorrectly retained. The assumption is that only worktree's allocations create branches.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that no other module creates git branches, or that worktree tracks all branches in the repository.",
+       "evidence": [
+        "daedalus/kairos/worktree.py:_refs_containing returns empty on git failure, retains branch",
+        "daedalus/council/canary.py:probes do not create branches (no evidence of git operations)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4b5d655253d733fc68475587b51412028c83a81b2c808d64deef3ec398102d30",
+    "objective_chars": 17095,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 23 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 23,
+  "inputs": 4
+ }
+}

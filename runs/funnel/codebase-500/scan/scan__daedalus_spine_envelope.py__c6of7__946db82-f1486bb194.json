@@ -1,0 +1,274 @@
+{
+ "task_id": "scan__daedalus_spine_envelope.py__c6of7__946db82",
+ "key": "scan__daedalus_spine_envelope.py__c6of7__946db82-f1486bb194",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Envelope module chunk 6 defines CONVERTED_PRODUCERS and UNCONVERTED_PRODUCERS dictionaries with documentation about trace_id wiring status for various modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CONVERTED_PRODUCERS | medium | Claims about trace_id propagation in listed modules are uncheckable in this chunk; actual behavior may differ. | Cross-reference with the actual implementations of daedalus/spine/ledger.py, daedalus/loop.py, daedalus/file_bridge.py, daedalus/lanes/fanout.py.",
+     "UNCONVERTED_PRODUCERS | medium | Claims about 'not a run record' status for several modules are uncheckable; if wrong, trace_id coverage may be incomplete. | Verify against the actual file outputs and run semantics of daedalus/shift.py, daedalus/arch_memory.py, daedalus/eval/graph_delta.py, daedalus/gui/lint.py, daedalus/claude_bridge.py, daedalus/providers/codex_cli.py, daedalus/token_monitor.py, daedalus/config.py, runs/council/room.py, runs/ab/blind.py, runs/ab/oracle_check.py.",
+     "UNCONVERTED_PRODUCERS | medium | Claims about conversion cost and priority for run records are uncheckable; actual effort may differ. | Inspect each module's output format and integration points.",
+     "daedalus/council/bus.py | high | Claim of hash-chain constraint is uncheckable; if incorrect, adding trace_id could break digest verification. | Check bus.py implementation for entry_sha computation.",
+     "daedalus/memstore.py | high | Same hash-chain constraint claim; uncheckable. | Check memstore.py for entry_sha and entry_version handling.",
+     "daedalus/council/canary.py | medium | Claim that schema is pinned by reader at canary.py:1180; uncheckable. | Verify canary.py line 1180.",
+     "daedalus/adapters/transport.py | medium | Cost unknown; needs survey. | Survey all sinks using transport.py.",
+     "tests/test_envelope_coverage.py | low | Claim that test fails when producer appears in neither table; uncheckable. | Locate and run the test."
+    ],
+    "todos": [
+     "Verify trace_id propagation in CONVERTED_PRODUCERS modules.",
+     "Confirm 'not a run record' status for listed modules.",
+     "Assess conversion cost and priority for run record modules.",
+     "Investigate hash-chain constraints in daedalus/council/bus.py and daedalus/memstore.py.",
+     "Check canary.py:1180 schema pinning.",
+     "Survey sinks for daedalus/adapters/transport.py.",
+     "Ensure test_envelope_coverage.py exists and passes."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/envelope.py",
+     "chunk": "6 of 7",
+     "purpose": "Define CONVERTED_PRODUCERS and UNCONVERTED_PRODUCERS dictionaries documenting trace_id wiring status.",
+     "symbols": [
+      {
+       "name": "CONVERTED_PRODUCERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dictionary mapping module paths to descriptions of how trace_id is carried. Claims about propagation are uncheckable in this chunk."
+      },
+      {
+       "name": "UNCONVERTED_PRODUCERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dictionary mapping module paths to reasons why trace_id is not yet wired. Contains worklist and non-run-record entries."
+      }
+     ],
+     "claims": [
+      {
+       "text": "daedalus/spine/ledger.py: intents.trace_id column (schema v2) + Intent.to_statement()",
+       "where": "CONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "The actual implementation of ledger.py is not in this chunk."
+      },
+      {
+       "text": "daedalus/loop.py: LoopLedger.trace_id + per-attempt trace_ids, schema daedalus.loop.ledger/2",
+       "where": "CONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "loop.py not in chunk."
+      },
+      {
+       "text": "daedalus/file_bridge.py: trace_id in the outbox request, propagated into the inbox report",
+       "where": "CONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "file_bridge.py not in chunk."
+      },
+      {
+       "text": "daedalus/lanes/fanout.py: FanoutResult.trace_id, resolved ONCE per fan_out and written into every per-task result file. NOT re-stamped on the resume path: a cached answer keeps the trace of the run that PAID for it, because overwriting it would claim this run produced something it read off disk. These records are a paid external call and its answer, so the trace is what joins a bill to the run that incurred it.",
+       "where": "CONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "fanout.py not in chunk."
+      },
+      {
+       "text": "daedalus/shift.py: OPERATOR STATE, NOT A RUN RECORD. runs/shift.json, one declared working window with checkpoints. It is the operator's intent for a session, not a record of an effect, so there is no run for a trace id to name. Written atomically and appended under a lock because a ticker, a prompt hook and the agent all touch it concurrently.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "shift.py not in chunk; claim about file output and concurrency cannot be verified."
+      },
+      {
+       "text": "daedalus/arch_memory.py: DERIVED SUMMARY, NOT A RUN RECORD. runs/arch_memory.json plus a runs/arch_memory.shown cursor. Regenerated from the tree on commit; reproducible from a revision with no run involved, so the honest correlator is the head it was built at, which the file already carries.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "arch_memory.py not in chunk."
+      },
+      {
+       "text": "daedalus/eval/graph_delta.py: MEASUREMENT ARTEFACT, NOT A RUN RECORD. runs/eval/graph_delta.json, keyed by mutation id from tools/gate_discrimination.py. NOT a run record: it is a corpus measurement, reproducible from the tree at a revision with no run involved, so there is no run for a trace id to point at. Conversion cost is therefore not LOW or HIGH but MEANINGLESS -- the honest correlator here is the revision it was measured at, which the report already carries. Revisit if it is ever called per-candidate inside a loop iteration, which WOULD make it a run record.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "graph_delta.py and gate_discrimination.py not in chunk."
+      },
+      {
+       "text": "daedalus/gui/lint.py: MEASUREMENT ARTEFACT, NOT A RUN RECORD. runs/gui/report.json, keyed by capture label. Same reasoning: it scores a rendered surface against the design rules and is reproducible from that surface. If the GUI lane ever gates a candidate, the gate result becomes a run record and this entry moves to the worklist above with a real conversion cost.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "lint.py not in chunk."
+      },
+      {
+       "text": "daedalus/council/bus.py: RUN RECORD. JSONL, council_id+seq. LOW-MEDIUM. HASH-CHAINED: entry_sha covers the body, so a new key changes every digest -- must be stamped before the chain is computed, under a version bump. Highest value of all of them: the only producer already recording per-call token counts, so it is where the GEN_AI names pay off.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "bus.py not in chunk; hash-chain claim cannot be verified."
+      },
+      {
+       "text": "daedalus/build.py: RUN RECORD. runs/build/<slug>-<ts>.json, keyed slug+created. LOW. The ORCHESTRATION receipt -- converting it is what would let one trace span a whole build session instead of one loop run.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "build.py not in chunk."
+      },
+      {
+       "text": "daedalus/progress.py: RUN RECORD. JSONL, unit_id+batch_id. LOW: six record_* helpers over one append(); stamp the append and all six inherit it. Best cost/benefit left.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "progress.py not in chunk."
+      },
+      {
+       "text": "daedalus/runbook.py: RUN RECORD. runs/<run_id>.json. LOW. Its run_id is literally one of the six colliding id schemes this module exists to reconcile.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "runbook.py not in chunk."
+      },
+      {
+       "text": "daedalus/memstore.py: RUN RECORD. JSONL, entry_sha+prev. MEDIUM: same hash-chain constraint as bus.py, plus entry_version is a published contract with its own confirm/flag record types.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "memstore.py not in chunk."
+      },
+      {
+       "text": "daedalus/memory/__init__.py: RUN RECORD. JSONL, task_id. LOW: one append_event, additive, no chain.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "memory/__init__.py not in chunk."
+      },
+      {
+       "text": "daedalus/metrics.py: RUN RECORD. JSONL, no id at all (ts only). LOW: seven-key dict; trace_id would be its first correlator of any kind.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "metrics.py not in chunk."
+      },
+      {
+       "text": "daedalus/council/canary.py: RUN RECORD. JSONL, run_id+schema. LOW but schema is pinned by a reader at canary.py:1180, so the bump needs a both-versions read.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "canary.py not in chunk."
+      },
+      {
+       "text": "daedalus/kairos/drafts.py: RUN RECORD. runs/drafts/<ts>-<slug>-n.json, keyed id+created. LOW, additive, no chain.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "drafts.py not in chunk."
+      },
+      {
+       "text": "runs/council/stream_hook.py: RUN RECORD. Append-only .stream_hook.log, keyed ts+role. LOW: one field on the line, exactly as the bridge's LATEST.log now does.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "stream_hook.py not in chunk."
+      },
+      {
+       "text": "runs/council/summarize.py: RUN RECORD. Appends PROSE into room.md, keyed turn_id. MEDIUM: the trace would have to live in the entry marker, not in a JSON key.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "summarize.py not in chunk."
+      },
+      {
+       "text": "daedalus/adapters/transport.py: RUN RECORD. JSONL, caller-supplied. UNKNOWN cost: path and record shape both come from the caller; needs a survey of sinks to cost.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "transport.py not in chunk."
+      },
+      {
+       "text": "daedalus/claude_bridge.py: NOT A RUN RECORD: runs/last_claude_report.json is a latest-only mirror, overwritten each time and accumulating nothing.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "claude_bridge.py not in chunk."
+      },
+      {
+       "text": "daedalus/providers/codex_cli.py: NOT A RUN RECORD: runs/last_codex_report.json, same latest-only mirror as claude_bridge.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "codex_cli.py not in chunk."
+      },
+      {
+       "text": "daedalus/token_monitor.py: NOT A RUN RECORD: memory/token_status.local.json is current checkpoint state, overwritten in place.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "token_monitor.py not in chunk."
+      },
+      {
+       "text": "daedalus/config.py: NOT A RUN RECORD: one-time .agentenv/agentenv.json scaffold, skipped when it already exists.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "config.py not in chunk."
+      },
+      {
+       "text": "runs/council/room.py: NOT A RUN RECORD: cursors.json is per-speaker read position and floor state -- a lock, not a log.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "room.py not in chunk."
+      },
+      {
+       "text": "runs/ab/blind.py: NOT A RUN RECORD: SEALED_MAPPING.json is a one-time sealed fixture that refuses to be re-sealed.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "blind.py not in chunk."
+      },
+      {
+       "text": "runs/ab/oracle_check.py: (incomplete entry)",
+       "where": "UNCONVERTED_PRODUCERS",
+       "verdict": "uncheckable",
+       "why": "Entry incomplete; oracle_check.py not in chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "CONVERTED_PRODUCERS contains 4 entries with detailed propagation descriptions.",
+       "where": "CONVERTED_PRODUCERS",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "UNCONVERTED_PRODUCERS contains many entries, categorized as 'measurement artefacts', 'run records' (with cost estimates), and 'not run records'.",
+       "where": "UNCONVERTED_PRODUCERS",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The entry for runs/ab/oracle_check.py is cut off; the dictionary may be incomplete.",
+       "where": "UNCONVERTED_PRODUCERS, last line",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "All claims about module behavior rely on external files not present in this chunk.",
+       "where": "Entire chunk",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "89626db3e0ea65fdb79c1fc771a345148ba41cb5b841aa5d55f1f4b76f30e687",
+    "objective_chars": 7641,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/envelope.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/envelope.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 601
+ }
+}

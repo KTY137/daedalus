@@ -1,0 +1,239 @@
+{
+ "task_id": "plan__b010__946db82",
+ "key": "plan__b010__946db82-6bf59d7853",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Plan to address 8 reviewed findings: fix critical scoring stub, fragile SQL fallbacks, undefined constant; narrow unvalidated paths, arrival probe, error handling, determinism doc, WAL sidecars.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If offset property is not implemented in any chunk of picker.py, scoring is broken and must be fixed.",
+     "If WIKI_RESOLVED is defined elsewhere in markdown.py, no change needed; but if missing, NameError on import.",
+     "String matching in ledger.py may mask other OperationalError conditions; replacement with error code check is fragile across SQLite versions.",
+     "Dynamic fallbacks may not exist in codebase; if they do, arrival probe and fallback evidence detection need updates."
+    ],
+    "todos": [
+     "1. Fix critical: Implement Candidate.offset in picker.py or verify existing implementation.",
+     "2. Fix critical: Define WIKI_RESOLVED in markdown.py or verify it's imported.",
+     "3. Fix high: Replace string match in ledger.py with error code check.",
+     "4. Fix high: Add explicit AttributeError handling in parse.py for ast.Index.",
+     "5. Fix medium: Add path validation in write_map and refresh_sources in maps.py.",
+     "6. Fix medium: Search for dynamic fallbacks; if found, update arrival probe and fallback detection.",
+     "7. Fix high: Create shared logging utility or ensure consistent error handling across evolution.py, imports.py, canary.py.",
+     "8. Fix low: Update docstring in bus.py to match sort key.",
+     "9. Fix low: Add comment in spine_ledger.py explaining WAL sidecar creation.",
+     "10. Add tests for all fixes."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Implement or verify Candidate.offset property in picker.py",
+       "gate": "0",
+       "why_now": "Critical: scoring is broken if offset is missing; this blocks the core scoring pipeline.",
+       "steps": [
+        {
+         "do": "Check if Candidate.offset is implemented in full picker.py: grep -n 'def offset' daedalus/spine/picker.py",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "If found, verify it returns a numeric value. If not, implement offset property returning 0 or appropriate value."
+        },
+        {
+         "do": "If missing, add offset property to Candidate class.",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Run pytest tests/test_picker.py::test_candidate_offset (assumes test exists) or write a quick test: assert candidate.offset is not None"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full picker.py file is available to check for existing implementation."
+      },
+      {
+       "rank": 2,
+       "title": "Define or import WIKI_RESOLVED in markdown.py",
+       "gate": "0",
+       "why_now": "Critical: resolve_wiki_target will raise NameError if WIKI_RESOLVED is undefined, breaking wiki link resolution.",
+       "steps": [
+        {
+         "do": "Search entire markdown.py for WIKI_RESOLVED definition: grep -n 'WIKI_RESOLVED' daedalus/wiki/markdown.py",
+         "file": "daedalus/wiki/markdown.py",
+         "verified_by": "If not found, add definition: WIKI_RESOLVED = ... or import from appropriate module."
+        },
+        {
+         "do": "If missing, add import or constant definition.",
+         "file": "daedalus/wiki/markdown.py",
+         "verified_by": "Run pytest tests/test_markdown.py::test_resolve_wiki_target (assumes test exists) or import module and check no NameError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The constant WIKI_RESOLVED is not defined elsewhere in the module or imports."
+      },
+      {
+       "rank": 3,
+       "title": "Replace fragile string match in ledger.py with error code check",
+       "gate": "1",
+       "why_now": "High: string matching on 'no such column' may mask other OperationalError conditions, leading to silent failures.",
+       "steps": [
+        {
+         "do": "Modify catch block in ledger.py to check sqlite3.OperationalError args for specific error code (e.g., err.args[0] == 'no such column' but use SQLite error code 1).",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "Run pytest tests/test_ledger.py::test_operational_error_handling (assumes test exists) or manual test: trigger OperationalError with different messages and verify only expected ones are caught."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "SQLite error codes are consistent across versions."
+      },
+      {
+       "rank": 4,
+       "title": "Add explicit AttributeError handling in parse.py for ast.Index",
+       "gate": "1",
+       "why_now": "High: getattr fallback returns wrong type on Python 3.9+, causing incorrect parsing.",
+       "steps": [
+        {
+         "do": "Modify parse.py to catch AttributeError when accessing ast.Index and handle appropriately (e.g., return None or raise a custom error).",
+         "file": "daedalus/structcore/parse.py",
+         "verified_by": "Run pytest tests/test_parse.py::test_getattr_fallback (assumes test exists) or test on Python 3.9+ with code containing ast.Index."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The code uses ast.Index in a context where it may be absent in Python 3.9+."
+      },
+      {
+       "rank": 5,
+       "title": "Add path validation in write_map and refresh_sources in maps.py",
+       "gate": "2",
+       "why_now": "Medium: unvalidated output paths could allow writing outside intended directory, posing security risk.",
+       "steps": [
+        {
+         "do": "Add check using os.path.commonpath to ensure output path is within a configurable base directory.",
+         "file": "daedalus/spine/maps.py",
+         "verified_by": "Write test: call write_map with path outside base dir and assert it raises ValueError or similar."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "A base directory configuration exists or can be added."
+      },
+      {
+       "rank": 6,
+       "title": "Search for dynamic fallbacks and update arrival probe / fallback detection if needed",
+       "gate": "2",
+       "why_now": "Medium: arrival probe and fallback evidence detection may miss dynamically set fallbacks, reducing monitoring accuracy.",
+       "steps": [
+        {
+         "do": "Search codebase for fallback set via function call or external config: grep -rn 'fallback' daedalus/ --include='*.py'",
+         "file": "daedalus/spine/arrival.py",
+         "verified_by": "If any found, update arrival probe to detect them; else document that risk is theoretical."
+        },
+        {
+         "do": "If dynamic fallbacks exist, modify arrival probe logic to include them.",
+         "file": "daedalus/spine/arrival.py",
+         "verified_by": "Run existing tests to ensure no regression."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Dynamic fallbacks may exist; if none, no code change needed."
+      },
+      {
+       "rank": 7,
+       "title": "Create shared logging utility or ensure consistent error handling across evolution.py, imports.py, canary.py",
+       "gate": "2",
+       "why_now": "High: inconsistent error handling can cause failures to go unnoticed, making debugging difficult.",
+       "steps": [
+        {
+         "do": "Check if shared logging utility exists: grep -rn 'import logging' daedalus/",
+         "file": "daedalus/spine/evolution.py",
+         "verified_by": "If not, create a shared module (e.g., daedalus/common/logging.py) with a standard error handler."
+        },
+        {
+         "do": "Update evolution.py, imports.py, canary.py to use the shared error handler.",
+         "file": "daedalus/spine/evolution.py",
+         "verified_by": "Run tests for each module to ensure errors are logged consistently."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "A shared logging utility is acceptable and does not introduce circular imports."
+      },
+      {
+       "rank": 8,
+       "title": "Update docstring in bus.py to match actual sort key",
+       "gate": "3",
+       "why_now": "Low: documentation bug could mislead developers; fix is trivial.",
+       "steps": [
+        {
+         "do": "Modify docstring of append_round in bus.py to say 'sorted by (actor, role, status, canonical_body_json)' instead of 'sorted by actor id'.",
+         "file": "daedalus/council/bus.py",
+         "verified_by": "Run grep -A5 'def append_round' daedalus/council/bus.py to verify docstring matches implementation."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The sort key is correct and intentional."
+      },
+      {
+       "rank": 9,
+       "title": "Add comment in SpineLedger explaining WAL sidecar creation",
+       "gate": "3",
+       "why_now": "Low: minor documentation gap; prevents surprise for developers expecting zero disk writes.",
+       "steps": [
+        {
+         "do": "Add comment near the SQLite connection initialization in SpineLedger that WAL sidecar files are expected and harmless.",
+         "file": "daedalus/spine/spine_ledger.py",
+         "verified_by": "Visual inspection of the code comment."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The comment is sufficient documentation."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/picker.py",
+      "daedalus/spine/ledger.py",
+      "daedalus/structcore/parse.py",
+      "daedalus/wiki/markdown.py",
+      "daedalus/spine/maps.py",
+      "daedalus/spine/arrival.py",
+      "daedalus/spine/evolution.py",
+      "daedalus/spine/imports.py",
+      "daedalus/spine/canary.py",
+      "daedalus/council/bus.py",
+      "daedalus/spine/spine_ledger.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "69ec8867eb86db2cd6c070a47be87c8d89026e229f0ef1e12225212aa1e93244",
+    "objective_chars": 6612,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 10 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 8
+ }
+}

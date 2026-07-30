@@ -1,0 +1,240 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c2of11__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c2of11__946db82-c9481c75da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 2 of parse.py: tree-sitter unit extraction, C/C++ declarator name resolution, and import record function header.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 121-148 | medium | Iterative pre-order walk uses reversed children to preserve source order; if tree-sitter node.children order is not source order, order may be wrong. | Check tree-sitter documentation for children order.",
+     "line 157-170 | low | Comment describes C/C++ declarator chain but the code for _declarator_name uses a loop that may not handle all cases; the bound of 16 is arbitrary. | Review if any real AST exceeds 16 links.",
+     "line 172-175 | low | parenthesized_declarator returns _ANON, which may miss valid function pointer names. | Verify if function pointer definitions should be named.",
+     "line 184-186 | low | reference_declarator falls back to unnamed children; comment says it carries inner declarator as unnamed child, but if the first named child is not the declarator, it might pick wrong node. | Test with a reference_declarator that has multiple named children.",
+     "line 198-201 | medium | Fallback scan for identifier/field_identifier/type_identifier may pick wrong name (e.g., return type) as noted in comment. | Ensure the fallback is only used when name and declarator fields are absent.",
+     "line 205-207 | uncheckable | _import_records function signature shown but body not in this chunk; cannot verify claim about being independent of internal_tops/known. | Review full function in later chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "2 of 11",
+     "purpose": "Defines _tree_sitter_units, _decl_text, _declarator_name, _ts_name, and begins _import_records.",
+     "symbols": [
+      {
+       "name": "_tree_sitter_units",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses source text with tree-sitter, returns CodeUnit list for function-like nodes matching spec.function_types."
+      },
+      {
+       "name": "_ANON",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Fallback name string '<anonymous>' for unnamed functions."
+      },
+      {
+       "name": "_DECL_WRAPPERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of declarator wrapper node types in C/C++."
+      },
+      {
+       "name": "_DECL_NAME_TYPES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of node types that can be the actual name in a declarator chain."
+      },
+      {
+       "name": "_decl_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts name text from a resolved declarator node, handling operator_cast specially."
+      },
+      {
+       "name": "_declarator_name",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Walks C/C++ declarator chain down to the name node, returns _ANON if not found or ambiguous."
+      },
+      {
+       "name": "_ts_name",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts function name from a tree-sitter node, using 'name' field, declarator chain, or fallback scan."
+      },
+      {
+       "name": "_import_records",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of raw unresolved import statements; only signature visible in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A recursive one blows Python's recursion limit on deeply nested real-world ASTs (long chained/generated expressions)",
+       "where": "line 127",
+       "verdict": "kept",
+       "why": "The code implements an iterative pre-order walk using a stack, avoiding recursion."
+      },
+      {
+       "text": "push children reversed so they pop back in source order.",
+       "where": "line 128",
+       "verdict": "kept",
+       "why": "stack.extend(reversed(node.children)) ensures children are popped in original order."
+      },
+      {
+       "text": "the name sits at the bottom of a declarator chain",
+       "where": "line 157-159",
+       "verdict": "kept",
+       "why": "_declarator_name walks the chain via child_by_field_name('declarator') to find the name."
+      },
+      {
+       "text": "the chain can be arbitrarily long, because pointer/reference/array returns each interpose a wrapper",
+       "where": "line 159-161",
+       "verdict": "kept",
+       "why": "_DECL_WRAPPERS includes function_declarator, pointer_declarator, reference_declarator, array_declarator."
+      },
+      {
+       "text": "the generic direct-children scan below used to return 'MyType' for 'MyType foo(void)'",
+       "where": "line 161-163",
+       "verdict": "uncheckable",
+       "why": "The fallback scan in _ts_name (line 198-201) does scan children for type_identifier, which could pick return type; the comment refers to previous behavior not in this chunk."
+      },
+      {
+       "text": "a fabricated name is NOT filtered out of the clone passes",
+       "where": "line 163-164",
+       "verdict": "uncheckable",
+       "why": "Filtering logic for clone passes is not in this chunk."
+      },
+      {
+       "text": "once a declarator field exists, its chain is authoritative and we never fall through to the scan.",
+       "where": "line 164-165",
+       "verdict": "kept",
+       "why": "_ts_name checks for 'declarator' field before falling through to child scan."
+      },
+      {
+       "text": "operator bool() is the one shape whose name node spans more than the name: the grammar's operator_cast covers the parameter list and cv qualifiers too, so slicing it whole yields 'operator bool() const'.",
+       "where": "line 176-179",
+       "verdict": "kept",
+       "why": "_decl_text handles operator_cast by extracting text from start_byte to end of 'type' field, not full node."
+      },
+      {
+       "text": "The depth bound is a guard against a malformed/adversarial tree, not an expected limit -- real declarator chains are two or three links.",
+       "where": "line 189-190",
+       "verdict": "kept",
+       "why": "Loop in _declarator_name uses range(16) as bound."
+      },
+      {
+       "text": "A function returning a function pointer -- 'int (*get_handler(int))(void)' -- nests a SECOND function_declarator inside parentheses, and which of the two is 'the function being defined' is genuinely ambiguous. Guessing here would fabricate a name, so under-report instead.",
+       "where": "line 194-197",
+       "verdict": "kept",
+       "why": "_declarator_name returns _ANON for parenthesized_declarator."
+      },
+      {
+       "text": "reference_declarator ('std::string& Cfg::name()') carries its inner declarator as an unnamed child rather than a labelled field.",
+       "where": "line 199-200",
+       "verdict": "kept",
+       "why": "Code falls back to first named child when child_by_field_name('declarator') returns None."
+      },
+      {
+       "text": "Deliberately independent of internal_tops/known \u2014 those are derived from the whole file set, so they are not available until every file has been",
+       "where": "line 207-209",
+       "verdict": "uncheckable",
+       "why": "The body of _import_records is not in this chunk; cannot verify claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _tree_sitter_units returns empty list if parser is None.",
+       "where": "line 123-124",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The iterative walk uses stack with reversed children to maintain source order.",
+       "where": "line 128-148",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_decl_text handles operator_cast by slicing from node start to type field end.",
+       "where": "line 176-183",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_declarator_name has a hardcoded depth limit of 16 iterations.",
+       "where": "line 189",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "parenthesized_declarator returns _ANON, which may miss valid function pointer names.",
+       "where": "line 194-197",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Fallback in _ts_name uses first matching child, which may pick wrong identifier (e.g., return type).",
+       "where": "line 198-201",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_import_records function signature is present but body not in this chunk.",
+       "where": "line 205-207",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c8458ebf04ac17d35dbd469fbe5cd0235e87449dee42d14b960bf88948e8df5d",
+    "objective_chars": 6298,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [2/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 2,
+  "total": 11,
+  "first_line": 121
+ }
+}

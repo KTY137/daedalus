@@ -1,0 +1,274 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c2of6__946db82",
+ "key": "scan__daedalus_mapping_render.py__c2of6__946db82-852bbbfa8c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 6: git stamp helpers, narrative parsing, and markdown rendering up to block dispatch.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_head | medium | Uses string splitting to extract branch name; may fail on unusual ref formats. | Inspect ref format edge cases.",
+     "_dirty | low | subprocess timeout 30s may hang on large repos. | Consider async or timeout handling.",
+     "_untracked | low | Uses subprocess with timeout; may fail silently. | Ensure error handling covers all cases.",
+     "_inline | low | Inline code and bold regexes may overlap or be nested; order matters. | Test with nested markup.",
+     "_md_blocks | medium | Table parsing assumes separator rows contain only '-', ':', spaces; may misparse. | Test with complex tables.",
+     "_md_blocks | low | List parsing uses indentation heuristic; may break on mixed list types. | Test nested lists."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "2 of 6",
+     "purpose": "Define git stamp helpers, narrative dataclasses, narrative parsing, and markdown subset rendering.",
+     "symbols": [
+      {
+       "name": "_resolve_ref",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads a git ref file to resolve symbolic ref."
+      },
+      {
+       "name": "_head",
+       "kind": "function",
+       "effects": [
+        "filesystem_read",
+        "process_spawn"
+       ],
+       "note": "Returns (revision, branch) from git HEAD."
+      },
+      {
+       "name": "_dirty",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git status --porcelain to determine dirty state."
+      },
+      {
+       "name": "_untracked",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Compares scanned files against tracked files via git ls-files."
+      },
+      {
+       "name": "git_stamp",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_read"
+       ],
+       "note": "Public API to produce a Stamp with git info."
+      },
+      {
+       "name": "NarrativeSection",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for a single narrative section."
+      },
+      {
+       "name": "Narrative",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for a full narrative with sections."
+      },
+      {
+       "name": "Narrative.get",
+       "kind": "function",
+       "effects": [],
+       "note": "Retrieve a section by key."
+      },
+      {
+       "name": "Narrative.missing",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns keys in NARRATIVE_SECTIONS not present."
+      },
+      {
+       "name": "Narrative.extra",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns sections with keys not in NARRATIVE_SECTIONS."
+      },
+      {
+       "name": "Narrative.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serialize to dict for JSON output."
+      },
+      {
+       "name": "parse_narrative",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses markdown text into Narrative, using {#key} suffixes."
+      },
+      {
+       "name": "load_narrative",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads file and parses, returning Narrative (present or not)."
+      },
+      {
+       "name": "_inline",
+       "kind": "function",
+       "effects": [],
+       "note": "Escapes HTML then applies inline code and bold."
+      },
+      {
+       "name": "_md_blocks",
+       "kind": "function",
+       "effects": [],
+       "note": "Splits body into block-level elements (p, h3, h4, quote, table, ul)."
+      },
+      {
+       "name": "_render_md",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders block list to HTML strings."
+      }
+     ],
+     "claims": [
+      {
+       "text": "How many of the files the SCANNER read are unknown to git.",
+       "where": "_untracked docstring",
+       "verdict": "uncheckable",
+       "why": "SCANNER is not defined in this chunk; the claim refers to external context."
+      },
+      {
+       "text": "git status --porcelain answers 'what changed among the things git is watching'. It is silent about a file excluded via .git/info/exclude, a global core.excludesfile or assume-unchanged",
+       "where": "_untracked docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes git behavior not verifiable from this code alone."
+      },
+      {
+       "text": "ls-files what is TRACKED, and subtracting, is the only version of this claim that is verified rather than assumed.",
+       "where": "_untracked docstring",
+       "verdict": "kept",
+       "why": "The function does run git ls-files -z and subtracts tracked from scanned."
+      },
+      {
+       "text": "Escape FIRST, then apply inline markup. Order is the whole safety argument: after escaping there is no < left in the string, so every tag in the result is one this function put there.",
+       "where": "_inline docstring",
+       "verdict": "kept",
+       "why": "The code first calls esc(text) (HTML escape), then substitutes code and bold patterns."
+      },
+      {
+       "text": "The narrative file is hand-written but the prose inside it was gathered by agents, and agent-authored text is untrusted input.",
+       "where": "_inline docstring",
+       "verdict": "uncheckable",
+       "why": "The origin of the narrative file is not verifiable from this chunk."
+      },
+      {
+       "text": "A section is addressed by an explicit {#key} suffix on its heading rather than by matching its wording, so the prose can be retitled, rewritten or translated without silently detaching itself from the slot it renders into.",
+       "where": "parse_narrative docstring",
+       "verdict": "kept",
+       "why": "The function uses _SECTION_KEY_RE to extract key from heading, and uses that key for addressing."
+      },
+      {
+       "text": "A heading with no key still renders -- under 'further narrative' -- because dropping a section somebody wrote is the one behaviour this file must never have.",
+       "where": "parse_narrative docstring",
+       "verdict": "kept",
+       "why": "If no key found, key is set to 'extra-' + slug of heading, ensuring it is not dropped."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_resolve_ref function appears to read a git ref file; its implementation is partially visible (line 281-285).",
+       "where": "lines 281-285",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_head function uses string splitting to extract branch name; may not handle all ref formats correctly.",
+       "where": "line 298",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_dirty function uses subprocess with timeout 30s; may hang on large repos.",
+       "where": "line 306",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_untracked function uses subprocess to run git ls-files; error handling returns -1 on failure.",
+       "where": "lines 316-325",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Narrative dataclass uses NARRATIVE_SECTIONS which is not defined in this chunk.",
+       "where": "Narrative.missing, Narrative.extra",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "parse_narrative uses _SECTION_KEY_RE and _slug which are not defined in this chunk.",
+       "where": "parse_narrative",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_inline function uses esc() which is not defined in this chunk.",
+       "where": "_inline",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_md_blocks table parsing assumes separator rows contain only '-', ':', spaces; may misparse.",
+       "where": "line 406",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_md_blocks list parsing uses indentation heuristic; may break on mixed list types.",
+       "where": "lines 413-424",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_render_md function is incomplete; only shown up to table handling.",
+       "where": "line 437",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c744882f97c161172630d35b2fd5cc6a8a38b70d928de2a58bba5c0df76eef2f",
+    "objective_chars": 10510,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [2/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 281
+ }
+}

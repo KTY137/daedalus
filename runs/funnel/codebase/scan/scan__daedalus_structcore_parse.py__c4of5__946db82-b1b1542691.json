@@ -1,0 +1,252 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c4of5__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c4of5__946db82-b1b1542691",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 5 for parse.py: implements split_generic, is_any_annotation, union_id, _decl_kind, _decorator_texts, _base_texts, _params_of, _alias_records, _end_line, _qual, and the _TypeWalk class with its methods. Contains docstring claims about generic splitting logic and enum base detection.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "split_generic | medium | The function uses _parse_expr which is defined elsewhere; its behavior is uncheckable. If _parse_expr returns None or unexpected nodes, split_generic may return incorrect results. | Verify _parse_expr handles all valid annotation strings and returns None for invalid ones.",
+     "_params_of | medium | The function assumes args.posonlyargs exists; if node.args is not an ast.arguments (e.g., lambda), it will raise AttributeError. The caller is expected to handle this, but no guard is present. | Confirm callers only pass ast.FunctionDef or ast.AsyncFunctionDef nodes.",
+     "_TypeWalk._class | low | The method appends to self.types, self.fields, etc., but these lists are never cleared; if the walker is reused, previous results accumulate. The __init__ resets them, so reuse is safe only if a new instance is created. | Ensure a new _TypeWalk instance is created per module.",
+     "_TypeWalk._assign | low | Only handles NewType assignments; other assignments like X = int are explicitly not treated as aliases. This may miss some type aliases defined via assignment. | Confirm that the intended design is to only capture NewType as alias."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "4 of 5",
+     "purpose": "Implement annotation splitting, declaration classification, and the recursive type walker.",
+     "symbols": [
+      {
+       "name": "split_generic",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "One-level generic split: returns (container, element_texts). Uses _parse_expr, _dotted_tail, _slice_elements. Cached with lru_cache."
+      },
+      {
+       "name": "is_any_annotation",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if raw is bare Any/typing.Any, using normalize_annotation."
+      },
+      {
+       "name": "union_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns stable group id for union site edges: f\"{module}#{owner}:{role}:{param}\"."
+      },
+      {
+       "name": "_ENUM_BASES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of known enum base class names."
+      },
+      {
+       "name": "_decl_kind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Classify a ClassDef into typeddict, namedtuple, enum, protocol, dataclass, or class. Base-derived kinds win over decorator-derived."
+      },
+      {
+       "name": "_decorator_texts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts decorator texts from a node's decorator_list."
+      },
+      {
+       "name": "_base_texts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts base class texts and keyword arguments from a node's bases and keywords."
+      },
+      {
+       "name": "_params_of",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns parameters in reading order and the receiver candidate name."
+      },
+      {
+       "name": "_alias_records",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts AliasImport records from Import or ImportFrom nodes."
+      },
+      {
+       "name": "_end_line",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the end line number of a node, defaulting to start line."
+      },
+      {
+       "name": "_qual",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Joins parts and name with dot."
+      },
+      {
+       "name": "_TypeWalk",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Recursive type walker over statements with scope stack. Contains methods _class, _function, _self_target, _annassign, _assign."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One level of generic: ``(container spelling, element texts)``.",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "The function returns a tuple of (container, tuple of element texts)."
+      },
+      {
+       "text": "``list[User]`` -> ``(\"list\", (\"User\",))``",
+       "where": "split_generic docstring",
+       "verdict": "uncheckable",
+       "why": "The example depends on _parse_expr and _dotted_tail; the code path for list (in _SEQ_CONTAINERS) returns tail and filtered elts. Without knowing _parse_expr's output, we cannot verify the exact string."
+      },
+      {
+       "text": "``dict[str, User]`` -> ``(\"dict\", (\"User\",))`` because a mapping's KEY is not its element",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "The code for _MAP_CONTAINERS with len(elts) >= 2 returns tail and annotation_text(elts[-1]), which is the last element (value type)."
+      },
+      {
+       "text": "``Callable[[int], User]`` -> ``(\"Callable\", (\"User\",))``",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "For tail in _CALLABLE_NAMES, returns tail and annotation_text(elts[-1]) if elts non-empty."
+      },
+      {
+       "text": "A bare nominal is ``(\"\", (raw,))``",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "If node is not ast.Subscript, returns (\"\", (text,)) where text is annotation_text(node)."
+      },
+      {
+       "text": "an unknown generic is ``(\"\", (\"MyGeneric[int]\",))`` -- no container, because we refuse to guess that an unrecognised subscript is a container at all.",
+       "where": "split_generic docstring",
+       "verdict": "kept",
+       "why": "If tail not in recognized containers, returns (\"\", (text,)) where text is annotation_text(node) of the full subscript."
+      },
+      {
+       "text": "True for a bare ``Any``/``typing.Any`` -- the sentinel a caller must refuse to edge to. ``dict[str, Any]`` is NOT bare Any; it is a dict whose element type is unknown, which is a different fact and a different number.",
+       "where": "is_any_annotation docstring",
+       "verdict": "uncheckable",
+       "why": "The function delegates to normalize_annotation(raw).is_any, which is defined elsewhere. The claim about dict[str, Any] not being bare Any is a semantic claim that cannot be verified from this code alone."
+      },
+      {
+       "text": "Stable group id shared by every member edge of ONE union SITE. Derived entirely from the site's identity, never from a counter over a set or dict.",
+       "where": "union_id docstring",
+       "verdict": "kept",
+       "why": "The function returns f\"{module}#{owner}:{role}:{param}\" which is deterministic and based only on the inputs."
+      },
+      {
+       "text": "Base-derived kinds win over decorator-derived ones, because a base changes what the declaration IS (a TypedDict is a dict shape, an Enum's members are values) while ``@dataclass`` only changes what is generated for it.",
+       "where": "_decl_kind docstring",
+       "verdict": "kept",
+       "why": "The function checks bases first (TypedDict, NamedTuple, enum, Protocol) and only then checks decorators for dataclass. If a base matches, decorators are not considered."
+      },
+      {
+       "text": "Fixed order, so the answer never depends on dict order.",
+       "where": "_decl_kind docstring",
+       "verdict": "kept",
+       "why": "The checks are in a fixed sequence of if-elif-elif-elif-else, not iterating over a dict."
+      },
+      {
+       "text": "Parameters in reading order, plus the receiver candidate name.",
+       "where": "_params_of docstring",
+       "verdict": "kept",
+       "why": "The function processes positional args, vararg, keyword-only args, kwarg in order, and returns the first positional arg name as receiver candidate."
+      }
+     ],
+     "observations": [
+      {
+       "what": "split_generic uses _parse_expr which is not defined in this chunk; its behavior is assumed correct.",
+       "where": "split_generic",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_params_of accesses args.posonlyargs without checking if it exists; if node.args is not ast.arguments, it will raise AttributeError.",
+       "where": "_params_of",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _TypeWalk class accumulates results in instance lists; if reused without re-initialization, results from previous walks persist.",
+       "where": "_TypeWalk.__init__",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_alias_records ignores potential syntax errors in node.names (e.g., no lineno attribute).",
+       "where": "_alias_records",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _TypeWalk._assign method only handles NewType assignments; other type alias patterns (e.g., X = int) are intentionally not captured.",
+       "where": "_TypeWalk._assign",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7bfc936e9ef8fe9db0d5dc4310a57f6de76e3ac58d4dcf77ba50558326caff5a",
+    "objective_chars": 12739,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

@@ -1,0 +1,193 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c5of5__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c5of5__946db82-bc91ddfc4a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 5: Finalizes entry point detection (module main, main guards, dispatch chains, poll loops) and defines _named_module_targets helper.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_named_module_targets | medium | Uses _module_level_bindings which may not be defined in this chunk; if missing, raises NameError. | Verify _module_level_bindings is defined elsewhere in the file."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "5 of 5",
+     "purpose": "Finalize entry point detection and define _named_module_targets helper.",
+     "symbols": [
+      {
+       "name": "_named_module_targets",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves module targets from named references using module-level bindings."
+      },
+      {
+       "name": "entry_mods",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Set of module rels that are already entry points, used to limit dispatch and loop detection."
+      },
+      {
+       "name": "add",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Adds an entry point to the entries list; called multiple times."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves records to target modules; used to compute targets for dispatch and loops."
+      },
+      {
+       "name": "func_targets",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns targets of a function; used for dispatch and loop resolution."
+      },
+      {
+       "name": "sources",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Mapping of rel to _Src objects; used to retrieve source info."
+      },
+      {
+       "name": "rels",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of file rels; iterated over for __main__.py detection and main guards."
+      },
+      {
+       "name": "entries",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of entry points being built; sorted at the end."
+      },
+      {
+       "name": "broken",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Accumulated broken references; returned alongside entries."
+      },
+      {
+       "name": "tops",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Set of top-level package names; used in resolution."
+      },
+      {
+       "name": "known",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Set of known module names; used in resolution."
+      },
+      {
+       "name": "rel_by_dotted",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Mapping from dotted name to rel; used in resolution."
+      },
+      {
+       "name": "_LOOP_FUNC_HINTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of hints used to filter poll loop functions."
+      },
+      {
+       "name": "ENTRY_KINDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Ordered list of entry kind strings; used for sorting entries."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A dispatch chain in a module nothing can run is not a way in, and admitting it would invent entry points that no human or tool can actually take.",
+       "where": "Comment at line ~1133",
+       "verdict": "kept",
+       "why": "The code only iterates over entry_mods (modules already in entries) for dispatch and loop detection, confirming the claim."
+      },
+      {
+       "text": "HTTP handlers never import inside the branch; they call ``core.envelope`` or ``hierarchy.capabilities`` against a module-level import. Resolving the referenced name back through the import that bound it is the only way those routes reach anything.",
+       "where": "Docstring of _named_module_targets",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the HTTP handling code or the definition of _module_level_bindings, so the claim about HTTP handlers cannot be verified against this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _named_module_targets calls _module_level_bindings, which is not defined in this chunk.",
+       "where": "Line ~1162",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable entry_mods is computed from entries, but entries is being built up in the same loop; this could lead to missing dispatch chains from modules added later in the loop.",
+       "where": "Line ~1135",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8eaa3d67ac79f8c8d2e1d376605b9a5aefe41bf8b3e5a0c7a0091e2fff9cc17e",
+    "objective_chars": 3727,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [5/5]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

@@ -1,0 +1,143 @@
+{
+ "task_id": "plan__b019__946db82",
+ "key": "plan__b019__946db82-c9259b51d9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 reviewed findings: 2 confirmed (silent-anchor-failure medium, exception-leak high), 1 narrowed (lane-assignment-gap critical), 1 blocked (docstring-vs-code-gap high). Plan: fix confirmed items first, then investigate narrowed and blocked items.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing silent-anchor-failure may require changes to read_anchor and verify_chain in daedalus/spine/docrefs.py; existing tests may need updates.",
+     "Exception-leak fix in gated_writes.py must not break existing error handling or introduce new bugs.",
+     "Lane-assignment-gap investigation may reveal no actual gap; effort could be wasted.",
+     "Docstring-vs-code-gap requires reading full files; if implementation is correct, no changes needed."
+    ],
+    "todos": [
+     "1. Fix silent-anchor-failure: make read_anchor raise or log on corrupt anchor.",
+     "2. Fix exception-leak: wrap promote_candidates with broader exception handling.",
+     "3. Investigate lane-assignment-gap: read default_participants and _run_rewrite.",
+     "4. Investigate docstring-vs-code-gap: read full ceiling.py and inventory.py."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix silent-anchor-failure: make read_anchor raise or log on corrupt anchor",
+       "gate": "1",
+       "why_now": "Confirmed finding: corrupt anchor file silently disables truncation detection. Fixing prevents data integrity issues.",
+       "steps": [
+        {
+         "do": "Modify read_anchor in daedalus/spine/docrefs.py to log a warning or raise an exception when JSONDecodeError occurs, instead of returning None.",
+         "file": "daedalus/spine/docrefs.py",
+         "verified_by": "Create a corrupt anchor file, run verify_chain, and observe that an error is logged or raised (test via pytest)."
+        },
+        {
+         "do": "Update verify_chain to treat None from read_anchor as an error (e.g., raise or log).",
+         "file": "daedalus/spine/docrefs.py",
+         "verified_by": "Test that verify_chain fails or logs when anchor is missing/corrupt."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "read_anchor and verify_chain are in daedalus/spine/docrefs.py as cited."
+      },
+      {
+       "rank": 2,
+       "title": "Fix exception-leak: wrap promote_candidates with broader exception handling",
+       "gate": "1",
+       "why_now": "Confirmed finding: promote_candidates may raise unhandled exceptions (e.g., OSError) contradicting its docstring. Fix prevents crashes.",
+       "steps": [
+        {
+         "do": "In daedalus/kairos/gated_writes.py, wrap the body of promote_candidates with a try-except that catches Exception and logs or re-raises a controlled error.",
+         "file": "daedalus/kairos/gated_writes.py",
+         "verified_by": "Run grep -n 'except\\|raise' daedalus/kairos/gated_writes.py | head -20 to confirm new except clause exists; run existing tests to ensure no regression."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "promote_candidates is in daedalus/kairos/gated_writes.py as cited."
+      },
+      {
+       "rank": 3,
+       "title": "Investigate lane-assignment-gap: inspect default_participants and _run_rewrite",
+       "gate": "2",
+       "why_now": "Narrowed finding: if default_participants does not set lane and profiles are optional, adapters may run with unintended lane. Needs investigation to determine if fix is needed.",
+       "steps": [
+        {
+         "do": "Read the full default_participants function in daedalus/council/session.py to see if lane is set.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Output the function body; if lane is not set, proceed to next step."
+        },
+        {
+         "do": "Read the full _run_rewrite function in daedalus/providers/ollama.py to see if it checks lane before writing files.",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "Output the function body; if lane check is missing, log finding."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "default_participants is in daedalus/council/session.py and _run_rewrite is in daedalus/providers/ollama.py as cited."
+      },
+      {
+       "rank": 4,
+       "title": "Investigate docstring-vs-code-gap: read full ceiling.py and inventory.py",
+       "gate": "2",
+       "why_now": "Blocked finding: provided chunks only show beginnings; need to verify that docstring-described behavior is implemented.",
+       "steps": [
+        {
+         "do": "Read the full daedalus/eval/ceiling.py to check if implementation matches docstring.",
+         "file": "daedalus/eval/ceiling.py",
+         "verified_by": "Manual review; if mismatch found, file issue."
+        },
+        {
+         "do": "Read the full daedalus/mapping/inventory.py to check if implementation matches docstring.",
+         "file": "daedalus/mapping/inventory.py",
+         "verified_by": "Manual review; if mismatch found, file issue."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full files exist at given paths and are readable."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/docrefs.py",
+      "daedalus/kairos/gated_writes.py",
+      "daedalus/council/session.py",
+      "daedalus/providers/ollama.py",
+      "daedalus/eval/ceiling.py",
+      "daedalus/mapping/inventory.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e26822bf05b20886cd14c1f9dd85371b050b282aff22e98da376b78782712ffc",
+    "objective_chars": 17579,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 19 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 19,
+  "inputs": 4
+ }
+}

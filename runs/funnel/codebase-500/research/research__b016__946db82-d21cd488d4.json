@@ -1,0 +1,106 @@
+{
+ "task_id": "research__b016__946db82",
+ "key": "research__b016__946db82-d21cd488d4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Multiple modules rely on undefined symbols from external modules, creating a chain of implicit dependencies that may fail at runtime. The bus module and shape module both depend on undefined helpers, while the picker module's integrity checks rely on external modules not present in these scans. This pattern suggests missing imports or incomplete module boundaries.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Runtime NameError due to missing function definitions across modules",
+     "Inconsistent failure modes when external dependencies are absent",
+     "Silent degradation when fallbacks (e.g., empty dict) are used instead of raising errors"
+    ],
+    "todos": [
+     "Verify that all undefined symbols (_reject_unknown, _ACTOR_RE, _ALLOWED_PARTICIPANT_KEYS, PARTICIPANT_OUTCOMES, _norm_class, _norm_strs, _scan_roster, _chain_records, _attr, _qualname, _human_bytes, _clip) are properly imported or defined in their respective modules.",
+     "Ensure that map_state_trustworthy and docref_candidates have their external dependencies (daedalus.mapping.drift, daedalus.mapping.inventory) available and correctly wired.",
+     "Add integration tests to verify cross-module function availability."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "undefined-dependency-chain",
+       "claim": "Multiple modules (bus.py, shape.py, picker.py) depend on helper functions that are not defined in the scanned chunks and are likely defined in other modules. This creates a chain of implicit dependencies where a failure in one module (e.g., missing import) can cause cascading runtime errors across the system.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/observe/shape.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "1. bus.py's append_roster calls _reject_unknown, _ACTOR_RE, _ALLOWED_PARTICIPANT_KEYS, PARTICIPANT_OUTCOMES, _norm_class, _norm_strs, _scan_roster, _chain_records, all undefined in the scanned chunk. 2. shape.py's describe calls _attr, _qualname, _human_bytes, _clip, all undefined in the scanned chunk. 3. picker.py's map_state_trustworthy calls _repo_state_freshness (undefined) and relies on daedalus.mapping.drift (not scanned). 4. If any of these undefined symbols are missing at runtime, the calling function will raise NameError, potentially breaking the agent orchestration pipeline.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If all undefined symbols are found to be properly imported in the full module files (e.g., from daedalus.council.utils, daedalus.observe.utils, etc.) and the missing functions are defined in other scanned chunks, then the chain of dependencies is resolved and the risk is mitigated.",
+       "evidence": [
+        "daedalus/council/bus.py:append_roster uses _reject_unknown, _ACTOR_RE, _ALLOWED_PARTICIPANT_KEYS, PARTICIPANT_OUTCOMES, _norm_class, _norm_strs, _scan_roster, _chain_records",
+        "daedalus/observe/shape.py:describe uses _attr, _qualname, _human_bytes, _clip",
+        "daedalus/spine/picker.py:map_state_trustworthy uses _repo_state_freshness and references daedalus.mapping.drift"
+       ]
+      },
+      {
+       "id": "degrade-to-empty-contract-mismatch",
+       "claim": "Multiple modules (bus.py's load_map_state, picker.py's load_map_state) claim a 'degrade-to-empty' contract (return {} on failure), but the bus module's load_transcript is a stub with no implementation, meaning it cannot provide the degraded behavior. This inconsistency means callers expecting graceful degradation may instead get a runtime error.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "1. picker.py's load_map_state returns {} on OSError, ValueError, UnicodeDecodeError. 2. bus.py's load_transcript is a stub (no body) and will raise NotImplementedError or similar if called. 3. If a caller expects load_transcript to degrade gracefully (like load_map_state does), the stub violates that contract. 4. This mismatch can cause hard failures in places where graceful degradation was assumed.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If load_transcript is implemented elsewhere (e.g., in another chunk of bus.py) and does return [] on failure, or if no caller expects graceful degradation from load_transcript, then the mismatch is resolved.",
+       "evidence": [
+        "daedalus/council/bus.py:load_transcript is a stub (no implementation) per observation 'load_transcript has no implementation; only a stub.'",
+        "daedalus/spine/picker.py:load_map_state docstring says 'Same degrade-to-empty contract as :func:`load_inventory`', implying a pattern of degrade-to-empty.",
+        "daedalus/council/bus.py:append_roster docstring claims 'Counts are DERIVED here, never accepted from the caller' \u2013 but if load_transcript fails, no counts can be derived."
+       ]
+      },
+      {
+       "id": "unverified-cross-module-contracts",
+       "claim": "The picker module's map_state_trustworthy function claims to check integrity and freshness, but its implementation relies on external modules (daedalus.mapping.drift) and undefined symbols (_repo_state_freshness). The integrity and freshness checks are not verifiable from the scanned chunks, creating a risk that the trust mechanism is incomplete or broken.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/council/bus.py"
+       ],
+       "mechanism": "1. map_state_trustworthy docstring describes a two-question check (integrity via digest, freshness via repo state). 2. The actual code calls _repo_state_freshness (undefined) and likely delegates to daedalus.mapping.drift.digest_ok. 3. If _repo_state_freshness is missing or daedalus.mapping.drift is not properly imported, the function may silently return a trust verdict without performing the checks, or raise an error. 4. The bus module's load_map_state similarly depends on external integrity checks (via daedalus.mapping.drift) not present in the scan.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the full implementation of map_state_trustworthy is found to correctly import and call daedalus.mapping.drift.digest_ok and _repo_state_freshness is defined in the same module or imported, and the checks are actually performed, then the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py:map_state_trustworthy docstring references daedalus.mapping.drift and _repo_state_freshness",
+        "daedalus/spine/picker.py:map_state_trustworthy observation: 'The code calls _repo_state_freshness, which is not defined in this chunk'",
+        "daedalus/council/bus.py:append_roster docstring references daedalus.mapping.drift indirectly via 'Duplicate weights are detected over everyone SEATED' \u2013 but no direct link to integrity checks."
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5bfc9934711bd6f65b61acc132b799cd5c732166307046acb64d2729833aebcd",
+    "objective_chars": 18910,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 16 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 16,
+  "inputs": 4
+ }
+}

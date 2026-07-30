@@ -1,0 +1,173 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c4of6__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c4of6__946db82-ab47d05745",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 6 of drift.py: contains render(), snapshot I/O functions, digest, and comparison helpers. No new public symbols beyond what is shown.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "4 of 6",
+     "purpose": "Render drift report, snapshot I/O (digest, read/write), and remedy strings for each drift kind.",
+     "symbols": [
+      {
+       "name": "counts",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns sorted dict of counts by kind."
+      },
+      {
+       "name": "render",
+       "kind": "method",
+       "effects": [],
+       "note": "Generates human-readable drift report string. Uses self.first_run, self.wrote_snapshot, self.ok, self.freshness, self.items, self.blocking."
+      },
+      {
+       "name": "_SNAPSHOT_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String note for snapshot files, warns against hand-editing except acceptances."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'digest' used as key in snapshot dict."
+      },
+      {
+       "name": "_MECHANICAL_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of keys considered mechanical for digest calculation."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes SHA-256 hex digest over mechanical keys of a doc dict, sorted JSON."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if doc's own digest matches recomputed digest. Returns bool."
+      },
+      {
+       "name": "snapshot_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns JSON string of snapshot dict with sorted keys, no timestamps, trailing newline. Pure function of state and acceptances."
+      },
+      {
+       "name": "load_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSON file from path, returns dict or None, or dict with __error__ on failure."
+      },
+      {
+       "name": "write_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes snapshot file, excluding accepted items from lists. Returns JSON string."
+      },
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a remedy string for a given drift kind and subject."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A hash over the mechanical half only. ``acceptances`` is excluded because it is the one part a human is SUPPOSED to write; ``note`` because it is a constant. Canonical JSON with sorted keys, so the digest is a function of the values and not of the writer's key order -- two runs over an unchanged tree still produce identical bytes. ``repo_state`` is INSIDE, and that is not an accident.",
+       "where": "_digest docstring",
+       "verdict": "kept",
+       "why": "The function computes digest over _MECHANICAL_KEYS (which excludes 'acceptances' and 'note'). It uses json.dumps with sort_keys=True, ensuring canonical order. 'repo_state' is in _MECHANICAL_KEYS."
+      },
+      {
+       "text": "Does this snapshot's own digest still cover its own mechanical lists? Public because it is not only :func:`check`'s business. Any verb that INHERITS lists from an existing snapshot rather than rescanning has to ask this first and refuse on a mismatch -- otherwise it re-signs whatever a text editor left behind and turns a caught hand-edit into a valid baseline. ``daedalus map --accept`` is exactly such a verb.",
+       "where": "digest_ok docstring",
+       "verdict": "uncheckable",
+       "why": "The function exists and returns bool, but the claim about verbs like 'daedalus map --accept' and 'refuse on a mismatch' refers to code outside this chunk."
+      },
+      {
+       "text": "The exact text of the snapshot. Sorted, no timestamps, trailing newline: two runs over an unchanged tree must produce byte-identical output or the git diff -- the thing a human actually reads -- becomes noise. ``repo_state`` comes out of ``state``, not out of a probe taken here, so this stays a pure function of its arguments. A clock reading would not: ``generated_at`` is absent from this artifact on purpose, because the question worth answering is 'which tree' (``repo_state.head``, stable across a no-op regeneration) and not 'at what o'clock' (different on every run, and therefore a diff on every run).",
+       "where": "snapshot_bytes docstring",
+       "verdict": "kept",
+       "why": "The function builds a dict with sorted keys, calls _digest, and returns JSON with indent=2, ensure_ascii=False, plus trailing newline. No timestamp field. It takes state dict (which contains repo_state) and acceptances as arguments, no clock reading."
+      },
+      {
+       "text": "Write the baseline, EXCLUDING every item that has an acceptance entry. This exclusion is the load-bearing part. If an accepted island were baked into ``islands``, ``--refresh`` would silently become a third, undated way to accept -- and being the easiest one, it would be the only one anybody used. Keeping accepted items out of the baseline means they stay live drift, suppressed only for as long as their date holds.",
+       "where": "write_snapshot docstring",
+       "verdict": "kept",
+       "why": "The function builds 'kept' dict by filtering out accepted keys from each list via the 'keep' helper. Accepted items are removed from islands, unknown, shims, test_only, dark_switches, doc_drift, unparsable, index_extra_edges. They are not written to the snapshot."
+      },
+      {
+       "text": "not blocking: a test is evidence somebody intends to wire it.",
+       "where": "_remedy for TEST_ONLY",
+       "verdict": "kept",
+       "why": "The remedy string explicitly says 'not blocking'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render() method uses self.first_run, self.wrote_snapshot, self.ok, self.freshness, self.items, self.blocking. Their definitions are not in this chunk.",
+       "where": "render method lines 841-",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "write_snapshot recomputes 'counts' dict with lengths of kept lists, but does not include 'modules' count from original state; it uses len(kept.get('modules', [])). This may differ from original if modules were accepted? But modules list is not filtered by acceptances (no keep('module:', 'modules') call). So counts['modules'] remains unchanged.",
+       "where": "write_snapshot",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "write_snapshot's 'keep' function uses prefix + v not in accepted_keys. For example, 'island:' + island_name. This assumes acceptance items have the prefix. The acceptance item format is not defined in this chunk.",
+       "where": "write_snapshot keep function",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "873cc45e058489e1da6a5539bf7b8fdc64f864656803be00b1c12726c77d10f9",
+    "objective_chars": 14379,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

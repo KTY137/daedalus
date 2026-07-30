@@ -1,0 +1,203 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c2of12__946db82",
+ "key": "scan__daedalus_council_session.py__c2of12__946db82-d92e7a36c3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of session.py: defines constants, role briefs, end reasons, and transport snapshot; claims about live-wire gate, falsification measurement, and bounds are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 124 | high | Claim 'falsification measurement above is still UNRUN: --live buys transcripts, not evidence' refers to measurement not present in chunk; may mislead about evidence verification. | Check if evidence verification exists elsewhere in file or is missing.",
+     "_SHIPPED_TRANSPORTS | medium | Comment claims snapshot at import prevents rebinding; but if getattr returns a bound method, rebinding the module attribute might not affect the tuple. | Verify that run_managed and native_chat are not bound methods.",
+     "MAX_ROUNDS_CAP = 3 | low | Comment says 'Round 3+ is where convergence dominates; going past 2 must be justified by measurement, not by taste.' No enforcement code in this chunk. | Check if enforcement exists later in file."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "2 of 12",
+     "purpose": "Define constants, role briefs, end reasons, transport snapshot, and imports.",
+     "symbols": [
+      {
+       "name": "_SHIPPED_TRANSPORTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of shipped transport callables, snapshotted at import. Prevents rebinding after import."
+      },
+      {
+       "name": "MAX_ROUNDS_CAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Hard maximum rounds, set to 3."
+      },
+      {
+       "name": "DEFAULT_ROUNDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default number of rounds, set to 2."
+      },
+      {
+       "name": "DEFAULT_PER_CALL_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default per-call timeout in seconds, set to 120.0."
+      },
+      {
+       "name": "DEFAULT_WALL_CLOCK_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default wall clock timeout in seconds, set to 900.0."
+      },
+      {
+       "name": "DEFAULT_TOKEN_CEILING",
+       "kind": "constant",
+       "effects": [],
+       "note": "Per-council prompt-token ceiling, set to 240,000."
+      },
+      {
+       "name": "DEFAULT_ROLES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of role names rotated between rounds."
+      },
+      {
+       "name": "ROLE_BRIEFS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping role names to brief descriptions."
+      },
+      {
+       "name": "END_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of reasons why council stopped."
+      },
+      {
+       "name": "_REASON_MAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maps vendor transport reasons to bus reasons."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the offline replay harness (tests/test_council_session.py, fake adapters, no network, no vendor CLI) is what runs in CI and in every test, and a live multi-vendor council runs ONLY on an invocation where a human typed --live.",
+       "where": "line 122-124",
+       "verdict": "uncheckable",
+       "why": "References tests and CLI invocation outside this chunk."
+      },
+      {
+       "text": "tests/test_council_livewire.py holds that line by driving the gate, not by reading this comment.",
+       "where": "line 124-125",
+       "verdict": "uncheckable",
+       "why": "References a test file outside this chunk."
+      },
+      {
+       "text": "The falsification measurement above is still UNRUN: --live buys transcripts, not evidence.",
+       "where": "line 125-126",
+       "verdict": "uncheckable",
+       "why": "References a measurement not present in this chunk."
+      },
+      {
+       "text": "The shipped transport callables, SNAPSHOTTED AT IMPORT so the live-wire gate cannot be disarmed by rebinding vendors.run_managed after the fact.",
+       "where": "_SHIPPED_TRANSPORTS docstring",
+       "verdict": "kept",
+       "why": "The tuple is constructed at module level using getattr on _vendors at import time, so rebinding later does not change the tuple."
+      },
+      {
+       "text": "An adapter holding one of these is holding the code that really spawns a vendor CLI or opens the Ollama socket; an adapter holding anything else was handed a substitute by its constructor and cannot reach a vendor through it.",
+       "where": "_SHIPPED_TRANSPORTS docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to adapter behavior not defined in this chunk."
+      },
+      {
+       "text": "Hard maximum. Round 3+ is where convergence dominates; going past 2 must be justified by the measurement, not by taste.",
+       "where": "MAX_ROUNDS_CAP comment",
+       "verdict": "uncheckable",
+       "why": "No enforcement logic or measurement code in this chunk."
+      },
+      {
+       "text": "Per-COUNCIL prompt-token ceiling, charged before each dispatch. Transcript tokens grow as O(V^2 R^2): four vendors x three rounds is twelve calls each carrying up to eleven prior turns.",
+       "where": "DEFAULT_TOKEN_CEILING comment",
+       "verdict": "uncheckable",
+       "why": "No code charging token ceiling or computing transcript size in this chunk."
+      },
+      {
+       "text": "Rotated between rounds so the role/vendor confound is at least stirred.",
+       "where": "DEFAULT_ROLES comment",
+       "verdict": "uncheckable",
+       "why": "No rotation logic in this chunk."
+      },
+      {
+       "text": "Why the council stopped. Recorded, never inferred from a short transcript.",
+       "where": "END_REASONS comment",
+       "verdict": "uncheckable",
+       "why": "No recording or inference code in this chunk."
+      },
+      {
+       "text": "vendors.py transport reasons -> bus.UNAVAILABLE_REASONS (a fixed, filterable vocabulary; the bus refuses anything outside it).",
+       "where": "_REASON_MAP comment",
+       "verdict": "uncheckable",
+       "why": "References bus.UNAVAILABLE_REASONS not defined in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment about offline replay harness and --live is a meta-comment about testing, not code.",
+       "where": "lines 122-126",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_SHIPPED_TRANSPORTS is a tuple of callables, but if getattr returns a bound method, rebinding the module attribute might not affect the tuple; however, the comment claims it prevents rebinding.",
+       "where": "_SHIPPED_TRANSPORTS",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "MAX_ROUNDS_CAP is 3, but the comment says going past 2 must be justified by measurement; no enforcement exists in this chunk.",
+       "where": "MAX_ROUNDS_CAP",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_REASON_MAP maps strings to themselves; the comment says bus refuses anything outside bus.UNAVAILABLE_REASONS, but that constant is not defined here.",
+       "where": "_REASON_MAP",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4a905fa22c1e5311ad67fab4bec16a697e04b811418e07012b15cc3133fd1e78",
+    "objective_chars": 5574,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [2/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 2,
+  "total": 12,
+  "first_line": 121
+ }
+}

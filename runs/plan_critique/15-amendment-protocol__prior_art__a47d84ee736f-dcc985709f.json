@@ -1,0 +1,102 @@
+{
+ "task_id": "15-amendment-protocol__prior_art__a47d84ee736f",
+ "key": "15-amendment-protocol__prior_art__a47d84ee736f-dcc985709f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 15.1 conflicts with the amendment protocol itself; the protocol requires editing the plan, yet 15.1 forbids ordinary tasks from editing it.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "15.1 | critical | Claim 15.1 says ordinary tasks must not edit the plan, but the amendment protocol itself is a task that edits the plan. This creates a self-contradiction: either the protocol is not an ordinary task (undefined) or the rule is broken. | Check if the protocol defines 'ordinary task' and whether the amendment process is exempt; if not, the document is inconsistent."
+    ],
+    "todos": [
+     "Define 'ordinary task' explicitly and clarify that the amendment protocol is not an ordinary task, or remove the blanket prohibition."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "15.1",
+       "claim": "Ordinary tasks must not edit the plan, amendment chain, active instructions, or guards.",
+       "verdict": "unclear",
+       "why": "The term 'ordinary tasks' is undefined. The amendment protocol itself is a task that edits the plan, so either it is not ordinary (needs definition) or the rule is violated. This ambiguity makes the claim unfalsifiable without a definition."
+      },
+      {
+       "id": "15.2",
+       "claim": "To amend, one must propose the exact diff, reason, alternatives, affected invariants/priors, migration, rollback, evidence, and owner.",
+       "verdict": "sound",
+       "why": "This is a standard requirement for formal change proposals, similar to RFCs or governance processes (e.g., Python PEPs, IETF RFCs). The list is comprehensive and checkable."
+      },
+      {
+       "id": "15.3",
+       "claim": "Obtain explicit repository-owner approval.",
+       "verdict": "weak",
+       "why": "The term 'repository-owner' is ambiguous (e.g., GitHub organization owner, a specific human, a group). No mechanism for obtaining or verifying approval is specified, making the claim unenforceable as written."
+      },
+      {
+       "id": "15.4",
+       "claim": "Start the amendment session with DAEDALUS_IRON_PLAN_AMENDMENT=<current full plan sha256>.",
+       "verdict": "sound",
+       "why": "Using an environment variable to lock the base revision is a standard technique for atomicity (similar to git hooks or CI/CD pipelines). The claim is concrete and testable."
+      },
+      {
+       "id": "15.5",
+       "claim": "Increment the plan revision monotonically.",
+       "verdict": "sound",
+       "why": "Monotonic revision numbers are a common versioning practice (e.g., semver, monotonic counters). The claim is clear and enforceable."
+      },
+      {
+       "id": "15.6",
+       "claim": "Append exactly one accepted record to docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl. It records base/result SHA-256, previous-record hash, approval reference, scope, and evidence.",
+       "verdict": "sound",
+       "why": "This is a well-structured audit trail similar to append-only logs (e.g., blockchain, journaling file systems). The fields are specific and verifiable."
+      },
+      {
+       "id": "15.7",
+       "claim": "Update the plan, ledger, derived controls, and tests atomically.",
+       "verdict": "weak",
+       "why": "Atomicity across multiple files is not enforced by the described mechanism (environment variable + appending a record). Without a transaction system or atomic commit, this claim is aspirational. Known systems (e.g., Git atomic commits, database transactions) provide atomicity, but the protocol does not leverage them explicitly."
+      },
+      {
+       "id": "15.8",
+       "claim": "Run policy verification and the relevant fault-injection suite.",
+       "verdict": "sound",
+       "why": "This is a standard CI/CD step after changes. The claim is testable and common practice."
+      },
+      {
+       "id": "15.9",
+       "claim": "The environment token only unlocks the protected files for that process. It does not waive owner approval, the amendment record, review, or evidence. Rollback is a new amendment, never a history rewrite.",
+       "verdict": "sound",
+       "why": "This clarifies the token's limited scope and establishes an append-only rollback policy, which is consistent with the principle of immutable audit logs (e.g., git's history, blockchain). The claim is clear and enforceable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c5191ddf66395d73b5cb3dcfc12294872d715c19e62bd0f0ed310c7e5ffb8e83",
+    "objective_chars": 1960,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "15-amendment-protocol",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

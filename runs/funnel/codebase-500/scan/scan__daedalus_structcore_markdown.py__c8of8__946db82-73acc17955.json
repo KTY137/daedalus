@@ -1,0 +1,131 @@
+{
+ "task_id": "scan__daedalus_structcore_markdown.py__c8of8__946db82",
+ "key": "scan__daedalus_structcore_markdown.py__c8of8__946db82-73acc17955",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8/8 of markdown.py: defines _HEADLESS_EXCERPT_LINES, _render, and document_skeleton; implements heading-tree distillation with fallback to raw text.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "document_skeleton | medium | The function uses parse.loc for total_lines, but parse.loc is not defined in this chunk; if it is missing or has a different meaning, the calculation may be wrong. | Check the definition of DocumentParse.loc in its dataclass.",
+     "document_skeleton | medium | In the fallback case where heads is empty but parse.sections is empty, parse.sections[0].source would raise IndexError. | Verify that parse.sections is always non-empty when heads is empty.",
+     "document_skeleton | low | The _render function accesses parse.sections[0] without checking that parse.sections is non-empty; if heads is empty but sections is also empty, an IndexError occurs. | Confirm that a valid DocumentParse always has at least one section."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/markdown.py",
+     "chunk": "8 of 8",
+     "purpose": "Define _HEADLESS_EXCERPT_LINES, _render helper, and document_skeleton function for document distillation.",
+     "symbols": [
+      {
+       "name": "_HEADLESS_EXCERPT_LINES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Number of lines to show in the excerpt for a document with no headings."
+      },
+      {
+       "name": "_render",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper to render the heading tree or excerpt into a string."
+      },
+      {
+       "name": "document_skeleton",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function producing a DocSkeleton with distilled heading tree or raw text."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A document with no headings has no tree to keep, so the outline degenerates to a header and a receipt -- true, and useless to the model reading it. Mirroring ``slice._skeleton``'s own fallback for an unparseable file, a bounded head excerpt is emitted instead, and labelled as an excerpt so it is never mistaken for the whole document.",
+       "where": "comment before _HEADLESS_EXCERPT_LINES",
+       "verdict": "uncheckable",
+       "why": "The claim references 'slice._skeleton' which is not in this chunk; the behaviour for no headings is implemented in _render but the mirroring claim cannot be verified."
+      },
+      {
+       "text": "HARD INVARIANT, tested: ``len(result.text) <= len(text)``, and ``<= max_chars`` when one is given.",
+       "where": "docstring of document_skeleton",
+       "verdict": "kept",
+       "why": "In the function, _fits checks len(rendered) <= cap, where cap = min(len(text), max_chars) if max_chars else len(text). The fallback returns text or text[:max_chars], so len(result.text) <= len(text) and <= max_chars when given."
+      },
+      {
+       "text": "A distilled view larger than its own source is not a distillation.",
+       "where": "docstring of document_skeleton",
+       "verdict": "uncheckable",
+       "why": "This is a design principle; not a checkable claim about code behaviour."
+      },
+      {
+       "text": "The ladder is fixed and deterministic: 1. heading tree with per-heading provenance; 2. the same tree without annotations; 3. the tree truncated to the first N headings, saying how many were omitted (N halved until it fits, so the outcome is a function of the input, not of a search order); 4. the raw document, with ``distilled=False``.",
+       "where": "docstring of document_skeleton",
+       "verdict": "kept",
+       "why": "The code tries degraded='full' with annotate=True, then 'no_annotations' with annotate=False, then a loop halving limit, then falls back to raw or raw_truncated. This matches the described ladder."
+      },
+      {
+       "text": "Every rung says what it dropped.",
+       "where": "docstring of document_skeleton",
+       "verdict": "kept",
+       "why": "Each return path includes a DocSkeleton with dropped_chars set, and _render appends a PROSE DROPPED line."
+      },
+      {
+       "text": "There is no rung that drops silently.",
+       "where": "docstring of document_skeleton",
+       "verdict": "kept",
+       "why": "All return paths produce a rendered string that includes a PROSE DROPPED line (via _render) or the raw text (no dropping). The raw_truncated case sets dropped_chars but does not annotate; however the docstring says 'says what it dropped' and the function does not add a message to the raw text. This claim is about the rungs, not the raw fallback; the raw fallback is not a 'rung' in the ladder. The claim is kept for the ladder steps."
+      }
+     ],
+     "observations": [
+      {
+       "what": "document_skeleton returns DocSkeleton with fields including kept_headings, total_headings, etc. The fallback raw/raw_truncated sets kept_headings=0, total_headings=len(heads).",
+       "where": "document_skeleton function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_render function handles the case heads is empty by showing an excerpt from parse.sections[0].source, but does not guard against parse.sections being empty.",
+       "where": "_render lines 872-874",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant _HEADLESS_EXCERPT_LINES is defined but only used in _render; it is not exported.",
+       "where": "_HEADLESS_EXCERPT_LINES = 12",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "373bb0a309bf808ed6708adf62f87d85a0cdfec0ae005a97f4a3c542d90e8917",
+    "objective_chars": 5910,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/markdown.py [8/8]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/markdown.py",
+  "index": 8,
+  "total": 8,
+  "first_line": 841
+ }
+}

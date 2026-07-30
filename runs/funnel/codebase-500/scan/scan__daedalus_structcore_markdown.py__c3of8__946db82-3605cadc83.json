@@ -1,0 +1,300 @@
+{
+ "task_id": "scan__daedalus_structcore_markdown.py__c3of8__946db82",
+ "key": "scan__daedalus_structcore_markdown.py__c3of8__946db82-3605cadc83",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of markdown.py: defines property `embeds`, regex constants for lexing (ATX, SETEXT, fences, front matter, inline code/link/ref/autolink/wikilink), helper functions `_strip_front_matter`, `slugify`, `_headings`, `_dedup_anchors`.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_headings | medium | Fence detection uses stripped content check: `not fence_hit.group(2).strip()`. If info string contains whitespace-only characters, fence is closed incorrectly. | Test with fenced block containing info string like '``` '. |",
+     "_headings | medium | Setext heading detection uses `i > start` guard; if heading is at line `start`, it's skipped. | Test setext heading at first content line after front matter. |",
+     "_dedup_anchors | medium | Function defined but not used in this chunk; its behavior is uncheckable. | Check if it's called elsewhere. |",
+     "slugify | low | Strips emphasis characters and link markup, but does not handle HTML tags or other inline formatting. | Test with headings containing `<b>bold</b>`. |"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/markdown.py",
+     "chunk": "3 of 8",
+     "purpose": "Define lexing regex constants, property `embeds`, and helper functions for heading extraction, front matter stripping, slug generation, and anchor deduplication.",
+     "symbols": [
+      {
+       "name": "embeds",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns tuple of DocLink objects whose embed attribute is True, filtered from self.links."
+      },
+      {
+       "name": "_ATX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for ATX headings: 0-3 spaces, 1-6 '#' then whitespace or end, captures # count and optional title."
+      },
+      {
+       "name": "_ATX_CLOSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to strip trailing '#' from ATX heading title."
+      },
+      {
+       "name": "_SETEXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for setext headings: line of '=' or '-' with optional leading spaces."
+      },
+      {
+       "name": "_FENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for fenced code blocks: 3+ backticks or tildes, optional info string."
+      },
+      {
+       "name": "_FRONT_MATTER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for front matter delimiter: '---' or '+++'."
+      },
+      {
+       "name": "_NOT_SETEXT_TEXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for lines that cannot be setext heading text: list markers, blockquote, table separator, ATX start."
+      },
+      {
+       "name": "_INLINE_CODE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for inline code spans: backtick-enclosed."
+      },
+      {
+       "name": "_INLINE_LINK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for inline links excluding images, with optional title."
+      },
+      {
+       "name": "_REF_DEF",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for reference definition: [label]: <url> or url."
+      },
+      {
+       "name": "_AUTOLINK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for autolinks: <scheme:...>."
+      },
+      {
+       "name": "_WIKILINK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for Obsidian wikilinks, optional '!' for embed, captures '!' and link target."
+      },
+      {
+       "name": "_WIKI_DEFAULT_EXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default extension '.md' for wikilinks without explicit extension."
+      },
+      {
+       "name": "_SCHEME",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for URI scheme: alphabetic start, alphanumeric/plus/dot/hyphen."
+      },
+      {
+       "name": "_SLUG_STRIP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to strip non-allowed characters for slug: anything not lowercase alphanumeric, space, underscore, hyphen."
+      },
+      {
+       "name": "_MD_LINK_TEXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to extract link text from markdown links for slug generation."
+      },
+      {
+       "name": "_MD_EMPHASIS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match emphasis markers: *, _, ~, `."
+      },
+      {
+       "name": "_strip_front_matter",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns index of first content line after front matter; handles YAML/TOML delimiters."
+      },
+      {
+       "name": "slugify",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts heading title to GitHub-style anchor slug, removing link markup and emphasis."
+      },
+      {
+       "name": "_headings",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of (line_index, level, title) tuples for all headings, skipping fenced code blocks."
+      },
+      {
+       "name": "_dedup_anchors",
+       "kind": "function",
+       "effects": [],
+       "note": "Appends -1, -2, ... to duplicate slugs; first occurrence keeps original."
+      }
+     ],
+     "claims": [
+      {
+       "text": "CommonMark: 1-6 '#' at up to 3 columns of indent, then EITHER end-of-line OR whitespace. The whitespace requirement is load-bearing -- \"#hashtag\" and \"#!/bin/sh\" are NOT headings, and treating them as one fabricates structure.",
+       "where": "comment before _ATX",
+       "verdict": "kept",
+       "why": "_ATX regex matches 0-3 spaces, then 1-6 '#', then requires optional whitespace or end-of-line via (?:[ \\t]+(.*?))?[ \\t]*$ which effectively ensures that if there is more text after the #, it must be preceded by whitespace. '#hashtag' has no space after '#', so _ATX would match '#', but then group(2) would be None, and the line would be considered a heading with empty title, which is a false positive. However, the regex does not enforce whitespace after the # if there is no trailing content; it would match a lone '#' line. The claim states that '#hashtag' is NOT a heading, but the regex would match it as a level-1 heading with title 'hashtag' because group(2) captures 'hashtag' after the space? Actually '#hashtag' has no space after '#', so _ATX.match('#hashtag') would match '#' as the hash group, but then (?:[ \\t]+(.*?))? requires at least one whitespace before capturing the title; it would not match because there is no whitespace after '#'. So the match would be only the '#' and group(2) would be None, and the title would be empty. So the line '#hashtag' would be treated as an H1 with empty title, which is still wrong. The regex does not fully enforce the whitespace requirement; it only requires whitespace if there is a title. The comment says '#hashtag' is NOT a heading, but the regex would treat it as a heading (with empty title). Therefore the claim is broken in that the regex does not prevent false positives for lines like '#hashtag'."
+      },
+      {
+       "text": "A closing sequence of '#'s is decoration, not part of the title.",
+       "where": "comment before _ATX_CLOSE",
+       "verdict": "kept",
+       "why": "_ATX_CLOSE regex matches trailing spaces and hashes, and is used to strip them from the title in _headings."
+      },
+      {
+       "text": "Without this, a table separator or a list item followed by a '---' rule becomes a fabricated H2.",
+       "where": "comment before _NOT_SETEXT_TEXT",
+       "verdict": "kept",
+       "why": "_NOT_SETEXT_TEXT regex matches lines starting with list markers, blockquote, table separator, or ATX start, preventing them from being considered setext heading text."
+      },
+      {
+       "text": "The (?<!\\!) guard keeps \"![alt](img.png)\" out: an image is an asset reference, not a document-to-document relation.",
+       "where": "comment before _INLINE_LINK",
+       "verdict": "kept",
+       "why": "_INLINE_LINK regex uses (?<!!) negative lookbehind, so '![alt](img.png)' does not match."
+      },
+      {
+       "text": "Reference DEFINITION: \"[label]: dest\".  Definitions are counted as links of the document because that is what they are -- a declared destination.  Matching every reference USAGE back to its label is deliberately not attempted: it would double-count the same destination and buys no new edge.",
+       "where": "comment before _REF_DEF",
+       "verdict": "uncheckable",
+       "why": "The comment describes intent about counting, but the actual counting logic is not in this chunk; only the regex is defined. The regex matches reference definitions, but whether they are counted as links is not visible."
+      },
+      {
+       "text": "Bare autolink <https://...>; carried so external link COUNTS are honest.",
+       "where": "comment before _AUTOLINK",
+       "verdict": "uncheckable",
+       "why": "The regex is defined, but the counting logic is not in this chunk."
+      },
+      {
+       "text": "The inner text may not contain a bracket or a newline: ``[[a]`` and a ``[[`` left open at end of line are NOT links, and completing them for the author would invent an edge out of a typo. Nested brackets are excluded for the same reason -- there is no unambiguous reading of ``[[a[[b]]]]``, so there is no link in it.",
+       "where": "comment before _WIKILINK",
+       "verdict": "kept",
+       "why": "_WIKILINK regex matches '!?' then '[[', then captures [^\\[\\]\\n]+, which excludes brackets and newlines, so nested brackets and open brackets at end of line are not matched."
+      },
+      {
+       "text": "Default extension for a doc->doc wikilink: a vault is a folder of .md files, and ``[[Note]]`` means ``Note.md``. Tried ONLY when the literal name matches nothing, so ``![[diagram.png]]`` still means the png.",
+       "where": "comment after _WIKI_DEFAULT_EXT",
+       "verdict": "uncheckable",
+       "why": "The constant is defined, but the logic to apply default extension is not in this chunk."
+      },
+      {
+       "text": "Index of the first content line, skipping YAML/TOML front matter.",
+       "where": "docstring of _strip_front_matter",
+       "verdict": "kept",
+       "why": "Function returns index after front matter; returns 0 if no front matter or unterminated."
+      },
+      {
+       "text": "Unterminated front matter: treat the '---' as a thematic rule and parse the whole file, rather than swallowing the document silently.",
+       "where": "comment in _strip_front_matter",
+       "verdict": "kept",
+       "why": "When front matter is not closed, function returns 0, so no lines are skipped."
+      },
+      {
+       "text": "GitHub-style anchor slug for a heading (no de-duplication).",
+       "where": "docstring of slugify",
+       "verdict": "kept",
+       "why": "Function produces slug similar to GitHub's anchor generation, without dedup."
+      },
+      {
+       "text": "(line_index, level, title) for every heading, in document order. Fenced code is skipped: a '#' comment inside a ``` block is Python, not an H1, and indexing it would put shell/Python comments into the heading tree.",
+       "where": "docstring of _headings",
+       "verdict": "kept",
+       "why": "Function iterates lines, tracks fence state, skips lines inside fences, and outputs headings in order."
+      },
+      {
+       "text": "The heading is the PREVIOUS line; if it was already claimed by an ATX match this rule does not fire (ATX is checked first and would have consumed it).",
+       "where": "comment in _headings setext handling",
+       "verdict": "kept",
+       "why": "Code checks that previous line is not already in out (out[-1][0] != i-1) and ATX is checked before setext."
+      },
+      {
+       "text": "GitHub's duplicate-anchor rule: first wins, later ones get -1, -2, ...",
+       "where": "docstring of _dedup_anchors",
+       "verdict": "uncheckable",
+       "why": "Function is defined but its implementation is not fully visible (chunk ends after docstring)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Property `embeds` returns a tuple of DocLink objects from self.links where embed is True. The type hint suggests DocLink is a namedtuple or similar.",
+       "where": "line 241",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_ATX regex matches lines like '#hashtag' as a heading with empty title, contrary to the comment that says it should not be a heading.",
+       "where": "_ATX regex and comment",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_headings function uses `i > start` to prevent setext heading detection on the first line after front matter; if a setext heading appears exactly at line `start`, it is missed.",
+       "where": "_headings line 309",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_dedup_anchors function is defined but not used in this chunk; its behavior cannot be verified.",
+       "where": "line 319",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Fence closing condition uses `not fence_hit.group(2).strip()`, which may incorrectly close a fence if the info string contains only whitespace.",
+       "where": "_headings line 302",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "46b2c633d3eb2f265c6776b7b3069242fefa2f186151b283c92144935a7255ee",
+    "objective_chars": 6131,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/markdown.py [3/8]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/markdown.py",
+  "index": 3,
+  "total": 8,
+  "first_line": 241
+ }
+}

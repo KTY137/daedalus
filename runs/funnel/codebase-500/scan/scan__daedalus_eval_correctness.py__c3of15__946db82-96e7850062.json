@@ -1,0 +1,270 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c3of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c3of15__946db82-96e7850062",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of correctness.py: overlay safety, git read/worktree functions, pytest node id parsing and constants.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_git_read | medium | Uses READ_ONLY_REPO_VERBS import; if that list is missing or wrong, guard fails. | Check that READ_ONLY_REPO_VERBS is defined and contains only read-only verbs.",
+     "_git_in_worktree | medium | Calls _refuse_primary_checkout; if that function is missing or incorrect, safety is bypassed. | Verify _refuse_primary_checkout exists and raises on primary checkout.",
+     "_PROGRESS_RE | low | Regex assumes node id contains ::; parametrized tests may have :: in params, causing false negatives. | Test with parametrized node ids.",
+     "_NOT_FOUND_RE | low | Regex may match unexpected lines beginning with \"ERROR: not found:\". | Check for false positives.",
+     "_NO_COLLECTORS_RE | low | Regex may match unexpected lines beginning with \"ERROR: found no collectors for\". | Check for false positives.",
+     "_FILE_ERROR_RE | low | Regex may match unexpected lines beginning with \"ERROR \". | Check for false positives."
+    ],
+    "todos": [
+     "Verify that READ_ONLY_REPO_VERBS is correctly imported and defined.",
+     "Verify that _refuse_primary_checkout exists and behaves as expected.",
+     "Test regex patterns against various pytest output lines."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "3 of 15",
+     "purpose": "Define overlay path safety, git read/worktree wrapper functions, revision resolution, pytest node id parsing constants and helper functions.",
+     "symbols": [
+      {
+       "name": "_refuse_primary_checkout",
+       "kind": "function",
+       "effects": [],
+       "note": "Called in _git_in_worktree but not defined in this chunk; assumed to exist."
+      },
+      {
+       "name": "_git_read",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git with read-only verbs; raises PrimaryCheckoutTouch if verb not in allowlist."
+      },
+      {
+       "name": "_git_in_worktree",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git inside a disposable worktree; checks cwd via _refuse_primary_checkout."
+      },
+      {
+       "name": "resolve_revision",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Resolves a revision to full sha using git rev-parse."
+      },
+      {
+       "name": "pytest_node_argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of argv for pytest per-node attribution."
+      },
+      {
+       "name": "_OUTCOME_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maps pytest outcome strings to status constants."
+      },
+      {
+       "name": "_PROGRESS_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for verbose progress lines."
+      },
+      {
+       "name": "_NOT_FOUND_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for 'not found' error lines."
+      },
+      {
+       "name": "_NO_COLLECTORS_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for 'no collectors' error lines."
+      },
+      {
+       "name": "_FILE_ERROR_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for file error lines."
+      },
+      {
+       "name": "_norm_node",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes node id string (backslash to slash, strip)."
+      },
+      {
+       "name": "_same_node",
+       "kind": "function",
+       "effects": [],
+       "note": "Compares reported node id to requested; suffix match, case-insensitive on Windows."
+      },
+      {
+       "name": "DEFAULT_GIT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default timeout for git commands; not defined in this chunk."
+      },
+      {
+       "name": "READ_ONLY_REPO_VERBS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Allowlist of read-only git verbs; imported, not defined in this chunk."
+      },
+      {
+       "name": "STATUS_PASSED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status constant for passed tests; not defined in this chunk."
+      },
+      {
+       "name": "STATUS_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status constant for failed tests; not defined in this chunk."
+      },
+      {
+       "name": "STATUS_ERROR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status constant for error tests; not defined in this chunk."
+      },
+      {
+       "name": "STATUS_SKIPPED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status constant for skipped tests; not defined in this chunk."
+      },
+      {
+       "name": "OverlayEscape",
+       "kind": "exception",
+       "effects": [],
+       "note": "Exception raised on overlay path escape; not defined in this chunk."
+      },
+      {
+       "name": "PrimaryCheckoutTouch",
+       "kind": "exception",
+       "effects": [],
+       "note": "Exception raised when primary checkout is touched; not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "GUARD: the verb must be in ``spine.attempt.READ_ONLY_REPO_VERBS`` -- the repo's own allowlist, imported so there is one list to keep right instead of two.",
+       "where": "_git_read docstring",
+       "verdict": "uncheckable",
+       "why": "The code checks `verb not in READ_ONLY_REPO_VERBS` but the definition of READ_ONLY_REPO_VERBS is not in this chunk; cannot verify it is imported from spine.attempt."
+      },
+      {
+       "text": "Reading history (``show``/``diff``/``rev-parse``) is exactly what this module needs from the checkout, and it needs nothing else.",
+       "where": "_git_read docstring",
+       "verdict": "uncheckable",
+       "why": "No other git verbs are used in this chunk; the claim about module's needs cannot be verified from this chunk alone."
+      },
+      {
+       "text": "Mutating verbs are fine here and nowhere else -- which is why the cwd goes through :func:`_refuse_primary_checkout` before the process is spawned, exactly as ``spine.attempt._git`` does for its own choke point.",
+       "where": "_git_in_worktree docstring",
+       "verdict": "uncheckable",
+       "why": "The code calls _refuse_primary_checkout but that function is not defined in this chunk; cannot verify its behavior or comparison to spine.attempt._git."
+      },
+      {
+       "text": "Full sha for ``rev``, or None if it does not resolve.",
+       "where": "resolve_revision docstring",
+       "verdict": "kept",
+       "why": "The function returns None if returncode != 0, otherwise returns the stripped stdout or None if empty."
+      },
+      {
+       "text": "Deliberately close to ``spine.attempt.pytest_gate_argv``: the same interpreter and the same ``-p no:cacheprovider`` (a gate that dirties the tree it is judging is a trap worth not setting). It differs in two measured ways, and both are needed for PER-NODE attribution, which ``-q`` cannot give: ``-v`` prints ``<nodeid> PASSED|FAILED|SKIPPED (reason)`` per test, which is the only output form that carries the EXACT node id for a skip -- ``-rA``'s short summary prints skips as ``SKIPPED [1] file.py:12: reason``, with no node id at all. ``--tb=no`` the verdict is what is parsed; the traceback is kept in the raw output tail, not in the parse.",
+       "where": "pytest_node_argv docstring",
+       "verdict": "uncheckable",
+       "why": "The code returns a tuple including sys.executable, -m pytest, node ids, -v, --tb=no, -p no:cacheprovider. The claim about closeness to spine.attempt.pytest_gate_argv and the behavior of -v vs -rA cannot be verified from this chunk."
+      },
+      {
+       "text": "an expected failure is not a pass",
+       "where": "_OUTCOME_TOKENS comment for XFAIL",
+       "verdict": "kept",
+       "why": "XFAIL maps to STATUS_FAILED, so expected failures are treated as failures."
+      },
+      {
+       "text": "\"ERROR: not found: C:\\...\\tests\\x.py::test_y\" -- the FILE collected, and the node id is not in it. The task named a test that does not exist.",
+       "where": "Comment before _NOT_FOUND_RE",
+       "verdict": "uncheckable",
+       "why": "The comment describes external behavior; the regex pattern is present but its correctness in matching that specific format cannot be verified from this chunk alone."
+      },
+      {
+       "text": "\"ERROR: found no collectors for C:\\...\\tests\\x.py::test_y\" -- a DIFFERENT fact, and conflating the two was a real defect in this parser, caught by running it: the file itself could not be collected (it imports something that does not exist on the base revision, which is the NORMAL state of a test added by the fix being evaluated). That is a test that does not pass -- a valid FAIL_TO_PASS before-state -- whereas \"not found\" refutes the task. Reporting the second as the first invalidated 13 of 14 nodes of a real corpus candidate.",
+       "where": "Comment before _NO_COLLECTORS_RE",
+       "verdict": "uncheckable",
+       "why": "The comment describes historical defect and semantics; the regex patterns are present but their correct classification cannot be verified from this chunk alone."
+      },
+      {
+       "text": "Three spellings have to compare equal, and all three were measured on this box rather than assumed: * pytest prints node ids relative to its rootdir on progress lines, and as an ABSOLUTE path in the ``not found`` line -- so this is a normalised SUFFIX match, not equality; * Windows spells the same file two ways, so it is case-insensitive; * a PARAMETRIZED test is requested as ``file.py::test_x`` and reported as",
+       "where": "_same_node docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes design decisions and behaviors; the actual implementation of _same_node is incomplete in this chunk (ends mid-sentence). Cannot verify the suffix match or case-insensitivity."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends mid-docstring for _same_node; the implementation is incomplete.",
+       "where": "_same_node docstring and function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several constants (DEFAULT_GIT_TIMEOUT_S, READ_ONLY_REPO_VERBS, STATUS_* etc.) and exceptions (OverlayEscape, PrimaryCheckoutTouch) are referenced but not defined in this chunk.",
+       "where": "Various symbols",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The overlay path check uses _key() function which is not defined in this chunk; assumes it normalizes paths.",
+       "where": "Overlay escape check",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Regex patterns are well-commented with examples and historical context.",
+       "where": "Comments before _NOT_FOUND_RE, _NO_COLLECTORS_RE, _FILE_ERROR_RE",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3613d25e15bd41ba45ab9b867d5f9f09ad7d7d84f5069e319cabb901f09743dd",
+    "objective_chars": 6584,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [3/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 3,
+  "total": 15,
+  "first_line": 241
+ }
+}

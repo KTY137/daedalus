@@ -1,0 +1,91 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c7of7__946db82",
+ "key": "scan__daedalus_eval_graph_delta.py__c7of7__946db82-93a641e126",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 7 of graph_delta.py: defines _refs_by_function and function_deltas.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/graph_delta.py",
+     "chunk": "7 of 7",
+     "purpose": "Defines two functions: _refs_by_function (private) and function_deltas (public) for computing reference deltas.",
+     "symbols": [
+      {
+       "name": "_refs_by_function",
+       "kind": "function",
+       "effects": [],
+       "note": "Private function, not exported. Walks AST to collect reference counters per function."
+      },
+      {
+       "name": "function_deltas",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function. Returns list of dicts for functions changed between two code strings."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One row per function that exists in BOTH versions and changed.",
+       "where": "function_deltas docstring",
+       "verdict": "kept",
+       "why": "The function iterates over the intersection of function names from both versions."
+      },
+      {
+       "text": "Functions added or removed wholesale are excluded: a new function has no 'before' to lose references against, and counting it as a huge addition would swamp the distribution the rule is read from.",
+       "where": "function_deltas docstring",
+       "verdict": "kept",
+       "why": "Only names present in both fb and fa are considered; the loop uses set(fb) & set(fa)."
+      },
+      {
+       "text": "Qualify by line so two same-named methods in one file stay distinct.",
+       "where": "comment in _refs_by_function (line ~718)",
+       "verdict": "broken",
+       "why": "The code uses node.name directly without line number qualification: out[f\"{node.name}\"] = ... This does not include any line info, so same-named methods are merged."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment claims line qualification, but the code does not implement it.",
+       "where": "line ~718 comment vs code",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c1a980bc552d2f237674ca29acccdfb2a80e2ac3693cb0d84070650500ca0cd0",
+    "objective_chars": 2107,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [7/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 7,
+  "total": 7,
+  "first_line": 721
+ }
+}

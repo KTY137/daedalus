@@ -1,0 +1,59 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c8of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c8of8__946db82-b1c6c47412",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 8 of 8 of daedalus/council/publish.py, lines 841-850. Contains a function body that constructs a PRTurn object from raw data using helper functions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "8 of 8",
+     "purpose": "Construct a PRTurn object from raw data fields.",
+     "symbols": [],
+     "claims": [],
+     "observations": [
+      {
+       "what": "The code extracts fields from a raw object using _field and _text helpers. It falls back to default values if fields are missing.",
+       "where": "lines 841-850",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "97e1e6a232a44f4deac2b6651dc5165fad4b2b149c66c7a7eb493737b2dd2e85",
+    "objective_chars": 1607,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [8/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 8,
+  "total": 8,
+  "first_line": 841
+ }
+}

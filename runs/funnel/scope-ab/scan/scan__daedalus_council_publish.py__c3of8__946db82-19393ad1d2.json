@@ -1,0 +1,202 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c3of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c3of8__946db82-19393ad1d2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of 8 of daedalus/council/publish.py. Found 9 symbols and 10 claims, all verifiable against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_markdown | medium | Function signature incomplete; missing body and return type. Check that it returns str and handles all cases.",
+     "DEFAULT_BUS_DIR | medium | Reference to undefined constant DEFAULT_BUS_DIR in _bus_path. If not defined elsewhere, will raise NameError."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "3 of 8",
+     "purpose": "Rendering helpers for bus records: text processing, fence generation, path derivation, and quorum/evidence extraction.",
+     "symbols": [
+      {
+       "name": "_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts value to string, returns empty string for None."
+      },
+      {
+       "name": "_fence_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates backtick fence longer than longest backtick run in input."
+      },
+      {
+       "name": "_verbatim",
+       "kind": "function",
+       "effects": [],
+       "note": "Fences text exactly as given with no reflow or escaping."
+      },
+      {
+       "name": "_short",
+       "kind": "function",
+       "effects": [],
+       "note": "Truncates digest to first n characters (default 12)."
+      },
+      {
+       "name": "_bus_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns path to bus record; checks transcript then verdict fields, falls back to council_id."
+      },
+      {
+       "name": "_turns_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts turn list from transcript, supporting various data structures."
+      },
+      {
+       "name": "_chain_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns chain head digest from transcript or verdict, falling back to last turn's entry_sha."
+      },
+      {
+       "name": "_quorum_counts",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (answered, requested, answered_vendors, missing_vendors) from verdict."
+      },
+      {
+       "name": "_evidence_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts file paths from verdict evidence and paths fields."
+      },
+      {
+       "name": "render_markdown",
+       "kind": "function",
+       "effects": [],
+       "note": "Incomplete definition; only signature present in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A backtick fence longer than the longest backtick run inside ``text``.",
+       "where": "_fence_for docstring line 246-247",
+       "verdict": "kept",
+       "why": "Function computes longest consecutive backtick run and returns fence length max(3, longest+1)."
+      },
+      {
+       "text": "Dissents are reproduced VERBATIM, and a dissent that itself contains a code fence would otherwise terminate ours early -- silently truncating another vendor's objection, which is the one thing this rendering exists to preserve.",
+       "where": "_fence_for docstring lines 248-251",
+       "verdict": "uncheckable",
+       "why": "The docstring explains motivation but the code only computes fence length; actual handling of dissents is elsewhere."
+      },
+      {
+       "text": "Fence ``text`` exactly as given -- no reflow, no escaping, no truncation.",
+       "where": "_verbatim docstring line 261",
+       "verdict": "kept",
+       "why": "Function returns f\"{fence}text\\n{body}\\n{fence}\" without modifying body."
+      },
+      {
+       "text": "Where the canonical record lives. Explicit field wins; otherwise derived from the council id, which is how ``bus.py`` names the file.",
+       "where": "_bus_path docstring lines 273-275",
+       "verdict": "uncheckable",
+       "why": "The claim about bus.py naming convention is not verifiable from this chunk; the code implements the field priority and fallback to council_id."
+      },
+      {
+       "text": "A transcript may be the turn list itself, or an object/dict carrying one.",
+       "where": "_turns_of docstring line 291",
+       "verdict": "kept",
+       "why": "Function checks for Mapping, list/tuple, and fallback field extraction."
+      },
+      {
+       "text": "The chain head digest a reader verifies the bus against. Explicit field wins; otherwise the last turn's entry_sha, which IS the head by construction in an append-only chain.",
+       "where": "_chain_head docstring lines 304-306",
+       "verdict": "kept",
+       "why": "Code checks transcript fields, then verdict fields, then last turn's entry_sha."
+      },
+      {
+       "text": "Counts are derived from the vendor LISTS when present, because a list is checkable against the transcript and a bare integer is not.",
+       "where": "_quorum_counts docstring lines 316-318",
+       "verdict": "kept",
+       "why": "Function extracts vendor lists and uses their length if integer fields are missing."
+      },
+      {
+       "text": "Paths named by the evidence, for the path-marker half of the floor.",
+       "where": "_evidence_paths docstring line 344",
+       "verdict": "uncheckable",
+       "why": "Refers to 'path-marker half of the floor' which is not defined in this chunk."
+      },
+      {
+       "text": "the human-facing rendering of the bus",
+       "where": "render_markdown comment line 357",
+       "verdict": "uncheckable",
+       "why": "Function body not present; cannot verify purpose."
+      },
+      {
+       "text": "DEFAULT_BUS_DIR",
+       "where": "_bus_path line 283",
+       "verdict": "uncheckable",
+       "why": "Constant referenced but not defined in this chunk; may be defined elsewhere in file or imported."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_markdown function signature appears but body is missing; likely continues in next chunk.",
+       "where": "line 358",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_bus_path uses undefined constant DEFAULT_BUS_DIR; risk of NameError if not defined elsewhere.",
+       "where": "line 283",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "_short function truncates to n characters but does not add ellipsis or indicate truncation.",
+       "where": "line 268",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_quorum_counts uses _field with multiple aliases; may silently ignore missing fields but returns 0 for int fields if None.",
+       "where": "lines 319-330",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "439073374912deab0ed77c10ff67726683f5399bc8e23dc732771c5cafac502d",
+    "objective_chars": 6077,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [3/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 3,
+  "total": 8,
+  "first_line": 241
+ }
+}

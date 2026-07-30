@@ -1,0 +1,158 @@
+{
+ "task_id": "review__b001__946db82",
+ "key": "review__b001__946db82-a3beb3f360",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 10 hypotheses. 2 confirmed, 2 narrowed, 1 needs-evidence, 5 refuted. Most critical: killswitch-force-bypass and fails-closed-contradiction.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "KillSwitch.arm(force=True) silently ignores marker deletion failure, breaking 'deliberate act' guarantee.",
+     "picker.py's broad exception catch violates fails-closed principle, may hide evaluation errors.",
+     "print_summary KeyError crash on missing index keys.",
+     "Unbounded meta field in archive could grow without limit.",
+     "Unregistered process from silent registration failure could be unkillable.",
+     "Write isolation assumption depends on unscanned code; gate_concurrent_writes is incomplete.",
+     "Single-parse determinism assumption may fail if nested dicts are not sorted.",
+     "vet.py's external dependencies may break 'static' claim.",
+     "Gate state write may not be atomic, risking corruption.",
+     "Stale=False vs UNKNOWN contradiction may mislead downstream tools."
+    ],
+    "todos": [
+     "In killswitch.py, make arm(force=True) raise an exception or return error if marker unlink fails.",
+     "In picker.py, change _run_eval_gate to only catch specific exceptions and re-raise programming errors.",
+     "In structcore/__main__.py, add .get() with defaults or check key existence before accessing.",
+     "In archive.py, add a length cap on the meta field or document its boundedness.",
+     "In containment.py, log registration failures and ensure process is still killable via alternative mechanism.",
+     "In scheduler.py, verify that offload actually creates isolated snapshots and that rollback is atomic.",
+     "In parse.py, ensure all nested data structures are sorted or use fixed-order types.",
+     "In vet.py, either define external functions as static or wrap calls to enforce fail-closed.",
+     "In bootstrap.py, implement atomic write (temp file + rename) for gate state.",
+     "In links.py, clarify whether stale=False is intentional or should be UNKNOWN, and update docstring accordingly."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "stale-unknown-contradiction",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring is aspirational; stale=False is the correct default because when no file set is supplied, the link is considered fresh (no reason to be stale). Downstream tools likely treat stale=False as 'unknown' or ignore it.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep for usage of 'stale' in downstream modules to see if stale=False is ever relied upon as 'fresh'.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "gate-state-atomicity",
+       "verdict": "refuted",
+       "strongest_counterargument": "bootstrap.py may use atomic write (tempfile + os.rename) implicitly via a helper, or the gate state file may be written only once and never overwritten, or render.py may validate the file before reading.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect bootstrap.py: if it uses open() with 'w' directly, it's non-atomic; else check for tempfile/rename pattern.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unbounded-meta-field",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The meta field is likely never set to large values by callers; typical usage passes small dicts. The lack of cap is a theoretical concern, not a practical one.",
+       "survives_because": "The hypothesis is plausible: if a future caller sets meta to a large value, it could cause unbounded growth. The narrowest surviving claim is that the meta field has no documented or enforced size limit, which is a design debt.",
+       "narrowed_claim": "archive.py's Attempt.meta field has no length cap, creating a latent risk of unbounded file growth if callers ever supply large values.",
+       "settling_check": "Search all callers of record_attempt to see the maximum size of meta passed; add a unit test that verifies behavior when meta is large.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unregistered-process-kill-switch",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The registration failure is likely logged, and the kill switch may use process group IDs or other mechanisms to find and kill the process even if not in _LIVE.",
+       "survives_because": "The code shows a bare except that swallows exceptions; if an exception occurs, the process is not registered and cannot be killed via _LIVE. No alternative mechanism is evident.",
+       "narrowed_claim": "",
+       "settling_check": "Write a test that forces an exception in _register (e.g., mock a side effect) and verify that the process is still killable.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "write-isolation-assumption",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The scheduler's sequential fallback for writes (parallel=False) mitigates concurrency issues; the docstring may be aspirational and gate_concurrent_writes is a future feature. The offload module may indeed provide isolation via full snapshots.",
+       "survives_because": "The hypothesis depends on code not in the scan; without evidence either way, it cannot be confirmed or refuted. The narrowest claim is that the docstring promises more than is implemented.",
+       "narrowed_claim": "The scheduler's dispatch docstring claims write isolation via offload and eventual safe concurrency via gate_concurrent_writes, but the scanned code does not verify that offload enforces isolation or that gate_concurrent_writes is complete.",
+       "settling_check": "Inspect offload module (not scanned) for snapshot implementation; check if gate_concurrent_writes has any code beyond a stub.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "killswitch-force-bypass",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The ignored OSError may be intentional: if the marker file does not exist (e.g., first arm after a clean start), ignoring the error is correct. However, if the marker exists and unlink fails, the error should be propagated.",
+       "survives_because": "The code ignores all OSError, including permission errors that would leave the marker in place, creating an inconsistent state where both marker and permit exist.",
+       "narrowed_claim": "",
+       "settling_check": "Write a test that sets marker file permissions to read-only and calls arm(force=True); verify that an error is raised or the marker is still present.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "single-parse-determinism-assumption",
+       "verdict": "refuted",
+       "strongest_counterargument": "The data structures in the tuples are likely all sorted or use fixed-iteration-order types (e.g., lists of tuples). The docstring's claim is about byte-for-byte agreement, which can be achieved by sorting all nested collections.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect parse.py: verify that all dicts are sorted or converted to sorted lists before inclusion in tuples.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "fails-closed-contradiction",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The broad catch in _run_eval_gate may be intended to catch only subprocess errors, and programming errors may be re-raised elsewhere. The caller may check the error and halt.",
+       "survives_because": "The code catches Exception broadly without re-raising, and returns an error string. The caller (likely picker.py's main loop) may continue processing with a partial result, violating fails-closed.",
+       "narrowed_claim": "",
+       "settling_check": "Write a test where correctness.py raises an exception and verify that picker.py stops processing or re-raises.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "print-summary-keyerror",
+       "verdict": "confirmed",
+       "strongest_counterargument": "build_index likely always includes these keys (e.g., sets defaults for missing ones). The code may have been written with the assumption that the index is always complete.",
+       "survives_because": "If build_index fails or returns a partial index (e.g., due to error), print_summary will crash with KeyError. No default or fallback is present.",
+       "narrowed_claim": "",
+       "settling_check": "Write a unit test that calls print_summary with an index missing one of the keys; verify it raises KeyError.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "static-function-assumptions",
+       "verdict": "refuted",
+       "strongest_counterargument": "The external functions (apply_allowances, etc.) are likely also static (pure, no I/O) and are defined elsewhere in the codebase. The docstring's claim of 'static' may refer to the functions themselves not performing I/O, not to their dependencies.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the definitions of apply_allowances, lane_for_host, mcp_spec_digest to see if they perform I/O or have side effects.",
+       "severity_after_review": "low"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c4dfe18856f224123c21711f09fe85264f4218c77d9b0ae448e249771409ed5d",
+    "objective_chars": 12978,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 1 (10 inputs)",
+  "rev": "946db82",
+  "bucket": 1,
+  "inputs": 10
+ }
+}

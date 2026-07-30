@@ -1,0 +1,199 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c4of6__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c4of6__946db82-5cc865f173",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 6 of ledger.py: schema migration, pragma verification, transaction context manager, and write methods (record_intent, mark_completed, mark_failed).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "pragmas method | medium | Returns dict with keys from hardcoded list; if a pragma fails silently, the value is None; caller must handle None. | Check if callers handle None values.",
+     "record_intent | low | trace_id defaults to current_trace_id() but if that returns None, trace becomes 'None' string. | Verify current_trace_id() returns None or str.",
+     "_migrate | low | Raises SpineError if journal_mode not WAL; but pragmas() reads after migration, which may be after commit; if migration fails to set WAL, error is raised. | Ensure migration sets WAL mode before this check."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "4 of 6",
+     "purpose": "Schema migration, pragma verification, transaction context manager, and write methods for intents.",
+     "symbols": [
+      {
+       "name": "_add_missing_columns",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Adds missing columns to intents table, specifically trace_id if not present."
+      },
+      {
+       "name": "_migrate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Runs schema migration: adds missing columns, executes schema statements, updates schema_version, and checks journal_mode is WAL."
+      },
+      {
+       "name": "pragmas",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dictionary of current pragma settings (journal_mode, synchronous, busy_timeout, foreign_keys) as reported by the database."
+      },
+      {
+       "name": "_txn",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Context manager that begins an IMMEDIATE transaction, yields connection, commits on success, rolls back on exception."
+      },
+      {
+       "name": "record_intent",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Inserts a new intent row and an event, returns an Intent object. Handles trace_id defaulting to current_trace_id()."
+      },
+      {
+       "name": "mark_completed",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Resolves an intent as completed with optional effect_id and result."
+      },
+      {
+       "name": "mark_failed",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Resolves an intent as failed with error string."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Nullable with no default: every pre-existing row becomes trace_id NULL, which is the truth about it -- it was written before any run had a correlation id.",
+       "where": "comment in _add_missing_columns",
+       "verdict": "kept",
+       "why": "The code adds trace_id TEXT column via ALTER TABLE, which makes it nullable with no default, so existing rows get NULL."
+      },
+      {
+       "text": "REPLACE, not INSERT OR IGNORE: a v1 file that has just been migrated in place still carries '1' here, and leaving it would make spine_meta lie about the schema the file now has.",
+       "where": "comment in _migrate",
+       "verdict": "kept",
+       "why": "The code uses INSERT OR REPLACE INTO spine_meta, which will overwrite any existing row with key 'schema_version'."
+      },
+      {
+       "text": "A ledger without WAL loses the durability posture this module is built on; that must be loud, not a quietly weaker guarantee.",
+       "where": "comment in _migrate",
+       "verdict": "kept",
+       "why": "The code raises SpineError if journal_mode is not 'wal' (case-insensitive comparison)."
+      },
+      {
+       "text": "The durability settings AS THE DATABASE REPORTS THEM -- read back, not echoed from what we asked for. A pragma that silently failed to apply is exactly the failure worth surfacing.",
+       "where": "docstring of pragmas",
+       "verdict": "kept",
+       "why": "The method queries PRAGMA values directly from the database, not from a cache or previous set value."
+      },
+      {
+       "text": "Every write runs here. BEGIN IMMEDIATE takes the write lock UP FRONT instead of on first write, so two writers never deadlock upgrading a read transaction (which returns SQLITE_BUSY without consulting the busy handler -- unlike BEGIN IMMEDIATE, which waits out busy_timeout).",
+       "where": "docstring of _txn",
+       "verdict": "kept",
+       "why": "The code executes 'BEGIN IMMEDIATE' at start of context manager, which acquires write lock immediately."
+      },
+      {
+       "text": "effect_key is the caller's after-the-fact identifier for the effect (see the module docstring). It is NOT unique-constrained: a retried intent legitimately reuses the key, and the ledger records both attempts rather than hiding one.",
+       "where": "docstring of record_intent",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the schema definition of effect_key column; no UNIQUE constraint is visible in this chunk."
+      },
+      {
+       "text": "trace_id defaults to the AMBIENT one (:func:`envelope.current_trace_id`), which is why converting this producer required editing no caller. The sole in-tree caller lives in spine/attempt.py; a run that opens envelope.trace_context() anywhere above it gets its intents correlated without that module knowing this feature exists. Outside a traced scope the value is NULL and the row is byte-for-byte what v1 wrote.",
+       "where": "docstring of record_intent",
+       "verdict": "uncheckable",
+       "why": "The code calls current_trace_id() which is imported but not defined in this chunk; the claim about spine/attempt.py is external."
+      },
+      {
+       "text": "payload is re-read from the canonical text, not echoed: what the caller gets back is what a later reader will get back (a tuple stored is a list read), so no code path is written against a shape that only exists in the writing process.",
+       "where": "comment after record_intent insert",
+       "verdict": "kept",
+       "why": "The code returns Intent with payload=json.loads(payload_json), which re-parses the canonical JSON, ensuring consistent types."
+      },
+      {
+       "text": "Close an open intent as COMPLETED. Rejects a second resolution.",
+       "where": "docstring of mark_completed",
+       "verdict": "uncheckable",
+       "why": "The method calls _resolve, which is not defined in this chunk; the rejection logic is not visible."
+      },
+      {
+       "text": "Close an open intent as FAILED. Rejects a second resolution.",
+       "where": "docstring of mark_failed",
+       "verdict": "uncheckable",
+       "why": "Same as above; relies on _resolve not shown here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_add_missing_columns checks for trace_id only; other columns may be missing but not handled.",
+       "where": "_add_missing_columns function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "pragmas method returns a dict with hardcoded keys; if a pragma fails, the value is None, which might be unexpected.",
+       "where": "pragmas method",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "record_intent converts trace_id to string if provided, else calls current_trace_id(); if that returns None, trace becomes 'None' string.",
+       "where": "record_intent function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_migrate checks journal_mode after migration; but if migration fails to set WAL, the check may still pass if the mode was already WAL.",
+       "where": "_migrate function",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6e2938d0087bfb75c638a27a76ef0e161e56d87878bd8571ef945fdf9aa77b18",
+    "objective_chars": 6476,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 361
+ }
+}

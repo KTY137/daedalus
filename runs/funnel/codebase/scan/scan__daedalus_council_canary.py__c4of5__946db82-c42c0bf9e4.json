@@ -1,0 +1,250 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c4of5__946db82",
+ "key": "scan__daedalus_council_canary.py__c4of5__946db82-c42c0bf9e4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Processed chunk 4 of 5 of canary.py: implements default_lanes, LiveCanaryRefused, _adapters_behind, live_egress_lanes, grade, _run_lane, run_canary, _new_run_id, dry_run_plan (partial).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_adapters_behind | medium | The function may miss adapters stored in other closure cells or attributes not checked. | Add a test that verifies all known adapter storage patterns are captured.",
+     "run_canary | medium | Threads are daemon and abandoned at wall clock; hung vendor may leave incomplete results. | Verify that abandoned probes are always recorded as timeout/wall_clock.",
+     "run_canary | low | The plan list is built before threads start, but lane and probe references are shared; if a lane mutates its state, results may be inconsistent. | Confirm that Lane and ProbeSpec are immutable or not mutated during execution."
+    ],
+    "todos": [
+     "Review dry_run_plan implementation to ensure it does not call lane.ask.",
+     "Consider adding explicit handling for thread exceptions to avoid silent failures."
+    ],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "4 of 5",
+     "purpose": "Build default lanes, define live-canary refusal, adapter extraction, egress lane detection, grading, lane runner, run_canary orchestrator, and dry_run_plan stub.",
+     "symbols": [
+      {
+       "name": "default_lanes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds live roster from vendor names; Ollama host passed explicitly."
+      },
+      {
+       "name": "LiveCanaryRefused",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Exception subclass of LiveCouncilRefused for live spend refusal."
+      },
+      {
+       "name": "_adapters_behind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts CouncilAdapter instances from a Lane via adapter, __self__, and __closure__."
+      },
+      {
+       "name": "live_egress_lanes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of lane vendor/model with egress seats from adapters."
+      },
+      {
+       "name": "_TRANSPORT_MAP",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps VendorReply transport status to canary status."
+      },
+      {
+       "name": "grade",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Grades one VendorReply into a ProbeResult; only checks body if status is 'ok'."
+      },
+      {
+       "name": "_run_lane",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs one lane's probes sequentially in a thread with semaphore gate."
+      },
+      {
+       "name": "run_canary",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Probes every lane, bounded, compares to history. Refuses if live=False and egress lanes exist."
+      },
+      {
+       "name": "_new_run_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates a run ID from timestamp and 3 hex bytes."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Stub: plans what would be asked without calling lane.ask."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The Ollama host is passed EXPLICITLY, per call. OLLAMA_HOST is neither read for routing nor written anywhere here, and the local flag is a property of the RESOLVED host rather than of the provider's name",
+       "where": "default_lanes docstring",
+       "verdict": "kept",
+       "why": "Code shows host parameter passed to _CanaryOllama; no read/write of OLLAMA_HOST; local flag determined by _is_local_http(host)."
+      },
+      {
+       "text": "Subclasses the council's refusal ON PURPOSE. 'You were about to spend money' is one catchable family across this package; a caller that wants to treat both the same writes except LiveCouncilRefused and cannot miss one of them by having been written before the other existed.",
+       "where": "LiveCanaryRefused docstring",
+       "verdict": "kept",
+       "why": "LiveCanaryRefused is defined as subclass of LiveCouncilRefused."
+      },
+      {
+       "text": "Three places, because default_lanes is not the only way to build a Lane and a gate that only understood that one path would be a gate with a documented bypass: the adapter field, set by default_lanes; ask.__self__, for a bound method of an adapter; ask.__closure__, which is where _bind keeps its adapter -- so a hand-rolled Lane(ask=_bind(ClaudeAdapter())) is caught too.",
+       "where": "_adapters_behind docstring",
+       "verdict": "kept",
+       "why": "Code checks lane.adapter, ask.__self__, and ask.__closure__ cells."
+      },
+      {
+       "text": "Finding NOTHING means ask is a plain caller-supplied callable, and the verdict for that is deliberately the same one session.live_egress_seats already gives an unrecognised class",
+       "where": "_adapters_behind docstring",
+       "verdict": "uncheckable",
+       "why": "The behaviour of session.live_egress_seats for unrecognised classes is not in this chunk."
+      },
+      {
+       "text": "The classification itself is NOT done here -- it is session.live_egress_seats, imported. This function only resolves a lane back to its adapter(s) and prefixes the lane's identity onto whatever that one classifier says, so the canary and the council can never drift into disagreeing about which seats cost money.",
+       "where": "live_egress_lanes docstring",
+       "verdict": "uncheckable",
+       "why": "The function live_egress_lanes calls live_egress_seats (imported) and prepends lane info; correctness of classification depends on that imported function."
+      },
+      {
+       "text": "The checker runs ONLY on status == 'ok': grading the body of a reply we never received would manufacture a wrong_answer out of an outage, which is the same lie as merging the two statuses.",
+       "where": "grade docstring",
+       "verdict": "kept",
+       "why": "Code checks if reply.status != 'ok' and returns transport error; only calls probe.check when status is 'ok'."
+      },
+      {
+       "text": "Sequential within a lane on purpose: four concurrent calls to the same vendor is a load test, not a health check, and it would make the latency numbers -- the thing the trailing median compares -- meaningless. It is also what keeps a hung vendor to ONE occupied slot rather than four.",
+       "where": "_run_lane docstring",
+       "verdict": "kept",
+       "why": "Code iterates probes sequentially in a loop, no concurrency within lane."
+      },
+      {
+       "text": "Threads are DAEMONS and are ABANDONED at the wall clock rather than joined: a thread cannot be killed, so a hung vendor must degrade the report instead of blocking it. Every abandoned (lane, probe) is still reported -- as timeout/wall_clock -- because a silently dropped row is indistinguishable from a probe that was never scheduled.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "Threads are daemon=True; after deadline, join with timeout; missing results filled with timeout/wall_clock."
+      },
+      {
+       "text": "live is the SPEND OPT-IN and defaults to False. Any lane that still carries a shipped vendor transport (live_egress_lanes) raises LiveCanaryRefused here -- before the run id, before a nonce, before a thread, before one byte is dispatched, and therefore before there is anything for append_history to write. Fake lanes are unaffected, so the offline harness never has to ask for permission it does not need.",
+       "where": "run_canary docstring",
+       "verdict": "kept",
+       "why": "Code checks if not live and live_egress_lanes returns non-empty, raises LiveCanaryRefused before any other processing."
+      },
+      {
+       "text": "What WOULD be asked, of whom. Calls nothing -- no lane.ask is touched. Prompt sizes are computed by BUILDING a sample body, so the plan reports the",
+       "where": "dry_run_plan docstring (truncated)",
+       "verdict": "uncheckable",
+       "why": "The implementation of dry_run_plan is not in this chunk; only the docstring and signature are present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "default_lanes builds Lane objects with adapter field set to the canary adapter instance.",
+       "where": "default_lanes function, line ~860",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "live_egress_lanes uses _adapters_behind to find adapters, then calls imported live_egress_seats.",
+       "where": "live_egress_lanes function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "grade function trims reply content to REPLY_TRIM characters.",
+       "where": "grade function, line ~920",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_run_lane catches BaseException to prevent canary crash from lane.ask exceptions.",
+       "where": "_run_lane function, line ~940",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_canary materialises lanes tuple before checking live and before iterating.",
+       "where": "run_canary function, line ~980",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_canary builds a plan list (lane, probe, box) and uses it to collect results after threads finish.",
+       "where": "run_canary function, lines ~1000-1020",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_canary uses a Semaphore gate with max_parallel (minimum 1) to limit parallel lanes.",
+       "where": "run_canary function, line ~990",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "dry_run_plan is declared but its body is not shown in this chunk.",
+       "where": "dry_run_plan function, line ~1030",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "453d82c44e6fac8289edb628b79424651b086d8baa89501bb55de5e843bbb27c",
+    "objective_chars": 13191,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

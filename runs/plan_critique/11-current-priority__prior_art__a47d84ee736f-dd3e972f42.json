@@ -1,0 +1,60 @@
+{
+ "task_id": "11-current-priority__prior_art__a47d84ee736f",
+ "key": "11-current-priority__prior_art__a47d84ee736f-dd3e972f42",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 11 states priorities but makes no falsifiable architectural claims; the only claim is a resource-allocation rule that is unfalsifiable without defining 'Gate 0' or 'canonical kernel'.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "11.1 | medium | Claim is unfalsifiable: no definition of 'Gate 0' or 'canonical kernel' is provided, so the rule 'wire it through the canonical kernel' cannot be tested or verified. | Define Gate 0 exit criteria and canonical kernel boundaries so that compliance can be checked."
+    ],
+    "todos": [
+     "Define 'Gate 0' and 'canonical kernel' in the master plan to make the priority rule falsifiable."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "11.1",
+       "claim": "Until Gate 0 exits, the default answer to new feature work is: wire it through the canonical kernel or keep it as a disposable, isolated experiment.",
+       "verdict": "unfalsifiable",
+       "why": "The claim sets a resource-allocation rule but relies on undefined terms 'Gate 0' and 'canonical kernel'. Without concrete definitions, no experiment can determine whether the rule is being followed or violated. Prior art in systems architecture (e.g., microkernel vs. monolithic debates) shows that such rules are only meaningful when the kernel boundary is precisely specified. Here, the lack of definition makes the claim unfalsifiable."
+      },
+      {
+       "id": "11.2",
+       "claim": "The next product proof is the Gate 1 ignition slice, not a broader assistant demo.",
+       "verdict": "unclear",
+       "why": "This claim asserts a priority but does not state a testable architectural property. 'Gate 1 ignition slice' and 'broader assistant demo' are not defined, so the claim cannot be evaluated for correctness or novelty. It is a project management statement, not an architectural claim. Prior art in product roadmaps (e.g., Amazon's 'working backwards' process) shows such statements are common but not falsifiable without concrete milestones."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "978d1becaf3df570c7c8aae27140cee8dd3ae65304e564521eefd25a9a4ab725",
+    "objective_chars": 1245,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "11-current-priority",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

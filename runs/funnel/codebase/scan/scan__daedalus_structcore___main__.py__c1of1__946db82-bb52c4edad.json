@@ -1,0 +1,129 @@
+{
+ "task_id": "scan__daedalus_structcore___main__.py__c1of1__946db82",
+ "key": "scan__daedalus_structcore___main__.py__c1of1__946db82-bb52c4edad",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed daedalus/structcore/__main__.py: defines main() and print_summary() with CLI argument handling and summary output.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/__main__.py",
+     "chunk": "1 of 1",
+     "purpose": "CLI entry point for structural index generation and summary printing.",
+     "symbols": [
+      {
+       "name": "print_summary",
+       "kind": "function",
+       "effects": [],
+       "note": "Prints structural summary from index dict."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "CLI entry: parses arguments, calls build_index, optionally writes JSON, prints summary."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Prints a derived, multi-language structural summary for distillation targeting.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The print_summary function outputs structural data including languages, fan-in, hotspots, clones, etc."
+      },
+      {
+       "text": "Works stdlib-only; installs of tree-sitter-language-pack and lizard sharpen it (shown in the backend line).",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references tree-sitter-language-pack or lizard; the backend line in print_summary checks boolean flags from index but the index construction is external."
+      },
+      {
+       "text": "Everything outside it is shell: still resolvable as an import target, but withheld from metrics.",
+       "where": "--center help text",
+       "verdict": "uncheckable",
+       "why": "The argument is defined but the actual behavior depends on build_index and index contents; not verifiable in this chunk."
+      },
+      {
+       "text": "Composes on top of .daedalusignore. '@tests' expands to the test-file preset.",
+       "where": "--ignore help text",
+       "verdict": "uncheckable",
+       "why": "Argument defined but composition and expansion logic is in build_index, not shown."
+      },
+      {
+       "text": "Off by default: it grows total_tokens, which is the distill ratio's denominator.",
+       "where": "--documents help text",
+       "verdict": "uncheckable",
+       "why": "No default value or token logic visible; only argument definition present."
+      },
+      {
+       "text": "Additive -- no existing key moves -- but it adds forest nodes and relation layers, so it is off by default.",
+       "where": "--types help text",
+       "verdict": "uncheckable",
+       "why": "Default behavior and effect on index structure depends on build_index, not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "print_summary accesses keys like 'backend', 'languages', 'fan_in', 'hotspots', 'duplication', 'documents', 'types' from the index dict, assuming they exist.",
+       "where": "print_summary function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() calls build_index with arguments from argparse; the function signature is imported from .index but not shown.",
+       "where": "main function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The --json flag writes to a file using Path.write_text; if path is invalid or unwritable, it will raise an exception.",
+       "where": "main function, line with Path(args.json).write_text",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "print_summary uses .get() with defaults for 'ignored', 'documents', 'types' but directly accesses keys like 'backend', 'languages', 'fan_in', 'hotspots', 'duplication' without defaults, risking KeyError if missing.",
+       "where": "print_summary function",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "37354b0628de91d704513ce08110f302dc5a9a77b14c3bb77a335d04751281ea",
+    "objective_chars": 7981,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/__main__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/__main__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

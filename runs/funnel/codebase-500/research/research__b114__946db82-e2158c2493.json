@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b114__946db82",
+ "key": "research__b114__946db82-e2158c2493",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals a shared assumption about trace_id handling across ledger and eval tasks, and a potential mismatch between task classification and intent recording.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "trace_id may become the string 'None' when current_trace_id() returns None, leading to data inconsistency",
+     "task classification logic may be inconsistent with intent recording if trace_id defaults are not aligned",
+     "hub cap constant 64 is used but its enforcement logic is not visible in the provided chunks"
+    ],
+    "todos": [
+     "Verify that current_trace_id() can return None and that record_intent handles it correctly",
+     "Check that task classification in eval/tasks.py aligns with intent recording in ledger.py",
+     "Confirm that hub cap default 64 is actually enforced in typegraph.py"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "trace-id-string-none",
+       "claim": "Both ledger and eval tasks assume trace_id is always a string, but current_trace_id() may return None, causing the string 'None' to be stored.",
+       "spans": [
+        "daedalus/spine/ledger.py",
+        "daedalus/eval/tasks.py"
+       ],
+       "mechanism": "In ledger.py's record_intent, trace_id is converted to string via str(trace_id) if provided, else current_trace_id() is called. If current_trace_id() returns None, the result is the string 'None'. In eval tasks, trace_id is not explicitly handled, but any use of current_trace_id() would have the same issue.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that current_trace_id() never returns None, or that record_intent explicitly checks for None before converting.",
+       "evidence": [
+        "daedalus/spine/ledger.py: record_intent (line not specified in chunk but function present)",
+        "daedalus/eval/tasks.py: not directly, but assumption about trace_id presence in tasks"
+       ]
+      },
+      {
+       "id": "task-intent-trace-mismatch",
+       "claim": "Task classification in eval/tasks.py assumes tasks have a 'trace_id' field, but ledger.py's record_intent defaults trace_id to current_trace_id(), which may not match the task's trace context.",
+       "spans": [
+        "daedalus/eval/tasks.py",
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "Eval tasks define TASKS with fields including trace_id. When recording intents, ledger.py uses current_trace_id() as default, which may differ from the task's trace_id if the task was created in a different trace context. This could lead to intents being correlated to the wrong trace.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that eval tasks do not carry trace_id, or that record_intent always uses the task's trace_id explicitly.",
+       "evidence": [
+        "daedalus/eval/tasks.py: TASKS (list of task dicts, likely includes trace_id)",
+        "daedalus/spine/ledger.py: record_intent (trace_id defaulting to current_trace_id())"
+       ]
+      },
+      {
+       "id": "hub-cap-default-unenforced",
+       "claim": "The hub cap default value of 64 is defined in typegraph.py but may not be enforced anywhere in the provided chunks, leading to silent acceptance of higher fan-in.",
+       "spans": [
+        "daedalus/structcore/typegraph.py",
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "In typegraph.py, DEFAULT_HUB_CAP is set to 64, but the code that enforces this cap (e.g., checking fan-in and rejecting edges) is not present in the provided chunks. In ledger.py, there is no reference to hub cap, so it's unclear if the cap is applied to intent relations.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the hub cap is enforced elsewhere in typegraph.py or that ledger.py uses the cap.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py: DEFAULT_HUB_CAP",
+        "daedalus/spine/ledger.py: no hub cap usage visible"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d334b8ca0af5d9e670b418aaf363e9d5e10af269a00d992bdf923027ab67b5f6",
+    "objective_chars": 25983,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 114 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 114,
+  "inputs": 4
+ }
+}

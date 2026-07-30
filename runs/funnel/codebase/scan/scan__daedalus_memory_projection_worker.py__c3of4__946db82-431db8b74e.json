@@ -1,0 +1,189 @@
+{
+ "task_id": "scan__daedalus_memory_projection_worker.py__c3of4__946db82",
+ "key": "scan__daedalus_memory_projection_worker.py__c3of4__946db82-431db8b74e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 4 of projection_worker.py: defines helpers (_provider, _warnings, _report) and the run method logic up to dry-run and failure handling.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/projection_worker.py",
+     "chunk": "3 of 4",
+     "purpose": "Implements run method and helper functions for embedding projection worker.",
+     "symbols": [
+      {
+       "name": "_provider",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns provider string from backend, default 'ollama'."
+      },
+      {
+       "name": "_warnings",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of warning strings based on spec, currently checks model_revision."
+      },
+      {
+       "name": "_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructs and returns a WorkerReport with many fields from parameters."
+      },
+      {
+       "name": "run",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Main run method: validates inputs, checks journal existence, resolves spec, scans journal, batches, ingests events, records watermark."
+      }
+     ],
+     "claims": [
+      {
+       "text": "model_revision is pinned, so this index_id differs from the one `daedalus context --latent` searches (that reader resolves a spec with model_revision=None). The latent half will report index_unavailable against this index.",
+       "where": "_warnings",
+       "verdict": "uncheckable",
+       "why": "The claim references behavior of `daedalus context --latent` which is not in this chunk."
+      },
+      {
+       "text": "The recorded content_hash covers the journal prefix below the watermark; if that prefix no longer reproduces, the index was derived from a history this file no longer has.",
+       "where": "run, line about Append-only check",
+       "verdict": "kept",
+       "why": "The code computes a prefix hasher and compares its hexdigest against watermark.content_hash; mismatch leads to 'journal_forked' report."
+      },
+      {
+       "text": "Stop here. Everything below ``watermark_position`` is committed and recorded; this batch is not, and the watermark must not claim otherwise.",
+       "where": "run, inside ingest failure handling",
+       "verdict": "kept",
+       "why": "When ingest fails, code breaks out of loop without updating watermark_position further, and later returns report with watermark_position unchanged."
+      },
+      {
+       "text": "Read from the index, not defaulted: a dry run reporting '0 projections' against an index holding thousands reads as a broken index rather than as an unasked question.",
+       "where": "run, dry_run return",
+       "verdict": "uncheckable",
+       "why": "The claim references index status check not in this chunk; dry_run uses len(projected_hashes) but that is from earlier query."
+      }
+     ],
+     "observations": [
+      {
+       "what": "run method uses _ro_connect for read-only connection; function not defined in chunk.",
+       "where": "run, line conn = _ro_connect(self.db_path)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method calls _stored_specs, _stored_watermark, _stored_source_hashes; not defined in chunk.",
+       "where": "run, lines calling these functions",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method calls scan_journal, projection_event_from_record, projection_source_hash; not defined in chunk.",
+       "where": "run, lines calling these functions",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method calls store.ingest_events_report and store.record_journal_watermark; store is EventVectorStore, methods not defined in chunk.",
+       "where": "run, lines calling these methods",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses DEFAULT_BATCH_SIZE constant; not defined in chunk.",
+       "where": "run, parameter default batch_size = DEFAULT_BATCH_SIZE",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method returns WorkerReport with many fields; WorkerReport class not defined in chunk.",
+       "where": "run, return calls to self._report",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses SpecConflictError; not defined in chunk.",
+       "where": "run, except SpecConflictError",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses resolve_spec function; not defined in chunk.",
+       "where": "run, spec = resolve_spec(...)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses JournalPosition class; not defined in chunk.",
+       "where": "run, empty = JournalPosition(...)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses journal_position function; not defined in chunk.",
+       "where": "run, live = journal_position(self.journal, self.journal_id)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses _prefix_hasher function; not defined in chunk.",
+       "where": "run, hasher = _prefix_hasher(self.journal, start)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses OllamaEmbeddingBackend class; imported but not defined in chunk.",
+       "where": "line self.backend = backend or OllamaEmbeddingBackend(host, timeout=timeout)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run method uses EventVectorStore class; imported but not defined in chunk.",
+       "where": "run, store = EventVectorStore(self.db_path, backend=self.backend)",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "431c35a4d6842f72ed5e3e520a0ad39defb2e104dc6060e0e1dcf8b00cd6369b",
+    "objective_chars": 11790,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/projection_worker.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/memory/projection_worker.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

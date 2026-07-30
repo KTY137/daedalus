@@ -1,0 +1,352 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c1of3__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c1of3__946db82-aa371f7523",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 1 of 3 of daedalus/spine/docrefs.py: module docstring explaining problem, design, anti-gaming, and invariants; imports, constants, data classes, and extraction function definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "module docstring | medium | Claim that `verify_fix` checks resolving count before checking claim removal is stated but cannot be verified in this chunk. | Check chunk 3 for `verify_fix` implementation.",
+     "module docstring | medium | Claim that `verify_fix` can never return `ok` for a change that reduced resolving references is stated but not verifiable here. | Check chunk 3 for `verify_fix` implementation and tests.",
+     "module docstring | low | Claim that `verify_fix` has a test pinning the invariant is stated but no test code is present in this chunk. | Check chunk 2 or 3 for test definitions.",
+     "module docstring | low | Claim that `_NON_MODULE_DOTTED_NAMES` includes `core.autocrlf` and `status.code` as measured corpus ambiguities can be verified against the constant definition present. | No further action needed.",
+     "module docstring | medium | Claim that `DOC_GLOBS` includes `README.md` because policy names it explicitly is stated but policy not shown. | Check policy documentation or code.",
+     "module docstring | low | Claim that `__all__` lists all public symbols \u2013 can verify against the list present. | No further action needed.",
+     "iter_doc_files | low | Claim that function returns sorted, deduplicated tuple of Paths \u2013 can verify from code. | No further action needed.",
+     "_strip_code_blocks | low | Claim that it returns prose lines and drop count \u2013 can verify from signature and docstring. | Check implementation in chunk 2 or 3."
+    ],
+    "todos": [
+     "Verify that `verify_fix` implementation in later chunk matches docstring claims about checking resolving count first.",
+     "Verify that `verify_fix_counts` and `verify_fixes` are defined and tested.",
+     "Verify that `_strip_code_blocks` is implemented correctly.",
+     "Check that `iter_doc_files` uses `DOC_GLOBS` and returns sorted tuple.",
+     "Ensure that `_NON_MODULE_DOTTED_NAMES` is used appropriately in later scanning logic."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "1 of 3",
+     "purpose": "Module docstring, imports, constants, data classes, and extraction function definitions.",
+     "symbols": [
+      {
+       "name": "DOC_GLOBS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of glob patterns for documentation files: docs/**/*.md and README.md."
+      },
+      {
+       "name": "_INLINE_CODE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match single-backtick inline code spans."
+      },
+      {
+       "name": "_FENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match fenced code block delimiters."
+      },
+      {
+       "name": "_LIST_MARKER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match list markers to avoid misinterpreting indented list continuations as code blocks."
+      },
+      {
+       "name": "_PLACEHOLDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to detect placeholder characters like *?<>[]{} or ellipsis."
+      },
+      {
+       "name": "_DOTTED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for dotted references: at least two segments, first lower-case-ish."
+      },
+      {
+       "name": "_PATH_SYMBOL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for path::symbol or path:symbol references."
+      },
+      {
+       "name": "_PATH_ONLY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for bare in-repo module path ending in .py."
+      },
+      {
+       "name": "_MODULE_DUNDERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of module dunder attributes that exist at runtime but not in source."
+      },
+      {
+       "name": "_FILE_EXTENSIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of file extensions to avoid misinterpreting as Python attributes."
+      },
+      {
+       "name": "_NON_MODULE_DOTTED_NAMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of known false-positive dotted names that are not module-symbol references."
+      },
+      {
+       "name": "Reference",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one documentation reference to code."
+      },
+      {
+       "name": "reference_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a string key for a reference excluding line number."
+      },
+      {
+       "name": "DocRefReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding the measurement results: resolving, broken, skipped references."
+      },
+      {
+       "name": "FixVerdict",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a fix verdict with ok flag and details."
+      },
+      {
+       "name": "iter_doc_files",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted, deduplicated tuple of Paths for all doc files in repo."
+      },
+      {
+       "name": "_strip_code_blocks",
+       "kind": "function",
+       "effects": [],
+       "note": "Strips fenced code blocks and indented code lines, returns prose lines and drop count."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A reference in the documentation to a code symbol that does not exist. That is a defect with a reader-visible cost",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes the problem this module exists for, but no actual reference or code symbol is shown in this chunk."
+      },
+      {
+       "text": "A reference to daedalus/hermes/ -- a package that has never existed -- is SKIPPED, not reported",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The logic for skipping non-existent modules is not present in this chunk; only constants and extraction functions are defined."
+      },
+      {
+       "text": "A reference to daedalus.sensitivity.no_such_thing is reported, because daedalus/sensitivity.py is right there and does not contain it",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The resolution logic is not in this chunk; only constants and extraction are defined."
+      },
+      {
+       "text": "Fenced code blocks are transcripts and examples, so they are stripped.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The function `_strip_code_blocks` is defined and its docstring states it drops fenced blocks and indented code lines."
+      },
+      {
+       "text": "A module that will not parse is skipped.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No parsing logic is present in this chunk."
+      },
+      {
+       "text": "A module with a star-import or a module-level __getattr__ has names this module cannot enumerate, so its references are skipped wholesale.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No logic for detecting star imports or __getattr__ is present in this chunk."
+      },
+      {
+       "text": "Each skip is COUNTED and reported",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The counting mechanism (e.g., `skipped_in_code_block` in DocRefReport) is defined but the actual counting logic is not in this chunk."
+      },
+      {
+       "text": "verify_fix can never return ok for a change that reduced the number of references which resolve.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The `verify_fix` function is not defined in this chunk; only `FixVerdict` dataclass is present."
+      },
+      {
+       "text": "A test pins it, including the case where the fixer takes out the entire corpus.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No test code is present in this chunk."
+      },
+      {
+       "text": "This module reads .md files and parses .py files with :mod:`ast`. It never imports the code it inspects, never spawns a process, and never writes.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The chunk imports `ast` and uses `Path` for file operations; no subprocess or write operations are present."
+      },
+      {
+       "text": "DOC_GLOBS: tuple[str, ...] = (\"docs/**/*.md\", \"README.md\")",
+       "where": "line after docstring",
+       "verdict": "kept",
+       "why": "The constant is defined exactly as claimed."
+      },
+      {
+       "text": "An inline-code span. Deliberately single-backtick only: a fenced block is a transcript or an example, and examples name symbols that were never meant to exist.",
+       "where": "comment above _INLINE_CODE",
+       "verdict": "kept",
+       "why": "The comment matches the regex definition: single backticks only, no newline."
+      },
+      {
+       "text": "A fence opener/closer in markdown.",
+       "where": "comment above _FENCE",
+       "verdict": "kept",
+       "why": "The regex matches three or more backticks or tildes with optional whitespace."
+      },
+      {
+       "text": "A list marker, so an indented list continuation is not mistaken for an indented code block.",
+       "where": "comment above _LIST_MARKER",
+       "verdict": "kept",
+       "why": "The regex matches list markers like -, *, +, numbered lists, and blockquotes."
+      },
+      {
+       "text": "Characters that mean the reference is a PATTERN, not a name: a glob, a placeholder, an ellipsis.",
+       "where": "comment above _PLACEHOLDER",
+       "verdict": "kept",
+       "why": "The regex matches *, ?, <, >, [, ], {, }, and ellipsis."
+      },
+      {
+       "text": "A dotted reference: at least two segments, first segment lower-case-ish so Path.resolve and prose like Foo.bar do not enter as module paths.",
+       "where": "comment above _DOTTED",
+       "verdict": "kept",
+       "why": "The regex requires at least one dot, first segment starts with lowercase letter or underscore, subsequent segments start with letter or underscore."
+      },
+      {
+       "text": "path/to/mod.py::symbol and path/to/mod.py:symbol. The colon form requires an IDENTIFIER after it, so daedalus/cli.py:794 (a line number) is not read as a symbol that is missing.",
+       "where": "comment above _PATH_SYMBOL",
+       "verdict": "kept",
+       "why": "The regex matches .py followed by :: or : and then an identifier starting with letter or underscore."
+      },
+      {
+       "text": "A bare in-repo module path, no symbol.",
+       "where": "comment above _PATH_ONLY",
+       "verdict": "kept",
+       "why": "The regex matches paths ending in .py with allowed characters."
+      },
+      {
+       "text": "Attributes every module has at runtime that no source line declares. Asking ast whether daedalus defines __file__ gets the answer no, which is true of the SOURCE and false of the module.",
+       "where": "comment above _MODULE_DUNDERS",
+       "verdict": "kept",
+       "why": "The frozenset includes common dunder attributes like __file__, __name__, etc."
+      },
+      {
+       "text": "A dotted reference whose last segment is one of these is a FILENAME, not an attribute.",
+       "where": "comment above _FILE_EXTENSIONS",
+       "verdict": "kept",
+       "why": "The frozenset includes many file extensions like md, rs, json, etc."
+      },
+      {
+       "text": "Dotted inline-code spans that are demonstrably NOT module-symbol references. These are measured corpus ambiguities, not a general vocabulary blacklist",
+       "where": "comment above _NON_MODULE_DOTTED_NAMES",
+       "verdict": "kept",
+       "why": "The frozenset contains 'core.autocrlf' and 'status.code' as claimed."
+      },
+      {
+       "text": "The identity of a reference ACROSS an edit. Deliberately excludes the line number: correcting a sentence above moves every reference below it, and a key that moved with them would report the original finding as withdrawn for every unrelated edit in the file.",
+       "where": "docstring of reference_key",
+       "verdict": "kept",
+       "why": "The function returns f\"{ref.doc_path}|{ref.raw}\" which excludes line number."
+      },
+      {
+       "text": "Every prose file in the corpus, sorted, deduplicated.",
+       "where": "docstring of iter_doc_files",
+       "verdict": "kept",
+       "why": "The function collects files from DOC_GLOBS, sorts, and deduplicates via set conversion and sorted."
+      },
+      {
+       "text": "Return [(line_no, line)] for prose lines, plus how many were dropped. Two kinds of code are dropped: fenced blocks, and lines indented four or more spaces that are not list continuations.",
+       "where": "docstring of _strip_code_blocks",
+       "verdict": "kept",
+       "why": "The docstring describes exactly what the function returns and the two kinds of code dropped; the function signature matches."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring is extensive and describes design decisions, but some claims refer to functions not present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Constants are well-documented with comments explaining their purpose.",
+       "where": "constants section",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Data classes Reference, DocRefReport, FixVerdict are defined with frozen=True and include to_dict methods.",
+       "where": "records section",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Functions iter_doc_files and _strip_code_blocks are defined but their implementations are incomplete in this chunk.",
+       "where": "extraction section",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The __all__ list includes functions and classes that are defined in this chunk (e.g., DOC_GLOBS, Reference, iter_doc_files) but also includes functions not defined here (e.g., extract_references, resolve_reference, scan, verify_fix, verify_fix_counts, verify_fixes).",
+       "where": "__all__",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module imports ast, re, dataclasses, pathlib, and typing. No subprocess or write operations are imported.",
+       "where": "imports",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1fcad561a77c1f3cd8fff397d468caa95e0c09677a34b5ba2127e6133ae66e77",
+    "objective_chars": 12505,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

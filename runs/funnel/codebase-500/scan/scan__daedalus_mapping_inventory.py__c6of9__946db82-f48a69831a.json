@@ -1,0 +1,113 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c6of9__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c6of9__946db82-f48a69831a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 6 of 9 of daedalus/mapping/inventory.py: build function definition and initial processing of reach/switch reports, entry points, env switches, module census, and stale features.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "build | medium | The function build() is very long and complex, making it hard to maintain and test. | Splitting into smaller functions would reduce complexity.",
+     "build | low | The function uses many local variables (by_module, script_modules, invocations, etc.) that are not used within this chunk but may be used later. | Verify that all variables are used in the remainder of the function.",
+     "build | medium | The claim 'Writes nothing' in the docstring cannot be verified from this chunk alone; it depends on the rest of the function. | Check the rest of build() for any write operations.",
+     "build | low | The docstring mentions 'a CRITICAL survived underneath it' as a historical anecdote, which is not checkable. | This is narrative, not a technical claim."
+    ],
+    "todos": [
+     "Verify that the rest of build() does not write to filesystem.",
+     "Consider refactoring build() into smaller functions for maintainability."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "6 of 9",
+     "purpose": "Define build() function and process reach/switch reports into structured data.",
+     "symbols": [
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Derives the whole document from analysis results; docstring claims it writes nothing."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derive the whole document. Writes nothing.",
+       "where": "docstring of build",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the end of the function, so we cannot verify that no writes occur."
+      },
+      {
+       "text": "``reports`` is the ``(reach, switches)`` pair from :func:`daedalus.mapping.render.analyse_once`. When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all.",
+       "where": "docstring of build",
+       "verdict": "kept",
+       "why": "The code uses `reports or render_mod.analyse_once(root, index)`, confirming the fallback."
+      },
+      {
+       "text": "Calling ``reach.analyse(root)`` with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+       "where": "docstring of build",
+       "verdict": "uncheckable",
+       "why": "This is a historical anecdote; no code in the chunk references reach.analyse."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function build() is defined with many parameters and extensive processing logic; it is a large function.",
+       "where": "line 601",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims the function writes nothing, but the chunk does not include the end of the function, so this cannot be verified.",
+       "where": "docstring of build",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function uses `from . import render as render_mod` inside the function body, which is a lazy import.",
+       "where": "line 610",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code processes entry points, env switches, and modules into structured dictionaries and lists; it appears to be data transformation.",
+       "where": "lines 614-672",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "05cca925ee1a22be55221b98b35704e1b3bf39afce637817c74826fb9772b589",
+    "objective_chars": 5539,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [6/9]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 6,
+  "total": 9,
+  "first_line": 601
+ }
+}

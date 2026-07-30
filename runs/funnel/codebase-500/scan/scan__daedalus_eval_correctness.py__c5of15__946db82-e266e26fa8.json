@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c5of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c5of15__946db82-e266e26fa8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of correctness.py: _spawn_pytest, run_node_ids, TestRunner, validate_task. Verified docstring claims and code behavior.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "run_node_ids docstring | medium | Claims that fallback solo re-run is required because a single bad node aborts the whole batch even with --continue-on-collection-errors. This is an empirical claim about pytest behavior, not verifiable from code alone. | Test with pytest version to confirm.",
+     "run_node_ids | low | When all nodes unattributed and multiple nodes, solo re-runs each, but if solo also fails, status remains NOT_RUN. Could lead to silent failures. | Add logging or check for persistent NOT_RUN.",
+     "validate_task | low | Docstring says 'An EMPTY fail_to_pass is an error', but code only checks if field is missing; empty list passes validation. | Add check for empty fail_to_pass."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "5 of 15",
+     "purpose": "Implements _spawn_pytest, run_node_ids, defines TestRunner, and starts validate_task.",
+     "symbols": [
+      {
+       "name": "_spawn_pytest",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write",
+        "filesystem_delete"
+       ],
+       "note": "Internal function to run pytest subprocess with timeout and cancellation via ManagedProcess or subprocess.run."
+      },
+      {
+       "name": "run_node_ids",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write",
+        "filesystem_delete"
+       ],
+       "note": "Runs pytest for given node ids, first in batch, then solo re-run for unattributed nodes."
+      },
+      {
+       "name": "TestRunner",
+       "kind": "constant",
+       "effects": [],
+       "note": "Type alias for Callable[..., PytestRun] used as injectable test runner."
+      },
+      {
+       "name": "REQUIRED_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of required field names for task dict."
+      },
+      {
+       "name": "validate_task",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of validation errors for task dict, never raises."
+      }
+     ],
+     "claims": [
+      {
+       "text": "keep long node ids on one line",
+       "where": "line 483",
+       "verdict": "kept",
+       "why": "env[\"COLUMNS\"] = \"200\" is set in _spawn_pytest."
+      },
+      {
+       "text": "spine is a hard dep",
+       "where": "line 489",
+       "verdict": "uncheckable",
+       "why": "Comment refers to dependency status not verifiable from this code."
+      },
+      {
+       "text": "Batch first (one interpreter start, ~2.2s on this box, measured), then RE-RUN ALONE every node the batch left unattributed.",
+       "where": "run_node_ids docstring",
+       "verdict": "kept",
+       "why": "Code does batch run then loops over unattributed nodes for solo re-run."
+      },
+      {
+       "text": "a single node id pytest cannot collect aborts the WHOLE invocation with exit 4 and nothing else runs -- even with --continue-on-collection-errors.",
+       "where": "run_node_ids docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about pytest behavior not verifiable from this code."
+      },
+      {
+       "text": "Without the solo re-run, one bad node id would turn every other node in the batch into not_run and the task into could_not_run.",
+       "where": "run_node_ids docstring",
+       "verdict": "uncheckable",
+       "why": "Hypothetical consequence not verifiable from this code."
+      },
+      {
+       "text": "worktree is refused if it is the primary checkout or inside it.",
+       "where": "run_node_ids docstring",
+       "verdict": "uncheckable",
+       "why": "Refusal is delegated to _refuse_primary_checkout, not in this chunk."
+      },
+      {
+       "text": "An EMPTY fail_to_pass is an error, not an empty success: a task with no test that must go from red to green cannot fail, and a measurement that",
+       "where": "validate_task docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring cut off; validation logic not fully shown; empty list may not be flagged as error."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In _spawn_pytest, if ManagedProcess is not None but CancellationUnavailable raised, proc remains None and falls back to subprocess.run.",
+       "where": "lines 492-504",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In run_node_ids, when timed_out is True from batch, the function returns early without solo re-runs.",
+       "where": "lines 540-544",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In run_node_ids, when len(unattributed) == len(nodes) == 1, it returns without solo re-run.",
+       "where": "lines 545-548",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In run_node_ids, containment from solo runs overrides batch containment only if batch containment is 'none'.",
+       "where": "line 556",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "validate_task docstring claims empty fail_to_pass is an error, but code only checks if field is present; empty list would pass.",
+       "where": "lines 564-565",
+       "severity": "high",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d61183b8d6de4a9ce7fff07373ca854e6e909dbf6f95d6539395d8c8a5e9df97",
+    "objective_chars": 6322,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [5/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 5,
+  "total": 15,
+  "first_line": 481
+ }
+}

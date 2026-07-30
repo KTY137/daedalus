@@ -1,0 +1,137 @@
+{
+ "task_id": "research__b045__946db82",
+ "key": "research__b045__946db82-0759db4660",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: 1) Token-counting inconsistency: cl100k over-counts qwen tokens in ollama vs. dss uses same tokenizer for budget; 2) Thread lifecycle mismatch: session.py claims daemon threads but doesn't set daemon flag; 3) Adapter boundary: session defers evidence rendering to adapter, but ollama adapter may not fence evidence as claimed; 4) Anomaly turn handling: session treats anomaly as a turn, but dss budget may not account for its tokens; 5) Write safety: ollama claims no disk writes until all windows pass, but session may force writes on timeout.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Token-counting mismatch could cause budget overrun or underrun across modules.",
+     "Thread daemon attribute not set could cause session hang on cap timeout.",
+     "Evidence fencing responsibility is unclear; adapter may not match session's assumptions.",
+     "Anomaly turn token cost unaccounted in budget, potentially exhausting budget silently.",
+     "Write safety assumption in ollama may be violated by session's timeout or error handling."
+    ],
+    "todos": [
+     "Verify tokenizer used in dss budget calculation; ensure consistency with ollama's cl100k.",
+     "Check session thread creation for daemon flag; align with docstring claim.",
+     "Inspect adapter rendering for evidence fencing; confirm session's assumption.",
+     "Ensure anomaly turn tokens are included in budget calculation.",
+     "Review session's write path for atomicity guarantees; confirm ollama's in-memory assumption."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "tokenizer-mismatch",
+       "claim": "Token-counting across modules uses different tokenizers or assumptions, leading to inconsistent budget enforcement.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/structcore/dss.py"
+       ],
+       "mechanism": "ollama.py uses cl100k tokenizer which over-counts qwen tokens; dss.py uses _estimated_tokens which may use a different tokenizer or heuristic. Budget in ContextPlan is computed based on _estimated_tokens, but actual token consumption in ollama may be higher or lower, causing budget violations.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that dss._estimated_tokens uses cl100k or identical tokenizer and that ollama never over-counts (i.e., uses qwen's tokenizer).",
+       "evidence": [
+        "daedalus/providers/ollama.py:comment in _full_file_content",
+        "daedalus/structcore/dss.py:_estimated_tokens"
+       ]
+      },
+      {
+       "id": "thread-daemon-mismatch",
+       "claim": "Session claims threads are daemons but does not set daemon attribute, risking hang on session timeout.",
+       "spans": [
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "In _dispatch_round, threads are created with default daemon=False. Docstring claims they are daemons and abandoned at cap. If a thread hangs, it will block session shutdown, contrary to design.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that threads are explicitly set daemon=True elsewhere in session.py (not in this chunk) or that session uses a timeout mechanism that kills threads.",
+       "evidence": [
+        "daedalus/council/session.py:observation 4",
+        "daedalus/council/session.py:_dispatch_round"
+       ]
+      },
+      {
+       "id": "evidence-fencing-boundary",
+       "claim": "Session assumes adapter fences evidence in fenced blocks, but adapter may not implement this, leading to injection risk.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "Session._round_body defers evidence placement to adapter, claiming it is inside fenced blocks. ollama.py does not show any fencing logic; it only truncates tool messages and rewrites files. If adapter does not fence, untrusted evidence can inject instructions.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that ollama.py or another adapter implements evidence fencing (e.g., wrapping in <evidence> tags) before rendering.",
+       "evidence": [
+        "daedalus/council/session.py:claim 3",
+        "daedalus/providers/ollama.py:no fencing observed"
+       ]
+      },
+      {
+       "id": "anomaly-token-cost",
+       "claim": "Anomaly turns are treated as regular turns but their token cost may not be accounted in budget.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/structcore/dss.py"
+       ],
+       "mechanism": "Session._anomaly_reason returns a reason string; anomaly turns are included in rounds as regular turns. dss ContextPlan budget is computed from _estimated_tokens, which may not include tokens from anomaly turns. This could cause budget overrun.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that session explicitly adds anomaly turn tokens to budget tracking, or that dss budget is computed after all turns are assembled.",
+       "evidence": [
+        "daedalus/council/session.py:_anomaly_reason",
+        "daedalus/structcore/dss.py:ContextPlan"
+       ]
+      },
+      {
+       "id": "write-safety-assumption",
+       "claim": "Session may force writes before ollama's in-memory validation completes, breaking atomicity.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "ollama._rewrite_by_window claims 'nothing reaches disk unless every window passed'. However, session may call adapters and write results to disk without waiting for ollama's all-windows validation. If session writes partial results, atomicity is violated.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that session only writes after adapter returns success, or that ollama's caller enforces atomicity.",
+       "evidence": [
+        "daedalus/providers/ollama.py:claim 7",
+        "daedalus/council/session.py:write behavior not shown"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b761b481c23115f28d7dfb47b1397afc37976d8c94ac4cdaa6fce89ac850d3e6",
+    "objective_chars": 19786,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 45 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 45,
+  "inputs": 4
+ }
+}

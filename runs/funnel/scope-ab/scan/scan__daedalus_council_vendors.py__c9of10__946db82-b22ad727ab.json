@@ -1,0 +1,187 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c9of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c9of10__946db82-b22ad727ab",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed vendors.py chunk 9: OllamaBenchAdapter class, vendor availability dataclass and function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OllamaBenchAdapter.__init__ | medium | host.rstrip('/') may modify URL; if host is '/' it becomes empty string. | Check if host can be '/' and if empty string is acceptable.",
+     "OllamaBenchAdapter._dispatch | medium | Over-budget prompt returns 'over_context_budget' but does not raise exception; caller must handle error status. | Verify all callers check status field before using content.",
+     "available_vendors | low | agy_signed_in default is False, but comment says 'operator asserts sign-in'; no mechanism to assert from outside. | Ensure there is a way to set agy_signed_in to True when appropriate."
+    ],
+    "todos": [
+     "Verify that lane_for_host('trusted') is correct for default host and that local attribute is used consistently.",
+     "Ensure that effective_input_window() and count_tokens() are defined and work as expected.",
+     "Check that VendorAvailability dataclass is used correctly in the registry."
+    ],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "9 of 10",
+     "purpose": "Defines OllamaBenchAdapter class and VendorAvailability dataclass with available_vendors function.",
+     "symbols": [
+      {
+       "name": "OllamaBenchAdapter",
+       "kind": "class",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Adapter for a bench Ollama host; overrides _dispatch with budget check and error handling."
+      },
+      {
+       "name": "OllamaBenchAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Sets host, output_reserve, _chat, endpoint, and local attribute via lane_for_host."
+      },
+      {
+       "name": "OllamaBenchAdapter.independence_class",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns tuple ('local', model_family(self.model)). Not keyed on host."
+      },
+      {
+       "name": "OllamaBenchAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Checks token budget, calls _chat, returns status dict with error handling."
+      },
+      {
+       "name": "VendorAvailability",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for cheap probe result; fields vendor, adapter, available, reason, detail, independence_class, endpoint, lane."
+      },
+      {
+       "name": "available_vendors",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of VendorAvailability; uses injectable which and http_probe; no model invoked."
+      }
+     ],
+     "claims": [
+      {
+       "text": "loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.",
+       "where": "comment before class",
+       "verdict": "uncheckable",
+       "why": "Refers to egress lane predicate not defined in this chunk."
+      },
+      {
+       "text": "Over-budget prompts are REFUSED LOUDLY.",
+       "where": "comment before class",
+       "verdict": "kept",
+       "why": "_dispatch returns error dict with 'over_context_budget' reason and stderr message."
+      },
+      {
+       "text": "Ollama HEAD-truncates an over-long prompt -- it eats the system prompt first -- so a silently truncated council turn is a reviewer that never saw the question it is answering.",
+       "where": "comment before class",
+       "verdict": "uncheckable",
+       "why": "Describes Ollama behavior not verified in this chunk."
+      },
+      {
+       "text": "The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented.",
+       "where": "comment before class",
+       "verdict": "uncheckable",
+       "why": "Refers to _ollama_native and effective_input_window not defined in this chunk."
+      },
+      {
+       "text": "ONE predicate, shared with the egress gate it feeds. Not a local copy: ``local`` and ``lane`` must never be able to disagree about the same host, and they did (``[::1]`` was local-but-untrusted).",
+       "where": "comment in __init__",
+       "verdict": "uncheckable",
+       "why": "Refers to egress gate and lane logic outside this chunk."
+      },
+      {
+       "text": "Deliberately NOT keyed on host: local 7b and bench 7b are the same weights, so they must collide as one class.",
+       "where": "docstring of independence_class property",
+       "verdict": "kept",
+       "why": "Property returns ('local', model_family(self.model)) without host."
+      },
+      {
+       "text": "Cheap probe result.  No model is invoked to produce this.",
+       "where": "docstring of VendorAvailability",
+       "verdict": "kept",
+       "why": "Dataclass has no methods; used in available_vendors which does not invoke models."
+      },
+      {
+       "text": "Which vendors could be seated, established by CHEAP PROBES ONLY.",
+       "where": "docstring of available_vendors",
+       "verdict": "kept",
+       "why": "Function uses injectable which and http_probe; comment says no model invoked."
+      },
+      {
+       "text": "Does the binary exist; does the Ollama host answer ``/api/version``.  No model is invoked, no prompt is sent, nothing is billed.",
+       "where": "docstring of available_vendors",
+       "verdict": "uncheckable",
+       "why": "http_probe defaults to server_reachable; actual probe behavior not shown in this chunk."
+      },
+      {
+       "text": "``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.",
+       "where": "docstring of available_vendors",
+       "verdict": "uncheckable",
+       "why": "agy handling not shown in this chunk; only agy_signed_in parameter is present."
+      },
+      {
+       "text": "Both callables are injectable so a test can establish availability with no CLI on PATH and no network.",
+       "where": "docstring of available_vendors",
+       "verdict": "kept",
+       "why": "Function signature includes which and http_probe parameters with defaults."
+      }
+     ],
+     "observations": [
+      {
+       "what": "OllamaBenchAdapter.__init__ sets self.local based on lane_for_host(self.host) == 'trusted'. The comment explains this is to avoid disagreement with egress lane.",
+       "where": "line ~985-990",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "OllamaBenchAdapter._dispatch returns error dict with status 'over_context_budget' if token count exceeds window. It also handles ProviderHTTPError with specific checks for timeout and connectivity.",
+       "where": "lines ~1000-1030",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "available_vendors returns a tuple of VendorAvailability. In this chunk, only ClaudeAdapter availability is computed (using which('claude')).",
+       "where": "lines ~1050-1060",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4ce0e00dff8edf54a226a171b6fc0453e669dd63b5106e69569610660386a64e",
+    "objective_chars": 6522,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [9/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 9,
+  "total": 10,
+  "first_line": 961
+ }
+}

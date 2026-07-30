@@ -1,0 +1,115 @@
+{
+ "task_id": "4-constitutional-invariants__falsifier__a47d84ee736f",
+ "key": "4-constitutional-invariants__falsifier__a47d84ee736f-9790a92d3f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most claims are unfalsifiable as written due to missing operational definitions; only claims 4.2, 4.4, 4.8, and 4.9 are partially falsifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "4.1 | high | 'One kernel' is unfalsifiable: no operational definition of 'canonical contract and event spine' is given, so no experiment can disprove it. | Propose a concrete contract schema and event log; then verify that all paths use exactly that schema and log.",
+     "4.3 | high | 'Isolation' is unfalsifiable: 'capability-bounded' and 'cannot modify' lack a defined capability model and list of forbidden modifications. | Define a capability system (e.g., seccomp or Wasm) and a list of protected resources; then attempt a modification from a candidate.",
+     "4.5 | high | 'Sealed promotion' is unfalsifiable: 'evidence packet', 'policy checks', and 'explicit owner approval' are undefined. | Define the format of an evidence packet, the list of policy checks, and the authentication mechanism for owner approval; then demonstrate a promotion without one of these.",
+     "4.6 | high | 'Atomic revisions' is unfalsifiable: 'consistent and reproducible' and 'partial graph states do not masquerade' lack testable criteria. | Define a revision hash that includes all cross-plane snapshots; then show that any partial graph produces a different hash.",
+     "4.7 | high | 'Provenance' is unfalsifiable: 'carry origin, revision, inputs, cost, outcome, and evidence' is a design goal, not a testable invariant. 'Failures and rejected candidates remain inspectable' is also vague. | Define a required set of fields for every action and claim; then verify that all records include them and that failures are stored in an accessible log.",
+     "4.10 | high | 'No silent constitution change' is unfalsifiable: 'amendment chain', 'active instructions', and 'guards' are undefined. | Define the amendment protocol, the list of active instructions, and the guards; then show that a change bypassing the protocol is rejected."
+    ],
+    "todos": [
+     "For each invariant, replace vague terms with concrete, testable definitions: e.g., define 'canonical contract' as a specific smart contract address, 'capability-bounded' as a specific sandbox, 'evidence packet' as a JSON schema, etc.",
+     "Add a section that specifies the exact experiment or monitoring procedure that would falsify each invariant.",
+     "Remove or operationalize claims that are normative design goals rather than testable invariants."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "4.1",
+       "claim": "There is one canonical contract and event spine for all mission, attempt, evidence, campaign, policy, budget, and promotion state.",
+       "verdict": "unfalsifiable",
+       "why": "The claim does not define what constitutes a 'canonical contract and event spine' or how to verify that all paths use exactly one. No experiment can disprove the existence of an alternative spine without an operational definition. A falsifiable version would specify a concrete contract address or schema and require that all state changes are recorded there."
+      },
+      {
+       "id": "4.2",
+       "claim": "Authoritative sources remain the truth; candidate source trees and code are content-addressed artifacts; a graph delta is not candidate identity.",
+       "verdict": "sound",
+       "why": "The claim is falsifiable: if a candidate source tree is not content-addressed (e.g., mutable), or if a graph delta is treated as the candidate's identity (e.g., a patch applied to a base), the claim is false. A simple test: compute a hash of the source tree; if the tree can change without the hash changing, the claim is violated."
+      },
+      {
+       "id": "4.3",
+       "claim": "Candidate execution is capability-bounded and cannot modify its evaluator, policy, evidence, budget ledger, or promotion mechanism.",
+       "verdict": "unfalsifiable",
+       "why": "The claim does not define 'capability-bounded' or list all forbidden modifications. Without a concrete capability model and a list of protected resources, any modification could be argued to be outside the scope. A falsifiable version would specify a sandbox (e.g., seccomp filter or Wasm runtime) and a list of system calls or resources that are denied."
+      },
+      {
+       "id": "4.4",
+       "claim": "Models and embeddings may propose; deterministic or independently controlled evaluators decide whether evidence is valid.",
+       "verdict": "sound",
+       "why": "Falsifiable: if an evaluator is non-deterministic or controlled by the same entity that proposes, the claim is violated. Test: run the same evaluation twice and check for same result; audit evaluator independence (e.g., separate signing keys or organizational separation)."
+      },
+      {
+       "id": "4.5",
+       "claim": "No candidate auto-merges or self-promotes; promotion requires an evidence packet, policy checks, and explicit owner approval.",
+       "verdict": "unfalsifiable",
+       "why": "The terms 'evidence packet', 'policy checks', and 'explicit owner approval' are not defined. Without definitions, any promotion could be argued to satisfy these requirements. A falsifiable version would specify the exact format of the evidence packet, the list of policy checks, and the authentication mechanism for owner approval."
+      },
+      {
+       "id": "4.6",
+       "claim": "Cross-plane snapshots, evidence locators, and their source revision are consistent and reproducible; partial graph states do not masquerade as a revision.",
+       "verdict": "unfalsifiable",
+       "why": "'Consistent and reproducible' and 'do not masquerade' are not testable without a definition of what constitutes a revision and how consistency is measured. A falsifiable version would define a revision hash that includes all snapshots and locators, and require that any partial state produces a different hash."
+      },
+      {
+       "id": "4.7",
+       "claim": "Material actions and claims carry origin, revision, inputs, cost, outcome, and evidence; failures and rejected candidates remain inspectable.",
+       "verdict": "unfalsifiable",
+       "why": "The claim states a design goal but does not specify which actions or claims are 'material', what format the data must be in, or how inspectability is ensured. A falsifiable version would define a required set of fields for all actions and claims, and require that all records are stored in an accessible log with retention guarantees."
+      },
+      {
+       "id": "4.8",
+       "claim": "Spend, egress, write roots, concurrency, secrets, and a kill switch are enforced at effect boundaries, not entrusted to prompts.",
+       "verdict": "sound",
+       "why": "Falsifiable: if any of these effects are controlled by prompts rather than enforced by a runtime boundary, the claim is violated. Test: attempt to exceed a spend limit or egress via prompt injection; if successful, the claim is false."
+      },
+      {
+       "id": "4.9",
+       "claim": "Comparative claims use frozen tasks, equal budgets, declared hardware/models, repeated trials, uncertainty, and relevant baselines; no benchmark is trained on its hidden test.",
+       "verdict": "sound",
+       "why": "Falsifiable: if a comparative claim uses a mutable task, unequal budgets, undeclared hardware, single trial, no uncertainty, irrelevant baseline, or a benchmark that has been trained on its test set, the claim is violated. Each condition can be checked."
+      },
+      {
+       "id": "4.10",
+       "claim": "This plan, its amendment chain, active instructions, and guards change only through the amendment protocol in section 15.",
+       "verdict": "unfalsifiable",
+       "why": "The claim does not define 'amendment chain', 'active instructions', or 'guards'. Section 15 is not provided, so the protocol is unknown. A falsifiable version would specify the exact amendment protocol and require that any change not following it is detected (e.g., by a hash check or access control log)."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1a51e2ee7d18540dbd9fe6067aa236ee61c9780b7e03fce7de6454012c943ba4",
+    "objective_chars": 2774,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "4-constitutional-invariants",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

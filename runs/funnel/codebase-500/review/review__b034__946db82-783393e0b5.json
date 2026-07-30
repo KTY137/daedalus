@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b034__946db82",
+ "key": "review__b034__946db82-783393e0b5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted: each fails against missing evidence, misinterpretation of code, or stronger counterarguments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "council-memory-leak",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows the memory projection worker's journal is explicitly a separate file with content-hash verification; the council transcript is a different store. No code path passes council data to the memory worker.",
+       "survives_because": "The hypothesis relies on a claim ('council records are never an input to memory recall') that is not present in the cited file; the cited source shows the worker's journal is independent.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'council' daedalus/memory/projection_worker.py to confirm no reference to council transcript.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "budget-enforcement-split",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _report.py imports reserve from budget.py, indicating a shared function; the split is intentional and the imports ensure consistency.",
+       "survives_because": "The hypothesis claims risk of inconsistency, but the code shows a single reservation function is called. The comment 'see daedalus/budget.py for why enforcement cannot live in one place' acknowledges the split is deliberate.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect daedalus/budget.py to verify reserve function exists and is used consistently.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "budget-exhaustion-not-enforced",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source only shows module docstrings; the actual enforcement logic is not in these lines. The hypothesis makes a claim about session.py but provides no evidence from that file. The ollama.py excerpt shows imports, not budget logic.",
+       "survives_because": "The cited source does not include the relevant enforcement code. The hypothesis is based on a comment interpretation but no actual code is shown.",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/council/session.py and search for budget exhaustion check around line 1240.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unreachable-module-tracking",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis provides no cited source for drift.py or forest.py; the claim is speculative without evidence.",
+       "survives_because": "No code is provided to verify the claim. The evidence list references files but no actual source is cited.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect drift.py and forest.py to see how reachability is determined and whether forest nodes include unreachable modules.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "missing-classify-partner",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the docstring and first 40 lines of ceiling.py, not the loop in question. The functions _classify and _partner_counts are likely defined elsewhere in the file or imported.",
+       "survives_because": "The chunk is incomplete; the functions may be defined later. The hypothesis assumes they are missing based on a partial view.",
+       "narrowed_claim": "",
+       "settling_check": "Open the full ceiling.py and search for definitions of _classify and _partner_counts.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "limit-consistency-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source (lines 170-219) does not contain spawn_contained; it shows imports and constants. The hypothesis references lines 1321-1348 which are not in the provided chunk.",
+       "survives_because": "The evidence does not include the actual spawn_contained code. The claim about read-back validation is untestable with the given source.",
+       "narrowed_claim": "",
+       "settling_check": "Examine spawn_contained in containment.py to see if read-back compares to requested or set value.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "token-cap-multiplier",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the module docstring; the actual eval_task_arms function is not included. The multiplier 4 is likely intentional (e.g., 4 characters per token heuristic) and documented elsewhere.",
+       "survives_because": "No code is provided to verify the claim. The hypothesis infers from an observation but lacks evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Open eval_task_arms in harness.py and search for _DEFAULT_MODEL_CAP_TOKENS to see the multiplier context.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "mutant-egress-overlap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for mutate.py shows only the docstring; slice.py shows only the module docstring and imports. The actual egress gate logic is not provided. The hypothesis speculates about interaction without evidence.",
+       "survives_because": "The provided chunks do not contain the relevant code. The claim is based on incomplete information.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect slice.py around lines 522-528 to see the withheld mechanism and check if mutation testing uses slicing.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unfulfilled-dataclass-contracts",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for embeddings.py includes a section 'What is actually ENFORCED by code in this module' which lists the append-only check and other guarantees. The dataclass docstrings describe intended behavior, but enforcement is present elsewhere in the same file (not shown in the chunk).",
+       "survives_because": "The hypothesis claims enforcement is missing, but the docstring explicitly states what is enforced. The provided chunk is incomplete; the enforcement code likely exists later in the file.",
+       "narrowed_claim": "",
+       "settling_check": "Search embeddings.py for 'record_journal_watermark' to verify the append-only check implementation.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9daee0df45aae6b564176d06d659c71ed5f83cb9f38eb175656fcbfb56a8e572",
+    "objective_chars": 40763,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 34 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 34,
+  "inputs": 9
+ }
+}

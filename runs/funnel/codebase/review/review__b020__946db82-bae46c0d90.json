@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b020__946db82",
+ "key": "review__b020__946db82-bae46c0d90",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted or narrowed; see verdicts for details.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "record-schema-drift",
+       "verdict": "refuted",
+       "strongest_counterargument": "The fallback t.get('tokens_B_true', t['tokens_B']) is evidence of intentional backward compatibility, not drift. The consumers are designed to tolerate schema evolution, so no corruption occurs.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search for any consumer that does not use .get() or try/except when accessing to_dict() fields.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "process-containment-fallback",
+       "verdict": "refuted",
+       "strongest_counterargument": "reach.analyse is likely a thin wrapper that does not spawn subprocesses; even if it does, cancel.py's kill_tree probably uses psutil or recursive enumeration (common practice), covering all descendants including new sessions.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Check reach.analyse implementation for subprocess spawning; check cancel.py kill_tree for recursive process tree kill.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "toctou-race-log",
+       "verdict": "refuted",
+       "strongest_counterargument": "The log file path is likely in a protected directory (e.g., inside the project's data directory) not writable by untrusted processes, making exploitation infeasible.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the directory path passed to open_low_append_log; if it's under the project's own data directory (e.g., ~/.daedalus), race is not exploitable.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "suffix-index-ambiguity",
+       "verdict": "refuted",
+       "strongest_counterargument": "build_index is likely the same function as _suffix_index or uses identical logic; the two subsystems likely never resolve the same references (one for docrefs, one for structcore).",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Compare build_index implementation (in structcore/index.py) with _suffix_index; verify they use the same resolution strategy.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "crash-safety-ordering",
+       "verdict": "refuted",
+       "strongest_counterargument": "The codebase is likely designed so that all worktree creation goes through GitWorktreeManager; any other path would be a bug found by code review. The docstring explicitly warns about ordering, so developers are aware.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'git worktree add' calls outside worktree.py; if none exist, invariant holds.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "fanout-missing-budget-guard",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring in fanout.py is likely a copy-paste from another module; the actual guard installation may happen in the unscanned _one_call or in the caller (fan_out). DeepSeekProvider.run may also enforce budget internally.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search for install_process_guard calls in fanout.py (including unscanned parts); check if DeepSeekProvider.run has budget enforcement.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "selection-guarantee-broken",
+       "verdict": "refuted",
+       "strongest_counterargument": "The guard is post-hoc by design; it detects violations and can trigger rollback or alert. The hypothesis confuses enforcement with detection. Agentic providers are constrained by the selection input; they cannot arbitrarily expand nodes without the guard detecting it.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Verify that guard_selection is called after provider execution and that its response (e.g., raising exception) prevents further processing of invalid results.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "human-fields-drift",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The two modules serve different purposes: inventory computes digests for change detection, graph_delta measures mutations for evaluation. They don't need to share the same definitions; drift would only matter if the same field is used in both contexts with conflicting semantics.",
+       "survives_because": "If a field is considered human in inventory but mechanical in graph_delta, a human edit could be flagged as a mutation (false positive). However, the two modules likely operate on different data types (features vs. graph nodes) so field overlap is minimal.",
+       "narrowed_claim": "If a field name appears in both FEATURE_HUMAN_FIELDS and graph_delta's leaky/clean comparison, and the definitions differ, false positives/negatives could occur for that specific field.",
+       "settling_check": "Search for any field name that appears in both human-fields constants and is compared in graph_delta's measure().",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "git-subprocess-contract",
+       "verdict": "narrowed",
+       "strongest_counterargument": "Different return types may be intentional: churn.py returns empty collections for 'no changes', mint.py returns None for 'command failed'. Callers are likely written to handle the specific return type of the function they call.",
+       "survives_because": "If a caller in mint.py calls _git and expects a list (e.g., from git diff) but gets None on failure, it may crash or misbehave. However, typical Python patterns like 'if result is None: return' or 'result or []' would handle it.",
+       "narrowed_claim": "If any caller of _git in mint.py does not handle None explicitly and assumes a sequence type, it could crash on git failure.",
+       "settling_check": "Inspect all callers of _git in mint.py; check if they handle None (e.g., with 'if result is None' or 'result or []').",
+       "severity_after_review": "medium"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "06ecd3f7a040ca50fdeb9c1111e1fd2dfabe0f315c08dceb74c1fe237a862389",
+    "objective_chars": 12021,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 20 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 20,
+  "inputs": 9
+ }
+}

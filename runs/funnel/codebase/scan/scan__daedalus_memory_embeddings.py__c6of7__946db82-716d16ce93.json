@@ -1,0 +1,189 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c6of7__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c6of7__946db82-716d16ce93",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Embeddings chunk 6 of 7: search_report, search, list_indexes, index_status, legacy_unversioned_count.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "search_report line ~1414 | medium | journal_freshness method not present in chunk; freshness mapping may be incomplete or incorrect. | Check journal_freshness implementation.",
+     "search_report line ~1420 | medium | _verify_identity method not present; drift detection logic unknown. | Verify _verify_identity returns None or a status.",
+     "search_report line ~1430 | medium | ProjectionFilter class not defined in chunk; constructor signature assumed. | Confirm ProjectionFilter accepts project, trust, source.",
+     "search_report line ~1445 | low | _coerce_vector and _unpack_embedding not defined; may raise if dimension mismatch. | Ensure these functions handle all cases.",
+     "search_report line ~1470 | low | _cosine function not defined; assumes it exists. | Check _cosine implementation.",
+     "search_report line ~1480 | low | AgentEvent constructor assumed; fields like event_id, event_type, content, timestamp, metadata_json must exist in row. | Verify AgentEvent fields.",
+     "index_status line ~1520 | medium | anchor_provenance method not present; anchor value logic unknown. | Check anchor_provenance implementation.",
+     "index_status line ~1525 | low | pins_model_revision attribute on EmbeddingSpec assumed. | Confirm EmbeddingSpec has pins_model_revision.",
+     "legacy_unversioned_count line ~1545 | low | Table name 'legacy_agent_events_v1' assumed; may not exist. | Check schema for this table."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "6 of 7",
+     "purpose": "Search and index status methods for EmbeddingStore.",
+     "symbols": [
+      {
+       "name": "search_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Searches exactly one versioned index and returns a SearchReport with status, matches, spec, and freshness."
+      },
+      {
+       "name": "search",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Compatibility wrapper that returns only matches from search_report."
+      },
+      {
+       "name": "list_indexes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of EmbeddingSpec from embedding_indexes table."
+      },
+      {
+       "name": "index_status",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns IndexStatus for a given spec, including projection count, legacy count, freshness, and anchor."
+      },
+      {
+       "name": "legacy_unversioned_count",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns count from legacy_agent_events_v1 table if it exists."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pass ``journal`` to have the result assert freshness against the authoritative journal.  Without it the report is ``freshness == \"unanchored\"``: the index may be arbitrarily far behind and this call cannot tell you.",
+       "where": "search_report docstring line 1411",
+       "verdict": "uncheckable",
+       "why": "The behavior of journal_freshness and the freshness mapping is not fully defined in this chunk; the mapping includes 'unanchored' but the logic depends on journal_freshness method."
+      },
+      {
+       "text": "only cosine similarity is supported",
+       "where": "search_report line 1418",
+       "verdict": "kept",
+       "why": "The code raises ValueError if metric != 'cosine'."
+      },
+      {
+       "text": "limit must be positive",
+       "where": "search_report line 1420",
+       "verdict": "kept",
+       "why": "Code raises ValueError if limit <= 0."
+      },
+      {
+       "text": "pass either filters or individual provenance filters",
+       "where": "search_report line 1422",
+       "verdict": "kept",
+       "why": "Code raises ValueError if filters is not None and any of project, trust, source is not None."
+      },
+      {
+       "text": "This wrapper discards ``status`` and ``freshness``, so it cannot tell a drifted or stale index from a healthy one.",
+       "where": "search docstring line 1493",
+       "verdict": "kept",
+       "why": "The method returns only .matches from search_report, ignoring status and freshness."
+      }
+     ],
+     "observations": [
+      {
+       "what": "search_report returns early with status if backend.embed raises EmbeddingUnavailableError or EmbeddingProtocolError.",
+       "where": "search_report lines 1430-1440",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report returns early if _validate_batch raises TypeError or ValueError.",
+       "where": "search_report line 1445",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report returns early if index_id not found in embedding_indexes table.",
+       "where": "search_report line 1450",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report returns early if _verify_identity returns non-None drift.",
+       "where": "search_report line 1455",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report returns early if freshness_status.available is False.",
+       "where": "search_report line 1465",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report constructs SQL with filters and iterates over rows, computing cosine similarity and building AgentEvent.",
+       "where": "search_report lines 1470-1490",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "search_report returns stale status if freshness == 'stale', else ready.",
+       "where": "search_report lines 1495-1510",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "index_status returns index_unavailable if projection_count == 0, else ready with caveats.",
+       "where": "index_status lines 1525-1540",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "legacy_unversioned_count checks for table existence and returns 0 if not present.",
+       "where": "legacy_unversioned_count lines 1545-1550",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aa0fe66af5e1e1d68a7d443d7f5b6bfb6066cfb79821eec190faf25025007bb0",
+    "objective_chars": 10514,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 1401
+ }
+}

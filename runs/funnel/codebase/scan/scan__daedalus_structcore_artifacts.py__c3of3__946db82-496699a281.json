@@ -1,0 +1,109 @@
+{
+ "task_id": "scan__daedalus_structcore_artifacts.py__c3of3__946db82",
+ "key": "scan__daedalus_structcore_artifacts.py__c3of3__946db82-496699a281",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 3 of 3 of daedalus/structcore/artifacts.py: two functions with schema comparison and provenance chain walking.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "chain_from | medium | max_hops default 8 may be too low for deep chains; no config parameter exposed | Check if callers can override max_hops or if 8 is sufficient for typical use cases.",
+     "chain_from | low | artifact_node_id and artifact_family are imported but not defined in this chunk; chain relies on them | Verify these functions exist and behave as expected.",
+     "chain_from | low | frontier is built from reads.get(producer, []) but reads are keyed by source; chain may miss producers that read nothing | Review data model to confirm this is intended."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/artifacts.py",
+     "chunk": "3 of 3",
+     "purpose": "Defines SchemaComparison construction and chain_from function for artifact provenance.",
+     "symbols": [
+      {
+       "name": "chain_from",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Walks produce/consume chain backwards from an artifact; returns list of hop dicts; deterministic, bounded by max_hops (default 8)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Answers 'where did this figure come from' \u2014 the question a thesis reviewer asks.",
+       "where": "chain_from docstring",
+       "verdict": "kept",
+       "why": "The function returns a chain of producers and inputs, which indeed traces the origin of an artifact."
+      },
+      {
+       "text": "Deterministic (sorted frontier), bounded, and it reports the hop that ran out rather than presenting a truncated chain as complete.",
+       "where": "chain_from docstring",
+       "verdict": "kept",
+       "why": "Frontier is built from sorted sets; loop is bounded by max_hops; when frontier empties it breaks, and if max_hops reached it appends a truncated note."
+      },
+      {
+       "text": "Walk the produce/consume chain backwards from an artefact.",
+       "where": "chain_from docstring",
+       "verdict": "kept",
+       "why": "The function starts from target_rel and iteratively finds producers and their inputs."
+      },
+      {
+       "text": "max_hops: int = 8",
+       "where": "chain_from signature",
+       "verdict": "kept",
+       "why": "Default value is 8 as shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "chain_from uses artifact_node_id and artifact_family which are not defined in this chunk.",
+       "where": "chain_from, line ~580",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chain construction may miss producers that read nothing because reads.get(producer, []) is used; reads are keyed by source.",
+       "where": "chain_from, frontier construction",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "max_hops default of 8 is arbitrary and may truncate deep chains silently.",
+       "where": "chain_from signature",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "898e1438c74a8103cf75f5780960c96dcdd298ea179dc3cb38ce9dfe10c506e8",
+    "objective_chars": 2646,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/artifacts.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/artifacts.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

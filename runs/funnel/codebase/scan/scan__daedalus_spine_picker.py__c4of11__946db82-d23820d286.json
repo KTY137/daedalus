@@ -1,0 +1,255 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c4of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c4of11__946db82-d23820d286",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 11: defines _head_sha, _repo_state_freshness, inventory_freshness, load_map_state, map_state_trustworthy, _map_island_instruction, _map_shim_instruction, docref_candidates. All functions present and accounted for.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docref_candidates | medium | _count function uses hasattr(value, '__len__') which may incorrectly treat strings as sequences; this could cause resolving to be treated as a count of characters rather than references. | Check if 'resolving' is ever a string; if so, use isinstance(value, (list, tuple, set, frozenset)) instead."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "4 of 11",
+     "purpose": "Define git HEAD resolution, freshness checks for inventory and map state, map state trustworthiness, island/shim instructions, and docref candidates.",
+     "symbols": [
+      {
+       "name": "_head_sha",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads .git, HEAD, packed-refs; returns SHA string or None."
+      },
+      {
+       "name": "_repo_state_freshness",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Compares recorded head in doc to actual HEAD; returns dict with fresh, reason, etc."
+      },
+      {
+       "name": "inventory_freshness",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Calls _repo_state_freshness with label 'inventory'."
+      },
+      {
+       "name": "MAP_STATE_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path to architecture-state.json."
+      },
+      {
+       "name": "load_map_state",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads architecture-state.json, returns {} on error."
+      },
+      {
+       "name": "map_state_trustworthy",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Checks digest integrity and freshness of map snapshot."
+      },
+      {
+       "name": "_map_island_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates instruction string for island modules."
+      },
+      {
+       "name": "_map_shim_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates instruction string for shim modules."
+      },
+      {
+       "name": "docref_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns candidates from docrefs report, one per document."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A linked worktree keeps HEAD locally but shares refs/ through commondir.",
+       "where": "_head_sha",
+       "verdict": "kept",
+       "why": "Code reads commondir and appends to search_dirs, confirming the claim."
+      },
+      {
+       "text": "The comparison is by PREFIX, because these files record a short sha and git reports a long one",
+       "where": "_repo_state_freshness",
+       "verdict": "kept",
+       "why": "Code uses actual.startswith(recorded) for prefix match."
+      },
+      {
+       "text": "A ``dirty: true`` snapshot is NOT treated as stale on its own",
+       "where": "_repo_state_freshness",
+       "verdict": "kept",
+       "why": "dirty is included in return dict but does not affect fresh flag."
+      },
+      {
+       "text": "Fails OPEN (``fresh: True``) when git cannot answer at all",
+       "where": "_repo_state_freshness",
+       "verdict": "kept",
+       "why": "When actual is None, returns fresh: True with reason 'failing open'."
+      },
+      {
+       "text": "A prefix comparison is only meaningful against a real abbreviated sha. Without this, a recorded 'a' matches roughly one HEAD in sixteen and the gate silently reports fresh",
+       "where": "_repo_state_freshness",
+       "verdict": "kept",
+       "why": "Code checks _ABBREV_SHA_RE.fullmatch(recorded) before comparing."
+      },
+      {
+       "text": "ONE direction only: the file records an abbreviation of the full sha git stores, so `actual.startswith(recorded)` is the containment that can be true. Testing the reverse as well would let a SHORTER actual satisfy a longer recorded value",
+       "where": "_repo_state_freshness",
+       "verdict": "kept",
+       "why": "Only actual.startswith(recorded) is tested, not recorded.startswith(actual)."
+      },
+      {
+       "text": "``docs/FEATURE_INVENTORY.json`` drives the two highest bands, so a stale one steers the whole loop toward work that may no longer exist.",
+       "where": "inventory_freshness",
+       "verdict": "uncheckable",
+       "why": "No reference to FEATURE_INVENTORY.json or bands in this chunk; cannot verify."
+      },
+      {
+       "text": "Same degrade-to-empty contract as :func:`load_inventory`: the picker's job is to rank work, not to be the thing that breaks when a generated file is mid-write.",
+       "where": "load_map_state",
+       "verdict": "uncheckable",
+       "why": "load_inventory is not in this chunk; cannot compare."
+      },
+      {
+       "text": "INTEGRITY -- has anyone hand-edited the generated file? ``daedalus.mapping.drift`` states the rule: *any verb that INHERITS lists from an existing snapshot rather than rescanning has to ask this first and refuse on a mismatch*.",
+       "where": "map_state_trustworthy",
+       "verdict": "uncheckable",
+       "why": "daedalus.mapping.drift is not in this chunk; cannot verify."
+      },
+      {
+       "text": "FRESHNESS -- does the snapshot describe the tree we are standing in? This question used to be missing, and its absence was justified in this very docstring with the sentence 'a generated file's defence is its digest'. That was wrong, and it cost something measurable.",
+       "where": "map_state_trustworthy",
+       "verdict": "uncheckable",
+       "why": "Historical claim; cannot verify from this chunk alone."
+      },
+      {
+       "text": "A snapshot that records no ``repo_state.head`` cannot answer the second one and is therefore NOT trusted -- fail closed, the same rule the inventory follows.",
+       "where": "map_state_trustworthy",
+       "verdict": "kept",
+       "why": "map_state_trustworthy calls _repo_state_freshness which returns fresh: False if recorded is empty; that result leads to trusted: False."
+      },
+      {
+       "text": "ONE CANDIDATE PER DOCUMENT, NOT PER REFERENCE. A doc with eleven broken references is one editing session, not eleven attempts",
+       "where": "docref_candidates",
+       "verdict": "kept",
+       "why": "Code groups references by doc_path using a dict, then presumably builds one candidate per doc."
+      },
+      {
+       "text": "The gate is the scan itself, not pytest. ``docrefs.verify_fix`` checks the DENOMINATOR first -- deleting the paragraph withdraws the claim and lowers ``resolving`` in one move, which would otherwise read as a fix. That asymmetry is the whole reason this source is safe to point a weak model at, so a candidate that does not carry it is not this source's candidate.",
+       "where": "docref_candidates",
+       "verdict": "uncheckable",
+       "why": "docrefs.verify_fix is not in this chunk; cannot verify behavior."
+      },
+      {
+       "text": "``resolving`` is a SEQUENCE of references, not a count -- it carries the evidence, which is what makes docrefs.verify_fix's denominator check possible at all. ``files_scanned`` really is an int. Counting the first with ``int()`` was this function's first bug.",
+       "where": "docref_candidates",
+       "verdict": "kept",
+       "why": "Code uses len(value) if hasattr(value, '__len__') else int(value); this treats sequences properly but may misclassify strings as sequences."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _head_sha reads .git file, gitdir, HEAD, and packed-refs; returns SHA string or None.",
+       "where": "_head_sha",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _repo_state_freshness compares recorded head against actual HEAD using prefix match; returns dict with fresh, reason, recorded_head, actual_head, dirty.",
+       "where": "_repo_state_freshness",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function inventory_freshness is a thin wrapper calling _repo_state_freshness with label 'inventory'.",
+       "where": "inventory_freshness",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function load_map_state reads JSON file, returns {} on any error; degrade-to-empty pattern.",
+       "where": "load_map_state",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function map_state_trustworthy checks digest via daedalus.mapping.drift.digest_ok and freshness via _repo_state_freshness; returns trusted flag and reasons.",
+       "where": "map_state_trustworthy",
+       "severity": "medium",
+       "confidence": "likely",
+       "note": "Depends on external module daedalus.mapping.drift which is not in this chunk."
+      },
+      {
+       "what": "Function _map_island_instruction generates a string for island modules with conditional based on test_only.",
+       "where": "_map_island_instruction",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _map_shim_instruction generates a string for shim modules.",
+       "where": "_map_shim_instruction",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function docref_candidates processes a report's broken references, groups by doc_path, and returns candidates; uses _count helper to handle resolving and files_scanned.",
+       "where": "docref_candidates",
+       "severity": "medium",
+       "confidence": "likely",
+       "note": "The _count function uses hasattr(value, '__len__') which may incorrectly treat strings as sequences; this could cause resolving to be treated as a count of characters rather than references."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d19354f72390b238e325bc1937fcf1f4b3ead091d3370a7fea2a509f120bfe7a",
+    "objective_chars": 14380,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [4/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 4,
+  "total": 11,
+  "first_line": 841
+ }
+}

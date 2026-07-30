@@ -1,0 +1,190 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c4of12__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c4of12__946db82-aef137e130",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of worktree.py (lines 361-449). Contains docstring/comment claims about re-check logic, performance, and safety; no code symbols defined.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 361-449 | high | Docstring describes re-check logic and performance characteristics but code not present in this chunk to verify | Check actual implementation in other chunks",
+     "line 361-449 | high | Claims about bug fixes and race conditions rely on code outside this chunk | Cross-reference with implementation",
+     "line 361-449 | medium | Performance measurements and depth scaling claims unverifiable without code | Review performance testing code and baseline",
+     "line 361-449 | medium | References to functions _force_unlink, _force_rmdir, _unlink_reparse_point, _verify_reachable not defined in this chunk | Confirm definitions elsewhere"
+    ],
+    "todos": [
+     "Verify _verify_reachable implementation matches docstring description",
+     "Check that _force_unlink, _force_rmdir, _unlink_reparse_point exist and have correct signatures",
+     "Confirm performance measurements are accurate and documented",
+     "Ensure all three re-check sites exist in the walker implementation"
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "4 of 12",
+     "purpose": "Docstring and comment block describing design rationale, bug history, performance costs, and remaining gaps",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "That re-check is the entire fix, and its absence was a live repository-deletion bug -- twice, in the same function, for the same reason.",
+       "where": "line 361",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk to verify the re-check or bug history."
+      },
+      {
+       "text": "Classifying a path and acting on it later is wrong no matter how the queue is ordered, because the gap is however long the rest of the traversal takes.",
+       "where": "line 365",
+       "verdict": "uncheckable",
+       "why": "No code showing classification or queue ordering."
+      },
+      {
+       "text": "Three shapes of the same defect, all measured on this box with a live process in the tree swapping an already-classified directory for a junction, three trials each: this walker, no pop-time re-check, victim = FIRST entry   destroyed 3/3; this walker, WITH the pop-time re-check                   destroyed 0/3; shutil.rmtree, victim = LAST entry                    destroyed 3/3; this walker, pop-time re-check but UNVERIFIED rmdir drain, junction renamed over an already-drained subdirectory   destroyed 3/3",
+       "where": "lines 368-380",
+       "verdict": "uncheckable",
+       "why": "No test code or measurement data in this chunk."
+      },
+      {
+       "text": "shutil.rmtree is safe against a junction that is already in place and unsafe against one that appears mid walk; this function is safe against both.",
+       "where": "lines 383-384",
+       "verdict": "uncheckable",
+       "why": "No code for shutil.rmtree or this function's behavior."
+      },
+      {
+       "text": "The few microseconds between each fresh lstat and the ONE syscall that follows it. Closing even that needs handle-relative traversal (openat/O_NOFOLLOW), which CPython does not expose on Windows -- shutil only gets it on platforms where _use_fd_functions is True, and that is False here.",
+       "where": "lines 387-391",
+       "verdict": "uncheckable",
+       "why": "No platform checks or shutil configuration in this chunk."
+      },
+      {
+       "text": "Note what that sentence does NOT say. It is 'one verification, one syscall', repeated N times -- not 'two adjacent syscalls', which is what an earlier version of this note claimed while the code was in fact doing 'verify once, then act N times': N unlinks per directory after a single verification of the parent, and M rmdirs per tree after none at all. Those are windows of milliseconds to seconds, not microseconds, and the second one was exploited end to end.",
+       "where": "lines 393-399",
+       "verdict": "uncheckable",
+       "why": "No code showing verification or syscall pattern."
+      },
+      {
+       "text": "Both are RETRY paths, and on both the window is the retry, not just the chmod: _force_unlink / _force_rmdir on PermissionError: unlink -> chmod -> UNLINK AGAIN (resp. rmdir). The chmod is not the only thing that runs after the verification -- the SECOND REMOVING SYSCALL does too. This path is not exotic: it exists because git sets the read-only bit on loose objects, so a worktree removal takes it routinely. _unlink_reparse_point: rmdir -> unlink -> chmod -> unlink, up to four syscalls on one verification.",
+       "where": "lines 403-411",
+       "verdict": "uncheckable",
+       "why": "Functions _force_unlink, _force_rmdir, _unlink_reparse_point not defined in this chunk."
+      },
+      {
+       "text": "The window on those is two to three syscalls wide instead of one -- still microseconds, still one object, but it is not what the headline sentence says, so it is written down. Re-verifying inside the retry was CONSIDERED AND NOT DONE this round: _verify_reachable is a closure over the walk's root and guarded_ancestors, so threading it into these four module-level helpers is a signature change to the primitives, and a guard added without a test that can kill it is exactly what this file has been punished for. It is follow-up #2 behind the hoisting below.",
+       "where": "lines 413-421",
+       "verdict": "uncheckable",
+       "why": "_verify_reachable is defined later in this chunk but its implementation and usage not fully visible; no test code."
+      },
+      {
+       "text": "THE COST SCALES WITH DEPTH, and an earlier version of this note did not say so: it measured depth 2 and 3, saw 'roughly doubles', and generalised that to 'noise where it lands'. That generalisation is false for deep trees.",
+       "where": "lines 425-427",
+       "verdict": "uncheckable",
+       "why": "No measurement code or data in this chunk."
+      },
+      {
+       "text": "At depth 2-3, verifying before every syscall roughly doubles the walk. Median of 3, this box, alternating runs on freshly built identical trees: 1280 files / 128 dirs, depth 3   724 ms -> 1661 ms   (+130%); 3000 empty dirs, depth 2        2411 ms -> 5023 ms   (+108%)",
+       "where": "lines 429-432",
+       "verdict": "uncheckable",
+       "why": "No performance test code or baseline in this chunk."
+      },
+      {
+       "text": "Against DEPTH, 400 files at the leaf, median of 3, baseline = this same walker with the verification stubbed out entirely, so the only difference measured is the verification: depth  2    103 ms ->   320 ms    3.1x; depth  6    101 ms ->   521 ms    5.2x; depth 12    107 ms ->   874 ms    8.2x; depth 20    129 ms ->  1380 ms   10.7x",
+       "where": "lines 434-439",
+       "verdict": "uncheckable",
+       "why": "No performance test code or baseline in this chunk."
+      },
+      {
+       "text": "An independent measurement with a weaker baseline -- the pre-verification walker, which still classified once -- got 2.2x / 3.0x / 4.3x / 5.9x for the same four depths. The multiplier depends on where the baseline is drawn; the DEPENDENCE ON DEPTH is what both measurements agree on, and it is the part that matters.",
+       "where": "lines 441-444",
+       "verdict": "uncheckable",
+       "why": "No measurement code or data in this chunk."
+      },
+      {
+       "text": "So the claim is scoped: at the shallow depths measured, and for a worktree of ordinary source files, the cost is noise against a model call and a pytest gate. It is NOT noise for a worktree containing node_modules or a .venv -- 30k-200k files at depth 8-15 -- where this puts an unattended cleanup into tens of seconds to minutes INSIDE A finally:. A cleanup slow enough to be killed, or to look hung, is its own hazard.",
+       "where": "lines 446-451",
+       "verdict": "uncheckable",
+       "why": "No performance test code or baseline in this chunk."
+      },
+      {
+       "text": "The cost is NOT dominated by the lstat calls (roughly 5k of them in the 1280-file case, tens of milliseconds) but by rebuilding the lexical chain in Python for every child, which is O(depth) per child -- hence the scaling above. The available optimisation, named rather than taken: the chain is PURE TEXT, so hoisting _chain_between out of the per-child loop would recover most of it WITHOUT weakening the invariant, because the fresh lstat per component per syscall is what the invariant is, not the chain construction. It was not taken here on purpose: this function has now shipped two live repository-deletion bugs, and the round that fixes them is the wrong round to add a caching layer to it. Stated plainly for whoever picks this up: that hoist is now the TOP follow-up on this file.",
+       "where": "lines 453-462",
+       "verdict": "uncheckable",
+       "why": "No code showing _chain_between, lstat counts, or optimization decisions."
+      },
+      {
+       "text": "Raises OSError on failure and WorktreeRemovalRace if a reparse point appears above ANY step -- the scan, the unlinks, or the drain. A partial delete is reported, never swallowed. That sentence was false as written until 2026-07-28: the drain had no verification, so a partial delete THROUGH a swapped ancestor was neither detected nor reported, and cleanup_worktree returned normally on top of it.",
+       "where": "lines 464-469",
+       "verdict": "uncheckable",
+       "why": "No exception classes or function signatures in this chunk."
+      },
+      {
+       "text": "Re-classify, FRESHLY, everything target will be read through.",
+       "where": "line 472",
+       "verdict": "uncheckable",
+       "why": "Docstring for _verify_reachable; function body not shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Large docstring/comment block with detailed claims about design, bugs, and performance, but no corresponding code in this chunk.",
+       "where": "lines 361-471",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "References to functions not defined in this chunk: _force_unlink, _force_rmdir, _unlink_reparse_point, _chain_between, cleanup_worktree, WorktreeRemovalRace.",
+       "where": "lines 403, 411, 457, 466, 468",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Date '2026-07-28' appears in the docstring, which is in the future relative to typical system dates.",
+       "where": "line 467",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "Docstring claims performance measurements but no test code or data is present to verify.",
+       "where": "lines 429-444",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_verify_reachable is defined starting at line 472 but its body is not included in this chunk.",
+       "where": "line 472",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e9e0695d8ff93164f5dc01cd582fc4efe16df32f4630a3b22a4500b7ed6e8718",
+    "objective_chars": 7627,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [4/12]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 4,
+  "total": 12,
+  "first_line": 361
+ }
+}

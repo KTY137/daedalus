@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_structcore_slice.py__c4of6__946db82",
+ "key": "scan__daedalus_structcore_slice.py__c4of6__946db82-215af2bef0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of slice.py: neighborhood construction with egress gating and symbol-path scope boundary reassertion.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/slice.py",
+     "chunk": "4 of 6",
+     "purpose": "Neighborhood edge filtering, document link separation, egress gating, and symbol-path scope boundary reassertion.",
+     "symbols": [
+      {
+       "name": "_rule_for",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Cached rule lookup via slice_egress_rule; accesses filesystem through _read."
+      },
+      {
+       "name": "_emit_ok",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns boolean; populates withheld_map if rule exists."
+      }
+     ],
+     "claims": [
+      {
+       "text": "edges = idx.get(\"import_edges\") or {}; rev_edges = _reverse_edges(idx)",
+       "where": "lines 362-363",
+       "verdict": "kept",
+       "why": "Both statements are present and executed in order."
+      },
+      {
+       "text": "dep_rels and caller_rels are built by iterating over edges.get(rel,()) and rev_edges.get(rel,()) respectively, skipping self-loops and filtering on r in modules.",
+       "where": "lines 364-374",
+       "verdict": "kept",
+       "why": "The loops and conditions match the claim."
+      },
+      {
+       "text": "shell_stops counts edges whose target is not in modules.",
+       "where": "lines 369, 374",
+       "verdict": "kept",
+       "why": "Incremented when r not in modules (or src not in modules) and r != rel."
+      },
+      {
+       "text": "doc_edges and doc_rev are kept separate from dep_rels/caller_rels because a link is not an import, and to avoid manufacturing call edges out of prose.",
+       "where": "lines 377-388",
+       "verdict": "kept",
+       "why": "The comment explicitly states the two reasons; code builds separate sets documents_out and documented_by."
+      },
+      {
+       "text": "Both maps are absent from an index built without documents, so this is inert by construction on the default path.",
+       "where": "lines 389-390",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the index building logic; the claim refers to behaviour outside this chunk."
+      },
+      {
+       "text": "The egress gate is applied at the emission point of every file whose text would enter slice_text, gating each emitted unit's module.",
+       "where": "lines 392-400",
+       "verdict": "uncheckable",
+       "why": "The chunk defines the gate functions but does not show the emission code that uses them."
+      },
+      {
+       "text": "Floor (secret-only) applies in every lane; the default-deny allow-list only in an untrusted lane.",
+       "where": "lines 401-402",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define lane or policy; the claim refers to external configuration."
+      },
+      {
+       "text": "Per file, so the deny_content first-match-break cannot poison a whole slice and every hit is attributable to one path.",
+       "where": "lines 402-403",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the deny_content logic; the claim refers to behaviour outside this chunk."
+      },
+      {
+       "text": "Reported, never silent: withheld -> a sorted block + an inline breadcrumb.",
+       "where": "lines 403-404",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show emission or reporting logic."
+      },
+      {
+       "text": "If symbol and focus_unit is not None and not is_doc, then symbol-level resolution is performed using graph.callees and graph.callers.",
+       "where": "lines 416-426",
+       "verdict": "kept",
+       "why": "The conditional and the calls match the claim."
+      },
+      {
+       "text": "graph.callees and graph.callers are called with resolver from resolution_context(root, key=idx.get(\"scope_key\")).",
+       "where": "lines 424-426",
+       "verdict": "kept",
+       "why": "The code exactly does that."
+      },
+      {
+       "text": "The scope boundary is re-asserted on the symbol path because the resolver reads defs_by_file directly and can return shell units.",
+       "where": "lines 428-440",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the actual re-assertion logic (the comment describes it but the code is not shown)."
+      },
+      {
+       "text": "Rejections are counted into the same shell_boundary_stops the module path reports.",
+       "where": "lines 441-443",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show where shell_boundary_stops is defined or incremented in this path."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The code defines _rule_for and _emit_ok but does not show their usage in the emission path.",
+       "where": "lines 405-414",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The scope boundary re-assertion is described in detail but the actual filtering logic is not present in this chunk.",
+       "where": "lines 428-443",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment on line 389-390 claims doc_edges/doc_rev maps are absent from index built without documents; this cannot be verified from this chunk alone.",
+       "where": "lines 389-390",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2ea82a3aa100715caa7377de526e603b720667c38e3be3a5448406532f1a87be",
+    "objective_chars": 6694,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/slice.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/slice.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 361
+ }
+}

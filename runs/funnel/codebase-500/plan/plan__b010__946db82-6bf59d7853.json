@@ -1,0 +1,154 @@
+{
+ "task_id": "plan__b010__946db82",
+ "key": "plan__b010__946db82-6bf59d7853",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings reviewed: 1 confirmed (incomplete-shell-spec, low severity), 3 narrowed (leaky-detection-mismatch, undefined-symbols, unguarded-cleanup-race, each high severity). All require code inspection to settle.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If ceiling.py excludes leaky layers but graph_delta includes them, mutations affecting only leaky layers would be missed by ceiling but caught by graph_delta, leading to inconsistent detection.",
+     "If symbols _REASON_MAP, evidence_ref, _deep_only_modules, _tail_matches, DEEP_EDGE_MARK are truly undefined, NameError will occur at runtime.",
+     "If eval main does not wait for process termination before cleanup, race condition can cause resource leaks or crashes.",
+     "If reach.py does not catch SyntaxError for non-Python files, shell scripts could cause unhandled exceptions."
+    ],
+    "todos": [
+     "Inspect ceiling.py for handling of leaky layers and compare with graph_delta.detected_leaky.",
+     "Grep for undefined symbols in session.py and graph_brief.py full files.",
+     "Inspect eval/__main__.py for synchronization before cleanup.",
+     "Verify reach.py catches SyntaxError for non-Python files.",
+     "Document findings and close each item with settling check results."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Settle leaky-detection-mismatch by inspecting ceiling.py and graph_delta.py",
+       "gate": "1",
+       "why_now": "High severity: if ceiling's clean arm excludes leaky layers, mutations moving only leaky layers would be undetected by ceiling but caught by graph_delta, creating a detection gap.",
+       "steps": [
+        {
+         "do": "Inspect ceiling.py's handling of leaky layers; check if it filters out leaky movements from detection count.",
+         "file": "daedalus/eval/ceiling.py",
+         "verified_by": "grep -n 'leaky' daedalus/eval/ceiling.py; read full file to confirm logic."
+        },
+        {
+         "do": "Inspect graph_delta.py's detected_leaky property to see what layers it includes.",
+         "file": "daedalus/eval/graph_delta.py",
+         "verified_by": "grep -n 'detected_leaky' daedalus/eval/graph_delta.py; read definition."
+        },
+        {
+         "do": "Compare the two: does ceiling's clean arm exclude layers that graph_delta's detected_leaky includes?",
+         "file": "UNKNOWN",
+         "verified_by": "Manual comparison of logic from steps 1 and 2."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full files of ceiling.py and graph_delta.py are available for inspection."
+      },
+      {
+       "rank": 2,
+       "title": "Settle undefined-symbols by grepping session.py and graph_brief.py",
+       "severity": "high",
+       "gate": "1",
+       "why_now": "If symbols are truly undefined, NameError will occur at runtime, breaking council session and graph brief generation.",
+       "steps": [
+        {
+         "do": "Grep for _REASON_MAP and evidence_ref in full session.py.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "grep -n '_REASON_MAP\\|evidence_ref' daedalus/council/session.py"
+        },
+        {
+         "do": "Grep for _deep_only_modules, _tail_matches, DEEP_EDGE_MARK in full graph_brief.py.",
+         "file": "daedalus/lanes/graph_brief.py",
+         "verified_by": "grep -n '_deep_only_modules\\|_tail_matches\\|DEEP_EDGE_MARK' daedalus/lanes/graph_brief.py"
+        },
+        {
+         "do": "If any symbol is missing, add definition or fix reference.",
+         "file": "UNKNOWN",
+         "verified_by": "Python module imports successfully without NameError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full files are available; missing symbols, if any, need to be defined."
+      },
+      {
+       "rank": 3,
+       "title": "Settle unguarded-cleanup-race by inspecting eval/__main__.py",
+       "severity": "high",
+       "gate": "1",
+       "why_now": "Race condition can cause resource leaks or crashes if cleanup proceeds before child process terminates.",
+       "steps": [
+        {
+         "do": "Inspect eval/__main__.py for order of operations after run_gate: is there a wait/join before cleanup?",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Read lines around run_gate call and subsequent cleanup; confirm synchronization."
+        },
+        {
+         "do": "If no synchronization exists, add wait for process termination before cleanup.",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Test with long-running subprocess; cleanup occurs only after process exits."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full file of eval/__main__.py is available."
+      },
+      {
+       "rank": 4,
+       "title": "Settle incomplete-shell-spec by verifying reach.py handles non-Python files",
+       "severity": "low",
+       "gate": "1",
+       "why_now": "Low severity: shell LanguageSpec is complete, but reach.py may still mishandle non-Python files if it doesn't catch SyntaxError.",
+       "steps": [
+        {
+         "do": "Check if reach.py's _scan function catches SyntaxError when parsing non-Python files.",
+         "file": "daedalus/mapping/reach.py",
+         "verified_by": "grep -n 'SyntaxError\\|except' daedalus/mapping/reach.py; confirm try-except around ast.parse."
+        },
+        {
+         "do": "If not, add try-except to safely skip non-Python files.",
+         "file": "daedalus/mapping/reach.py",
+         "verified_by": "Running reach on a repo with shell scripts completes without error; shell scripts are skipped."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full file of reach.py is available."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5a9a75b4848555a0215efd3e673eb9986f2cb917b10d282fb49861fe23f708d5",
+    "objective_chars": 147828,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 10 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 4
+ }
+}

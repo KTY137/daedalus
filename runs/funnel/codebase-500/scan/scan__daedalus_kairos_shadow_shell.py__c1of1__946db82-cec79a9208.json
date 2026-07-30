@@ -1,0 +1,163 @@
+{
+ "task_id": "scan__daedalus_kairos_shadow_shell.py__c1of1__946db82",
+ "key": "scan__daedalus_kairos_shadow_shell.py__c1of1__946db82-cec79a9208",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed shadow_shell.py chunk 1: ShadowShellManager class with run_task method. Claims about worktree, adapter, session, and commit behavior are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CandidateBranch.__init__ | medium | 'completed' default False but run_task sets it True only on success; error handling may leave False with error set. Settle by verifying error branch sets completed=False correctly.",
+     "ShadowShellManager.run_task | medium | 'session_config['cwd'] = str(worktree_path)' assumes worktree_path is a Path; fine if so. Settle by confirming type.",
+     "ShadowShellManager.run_task | medium | 'self.worktree_manager.commit_candidate' called only on success; cleanup on failure may leave uncommitted changes. Settle by verifying cleanup_worktree behavior.",
+     "ShadowShellManager.run_task | medium | 'self.adapter.terminate(session_id)' always called, but if terminate raises, cleanup may be skipped. Settle by reviewing adapter.terminate contract."
+    ],
+    "todos": [
+     "Verify that GitWorktreeManager.create_worktree, has_changes, commit_candidate, cleanup_worktree exist and behave as assumed.",
+     "Verify AgentAdapter.create_session, events, terminate signatures and behavior (especially events stream and SessionEnded event).",
+     "Consider if run_task should handle cases where adapter.events raises before SessionEnded."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/shadow_shell.py",
+     "chunk": "1 of 1",
+     "purpose": "Defines CandidateBranch dataclass and ShadowShellManager class with run_task method to run agent in a worktree.",
+     "symbols": [
+      {
+       "name": "CandidateBranch",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass with fields: branch_name, worktree_path, task, completed, error, score."
+      },
+      {
+       "name": "ShadowShellManager",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Manages running an agent inside a GitWorktree via an adapter."
+      },
+      {
+       "name": "ShadowShellManager.__init__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Stores worktree_manager, adapter, base_commit, config."
+      },
+      {
+       "name": "ShadowShellManager.run_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Creates worktree, runs agent task, commits changes if successful, cleans up on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Represents a completed task on a dedicated git branch.",
+       "where": "line 13",
+       "verdict": "kept",
+       "why": "The class is named CandidateBranch and has branch_name, worktree_path, task, completed, error, score fields; it is used in run_task to represent the result."
+      },
+      {
+       "text": "Spawns an adapter and runs the agent inside a given GitWorktree.",
+       "where": "line 20",
+       "verdict": "kept",
+       "why": "The class docstring states that. The run_task method creates a worktree, creates a session with cwd set to worktree path, and processes events."
+      },
+      {
+       "text": "Executes the agent task inside a new worktree and returns a CandidateBranch.",
+       "where": "line 28",
+       "verdict": "kept",
+       "why": "The method creates a worktree, runs the agent, and returns a CandidateBranch instance."
+      },
+      {
+       "text": "The task is the initial one-shot prompt. Crucially, ``cwd`` is the worktree, and the adapter is required to honor it at process launch.",
+       "where": "line 42",
+       "verdict": "uncheckable",
+       "why": "The claim about adapter honoring cwd is not verifiable from this chunk; it depends on the adapter implementation."
+      },
+      {
+       "text": "Commit any changes the agent made in the worktree",
+       "where": "line 68",
+       "verdict": "uncheckable",
+       "why": "The comment says 'Commit any changes', but the code calls self.worktree_manager.commit_candidate; the behavior of commit_candidate is not defined in this chunk."
+      },
+      {
+       "text": "Shadow shell output for task: {task}",
+       "where": "line 69",
+       "verdict": "kept",
+       "why": "The commit message is exactly that string, with task interpolated."
+      }
+     ],
+     "observations": [
+      {
+       "what": "CandidateBranch has a default 'completed' field set to False, but in run_task it is set to True only on success. The error branch sets completed=False explicitly, which is consistent.",
+       "where": "lines 15-18 and lines 69-72",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The run_task method sets session_config['cwd'] to str(worktree_path); this assumes worktree_path is a Path, which is true from its type hint and the return of create_worktree.",
+       "where": "line 45",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The method always calls self.adapter.terminate(session_id) in the finally block, but if terminate raises, the cleanup_worktree in the inner finally may be skipped if candidate.completed is False (because the inner finally is part of the outer try). Actually, the inner finally will execute even if terminate raises because it's a finally block; but if terminate raises an exception, that exception propagates after the inner finally, and the outer finally's code after the inner finally might not run? Actually, the structure is: outer try-except-finally: inside the try, there's a try-except-finally. The outer finally executes after the inner finally regardless. The cleanup_worktree is inside the outer finally, so it will run even if terminate raises. However, if terminate raises, the exception propagates after the outer finally, so the function exits with an exception. That may be acceptable.",
+       "where": "lines 73-78",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The run_task method assumes that adapter.events will eventually yield a SessionEnded event; if it doesn't, it raises RuntimeError. But if the async for loop exits without encountering SessionEnded, exit_event remains None and the error is raised. However, if the events stream raises an exception before yielding SessionEnded, that exception propagates out of the loop and is caught by the except Exception block, setting candidate.error. That is handled.",
+       "where": "lines 52-56",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The claim 'the adapter is required to honor it at process launch' refers to the cwd setting; this is not checkable from this file.",
+       "where": "line 42",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5adad431d6d51a1190e90c4d683fabfb8a9437c73b9cff2fcedfd0b1659cca73",
+    "objective_chars": 3725,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/shadow_shell.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/shadow_shell.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,228 @@
+{
+ "task_id": "scan__daedalus_structcore_graph.py__c1of4__946db82",
+ "key": "scan__daedalus_structcore_graph.py__c1of4__946db82-b7025c9433",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of graph.py: defines identifiers(), name_index(), SymbolResolver, build_resolver(), _dedup(); docstring describes call-graph approach, Move 4 import-aware resolution, backward compatibility, and determinism fix.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SymbolResolver.resolve | medium | The method returns the first import that defines the name; if multiple imports define the same name, order depends on sorted tuple order (deterministic) but may not match programmer intent. This is a design trade-off documented in __post_init__.",
+     "build_resolver | low | Uses setdefault and first-definition-wins; if the same unit name appears in multiple units within the same file, only the first is kept. This is documented but may surprise users expecting merge behavior.",
+     "name_index | low | Returns list of CodeUnits per name; if multiple units share a name across files, all are returned. This is the old behavior used as fallback.",
+     "_dedup | low | Function defined but not used in this chunk; it may be dead code or used later. Its dedup key includes line number, so same unit at different lines is not deduplicated."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/graph.py",
+     "chunk": "1 of 4",
+     "purpose": "Define core functions and SymbolResolver for name-based reference graph with import-aware resolution.",
+     "symbols": [
+      {
+       "name": "identifiers",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns set of identifier tokens from source, excluding stop-words and tokens <= 2 characters."
+      },
+      {
+       "name": "name_index",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a dict mapping unit name to list of CodeUnits with that name."
+      },
+      {
+       "name": "SymbolResolver",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with defs_by_file and imports_by_file; __post_init__ sorts imports for determinism; resolve() performs same-file then import lookup; imports() checks if target_file is imported."
+      },
+      {
+       "name": "SymbolResolver.defs_by_file",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field: dict mapping file relative path to dict of name->CodeUnit defined in that file."
+      },
+      {
+       "name": "SymbolResolver.imports_by_file",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field: dict mapping file relative path to sorted tuple of imported file paths."
+      },
+      {
+       "name": "SymbolResolver.__post_init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes imports_by_file values to sorted tuples for deterministic iteration order."
+      },
+      {
+       "name": "SymbolResolver.resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a name from a file: checks local defs, then defs in imported files in order, returns None if not found."
+      },
+      {
+       "name": "SymbolResolver.imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if target_file is in the imports of from_file."
+      },
+      {
+       "name": "build_resolver",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds SymbolResolver from list of CodeUnits and imports_by_file dict; first definition wins per file."
+      },
+      {
+       "name": "_dedup",
+       "kind": "function",
+       "effects": [],
+       "note": "Deduplicates CodeUnits by (module, name, line) tuple; defined but not used in this chunk."
+      },
+      {
+       "name": "_IDENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for valid identifier tokens."
+      },
+      {
+       "name": "_STOP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of stop-words (Python keywords plus common cross-language noise words)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Compiler-precise, cross-file symbol resolution is SCIP / tree-sitter-stack-graphs territory: months of per-language work. This is the honest v1 \u2014 a NAME-based reference graph over the units the parser already extracted: for a unit, which *other known unit names* appear as identifier tokens in its body.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about SCIP/stack-graphs and months of work is context not verifiable from this chunk. The description of v1 behavior is consistent with the code: identifiers() extracts identifier tokens, and name_index() maps names to units."
+      },
+      {
+       "text": "Movement I.5 / Move 4 sharpens it with import/scope awareness. A raw name match picks up EVERY unit that happens to share a name (a ``run`` in ten unrelated files). Given a ``SymbolResolver`` (a per-file symbol table + the Move-2 import edges), resolution instead prefers, in order:\n  1. a unit defined in the SAME file as the reference,\n  2. a unit in a module the file actually IMPORTS,\n  3. the global-name fallback (the old behavior) only when 1+2 find nothing.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "SymbolResolver.resolve() implements exactly this order: checks local defs, then defs in imported files, returns None (caller does global fallback). The docstring says 'caller does global fallback' and the method returns None in that case."
+      },
+      {
+       "text": "This drops false call edges -> tighter distill slices + a truer call graph.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Effect on call graph and slices is not observable from this chunk; requires integration with slice.py."
+      },
+      {
+       "text": "Python is precise (its import graph is precise); other languages are best-effort (their import resolution is best-effort).",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk handles language-specific import precision; this is a design note."
+      },
+      {
+       "text": "Full scope/shadowing is deliberately NOT attempted here \u2014 that is SCIP / stack-graphs, deferred, not faked.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk handles scope/shadowing; consistent with the simple name-based approach."
+      },
+      {
+       "text": "Backward-compatible: ``callees``/``callers`` take an OPTIONAL ``resolver`` that defaults to None (the pure name-match), so existing callers (``slice.py``) are unaffected.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "callees/callers functions are not defined in this chunk; cannot verify backward compatibility."
+      },
+      {
+       "text": "Identifier tokens in a chunk of source, minus obvious stop-words.",
+       "where": "identifiers docstring",
+       "verdict": "kept",
+       "why": "Function returns set of tokens matching _IDENT regex, filtered by exclusion from _STOP set and length > 2. This matches the docstring description."
+      },
+      {
+       "text": "``defs_by_file`` \u2014 file rel -> {unit name: unit} (the names that file defines; first definition wins on a same-file name collision).",
+       "where": "SymbolResolver docstring",
+       "verdict": "kept",
+       "why": "In __init__, defs_by_file stores mapping; build_resolver uses setdefault to keep first definition. Verified."
+      },
+      {
+       "text": "``imports_by_file`` \u2014 file rel -> set of internal files it imports (Python precise via ``python_imports``; other languages best-effort via Move 2).",
+       "where": "SymbolResolver docstring",
+       "verdict": "uncheckable",
+       "why": "The type in the code is dict[str, tuple[str, ...]] (not set), and the source of imports (python_imports, Move 2) is not in this chunk. The docstring says 'set' but code uses tuple (sorted)."
+      },
+      {
+       "text": "SORTED TUPLES, not sets. ``resolve`` returns the FIRST import that defines a name, so when two imported modules both define it, WHICH unit is returned is decided by iteration order -- and over a set of rel-path strings that order is a function of PYTHONHASHSEED. The chosen unit reaches the CALLEES block of ``slice_text``, so the distilled slice was not byte-identical across processes (measured: 3 distinct slice hashes over 5 seeds on a 6-module fixture). Normalising HERE rather than in ``build_resolver`` means every construction path is deterministic, including hand-built resolvers. Same candidates, now a total order; ties break on rel path.",
+       "where": "__post_init__ docstring",
+       "verdict": "kept",
+       "why": "__post_init__ sorts each value in imports_by_file into a tuple. The docstring explains the determinism issue and the fix. The code matches the description."
+      },
+      {
+       "text": "Best unit for ``name`` referenced from ``from_file``: same-file def, else a def in an imported file, else None (caller does global fallback).",
+       "where": "resolve docstring",
+       "verdict": "kept",
+       "why": "resolve() checks local defs, then iterates imports, returns None if not found. Matches description."
+      },
+      {
+       "text": "``build_resolver`` \u2014 it is derived (never hand-kept) and cheap.",
+       "where": "build_resolver docstring? (actually in SymbolResolver docstring)",
+       "verdict": "uncheckable",
+       "why": "No performance or usage claim can be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _dedup is defined but not called in this chunk; may be dead code or used later.",
+       "where": "line 98",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "SymbolResolver.imports_by_file is typed as dict[str, tuple[str,...]] but docstring says 'set of internal files'. The actual type after __post_init__ is tuple, which is consistent with the deterministic order requirement.",
+       "where": "SymbolResolver docstring and field type",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "identifiers() filters tokens with len(t) > 2, which is not mentioned in its docstring ('minus obvious stop-words'). This is an additional filter that may affect behavior.",
+       "where": "identifiers function body, line 36",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_resolver uses setdefault to keep first definition; if the same unit name appears in multiple units in the same file, only the first is kept. This is documented in SymbolResolver docstring.",
+       "where": "build_resolver, line 91",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7451a6b2cd65f1308b153676d5ed1bc39d7fd455b27223a4f7a835af427763e8",
+    "objective_chars": 6038,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/graph.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/graph.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

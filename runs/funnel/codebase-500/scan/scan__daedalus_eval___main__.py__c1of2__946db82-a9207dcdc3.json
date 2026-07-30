@@ -1,0 +1,182 @@
+{
+ "task_id": "scan__daedalus_eval___main__.py__c1of2__946db82",
+ "key": "scan__daedalus_eval___main__.py__c1of2__946db82-a9207dcdc3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 2: CLI entrypoint with mint/confirm logic; docstring claim about ASCII-only output is broken; chunk ends mid-function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 17 | high | Docstring claims ASCII-only output but code uses plain print() | Check if _print_ascii is used elsewhere or if the claim is outdated",
+     "line 118 | high | Chunk ends mid-function without completing the if args.update_baseline block | Ensure the rest of main() is present in chunk 2"
+    ],
+    "todos": [
+     "Verify that _print_ascii is called somewhere else or remove the ASCII claim",
+     "Review chunk 2 for completion of main()"
+    ],
+    "handoff": {
+     "module": "daedalus/eval/__main__.py",
+     "chunk": "1 of 2",
+     "purpose": "CLI entrypoint for daedalus eval with tier1, tier2, arms, gate, baseline, mint commands",
+     "symbols": [
+      {
+       "name": "_select",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Filters tasks by project label; exits if no match."
+      },
+      {
+       "name": "_print_ascii",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Prints text, handles UnicodeEncodeError by ASCII-replacing."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Parses CLI args and dispatches to mint, confirm, gate, baseline, or runs tasks."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tier 1 always runs (deterministic, no LLM).",
+       "where": "module docstring line 4",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk actually runs tier1; it only imports run_tier1."
+      },
+      {
+       "text": "--arms adds the deterministic A/B/C retrieval comparison (also no LLM).",
+       "where": "module docstring line 5",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk runs arms; only import of run_arms."
+      },
+      {
+       "text": "Tier 2 runs only with --tier2 AND a reachable provider; otherwise it is skipped with a clear message.",
+       "where": "module docstring line 6",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements provider reachability check or skipping logic."
+      },
+      {
+       "text": "--gate is an ADVISORY local regression check against baseline.json -- see daedalus.eval.harness.run_gate. It is never wired into anything automatic; run it by hand before shipping a slice-heuristic change.",
+       "where": "module docstring lines 8-9",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk executes gate logic; only imports render_gate."
+      },
+      {
+       "text": "--update-baseline is the only thing that writes baseline.json, and only when explicitly passed.",
+       "where": "module docstring line 10",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk performs baseline update; only import of render_gate."
+      },
+      {
+       "text": "--mint-commit/--confirm-mint are the ONLY entry points that persist a task to the mint store (daedalus.eval.mint.DEFAULT_MINT_STORE_PATH); every other flag above only READS it via harness.all_tasks(). This is the human-invoked half of the mint -> quarantine -> confirm -> primary flywheel -- there is no automatic caller (offload.py does not invoke this today; see mint.py's module docstring).",
+       "where": "module docstring lines 12-15",
+       "verdict": "uncheckable",
+       "why": "This chunk only handles --mint-commit and --confirm-mint by calling add_minted_task and confirm_minted_task; it does not verify that no other code path writes to mint store."
+      },
+      {
+       "text": "Output is ASCII-only for a raw Windows console.",
+       "where": "module docstring line 17",
+       "verdict": "broken",
+       "why": "The code uses print() directly (e.g., line 95) without encoding to ASCII. _print_ascii exists but is only called in one place (line 82) and that call is commented out? Actually line 82 is 'print(f\"nothing minted...\")' which is a plain print. So output is not guaranteed ASCII-only."
+      },
+      {
+       "text": "Tier 1 always runs (deterministic, no LLM).",
+       "where": "argparse description line 49",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk runs tier1."
+      },
+      {
+       "text": "--arms is deterministic A/B/C comparison (semantic slice vs whole-repo concat vs BM25 retrieval) -- no LLM.",
+       "where": "argparse help line 57-58",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk runs arms."
+      },
+      {
+       "text": "--gate: ADVISORY: replay tasks against baseline.json and report per-task recall regressions on the primary tier. Exits non-zero on a regression; never blocks anything automatic.",
+       "where": "argparse help line 63-65",
+       "verdict": "uncheckable",
+       "why": "No gate execution code in this chunk."
+      },
+      {
+       "text": "--update-baseline: EXPLICIT ONLY: overwrite baseline.json with current recall. Never happens automatically.",
+       "where": "argparse help line 67-68",
+       "verdict": "uncheckable",
+       "why": "No baseline update code in this chunk."
+      },
+      {
+       "text": "--mint-commit: EXPLICIT ONLY: mint a quarantined, independent_diff task from git commit SHA in --repo (default: this agent_env checkout) and persist it to the mint store so it joins every subsequent run via all_tasks().",
+       "where": "argparse help lines 71-73",
+       "verdict": "kept",
+       "why": "Code in main() checks args.mint_commit, calls mint_from_commit(repo, args.mint_commit) and add_minted_task, then prints result. The default repo is AGENT_ENV_ROOT. The claim is satisfied by this chunk."
+      },
+      {
+       "text": "--confirm-mint: EXPLICIT ONLY: record one independent confirmation for a quarantined minted task, promoting it to primary at daedalus.eval.mint.MINT_CONFIRM_THRESHOLD.",
+       "where": "argparse help lines 75-77",
+       "verdict": "uncheckable",
+       "why": "This chunk calls confirm_minted_task but does not implement the promotion logic; that is in mint module."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims output is ASCII-only, but code uses print() directly without encoding.",
+       "where": "line 17 (docstring) vs lines 95, 99, 101, 103, 105, 108, 110, 112, 114, 116, 118",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _print_ascii is defined but never called in this chunk (only imported).",
+       "where": "line 38-42",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk ends mid-function at line 118 with an incomplete if block (args.update_baseline:).",
+       "where": "line 118",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64687912af7ff0f3b537a052c8e40b1440cdd7eec8f8ff398eb3bc6f61bafa16",
+    "objective_chars": 6401,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__main__.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/eval/__main__.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,88 @@
+{
+ "task_id": "research__b028__946db82",
+ "key": "research__b028__946db82-5b481591ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Two cross-file patterns: (1) The ledger's INTENT BEFORE EFFECT contract is silently broken by the vendor adapter's ask() which dispatches before the ledger commits; (2) Both ledger and worktree assume crash recovery but neither provides it, so a crash after dispatch but before mark_completed leaves an orphan effect. Refutation conditions are given.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The vendor adapter's ask() dispatches to a subprocess before the ledger's record_intent commits, violating the INTENT BEFORE EFFECT contract and potentially creating effects without a recorded intent.",
+     "The worktree's reap_branches only works for in-memory allocations; a crash after worktree creation but before allocation recording leaves orphan worktrees that are never reaped.",
+     "The ledger's mark_completed may never be called after a crash, leaving INTENDED rows for effects that did happen; the ledger has no recovery mechanism to close these gaps."
+    ],
+    "todos": [
+     "Verify the call order in the vendor adapter's ask() to ensure record_intent commits before _dispatch.",
+     "Assess whether the ledger needs a recovery process to resolve orphan INTENDED rows after crashes.",
+     "Determine if the worktree needs crash recovery for allocations that were not recorded in memory."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "intent-before-effect-broken",
+       "claim": "The vendor adapter's ask() dispatches to a subprocess before the ledger's record_intent commits its transaction, violating the INTENT BEFORE EFFECT contract that the ledger module claims as a core guarantee.",
+       "spans": [
+        "daedalus/council/vendors.py: ask()",
+        "daedalus/spine/ledger.py: docstring"
+       ],
+       "mechanism": "The ledger's docstring states record_intent writes an INTENDED row and commits it before the caller performs the external effect. However, the vendor adapter's ask() calls _dispatch (which spawns a subprocess) before any ledger commit is visible in the provided chunk. The ask() uses floor_check and token ceiling checks, but there is no call to record_intent or any ledger interaction in the visible code. If the caller invokes ask() without first committing an intent, the effect (subprocess execution) happens without a recorded intent, breaking the contract.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the actual call chain (in unseen code) shows that record_intent is called and its transaction COMMITS before the ask() method is invoked, then the contract is preserved. Alternatively, if the ledger's commit is deferred to after _dispatch returns, the contract is broken.",
+       "evidence": [
+        "daedalus/spine/ledger.py: docstring 'INTENT BEFORE EFFECT'",
+        "daedalus/council/vendors.py: ask() method calls _dispatch (line 666-668)"
+       ]
+      },
+      {
+       "id": "orphan-effect-on-crash",
+       "claim": "The system has no crash recovery mechanism for effects that are dispatched but not recorded as completed, leading to orphan effects (e.g., subprocess output, worktree branches) that are never cleaned up.",
+       "spans": [
+        "daedalus/council/vendors.py: ask()",
+        "daedalus/kairos/worktree.py: reap_branches",
+        "daedalus/spine/ledger.py: docstring"
+       ],
+       "mechanism": "The ledger's docstring acknowledges that a crash after effect lands but before mark_completed commits leaves an INTENDED row whose effect already happened. However, no recovery process is defined to detect and resolve such rows. Similarly, the worktree's reap_branches only works for allocations in the current process's memory; a crashed process cannot reap its branches. The vendor adapter's ask() dispatches subprocesses; if the process crashes after dispatch but before the ledger records completion, the subprocess output may be lost or orphaned.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the system includes a crash recovery mechanism (e.g., a startup scan that resolves INTENDED rows or reaps orphan worktrees) that is not mentioned in these chunks, then this hypothesis is refuted. If no such mechanism exists, the risk stands.",
+       "evidence": [
+        "daedalus/spine/ledger.py: docstring 'CLOSING THE CRASH WINDOW'",
+        "daedalus/kairos/worktree.py: docstring 'A branch leaked by a CRASHED run is never reaped'",
+        "daedalus/council/vendors.py: ask() dispatches subprocess"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1f842d30ede1e16e50003e57af2200dfae3eff7181e12dda6abb8bf464c02258",
+    "objective_chars": 42266,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 28 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 28,
+  "inputs": 5
+ }
+}

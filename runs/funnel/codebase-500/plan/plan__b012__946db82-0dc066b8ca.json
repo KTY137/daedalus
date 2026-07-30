@@ -1,0 +1,132 @@
+{
+ "task_id": "plan__b012__946db82",
+ "key": "plan__b012__946db82-0dc066b8ca",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings reviewed: 2 confirmed (docstring claims, token count mismatch), 1 narrowed (budget error in canary), 1 needs-evidence (hash functions). Deliverables: verify hash function definitions, audit docstring claims, document token count differences, add budget error tracking.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If _body_sha or _entry_sha are missing, verify_chain will crash; need to confirm they exist before any chain operations.",
+     "Docstring claims in render.py may be stale; misleading documentation could cause developer confusion.",
+     "Token count mismatch is intentional but may still cause confusion in reports; clear documentation needed.",
+     "Budget errors not reflected in canary exit code may mask lane unavailability; need to decide if this is by design."
+    ],
+    "todos": [
+     "Search for 'def _body_sha' and 'def _entry_sha' in daedalus/council/bus.py; if missing, add them or fix imports.",
+     "Audit full render.py to verify all docstring claims have corresponding implementations.",
+     "Document the token count difference between slice.py and eval/harness.py in a comment or docstring.",
+     "Add budget error tracking to canary.py exit code if not already present."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify and fix hash functions _body_sha and _entry_sha in bus.py",
+       "gate": "0",
+       "why_now": "If these functions are missing, verify_chain will crash at runtime, breaking the entire council bus. This is a critical dependency for all chain operations.",
+       "steps": [
+        {
+         "do": "Search for 'def _body_sha' and 'def _entry_sha' in daedalus/council/bus.py. If not found, check for imports from another module. If missing, implement them or import them from the correct location.",
+         "file": "daedalus/council/bus.py",
+         "verified_by": "Run `python -c \"from daedalus.council.bus import _body_sha, _entry_sha; print('OK')\"`"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions may be defined later in bus.py or imported from a module not shown in the partial chunk."
+      },
+      {
+       "rank": 2,
+       "title": "Audit render.py docstring claims against actual implementation",
+       "gate": "1",
+       "why_now": "The docstring makes specific behavioral claims (analyse_once, gate mode, reconciliation, etc.) that are unverified. If missing, documentation is misleading.",
+       "steps": [
+        {
+         "do": "Read the full daedalus/spine/render.py and verify each claim in the docstring: analyse_once, gate mode, reconciliation, stamp generation, snapshot handling, escaping.",
+         "file": "daedalus/spine/render.py",
+         "verified_by": "Create a test that calls each claimed function and asserts expected behavior, or update docstring to match actual code."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The full render.py file is available and can be read; no assumption about its size."
+      },
+      {
+       "rank": 3,
+       "title": "Document token count denominator differences between slice.py and eval/harness.py",
+       "gate": "1",
+       "why_now": "The difference is intentional but not documented in code, causing confusion when comparing reduction_pct values. Clear documentation or a unified method is needed.",
+       "steps": [
+        {
+         "do": "Add a comment or docstring in daedalus/structcore/slice.py and daedalus/eval/harness.py explaining the token count difference: slice.py uses index-scoped counts, harness.py uses as-fed-to-model counts with headers and truncation.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "Run `python -c \"from daedalus.structcore.slice import count_tokens; help(count_tokens)\"` and verify the docstring includes the explanation."
+        },
+        {
+         "do": "Add a comment or docstring in daedalus/eval/harness.py explaining the token count difference.",
+         "file": "daedalus/eval/harness.py",
+         "verified_by": "Run `python -c \"from daedalus.eval.harness import _whole_repo_text; help(_whole_repo_text)\"` and verify the docstring includes the explanation."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The difference is indeed intentional and not a bug; if it is a bug, the fix would be more complex."
+      },
+      {
+       "rank": 4,
+       "title": "Add budget error tracking to canary.py exit code",
+       "gate": "1",
+       "why_now": "Currently, budget errors do not cause a non-zero exit code, so a lane unavailable due to budget constraints would pass the canary. This could mask real issues.",
+       "steps": [
+        {
+         "do": "Search for 'budget' or 'BudgetError' in daedalus/council/canary.py. If no handling exists, modify the exit_code logic to include budget errors as a failure condition.",
+         "file": "daedalus/council/canary.py",
+         "verified_by": "Write a test that simulates a budget error and asserts non-zero exit code, then run `pytest tests/test_canary_livewire.py -x -k budget`"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The design intent is to treat budget errors as failures; if not, this item may be rejected."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/bus.py",
+      "daedalus/spine/render.py",
+      "daedalus/structcore/slice.py",
+      "daedalus/eval/harness.py",
+      "daedalus/council/canary.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "294091deada9cb89e233395b0193bfe0503adb75ac94bc226af0186810a47c49",
+    "objective_chars": 145099,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 12 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 12,
+  "inputs": 4
+ }
+}

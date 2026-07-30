@@ -1,0 +1,147 @@
+{
+ "task_id": "plan__b025__946db82",
+ "key": "plan__b025__946db82-c184c731a6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings processed: 2 confirmed, 1 narrowed, 1 needs-evidence. Items: audit spectral_evidence callers, fix GateResult.containment default, fix canary decoy-first check, fix warm_model budget egress tracking.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "GateResult.containment default fix may require schema migration for existing ledger entries",
+     "Budget egress tracking change may affect existing task budgets",
+     "Canary decoy-first fix may change existing canary statuses",
+     "Spectral evidence callers may need multiple updates"
+    ],
+    "todos": [
+     "Audit all callers of spectral_evidence",
+     "Find GateResult definition and check containment default",
+     "Inspect check_anchoring in canary.py",
+     "Check OllamaProvider.caps and budget system for warm_model egress"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix OllamaProvider warm_model egress not tracked by budget",
+       "gate": "1",
+       "why_now": "Critical: warm_model makes HTTP request but claims local-only; budget system may not track egress, leading to unbilled costs or security bypass.",
+       "steps": [
+        {
+         "do": "Check OllamaProvider.caps to see if local=True. If so, change to local=False or add separate capability flag for warm_model egress.",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "grep -n 'caps' daedalus/providers/ollama.py && grep -n 'local' daedalus/providers/ollama.py"
+        },
+        {
+         "do": "Update budget system in daedalus/council/session.py to dynamically inspect actual host URL before deciding egress cost.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Run existing budget tests: python -m pytest tests/test_budget.py -v"
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "Assumes OllamaProvider.caps sets local=True. If caps already accounts for warm_model, this item may be reduced."
+      },
+      {
+       "rank": 2,
+       "title": "Fix GateResult.containment default to avoid incomplete audit trail",
+       "gate": "1",
+       "why_now": "High: if containment defaults to None, any construction path that omits it records incomplete gate result, weakening audit trail.",
+       "steps": [
+        {
+         "do": "Find GateResult class definition in daedalus/spine/attempt.py and check default value of containment field.",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "grep -n 'class GateResult' daedalus/spine/attempt.py && grep -A 20 'class GateResult' daedalus/spine/attempt.py"
+        },
+        {
+         "do": "If containment defaults to None, change default to a sentinel or make field required. Update all instantiation sites.",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "python -c \"from daedalus.spine.attempt import GateResult; assert GateResult(containment='test').containment == 'test'\""
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Assumes GateResult has a containment field. If not, this item is invalid."
+      },
+      {
+       "rank": 3,
+       "title": "Fix check_anchoring false positive when decoy and correct answer both present",
+       "gate": "2",
+       "why_now": "Medium: canary may report 'anchored_on_decoy' even when correct answer is present, causing false alarms.",
+       "steps": [
+        {
+         "do": "Inspect check_anchoring in daedalus/council/canary.py to see if it checks correct answer presence before returning decoy verdict.",
+         "file": "daedalus/council/canary.py",
+         "verified_by": "grep -A 20 'def check_anchoring' daedalus/council/canary.py"
+        },
+        {
+         "do": "If decoy check does not verify correct answer absence, add condition to only return 'anchored_on_decoy' if correct answer is absent.",
+         "file": "daedalus/council/canary.py",
+         "verified_by": "python -m pytest tests/test_council_canary.py -v"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Assumes check_anchoring exists and has the described behavior."
+      },
+      {
+       "rank": 4,
+       "title": "Audit spectral_evidence callers for missing key handling",
+       "gate": "2",
+       "why_now": "Medium: callers may misinterpret missing modules as 'not measured' rather than 'not in graph', leading to incorrect analysis.",
+       "steps": [
+        {
+         "do": "Audit all callers of spectral_evidence: grep -rn 'spectral_evidence' daedalus/",
+         "file": "daedalus/eval/ceiling.py",
+         "verified_by": "Run audit command and verify output lists all callers"
+        },
+        {
+         "do": "For each caller, check if they handle missing keys (e.g., using .get() with default) and add documentation or explicit None check if needed.",
+         "file": "UNKNOWN",
+         "verified_by": "Manual inspection of each caller"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Assumes spectral_evidence is defined in daedalus/eval/ceiling.py as per index."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/attempt.py",
+      "daedalus/council/canary.py",
+      "daedalus/providers/ollama.py",
+      "daedalus/council/session.py",
+      "daedalus/eval/ceiling.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f5082dc28f45932b862611c04b5800e97e9af4b41cb79456216f554c726f20c8",
+    "objective_chars": 149876,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 25 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 25,
+  "inputs": 4
+ }
+}

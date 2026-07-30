@@ -1,0 +1,138 @@
+{
+ "task_id": "scan__daedalus_structcore_artifacts.py__c5of6__946db82",
+ "key": "scan__daedalus_structcore_artifacts.py__c5of6__946db82-50d47f09da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 6 of artifacts.py: contains helpers for schema inference, SchemaComparison dataclass, compare_schema function, and chain_from function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "chain_from | medium | function uses artifact_node_id and artifact_family which are not defined in this chunk; may cause NameError at runtime if not imported | verify that these functions are defined elsewhere in the module or imported",
+     "chain_from | low | max_hops=8 default may not be sufficient for all chains; could truncate valid chains | consider if 8 is adequate or should be configurable",
+     "compare_schema | low | dtype_map parameter is expected to be a callable but no validation; non-callable will raise TypeError | add type check or rely on caller",
+     "SchemaComparison | low | to_dict method sorts dtype_conflicts dicts; if dicts have non-sortable keys, may error | ensure all keys are strings or use a safer serialization"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/artifacts.py",
+     "chunk": "5 of 6",
+     "purpose": "Schema inference helpers, SchemaComparison dataclass, compare_schema function, and chain_from function.",
+     "symbols": [
+      {
+       "name": "SchemaComparison",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing agreement between a declared shape and an observed artifact schema."
+      },
+      {
+       "name": "SchemaComparison.agrees",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning True if comparable and no missing_in_artifact or dtype_conflicts."
+      },
+      {
+       "name": "SchemaComparison.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a dict representation of the comparison."
+      },
+      {
+       "name": "compare_schema",
+       "kind": "function",
+       "effects": [],
+       "note": "Compares an ArtifactSchema against declared field names (and optionally types)."
+      },
+      {
+       "name": "chain_from",
+       "kind": "function",
+       "effects": [],
+       "note": "Walks the produce/consume chain backwards from an artifact."
+      }
+     ],
+     "claims": [
+      {
+       "text": "missing_in_artifact is the one that bites: the code names a field the file does not have. That is the renamed-branch defect, and it survives every test suite that does not read the file.",
+       "where": "SchemaComparison docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about 'renamed-branch defect' and 'test suite that does not read the file' refers to external context not present in this chunk."
+      },
+      {
+       "text": "NOT comparable is a first-class answer. If the schema was never read, this returns comparable=False with the reason \u2014 it does not report every declared field as missing, which would turn 'we could not look' into a wall of false findings.",
+       "where": "compare_schema docstring",
+       "verdict": "kept",
+       "why": "The function returns comparable=False with reason when schema.known is False (line after 'if not schema.known:') or when declared_fields is empty (line after 'if not declared:')."
+      },
+      {
+       "text": "Deterministic (sorted frontier), bounded, and it reports the hop that ran out rather than presenting a truncated chain as complete.",
+       "where": "chain_from docstring",
+       "verdict": "kept",
+       "why": "Sorted frontier via sorted(set(...)); bounded by max_hops; loop breaks when no producers, which reports the hop that ran out (chain may be shorter than max_hops)."
+      },
+      {
+       "text": "Answers 'where did this figure come from' \u2014 the question a thesis reviewer asks.",
+       "where": "chain_from docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about answering a thesis reviewer's question is subjective and not verifiable from code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends with an incomplete chain_from function; the loop and return are missing.",
+       "where": "chain_from function (end of chunk)",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Line 481 starts with an 'if fam is None:' block that is not preceded by any function definition; it appears to be a continuation of a previous function (likely _schema_for_rel or similar) that is not in this chunk.",
+       "where": "line 481",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function chain_from uses artifact_node_id and artifact_family which are not defined in this chunk.",
+       "where": "chain_from function, line near end",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "SchemaComparison.to_dict sorts dtype_conflicts dict items; if dicts have non-string keys, sorting may raise TypeError.",
+       "where": "SchemaComparison.to_dict",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b57abe37913a05bcc7aafe69bf4a00bed2996650b1692d300f4fbb414409f510",
+    "objective_chars": 5907,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/artifacts.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/artifacts.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 481
+ }
+}

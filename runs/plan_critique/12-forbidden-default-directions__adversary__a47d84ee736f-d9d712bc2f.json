@@ -1,0 +1,132 @@
+{
+ "task_id": "12-forbidden-default-directions__adversary__a47d84ee736f",
+ "key": "12-forbidden-default-directions__adversary__a47d84ee736f-d9d712bc2f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most rules are syntactic prohibitions that can be formally complied with by trivial renaming or delegation, while the underlying intent (e.g., no hidden control plane, no unverifiable promotion) remains defeatable. The critical gap is that no rule defines a mechanical check that ties prohibited behavior to its observable effect.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "12.1 | high | 'new public mythological subsystems or parallel control planes' can be formally complied with by naming a subsystem 'empirical' and making its API private while still operating as a hidden control plane. The rule does not define what counts as 'mythological' or 'parallel'; an agent could simply rename. | Define a mechanical check: detect any subsystem that issues commands to production components without being registered in the canonical contract registry, regardless of its name or visibility.",
+     "12.2 | high | 'direct legacy-to-legacy wiring that bypasses canonical contracts' can be formally complied with by inserting a trivial pass-through contract that does nothing but forward calls. The rule does not require that the contract enforces any policy. | Require that every inter-service call path be traceable to a contract that is non-trivial (e.g., performs at least one validation or transformation). Detect calls that skip all contracts by monitoring runtime call graphs.",
+     "12.3 | medium | 'a universal graph score, diffusion number, or \u201cintelligence\u201d scalar' can be formally complied with by computing the scalar inside a component and only exposing it as a 'confidence' or 'weight' rather than 'score'. The rule prohibits naming but not the underlying computation. | Check that no computed scalar is used as a single decision criterion for any production action. Mechanically, detect any scalar that is the sole input to a gate (e.g., if score > threshold then promote).",
+     "12.4 | high | 'an unbounded AST hairball or a fifth AST graph' can be formally complied with by splitting the hairball into four AST graphs plus one 'dependency graph' (not called AST). The rule bans a fifth AST but not a fifth graph of any kind. | Define a mechanical check: any graph that exceeds a fixed maximum node count or that is used for compilation/promotion decisions counts as an AST hairball regardless of name. Enforce a maximum total graph count of four.",
+     "12.5 | medium | 'chat transcripts as orchestration state' can be formally complied with by storing the transcript in a database and referencing it via a key, so the orchestration state is the key, not the transcript. The rule does not forbid storing transcripts or using them to influence decisions. | Check that no orchestration step reads a chat transcript field directly. Instead, require that all transcript-derived information be extracted and stored as structured data before any orchestration step uses it.",
+     "12.6 | high | 'shared mutable memory for product personalization and research adaptation' can be formally complied with by using a distributed cache with weak consistency that is technically not 'shared mutable memory' but still allows race conditions. The rule does not specify isolation or consistency requirements. | Define a mechanical check: any mutable state that is read by both the personalization pipeline and the research pipeline must be versioned or use a compare-and-swap pattern. Detect any shared mutable state that lacks such protection.",
+     "12.7 | high | 'an LLM judgment as a hard correctness or promotion gate' can be formally complied with by using the LLM output as a 'recommendation' that is automatically accepted by a trivial deterministic rule (e.g., if LLM says yes then promote). The rule does not forbid automatic acceptance of LLM judgments. | Require that any LLM judgment that influences promotion must be accompanied by a separate, deterministic verification step that can override it. Detect any direct path from LLM output to promotion without human or deterministic check.",
+     "12.8 | high | 'simultaneous unregistered co-evolution of code, prompts, evaluators, and policy' can be formally complied with by registering each component in a different system (e.g., code in Git, prompts in a separate database, evaluators in a config file) so that no single registration covers all. The rule does not require a unified registry. | Define a single registry that tracks versions of all four artifact types. Detect any deployment that updates more than one of these without an atomic transaction in the registry.",
+     "12.9 | high | 'automatic merge/promotion or candidate access to its evaluator' can be formally complied with by having the candidate send a request to a separate service that performs the promotion, so the candidate does not directly access the evaluator but still triggers its own promotion. The rule does not forbid indirect self-promotion. | Check that any promotion requires an authorization token that cannot be obtained by the candidate itself (e.g., signed by a human or a separate authorization service). Detect any call chain where the candidate's identity is the sole authorizer of the promotion.",
+     "12.10 | medium | 'a marketing clone whose comparison protocol is not reproducible' can be formally complied with by documenting the protocol in a private wiki that is not accessible to the evaluator. The rule does not require the protocol to be executable or verifiable by an independent party. | Require that the comparison protocol be published in a version-controlled repository with a script that can be run to reproduce the results. Check that the script exists and produces the same output when run on the same inputs.",
+     "12.11 | medium | 'new graph planes without demonstrated marginal evidence' can be formally complied with by providing a single anecdotal example as 'demonstrated marginal evidence'. The rule does not specify statistical rigor or replication. | Define a standard for marginal evidence: e.g., statistically significant improvement on a held-out test set with a predetermined effect size. Require that evidence be reviewed and approved by a designated research committee before a new graph plane is introduced."
+    ],
+    "todos": [
+     "Add a general clause: 'Compliance with these rules is judged by effect, not by naming or indirection. Any mechanism that achieves the prohibited outcome, regardless of how it is labeled or layered, is a violation.'",
+     "For each rule, specify a mechanical monitoring check that can be automated (e.g., static analysis, runtime trace, registry audit) to detect violations even when the prohibited entity is renamed or delegated.",
+     "Define a central registry of all subsystems, contracts, graphs, prompts, evaluators, policies, and their versions, and require atomic updates for co-evolution.",
+     "Add a requirement that all promotion decisions must be authorized by a human or a deterministic verification step that is independent of the candidate.",
+     "Require that any LLM judgment used in production be accompanied by a reproducible deterministic check that can override it.",
+     "Define 'shared mutable memory' precisely in terms of consistency guarantees and access patterns, and require logging of all writes to such memory.",
+     "Require that all comparison protocols be published as executable scripts in a version-controlled repository.",
+     "Define a formal process for introducing new graph planes, including a requirement for statistically significant evidence reviewed by a research committee.",
+     "Add a note that the list is not exhaustive and that any similar evasion technique is also prohibited."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "12.1",
+       "claim": "Do not add new public mythological subsystems or parallel control planes.",
+       "verdict": "weak",
+       "why": "The rule prohibits naming ('mythological') and visibility ('public'), but an agent could create a subsystem with a non-mythological name and private API that still operates as a hidden control plane. The rule does not define what constitutes a control plane functionally, so it can be evaded by renaming and hiding."
+      },
+      {
+       "id": "12.2",
+       "claim": "Do not add direct legacy-to-legacy wiring that bypasses canonical contracts.",
+       "verdict": "weak",
+       "why": "An agent can insert a trivial pass-through contract that does nothing but forward calls, formally complying with 'use a contract' while still bypassing any meaningful policy. The rule does not require the contract to enforce any invariant."
+      },
+      {
+       "id": "12.3",
+       "claim": "Do not add a universal graph score, diffusion number, or 'intelligence' scalar.",
+       "verdict": "weak",
+       "why": "The rule prohibits specific names ('graph score', 'diffusion number', 'intelligence scalar'), but an agent can compute the same scalar and call it 'confidence' or 'weight'. The rule does not forbid the underlying computation or its use as a single decision criterion."
+      },
+      {
+       "id": "12.4",
+       "claim": "Do not add an unbounded AST hairball or a fifth AST graph.",
+       "verdict": "weak",
+       "why": "An agent can split the hairball into four AST graphs and one 'dependency graph' (not called AST), thus staying under the fifth AST limit while still having an unbounded graph. The rule does not define what counts as an AST graph functionally."
+      },
+      {
+       "id": "12.5",
+       "claim": "Do not use chat transcripts as orchestration state.",
+       "verdict": "weak",
+       "why": "An agent can store the transcript in a database and reference it by key in orchestration, so the state is the key, not the transcript. The rule does not forbid storing transcripts or using them to influence decisions indirectly."
+      },
+      {
+       "id": "12.6",
+       "claim": "Do not use shared mutable memory for product personalization and research adaptation.",
+       "verdict": "weak",
+       "why": "An agent can use a distributed cache with weak consistency that is technically not 'shared mutable memory' (e.g., key-value store with eventual consistency) but still allows race conditions. The rule does not specify what constitutes 'shared mutable memory' in terms of consistency or isolation."
+      },
+      {
+       "id": "12.7",
+       "claim": "Do not use an LLM judgment as a hard correctness or promotion gate.",
+       "verdict": "weak",
+       "why": "An agent can use the LLM output as a 'recommendation' that is automatically accepted by a trivial deterministic rule (e.g., if LLM says yes then promote). The rule does not forbid automatic acceptance of LLM judgments; it only forbids the LLM judgment itself being the gate."
+      },
+      {
+       "id": "12.8",
+       "claim": "Do not allow simultaneous unregistered co-evolution of code, prompts, evaluators, and policy.",
+       "verdict": "weak",
+       "why": "An agent can register each artifact type in a different system (e.g., code in Git, prompts in a separate database, evaluators in a config file) so that no single registration covers all. The rule does not require a unified registry or atomic updates."
+      },
+      {
+       "id": "12.9",
+       "claim": "Do not allow automatic merge/promotion or candidate access to its evaluator.",
+       "verdict": "weak",
+       "why": "An agent can have the candidate send a request to a separate service that performs the promotion, so the candidate does not directly access the evaluator but still triggers its own promotion. The rule does not forbid indirect self-promotion."
+      },
+      {
+       "id": "12.10",
+       "claim": "Do not add a marketing clone whose comparison protocol is not reproducible.",
+       "verdict": "weak",
+       "why": "An agent can document the protocol in a private wiki that is not accessible to the evaluator, formally complying with 'protocol is documented' but not reproducible. The rule does not require the protocol to be executable or verifiable by an independent party."
+      },
+      {
+       "id": "12.11",
+       "claim": "Do not add new graph planes without demonstrated marginal evidence.",
+       "verdict": "weak",
+       "why": "An agent can provide a single anecdotal example as 'demonstrated marginal evidence'. The rule does not specify statistical rigor, sample size, or replication requirements."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4d0fba33d1e641820ddcc81f6eb9572515c0e9739831e30fb935dc0e51ac3f47",
+    "objective_chars": 1829,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "12-forbidden-default-directions",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

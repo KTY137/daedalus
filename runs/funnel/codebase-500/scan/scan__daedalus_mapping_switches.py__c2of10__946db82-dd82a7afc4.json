@@ -1,0 +1,206 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c2of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c2of10__946db82-dd82a7afc4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of switches.py: defines dataclasses EnvSwitch, ParamSwitch, ConfigSwitch, DocDrift, SwitchCounts, SwitchReport, and helper functions _rel, _iter_sources, _iter_docs.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "EnvSwitch.defaults | medium | Field 'defaults' doesn't exist in EnvSwitch; likely a typo for 'default' | Check actual field name in EnvSwitch definition",
+     "_iter_docs | medium | Function may skip files without checking if root is a directory; os.walk on non-dir raises error | Add guard for root.is_dir() before walking"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "2 of 10",
+     "purpose": "Define data structures for switch analysis and helper functions for source/doc discovery.",
+     "symbols": [
+      {
+       "name": "EnvSwitch",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: name, kind, polarity, default, state, dark, documented, gates, conflicting_defaults, sites."
+      },
+      {
+       "name": "ParamSwitch",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: module, line, qualname, param, annotation, default, state, dark, gates."
+      },
+      {
+       "name": "ConfigSwitch",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: source, key, value, state, read_in_code, dark."
+      },
+      {
+       "name": "DocDrift",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: kind, documented, read, detail, doc_sites, code_sites."
+      },
+      {
+       "name": "SwitchCounts",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: env_switches, env_sites, dark_env, inverted_env, conflicting_env, param_switches, dark_params, config_switches, dark_config, drift, name_mismatches, dynamic_reads, modules_scanned."
+      },
+      {
+       "name": "SwitchReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: schema, root, counts, env_switches, param_switches, config_switches, drift, dynamic_reads, unparsable. Methods: dark_env_switches(), to_dict()."
+      },
+      {
+       "name": "SwitchReport.dark_env_switches",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of EnvSwitch where dark is True."
+      },
+      {
+       "name": "SwitchReport.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation via asdict(self)."
+      },
+      {
+       "name": "_rel",
+       "kind": "function",
+       "effects": [],
+       "note": "Private helper to compute relative path from root."
+      },
+      {
+       "name": "_iter_sources",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Generator yielding .py files under root, skipping certain directories."
+      },
+      {
+       "name": "_iter_docs",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Generator yielding .md files, .env.example, .env.template, and .md/.txt under docs/."
+      }
+     ],
+     "claims": [
+      {
+       "text": "All reads of one variable, reconciled.",
+       "where": "EnvSwitch docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the code that performs reconciliation; this claim refers to external logic."
+      },
+      {
+       "text": "A public entry point whose boolean parameter defaults to off.",
+       "where": "ParamSwitch docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not verify that the parameter is boolean or defaults to off; fields show 'default' but no constraint."
+      },
+      {
+       "text": "A config key whose value is off-shaped.",
+       "where": "ConfigSwitch docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define what 'off-shaped' means; no validation of value."
+      },
+      {
+       "text": "A name the docs and the code disagree about.",
+       "where": "DocDrift docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the comparison logic; only the data structure."
+      },
+      {
+       "text": "kind: str  # documented_never_read | read_never_documented | name_mismatch",
+       "where": "DocDrift field kind",
+       "verdict": "kept",
+       "why": "The comment lists exactly those three string literals as possible values."
+      },
+      {
+       "text": "dark_env_switches(self) -> tuple[EnvSwitch, ...]: return tuple(s for s in self.env_switches if s.dark)",
+       "where": "SwitchReport.dark_env_switches",
+       "verdict": "kept",
+       "why": "The code implements exactly that logic."
+      },
+      {
+       "text": "to_dict(self) -> dict[str, Any]: return asdict(self)",
+       "where": "SwitchReport.to_dict",
+       "verdict": "kept",
+       "why": "The code returns asdict(self)."
+      },
+      {
+       "text": "def _rel(path: Path, root: Path) -> str: try: return path.relative_to(root).as_posix() except ValueError: return path.as_posix()",
+       "where": "_rel function",
+       "verdict": "kept",
+       "why": "The code matches exactly."
+      },
+      {
+       "text": "def _iter_sources(root: Path) -> Iterator[Path]: for dirpath, dirnames, filenames in os.walk(root): dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS and not d.endswith('.egg-info')) for name in sorted(filenames): if name.endswith('.py'): yield Path(dirpath) / name",
+       "where": "_iter_sources function",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define _SKIP_DIRS; the claim is partially checkable but depends on a missing constant."
+      },
+      {
+       "text": "def _iter_docs(root: Path) -> Iterator[Path]: for candidate in sorted(root.glob('*.md')): yield candidate for candidate in (root / '.env.example', root / '.env.template'): if candidate.is_file(): yield candidate docs = root / 'docs' if docs.is_dir(): for dirpath, dirnames, filenames in os.walk(docs): dirnames[:] = sorted(d for d in dirnames if d not in _SKIP_DIRS) for name in sorted(filenames): if name.endswith(('.md', '.txt')):",
+       "where": "_iter_docs function",
+       "verdict": "kept",
+       "why": "The code matches the description; note that _SKIP_DIRS is again used but not defined in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "EnvSwitch has field 'default' but docstring comment says 'defaults'",
+       "where": "EnvSwitch docstring line",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_iter_sources and _iter_docs reference _SKIP_DIRS which is not defined in this chunk",
+       "where": "_iter_sources, _iter_docs",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_iter_docs does not check that root is a directory before calling root.glob or root / 'docs'; if root is a file, os.walk will raise error",
+       "where": "_iter_docs",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0bcb0e4bdd11fece8effa641d47b1a0882a04e57d8198c3bcfde88309f5de04d",
+    "objective_chars": 3556,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [2/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 2,
+  "total": 10,
+  "first_line": 121
+ }
+}

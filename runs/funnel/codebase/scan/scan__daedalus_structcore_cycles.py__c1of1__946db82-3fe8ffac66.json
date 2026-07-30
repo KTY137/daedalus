@@ -1,0 +1,255 @@
+{
+ "task_id": "scan__daedalus_structcore_cycles.py__c1of1__946db82",
+ "key": "scan__daedalus_structcore_cycles.py__c1of1__946db82-3fe8ffac66",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/structcore/cycles.py (1/1): Tarjan SCC, self-loops, nontrivial components, cycle report. All functions iterative, stdlib-only, deterministic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "cycle_report | medium | Uses import_edges key; if missing, returns empty edges. Index must have correct structure. | Verify index content in integration test.",
+     "component_edges | low | Sorts set of tuples; duplicates from multiple src/dst pairs removed by set. | Confirm deduplication is desired.",
+     "strongly_connected_components | low | Uses sorted(edges.get(nxt) or ()) each time; could be pre-sorted for performance on large graphs. | Evaluate performance if graph grows."
+    ],
+    "todos": [
+     "Consider pre-sorting successor lists in strongly_connected_components for efficiency.",
+     "Add unit tests for edge cases: empty graph, single node, self-loop, multi-component.",
+     "Verify cycle_report handles missing 'import_edges' key gracefully."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/cycles.py",
+     "chunk": "1 of 1",
+     "purpose": "Provide iterative, stdlib-only Tarjan SCC and cycle analysis for import graphs.",
+     "symbols": [
+      {
+       "name": "__all__",
+       "kind": "constant",
+       "effects": [],
+       "note": "Exports: strongly_connected_components, nontrivial_components, self_loops, cycle_report, component_edges."
+      },
+      {
+       "name": "strongly_connected_components",
+       "kind": "function",
+       "effects": [],
+       "note": "Iterative Tarjan's algorithm. Returns tuple of sorted tuples, largest first."
+      },
+      {
+       "name": "self_loops",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted tuple of modules that import themselves."
+      },
+      {
+       "name": "nontrivial_components",
+       "kind": "function",
+       "effects": [],
+       "note": "Filters SCCs to those with >1 member or self-loop."
+      },
+      {
+       "name": "component_edges",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted tuple of induced edges for a component."
+      },
+      {
+       "name": "cycle_report",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds receipt-shaped dict from index['import_edges']."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``structcore`` had **no cycle detection at all**.",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about past state of the codebase; not verifiable from this file alone."
+      },
+      {
+       "text": "``import_edges`` / ``import_edges_reverse`` -- the data, complete and correct, including the edges that live inside function bodies",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to data structures not defined in this file."
+      },
+      {
+       "text": "``topology.spectral_partition`` builds ``nx.Graph()`` and labels itself 'undirected projection of directed import edges'. It discards DIRECTION, which is the only thing a cycle is made of",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to code outside this file."
+      },
+      {
+       "text": "``graph.py``'s ``seen = {rel}`` -- a cycle *guard*, so a walk terminates. Not a detector.",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to code outside this file."
+      },
+      {
+       "text": "the one structural question the repo actually had -- 'these 13 modules form a cycle, what do I cut?' -- could not be asked of the tool whose job is answering 'what should I distill?'",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to external context not present in file."
+      },
+      {
+       "text": "It was answered by a 60-line throwaway script instead, and every number in that audit came from code the product does not contain.",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to external context."
+      },
+      {
+       "text": "Undirected articulation points strand at most 5 of 150 modules (the worst is ``atomic``). Directed reachability loss puts ``core`` at 938 of 3,219 ordered pairs -- **29%**, nearly 2x the next module. ``core`` is a HUB, not a BRIDGE, and an undirected projection cannot see the difference.",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to external analysis not present in file."
+      },
+      {
+       "text": "Deliberately stdlib-only and iterative",
+       "where": "file docstring",
+       "verdict": "kept",
+       "why": "Code uses only stdlib (typing, collections, etc.) and iterative loops, no recursion."
+      },
+      {
+       "text": "**stdlib**, because ``topology.py`` returns ``_empty()`` when networkx is absent, and a structural fact as basic as 'is there a cycle' must not depend on an optional extra being installed.",
+       "where": "file docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to topology.py outside this file."
+      },
+      {
+       "text": "**iterative**, because recursive Tarjan on a 456-node graph with long chains is a ``RecursionError`` waiting for the repo to grow -- and it would surface as a crash in whatever tool asked, not here.",
+       "where": "file docstring",
+       "verdict": "kept",
+       "why": "Implementation uses explicit stack (work list) rather than recursion."
+      },
+      {
+       "text": "**deterministic**, because these outputs get committed to receipts and diffed between runs. Set iteration order is not a basis for a receipt.",
+       "where": "file docstring",
+       "verdict": "kept",
+       "why": "All outputs sorted: nodes list sorted, successors sorted, components sorted by size then lexicographically, edges sorted."
+      },
+      {
+       "text": "Every SCC of the directed graph, largest first, each sorted.",
+       "where": "strongly_connected_components docstring",
+       "verdict": "kept",
+       "why": "Result sorted by descending size then lexicographically; each component sorted."
+      },
+      {
+       "text": "Tarjan's algorithm, iterative.",
+       "where": "strongly_connected_components docstring",
+       "verdict": "kept",
+       "why": "Uses explicit stack (work list) and manual index/low management."
+      },
+      {
+       "text": "Nodes are every key plus every target, so a module that is only ever imported still appears -- a leaf is a component of one, and omitting it would make the component count depend on which side of an edge a module happens to sit.",
+       "where": "strongly_connected_components docstring",
+       "verdict": "kept",
+       "why": "Code collects all keys and all targets from edges into 'nodes' list."
+      },
+      {
+       "text": "Ordering is total and content-derived: by descending size, then lexicographically by the component's own members. Two runs over the same graph produce byte-identical output.",
+       "where": "strongly_connected_components docstring",
+       "verdict": "kept",
+       "why": "Result sorted by (-len, comp); components sorted internally; node order fixed by sorted list."
+      },
+      {
+       "text": "Modules that import themselves. Reported separately because a self-loop is a one-node SCC and would otherwise be indistinguishable from an ordinary leaf -- and a module importing itself is a real finding, not a trivial component.",
+       "where": "self_loops docstring",
+       "verdict": "kept",
+       "why": "Returns sorted tuple of sources where src in edges[src]."
+      },
+      {
+       "text": "SCCs that are actually cycles: more than one member, or a self-loop.",
+       "where": "nontrivial_components docstring",
+       "verdict": "kept",
+       "why": "Filters components: len>1 or (len==1 and member in self_loops)."
+      },
+      {
+       "text": "The edges induced by ``component`` -- i.e. the ones a cut must consider. This is the input to any feedback-arc question. Sorted, so a proposed cut can be quoted in a review and re-derived later.",
+       "where": "component_edges docstring",
+       "verdict": "kept",
+       "why": "Returns sorted tuple of (src,dst) where both in component."
+      },
+      {
+       "text": "Reads ``index[\"import_edges\"]``, which is the layer that ALREADY includes function-body imports -- ``parse._import_records`` walks every node with ``ast.walk`` and records no scope. That is why this is worth computing at all: a cycle detector fed only top-level imports would have reported this repo as acyclic, which is true at import time and false as a change-propagation question. 37% of internal edges live inside function bodies.",
+       "where": "cycle_report docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to parse._import_records and statistics not present in this file."
+      },
+      {
+       "text": "Passing ``index`` avoids a rebuild; omitting it uses the process-wide cache.",
+       "where": "cycle_report docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to .index.cached_index not defined in this file."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module uses only stdlib, no external dependencies.",
+       "where": "entire file",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "All public functions are deterministic and produce sorted outputs.",
+       "where": "strongly_connected_components, self_loops, component_edges, nontrivial_components",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "strongly_connected_components builds a list of all nodes by iterating edges twice; could be simplified.",
+       "where": "strongly_connected_components lines 57-66",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "nontrivial_components calls self_loops which recomputes loops from scratch; could be optimized by passing precomputed loops.",
+       "where": "nontrivial_components",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "cycle_report uses edges.get('import_edges') with fallback to empty dict; if key is missing, report will show zero edges.",
+       "where": "cycle_report",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "component_edges sorts set of tuples; deduplication occurs but order is stable.",
+       "where": "component_edges",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "56442783c93fb82406e18ee71c46128343f74fd3f0c82756e5e208ddbbc2be92",
+    "objective_chars": 8449,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/cycles.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/cycles.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

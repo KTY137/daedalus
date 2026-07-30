@@ -1,0 +1,167 @@
+{
+ "task_id": "plan__b002__946db82",
+ "key": "plan__b002__946db82-8c533f4f4c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 items: fix drift accepted-island suppression (high), validate mint 'wrote' key (high), harden worktree path leak (critical), check prefix regex & dry-run default (medium).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Item 4 (freshness-prefix) depends on locating _ABBREV_SHA_RE definition; file not confirmed in repo.",
+     "Item 2 assumes mint.py contains mint_task_from_landed_edit; if not, need to find correct file.",
+     "Item 1 assumes drift.py contains the logic described; verified by cited source.",
+     "Item 3 assumes worktree.py contains _is_linked_worktree; needs verification."
+    ],
+    "todos": [
+     "Locate _ABBREV_SHA_RE definition (likely in daedalus/spine/ or daedalus/kairos/)",
+     "Confirm mint_task_from_landed_edit exists in daedalus/eval/mint.py",
+     "Confirm _is_linked_worktree exists in daedalus/kairos/worktree.py",
+     "Write and run tests for each item"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix accepted island suppression in drift.py",
+       "gate": "1",
+       "why_now": "Confirmed bug: accepted islands are misclassified as NEW_ISLAND, suppressing legitimate drift findings. Blocks accurate mapping.",
+       "steps": [
+        {
+         "do": "In drift.py, modify the logic that computes known_unreached to exclude modules with acceptance records (i.e., those in old_islands with an acceptance key) so they are not treated as unreached.",
+         "file": "daedalus/mapping/drift.py",
+         "verified_by": "python -m pytest tests/test_drift.py -k 'accepted_island'"
+        },
+        {
+         "do": "Add unit test that creates a snapshot with an accepted island and verifies it is not suppressed in BECAME ISLAND category.",
+         "file": "tests/test_drift.py",
+         "verified_by": "python -m pytest tests/test_drift.py -k 'accepted_island'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The cited source lines 1302-1325 are accurate and the bug is reproducible."
+      },
+      {
+       "rank": 2,
+       "title": "Add validation of report['wrote'] in mint_task_from_landed_edit",
+       "gate": "1",
+       "why_now": "High severity: missing type/schema validation makes the function fragile to changes in offload.py output.",
+       "steps": [
+        {
+         "do": "In mint.py, add explicit validation that report['wrote'] is a list of strings (or expected type) before processing; raise or log if invalid.",
+         "file": "daedalus/eval/mint.py",
+         "verified_by": "python -m pytest tests/test_eval_mint.py -k 'validate_wrote'"
+        },
+        {
+         "do": "Write test that passes malformed 'wrote' (e.g., None, dict) and expects graceful failure.",
+         "file": "tests/test_eval_mint.py",
+         "verified_by": "python -m pytest tests/test_eval_mint.py -k 'validate_wrote'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "mint_task_from_landed_edit exists in daedalus/eval/mint.py; if not, locate correct file."
+      },
+      {
+       "rank": 3,
+       "title": "Harden worktree path leak with graceful failure on missing worktree",
+       "gate": "1",
+       "why_now": "Critical: if _is_linked_worktree fails, minting stores an absolute path that becomes unresolvable; can cause crashes.",
+       "steps": [
+        {
+         "do": "In worktree.py, add a fallback in mint_from_diffs that catches unresolvable paths (e.g., worktree deleted) and returns None or logs warning instead of raising.",
+         "file": "daedalus/kairos/worktree.py",
+         "verified_by": "python -m pytest tests/test_worktree.py -k 'linked_worktree'"
+        },
+        {
+         "do": "Write test that creates linked worktree, mints, deletes worktree, and verifies resolve_task_repo returns None.",
+         "file": "tests/test_worktree.py",
+         "verified_by": "python -m pytest tests/test_worktree.py -k 'linked_worktree'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "_is_linked_worktree and mint_from_diffs exist in daedalus/kairos/worktree.py; test may need git operations."
+      },
+      {
+       "rank": 4,
+       "title": "Verify and fix freshness prefix collision (regex minimum length)",
+       "gate": "1",
+       "why_now": "Medium: if _ABBREV_SHA_RE allows fewer than 7 hex chars, prefix matching can cause false freshness; docstring warns of risk.",
+       "steps": [
+        {
+         "do": "Print the regex pattern for _ABBREV_SHA_RE and check minimum length; if <7, update regex to require at least 7 hex characters.",
+         "file": "UNKNOWN",
+         "verified_by": "Print regex and run test with recorded='a' and actual='abcdef1' to verify startswith does not pass."
+        },
+        {
+         "do": "Write test that verifies short recorded values do not cause false match.",
+         "file": "UNKNOWN",
+         "verified_by": "python -m pytest <test_file> -k 'freshness_prefix'"
+        }
+       ],
+       "depends_on": "Item 5",
+       "effort": "hours",
+       "assumption": "The file containing _ABBREV_SHA_RE is not known; likely in daedalus/spine/ or daedalus/kairos/. Need to locate first."
+      },
+      {
+       "rank": 5,
+       "title": "Confirm dry-run default enforcement in picker.py main()",
+       "gate": "1",
+       "why_now": "Medium: if main() does not enforce dry-run as default, operators may inadvertently trigger actions.",
+       "steps": [
+        {
+         "do": "Grep for 'def main' in daedalus/spine/picker.py and check if it enforces dry-run (e.g., no --apply flag, default action is dry-run).",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Output of grep shows logic; run python -m daedalus.spine.picker --help to confirm no --apply flag."
+        },
+        {
+         "do": "If dry-run not enforced, add argparse default action='store_true' for --dry-run and set default to True.",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "python -m daedalus.spine.picker --help shows dry-run default; run without args and verify no side effects."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The grep will find main() and we can inspect its argument parser."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/mapping/drift.py",
+      "daedalus/eval/mint.py",
+      "daedalus/kairos/worktree.py",
+      "daedalus/spine/picker.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0dbb49d39f2fe121d8dae7c57c0009e0e46089c4787ae43c85a64bbed41d9860",
+    "objective_chars": 17926,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 2 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 2,
+  "inputs": 5
+ }
+}

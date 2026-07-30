@@ -1,0 +1,86 @@
+{
+ "task_id": "research__b040__946db82",
+ "key": "research__b040__946db82-85911cab3d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two hypotheses: (1) inconsistent budget enforcement across modules, and (2) weaker safety checks in Ollama provider vs. DeepSeek provider, with potential for uncaught malicious output.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget enforcement assumptions in session.py may be violated by fanout.py's _one_call, leading to unbounded token spend.",
+     "Ollama provider's _CHECK_POLICY is documented as weaker than DeepSeek's, but no corresponding safeguards exist in session.py or fanout.py to compensate."
+    ],
+    "todos": [
+     "Verify whether session.py's budget enforcement covers both token and call costs, and whether fanout.py's _one_call is subject to those limits.",
+     "Audit whether any cross-module validation ensures that weaker provider policies (e.g., Ollama) are not used for sensitive operations without additional guards."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "budget-enforcement-gap",
+       "claim": "The budget enforcement claimed in session.py (per-call wall clock, per-council wall clock, per-council prompt-token ceiling charged before dispatch) is not reflected in fanout.py's _one_call, which performs a paid external call with no evidence of budget checks. This creates a gap where unbounded token spend can occur outside session's control.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/lanes/fanout.py"
+       ],
+       "mechanism": "session.py docstring claims hard bounds on per-call and per-council token spend, but fanout.py's _one_call function (effects: network_egress, spend) makes provider calls without any budget-checking code visible in its chunk. If _one_call is called outside of a session context or session's budget enforcement is not propagated, unbounded spend can occur.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that _one_call is always invoked within a session's budget context (e.g., session explicitly wraps calls with budget checks, or _one_call itself checks a budget object).",
+       "evidence": [
+        "daedalus/council/session.py: docstring 'HARD BOUNDS, ALL FAIL-CLOSED AND ALL RECORDED'",
+        "daedalus/lanes/fanout.py: _one_call function (effects: network_egress, spend)"
+       ]
+      },
+      {
+       "id": "weaker-provider-policy-propagation",
+       "claim": "The Ollama provider's _CHECK_POLICY is documented as weaker than the DeepSeek provider's policy (missing guards for substitution and invented imports), but this weakness is not compensated by any cross-module validation. If session.py or fanout.py rely on provider-level safety checks uniformly, the Ollama lane could be exploited to produce malicious output that would be caught by DeepSeek but not by Ollama.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/lanes/fanout.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "Ollama.py's _CHECK_POLICY comment explicitly states it is weaker than deepseek.py's policy, missing guards added on 2026-07-30. The fanout.py's _one_call passes policy to provider.run() but does not apply any additional provider-agnostic validation. Session.py's docstring claims evidence is never interpolated into role/instruction, but relies on adapter-level enforcement. If Ollama's policy is weaker, malicious model output may bypass safety checks that deeper providers would catch.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that fanout.py or session.py apply additional validation (e.g., a shared safety filter) that catches the missing guards, or that Ollama's policy is actually not weaker in practice.",
+       "evidence": [
+        "daedalus/providers/ollama.py: comment before _CHECK_POLICY",
+        "daedalus/lanes/fanout.py: _one_call function passes policy to provider.run()",
+        "daedalus/council/session.py: docstring 'EVIDENCE IS UNTRUSTED DATA'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "38caee59275c6ca8a5606e9f9ed8e264926eb58d91620860224f35736735d9f5",
+    "objective_chars": 24876,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 40 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 40,
+  "inputs": 4
+ }
+}

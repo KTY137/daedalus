@@ -1,0 +1,178 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c3of7__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c3of7__946db82-588d103131",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of docrefs.py: FixVerdict dataclass, iter_doc_files, _strip_code_blocks, extract_references, _EXCLUDED_DIRS, and _suffix_index.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_suffix_index | medium | The docstring claims 370 of 374 skipped references were relative, but the code does not show this measurement or any logic that uses it; this claim is uncheckable in this chunk.",
+     "_EXCLUDED_DIRS | low | The comment says 'build/ is the killer' but the code only excludes the directory name; no check is made for a 'build' directory at any depth. This is consistent with the code but the comment may be misleading if the intent was to exclude only a top-level 'build'."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "3 of 7",
+     "purpose": "Define FixVerdict, file iteration, code block stripping, reference extraction, excluded dirs, and suffix index.",
+     "symbols": [
+      {
+       "name": "FixVerdict",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields ok, verdict, detail, resolving_before, resolving_after, and to_dict method."
+      },
+      {
+       "name": "iter_doc_files",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted tuple of Paths matching DOC_GLOBS patterns under repo_root."
+      },
+      {
+       "name": "_strip_code_blocks",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns prose lines and count of dropped lines (fenced blocks and indented code)."
+      },
+      {
+       "name": "extract_references",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of Reference objects and dropped line count from prose file."
+      },
+      {
+       "name": "_EXCLUDED_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of directory names to exclude from suffix index."
+      },
+      {
+       "name": "_suffix_index",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds dict mapping path suffixes to tuple of matching module paths, excluding dirs in _EXCLUDED_DIRS."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``ok`` is False for ``evidence_destroyed`` no matter what else happened.",
+       "where": "FixVerdict docstring, line 243",
+       "verdict": "uncheckable",
+       "why": "The code does not implement any logic that sets ok based on verdict; the claim is about external usage not present."
+      },
+      {
+       "text": "Every prose file in the corpus, sorted, deduplicated.",
+       "where": "iter_doc_files docstring, line 258",
+       "verdict": "kept",
+       "why": "The function returns tuple(sorted(set(found))) after globbing patterns in DOC_GLOBS."
+      },
+      {
+       "text": "Two kinds of code are dropped: fenced blocks, and lines indented four or more spaces that are not list continuations.",
+       "where": "_strip_code_blocks docstring, line 265",
+       "verdict": "kept",
+       "why": "The code explicitly handles fenced blocks (lines matching _FENCE and inside fence) and indented lines (line[:4]=='    ' and not _LIST_MARKER.match(stripped))."
+      },
+      {
+       "text": "The dropped COUNT is returned so \"not checked\" is reported rather than implied.",
+       "where": "_strip_code_blocks docstring, line 268",
+       "verdict": "kept",
+       "why": "The function returns (prose, dropped) where dropped is an int count of dropped lines."
+      },
+      {
+       "text": "Everything returned is UNRESOLVED -- shape only. :func:`resolve_reference` decides what is true.",
+       "where": "extract_references docstring, line 291",
+       "verdict": "uncheckable",
+       "why": "The function returns references with doc_path, line, raw; no resolution logic is present; resolve_reference is not defined in this chunk."
+      },
+      {
+       "text": "A trailing call suffix is how prose names a function; it is not part of the name.",
+       "where": "extract_references, comment line 297",
+       "verdict": "kept",
+       "why": "Code: probe = raw[:-2].strip() if raw.endswith('()') else raw."
+      },
+      {
+       "text": "build/ is the killer: it holds a COPY of daedalus/, so without this every basename in the repo is ambiguous and suffix resolution silently resolves nothing at all.",
+       "where": "comment before _EXCLUDED_DIRS, line 307",
+       "verdict": "uncheckable",
+       "why": "The code only excludes a directory named 'build' (among others); the claim about 'COPY of daedalus/' and ambiguity is not verifiable from this chunk."
+      },
+      {
+       "text": "Measured: 370 of 374 skipped references were relative like this, so a root-anchored resolver was declining to check the overwhelming majority of the corpus and reporting a confident zero.",
+       "where": "_suffix_index docstring, line 316",
+       "verdict": "uncheckable",
+       "why": "No measurement or reference to such data appears in this chunk; the claim is about external analysis."
+      },
+      {
+       "text": "A suffix resolves ONLY when exactly one module ends with it. Ambiguity is the absent-module case: two files named index.py mean this module cannot tell which one the sentence is about, and guessing would manufacture a finding against a file the author never mentioned.",
+       "where": "_suffix_index docstring, line 319",
+       "verdict": "uncheckable",
+       "why": "The code shown builds a dict mapping suffix to list of paths, but does not show the resolution logic that enforces exactly one match."
+      }
+     ],
+     "observations": [
+      {
+       "what": "FixVerdict docstring claims ok is False for evidence_destroyed, but no such logic is in the class.",
+       "where": "FixVerdict docstring, line 243",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "iter_doc_files uses DOC_GLOBS which is not defined in this chunk.",
+       "where": "iter_doc_files, line 260",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_strip_code_blocks uses _FENCE and _LIST_MARKER which are not defined in this chunk.",
+       "where": "_strip_code_blocks, lines 273, 280",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "extract_references uses _INLINE_CODE, _PLACEHOLDER, _PATH_SYMBOL, _DOTTED, _PATH_ONLY which are not defined in this chunk.",
+       "where": "extract_references, lines 295-301",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_suffix_index uses _EXCLUDED_DIRS (defined above) and builds a list-based index, but the function is incomplete (ends mid-line).",
+       "where": "_suffix_index, line 326",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45dadff7ab98bc1e1a73d7ffb78be29a8f22d88d71fb569b157a13762e757bd5",
+    "objective_chars": 5399,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [3/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 3,
+  "total": 7,
+  "first_line": 241
+ }
+}

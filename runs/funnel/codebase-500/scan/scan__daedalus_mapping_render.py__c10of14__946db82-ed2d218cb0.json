@@ -1,0 +1,127 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c10of14__946db82",
+ "key": "scan__daedalus_mapping_render.py__c10of14__946db82-ed2d218cb0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 10 of 14 of daedalus/mapping/render.py: contains _reconciliation and _limits functions, plus HTML generation for dynamic reads section.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "10 of 14",
+     "purpose": "Define _reconciliation and _limits functions and complete HTML generation for area details.",
+     "symbols": [
+      {
+       "name": "_reconciliation",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns HTML table comparing gate numbers against table's, computed rather than asserted."
+      },
+      {
+       "name": "_limits",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns HTML string describing limits/assumptions, started but incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This block used to be prose explaining why the two halves of the page disagreed -- and the explanation predicted the gate's island count would be SMALLER than the table's when it was in fact nearly twice as large, because the two halves ran different scanners.",
+       "where": "docstring of _reconciliation",
+       "verdict": "uncheckable",
+       "why": "The claim describes historical behavior (previous scanners) not present in this chunk."
+      },
+      {
+       "text": "There is one scanner now, so every number below is a subtraction over the same walk and any inconsistency here is arithmetic, not interpretation.",
+       "where": "docstring of _reconciliation",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a single scanner and walk, but the code only shows data being used; the scanner logic is not in this chunk."
+      },
+      {
+       "text": "the gate drops N secrets classified <secret> (an absent API key is an unconfigured feature, not a hidden one) and N documented that a document introduces the way an operator would set it",
+       "where": "inside _reconciliation, comment for 'dark environment switches' row",
+       "verdict": "uncheckable",
+       "why": "The claim about gate behavior and document content is not verifiable from this chunk; it references external logic."
+      },
+      {
+       "text": "The gate above and the tables on this page are derived from the SAME reachability walk and the SAME switch scan, computed once per run.",
+       "where": "docstring of _limits (line ~1115)",
+       "verdict": "uncheckable",
+       "why": "The claim asserts identity of walks/scans, but the chunk only shows _limits starting; no evidence of the walk or scan is in this chunk."
+      },
+      {
+       "text": "Where a number differs it is a stated subtraction over one list, shown in the table under \u201cthe gate against this page\u201d, not two scanners that happen to be close.",
+       "where": "docstring of _limits",
+       "verdict": "uncheckable",
+       "why": "Refers to a table and subtraction logic not present in this chunk."
+      },
+      {
+       "text": "N declared entry points cannot actually be taken (a [project.scripts] target naming a module or function that does not exist). They are listed, never counted as entry points: <entry> is the strongest claim here and it is",
+       "where": "incomplete sentence at end of chunk, inside _limits",
+       "verdict": "uncheckable",
+       "why": "The claim is truncated; the rest of the function is missing, and the referenced data (broken_entries) is not shown in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The dynamic reads section generates HTML for items the scanner refuses to guess at.",
+       "where": "lines ~1081-1086",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_reconciliation function computes various counts from data and builds an HTML table comparing 'this page' vs 'the gate' numbers.",
+       "where": "lines ~1088-1132",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_limits function is incomplete in this chunk; the docstring and first two items are present, but the function body is cut off.",
+       "where": "lines ~1134-1144",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "All claims in docstrings refer to behavior outside this chunk (scanner, walk, gate logic), making them uncheckable.",
+       "where": "docstrings of _reconciliation and _limits",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e702773942c69dae50f84c2a725e24f82779bcaebb48ba3b607ec67a499355a",
+    "objective_chars": 6661,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [10/14]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 10,
+  "total": 14,
+  "first_line": 1081
+ }
+}

@@ -1,0 +1,182 @@
+{
+ "task_id": "scan__daedalus_spine_docref_gate.py__c2of3__946db82",
+ "key": "scan__daedalus_spine_docref_gate.py__c2of3__946db82-015fe2dbe5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 3 of docref_gate.py. Analyzed claims and observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 121-129 | medium | After returning inconclusive, code continues to scan. This is dead code after return but logically unreachable. | Check if the preceding return is intentional or should be conditional.",
+     "line 149-157 | medium | Comment says 'NOTHING may precede this' but the code above (lines 121-129) does precede it. The comment is misleading. | Clarify comment or restructure code.",
+     "line 162 | low | 'destroyed' list may contain verdicts from verify_fixes; variable name shadows built-in. | Rename to avoid confusion.",
+     "line 183 | medium | The check 'after.files_scanned == 0' is after target file existence check; if target exists but scan read zero, it's inconclusive. Possible edge case. | Ensure scan logic handles this.",
+     "line 216-222 | high | The comment about 'claim_withdrawn' verdict explains a potential false positive when target key never matched. The code attempts to mitigate but relies on 'raw in body' which may miss partial matches. | Consider more robust check.",
+     "line 223-225 | medium | 'unresolved' list may contain raw texts that are still in body; but 'raw in body' is a substring check, could be false positive. | Use exact match or regex."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/docref_gate.py",
+     "chunk": "2 of 3",
+     "purpose": "Process scan results, verify fixes, check document existence, and evaluate per-document and per-finding outcomes.",
+     "symbols": [
+      {
+       "name": "clean_refs",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of reference strings stripped of backticks and whitespace."
+      },
+      {
+       "name": "targets",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of dicts with 'doc_path' and 'raw' for each cleaned reference."
+      },
+      {
+       "name": "ok",
+       "kind": "constant",
+       "effects": [],
+       "note": "Result from verify_fixes, used later but not explicitly used in this chunk."
+      },
+      {
+       "name": "verdicts",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of verdict objects from verify_fixes."
+      },
+      {
+       "name": "destroyed",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of verdicts with verdict == 'evidence_destroyed'."
+      },
+      {
+       "name": "unresolved",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of raw reference strings that are still present in the document body but were reported as 'claim_withdrawn'."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A reference's identity is the text INSIDE the backticks; prose and humans both write the backticks. Strip them, or every target key misses and every finding reads as withdrawn.",
+       "where": "comment at line 130-132",
+       "verdict": "kept",
+       "why": "The code at line 133 strips backticks: clean_refs = [r.strip().strip('`').strip() for r in refs]."
+      },
+      {
+       "text": "NOTHING may precede this, and in particular no 'could the gate even run?' guard may precede it.",
+       "where": "comment at line 140-141",
+       "verdict": "broken",
+       "why": "The code at lines 121-129 (returning inconclusive if a certain condition) precedes the verify_fixes call, contradicting the claim."
+      },
+      {
+       "text": "The first version of this file checked ``files_scanned == 0`` up here and called it inconclusive; deleting the last document in the corpus triggers exactly that, so the one move the denominator exists to catch was being reported as 'we could not tell' instead of 'you destroyed the evidence'.",
+       "where": "comment at lines 142-146",
+       "verdict": "uncheckable",
+       "why": "Refers to a previous version of the file; not present in this chunk."
+      },
+      {
+       "text": "The document itself must have survived. Checked AFTER the denominator on purpose: the denominator is the check that a deletion cannot dodge, and it stays the first thing anyone reads in the output.",
+       "where": "comment at lines 167-170",
+       "verdict": "broken",
+       "why": "The document existence check (line 171-182) occurs after the denominator check (verify_fixes) but the comment says 'after the denominator'. Actually the denominator check is inside verify_fixes which was called before (line 149). So the check is after verify_fixes, but the comment is misleading because 'denominator' refers to the verify_fixes call which already happened."
+      },
+      {
+       "text": "Each dispatched finding. ``claim_withdrawn`` is verify_fix's verdict for a target key found in NEITHER the broken list nor the resolving list.",
+       "where": "comment at lines 198-201",
+       "verdict": "uncheckable",
+       "why": "Relies on behavior of verify_fix function not present in this chunk."
+      },
+      {
+       "text": "Here the target came off a COMMAND LINE, so absence has a second explanation the check cannot distinguish: the key never matched anything in the first place.",
+       "where": "comment at lines 201-203",
+       "verdict": "uncheckable",
+       "why": "Refers to command-line input; not checkable in this chunk."
+      },
+      {
+       "text": "MEASURED while writing this file -- a target passed with its backticks still on produced a confident 'claim_withdrawn / pass' for a document whose reference was still sitting there broken.",
+       "where": "comment at lines 203-206",
+       "verdict": "uncheckable",
+       "why": "Refers to historical testing; not present in code."
+      },
+      {
+       "text": "The queue also truncates a reference's raw text to 160 characters, which is the same failure with no typo required.",
+       "where": "comment at lines 206-207",
+       "verdict": "uncheckable",
+       "why": "Refers to queue behavior outside this chunk."
+      },
+      {
+       "text": "So a withdrawal is only credited when the text really is gone from the document. If it is still in there, we do not know what happened, and not knowing is exit 2 -- never a pass.",
+       "where": "comment at lines 208-210",
+       "verdict": "kept",
+       "why": "The code at lines 216-225 implements this: for each verdict, if ok and verdict is 'claim_withdrawn' and raw is in body, it marks as UNKNOWN and returns inconclusive."
+      }
+     ],
+     "observations": [
+      {
+       "what": "After returning EXIT_INCONCLUSIVE at line 122, the code continues to execute (line 124 onward). This is dead code because the return exits the function.",
+       "where": "lines 121-129",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Comment at line 140 claims 'NOTHING may precede this' but the preceding lines (121-129) do precede the verify_fixes call.",
+       "where": "line 140",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Variable name 'destroyed' shadows built-in function 'destroyed'.",
+       "where": "line 162",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The check for 'after.files_scanned == 0' is placed after target file existence check, which may be intentional but could be confusing.",
+       "where": "line 183",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The check for 'raw in body' is a substring check; it may report false positives if the raw text appears as part of a larger string.",
+       "where": "line 219",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0447e3cf778a6083b57208e2b25ca4d69b1200e59bc1d374cf6b9231c9a1d6bb",
+    "objective_chars": 6849,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docref_gate.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docref_gate.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

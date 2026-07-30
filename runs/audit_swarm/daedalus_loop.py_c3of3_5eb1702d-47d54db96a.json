@@ -1,0 +1,134 @@
+{
+ "task_id": "daedalus/loop.py#c3of3#5eb1702d",
+ "key": "daedalus_loop.py_c3of3_5eb1702d-47d54db96a",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A detail of {'status': 'bounced'} is what cost an hour of ledger archaeology\" | ledger.record call | KEPT | The detail dict includes 'status': iteration.status.",
+     "CLAIM | \"lane/worker travel with it because 'who was this even given to' is the very next question\" | ledger.record call | KEPT | The detail dict includes 'lane' and 'worker'.",
+     "CLAIM | \"THE CEILING GOES ON BEFORE ANYTHING ELSE IN THIS PROCESS, including argument parsing\" | main function | KEPT | install_process_guard() is called before argument parsing.",
+     "CLAIM | \"Re-arming automatically here is exactly the 'supervisor restarts the loop and the 3am stop evaporates' failure arm() refuses\" | driver.switch.arm call | KEPT | arm() raises LoopHalted if previous stop marker exists, and code returns 4.",
+     "CLAIM | \"the guard's own configuration (the ceiling, the declared subscriptions, the trusted bench, OLLAMA_HOST) lives exactly there\" | dotenv loading | BROKEN | dotenv loading is not shown to load these specific variables; the claim is about what lives in .env but the code only loads it without specifying what is loaded.",
+     "D4 | if not self.dry_run and spend_at_start.readable: end = read_spend() | branch condition | WRONG CONCLUSION: a caller would believe spend_at_start is always readable when entering this branch, but the condition checks it again, which is redundant."
+    ],
+    "todos": [
+     "Clarify in comment or code that .env is expected to contain those specific variables, or adjust the claim to match the generic load."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "776da759c601a2370d33dda069efdf17081b04c7aaabf5ab4dcec331bdf63dc8",
+    "objective_chars": 16292,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"THE WATCHER IS THE OUTERMOST SCOPE OF THE RUN. Inside it, a revoked permit both latches this object and reaps every live managed child process\" | with self.switch.watch() | KEPT | The code uses `with self.switch.watch()` before the loop, and the docstring claims that inside this context a revoked permit latches the object and reaps child processes; there is no code here contradicting that.",
+     "CLAIM | \"The trace is bound INSIDE it, deliberately: the watcher keeps its documented place as the outermost scope, and everything the run reaches from here ... reads the same id ambiently\" | trace_context(self.trace_id) | KEPT | The trace context is opened inside the watcher context, matching the claim.",
+     "CLAIM | \"That is what converts three producers without editing gated_writes.py or attempt.py, neither of which is in this change's fence.\" | (no code) | UNCHECKABLE | The claim refers to a change fence not present in this unit; would need the full diff or git history to verify.",
+     "CLAIM | \"THE REASON RIDES WITH THE RECORD. A detail of {\"status\": \"bounced\"} is what cost an hour of ledger archaeology\" | detail={...} | KEPT | The detail dict includes 'reason' key, as claimed.",
+     "CLAIM | \"lane/worker travel with it because 'who was this even given to' is the very next question a reader asks, and answering it should not need a join against a second file.\" | detail={...} | KEPT | The detail dict includes 'lane' and 'worker' keys.",
+     "CLAIM | \"a cancelled gate cannot be distinguished from a failed one on this path\" | report.notes.append(...) | KEPT | The code appends a note exactly describing that a cancelled gate cannot be distinguished from a failed one on this path.",
+     "CLAIM | \"WHAT A HUMAN HAS TO DO NEXT, spelled out rather than left implicit. Every branch here is a sibling of every other, cut from the same primary HEAD, and none of them is merged. The loop cannot merge them ... and it deliberately does not try.\" | report.notes.append(...) | KEPT | The note explains branches are siblings and loop does not merge them, matching claim.",
+     "CLAIM | \"MEASURED 2026-07-29, first live run: this entry point skipped the load, so the router saw no reachable local lane, escalated every docref task to the paid tier, and the free-lane gate bounced all three attempts with 'belongs to the senior crew' -- a loop that could only refuse. The bounce was CORRECT; the blindness was the bug.\" | from .dotenv import DotEnvRefused, load as _load_dotenv; try: _load_dotenv() | KEPT | The code loads dotenv before any other action, addressing the described bug.",
+     "D1 | main | parameter `argv` read in `p.parse_args(list(argv) if argv is not None else None)` | WRONG CONCLUSION: parameter `argv` is read, so not a D1 hit."
+    ],
+    "todos": [
+     "CLAIM | \"MEASURED 2026-07-29, first live run: this entry point skipped the load\" | The claim is historical and the code now loads dotenv, so it is kept; no todo needed."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "776da759c601a2370d33dda069efdf17081b04c7aaabf5ab4dcec331bdf63dc8",
+    "objective_chars": 16292,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 16 kept, 2 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"THE WATCHER IS THE OUTERMOST SCOPE OF THE RUN. Inside it, a revoked permit both latches this object and reaps every live managed child process -- so a stop takes effect even in the middle of a wave, not only between iterations.\" | with self.switch.watch(), trace_context(self.trace_id): | KEPT | The code places the watcher as the outermost context manager, and the comment describes its behavior; no contradiction found.",
+     "CLAIM | \"The trace is bound INSIDE it, deliberately: the watcher keeps its documented place as the outermost scope, and everything the run reaches from here -- spine.attempt's record_intent, any file_bridge.enqueue, any child process -- reads the same id ambiently.\" | with self.switch.watch(), trace_context(self.trace_id): | KEPT | trace_context is inside the watcher context, so trace_id is ambient for all code inside the loop.",
+     "CLAIM | \"That is what converts three producers without editing gated_writes.py or attempt.py, neither of which is in this change's fence.\" | (comment only) | KEPT | The comment describes a design intent; no code contradicts it.",
+     "CLAIM | \"THE REASON RIDES WITH THE RECORD. A detail of {\"status\": \"bounced\"} is what cost an hour of ledger archaeology: \"bounced\" names the shape of the outcome and nothing about its cause, while the cause (\"belongs to the senior crew -> return to Adam\") was sitting unread on the wave result.\" | detail={\"status\": iteration.status, ...} | KEPT | The detail dict includes \"reason\": iteration.reason, so the reason is recorded.",
+     "CLAIM | \"lane/worker travel with it because \"who was this even given to\" is the very next question a reader asks, and answering it should not need a join against a second file.\" | detail={\"status\": iteration.status, ..., \"lane\": iteration.lane, \"worker\": iteration.worker} | KEPT | The detail dict includes lane and worker.",
+     "CLAIM | \"WHAT A HUMAN HAS TO DO NEXT, spelled out rather than left implicit.\" | (comment) | KEPT | The comment describes the purpose, not a checkable claim.",
+     "CLAIM | \"Every branch here is a sibling of every other, cut from the same primary HEAD, and none of them is merged.\" | (comment) | KEPT | The comment describes the branches; no code contradicts.",
+     "CLAIM | \"The loop cannot merge them (integration -> primary is a human `git merge`, at every policy level) and it deliberately does not try.\" | (comment) | KEPT | No merge code is present; the loop does not attempt to merge.",
+     "CLAIM | \"Printed as a ready-to-run grep rather than as a bare field: the id is only useful to someone who knows it is greppable, and telling them costs one line.\" | (comment) | KEPT | The code prints the trace_id with a grep command.",
+     "CLAIM | \"The reason is truncated, not dropped: the untruncated text is in the report JSON and the ledger detail, and a line that wraps the terminal is a line nobody scans.\" | why = f\"\\n         why: {r[:200]}{'...' if len(r) > 200 else ''}\" | KEPT | The reason is truncated to 200 characters with ellipsis.",
+     "CLAIM | \".env FIRST, then the ceiling -- the same order as cli.main, for the same reason: the guard's own configuration (the ceiling, the declared subscriptions, the trusted bench, OLLAMA_HOST) lives exactly there.\" | (comment) | KEPT | The code loads .env first, then installs the process guard.",
+     "CLAIM | \"MEASURED 2026-07-29, first live run: this entry point skipped the load, so the router saw no reachable local lane, escalated every docref task to the paid tier, and the free-lane gate bounced all three attempts with \"belongs to the senior crew\" -- a loop that could only refuse. The bounce was CORRECT; the blindness was the bug.\" | (comment) | KEPT | The comment is historical context; no code contradicts.",
+     "CLAIM | \"THE CEILING GOES ON BEFORE ANYTHING ELSE IN THIS PROCESS, including argument parsing -- the same posture as every other spend entry point in this tree (tests/test_spend_coverage.py enforces it).\" | install_process_guard() before argument parsing | KEPT | install_process_guard() is called before ArgumentParser.",
+     "CLAIM | \"A loop driver is the entry point where forgetting it costs the most.\" | (comment) | KEPT | Not a checkable claim.",
+     "CLAIM | \"Re-arming automatically here is exactly the \"supervisor restarts the loop and the 3am stop evaporates\" failure arm() refuses.\" | (comment) | KEPT | The code prints the error and returns 4, not re-arming.",
+     "CLAIM | \"Exit codes an operator (or a supervisor) can branch on without parsing.\" | return 1, return 3, return 0 | KEPT | The exit codes are documented and distinct.",
+     "D1 | spend_at_start | assigned but never read after assignment in the non-dry-run path except for the check at the end; but it is read in the while loop's stop condition via _stop_reason, which is not shown. However, the parameter spend_at_start is used in the call to _stop_reason, so it is read. Not a D1.",
+     "D1 | branches | assigned but used later in the if branches: block; read."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "776da759c601a2370d33dda069efdf17081b04c7aaabf5ab4dcec331bdf63dc8",
+    "objective_chars": 16292,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/loop.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 13786
+ }
+}

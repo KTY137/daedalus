@@ -1,0 +1,163 @@
+{
+ "task_id": "daedalus/lanes/fanout.py#c1of1#5eb1702d",
+ "key": "daedalus_lanes_fanout.py_c1of1_5eb1702d-9b8f59fb69",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 9 kept, 2 broken, 1 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a crash at task 900 costs one task, not nine hundred\" | docstring line 5 | BROKEN | write_text_atomic writes the full file after all votes are done; a crash after 899 tasks and during the 900th task's write loses that task's entire result, not just one task. The code does NOT write per-vote, so loss is proportional to task count, not one task.",
+     "CLAIM | \"A FRESH PROVIDER PER CALL\" | docstring | KEPT | _one_call creates a new DeepSeekProvider() each call.",
+     "CLAIM | \"RESULTS ARE PUBLISHED, NOT WRITTEN. Via daedalus.atomic, so a reader tailing the output directory during a four-hour run never sees half a JSON document.\" | docstring | KEPT | write_text_atomic is imported and used at line 337.",
+     "CLAIM | \"It cannot lift the secret floor.\" | _one_call docstring | UNCHECKABLE | Would need to see secret_floor_rule and verify it runs per path independently of classify_data.",
+     "CLAIM | \"Never raises for a failing task\" | fan_out docstring | KEPT | All exceptions caught per task, errors recorded on result.",
+     "CLAIM | \"resume skips any task whose result file already exists AND parses\" | fan_out docstring | KEPT | Lines 307-316: checks dest.is_file(), tries json.loads, returns result if answers present.",
+     "CLAIM | \"A file that exists but does not parse is re-run\" | fan_out docstring | KEPT | Lines 314-315: except (OSError, ValueError): pass => re-run.",
+     "CLAIM | \"asking for votes you cannot get is an error at the door\" | fan_out docstring | KEPT | Lines 276-290: if any t.votes>1 and temperature<=0.0, return refused.",
+     "CLAIM | \"THE GUARD, FIRST, BEFORE ANY CALL CAN LEAVE\" | fan_out docstring | KEPT | install_process_guard called before any _run_task (lines 293-303).",
+     "CLAIM | \"Fail CLOSED: a fan-out whose spend cannot be capped does not run\" | fan_out docstring | KEPT | If install_process_guard raises, returns refused dict.",
+     "CLAIM | \"PAID CALLS, separate from task count: with votes>1 they differ\" | fan_out docstring | KEPT | paid_calls is counts[\"calls\"], incremented per _one_call.",
+     "CLAIM | \"the number anyone asking 'what did this cost' wants is this one\" | fan_out docstring | KEPT | paid_calls is returned in summary.",
+     "D1 | system_override | parameter accepted in fan_out and _one_call but never used in _one_call (only hashed for sent dict) | WRONG CONCLUSION: caller believes system_override is passed to provider, but it is only logged.",
+     "D2 | except: pass (line 362) | swallows exception from on_result callback | WRONG CONCLUSION: caller believes on_result exceptions are handled or logged, but they are silently ignored.",
+     "D3 | progress_every print (line 357) | runs AFTER the result is appended (line 347) and counts updated, but comment says \"must not kill the queue\" for callback, not for progress. No guard-after-side-effect found. | KEPT (no D3 hit)."
+    ],
+    "todos": [
+     "Change write_text_atomic to be called per-vote, or document that a crash loses up to one task's entire result.",
+     "Pass system_override to provider.run or document that it is only recorded.",
+     "Log or re-raise on_result callback exceptions, or document silent swallowing."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "65a0932ba4a11dbcd28967e3cc498e5559df52bc49ee7344f8e6a5502a5de201",
+    "objective_chars": 25611,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 11 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | write_text_atomic | UNCHECKABLE | requires inspecting daedalus.atomic.write_text_atomic to confirm atomicity",
+     "CLAIM | \"A FRESH PROVIDER PER CALL.\" | _one_call | KEPT | each call instantiates DeepSeekProvider() inside the function",
+     "CLAIM | \"THE GRAPH GOES IN THE PROMPT.\" | _one_call | KEPT | brief is prepended to objective before calling provider.run",
+     "CLAIM | \"It cannot lift the secret floor.\" | _one_call | UNCHECKABLE | requires inspecting secret_floor_rule in providers/deepseek.py",
+     "CLAIM | \"temperature > 0, which is enforced\" | fan_out | KEPT | rejects tasks with votes>1 if temperature <= 0.0",
+     "CLAIM | \"Never raises for a failing task\" | fan_out | KEPT | exceptions caught and recorded in result errors, loop continues",
+     "CLAIM | \"A file that exists but does not parse is re-run\" | _run_task | KEPT | catches OSError/ValueError and proceeds to re-run",
+     "CLAIM | \"the budget process guard could not be installed, so spend could not be capped; refusing to fan out\" | fan_out | KEPT | returns refused state when install_process_guard raises",
+     "CLAIM | \"Fail CLOSED: a fan-out whose spend cannot be capped does not run\" | fan_out | KEPT | guard error returns refused dict, no calls made",
+     "CLAIM | \"NOT re-stamped: the prior trace is the run that paid for this answer\" | _run_task | KEPT | trace_id is read from prior file, not overwritten with current trace",
+     "CLAIM | \"PAID CALLS, separate from task count\" | fan_out | KEPT | paid_calls counts each vote call, not number of tasks",
+     "CLAIM | \"a callback must not kill the queue\" | fan_out | KEPT | on_result exception is caught and ignored",
+     "CLAIM | \"uninstall is not None\" guard | fan_out | KEPT | uninstall is called only if not None",
+     "CLAIM | \"temperature > 0 is enforced\" | fan_out | BROKEN | line 214: temperature default is 0.0, but check only rejects if any task has votes>1, so tasks with votes=1 pass even at temp=0.0, which contradicts the docstring's absolute enforcement language",
+     "CLAIM | \"temperature > 0, which is enforced rather than documented\" | fan_out | BROKEN | same as above; the enforcement is partial (only for votes>1), while the docstring implies it's universal",
+     "CLAIM | \"temperature=0.0\" default in _one_call | _one_call | BROKEN | line 214: _one_call signature has temperature=0.0, but the docstring says >0 is enforced; this default allows deterministic calls for votes=1 tasks",
+     "D1 | parameter 'policy' in _one_call | _one_call | parameter 'policy' is defined and used; parameter 'system_override' is defined and used; parameter 'temperature' is defined and used; parameter 'timeout_s' is defined and used; no unused parameters found",
+     "D2 | except Exception as exc: | _run_task | catches Exception and continues; but the docstring says 'fail CLOSED' for the budget guard, not for individual tasks; for individual tasks the docstring says 'Never raises for a failing task' so this is consistent",
+     "D3 | check after side effect | fan_out | the guard check (install_process_guard) is done before any work, so no side effect precedes the check",
+     "D4 | condition cannot be true | fan_out | the condition `if resume and dest.is_file():` is valid; no obviously impossible branches"
+    ],
+    "todos": [
+     "Change fan_out to refuse ANY call (not just votes>1) when temperature <= 0.0, or update the docstring to clarify that enforcement only applies when votes>1",
+     "Change _one_call default temperature to something >0 (e.g., 0.6) or make it a required parameter to enforce the docstring's claim"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "65a0932ba4a11dbcd28967e3cc498e5559df52bc49ee7344f8e6a5502a5de201",
+    "objective_chars": 25611,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 12 kept, 4 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"RESULTS ARE PUBLISHED, NOT WRITTEN. Via :mod:`daedalus.atomic`, so a reader tailing the output directory during a four-hour run never sees half a JSON document.\" | write_text_atomic | BROKEN | The code uses write_text_atomic from daedalus.atomic, which is correct; but the claim says \"Via :mod:`daedalus.atomic`\" and the import is from ..atomic, not daedalus.atomic. However, this is a minor naming mismatch; the claim is essentially kept. Actually, the code does use write_text_atomic, so the claim is KEPT.",
+     "CLAIM | \"A FRESH PROVIDER PER CALL.\" | _one_call | KEPT | Each call to _one_call creates a new DeepSeekProvider instance.",
+     "CLAIM | \"THE GRAPH GOES IN THE PROMPT.\" | _one_call | KEPT | The brief is prepended to the objective in _one_call.",
+     "CLAIM | \"temperature > 0, which is enforced rather than documented.\" | fan_out | KEPT | fan_out refuses if any task has votes>1 and temperature<=0.0.",
+     "CLAIM | \"The guard is not optional here and not a parameter\" | fan_out | KEPT | install_process_guard is called unconditionally, not as a parameter.",
+     "CLAIM | \"Never raises for a failing task\" | fan_out | KEPT | Exceptions are caught and recorded in errors.",
+     "CLAIM | \"resume skips any task whose result file already exists AND parses.\" | _run_task | KEPT | The code checks if dest.is_file() and tries to parse; if successful and answers exist, it returns resumed result.",
+     "CLAIM | \"A file that exists but does not parse is re-run\" | _run_task | KEPT | The except (OSError, ValueError) block falls through to re-run.",
+     "CLAIM | \"the budget process guard could not be installed, so spend could not be capped; refusing to fan out.\" | fan_out | KEPT | The guard_error branch returns a refused state with that reason.",
+     "CLAIM | \"SAME SUMMARY SHAPE as a completed run, including `paid_calls` and `results`.\" | fan_out | KEPT | Both the refused and ran return dicts contain the same keys.",
+     "CLAIM | \"a parameter with a docstring, a verification, and no caller is the exact defect shape this session spent the day removing.\" | fan_out (policy parameter) | BROKEN | The policy parameter is documented and wired through to _one_call, but there is no verification that it is actually used; the claim says it had \"a verification\" which is missing. The docstring says \"Wired through because _one_call already accepted it and NOTHING could reach it\" but the code does show policy being passed to _one_call. However, the claim about \"a verification\" is not supported; there is no code that verifies policy is passed correctly. Actually, the claim is about a previous defect shape; the current code does wire it. The docstring says \"Wired through because _one_call already accepted it and NOTHING could reach it\" which is a historical note, not a claim about the current code. The claim is ambiguous but essentially KEPT.",
+     "CLAIM | \"It cannot lift the secret floor.\" | _one_call docstring | UNCHECKABLE | Would need to inspect secret_floor_rule in providers/deepseek.py.",
+     "CLAIM | \"Fail CLOSED: a fan-out whose spend cannot be capped does not run.\" | fan_out | KEPT | The guard_error branch returns immediately with a refused state.",
+     "CLAIM | \"The digest is appended rather than the sanitised name being trusted\" | FanoutTask.key | KEPT | The key property appends a hash digest.",
+     "CLAIM | \"Dot runs are collapsed after sanitising.\" | FanoutTask.key | KEPT | The code has a while loop replacing '..' with '_'.",
+     "CLAIM | \"a name that looks like an attack invites someone to 'harden' it later by a route that breaks resume.\" | FanoutTask.key | BROKEN | This is a design rationale, not a checkable claim about code behavior. The code does collapse dot runs and sanitize, but the claim is about future behavior; it's unverifiable. However, as a claim about the code's intent, it's KEPT as the code does that sanitization. Actually, the claim is that the current code's design prevents a future hardening that would break resume; that's not directly checkable. I'll mark it as KEPT since the code does handle dot runs.",
+     "CLAIM | \"NOT re-stamped: the prior trace is the run that paid for this answer.\" | _run_task | KEPT | The code sets trace_id=prior.get('trace_id'), not overwriting with current trace.",
+     "D1 | policy parameter in fan_out | The policy parameter is accepted but never read inside fan_out; it is only passed to _one_call. However, _one_call does use it, so it is read. No D1.",
+     "D2 | except Exception as exc: pass (in on_result callback) | fan_out | The comment says \"must not kill the queue\" and the except swallows exceptions; this is consistent with the claim that the callback must not kill the queue. No D2.",
+     "D3 | (no check after side effect) | No D3.",
+     "D4 | (no impossible branch) | No D4.",
+     "MECHANICAL: D: none"
+    ],
+    "todos": [
+     "Fix the docstring of fan_out's policy parameter: remove the claim about 'a verification' if none exists, or add a verification that policy is actually used."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "65a0932ba4a11dbcd28967e3cc498e5559df52bc49ee7344f8e6a5502a5de201",
+    "objective_chars": 25611,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/lanes/fanout.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 23166
+ }
+}

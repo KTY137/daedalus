@@ -1,0 +1,140 @@
+{
+ "task_id": "research__b081__946db82",
+ "key": "research__b081__946db82-d1c608133c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) fragile cross-module import via sys.modules manipulation, (2) unverifiable claims about shared data/walks across modules, and (3) incomplete data structures passed between modules risking silent data loss.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Cross-module import in load_mutations is fragile; if tools/gate_discrimination.py has side effects or missing deps, it breaks silently.",
+     "DeltaResult class in graph_delta.py is incomplete; missing fields could cause silent data loss downstream.",
+     "Unverifiable claims about shared walks/scans across modules risk assumptions being wrong without detection.",
+     "UNMEASURED tuple in containment.py documents unmeasured vectors but no enforcement that they are actually unmeasured; could be misinterpreted as measured.",
+     "Incomplete _limits function in render.py may produce misleading output if finalized incorrectly."
+    ],
+    "todos": [
+     "Verify that tools/gate_discrimination.py exists and is importable without side effects.",
+     "Complete DeltaResult dataclass with all fields implied by the module's purpose.",
+     "Add assertions or tests that verify the shared walk/scan claim across graph_delta.py, render.py, and containment.py.",
+     "Add a test that UNMEASURED original entries never disappear.",
+     "Complete _limits function in render.py.",
+     "Ensure _classify_wiki handles anchor extraction consistently for all namespaces."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "fragile-cross-import",
+       "claim": "The load_mutations function in graph_delta.py performs a fragile cross-module import from tools/gate_discrimination.py using sys.modules manipulation, which is risky if the target module has side effects or missing dependencies. This pattern is not replicated or protected elsewhere, and no other module in the reports uses such an import mechanism.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "tools/gate_discrimination.py"
+       ],
+       "mechanism": "load_mutations uses importlib to load the mutation corpus from tools/gate_discrimination.py, manually inserting the module into sys.modules before exec to avoid dataclass errors. This bypasses normal import machinery, making it fragile to changes in the target module's dependencies or side effects.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If tools/gate_discrimination.py is a simple data-only module with no imports or side effects, the fragility is reduced. However, the reports do not provide evidence of that.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py:load_mutations"
+       ]
+      },
+      {
+       "id": "unverifiable-shared-walk",
+       "claim": "Multiple modules (graph_delta.py, render.py, containment.py) make claims about shared data (e.g., 'same reachability walk', 'same switch scan', 'gate vs table comparison') that are unverifiable from the code chunks provided, and no module contains code that actually computes or passes such shared data. This suggests a missing cross-module contract or data pipeline that is assumed but not implemented.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "daedalus/mapping/render.py",
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "Docstrings in render.py claim that 'the gate above and the tables on this page are derived from the SAME reachability walk and the SAME switch scan, computed once per run.' Similarly, graph_delta.py claims its corpus is imported from tools/gate_discrimination.py, and containment.py references measurements from unspecified sources. None of the code chunks show the actual computation or passing of these shared data structures.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If a later chunk of render.py or another module shows code that actually computes the walk and scan once and passes them to both the gate and the tables, the claim becomes verifiable. Similarly, if graph_delta.py contains code that receives the walk data, the gap is filled.",
+       "evidence": [
+        "daedalus/mapping/render.py:_reconciliation docstring",
+        "daedalus/mapping/render.py:_limits docstring",
+        "daedalus/eval/graph_delta.py:module docstring"
+       ]
+      },
+      {
+       "id": "incomplete-data-structures",
+       "claim": "The DeltaResult dataclass in graph_delta.py is incomplete, missing fields like 'delta' and 'verdict' that are implied by the module's purpose. This data structure is likely consumed by other modules (e.g., render.py for display, or containment.py for analysis), and its incompleteness could lead to silent data loss or incorrect output downstream.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "daedalus/mapping/render.py",
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "DeltaResult is defined with only mutation_id, defect_class, file, and applied. The module's docstring discusses graph deltas, verdicts, and comparisons with the gate, suggesting that DeltaResult should contain fields like delta (the graph difference), verdict (caught/survived), and possibly prediction. Without these fields, downstream consumers cannot access the delta information.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If later chunks of graph_delta.py show that DeltaResult is extended with additional fields, or if other modules that consume DeltaResult do not require the missing fields, the claim is weakened. Also, if DeltaResult is only used internally and never passed to other modules, the risk is lower.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py:DeltaResult class",
+        "daedalus/eval/graph_delta.py:module docstring"
+       ]
+      },
+      {
+       "id": "unmeasured-vectors-contract",
+       "claim": "The UNMEASURED tuple in containment.py documents aspects of containment that are not measured, but the module does not provide any mechanism to ensure that these vectors remain unmeasured (i.e., no test or assertion prevents them from being accidentally measured later). This creates a risk that future changes could silently start measuring some vectors without updating the documentation, leading to incorrect assumptions.",
+       "spans": [
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "UNMEASURED is a tuple of strings. The docstring says 'This tuple GROWS when a mechanism lands; a test fails if the three original entries ever disappear.' However, no code in the chunk implements such a test. Without enforcement, the tuple can be modified arbitrarily.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If a test is found in another chunk that checks the contents of UNMEASURED against an expected set, the claim is refuted. Alternatively, if the tuple is never modified, the risk is theoretical.",
+       "evidence": [
+        "daedalus/spine/containment.py:UNMEASURED"
+       ]
+      },
+      {
+       "id": "link-classification-inconsistency",
+       "claim": "The _classify function in markdown.py returns a DocLink with href set to the original href parameter, which may contain angle brackets or leading/trailing whitespace, while _classify_wiki processes the destination (strips angle brackets, etc.) before setting href. This inconsistency could cause downstream consumers (e.g., external_links in graph_delta.py or render.py) to receive different formats for similar link types, leading to misclassification or missing links.",
+       "spans": [
+        "daedalus/structcore/markdown.py",
+        "daedalus/eval/graph_delta.py",
+        "daedalus/mapping/render.py"
+       ],
+       "mechanism": "_classify returns DocLink(href=href) where href is the original parameter. _classify_wiki sets href from the processed inner destination. Downstream consumers that compare href values might treat the same link differently depending on syntax.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If downstream consumers always normalize href values (e.g., strip angle brackets and whitespace) before use, the inconsistency is harmless. Also, if the two functions are used for entirely separate link types that never overlap, the inconsistency may not matter.",
+       "evidence": [
+        "daedalus/structcore/markdown.py:_classify",
+        "daedalus/structcore/markdown.py:_classify_wiki"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7cc10c69c20401f46869b242802b8467ce4d2a38b1cfc787635c85da59ed09af",
+    "objective_chars": 26981,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 81 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 81,
+  "inputs": 4
+ }
+}

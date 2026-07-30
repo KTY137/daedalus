@@ -1,0 +1,129 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c4of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c4of8__946db82-ee812dd2ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 8 of daedalus/council/publish.py: implements render_markdown function, rendering council verdict as markdown with load-bearing order.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_markdown (line 361) | medium | The docstring claims 'Pure: no I/O, no network, no gate.' This is uncheckable from this chunk alone; the function calls _text, _field, _as_list, _verbatim, _quorum_counts which may perform I/O. | Check the implementations of those helper functions."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "4 of 8",
+     "purpose": "Render one council deliberation as markdown with deliberate ordering.",
+     "symbols": [
+      {
+       "name": "render_markdown",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders a council verdict to markdown string. Calls helpers _text, _field, _as_list, _verbatim, _quorum_counts."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Order is deliberate and load-bearing: outcome and the quorum honesty line lead, so a degraded council is the first thing a reader sees and cannot be skimmed past. Then EVERY dissent verbatim with its author -- BEFORE the convergence, because the dissent is the only part that could not have come from asking one model twice. Then where the vendors converged, evidence digests, per-vendor cost/latency, the deliberation itself, and finally the provenance footer (bus path + chain head) that lets a reader verify all of it offline.",
+       "where": "docstring of render_markdown (line 361)",
+       "verdict": "uncheckable",
+       "why": "The chunk shows only the start of the markdown building (up to evidence digests). The ordering described includes sections not yet seen (per-vendor cost/latency, deliberation, provenance footer). The chunk confirms outcome leads, quorum is early, dissents before convergence, evidence digests after convergence. The rest is uncheckable."
+      },
+      {
+       "text": "Pure: no I/O, no network, no gate.",
+       "where": "docstring of render_markdown (line 361)",
+       "verdict": "uncheckable",
+       "why": "The function calls helper functions (_text, _field, _as_list, _verbatim, _quorum_counts) whose implementations are not in this chunk. If those helpers perform I/O, the claim would be broken. Cannot verify from this chunk alone."
+      },
+      {
+       "text": "CONVERGENCE, not 'majority'. A majority is a DECISION; convergence is an OBSERVATION about what the vendors said. The council package carries no approve/reject/score/majority/consensus field on purpose -- absence of the field is the control, not a docstring -- and a rendering that reintroduces the word structurally reintroduces the temptation to read it as a verdict. The legacy aliases are kept only so an older payload still renders.",
+       "where": "comment before line 374",
+       "verdict": "kept",
+       "why": "The code uses the variable name 'convergence' and extracts it via _field with aliases including 'majority', 'majority_position'. It renders the section heading 'Where the vendors converged' and adds a disclaimer that convergence is an observation, not a decision. The comment is accurately reflected in the code seen."
+      },
+      {
+       "text": "The advisory banner is UNCONDITIONAL. A verdict arriving without the marker is a contract violation, so we say so instead of quietly rendering it as if it carried authority.",
+       "where": "comment before line 387",
+       "verdict": "kept",
+       "why": "The code unconditionally adds the advisory banner line: '**ADVISORY ONLY -- this verdict promotes nothing. THE GATE DECIDES, NOT A MODEL.**' regardless of the advisory field value. Then checks if advisory is not True and adds an additional caution. The claim is verified."
+      },
+      {
+       "text": "A short council is a weaker signal and that must be impossible to miss -- it is a warning block, not a footnote.",
+       "where": "comment before line 397",
+       "verdict": "kept",
+       "why": "The code uses a markdown warning block (> [!WARNING]) when answered < requested, with the DEGRADED_QUORUM_MARKER and explanatory text. This matches the claim."
+      },
+      {
+       "text": "DISSENT LEADS. Not a stylistic choice: the dissent is the only content in this document that could not have been produced by asking one model twice. Convergence among vendors with overlapping training data is cheap; the objection is what four egress paths were actually paid for. Rendering it after -- and therefore below -- the agreement makes the informative half read as a footnote to the uninformative half.",
+       "where": "comment before line 416",
+       "verdict": "kept",
+       "why": "The code renders dissents before convergence. The section '## Dissents' appears before '## Where the vendors converged'. The claim about ordering is verified."
+      },
+      {
+       "text": "A vendor that did not speak has no content; an empty fence is noise that makes a silent turn look like an empty answer.",
+       "where": "comment before line 437",
+       "verdict": "kept",
+       "why": "The code checks `if text:` before appending the verbatim fence. If text is empty, no fence is added. This matches the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function uses helper functions _text, _field, _as_list, _verbatim, _quorum_counts whose implementations are not in this chunk.",
+       "where": "render_markdown function body (lines 361-466)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims the function is pure (no I/O, no network, no gate). The implementation calls helpers that may perform I/O. Cannot verify purity from this chunk.",
+       "where": "docstring of render_markdown (line 361)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about ordering mentions sections not present in this chunk (per-vendor cost/latency, deliberation, provenance footer). The chunk only shows up to evidence digests.",
+       "where": "docstring of render_markdown (line 361)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code uses DEGRADED_QUORUM_MARKER which is not defined in this chunk; it must be imported or defined elsewhere.",
+       "where": "line 401",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "592b1e7d80318a76ebd010d170b138f7cb8b5352d5d487d3e2193f94f09cbf8d",
+    "objective_chars": 7457,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [4/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 4,
+  "total": 8,
+  "first_line": 361
+ }
+}

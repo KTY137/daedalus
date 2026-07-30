@@ -1,0 +1,280 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c1of4__946db82",
+ "key": "scan__daedalus_kairos_scheduler.py__c1of4__946db82-30d836cce7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of scheduler.py: module docstring, imports, constants, helper function, two dataclasses, and KairosScheduler.__post_init__ and accept method signature.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "FREE_LANES | low | Defines lanes that are 'free' but deepseek and codex_cli may have costs not reflected here. | Check if deepseek and codex_cli truly have no cost or if comment is misleading.",
+     "_paths_overlap | low | Function is defined but not called in this chunk; may be dead code or used later. | Verify usage in subsequent chunks.",
+     "KairosScheduler.__post_init__ | medium | Imports inside method (load_project, load_policy) may cause late import errors or circular imports. | Confirm that those imports are safe and not causing runtime issues.",
+     "max_parallel_writes default | medium | Comment warns about unmeasured cost for N>1 but default is 2; risk of performance degradation. | Measure actual cost of concurrent writes and adjust default accordingly."
+    ],
+    "todos": [
+     "Verify that _paths_overlap is actually used somewhere.",
+     "Check that imports inside __post_init__ do not cause circular imports.",
+     "Consider adding logging or metrics for concurrent write performance."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "1 of 4",
+     "purpose": "Define module docstring, imports, constants, helper function, Assignment dataclass, and KairosScheduler dataclass with __post_init__ and accept method signature.",
+     "symbols": [
+      {
+       "name": "FREE_LANES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of lane names that are considered free of Claude tokens."
+      },
+      {
+       "name": "DEFAULT_AVAILABILITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default availability dictionary for lanes."
+      },
+      {
+       "name": "_paths_overlap",
+       "kind": "function",
+       "effects": [],
+       "note": "Diagnostic function to check for overlapping write paths among assignments."
+      },
+      {
+       "name": "Assignment",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a work assignment."
+      },
+      {
+       "name": "Assignment.objective",
+       "kind": "constant",
+       "effects": [],
+       "note": "String field for the objective of the assignment."
+      },
+      {
+       "name": "Assignment.paths",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of paths associated with the assignment."
+      },
+      {
+       "name": "Assignment.owner",
+       "kind": "constant",
+       "effects": [],
+       "note": "Owner/reviewer of the assignment."
+      },
+      {
+       "name": "Assignment.lane",
+       "kind": "constant",
+       "effects": [],
+       "note": "Lane for the assignment (ollama, deepseek, etc.)."
+      },
+      {
+       "name": "Assignment.worker",
+       "kind": "constant",
+       "effects": [],
+       "note": "Bench persona doing the work."
+      },
+      {
+       "name": "Assignment.mode",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mode of the assignment (write or advisory)."
+      },
+      {
+       "name": "Assignment.accepted",
+       "kind": "constant",
+       "effects": [],
+       "note": "Boolean indicating if assignment was accepted."
+      },
+      {
+       "name": "Assignment.reason",
+       "kind": "constant",
+       "effects": [],
+       "note": "Reason for acceptance or rejection."
+      },
+      {
+       "name": "KairosScheduler",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for the Kairos scheduler."
+      },
+      {
+       "name": "KairosScheduler.max_workers",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of concurrent workers."
+      },
+      {
+       "name": "KairosScheduler.availability",
+       "kind": "constant",
+       "effects": [],
+       "note": "Availability dictionary, can be None."
+      },
+      {
+       "name": "KairosScheduler.policy",
+       "kind": "constant",
+       "effects": [],
+       "note": "Policy object, can be None."
+      },
+      {
+       "name": "KairosScheduler.project",
+       "kind": "constant",
+       "effects": [],
+       "note": "Project string, can be None."
+      },
+      {
+       "name": "KairosScheduler.active_agents",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of active agents, can be None."
+      },
+      {
+       "name": "KairosScheduler.max_parallel_writes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum parallel writes, default 2."
+      },
+      {
+       "name": "KairosScheduler._bench",
+       "kind": "constant",
+       "effects": [],
+       "note": "Cycle iterator over ollama roster, internal."
+      },
+      {
+       "name": "KairosScheduler.__post_init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Post-initialization method that sets up _bench and loads project config if project is given."
+      },
+      {
+       "name": "KairosScheduler.accept",
+       "kind": "function",
+       "effects": [],
+       "note": "Method to clear tasks; only low-risk work accepted."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Kairos never talks to the user, never decides trust, and bounces anything that belongs to the senior crew back to the trusted orchestration layer.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the implementation of KairosScheduler methods that would show user interaction, trust decisions, or bouncing logic."
+      },
+      {
+       "text": "Ikarus then: dynamically spawns local workers from a bounded pool, briefs each with a scoped task + the owning specialist's domain, enforces their *reduced rights*, returns a consolidated report for Adam / the owning specialist to review.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the implementation of worker spawning, briefing, rights enforcement, or report consolidation."
+      },
+      {
+       "text": "Free means free of CLAUDE tokens: ollama is truly free/local; deepseek and codex_cli are external and spend their own (cheap/subscription) budget.",
+       "where": "FREE_LANES comment",
+       "verdict": "uncheckable",
+       "why": "The chunk does not verify the cost model of deepseek or codex_cli; the comment is not backed by code in this chunk."
+      },
+      {
+       "text": "This is not a proof of write isolation: an agent may touch an undeclared path. Production write concurrency therefore remains disabled until each task owns a separate Forge workcell/worktree.",
+       "where": "_paths_overlap docstring",
+       "verdict": "kept",
+       "why": "The function only checks declared paths and does not prevent undeclared writes; the comment accurately describes the limitation."
+      },
+      {
+       "text": "Concurrency cap SPECIFICALLY for gate_concurrent_writes, independent of max_workers. Deliberately conservative and separately configurable.",
+       "where": "max_parallel_writes comment",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain gate_concurrent_writes or evidence that this cap is enforced separately; the claim references code outside this chunk."
+      },
+      {
+       "text": "every concurrent write-mode offload() triggers a FULL structcore re-index (offload.py's post-write blast-radius fence, cached_index(..., refresh=True)), and that cache's single-flight lock is keyed by RESOLVED ROOT (structcore/index.py::cached_index) -- so N worktrees, N distinct roots, N UNSHARED full re-index builds competing for CPU/RAM at once. NOT MEASURED on this box for N>1 -- the default stays low until someone measures the real cost and raises it deliberately.",
+       "where": "max_parallel_writes comment",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain offload(), cached_index, or any code that implements or confirms this behavior; references are to external files."
+      },
+      {
+       "text": "Extra pool workers Ikarus can spin up for fan-out beyond the role shadows.",
+       "where": "__post_init__ comment",
+       "verdict": "kept",
+       "why": "The comment describes _bench as an extra pool; the code initializes _bench as a cycle of ollama roster, which aligns with the comment."
+      },
+      {
+       "text": "Clear each task. Only low-risk work that Adam would offload is taken; anything that routes back to Claude is bounced to Adam.",
+       "where": "accept docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk only contains the method signature; the implementation is not present to verify the described behavior."
+      },
+      {
+       "text": "repo_root makes the target repo's own .agentenv/agents/ roster visible to routing (without it only global agents route).",
+       "where": "accept docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the implementation of accept or any routing logic that uses repo_root."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring describes high-level architecture but no code in this chunk implements it.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_paths_overlap is defined but not called in this chunk; may be dead code or used later.",
+       "where": "line 39",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Imports of load_project and load_policy are inside __post_init__; this could cause late import errors or circular imports.",
+       "where": "__post_init__ method",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "max_parallel_writes default is 2 but comment warns about unmeasured cost for N>1; risk of performance degradation if used concurrently.",
+       "where": "max_parallel_writes field",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "active_agents is parsed from team.get('active_agents') but the field is never used in this chunk.",
+       "where": "__post_init__",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7ff817b0ad53fcc4651a020fd5291e00e122d0f8cc8728bf56b1799a831a482b",
+    "objective_chars": 5847,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

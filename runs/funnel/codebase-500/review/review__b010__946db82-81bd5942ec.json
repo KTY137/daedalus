@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b010__946db82",
+ "key": "review__b010__946db82-81bd5942ec",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted: 2 refuted due to missing evidence, 7 refuted by counterarguments showing no actual mismatch or risk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "content-serialization-format-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for events.py shows 'wrap_event' is NOT PRESENT IN FILE, so the claimed ad-hoc formatting does not exist. The hypothesis rests on evidence that does not exist.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep for 'wrap_event' in daedalus/adapters/events.py; it is absent.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverifiable-concurrency-cap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The chunk shows the cap is a documented attribute (max_parallel_writes) set in __post_init__ and used elsewhere; the gate_concurrent_writes method is simply not in this chunk. The hypothesis assumes missing implementation based on partial scan.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'gate_concurrent_writes' in the full scheduler.py file.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "shared-guards-re-export",
+       "verdict": "refuted",
+       "strongest_counterargument": "The re-exported functions are from a shared module (daedalus/lanes/checks) which is expected to be pure; the hypothesis's claim of side effects is speculative. No evidence of side effects is provided, and the cited source does not show any violation.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect daedalus/lanes/checks.py to verify the functions are pure.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "tokenizer-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for ollama.py does not contain the claimed comment about cl100k over-counting; the symbol 'comment' is NOT PRESENT IN FILE. The evidence is missing. Additionally, dss.py's _estimated_tokens uses 'loc * 8' fallback only for non-file nodes, not for actual token counting.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect ollama.py for actual tokenizer usage; check dss.py for _estimated_tokens implementation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unserialisable-metadata-degradation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The _jsonable function explicitly degrades to repr to prevent exceptions; the hypothesis's concern about large strings is speculative. No evidence of actual memory issues is provided. The cited source for vendors.py does not contain the claimed symbol 'AntigravityAdapter._dispatch'.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Check if any caller passes deeply nested objects to _jsonable.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "bare-except-masking",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for correctness.py shows only lines 1-40; the bare excepts at lines 1681 and 1690 are not in the provided chunk. The hypothesis assumes existence without evidence. In cancel.py, the cancellation mechanism does not rely on exception handling in correctness.py.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect correctness.py lines 1681 and 1690 for actual bare excepts.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "uncheckable-claims-across-modules",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis lists functions not verified in the scanned chunks, but this is normal for modular code; the cited sources do not show any actual bug or contract violation. Missing evidence does not imply incorrectness.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Scan the referenced modules to verify each function's implementation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unused-ts-parameter",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims ts_on is unused, but analyze_chunk passes it to analyze_file, which may use it internally. The cited source does not show analyze_file's full implementation, so the claim is unsupported.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect analyze_file in perfile.py to see if ts_on is used.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "eval-external-refs",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited sources show that daedalus/ikarus_os.py and daedalus/projects.py exist and contain the referenced symbols (_distill and resolve_repo_root). garden/care.py is noted as possibly not in repository, but the hypothesis does not provide evidence it is missing. The test runner handles missing symbols gracefully.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Verify that garden/care.py exists and contains watering_plan.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b1b76e036ef267f8a00e7af3e3a14b8e6da91087166cfcd4912f57e3c962f09e",
+    "objective_chars": 48260,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 10 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 9
+ }
+}

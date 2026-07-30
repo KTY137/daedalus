@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/structcore/index.py#c3of3#5eb1702d",
+ "key": "daedalus_structcore_index.py_c3of3_5eb1702d-e228f9a78b",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``\" | _scope_key | KEPT | Both caches key by the same string via _scope_key.",
+     "CLAIM | \"They are two views of one build and MUST agree\" | _scope_key | KEPT | Both caches use the same key.",
+     "CLAIM | \"when they were keyed by different expressions they drifted apart and a scoped index was served with an unscoped resolver\" | _scope_key | KEPT | The docstring explains the fix.",
+     "CLAIM | \"An unscoped repo keeps its bare path key, so nothing changes for repos that never configure this.\" | _scope_key | KEPT | base = str(resolved) when unscoped.",
+     "CLAIM | \"``documents`` is part of the key for the same reason ``scope`` is\" | _scope_key | KEPT | documents flag is included in key.",
+     "CLAIM | \"``types`` is part of the key for exactly that reason and no weaker one\" | _scope_key | KEPT | types flag is included in key.",
+     "CLAIM | \"THE SUFFIX ORDER IS FIXED -- ``base`` then ``+docs`` then ``+types`` -- so the four flag combinations produce four distinct keys and no two of them can collide by being spelled in a different order.\" | _scope_key | KEPT | The order is fixed as described.",
+     "CLAIM | \"SINGLE-FLIGHT (load-bearing): the cache is only populated *after* a build finishes, so without a per-root lock every concurrent caller saw a cold cache and started its OWN full scan.\" | cached_index | BROKEN | The lock is acquired before checking the cache; the docstring implies the cache is populated after build but the lock is obtained before the first cache check, preventing concurrent builds but not matching the description of the problem.",
+     "CLAIM | \"``wiki`` follows the identical discipline, and for the identical hazard: resolved ONCE here so the key and the build cannot disagree. It also depends on ``docs_on``, so that conjunction is computed here too rather than being re-derived inside build_index where the key can no longer see it -- a key that said \\\"+wiki\\\" over a wiki-free index is exactly the silent-mismatch bug the documents flag already had to close.\" | cached_index | KEPT | wiki_on is resolved once and used for both key and build.",
+     "CLAIM | \"Returned whole rather than pre-trimmed so the code map can heat-shade every node from the same scoring pass that produces the hotspot list.\" | score_modules | KEPT | Returns the full list, not pre-trimmed.",
+     "D1 | _build_lock | Parameter `key` is used (to index dict), so not unused.",
+     "D2 | none | No except blocks in this unit.",
+     "D3 | none | No such pattern found.",
+     "D4 | cached_index | The branch `if not refresh and key in _INDEX_CACHE` can be true; the cache is initially empty, so first call will not hit it. The condition is not impossible given assignments above it."
+    ],
+    "todos": [
+     "Update docstring for SINGLE-FLIGHT to reflect that the lock is acquired before the first cache check, not after the cache miss."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bf0a1ef2abccd652bd57d41fc519d89c32599cc6a65ca3e27d62bab90206c195",
+    "objective_chars": 14771,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 2 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``\" | _scope_key | BROKEN | The docstring claims _scope_key is the single source of truth for both caches, but _INDEX_CACHE is keyed by the result of _scope_key, while _RESOLVER_CACHE is keyed by that same key in resolution_context. However, resolution_context can also be called with key=None, in which case it uses a bare-root key (str(Path(repo_root).resolve())) that is NOT produced by _scope_key, so the cache keys can diverge.",
+     "CLAIM | \"SINGLE-FLIGHT (load-bearing): the cache is only populated *after* a build finishes, so without a per-root lock every concurrent caller saw a cold cache and started its OWN full scan\" | cached_index | KEPT | The code uses _build_lock to ensure only one build per key, and double-checks under the lock.",
+     "CLAIM | \"The scope fingerprint is PART OF THE KEY: the cached index is a function of the center and the ignore rules as well as the root\" | cached_index | KEPT | The key is built from _scope_key which includes scope.fingerprint.",
+     "CLAIM | ``documents`` is resolved ONCE, here, and the same resolved boolean is used for both the key and the build\" | cached_index | KEPT | docs_on is computed once and passed to both _scope_key and build_index.",
+     "CLAIM | ``types`` is resolved here for the same reason and with the same hazard\" | cached_index | KEPT | types_on is computed once and used consistently.",
+     "CLAIM | ``wiki`` follows the identical discipline, and for the identical hazard\" | cached_index | KEPT | wiki_on is computed once and used consistently.",
+     "CLAIM | \"Base score = long fns * 3 + guard_count + loc/50 (+ cc_max if present)\" | score_modules | KEPT | The code computes base = len(...)*3 + guard_count + loc/50 + cc_max.",
+     "CLAIM | \"If ``churn`` is empty/None the factor is exactly 1.0 -> behaves identically to the pre-churn ranking\" | score_modules | KEPT | When churn is empty, max_churn=0, so churn_norm=0.0 and score = base * 1.0."
+    ],
+    "todos": [
+     "Make resolution_context always use _scope_key to derive the cache key, even when key is None, so that _RESOLVER_CACHE and _INDEX_CACHE share the same key derivation."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bf0a1ef2abccd652bd57d41fc519d89c32599cc6a65ca3e27d62bab90206c195",
+    "objective_chars": 14771,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 10 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the same trap as report.truncated / S6's max_files ceiling\" | line 5 | KEPT | The comment references a trap, but the code uses the same truncated logic as elsewhere; no contradiction found.",
+     "CLAIM | \"Documents obey the same scope, so a shell document is a withheld file exactly like a shell source file and is counted as one. With documents off both addends are zero and the numbers are unchanged.\" | lines 6-8 | KEPT | The code sums ignored and doc_ignored, and records and doc_records, consistent with the claim.",
+     "CLAIM | \"Bounded sample, sorted for determinism -- the full list can be tens of thousands of paths on a vendored tree.\" | line 9 | KEPT | The sample is sorted and limited to 25 entries.",
+     "CLAIM | \"Same edges, but keyed rel->rel for EVERY language. ``dependencies`` mixes namespaces (dotted module names for Python, rel paths for the rest), so it cannot be joined against ``modules``/``hotspots``. The code map needs one consistent node id, and this is it.\" | lines 16-18 | KEPT | The code creates import_edges from import_targets_by_rel, consistent with the claim.",
+     "CLAIM | \"The same edges inverted (rel -> rels that import it). Additive; the slicer needs caller identities and ``fan_in`` only carries COUNTS.\" | lines 19-21 | KEPT | The code creates import_edges_reverse from import_sources_by_rel.",
+     "CLAIM | \"Tie-break on the module name. ``fan_in`` is populated by iterating dep_edges' SETS, so its insertion order varies with PYTHONHASHSEED; since sorted() is stable, equal-count entries used to come out in a different order on every process. Same counts, now a total order.\" | lines 22-23 | KEPT | The code sorts fan_in by (-value, key) to ensure deterministic ordering.",
+     "CLAIM | \"Type-3 does not cover every language it parsed. Saying so is not optional: a caller who sees C files scanned and zero near-clusters would otherwise read 'no near-duplication in C' when the truth is 'C was never asked'. Sorted for byte-identical output across runs.\" | lines 30-31 | KEPT | The code includes near_excluded_languages as a sorted list of languages that were excluded from Type-3.",
+     "CLAIM | \"The (root, scope) identity of THIS index. Additive. Lets a consumer holding only the index dict ask for the resolver built alongside it (``resolution_context``) instead of guessing at the bare-root key.\" | line 33 | KEPT | The code includes scope_key computed by _scope_key.",
+     "CLAIM | \"SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``. They are two views of one build and MUST agree; when they were keyed by different expressions they drifted apart and a scoped index was served with an unscoped resolver. An unscoped repo keeps its bare path key, so nothing changes for repos that never configure this.\" | lines 42-45 | KEPT | The docstring claims _scope_key is the single source of truth; the code uses it in both cached_index (for _INDEX_CACHE) and resolution_context (via key parameter) and _RESOLVER_CACHE is keyed by the same strings.",
+     "CLAIM | \"``documents`` is part of the key for the same reason ``scope`` is: a document-bearing index is a DIFFERENT index (different ``modules``, different ``total_tokens``, an extra relation layer, and a resolver whose ``defs_by_file`` carries heading titles). Serving one to a caller that asked for the other would present as the feature silently not working in one process and silently working in the next -- the worst kind of bug to chase, and the exact failure the scope fingerprint was added to close.\" | lines 47-51 | KEPT | The docstring explains why documents is part of the key; the code includes documents in the key construction.",
+     "D1 | _hotspots | parameter 'top' is defined but never read within _hotspots (it is passed to score_modules which uses its own default) | WRONG CONCLUSION: a caller may expect _hotspots to use the top parameter, but it is ignored.",
+     "D2 | none | |",
+     "D3 | none | |",
+     "D4 | none | |"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bf0a1ef2abccd652bd57d41fc519d89c32599cc6a65ca3e27d62bab90206c195",
+    "objective_chars": 14771,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/index.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 12253
+ }
+}

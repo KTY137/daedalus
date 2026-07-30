@@ -1,0 +1,114 @@
+{
+ "task_id": "daedalus/projects.py#c1of1#5eb1702d",
+ "key": "daedalus_projects.py_c1of1_5eb1702d-230f67a68d",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"sorted(PROJECT_DIR.glob(\\\"*.json\\\"))\" | list_projects | KEPT | The function returns a sorted list of stems from .json files in PROJECT_DIR.",
+     "CLAIM | \"raises ValueError if project name is unknown\" | load_project | KEPT | The function raises ValueError with a descriptive message when path does not exist.",
+     "D1 | project | load_project | The parameter 'project' is defined but never read in this unit. | WRONG CONCLUSION: a caller may think the function uses the project parameter, but it does not."
+    ],
+    "todos": [
+     "Remove parameter 'project' from load_project or implement its usage."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6f939e349f81bccf68db125e2cc2a198846c56e73e643f8dec4150c0b99b100a",
+    "objective_chars": 3427,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"sorted(PROJECT_DIR.glob(\\\"*.json\\\"))\" | list_projects | KEPT | glob returns unsorted, sorted() ensures alphabetical order",
+     "CLAIM | \"if not path.exists(): raise ValueError\" | load_project | KEPT | checks existence before reading",
+     "D1 | resolve_repo_root | parameter project is read only in the branch, but that branch uses it, so it's read; no D1 hit"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6f939e349f81bccf68db125e2cc2a198846c56e73e643f8dec4150c0b99b100a",
+    "objective_chars": 3427,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 4 kept, 3 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"list_projects returns sorted list of project stems\" | list_projects | KEPT | sorted glob yields stems",
+     "CLAIM | \"load_project raises ValueError if project file does not exist\" | load_project line 18-19 | KEPT | raises ValueError with known projects",
+     "CLAIM | \"load_project raises ValueError if project is missing repo_root\" | load_project line 21-22 | KEPT | raises ValueError",
+     "CLAIM | \"load_project sets default name from argument if missing\" | load_project line 23 | KEPT | setdefault adds name if absent",
+     "CLAIM | \"resolve_repo_root returns repo_root if provided\" | resolve_repo_root line 27 | KEPT | returns repo_root",
+     "CLAIM | \"resolve_repo_root returns repo_root from project if project provided\" | resolve_repo_root line 29 | KEPT | returns load_project result",
+     "CLAIM | \"resolve_repo_root raises ValueError if neither argument given\" | resolve_repo_root line 31 | KEPT | raises ValueError",
+     "D1 | PROJECT_DIR | defined but never read in this unit | WRONG CONCLUSION: a caller might believe PROJECT_DIR is used for something else",
+     "D2 | none | no except clauses in this unit"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6f939e349f81bccf68db125e2cc2a198846c56e73e643f8dec4150c0b99b100a",
+    "objective_chars": 3427,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/projects.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 986
+ }
+}

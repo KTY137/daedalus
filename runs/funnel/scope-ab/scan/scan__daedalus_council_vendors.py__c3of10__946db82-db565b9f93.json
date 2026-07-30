@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c3of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c3of10__946db82-db565b9f93",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of vendors.py: VendorReply, FloorRefusal, RunResult dataclasses; floor_check and _withheld_paths functions; validated docstring claims against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "floor_check | medium | Docstring says secret_floor_rule returns rule on hit, but code uses rule.startswith(\"secret path marker\") to assign channel. If rule format changes, channel assignment may be wrong. | Check secret_floor_rule return format.",
+     "_withheld_paths | low | Function name suggests it returns paths withheld, but code returns paths that slice_egress_rule returns truthy for. If slice_egress_rule returns truthy for allowed paths, logic is inverted. | Verify slice_egress_rule semantics."
+    ],
+    "todos": [
+     "Verify secret_floor_rule return value format to confirm channel assignment logic.",
+     "Confirm slice_egress_rule return semantics for allow-list vs block-list."
+    ],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "3 of 10",
+     "purpose": "Define VendorReply, FloorRefusal, RunResult dataclasses and implement floor_check and _withheld_paths functions for secret floor enforcement and tier-2 allow-listing.",
+     "symbols": [
+      {
+       "name": "VendorReply",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields: vendor, actor, model, status, content, latency_s, reason, stderr, usage, independence_class, endpoint, cli_version, lane, local, withheld. Has __post_init__ validating status and lane."
+      },
+      {
+       "name": "FloorRefusal",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields: rule (str), channel (str)."
+      },
+      {
+       "name": "RunResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields: returncode (int|None), stdout (str), stderr (str), timed_out (bool), spawn_error (str)."
+      },
+      {
+       "name": "floor_check",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs secret floor on evidence paths, evidence files, and prompt. Returns FloorRefusal or None. Uses secret_floor_rule and assigns channel based on rule prefix."
+      },
+      {
+       "name": "_withheld_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple of paths withheld by tier-2 allow-list for untrusted lanes. Uses slice_egress_rule."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A council prompt is question + evidence + a multi-file diff, so there is no single ``path``",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "This claim describes the structure of a council prompt, which is not defined in this chunk."
+      },
+      {
+       "text": "the tempting ``secret_floor_rule(\"\", prompt)`` kills the path tier outright: a patch that ADDS ``.env`` or ``config/id_rsa`` sails through, because the only trace of the filename is ``diff --git a/.env b/.env`` inside ``text``, which no content regex matches.",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "This describes a behavior of secret_floor_rule that is not testable from this chunk alone."
+      },
+      {
+       "text": "evidence_paths -- every changed path (PatchArtifact.changed_paths) and every evidence file path, each through the PATH channel alone",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "References PatchArtifact.changed_paths which is not in this chunk."
+      },
+      {
+       "text": "evidence_files -- (path, text) pairs, both channels, per file",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The code iterates over evidence_files and calls secret_floor_rule(path, text or '') which checks both path and content."
+      },
+      {
+       "text": "prompt -- a content-channel BACKSTOP for a credential pasted into the question itself. It is a backstop, never the whole check.",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The code calls secret_floor_rule('', prompt or '') after checking evidence_paths and evidence_files, so it serves as a backstop."
+      },
+      {
+       "text": "Returns the first FloorRefusal, or None. A hit means REFUSE -- there is no redact-and-send.",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The code returns a FloorRefusal on first rule match, otherwise returns None."
+      },
+      {
+       "text": "Not a decision made by a default argument: an untrusted lane means OpenAI / Google get the allow-list, and every withheld path is named on the reply so a reader can see what the council did NOT see.",
+       "where": "_withheld_paths docstring",
+       "verdict": "uncheckable",
+       "why": "References OpenAI/Google and reply naming which are not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "VendorReply.__post_init__ validates status against STATUSES and lane against LANES, but these constants are not defined in this chunk.",
+       "where": "VendorReply.__post_init__",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "floor_check docstring claims that secret_floor_rule returns a rule string on hit, and the code uses rule.startswith('secret path marker') to determine channel. This ties channel logic to the rule string prefix.",
+       "where": "floor_check",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_withheld_paths returns paths where slice_egress_rule returns truthy. The docstring says 'allow-list', implying truthy means withheld, but the function name says 'withheld paths'. This could be inverted.",
+       "where": "_withheld_paths",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5ac1ba69631532220b46286885c592f310eff3c24e47de512f1854e59a73525b",
+    "objective_chars": 5893,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [3/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 3,
+  "total": 10,
+  "first_line": 241
+ }
+}

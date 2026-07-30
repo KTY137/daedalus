@@ -1,0 +1,148 @@
+{
+ "task_id": "daedalus/mapping/inventory.py#c2of2#5eb1702d",
+ "key": "daedalus_mapping_inventory.py_c2of2_5eb1702d-e0736220e7",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 14 kept, 3 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The old document is read for its annotations BEFORE it is overwritten\" | refresh | KEPT | load is called before write_inventory, and old is used to harvest annotations.",
+     "CLAIM | \"Refreshing is never a way to quietly drop somebody's stated reason.\" | refresh | KEPT | annotations are harvested from old doc and passed to build, preserving human notes.",
+     "CLAIM | \"Writes nothing\" | check | KEPT | check does not call write_inventory; it only loads and compares.",
+     "CLAIM | \"Four ways to fail, in the order a reader needs them\" | check | KEPT | The docstring lists four failure modes, and the code checks exactly those four in order: missing, parse error, schema mismatch, digest fail, then annotation overreach, then drift. (Five checks listed, but the first four match the prose.)",
+     "CLAIM | \"its digest does not cover its own derived fields -- somebody edited the mechanical half by hand\" | check | KEPT | The code calls digest_ok(stored) to verify the digest matches the derived fields.",
+     "CLAIM | \"regenerating it now would change something -- it is STALE, and the diff says exactly how.\" | check | KEPT | The code builds fresh and compares old_body and new_body via _strip_human, then calls _describe_drift to list differences.",
+     "CLAIM | \"Every feature's DERIVED half, keyed by module (or by detector for the module-less stale entries). The human fields are dropped so a note cannot read as drift.\" | _by_key | KEPT | The function filters out FEATURE_HUMAN_FIELDS from each feature dict.",
+     "CLAIM | \"Field-level, not just status-level. A module whose importers or reaching entry point changed is a real difference, and reporting it as 'something differs, go diff the file yourself' is how a gate stops being read.\" | _describe_drift | KEPT | The function compares fields beyond status, listing changed fields for each key.",
+     "CLAIM | \"Mechanical fields are rewritten every run; human notes are carried forward and excluded from the digest.\" | main | KEPT | The main function uses refresh which harvests old annotations, and the digest is computed on the built doc which excludes human fields via FEATURE_HUMAN_FIELDS.",
+     "CLAIM | \"gate mode: exit non-zero if the file is missing, hand-edited or stale; writes nothing\" | main | KEPT | The --check flag calls check() and returns 1 if problems exist, 0 otherwise. No write occurs.",
+     "CLAIM | \"print the generated document; writes nothing\" | main | KEPT | The --json flag prints the doc via json.dumps and returns 0 without writing.",
+     "CLAIM | \"skip the working-tree dirty probe\" | main | KEPT | The --no-git flag sets probe = False, which is passed to build and refresh as probe_dirty.",
+     "CLAIM | \"Regenerate in place, carrying the human half forward.\" | refresh docstring | KEPT | The function reads old annotations, passes them to build, and writes the new doc to the same path.",
+     "CLAIM | \"Four ways to fail, in the order a reader needs them:\" | check docstring | KEPT | The docstring lists four failure modes, but the code checks five: missing, parse error, schema mismatch, digest fail, annotation overreach, then drift. The first four match exactly, but annotation overreach is an extra check not mentioned in the docstring. However, this is not a broken claim because the claim is about the four ways to fail, not that there are only four. The code adds a fifth check, which does not contradict the claim. So KEPT.",
+     "CLAIM | \"Four ways to fail, in the order a reader needs them:\" | check docstring | BROKEN | The docstring claims four ways to fail, but the code checks five: missing, parse error, schema mismatch, digest fail, annotation overreach, then drift. The annotation overreach check is not listed in the docstring. This is a minor inconsistency, but the claim is about the order and content of the failure modes. The extra check violates the claim that there are exactly four. However, the claim says \"Four ways to fail\" and then lists four items. The code has five checks. So BROKEN. But note: the docstring says \"Four ways to fail, in the order a reader needs them:\" and then lists four bullet points. The code implements those four plus an additional one. This makes the claim false. However, the claim could be interpreted as the four listed are the primary ones, and additional checks are not part of the claim. Given strict reading, it's BROKEN because the code does more than the prose states. But the extra check is not a failure mode that contradicts the listed ones; it's an addition. I'll mark it BROKEN because the docstring explicitly says \"Four ways to fail\" and the code has five independent checks. Actually, looking closely: the docstring lists four bullet points, but the code has five checks: missing file, parse error, schema mismatch, digest_ok, annotation_overreach, and then drift comparison. But the drift comparison is part of the fourth way (regenerating would change something). So the four ways are: 1. no inventory, 2. parse error, 3. schema mismatch, 4. digest mismatch and/or stale. The code checks digest_ok and then annotation_overreach, then drift. Annotation overreach is not mentioned in the docstring. So the docstring claims only four ways, but the code has an additional check (annotation overreach). That makes the claim BROKEN. However, annotation overreach could be considered part of the third way (hand-edited). The docstring says \"its digest does not cover its own derived fields -- somebody edited the mechanical half by hand.\" That is about digest, not about annotation fields. Annotation overreach is about human-set fields that are not allowed. So it's a separate check. So BROKEN.",
+     "CLAIM | \"its digest does not cover its own derived fields -- somebody edited the mechanical half by hand.\" | check docstring | BROKEN | The docstring says this is the third way to fail, but the code checks digest_ok first, then annotation_overreach. Annotation overreach is not about digest covering derived fields; it's about annotation fields that humans may not set. So the third way as described is only the digest check, but the code adds an extra check that is not described. However, the claim is that the third way is about digest, and the code does check digest_ok. The extra check does not break the claim; it's just additional. So the claim is KEPT. Actually, the claim is part of the docstring listing four ways. The code has an extra check, so the claim that there are exactly four ways is broken. But the specific claim about the third way is that it checks digest. That is true. So I'll keep the earlier BROKEN for the count, but for this specific claim I'll mark KEPT. However, the instructions say to extract each checkable claim. The docstring of check says \"Four ways to fail, in the order a reader needs them:\" and then lists four. That is a claim about the number and order. The code has five checks. So that claim is BROKEN. The individual bullet points are also claims. I'll treat the docstring as a whole: the claim \"Four ways to fail\" is BROKEN. The bullet points themselves are claims about what each way checks. Those are KEPT for the first four, but the fifth check (annotation_overreach) is not mentioned, so the claim that there are only four is broken. I'll list one entry for the overall claim about four ways. Then I'll list the individual bullet points as separate claims. The first bullet: \"there is no inventory, or it cannot be parsed\" \u2013 the code checks both, KEPT. Second bullet: \"it was written by a different schema\" \u2013 KEPT. Third bullet: \"its digest does not cover its own derived fields\" \u2013 KEPT. Fourth bullet: \"regenerating it now would change something\" \u2013 KEPT. The overall claim about four ways is BROKEN because there are five checks. So I'll have 5 claims from the docstring: one overall, and four sub-claims. But the overall is redundant. To simplify, I'll treat the docstring as making four claims: each bullet is a claim. The code implements all four, plus an extra one. So all four are KEPT. The extra check does not break the bullet claims. The claim \"Four ways to fail\" is not a separate claim; it's a header. So no broken claim here. I'll revise: the docstring of check makes four claims (the bullets). All are KEPT. The extra annotation_overreach check is not claimed, so it's not a broken claim. So no broken from check docstring. However, there is a potential broken: the docstring says \"Four ways to fail\" but the code has five. That could be considered a broken claim about the number. But the instructions say to extract claims from docstrings and comments. The header \"Four ways to fail\" is a claim. So it is broken. I'll include it as a claim. So 1 broken from that. I'll adjust.",
+     "CLAIM | \"Four ways to fail, in the order a reader needs them:\" | check docstring | BROKEN | The docstring claims four ways to fail, but the code implements five: missing file, parse error, schema mismatch, digest mismatch, annotation overreach, and drift. The annotation overreach check is not listed in the docstring, so the claim of exactly four ways is false.",
+     "CLAIM | \"there is no inventory, or it cannot be parsed\" | check | KEPT | The code checks for None and __error__.",
+     "CLAIM | \"it was written by a different schema\" | check | KEPT | The code checks stored.get(\"schema\") != SCHEMA.",
+     "CLAIM | \"its digest does not cover its own derived fields -- somebody edited the mechanical half by hand\" | check | KEPT | The code calls digest_ok(stored) to verify the digest.",
+     "CLAIM | \"regenerating it now would change something -- it is STALE, and the diff says exactly how.\" | check | KEPT | The code builds fresh, compares old_body and new_body, and calls _describe_drift to list differences.",
+     "D: none"
+    ],
+    "todos": [
+     "Update the docstring of check to mention the annotation_overreach check as a fifth way to fail, or remove the annotation_overreach check.",
+     "Correct the docstring of check to say \"Five ways to fail\" or merge the annotation_overreach check into the existing ways."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0ba4d4b65453cb31b925cd7ee5853458ac9e41c1e07490cb8cb1fe082df95343",
+    "objective_chars": 20393,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 4 kept, 3 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The old document is read for its annotations BEFORE it is overwritten\" | refresh | KEPT | load reads the file, then write_inventory writes later.",
+     "CLAIM | \"a first run over a schema-1 file harvests them out of the hand-written entries\" | refresh | UNCHECKABLE | need to see harvest() to verify schema-1 handling.",
+     "CLAIM | \"Refreshing is never a way to quietly drop somebody's stated reason.\" | refresh | KEPT | annotations are carried forward via harvest(old, ...).",
+     "CLAIM | \"Gate mode. Writes nothing\" | check | KEPT | check() returns dict with problems, no write_inventory call.",
+     "CLAIM | \"Four ways to fail, in the order a reader needs them: 1. there is no inventory, or it cannot be parsed\" | check | BROKEN | line 2: stored is None returns immediately, but if stored has __error__ it returns a different dict; the claim says one way, but code has two separate returns for missing vs unparseable, so the ordering is not as described (the second return is not a subcase of the first).",
+     "CLAIM | \"its digest does not cover its own derived fields -- somebody edited the mechanical half by hand\" | check | BROKEN | lines 3-5: digest_ok is called but not defined; the claim says digest does not cover derived fields, but the code only checks digest_ok(stored) without specifying what that checks; the claim is not verifiable from this unit alone.",
+     "CLAIM | \"regenerating it now would change something -- it is STALE, and the diff says exactly how.\" | check | KEPT | _describe_drift produces detailed diff messages.",
+     "CLAIM | \"The human fields are dropped so a note cannot read as drift.\" | _by_key | KEPT | FEATURE_HUMAN_FIELDS is used to filter out human fields.",
+     "D1 | FEATURE_HUMAN_FIELDS | defined but never read in this unit | WRONG CONCLUSION: a caller might expect it to be used elsewhere, but it's not referenced in this chunk."
+    ],
+    "todos": [
+     "check: reorder the failure cases to match the prose order (1. missing/unparseable, 2. schema mismatch, 3. digest check, 4. drift), or adjust docstring",
+     "check: define digest_ok or remove the claim about digest coverage from docstring"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0ba4d4b65453cb31b925cd7ee5853458ac9e41c1e07490cb8cb1fe082df95343",
+    "objective_chars": 20393,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 11 kept, 1 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"unmatched annotations\" sorted | unmatched = sorted(k for k in annotations if k not in live_keys and not k.startswith(\"stale:\")) | KEPT | The code sorts the unmatched keys.",
+     "CLAIM | \"stamp.revision if head is None else head\" used for head | head = stamp.revision if head is None else head | KEPT | The code correctly uses stamp.revision when head is None.",
+     "CLAIM | \"stamp.branch if branch is None else branch\" used for branch | branch = stamp.branch if branch is None else branch | KEPT | The code correctly uses stamp.branch when branch is None.",
+     "CLAIM | \"dirty = (True if stamp.dirty == 'dirty' else False if stamp.dirty == 'clean' else None)\" | dirty = (True if stamp.dirty == \"dirty\" else False if stamp.dirty == \"clean\" else None) | KEPT | The code matches the prose.",
+     "CLAIM | \"unreached = sorted(set(islands) | set(shims) | set(unknown))\" | \"unreached\": sorted(set(islands) | set(shims) | set(unknown)) | KEPT | The code produces a sorted list of the union.",
+     "CLAIM | \"stale = [f['reason'] for f in stale_features]\" | \"stale\": [f[\"reason\"] for f in stale_features] | KEPT | The code extracts the reason field.",
+     "CLAIM | \"annotations = {k: annotations[k] for k in sorted(annotations)}\" | \"annotations\": {k: annotations[k] for k in sorted(annotations)} | KEPT | The code sorts annotations by key.",
+     "CLAIM | \"narrative_features = narrative_features\" (in doc dict) | \"narrative_features\": narrative_features | KEPT | The code includes the narrative_features list.",
+     "CLAIM | \"unmatched_annotations = unmatched\" | \"unmatched_annotations\": unmatched | KEPT | The code assigns the unmatched list.",
+     "CLAIM | \"doc[DIGEST_KEY] = _digest(doc)\" | doc[DIGEST_KEY] = _digest(doc) | KEPT | The code computes and assigns the digest.",
+     "CLAIM | \"The old document is read for its annotations BEFORE it is overwritten\" | old = load(target) or {}; ... annotations, narrative, stats = harvest(old, modules, env_names); doc = build(...); write_inventory(target, doc) | KEPT | The code reads old before writing.",
+     "CLAIM | \"Refreshing is never a way to quietly drop somebody's stated reason.\" | annotations, narrative, stats = harvest(old, modules, env_names) | BROKEN | The docstring claims annotations are never dropped, but `harvest` may filter or drop annotations if they don't match modules or env_names; the code does not guarantee preservation of all annotations."
+    ],
+    "todos": [
+     "Change the docstring of `refresh` to clarify that annotations are harvested and only those matching current modules/env_names are kept, or modify `harvest` to preserve all annotations regardless of matching."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0ba4d4b65453cb31b925cd7ee5853458ac9e41c1e07490cb8cb1fe082df95343",
+    "objective_chars": 20393,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/mapping/inventory.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 17874
+ }
+}

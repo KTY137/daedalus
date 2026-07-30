@@ -1,0 +1,247 @@
+{
+ "task_id": "scan__daedalus_kairos_control.py__c1of1__946db82",
+ "key": "scan__daedalus_kairos_control.py__c1of1__946db82-4da4b1a51e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/kairos/control.py (chunk 1/1) \u2013 8 public functions, 6 main_* entry points, each delegating to core module. Claims verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "dashboard | low | Function expects optional project but core.get_dashboard behavior unknown | Verify core.get_dashboard handles None project",
+     "ollama_models | low | Assumes payload['models'] exists and each has 'name' and 'size_gb' | Verify core.model_resources return structure",
+     "queue_timeline | low | Function defined but no main_* entry point | Confirm if unused or missing CLI binding",
+     "main_watcher | low | Only handles 'status' subcommand; other subcommands silently show help | Verify intended design",
+     "main_review_diff | medium | lane choices include 'auto' but core.review_diff may not support it | Check core.review_diff signature",
+     "watcher_status | low | Assumes payload['running'] key exists | Verify core.watcher_status return structure"
+    ],
+    "todos": [
+     "Add main_queue_timeline entry point if queue_timeline is meant to be CLI-accessible",
+     "Confirm core module functions exist and match expected signatures"
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/control.py",
+     "chunk": "1 of 1",
+     "purpose": "CLI entry points for mission control, models, squads, watcher, diff review",
+     "symbols": [
+      {
+       "name": "dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.get_dashboard"
+      },
+      {
+       "name": "ollama_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.model_resources"
+      },
+      {
+       "name": "queue_timeline",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.get_queue with limit"
+      },
+      {
+       "name": "watcher_status",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.watcher_status"
+      },
+      {
+       "name": "squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.get_squads"
+      },
+      {
+       "name": "quality_gates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.get_quality"
+      },
+      {
+       "name": "review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to core.review_diff"
+      },
+      {
+       "name": "_print_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private helper to print JSON to stdout"
+      },
+      {
+       "name": "main_dashboard",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry for dashboard command"
+      },
+      {
+       "name": "main_models",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry for models command"
+      },
+      {
+       "name": "main_squads",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry for squads command"
+      },
+      {
+       "name": "main_watcher",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry for watcher status"
+      },
+      {
+       "name": "main_review_diff",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry for review-diff command"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Mission Control dashboard JSON.",
+       "where": "main_dashboard docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes purpose; actual JSON output depends on core.get_dashboard return structure, which is not in this chunk."
+      },
+      {
+       "text": "Ollama model resources.",
+       "where": "main_models docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes purpose; actual resource data depends on core.model_resources."
+      },
+      {
+       "text": "Project squad configuration.",
+       "where": "main_squads docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes purpose; actual configuration depends on core.get_squads."
+      },
+      {
+       "text": "Bridge watcher status.",
+       "where": "main_watcher docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes purpose; actual status depends on core.watcher_status."
+      },
+      {
+       "text": "Queue a local advisory review of the current diff.",
+       "where": "main_review_diff docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes purpose; actual review queuing depends on core.review_diff."
+      },
+      {
+       "text": "running if payload['running'] else not running",
+       "where": "main_watcher line ~85",
+       "verdict": "kept",
+       "why": "Code prints 'running' if payload['running'] is truthy, else 'not running'."
+      },
+      {
+       "text": "lane choices: local_only, local, auto",
+       "where": "main_review_diff line ~91",
+       "verdict": "kept",
+       "why": "Argument choices set to ['local_only', 'local', 'auto']."
+      },
+      {
+       "text": "print payload['queued']",
+       "where": "main_review_diff line ~95",
+       "verdict": "kept",
+       "why": "Code prints payload['queued'] when --json not used."
+      }
+     ],
+     "observations": [
+      {
+       "what": "queue_timeline is defined but has no corresponding main_* entry point, possibly unused or missing CLI binding.",
+       "where": "line 18",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "quality_gates is defined but has no main_* entry point, possibly unused or missing CLI binding.",
+       "where": "line 30",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "main_watcher only handles 'status' subcommand; other subcommands cause help print. May be intentional.",
+       "where": "lines 74-86",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "main_review_diff requires --project but does not validate that the project exists; depends on core.",
+       "where": "line 91",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "All functions delegate to core module; no error handling or fallback logic visible.",
+       "where": "lines 9-34",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "11eb5e89525394032ff2d430d3bddda4947b975ff4d566d7a0eb41bd4ac3263b",
+    "objective_chars": 3822,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/control.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/control.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

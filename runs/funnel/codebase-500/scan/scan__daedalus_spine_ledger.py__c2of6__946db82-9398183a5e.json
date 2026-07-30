@@ -1,0 +1,226 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c2of6__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c2of6__946db82-9398183a5e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of 6 of ledger.py, covering SpineError/UnknownIntent/IntentAlreadyResolved exceptions, _now_iso, _uri_path, default_db_path, Intent dataclass with to_statement, IntentEvent, and _SCHEMA start.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_uri_path | low | Uses replace without percent-encoding other characters; may produce invalid URIs. | Review if percent-encoding for all special characters is needed.",
+     "default_db_path | low | Returns Path(env) without validation; could be empty or invalid. | Check if validation or fallback is needed.",
+     "Intent.to_statement | low | Docstring claims subject digest is stored payload_sha, not recomputed, but code uses self.payload_sha directly; no recomputation visible. | Verify that payload_sha is always correct.",
+     "Intent.trace_id | medium | Docstring says 'defaulted' but field has no default and is typed as optional; all keyword constructions must provide it explicitly. | Confirm if default should be None.",
+     "_SCHEMA | low | Only first two CREATE TABLE statements shown; rest of schema not visible. | Need to see full schema."
+    ],
+    "todos": [
+     "Check if Intent.trace_id should have a default of None.",
+     "Verify full schema in subsequent chunks."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "2 of 6",
+     "purpose": "Define exceptions, utility functions, Intent/IntentEvent dataclasses, and start schema definition.",
+     "symbols": [
+      {
+       "name": "DEFAULT_BUSY_TIMEOUT_MS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default SQLite busy timeout in milliseconds, set to 30000."
+      },
+      {
+       "name": "SpineError",
+       "kind": "class",
+       "effects": [],
+       "note": "Base exception for ledger errors, inherits RuntimeError."
+      },
+      {
+       "name": "UnknownIntent",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for non-existent intent, inherits SpineError."
+      },
+      {
+       "name": "IntentAlreadyResolved",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for already resolved intent, inherits SpineError."
+      },
+      {
+       "name": "_now_iso",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns current UTC time as ISO 8601 string."
+      },
+      {
+       "name": "_uri_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts filesystem path to SQLite URI path part, escaping backslashes, '?' and '#'."
+      },
+      {
+       "name": "default_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns path to ledger database, overridable via DAEDALUS_SPINE_DB env var."
+      },
+      {
+       "name": "Intent",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a recorded intent with current state and derived ITE-6 statement."
+      },
+      {
+       "name": "Intent.is_open",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns True if state is STATE_INTENDED."
+      },
+      {
+       "name": "Intent.to_statement",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns ITE-6 statement dict from intent data."
+      },
+      {
+       "name": "IntentEvent",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for an intent event with id, intent_id, state, ts, detail."
+      },
+      {
+       "name": "_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of SQL CREATE TABLE statements for schema initialization."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Hold rather than surfacing \"database is locked\" to the loop.",
+       "where": "line 121 comment",
+       "verdict": "uncheckable",
+       "why": "The comment refers to the purpose of DEFAULT_BUSY_TIMEOUT_MS but no code using it is shown in this chunk."
+      },
+      {
+       "text": "Backslashes are not URI separators, and ?/# would start the query and fragment -- on Windows all three turn up in real paths.",
+       "where": "_uri_path docstring",
+       "verdict": "kept",
+       "why": "The function replaces backslashes with forward slashes, and escapes '?' and '#' as %3f and %23."
+      },
+      {
+       "text": "DAEDALUS_SPINE_DB overrides it (tests and isolated worktrees point this away from the real runs/ directory).",
+       "where": "default_db_path docstring",
+       "verdict": "kept",
+       "why": "The function checks the env var and returns Path(env) if set, else DEFAULT_DB_PATH."
+      },
+      {
+       "text": "PROCESS-GLOBAL by design -- the counterpart, and deliberately NOT the same question, is daedalus.spine.picker.resolve_spine_db_path, which is repo-confined and ignores this env var so that picking for a foreign repository can never be redirected by inherited environment.",
+       "where": "default_db_path docstring",
+       "verdict": "uncheckable",
+       "why": "References to daedalus.spine.picker.resolve_spine_db_path and its behavior are not present in this chunk."
+      },
+      {
+       "text": "payload_json is the exact text stored in the row (not a re-render), so a caller can digest or diff it without guessing the serialisation.",
+       "where": "Intent docstring",
+       "verdict": "uncheckable",
+       "why": "The payload_json field is declared but no code in this chunk guarantees it is stored exactly; it's a claim about storage behavior."
+      },
+      {
+       "text": "Last field and defaulted, so every existing keyword construction of Intent still type-checks and still runs.",
+       "where": "Intent docstring for trace_id",
+       "verdict": "broken",
+       "why": "trace_id has no default value in the dataclass definition; it is typed as str | None but not defaulted. Keyword constructions must provide it explicitly or it will be required."
+      },
+      {
+       "text": "This intent as an in-toto ITE-6 statement. A PROJECTION, not storage.",
+       "where": "Intent.to_statement docstring",
+       "verdict": "uncheckable",
+       "why": "The method returns a dict but no ITE-6 statement structure is validated; the claim about projection vs storage is about usage not code."
+      },
+      {
+       "text": "The row remains the source of truth and the payload column is never wrapped -- callers reach intent.payload and intents_matching_payload's substring search both depend on the stored text staying exactly what it was.",
+       "where": "Intent.to_statement docstring",
+       "verdict": "uncheckable",
+       "why": "No reference to intents_matching_payload or storage behavior in this chunk."
+      },
+      {
+       "text": "The subject digest is the STORED payload_sha, not a recomputation: re-hashing here would silently repair the one disagreement worth surfacing -- a stored digest that no longer matches its stored payload.",
+       "where": "Intent.to_statement docstring",
+       "verdict": "kept",
+       "why": "The method uses self.payload_sha directly without recomputing it, consistent with the claim."
+      },
+      {
+       "text": "Written once, never updated. Everything that changes lives in the events",
+       "where": "comment in _SCHEMA",
+       "verdict": "uncheckable",
+       "why": "The comment describes a table property but the schema is incomplete in this chunk; no enforcement shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Intent.trace_id field lacks default value despite docstring claiming it is defaulted.",
+       "where": "Intent dataclass definition",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_uri_path only escapes '?', '#', and backslashes; other URI-unsafe characters are not percent-encoded.",
+       "where": "_uri_path function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "default_db_path returns Path(env) without checking if env is a valid path; could be empty string leading to current directory.",
+       "where": "default_db_path function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Intent.to_statement does not recompute payload_sha; relies on stored value.",
+       "where": "Intent.to_statement method",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_SCHEMA definition is incomplete; only first two statements are shown.",
+       "where": "_SCHEMA constant",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b3b22d707593963c462790432df80aa4e1daed843afe471e6bf58562a3af7d56",
+    "objective_chars": 5070,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [2/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 121
+ }
+}

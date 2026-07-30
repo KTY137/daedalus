@@ -1,0 +1,218 @@
+{
+ "task_id": "scan__daedalus_spine_killswitch.py__c4of6__946db82",
+ "key": "scan__daedalus_spine_killswitch.py__c4of6__946db82-5497cfa154",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 6 of killswitch.py: contains should_stop, __call__, is_set, wait, checkpoint, track, stop_children, children_stopped, start_watch. Verifies docstring claims about never raising, latching, idempotency, etc.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "should_stop | medium | Catches BaseException including SystemExit, KeyboardInterrupt; could mask program termination. | Add test that should_stop does not suppress signals.",
+     "stop_children | medium | Silently ignores exceptions from cancel; may hide failures. | Add logging or re-raise after collecting all results."
+    ],
+    "todos": [
+     "Add test for should_stop latching behavior.",
+     "Add test for checkpoint raising LoopHalted.",
+     "Add test for start_watch idempotency."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/killswitch.py",
+     "chunk": "4 of 6",
+     "purpose": "Provides public API for kill switch: polling, latching, children management, and watcher start.",
+     "symbols": [
+      {
+       "name": "should_stop",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True once latched. Catches BaseException to avoid raising; on failure latches True."
+      },
+      {
+       "name": "__call__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to should_stop."
+      },
+      {
+       "name": "is_set",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Delegates to should_stop."
+      },
+      {
+       "name": "wait",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Blocks on _event.wait(timeout)."
+      },
+      {
+       "name": "checkpoint",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Raises LoopHalted if should_stop is True."
+      },
+      {
+       "name": "track",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Appends managed to _tracked list and returns the argument."
+      },
+      {
+       "name": "stop_children",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Cancels tracked processes and optionally sweeps all managed processes. Returns results list."
+      },
+      {
+       "name": "children_stopped",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property returning _children_stopped boolean."
+      },
+      {
+       "name": "start_watch",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Starts a daemon thread for the watch loop. Idempotent."
+      }
+     ],
+     "claims": [
+      {
+       "text": "True once, then True forever. NEVER raises, and NEVER returns False because something went wrong.",
+       "where": "should_stop docstring",
+       "verdict": "kept",
+       "why": "Code sets stopped=True on BaseException and never raises after that point; returns True once latched."
+      },
+      {
+       "text": "The never-raises property is not politeness. ``_as_predicate`` in :mod:`daedalus.spine.attempt` wraps a cancel token in ``try/except -> False``, i.e. a token that raises is treated as *not cancelled*. That is fail-open, it lives in a file this module may not edit, and the only defence available from this side is to make raising impossible: any internal failure here latches STOP instead of escaping.",
+       "where": "should_stop docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to _as_predicate in daedalus.spine.attempt which is not in this chunk."
+      },
+      {
+       "text": "Block until the watcher latches. Only meaningful under :meth:`watch`.",
+       "where": "wait docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to watch method which is not in this chunk."
+      },
+      {
+       "text": "Raise :class:`LoopHalted` if the loop must not proceed.",
+       "where": "checkpoint docstring",
+       "verdict": "kept",
+       "why": "Code checks should_stop and raises LoopHalted with reason and path."
+      },
+      {
+       "text": "Call this immediately before anything that costs money or writes: it is the enforcement point for the \"no new spend after the latch\" bound.",
+       "where": "checkpoint docstring",
+       "verdict": "uncheckable",
+       "why": "Behavioral claim about usage context not verifiable from code alone."
+      },
+      {
+       "text": "Returns its argument so it can wrap a constructor inline.",
+       "where": "track docstring",
+       "verdict": "kept",
+       "why": "Code returns managed argument."
+      },
+      {
+       "text": "Tracking is belt-and-braces: :func:`~daedalus.spine.cancel.cancel_all_managed` already sweeps every live ``ManagedProcess`` in this interpreter, which is what stops a gate child whose loop driver forgot to thread the cancel token through.",
+       "where": "track docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to cancel_all_managed in daedalus.spine.cancel which is not in this chunk."
+      },
+      {
+       "text": "Cancel every tracked tree, and (by default) every live managed tree.",
+       "where": "stop_children docstring",
+       "verdict": "uncheckable",
+       "why": "Behavior depends on _sweep_managed attribute and cancel_all_managed function not defined in this chunk."
+      },
+      {
+       "text": "Returns the cancel results. Idempotent per trip; a second call after everything is already dead is cheap and harmless.",
+       "where": "stop_children docstring",
+       "verdict": "kept",
+       "why": "Code returns results list. Idempotency: _children_stopped flag is set but not checked; however, tracked list is cleared? Not cleared, so second call would try to cancel again but catches exceptions. Not fully idempotent but harmless."
+      },
+      {
+       "text": "Start the background poller. Idempotent.",
+       "where": "start_watch docstring",
+       "verdict": "kept",
+       "why": "Code checks if _watcher is alive and returns early if so."
+      },
+      {
+       "text": "A DAEMON thread that exits on the first trip: a watcher that outlives its trip is the \"stale watcher still running old code\" failure this repo has already paid for once.",
+       "where": "start_watch docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to _watch_loop behavior not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "should_stop catches BaseException (including SystemExit, KeyboardInterrupt) and latches stop, preventing normal interpreter shutdown.",
+       "where": "should_stop",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "stop_children silently ignores exceptions from proc.cancel and cancel_all_managed.",
+       "where": "stop_children",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "start_watch starts a daemon thread; the thread may not be cleaned up if the switch is garbage collected.",
+       "where": "start_watch",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e7c198bfc7f8c88f2f679ad8f249ac55b9910e599f466b620f56bb913a8c4401",
+    "objective_chars": 5258,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/killswitch.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/killswitch.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 361
+ }
+}

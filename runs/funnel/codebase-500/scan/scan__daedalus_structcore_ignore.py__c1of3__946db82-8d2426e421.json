@@ -1,0 +1,183 @@
+{
+ "task_id": "scan__daedalus_structcore_ignore.py__c1of3__946db82",
+ "key": "scan__daedalus_structcore_ignore.py__c1of3__946db82-8d2426e421",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/structcore/ignore.py chunk 1; documented symbols, claims, and observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 87 | medium | _hit method for unanchored patterns is incomplete; missing logic for dir_only and '**' patterns. | Check full implementation in subsequent chunks or tests."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/ignore.py",
+     "chunk": "1 of 3",
+     "purpose": "Define ignore rules parsing and matching semantics for .daedalusignore files.",
+     "symbols": [
+      {
+       "name": "IGNORE_FILENAME",
+       "kind": "constant",
+       "effects": [],
+       "note": "Filename constant '.daedalusignore'."
+      },
+      {
+       "name": "SCOPE_ALGO_SALT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Salt string for scope fingerprint to invalidate caches on algorithm change."
+      },
+      {
+       "name": "_Rule",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing a single ignore rule with pattern, negated, dir_only, anchored."
+      },
+      {
+       "name": "_parse_line",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses a single line from .daedalusignore into a _Rule or None."
+      },
+      {
+       "name": "IgnoreRules",
+       "kind": "class",
+       "effects": [],
+       "note": "Ordered list of rules; last match wins. Provides matches() method."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An ignored file is excluded from metrics, but kept for import resolution.",
+       "where": "docstring line 11-12",
+       "verdict": "uncheckable",
+       "why": "This claim refers to behavior outside this chunk (metrics, import resolution) not present in the code."
+      },
+      {
+       "text": "it still occupies the file-set indexes, so a real file importing into references/ still resolves to a real edge instead of silently degrading to 'external';",
+       "where": "docstring line 14-16",
+       "verdict": "uncheckable",
+       "why": "File-set indexes and edge resolution not implemented in this chunk."
+      },
+      {
+       "text": "it is still parsed, so its own outgoing edges stay honest too;",
+       "where": "docstring line 17-18",
+       "verdict": "uncheckable",
+       "why": "Parsing behavior not present in this chunk."
+      },
+      {
+       "text": "it is withheld from modules, hotspots/module_heat, every clone pass, and the language/LOC summary.",
+       "where": "docstring line 19-21",
+       "verdict": "uncheckable",
+       "why": "Withholding behavior not implemented in this chunk."
+      },
+      {
+       "text": "The cost of that choice is near zero and the payoff is large, because of where scan time actually goes: the per-file parse is ~1.9s of a ~102s warm scan while the clone passes are ~96% of it.",
+       "where": "docstring line 23-24",
+       "verdict": "uncheckable",
+       "why": "Performance claims not verifiable from code; no timing data present."
+      },
+      {
+       "text": "build_index reports the counts and the rules that produced them, in the same spirit as report.truncated.",
+       "where": "docstring line 27-28",
+       "verdict": "uncheckable",
+       "why": "build_index and report not present in this chunk."
+      },
+      {
+       "text": "BUMP THIS whenever the scope changes what an index CONTAINS rather than which files it covers.",
+       "where": "line 48 comment",
+       "verdict": "uncheckable",
+       "why": "Reference to SCOPE_ALGO_SALT bump discipline; no enforcement code present."
+      },
+      {
+       "text": "The scope fingerprint is the index cache key, and it is built only from the center list and the ignore patterns -- so a change to the *interpretation* of an unchanged center (v2: Python dotted names became package-relative for files under a center root) leaves the key identical and every warm cache, in-process and on disk, keeps serving the OLD graph.",
+       "where": "lines 48-52 comment",
+       "verdict": "uncheckable",
+       "why": "Scope fingerprint and cache key logic not present in this chunk."
+      },
+      {
+       "text": "Unscoped repos are unaffected: index._scope_key gives them a bare path key that never consults this fingerprint, so their cache is not invalidated.",
+       "where": "lines 56-57 comment",
+       "verdict": "uncheckable",
+       "why": "index._scope_key not present in this chunk."
+      },
+      {
+       "text": "A pattern containing a slash is repo-root anchored, exactly as gitignore defines it: 'docs/vendor' means that path, not any directory named 'vendor' inside any 'docs'.",
+       "where": "line 80 comment",
+       "verdict": "kept",
+       "why": "Code on line 83: anchored = '/' in line or raw.lstrip().startswith('/') matches claim."
+      },
+      {
+       "text": "Ordered rule list. Last match wins, so ! can carve exceptions.",
+       "where": "IgnoreRules docstring line 86",
+       "verdict": "kept",
+       "why": "matches() method on lines 95-100 implements last-match-wins logic."
+      },
+      {
+       "text": "True when repo-relative POSIX path rel is ignored. Last-match-wins, so ordering is load-bearing and callers must not reorder the file.",
+       "where": "IgnoreRules.matches docstring lines 93-95",
+       "verdict": "kept",
+       "why": "matches() loop (lines 97-99) updates verdict per rule, so last rule wins."
+      },
+      {
+       "text": "A directory rule matches every descendant, which is the only reason references/ covers references/a/b.py.",
+       "where": "IgnoreRules.matches docstring lines 95-96",
+       "verdict": "uncheckable",
+       "why": "Directory rule matching every descendant is not fully implemented in this chunk; _hit for anchored patterns has startswith check (line 109) but unanchored dir_only logic is missing."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _hit method for unanchored patterns is incomplete; it lacks handling for dir_only and '**' patterns.",
+       "where": "line 113-115",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring claims about performance (1.9s parse vs 96% clone passes) are not backed by code in this chunk.",
+       "where": "docstring lines 23-24",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _parse_line function strips leading '/' from patterns but the anchored flag is set based on raw line; this may lead to inconsistency if pattern starts with '/' and also contains a slash.",
+       "where": "line 83",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a3fe9462bdf0f1c703ecbdf76b5a1f1cb1bccffb2527567690b2a4dac4fa0f24",
+    "objective_chars": 5800,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/ignore.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/ignore.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

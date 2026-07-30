@@ -1,0 +1,108 @@
+{
+ "task_id": "1-what-iron-means__falsifier__a47d84ee736f",
+ "key": "1-what-iron-means__falsifier__a47d84ee736f-59dcf82485",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Multiple claims are unfalsifiable or ambiguous; no operational definition of 'silent drift', 'isolated experiment', or 'contained candidate repository' is given, making the plan untestable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "1.1 | high | 'The plan prevents silent drift; it does not prevent learning.' - 'Silent drift' is undefined, so the claim cannot be falsified. | Define 'silent drift' operationally, e.g., any change to invariants or priors without an amendment or experiment record. Then check if such changes occur.",
+     "1.2 | high | 'Never violate hard invariants.' - 'Hard invariants' is undefined; what counts as a hard invariant? | List the hard invariants explicitly; then attempt to violate one and see if the system prevents it.",
+     "1.3 | high | 'Hard invariants require an approved amendment before they change.' - 'Approved amendment' is undefined; no process or authority is specified. | Define the approval process and authority; then attempt to change a hard invariant without such an amendment and observe if it is blocked.",
+     "1.4 | medium | 'Research priors are deliberately falsifiable.' - This is a meta-claim about the nature of priors, but no mechanism ensures they are falsifiable. | Show a prior that is stated in falsifiable form; if any prior is unfalsifiable, the claim is false.",
+     "1.5 | high | 'A prior may be challenged without an amendment when the challenge is read-only or an isolated experiment with a frozen specification, bounded capabilities, explicit budget, independent evaluation, and no production promotion.' - The conditions are underspecified: e.g., what counts as 'bounded capabilities'? No operational test. | Define each condition operationally; then attempt to challenge a prior meeting those conditions and verify it is allowed.",
+     "1.6 | medium | 'Negative evidence must be retained.' - 'Negative evidence' is ambiguous (e.g., failed experiment results?); retention period and format unspecified. | Define 'negative evidence' and its retention policy; then check if negative evidence is actually retained.",
+     "1.7 | low | 'No model prompt or local hook is a security boundary.' - This is a claim about the system's architecture; falsifiable by showing a prompt or hook that acts as a security boundary. | Attempt to use a model prompt or local hook as a security boundary and see if it is bypassed.",
+     "1.8 | medium | 'Until Gate 0 closes, the guards in this repository prevent ordinary accidental drift and make deliberate changes explicit; they do not claim to cover every external client, --no-verify, direct filesystem writer, or contained candidate repository.' - 'Contained candidate repository' is undefined; the scope of protection is unclear. | Define 'contained candidate repository'; then attempt to bypass guards via such a repository and observe if changes are detected."
+    ],
+    "todos": [
+     "Define 'silent drift' operationally.",
+     "List hard invariants explicitly.",
+     "Define 'approved amendment' process and authority.",
+     "Define 'bounded capabilities', 'explicit budget', 'independent evaluation' operationally.",
+     "Define 'negative evidence' and retention policy.",
+     "Define 'contained candidate repository'."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "1.1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'silent drift' is not defined. Without an operational definition, there is no way to test whether the plan prevents it. A falsifiable version would define 'silent drift' as, e.g., any change to invariants or priors that occurs without an amendment or experiment record."
+      },
+      {
+       "id": "1.2",
+       "claim": "Never violate hard invariants.",
+       "verdict": "unfalsifiable",
+       "why": "'Hard invariants' is not defined. The claim cannot be tested because we don't know what counts as a hard invariant. To be falsifiable, the set of hard invariants must be enumerated."
+      },
+      {
+       "id": "1.3",
+       "claim": "Hard invariants require an approved amendment before they change.",
+       "verdict": "unfalsifiable",
+       "why": "'Approved amendment' is not defined. There is no specification of what constitutes approval or the amendment process. Without that, we cannot test if a change violates this rule."
+      },
+      {
+       "id": "1.4",
+       "claim": "Research priors are deliberately falsifiable.",
+       "verdict": "unfalsifiable",
+       "why": "This is a meta-claim about the nature of priors. Without a list of priors and a criterion for falsifiability, we cannot test whether they are indeed falsifiable. A falsifiable version would require each prior to be stated in a way that specifies what evidence would refute it."
+      },
+      {
+       "id": "1.5",
+       "claim": "A prior may be challenged without an amendment when the challenge is read-only or an isolated experiment with a frozen specification, bounded capabilities, explicit budget, independent evaluation, and no production promotion.",
+       "verdict": "unfalsifiable",
+       "why": "The conditions are underspecified. What counts as 'bounded capabilities'? What is an 'explicit budget'? What constitutes 'independent evaluation'? Without operational definitions, we cannot determine if a challenge meets these criteria. To be falsifiable, each condition must be defined with measurable indicators."
+      },
+      {
+       "id": "1.6",
+       "claim": "Negative evidence must be retained.",
+       "verdict": "unfalsifiable",
+       "why": "'Negative evidence' is ambiguous. Does it refer to failed experiment results, null results, or something else? No retention period or format is specified. Without a clear definition, we cannot test if negative evidence is retained."
+      },
+      {
+       "id": "1.7",
+       "claim": "No model prompt or local hook is a security boundary.",
+       "verdict": "weak",
+       "why": "This is a falsifiable claim: one can attempt to use a model prompt or local hook as a security boundary and see if it is bypassed. However, the claim is weak because it is a negative existential claim; proving it false requires only a single counterexample. It is testable, but the scope ('no model prompt or local hook') may be too broad to test exhaustively."
+      },
+      {
+       "id": "1.8",
+       "claim": "Until Gate 0 closes, the guards in this repository prevent ordinary accidental drift and make deliberate changes explicit; they do not claim to cover every external client, --no-verify, direct filesystem writer, or contained candidate repository.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'contained candidate repository' is undefined. Also, 'ordinary accidental drift' is not defined. Without these definitions, we cannot test whether the guards cover or fail to cover these scenarios. To be falsifiable, these terms must be specified."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f4b09453dc5eaca37a7d617cafaf5927d5e67e184bd5a09d1f87f7c9e9ff62f3",
+    "objective_chars": 1889,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "1-what-iron-means",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

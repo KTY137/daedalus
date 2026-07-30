@@ -1,0 +1,231 @@
+{
+ "task_id": "scan__daedalus_memory___init__.py__c1of2__946db82",
+ "key": "scan__daedalus_memory___init__.py__c1of2__946db82-6334e056ee",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/memory/__init__.py chunk 1 of 2: defines MemoryEvent, append_event, load_events, refresh_todo_snapshot, projection_event_from_record, _try_vector_index, record_from_bridge_report, main; claims checked against present code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ROOT, MEMORY_DIR, EVENTS_PATH, TODO_PATH, VECTOR_DB_PATH | medium | Paths computed via __file__.resolve().parents[2] assume module location; if moved, paths break. | Verify that __file__ is indeed two levels deep in the package structure.",
+     "refresh_todo_snapshot | medium | Writes to TODO_PATH unconditionally; no locking or atomic write. Concurrent writes may corrupt. | Check if write is protected by file locking or uses atomic rename.",
+     "_try_vector_index | medium | Silently catches all exceptions; failures in indexing are only logged at warning level. May hide configuration errors. | Verify logging is monitored or add explicit error reporting.",
+     "main() | medium | argparse subparsers defined but 'done' command handler code is missing (chunk ends mid-function). The command will raise AttributeError. | Ensure 'done' handler is completed in next chunk.",
+     "record_from_bridge_report | low | Uses report.get('bridge_status') as fallback status; if both inner.status and bridge_status are missing, status is None. | Verify status is always provided or handle None.",
+     "load_events | low | Reads entire file into memory; large event files may cause OOM. | Consider streaming or chunked reading for production."
+    ],
+    "todos": [
+     "Complete 'done' command handler in main() - code cut off at line ~200.",
+     "Add atomic write for TODO_PATH to prevent corruption on concurrent writes.",
+     "Consider adding file-level lock or transactional append for EVENTS_PATH.",
+     "Review projection_event_from_record docstring claim about content-addressed hashing - not visible in this chunk."
+    ],
+    "handoff": {
+     "module": "daedalus/memory/__init__.py",
+     "chunk": "1 of 2",
+     "purpose": "Defines core memory event data structures, append-only event log, TODO snapshot regeneration, vector index bridge, and CLI entry point.",
+     "symbols": [
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved to parent directory two levels up from __file__."
+      },
+      {
+       "name": "MEMORY_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "ROOT / 'memory' - directory for memory files."
+      },
+      {
+       "name": "EVENTS_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to events.local.jsonl inside MEMORY_DIR."
+      },
+      {
+       "name": "TODO_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to todos.local.md inside MEMORY_DIR."
+      },
+      {
+       "name": "VECTOR_DB_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to vectors.db inside MEMORY_DIR."
+      },
+      {
+       "name": "MemoryEvent",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for memory event; fields: kind, summary, source, repo_root, project, trust, task_id, status, todos, paths, payload."
+      },
+      {
+       "name": "MemoryEvent.to_record",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with 'time' (UTC now) and all fields."
+      },
+      {
+       "name": "append_event",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends serialized event to EVENTS_PATH, calls refresh_todo_snapshot, optionally indexes vector if DAEDALUS_VECTOR_INDEX set."
+      },
+      {
+       "name": "projection_event_from_record",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a record dict into an AgentEvent for embedding; docstring claims content-addressed hashing dependency."
+      },
+      {
+       "name": "_try_vector_index",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Best-effort vector indexing via EventVectorStore; never raises."
+      },
+      {
+       "name": "load_events",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads all lines from EVENTS_PATH and parses as JSON; returns list of dicts."
+      },
+      {
+       "name": "refresh_todo_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Regenerates TODO_PATH from events; lists open TODOs (last 100) and recent done items (last 30)."
+      },
+      {
+       "name": "record_from_bridge_report",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Creates a bridge_report event from a bridge report dict and appends it."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [],
+       "note": "CLI entry point with subcommands: add, snapshot, done (done handler incomplete in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``memory.py`` became a package so vector-index helpers can live beside it. Operational state must remain in the repository-level ``memory/`` directory; using parents[1] here silently redirected state into ``daedalus/memory/``.",
+       "where": "comment lines 12-14",
+       "verdict": "kept",
+       "why": "ROOT uses parents[2] (since __file__ is two levels deep: daedalus/memory/__init__.py -> parents[1] would be daedalus, parents[2] is repo root); MEMORY_DIR = ROOT / 'memory' points to repository-level memory/. The comment explains why parents[2] is used."
+      },
+      {
+       "text": "This is the single definition of \"what a memory event embeds as\", shared by the synchronous bridge below and by :mod:`daedalus.memory.projection_worker`. It has to be shared: the index is content-addressed on a hash of exactly these fields, so two writers that derive an event differently would write two rows for one journal line instead of one, and neither would be able to tell the other's work had already been done.",
+       "where": "projection_event_from_record docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring claims content-addressed hashing of the projection fields, but this chunk does not include the embedding/indexing logic that actually computes such a hash. The claim about sharing with projection_worker cannot be verified from this code alone."
+      },
+      {
+       "text": "This bridge does NOT record a journal watermark -- it sees one record at a time and has no idea where that record sits in the journal file. Indexes it builds alone therefore report ``freshness == \"unanchored\"``. Run ``python -m daedalus.memory.projection_worker`` to anchor them; it costs no embedding calls for entries the bridge already projected.",
+       "where": "_try_vector_index docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes behavior of the indexing store and projection worker; neither is defined in this chunk. The claim about freshness and anchoring cannot be verified from present code."
+      },
+      {
+       "text": "Indexing is explicitly secondary to the append-only operational log. Keep the main path alive, but leave evidence for operators debugging an enabled index instead of swallowing every failure invisibly.",
+       "where": "comment in _try_vector_index exception handler",
+       "verdict": "kept",
+       "why": "The function catches all exceptions and logs a warning, never raising; the main append path in append_event continues regardless of _try_vector_index outcome."
+      },
+      {
+       "text": "This file is generated from `memory/events.local.jsonl` and is ignored by Git. Use it to recover TODOs after token limits, crashes, or interrupted agent runs.",
+       "where": "refresh_todo_snapshot generated content comment",
+       "verdict": "kept",
+       "why": "The function reads events from EVENTS_PATH and writes to TODO_PATH; the comment is embedded in the output. The claim that it is ignored by Git is not verifiable from code but is a convention."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ROOT is computed via parents[2]; comment warns about parents[1] mistake.",
+       "where": "line 14",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_event always calls refresh_todo_snapshot after every write, which could be expensive for many events.",
+       "where": "append_event, line 54",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "refresh_todo_snapshot writes to TODO_PATH without atomicity; concurrent writes risk corruption.",
+       "where": "refresh_todo_snapshot, line 152",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_events reads entire file into memory; no streaming.",
+       "where": "load_events, line 110-116",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() 'done' command handler is incomplete; code ends mid-function.",
+       "where": "main, line 198 (end of chunk)",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "record_from_bridge_report uses report.get('bridge_status') as fallback; may produce None status.",
+       "where": "record_from_bridge_report, line 157",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "projection_event_from_record constructs event_id as time_kind; if time is missing, ID may be '_kind'.",
+       "where": "projection_event_from_record, line 82",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "59fed44855c6764dd7ab75acd770b5b0367c8909abe73eeabbe53f913307142f",
+    "objective_chars": 10550,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/__init__.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/memory/__init__.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

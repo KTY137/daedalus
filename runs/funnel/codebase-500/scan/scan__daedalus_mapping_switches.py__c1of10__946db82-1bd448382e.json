@@ -1,0 +1,281 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c1of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c1of10__946db82-1bd448382e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/mapping/switches.py: module docstring, imports, constants, and first dataclass definition.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "module docstring | medium | Claims about 'dark features' and '51 dark features' cannot be verified from this chunk alone. | Check the rest of the module for implementation of dark feature detection.",
+     "module docstring | low | Claims about dynamic_reads and _augment_documented refer to symbols not present in this chunk. | Verify presence and behavior of those functions later in the file.",
+     "EnvSite fields: fallback, gates | medium | These fields are declared but their semantics depend on code outside this chunk. | Check the rest of the module for how these fields are populated and used."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "1 of 10",
+     "purpose": "Module docstring, imports, constants, skip dirs, platform env, token sets, regex patterns, and first dataclass EnvSite.",
+     "symbols": [
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'daedalus-switch-report/1'."
+      },
+      {
+       "name": "_SKIP_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of directory names to skip during scanning."
+      },
+      {
+       "name": "_PLATFORM_ENV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of platform environment variable names."
+      },
+      {
+       "name": "_SECRET_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens indicating secret env vars."
+      },
+      {
+       "name": "_URL_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens indicating URL env vars."
+      },
+      {
+       "name": "_PATH_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens indicating path env vars."
+      },
+      {
+       "name": "_NUMBER_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens indicating numeric env vars."
+      },
+      {
+       "name": "_FLAG_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens indicating boolean flag env vars."
+      },
+      {
+       "name": "_INVERTING_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of tokens that invert switch polarity."
+      },
+      {
+       "name": "_OFF_LITERALS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of literal default values that mean 'off'."
+      },
+      {
+       "name": "_GATE_PARAMS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of parameter names considered gate parameters."
+      },
+      {
+       "name": "_SAFETY_PARAMS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of parameter names considered safety postures."
+      },
+      {
+       "name": "_ENV_TOKEN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for matching environment variable names."
+      },
+      {
+       "name": "_DOC_ENV_FORMS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of regex patterns for detecting documented env vars."
+      },
+      {
+       "name": "_WS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for matching whitespace."
+      },
+      {
+       "name": "EnvSite",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one physical read of an environment variable."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A hand-written feature inventory goes stale the hour it is written; this half of the architecture artifact is regenerated on every run, so it cannot.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "This claim about regeneration cannot be verified from this chunk alone; it depends on the rest of the module."
+      },
+      {
+       "text": "which environment variables the package reads, where, and with what DEFAULT",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The implementation of this enumeration is not present in this chunk."
+      },
+      {
+       "text": "which public entry points take a boolean parameter that defaults to off",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No such entry points are defined in this chunk."
+      },
+      {
+       "text": "which config keys in ``projects/*.json`` carry an off-shaped value",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No config key analysis is present in this chunk."
+      },
+      {
+       "text": "which names the docs promise and the code never reads (and the reverse)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No documentation analysis is present in this chunk."
+      },
+      {
+       "text": "A feature is DARK when its switch defaults to off *and* nothing in the surrounding code supplies a fallback: in normal operation that code path never runs and no report mentions it.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The definition of 'dark' is given but the logic to determine it is not in this chunk."
+      },
+      {
+       "text": "That is how 51 dark features hid behind an inventory that knew about 2.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "This is a historical claim not verifiable from code."
+      },
+      {
+       "text": "env names assembled at runtime are listed in ``dynamic_reads`` rather than guessed at",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The symbol `dynamic_reads` is not defined in this chunk."
+      },
+      {
+       "text": "only module-level ``NAME = \"LITERAL\"`` constants are resolved",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No constant resolution logic is present in this chunk."
+      },
+      {
+       "text": "\"documented\" means the token appears in a doc under an env-shaped form, not that the prose around it is true",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The documentation analysis logic is not in this chunk."
+      },
+      {
+       "text": "Directories that are never package source: build output, caches, vendored trees, run artifacts, and the eval corpora (fixtures are data that happens to parse as Python -- scanning them would invent switches that do not exist).",
+       "where": "comment near _SKIP_DIRS",
+       "verdict": "kept",
+       "why": "_SKIP_DIRS includes directories like .git, __pycache__, build, dist, tests, fixtures, etc., matching the description."
+      },
+      {
+       "text": "Platform variables the OS owns. They are read, but they are not Daedalus switches and marking them dark would bury the ones that are.",
+       "where": "comment near _PLATFORM_ENV",
+       "verdict": "kept",
+       "why": "_PLATFORM_ENV contains common OS environment variables like PATH, HOME, etc."
+      },
+      {
+       "text": "Tokens that invert a switch: the variable turns something OFF, so its unset default leaves the feature ON. Never dark.",
+       "where": "comment near _INVERTING_TOKENS",
+       "verdict": "kept",
+       "why": "_INVERTING_TOKENS contains tokens like NO, DISABLE, SKIP, WITHOUT, OFF."
+      },
+      {
+       "text": "A default that reads as \"not configured\" once coerced.",
+       "where": "comment near _OFF_LITERALS",
+       "verdict": "kept",
+       "why": "_OFF_LITERALS contains strings like '', '0', 'false', 'no', 'off', 'none'."
+      },
+      {
+       "text": "Parameters whose False default is a safety posture, not a hidden feature.",
+       "where": "comment near _SAFETY_PARAMS",
+       "verdict": "kept",
+       "why": "_SAFETY_PARAMS contains tokens like dry, force, overwrite, quiet, etc."
+      },
+      {
+       "text": "A token only counts as documentation of an environment variable when it is written the way an operator would set it. Without this filter every SCREAMING_CASE doc *filename* becomes a phantom switch. Names the code provably reads are exempt (see `_augment_documented`) -- those cannot be phantoms, so a bare mention is documentation enough.",
+       "where": "comment near _DOC_ENV_FORMS",
+       "verdict": "uncheckable",
+       "why": "The function `_augment_documented` is not defined in this chunk."
+      },
+      {
+       "text": "One physical read of one environment variable.",
+       "where": "EnvSite docstring",
+       "verdict": "kept",
+       "why": "EnvSite is a dataclass that records a single read of an env var with fields like name, module, line, via, default, etc."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring makes several claims about the module's capabilities (enumerating env vars, entry points, config keys, doc analysis) that are not implemented in this chunk.",
+       "where": "module docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _SKIP_DIRS set includes 'tests' and 'fixtures' as directories to skip, which may exclude test data that contains legitimate env var reads.",
+       "where": "_SKIP_DIRS definition",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _PLATFORM_ENV set includes PYTHONPATH and VIRTUAL_ENV, which are indeed platform-level but could be used as Daedalus switches in some contexts.",
+       "where": "_PLATFORM_ENV definition",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The EnvSite dataclass has fields 'fallback' and 'gates' whose semantics are not explained in this chunk.",
+       "where": "EnvSite class",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "34e2f1bfbc420efbcfa9a1a2d3544f0c85e53f076342113ece78e5cfebc25016",
+    "objective_chars": 5957,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [1/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 1,
+  "total": 10,
+  "first_line": 1
+ }
+}

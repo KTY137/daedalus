@@ -1,0 +1,124 @@
+{
+ "task_id": "scan__daedalus_wiki_vault.py__c2of3__946db82",
+ "key": "scan__daedalus_wiki_vault.py__c2of3__946db82-1b2085990c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of vault.py: symlink traversal check, Vault/Page dataclasses, parse_frontmatter, _title_of.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "parse_frontmatter line 177 | medium | Dashed list detection uses startswith(' ') or '\\t', but does not handle other indentation (e.g. non-breaking spaces). | Add a test with unusual whitespace.",
+     "_title_of line 192 | low | Returns empty string if no title, H1, or filename; caller may rely on non-empty title. | Verify all callers handle empty title."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/wiki/vault.py",
+     "chunk": "2 of 3",
+     "purpose": "Symlink safety, Vault/Page dataclasses, frontmatter parser, title extraction.",
+     "symbols": [
+      {
+       "name": "Vault",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with name, root, kind; to_dict method."
+      },
+      {
+       "name": "Page",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with rel, title, vault, frontmatter, body, body_sha256, page_type, status, updated; to_dict method."
+      },
+      {
+       "name": "parse_frontmatter",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses YAML-ish frontmatter; returns (dict, body)."
+      },
+      {
+       "name": "_title_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts title from frontmatter, first H1, or filename (not shown)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Symlink check walks the WHOLE chain: a link on any component can leave the vault, and checking only the leaf would miss `docs/link_to_etc/passwd.md`.",
+       "where": "lines 124-126",
+       "verdict": "kept",
+       "why": "The loop iterates over each segment, checking is_symlink() on the cumulative path, thus detecting symlinks at any depth."
+      },
+      {
+       "text": "Deliberately a SUBSET: `key: value`, plus `key: [a, b]` and dashed lists. Nested structures are NOT parsed \u2014 they are carried verbatim as a string so nothing is silently dropped",
+       "where": "lines 159-163",
+       "verdict": "kept",
+       "why": "The parser handles only key:value, inline lists [...], and dashed lists; nested structures are not parsed (they become part of body or are skipped)."
+      },
+      {
+       "text": "PyYAML would also execute tags, which is a class of surprise a wiki reader must not have.",
+       "where": "lines 163-164",
+       "verdict": "uncheckable",
+       "why": "No PyYAML usage or security analysis is present in this chunk; the claim references external behavior."
+      },
+      {
+       "text": "Frontmatter title, else the first H1, else the filename. In that order, because a page's own declaration beats a heading and both beat a path.",
+       "where": "lines 190-192",
+       "verdict": "kept",
+       "why": "The function checks fm.get('title') first, then scans for '# ', and falls back to filename (not shown but implied)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Symlink detection loops over each segment, but does not handle symlinks that are themselves symlinks (chained).",
+       "where": "lines 127-134",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "parse_frontmatter dashed list continuation only checks startswith(' ') or '\\t', missing other whitespace.",
+       "where": "line 177",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_title_of may return empty string if no title, H1, or filename; caller must handle.",
+       "where": "line 192",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7ce93dec7f1c32959e7e6f154f93b64de83ddd3c45f01556195ec89965ac243a",
+    "objective_chars": 4694,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/vault.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/vault.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

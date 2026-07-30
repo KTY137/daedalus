@@ -1,0 +1,122 @@
+{
+ "task_id": "research__b013__946db82",
+ "key": "research__b013__946db82-aa79358c2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two key patterns: (1) The 'arrival' probe (canary) and the 'DEFAULT' constant fallback detection (switches) both rely on static analysis of code to determine runtime behavior, but they operate on different scopes and may miss dynamic fallbacks. (2) The drafts module and the switches module both assume that environment variables and file paths are static and do not change at runtime, which could lead to inconsistencies if configuration changes after startup.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The 'arrival' probe in canary.py tests end-to-end prompt delivery but does not validate the content of the prompt, which could mask issues with prompt assembly or truncation.",
+     "The fallback evidence detection in switches.py relies on AST analysis and may miss fallbacks that are dynamically constructed or come from external sources.",
+     "The drafts module uses a regex-based id validation that assumes ids are always timestamp-slug; if an id is manually constructed with special characters, it could be rejected or cause path traversal issues.",
+     "The containment module's platform_supported returns True only on Windows, but the canary adapters (e.g., _CanaryOllama) may be used on other platforms, leading to inconsistent behavior.",
+     "The ignore rules composition in structcore/ignore.py depends on matches() behavior which is not shown; if matches() does not implement last-match-wins, the precedence claim fails."
+    ],
+    "todos": [
+     "Verify that the 'arrival' probe in canary.py actually sends the prompt as defined and that the reply is not truncated in a way that masks failures.",
+     "Check if the fallback evidence detection in switches.py handles cases where the fallback is defined in a different module or via a function call.",
+     "Ensure that the drafts module's _safe_path function is used consistently across all endpoints that accept draft ids.",
+     "Review the canary adapters to ensure they handle non-Windows platforms gracefully when containment is unavailable.",
+     "Examine the matches() function in structcore/ignore.py to confirm it implements last-match-wins as claimed."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "arrival-probe-vs-fallback-evidence",
+       "claim": "The 'arrival' probe in canary.py and the fallback evidence detection in switches.py both rely on static analysis of code to determine runtime behavior, but they operate on different scopes and may miss dynamic fallbacks.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/mapping/switches.py"
+       ],
+       "mechanism": "The canary's 'arrival' probe sends a prompt and checks if the model responds, but does not validate the content or whether the model used a fallback configuration. The switches module's _fallback_evidence uses AST analysis to detect if an env var has a fallback, but only within the same statement or block. If a fallback is provided dynamically (e.g., via a function call or external config), both analyses will miss it, leading to a false sense of security that the model is properly configured.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If either module is shown to handle dynamic fallbacks (e.g., by runtime checks or additional static analysis), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/canary.py:ProbeResult.asked returns status != 'unavailable', does not check prompt content",
+        "daedalus/mapping/switches.py:_fallback_evidence only checks AST patterns, not runtime values"
+       ]
+      },
+      {
+       "id": "static-assumptions-env-paths",
+       "claim": "The drafts module and the switches module both assume that environment variables and file paths are static and do not change at runtime, which could lead to inconsistencies if configuration changes after startup.",
+       "spans": [
+        "daedalus/kairos/drafts.py",
+        "daedalus/mapping/switches.py"
+       ],
+       "mechanism": "The drafts module uses ROOT = Path(__file__).parents[2] to determine the repository root, which is fixed at import time. If the module is moved or the working directory changes, ROOT becomes incorrect. The switches module's _scan_module reads files at import time and caches results; if environment variables change after scanning, the analysis may be stale. Both assume a static environment.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If either module is shown to re-evaluate paths or env vars at runtime (e.g., via lazy evaluation or periodic refresh), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/drafts.py:ROOT = Path(__file__).resolve().parents[2] (fixed at import)",
+        "daedalus/mapping/switches.py:_collect_module reads files at call time but env var scanning is done once per scan"
+       ]
+      },
+      {
+       "id": "containment-vs-canary-cross-platform",
+       "claim": "The containment module's platform_supported returns True only on Windows, but the canary adapters (e.g., _CanaryOllama) may be used on other platforms, leading to inconsistent behavior when containment is unavailable.",
+       "spans": [
+        "daedalus/spine/containment.py",
+        "daedalus/council/canary.py"
+       ],
+       "mechanism": "The canary adapters do not check platform_supported before attempting to use containment features. If a canary run is initiated on a non-Windows platform, the containment module will raise ContainmentUnavailable or silently fail, potentially leaving the process uncontained. The canary's exit_code logic may not account for this.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the canary adapters are shown to handle ContainmentUnavailable gracefully (e.g., by catching the exception and continuing without containment), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/containment.py:platform_supported returns os.name == 'nt'",
+        "daedalus/council/canary.py:_CanaryOllama and other adapters inherit from _CanaryAdapterMixin which does not reference containment"
+       ]
+      },
+      {
+       "id": "ignore-rule-precedence-unverified",
+       "claim": "The ignore rules composition in structcore/ignore.py depends on matches() behavior which is not shown; if matches() does not implement last-match-wins, the precedence claim fails.",
+       "spans": [
+        "daedalus/structcore/ignore.py",
+        "daedalus/mapping/switches.py"
+       ],
+       "mechanism": "The project_scope function in ignore.py concatenates rules from file, env, and extra_ignore in that order, and the docstring claims 'last-match-wins'. However, the actual matching logic is in matches() which is not present in the provided chunk. If matches() uses first-match-wins or another strategy, the claimed precedence is incorrect, leading to unexpected behavior when rules conflict. The switches module may rely on this precedence for its own analysis.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the matches() function is examined and found to implement last-match-wins (e.g., by iterating rules in reverse order), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/ignore.py:project_scope docstring claims 'last-match-wins'",
+        "daedalus/mapping/switches.py: no direct dependency on ignore rules, but shares similar static analysis assumptions"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b5aba6fc78d3e2ea45ecab2d5c266908dd5758e52f4f8a0f1ab20924cceddd6f",
+    "objective_chars": 40095,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 13 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 13,
+  "inputs": 5
+ }
+}

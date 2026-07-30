@@ -1,0 +1,96 @@
+{
+ "task_id": "scan__daedalus_structcore_dss.py__c9of9__946db82",
+ "key": "scan__daedalus_structcore_dss.py__c9of9__946db82-ae3aebfc8c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 9/9 of dss.py: finalizes DSSResult with receipt and input hashes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/dss.py",
+     "chunk": "9 of 9",
+     "purpose": "Finalize DSSResult with receipt and input value digests.",
+     "symbols": [
+      {
+       "name": "DSSReceipt",
+       "kind": "class",
+       "effects": [],
+       "note": "Instantiated with forest_sha256, hierarchy_sha256, config, input_sha256, branch_selection, relation_channels, context_plan."
+      },
+      {
+       "name": "DSSResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Returned with hierarchy, restricted_scores, prolongation, temporal, relation_channels, final_scores, context_plan, receipt."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Used to compute SHA256 digest of input values and channel dicts."
+      },
+      {
+       "name": "_score_rows",
+       "kind": "function",
+       "effects": [],
+       "note": "Applied to restricted and final_scores."
+      }
+     ],
+     "claims": [],
+     "observations": [
+      {
+       "what": "input_sha256 uses _digest on sorted items of seed_scores, previous_scores, rename_map, rename_confidence, token_costs.",
+       "where": "line 971-978",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "branch_selection includes selected and pruned hierarchy nodes from prolongation.",
+       "where": "line 979-982",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "relation_channels maps each channel's relation to its digest.",
+       "where": "line 983-985",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8263c57f150836ab71a9d7e487345d940e0c70040a2cf1214f62814e06bfc1fd",
+    "objective_chars": 1852,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/dss.py [9/9]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/dss.py",
+  "index": 9,
+  "total": 9,
+  "first_line": 961
+ }
+}

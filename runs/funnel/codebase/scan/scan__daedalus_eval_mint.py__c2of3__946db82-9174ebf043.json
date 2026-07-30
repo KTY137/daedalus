@@ -1,0 +1,294 @@
+{
+ "task_id": "scan__daedalus_eval_mint.py__c2of3__946db82",
+ "key": "scan__daedalus_eval_mint.py__c2of3__946db82-9174ebf043",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed mint.py chunk 2/3, lines 281-416. Enumerated public symbols, docstring claims, and observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 349-351 | medium | _diffed_symbols uses spec_for and extract_units; if these raise, the function may propagate exception. | Check if spec_for or extract_units are documented to raise exceptions.",
+     "line 401-405 | medium | The condition `(existing or per_file).items()` uses `or` which may include deleted files if `existing` is empty but `per_file` is not; comment says anchor_pool should exclude deleted files but code might include them. | Verify logic: if existing is empty, per_file includes deleted files, but anchor_pool may include them.",
+     "line 414-416 | medium | `cross_file_sizes` may be empty after filtering, but the code continues to rank and keep labels; the guard `if not cross_file_sizes` returns before, but the else branch might not be reached? Actually guard is present. | Confirm that the guard is before the ranking code.",
+     "line 395-396 | medium | `labels_filtered_junk` etc. are sets but later sorted; if a label appears in multiple filtered sets, it may be counted multiple times in diagnostics. | Check if this double-counting is intentional."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mint.py",
+     "chunk": "2 of 3",
+     "purpose": "Contains helper functions for minting tasks from diffs, including _show, _read_worktree, _resolve_sha, _short_hash, _diff_magnitude, _diffed_symbols, _in_scope_modules, _mint_from_diffs, and constant MUST_INCLUDE_CAP.",
+     "symbols": [
+      {
+       "name": "_show",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Calls _git to show blob contents."
+      },
+      {
+       "name": "_read_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads file from disk, returns None if OSError."
+      },
+      {
+       "name": "_resolve_sha",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Calls _git rev-parse to resolve a ref."
+      },
+      {
+       "name": "_short_hash",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes a 12-char hex hash from parts."
+      },
+      {
+       "name": "MUST_INCLUDE_CAP",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Integer 25, caps must_include labels."
+      },
+      {
+       "name": "_diff_magnitude",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes diff line count between before/after sources."
+      },
+      {
+       "name": "_diffed_symbols",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict of changed symbol names to diff magnitude."
+      },
+      {
+       "name": "_in_scope_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of modules from cached_index."
+      },
+      {
+       "name": "_mint_from_diffs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a quarantined task from file diffs; returns (task, diagnostics)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Blob contents of ``rel`` at ``ref``, or ``None`` if it didn't exist there (distinct from an empty-but-present file, which is a real \"\").",
+       "where": "line 282-284",
+       "verdict": "uncheckable",
+       "why": "The function body calls _git and returns its output. The claim about None vs empty string depends on _git's behavior, which is not in this chunk."
+      },
+      {
+       "text": "Current on-disk contents of ``rel``, or ``None`` if it's gone (deleted by the edit being minted).",
+       "where": "line 286-291",
+       "verdict": "kept",
+       "why": "The function reads the file and returns None on OSError, which includes file not found."
+      },
+      {
+       "text": "Deterministic size proxy for one symbol, used only to rank which labels survive ``MUST_INCLUDE_CAP`` -- NOT a precision diff. Counts the +/- lines in a unified diff between the joined before/after source blocks (``before_srcs``/``after_srcs`` are lists because a name can repeat across sibling classes/closures -- see ``_diffed_symbols``). A pure add or remove counts its whole body; an in-place edit counts only the lines that moved.",
+       "where": "lines 301-310",
+       "verdict": "kept",
+       "why": "The function joins the lists with newline, splits into lines, and counts diff lines that start with '+' or '-' (excluding '+++'/'---'). This matches the description."
+      },
+      {
+       "text": "Map of {symbol name -> diff magnitude} for symbols whose extracted source differs, plus pure adds/removes.",
+       "where": "lines 312-314",
+       "verdict": "kept",
+       "why": "The function returns a dict mapping name to magnitude for symbols where before_srcs != after_srcs."
+      },
+      {
+       "text": "Matched by NAME against a (name -> sorted source list) map rather than a single name->source dict, so duplicate names (same-named methods on sibling classes, nested closures) don't silently clobber each other and under-report a real change.",
+       "where": "lines 315-319",
+       "verdict": "kept",
+       "why": "The code builds before_map and after_map as dict of list, then sorts the lists before comparison."
+      },
+      {
+       "text": "A file with no language spec (unsupported extension) contributes nothing -- there is no unit-level ground truth to diff, only whole-file text, and this module deliberately doesn't fall back to that (a whole-file \"changed\" label would be far too coarse to be an honest must_include).",
+       "where": "lines 319-322",
+       "verdict": "kept",
+       "why": "The function returns {} if spec_for returns None."
+      },
+      {
+       "text": "The magnitude is only ever used for cap-ranking in ``_mint_from_diffs``; it plays no part in WHETHER a symbol counts as changed (that's the ``!=`` comparison below).",
+       "where": "lines 322-323",
+       "verdict": "kept",
+       "why": "The changed dict is built based on before_srcs != after_srcs, not on magnitude."
+      },
+      {
+       "text": "The scope membership test -- ``rel in modules`` -- exactly as slice.py uses it for its own neighborhood expansion (slice.py, ``rel not in modules`` around line 225). A file this module would target or draw a label from must be a file the slicer itself would ever consider part of \"the project\"; otherwise the label measures nothing the slicer claims to do.",
+       "where": "lines 349-354",
+       "verdict": "uncheckable",
+       "why": "The function returns a frozenset from cached_index, but the claim about slice.py usage cannot be verified from this chunk."
+      },
+      {
+       "text": "Degrades to an empty scope (so callers mint nothing rather than crash) on ANY indexing failure -- minting must never raise on a caller looping over commits, same contract as ``_git``.",
+       "where": "lines 354-355",
+       "verdict": "kept",
+       "why": "The function catches Exception and returns frozenset()."
+      },
+      {
+       "text": "Build ONE aggregate quarantined task from a set of file diffs, scoped and cross-file-labeled per the module docstring. Returns ``(task, diagnostics)``.",
+       "where": "lines 358-360",
+       "verdict": "kept",
+       "why": "The function signature and return statements match."
+      },
+      {
+       "text": "``files`` maps rel path -> (before_text, after_text); ``None`` on either side means the path did not exist there (a create or a delete).",
+       "where": "lines 362-363",
+       "verdict": "uncheckable",
+       "why": "The code uses the values as (before_text, after_text) but does not check for None; the claim is about the caller's contract."
+      },
+      {
+       "text": "``files`` keys not present in ``in_scope`` are excluded from BOTH target and label consideration entirely -- they never reach ``_diffed_symbols`` at all, so an out-of-scope file that would raise/misbehave under unit-level parsing (a minified bundle, say) can never even get that far.",
+       "where": "lines 363-366",
+       "verdict": "kept",
+       "why": "The code builds scoped dict filtering by in_scope, then iterates over scoped items only."
+      },
+      {
+       "text": "``diagnostics[\"skipped_out_of_scope\"]`` is always present (sorted, maybe empty).",
+       "where": "line 368",
+       "verdict": "kept",
+       "why": "skipped is sorted and assigned to diagnostics['skipped_out_of_scope']."
+      },
+      {
+       "text": "``diagnostics[\"reason\"]`` is present only when ``task`` is ``None``, explaining why nothing minted -- callers that only need the task (the two public mint_* entry points, which predate this diagnostics dict and whose ``dict | None`` / ``list[dict]`` return the CLI depends on) are free to ignore it; ``_log_mint_diagnostics`` is how it reaches an observable channel without changing that return contract.",
+       "where": "lines 368-372",
+       "verdict": "kept",
+       "why": "The code assigns diagnostics['reason'] only in paths where task is None (return None, diagnostics)."
+      },
+      {
+       "text": "The task's ``target`` (the anchor the slicer will be pointed at) is, among in-scope files that have at least one diffed symbol, the one that still EXISTS after the edit with the most diffed symbols, ties broken by path for determinism -- a deleted file cannot be a slice target.",
+       "where": "lines 373-376",
+       "verdict": "kept",
+       "why": "existing filters by after_text is not None; anchor_pool is built from existing or per_file; anchor is selected by max len(syms) then path."
+      },
+      {
+       "text": "A single changed symbol in the anchor earns symbol-level precision (``target::symbol``); more than one keeps the target file-level, since a symbol-scoped target can't honestly represent labels that live outside its own one-hop slice.",
+       "where": "lines 376-379",
+       "verdict": "uncheckable",
+       "why": "This claim refers to logic not present in this chunk (likely in the returned task dict construction)."
+      },
+      {
+       "text": "``must_include`` is every diffed symbol in every OTHER in-scope touched file (never the anchor's own), capped at ``MUST_INCLUDE_CAP`` keeping the largest-magnitude symbols (``must_include_dropped`` records how many were cut, so a capped task never silently reads as full coverage).",
+       "where": "lines 379-382",
+       "verdict": "kept",
+       "why": "The code builds cross_file_sizes excluding anchor, then ranks and keeps top MUST_INCLUDE_CAP; dropped is computed."
+      },
+      {
+       "text": "EPHEMERAL REPO ROOT -- refused before any work, for every caller. Placed here rather than at the one known bad call site (offload_runner pins offload's repo_root to the candidate worktree, attempt.py:707) so that closing it does not depend on remembering it at the NEXT call site. See ``_is_linked_worktree`` for why a task minted here is permanently unevaluable rather than merely wrong.",
+       "where": "lines 384-389",
+       "verdict": "uncheckable",
+       "why": "The claim references _is_linked_worktree and offload_runner which are not in this chunk."
+      },
+      {
+       "text": "FLOOR-TRIPPING LABEL SOURCE EXCLUSION -- see module docstring. Used below for BOTH the anchor pool (a floor-tripping file can't be pointed at -- semantic_slice's FOCUS GATE fails it closed) and, further down, the cross-file label loop (the same file is withheld as a NEIGHBOUR in every lane too, so its symbols can never be recalled either). Computed over ALL of per_file (not just `existing`) so a deleted-but-still-named path (e.g. a rename that trips a path-marker rule) is caught too; the content check degrades to \"\" for a deleted file (nothing left on disk to scan).",
+       "where": "lines 402-408",
+       "verdict": "uncheckable",
+       "why": "The claim references secret_floor_rule and semantic_slice which are not in this chunk."
+      },
+      {
+       "text": "Cross-file only: a symbol NAME can repeat across files (different symbol, same name) -- keep the larger magnitude rather than letting one silently clobber the other, matching _diffed_symbols' own duplicate-name handling.",
+       "where": "lines 414-416",
+       "verdict": "kept",
+       "why": "The code uses cross_file_sizes[name] = max(cross_file_sizes.get(name, 0), size)."
+      },
+      {
+       "text": "NOT guaranteed non-empty any more: the len(per_file) < 2 check above only guarantees at least one OTHER (non-anchor) per_file entry existed BEFORE filtering -- the junk / cross-language / secret-floor filters below can still drain every one of its symbols, so the post-filter emptiness guard after this loop is load-bearing, not defensive dead code.",
+       "where": "lines 416-420",
+       "verdict": "kept",
+       "why": "The code has a guard `if not cross_file_sizes:` after the loop."
+      },
+      {
+       "text": "JUNK / CROSS-LANGUAGE / SECRET-FLOOR filtering (see module docstring) happens per (file, name) occurrence, BEFORE the max-magnitude merge -- a name filtered out of one file's occurrence can still be kept from another (matching-family, non-junk, non-floor-tripping) file's occurrence.",
+       "where": "lines 420-423",
+       "verdict": "kept",
+       "why": "The loop processes each (rel, name) and applies filters individually before merging into cross_file_sizes."
+      },
+      {
+       "text": "Label hygiene filtered every cross-file candidate -- see CROSS-FILE ONLY in the module docstring: minting must_include=[] here would be exactly as vacuous (harness._recall's 1.0-for-empty) as the single-file case already guarded above, just reached by a different path. Diagnostics carry what was filtered even though there is no task dict to carry it on, so the drop is reported, never silent.",
+       "where": "lines 434-440",
+       "verdict": "uncheckable",
+       "why": "The claim references harness._recall which is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _show returns the output of _git, which may include a trailing newline; the docstring says it returns blob contents or None, but doesn't specify stripping.",
+       "where": "line 282-284",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _mint_from_diffs, anchor_pool uses `existing or per_file` which includes deleted files if existing is empty; comment says deleted files cannot be anchor, but code may select a deleted file.",
+       "where": "line 401-405",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable `labels_filtered_junk` is a set but later sorted for diagnostics; if a label appears in multiple filtered sets, it will be counted in each diagnostic list.",
+       "where": "line 436-438",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The code uses `sorted(ranked[:MUST_INCLUDE_CAP])` which sorts the kept labels alphabetically; this is deterministic but not documented.",
+       "where": "line 443-444",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1e6cc6c44e294c8ccc2a8a4536d627b3e0c45a9ae4de67ac6e866257fbc9c2d3",
+    "objective_chars": 14194,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mint.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/eval/mint.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

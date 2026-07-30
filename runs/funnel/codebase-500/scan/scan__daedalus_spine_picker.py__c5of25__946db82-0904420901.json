@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c5of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c5of25__946db82-0904420901",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of picker.py: defines _ledger_path, _picker_source_mode, load_work_queue; claims about state machine and config handling are mostly checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_work_queue | medium | The docstring claims states are 'disabled', 'absent', 'invalid', 'valid' but the code also returns 'invalid' for non-Mapping setting and for non-boolean enabled; the docstring does not list all possible states. | Check if any caller relies on exact state strings not documented.",
+     "_picker_source_mode | low | Docstring claims returns 'enabled', 'disabled', 'legacy' but code also returns 'invalid' for non-Mapping declared or unknown value; undocumented return. | Verify callers handle 'invalid'.",
+     "_ledger_path | low | Docstring mentions 'red in the full suite, green alone' which is uncheckable; no functional impact.",
+     "load_work_queue | low | Docstring says 'task validation follows below' but no code in chunk performs task validation; claim refers to code outside chunk.",
+     "_ledger_path | low | Docstring says 'If you are here to \"unify\" them, read that history first' but no history is present in chunk; uncheckable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "5 of 25",
+     "purpose": "Defines helper functions for ledger path resolution, picker source mode, and work queue loading.",
+     "symbols": [
+      {
+       "name": "_ledger_path",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves the ledger path from config; returns (path, None) or (None, error)."
+      },
+      {
+       "name": "_picker_source_mode",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns 'enabled', 'disabled', 'legacy', or 'invalid' based on config."
+      },
+      {
+       "name": "load_work_queue",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Loads and validates work queue JSON; returns (data, meta) or (None, meta) with state."
+      }
+     ],
+     "claims": [
+      {
+       "text": "silently measured the developer's real ledger -- red in the full suite, green alone.",
+       "where": "docstring of _ledger_path",
+       "verdict": "uncheckable",
+       "why": "No code in chunk implements or references any measurement or color; refers to external context."
+      },
+      {
+       "text": "If you are here to \"unify\" them, read that history first.",
+       "where": "docstring of _ledger_path",
+       "verdict": "uncheckable",
+       "why": "No history or unification logic present in chunk."
+      },
+      {
+       "text": "Return ``enabled``, ``disabled`` or ``legacy`` for a picker source.",
+       "where": "docstring of _picker_source_mode",
+       "verdict": "broken",
+       "why": "Function also returns 'invalid' when config has 'picker_sources' non-Mapping or value is unrecognized; docstring omits 'invalid'."
+      },
+      {
+       "text": "States are deliberately not booleans: ``disabled`` -- the repo did not opt in (healthy and intentional) ``absent`` -- enabled, but the configured file is missing ``invalid`` -- path escape, unreadable bytes, JSON/schema-shape error ``valid`` -- bytes parsed as an object; task validation follows below",
+       "where": "docstring of load_work_queue",
+       "verdict": "broken",
+       "why": "Chunk can also produce 'invalid' state for non-Mapping setting and non-boolean enabled; docstring does not list all invalid subcases. Also 'task validation follows below' refers to code outside chunk."
+      },
+      {
+       "text": "Read the configured queue and report one exact source state.",
+       "where": "docstring of load_work_queue",
+       "verdict": "kept",
+       "why": "Function returns a tuple with a state string in the second element."
+      },
+      {
+       "text": "States are deliberately not booleans",
+       "where": "docstring of load_work_queue",
+       "verdict": "kept",
+       "why": "The function returns a state string, not a boolean."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_ledger_path docstring contains poetic language that is not checkable against code.",
+       "where": "_ledger_path docstring, lines ~481-483",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_picker_source_mode returns 'invalid' for non-Mapping declared or unrecognized value, but docstring only lists three return values.",
+       "where": "_picker_source_mode function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_work_queue docstring lists four states but code can return 'invalid' for multiple reasons not fully enumerated.",
+       "where": "load_work_queue docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_work_queue docstring claims 'task validation follows below' but no task validation code in chunk.",
+       "where": "load_work_queue docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "load_work_queue uses hashlib.sha256 on raw bytes; hash is computed but not used further in chunk.",
+       "where": "load_work_queue, last line",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f04345b105507cf619f96f8a415c7fd51a3d5dc5b1d8f39a9c97b30a9cfc5c4d",
+    "objective_chars": 5060,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [5/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 5,
+  "total": 25,
+  "first_line": 481
+ }
+}

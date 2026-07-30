@@ -1,0 +1,155 @@
+{
+ "task_id": "scan__daedalus_structcore_churn.py__c2of3__946db82",
+ "key": "scan__daedalus_structcore_churn.py__c2of3__946db82-cef9f5e348",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3 of churn.py: contains docstring continuation for co_change_pairs, plus implementations of _commits_from_log, _pairs_from_log, and start of temporal_misses docstring.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_commits_from_log | medium | The function splits on tabs and assumes commit lines have 1 field and numstat lines have 3 fields. If git output format changes or includes other lines (e.g., blank lines, merge info), this parsing may silently produce incorrect results. | Add a test with unusual git log output (e.g., empty commits, binary files, renamed files) to verify parsing robustness.",
+     "_pairs_from_log | medium | The function uses sorted(files) before combinations, which relies on lexicographic order. If file paths contain special characters or differ in case, the ordering may not be deterministic across platforms. | Verify that sorting is consistent (e.g., use locale-independent sorting) or document the assumption.",
+     "temporal_misses | low | The docstring claims the function filters out pairs already linked by a static edge, but the implementation is incomplete in this chunk. The actual filtering logic is not visible. | Review the full implementation of temporal_misses to ensure the claim is met."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/churn.py",
+     "chunk": "2 of 3",
+     "purpose": "Contains docstring continuation for co_change_pairs, implementations of _commits_from_log, _pairs_from_log, and start of temporal_misses docstring.",
+     "symbols": [
+      {
+       "name": "_commits_from_log",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses git log --numstat --format=%H output into list of file sets per commit."
+      },
+      {
+       "name": "_pairs_from_log",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes co-change pairs from parsed git log text, returning sorted list of dicts with PMI and lift."
+      },
+      {
+       "name": "temporal_misses",
+       "kind": "function",
+       "effects": [],
+       "note": "Filters co-change pairs to those without static import edges; docstring only in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``min_count`` additionally floors out pairs seen fewer than N times, since a single co-occurrence is one data point, not a pattern.",
+       "where": "docstring of co_change_pairs (line ~121-123)",
+       "verdict": "kept",
+       "why": "In _pairs_from_log, line `if count_ab < min_count: continue` enforces this floor."
+      },
+      {
+       "text": "``rev`` (default ``None`` -> full history, byte-identical to before the parameter existed) is passed to ``git log`` as a revision range. Its use case is the BACKTEST-CLEAN cut the eval's temporal-ceiling check needs: ``rev=\"<sha>^\"`` counts only commits strictly before ``<sha>``, so a measurement about ``<sha>`` cannot be predicted by ``<sha>``'s own data. Caveat carried by git itself: ``<sha>^`` is the FIRST parent, so on a merge commit the merged-in side branch is excluded too (the ceiling check flags merge SHAs rather than pretending otherwise). An unresolvable ``rev`` makes git exit non-zero -> ``[]``, same degradation contract as everything else here -- callers who must distinguish \"no coupling\" from \"no history\" probe the rev themselves first.",
+       "where": "docstring of co_change_pairs (lines ~125-133)",
+       "verdict": "kept",
+       "why": "The code appends `rev` to the git command if provided; if git fails (non-zero return), it returns []. The behavior matches the claim."
+      },
+      {
+       "text": "Returns ``[]`` on any git failure -- same degradation contract as ``git_churn``.",
+       "where": "docstring of co_change_pairs (line ~135)",
+       "verdict": "kept",
+       "why": "The function catches subprocess errors and checks return code, returning [] in both cases."
+      },
+      {
+       "text": "Rows are ``{\"a\", \"b\", \"count\", \"count_a\", \"count_b\", \"commits_considered\", \"pmi\", \"lift\"}``, sorted by ``(-pmi, a, b)`` for determinism (``a < b`` lexically within each row).",
+       "where": "docstring of co_change_pairs (lines ~136-137)",
+       "verdict": "kept",
+       "why": "_pairs_from_log constructs rows with exactly those keys and sorts by `(-r[\"pmi\"], r[\"a\"], r[\"b\"])`."
+      },
+      {
+       "text": "A commit-hash line has zero tabs (1 field); a numstat line always has exactly two tabs (3 fields: added, deleted, path) -- the two never collide, so this needs no lookahead/blank-line bookkeeping.",
+       "where": "docstring of _commits_from_log (lines ~150-152)",
+       "verdict": "kept",
+       "why": "The implementation checks `len(parts) == 1` for commit lines and `len(parts) == 3` for numstat lines, matching the claim."
+      },
+      {
+       "text": "Co-change pairs (from ``co_change_pairs``) with NO static import edge in either direction inside ``idx[\"import_edges\"]`` -- real coupling the import graph cannot see, the actual payoff of this module.",
+       "where": "docstring of temporal_misses (lines ~178-180)",
+       "verdict": "uncheckable",
+       "why": "The implementation of temporal_misses is not complete in this chunk; the filtering logic is not visible."
+      },
+      {
+       "text": "Reports each candidate on BOTH axes a temporal tier must be judged on, by design -- reporting only recall would read as an unqualified win and hide exactly the failure mode this function guards against: * ``recall_axis``: pmi/lift/count -- how confidently the two files move together (the case FOR treating this pair as an edge); * ``compression_cost_loc``: the combined loc of the pair -- what any slice that follows this edge would grow by (the case AGAINST; a temporal tier that adds recall by quietly bloating every slice is a regression, not a win).",
+       "where": "docstring of temporal_misses (lines ~181-189)",
+       "verdict": "uncheckable",
+       "why": "The implementation of temporal_misses is not complete; the actual return structure is not visible."
+      },
+      {
+       "text": "Pairs already linked by a static edge are excluded outright (the graph already has them; they are not a miss).",
+       "where": "docstring of temporal_misses (line ~190)",
+       "verdict": "uncheckable",
+       "why": "The filtering logic is not present in this chunk; only the docstring claim is visible."
+      },
+      {
+       "text": "``idx`` is a plain index dict as returned by ``structcore.index.build_index`` -- NOT imported here, to avoid a churn<->index import cycle (index.py imports ``git_churn`` from this module already).",
+       "where": "docstring of temporal_misses (lines ~191-192)",
+       "verdict": "uncheckable",
+       "why": "The import of .markdown is visible, but the index module import is not shown; the claim about import cycle cannot be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for co_change_pairs continues from the previous chunk, describing min_count, rev parameter, and return format.",
+       "where": "lines 121-138",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_commits_from_log parses git log output correctly according to its docstring, using tab count to distinguish commit lines from numstat lines.",
+       "where": "_commits_from_log function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_pairs_from_log computes PMI and lift, sorts by (-pmi, a, b), and respects min_count filter.",
+       "where": "_pairs_from_log function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "temporal_misses docstring is present but the function implementation is cut off; only the beginning of the function body is shown.",
+       "where": "temporal_misses function (line 177 onward)",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bdf4a6ce36381ff4bb22c3b56e2dd4141c68d9078d831b798c271efff4f9b27b",
+    "objective_chars": 5783,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/churn.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/churn.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

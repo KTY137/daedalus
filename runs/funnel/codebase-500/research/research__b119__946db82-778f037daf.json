@@ -1,0 +1,103 @@
+{
+ "task_id": "research__b119__946db82",
+ "key": "research__b119__946db82-778f037daf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Three cross-file hypotheses identified: (1) outcome vocabulary drift between archive.py and evaluator, (2) summary length cap unenforced across archive.py and picker.py, (3) stale index detection gap between embeddings.py search wrapper and picker's candidate generation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Outcome vocabulary drift between archive.py and evaluator could cause incorrect ranking and sampling.",
+     "Unenforced MAX_SUMMARY_CHARS could lead to unbounded summary growth, memory issues, or data corruption.",
+     "Stale index detection gap could cause picker to generate candidates based on outdated embeddings."
+    ],
+    "todos": [
+     "Verify outcome vocabulary agreement with daedalus.eval.correctness.",
+     "Ensure record_attempt enforces MAX_SUMMARY_CHARS.",
+     "Update picker to use search_report or check index freshness before generating candidates."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "outcome-vocabulary-drift",
+       "claim": "The outcome vocabulary in archive.py is mirrored locally rather than imported from the evaluator, and the test that pins agreement is not present in the reports, so the vocabulary may drift silently between archive.py and the evaluator (e.g., daedalus.eval.correctness).",
+       "spans": [
+        "daedalus/kairos/archive.py",
+        "daedalus/eval/correctness"
+       ],
+       "mechanism": "archive.py defines its own OUTCOME_RANK dict (line 50) and states it mirrors the evaluator's vocabulary deliberately to avoid a heavyweight import. A test (test_outcome_vocabulary_matches_the_evaluator) is claimed to pin agreement, but the test file is not provided. If the evaluator's vocabulary changes (e.g., adds a new outcome, reorders ranks), archive.py will not reflect that change, causing incorrect ranking and sampling behavior.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the test file is present and actually runs in CI, and if the evaluator's vocabulary is frozen or versioned, drift is impossible.",
+       "evidence": [
+        "daedalus/kairos/archive.py: line 50-51: OUTCOME_RANK defined locally, comment about mirroring",
+        "daedalus/kairos/archive.py: line 52: test_outcome_vocabulary_matches_the_evaluator referenced but not present"
+       ]
+      },
+      {
+       "id": "summary-length-cap-unenforced",
+       "claim": "The MAX_SUMMARY_CHARS constant (600) is defined in archive.py, but the record_attempt function (which records an Attempt's summary) is not shown to enforce this cap. The picker's inventory_candidates may also produce summaries that are not truncated, leading to unbounded summary length in the archive.",
+       "spans": [
+        "daedalus/kairos/archive.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "archive.py defines MAX_SUMMARY_CHARS=600 and states it caps candidate-influenced strings. However, the record_attempt function (which writes the summary to the archive) is not defined in chunk 1/3, so enforcement is unverified. The picker's inventory_candidates (chunk 12/25) generates candidates but does not show any truncation logic; it may produce summaries longer than 600 characters, which would be stored without truncation if record_attempt does not enforce the cap.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If record_attempt (defined in later chunks of archive.py) is shown to truncate summary to MAX_SUMMARY_CHARS, or if inventory_candidates already truncates summaries, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/archive.py: line 57: MAX_SUMMARY_CHARS defined",
+        "daedalus/kairos/archive.py: docstring line 18: 'Every field that a candidate can influence is length-capped on the way IN' but enforcement not shown",
+        "daedalus/spine/picker.py: inventory_candidates function: no truncation logic visible"
+       ]
+      },
+      {
+       "id": "stale-index-detection-gap",
+       "claim": "The search() wrapper in embeddings.py discards status and freshness information from search_report, so callers cannot detect stale or drifted indexes. If the picker (or any consumer) uses search() instead of search_report, it may generate candidates based on outdated embeddings, leading to poor candidate quality.",
+       "spans": [
+        "daedalus/memory/embeddings.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "embeddings.py provides a search() compatibility wrapper that calls search_report but returns only matches, discarding status and freshness. The picker (inventory_candidates or other functions) may call search() to retrieve similar entries; without freshness info, it cannot know if the index is stale. This could result in candidate generation based on old or incomplete data.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the picker is shown to call search_report instead of search, or if it checks index_status separately before calling search, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/memory/embeddings.py: search() wrapper discards status and freshness (line 1591-1609)",
+        "daedalus/spine/picker.py: inventory_candidates references external symbols but no call to search is shown; however, the picker likely uses embeddings for similarity"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d07126c441f4168b8508185201d0f1568950239f3703c4ecb1a343f06b18f833",
+    "objective_chars": 19209,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 119 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 119,
+  "inputs": 4
+ }
+}

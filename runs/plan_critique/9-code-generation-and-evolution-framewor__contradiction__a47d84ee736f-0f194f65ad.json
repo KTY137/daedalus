@@ -1,0 +1,101 @@
+{
+ "task_id": "9-code-generation-and-evolution-framewor__contradiction__a47d84ee736f",
+ "key": "9-code-generation-and-evolution-framewor__contradiction__a47d84ee736f-0f194f65ad",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 9 claims operators declare specific fields but the rest of the document provides no schema or mechanism to enforce this, creating an unfalsifiable contract.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "9.1 | high | 'Each operator declares accepted artifact types and required Project-Twin slice' \u2013 no other section defines Project-Twin or artifact type registry, making the requirement unenforceable and unclear. | Search the document for 'Project-Twin' and 'artifact type' \u2013 if absent, the claim is ungrounded.",
+     "9.2 | high | 'writable paths, tools, model, budget, and timeout' \u2013 no section defines how these are declared or validated, and no cost model exists to make budget meaningful. | Check for any cost model or resource allocation section; if none, budget is meaningless.",
+     "9.3 | medium | 'deterministic preconditions and generated candidate identity' \u2013 contradicts any later claim that operators may have non-deterministic behavior or that identity may be derived from run-time state. | Look for any statement allowing non-determinism or mutable identity.",
+     "9.4 | medium | 'evaluation ladder and rejection conditions' \u2013 no other section defines an evaluation ladder, so it is an orphan concept. | Search for 'evaluation ladder' in the document; if absent, the claim is unfalsifiable.",
+     "9.5 | medium | 'provenance, replay inputs, and expected failure modes' \u2013 no other section defines provenance format or replay mechanism, making the requirement aspirational. | Check for provenance or replay sections; if none, the claim is unenforceable.",
+     "9.6 | low | 'Initial operator families are repair, refactor, representation search, test generation, schema/document synchronization, and targeted algorithm search.' \u2013 no contradiction found, but the list may overlap with other sections' operator definitions. | Compare with any operator catalog in the document.",
+     "9.7 | high | 'Operator discovery itself is a later bounded research problem, not a reason to skip the kernel.' \u2013 contradicts any claim that the kernel must support dynamic operator loading or self-modification. | Look for claims about dynamic operator registration or kernel extensibility."
+    ],
+    "todos": [
+     "Define 'Project-Twin slice' and 'artifact type' in a glossary or architecture section.",
+     "Specify the declaration mechanism for operator properties (e.g., config file, annotation, API).",
+     "Define 'evaluation ladder' and 'rejection conditions' in a process section.",
+     "Define provenance format and replay inputs for operators.",
+     "Resolve whether operators are deterministic or not, and whether identity is stable.",
+     "Clarify the kernel's extensibility model: is operator discovery a future concern or a hard limitation?"
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "9.1",
+       "claim": "Each operator declares accepted artifact types and required Project-Twin slice.",
+       "verdict": "unfalsifiable",
+       "why": "The document does not define 'Project-Twin slice' or 'artifact type' anywhere else, so the requirement cannot be checked or enforced. No contradiction found because the rest of the document is silent on these terms; the claim stands alone but ungrounded."
+      },
+      {
+       "id": "9.2",
+       "claim": "Each operator declares writable paths, tools, model, budget, and timeout.",
+       "verdict": "weak",
+       "why": "The document provides no schema or mechanism for these declarations, and no cost model to make 'budget' meaningful. No direct contradiction, but the claim is aspirational without supporting infrastructure."
+      },
+      {
+       "id": "9.3",
+       "claim": "Each operator declares deterministic preconditions and generated candidate identity.",
+       "verdict": "weak",
+       "why": "The claim asserts determinism, but the document may elsewhere allow non-deterministic operators (e.g., random search). Without a counterclaim, it is weak because the document does not enforce determinism. No direct contradiction found."
+      },
+      {
+       "id": "9.4",
+       "claim": "Each operator declares evaluation ladder and rejection conditions.",
+       "verdict": "unfalsifiable",
+       "why": "'Evaluation ladder' is not defined elsewhere in the document, so the claim cannot be verified. No contradiction found."
+      },
+      {
+       "id": "9.5",
+       "claim": "Each operator declares provenance, replay inputs, and expected failure modes.",
+       "verdict": "unfalsifiable",
+       "why": "No other section defines provenance format or replay mechanism, so the requirement is unenforceable. No contradiction found."
+      },
+      {
+       "id": "9.6",
+       "claim": "Initial operator families are repair, refactor, representation search, test generation, schema/document synchronization, and targeted algorithm search.",
+       "verdict": "sound",
+       "why": "This is a list of intended operator families. No contradiction found elsewhere in the document. The claim is clear and checkable."
+      },
+      {
+       "id": "9.7",
+       "claim": "Operator discovery itself is a later bounded research problem, not a reason to skip the kernel.",
+       "verdict": "weak",
+       "why": "This claim implies the kernel does not need to support operator discovery now, but if any other section requires the kernel to dynamically load or discover operators (e.g., for extensibility), there is a contradiction. No such section found in the provided context, so the claim is isolated and potentially contradicted by future requirements."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b04c8ddf82243f55a4f73072b1aed90beab710cdd0abc54133a6f4f5b0e2421b",
+    "objective_chars": 1610,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "9-code-generation-and-evolution-framewor",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

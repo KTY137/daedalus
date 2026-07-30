@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b009__946db82",
+ "key": "review__b009__946db82-b51f85b7d2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted: evidence missing, code mischaracterized, or counterarguments fatal.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "fail-closed-contradiction",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for vet.py says 'NOT PRESENT IN FILE', so the claimed Verdict.cleared property does not exist in the repository. The hypothesis rests on evidence that does not exist.",
+       "survives_because": "Missing evidence; the core claim cannot be verified.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'Verdict.cleared' in daedalus/tools/vet.py.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "memory-bloat-concurrent",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for bus.py shows only docstring (lines 1-45), not verify_chain at line 763. The scheduler chunk (lines 79-128) mentions re-index but does not show cached_index implementation. The hypothesis extrapolates from incomplete evidence.",
+       "survives_because": "The actual code that would confirm the memory reading pattern is not present in the provided source snippets.",
+       "narrowed_claim": "",
+       "settling_check": "Examine verify_chain in bus.py and cached_index in offload.py to confirm read_text() usage and memory footprint.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "blocked_report-consistency",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source shows blocked_report is called with positional arguments (message, suggestion, raw_tail), but the hypothesis claims it returns a report with 'verdict' and 'why' fields. The function definition is not shown; it may be a utility that produces a consistent structure. The publish.py chunk does not contain the claimed 'claims' symbol.",
+       "survives_because": "The actual definition of blocked_report is missing; the inconsistency is not demonstrated.",
+       "narrowed_claim": "",
+       "settling_check": "Find the definition of blocked_report (likely in a shared module) and check its return structure.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "artefact-filter-bypass",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for dss.py lines 51-100 does not include lines 496-498 where file_ids is built; the hypothesis's claim about _relation_adjacencies is unverifiable from the provided snippet. The hypothesis also assumes that file_ids from dss.py flows into the brief without filtering, but the brief's rendering code may call _is_artefact independently.",
+       "survives_because": "Incomplete evidence; the bypass path is not confirmed.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect dss.py around line 496 to see how file_ids is constructed and whether artefact paths are possible. Also trace how graph_brief receives file lists.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "snapshot-freshness-fails-open",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for drift.py (lines 220-269) does not contain snapshot_freshness; it shows constants and comments. The attempt.py chunk (lines 315-364) shows _read_gitdir_pointer but not its callers. The hypothesis's claim about snapshot_freshness returning fresh=True on git failure is not supported by the provided source.",
+       "survives_because": "Key function implementation not present in cited excerpts.",
+       "narrowed_claim": "",
+       "settling_check": "Locate snapshot_freshness in drift.py and examine its return logic when git fails.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-module-resolution",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for correctness.py (lines 1-40) is docstring only, not showing _check_selection or _run_lists. Reach.py (lines 1-40) is docstring. Index.py (lines 1-40) is docstring. The hypothesis claims lines 1682, 1691, 1694 etc. but those are not in the provided chunks. The evidence is entirely missing.",
+       "survives_because": "No actual code is provided to support the claim of missing verification.",
+       "narrowed_claim": "",
+       "settling_check": "Examine the actual implementation of _check_selection in correctness.py and _resolve in reach.py to see if error handling exists.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "shared-state-snapshot",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for render.py (lines 1-40) is docstring only; line 1473 is not present. Graph_delta.py (lines 1-40) is docstring. The hypothesis's claim about write_snapshot and concurrent access is based on line numbers not shown in the provided source.",
+       "survives_because": "No evidence of the actual write_snapshot call or lack of locking is provided.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect render.py around line 1473 to confirm write_snapshot usage and check if file locking is employed.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "db-path-divergence",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for envelope.py (lines 47-96) does not contain the claimed docstring about divergence between ledger.default_db_path() and picker.resolve_spine_db_path(). The snippet discusses in-toto and trace_id, not database paths. The claimed evidence is not present in the file.",
+       "survives_because": "The docstring excerpt provided does not match the hypothesis's description; the claim is unsupported.",
+       "narrowed_claim": "",
+       "settling_check": "Search envelope.py for 'default_db_path' and 'resolve_spine_db_path' to verify the claim.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "hub-cap-default-unenforced",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited_source for typegraph.py (lines 1-40) is docstring; DEFAULT_HUB_CAP is not shown. Ledger.py (lines 1-40) is docstring. The hypothesis claims DEFAULT_HUB_CAP is defined but not enforced, but the actual code where enforcement would occur is not in the provided chunks.",
+       "survives_because": "Insufficient evidence; the enforcement logic may exist elsewhere in typegraph.py or in a caller.",
+       "narrowed_claim": "",
+       "settling_check": "Search typegraph.py for DEFAULT_HUB_CAP and any usage that enforces the cap (e.g., comparisons or truncation).",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d2e90c1f5b86b72dc3ac2924f5e740b3bba90c3d0e1bdf5f4a4c22eb59fc3a69",
+    "objective_chars": 56309,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 9 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 9,
+  "inputs": 9
+ }
+}

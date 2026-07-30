@@ -1,0 +1,152 @@
+{
+ "task_id": "daedalus/eval/tasks.py#c1of1#5eb1702d",
+ "key": "daedalus_eval_tasks.py_c1of1_5eb1702d-ef99499091",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 11 kept, 2 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _write_json_atomic | BROKEN | uses a fixed .tmp name, so two concurrent publishers share one scratch file",
+     "CLAIM | \"Honesty note: ``must_include`` items are matched as substrings against the slice text.\" | <module> | KEPT | The code does not contradict; substring matching is plausible.",
+     "CLAIM | \"Label provenance ... ``hand_reachable``   -- a human picked the label AND verified it reachable by running ``semantic_slice``\" | <module> | UNCHECKABLE | Need to see ``daedalus.eval.harness`` and the actual run results.",
+     "CLAIM | \"``report.py`` says so on every render\" | <module> | UNCHECKABLE | Need to see ``report.py`` code.",
+     "CLAIM | ``harness.run_tier1`` never blends it with the other provenances into one number | <module> | KEPT | No code contradicts.",
+     "CLAIM | ``harness.run_tier1`` excludes them from every headline/aggregate and reports them separately | <module> | KEPT | No code contradicts.",
+     "CLAIM | \"THE TWO FORMATS MUST NOT BE MIXED IN ONE CORPUS, and that is enforced rather than asked for: a correctness task carries no ``must_include``, so scoring one with ``harness._recall`` would return the vacuous 1.0 -- a task that cannot fail, silently inflating the very number the tier machinery exists to keep honest.\" | <module> | KEPT | The code defines ``is_correctness_task`` and docstring says ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly. No contradiction in unit.",
+     "CLAIM | ``is_correctness_task`` below is the single predicate that decides | is_correctness_task | KEPT | It is defined and used as described.",
+     "CLAIM | ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly (an ERRORED row, which ``run_gate`` reports and fails on for a primary tier) instead of grading it. | <module> | KEPT | No code contradicts.",
+     "CLAIM | Correctness tasks live in their own store (``correctness.DEFAULT_CORPUS_PATH``) and never enter ``harness.all_tasks()``. | <module> | KEPT | No code contradicts.",
+     "CLAIM | \"A task with NO ``repo`` key labels as ``\"<unknown>\"`` rather than raising ``KeyError``.\" | task_project_label | KEPT | Code does ``repo = task.get(\"repo\")`` and returns ``\"<unknown>\"`` if ``None``.",
+     "CLAIM | \"That is not defensive padding: this function is called from ``harness._task_error_row``, i.e. on the REPORTING path for a task that is already known to be malformed, so a raise here turned 'one bad task is reported as a degraded row' into 'the whole eval run dies on it' -- the exact failure ``_task_error_row`` exists to prevent. Found by a test, not by reading.\" | task_project_label | KEPT | The code matches the described behavior.",
+     "CLAIM | \"All Tier-1 labels verified reachable against the current slices -- which is exactly the circularity documented above.\" | <module> | KEPT | No code contradicts.",
+     "CLAIM | \"Every task is 'hand_reachable' / 'primary' until an 'independent_diff' or 'temporal_churn' minter adds tasks with independent labels.\" | <module> | KEPT | The TASKS list only contains tasks with those provenances.",
+     "D1 | TASKS | defined but read only as a list literal (no other code reads it in this unit) | WRONG CONCLUSION: a caller could import TASKS expecting it to be used elsewhere, but it is just a definition.",
+     "D2 | <module> | No except blocks in this unit. | D: none"
+    ],
+    "todos": [
+     "Change the temporary file name to include a random suffix to avoid collision.",
+     "Add a usage of TASKS in this unit or remove it if unused."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c44b56218c12c9f3e7ae4e66ea20907b9b6dcb648304860269e4d86e6c6278a",
+    "objective_chars": 16031,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 11 kept, 1 broken, 5 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _write_json_atomic | BROKEN | uses a fixed .tmp name, so two concurrent publishers share one scratch file",
+     "D1 | retry_s | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller believes it can tune the retry",
+     "CLAIM | \"a label is only listed if a competent answer about the target genuinely needs it AND it is a real dependency or caller in the neighborhood.\" | module docstring | UNCHECKABLE | would need to inspect the entire task set and the actual dependencies to verify",
+     "CLAIM | \"must_include items are matched as substrings against the slice text.\" | module docstring | KEPT | code does not contradict this",
+     "CLAIM | \"For a symbol target the slice is 1-hop (the focus symbol's direct callees/callers), so we only label symbols reachable within that hop -- we do NOT claim transitive callees-of-callees are present when they are not.\" | module docstring | UNCHECKABLE | would need to see the slicing implementation to verify",
+     "CLAIM | \"hand_reachable -- a human picked the label AND verified it reachable by running semantic_slice (see daedalus.eval.harness). This is CIRCULAR: the slicer chose what it is graded on.\" | module docstring | KEPT | no code contradicts this",
+     "CLAIM | \"Recall computed over hand_reachable tasks is an upper bound / sanity check, NOT independent proof the slicer works -- report.py says so on every render, and harness.run_tier1 never blends it with the other provenances into one number.\" | module docstring | UNCHECKABLE | would need to inspect report.py and harness.run_tier1",
+     "CLAIM | \"independent_diff -- labels derived from what an on-disk diff LITERALLY changed, with no graph walk involved. Independent of the slicer.\" | module docstring | KEPT | no code contradicts this",
+     "CLAIM | \"temporal_churn -- labels derived from git co-change (files that change together), surfacing edges the static import graph doesn't have. Independent of the slicer.\" | module docstring | KEPT | no code contradicts this",
+     "CLAIM | \"quarantine tasks are minted but not yet confirmed -- harness.run_tier1 excludes them from every headline/aggregate and reports them separately so the labelling flywheel stays observable instead of silently inflating (or deflating) the real number.\" | module docstring | UNCHECKABLE | would need to inspect harness.run_tier1",
+     "CLAIM | \"a correctness task carries no must_include, so scoring one with harness._recall would return the vacuous 1.0 -- a task that cannot fail, silently inflating the very number the tier machinery exists to keep honest.\" | module docstring | KEPT | is_correctness_task checks for CORRECTNESS_KEYS",
+     "CLAIM | \"is_correctness_task below is the single predicate that decides, and harness.eval_task_tier1/eval_task_arms refuse such a task loudly (an ERRORED row, which run_gate reports and fails on for a primary tier) instead of grading it.\" | module docstring | UNCHECKABLE | would need to inspect harness.eval_task_tier1 and eval_task_arms",
+     "CLAIM | \"Correctness tasks live in their own store (correctness.DEFAULT_CORPUS_PATH) and never enter harness.all_tasks().\" | module docstring | UNCHECKABLE | would need to inspect harness.all_tasks() and correctness.DEFAULT_CORPUS_PATH",
+     "CLAIM | \"Deliberately keyed on the PRESENCE of the field, not on its truthiness: a task with fail_to_pass: [] is a correctness task with an empty (and therefore invalid, see correctness.validate_task) test list, NOT a slice-recall task -- and it must never be handed to _recall, which would score its absent must_include as a vacuous 1.0.\" | is_correctness_task docstring | KEPT | uses any(k in task for k in CORRECTNESS_KEYS)",
+     "CLAIM | \"A task with NO repo key labels as '<unknown>' rather than raising KeyError.\" | task_project_label docstring | KEPT | uses task.get(\"repo\")",
+     "CLAIM | \"That is not defensive padding: this function is called from harness._task_error_row, i.e. on the REPORTING path for a task that is already known to be malformed, so a raise here turned 'one bad task is reported as a degraded row' into 'the whole eval run dies on it' -- the exact failure _task_error_row exists to prevent.\" | task_project_label docstring | KEPT | uses get to avoid KeyError",
+     "CLAIM | \"All Tier-1 labels verified reachable against the current slices -- which is exactly the circularity documented above.\" | comment before TASKS | KEPT | comment matches docstring",
+     "D2 | no except swallows | D: none",
+     "D3 | no checks after side effects | D: none",
+     "D4 | no impossible branches | D: none"
+    ],
+    "todos": [
+     "CLAIM: \"publishes atomically\" | _write_json_atomic | BROKEN | use a unique temp file name (e.g., with a random suffix) to avoid collision"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c44b56218c12c9f3e7ae4e66ea20907b9b6dcb648304860269e4d86e6c6278a",
+    "objective_chars": 16031,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 10 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the labels below were picked by reading the code and VERIFIED reachable by running ``semantic_slice``\" | line 8-10 | KEPT | The code includes tasks with verified labels.",
+     "CLAIM | \"a label is only listed if a competent answer about the target genuinely needs it AND it is a real dependency or caller in the neighborhood\" | line 10-12 | KEPT | The tasks list dependencies and callers in must_include.",
+     "CLAIM | \"``must_include`` items are matched as substrings against the slice text\" | line 20-21 | KEPT | The code does not contradict this; it's a usage statement.",
+     "CLAIM | \"For a symbol target the slice is 1-hop (the focus symbol's direct callees/callers), so we only label symbols reachable within that hop\" | line 21-23 | KEPT | The tasks include direct callees/callers.",
+     "CLAIM | \"``report.py`` says so on every render\" | line 32-33 | KEPT | Not contradicted by code here.",
+     "CLAIM | ``harness.run_tier1`` never blends it with the other provenances into one number | line 33-34 | KEPT | Not contradicted by code here.",
+     "CLAIM | ``harness.run_tier1`` excludes them from every headline/aggregate and reports them separately | line 39-42 | KEPT | Not contradicted by code here.",
+     "CLAIM | ``is_correctness_task`` below is the single predicate that decides | line 68 | KEPT | The function is defined and used.",
+     "CLAIM | ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly | line 69-70 | KEPT | Not contradicted by code here.",
+     "CLAIM | Correctness tasks live in their own store and never enter ``harness.all_tasks()`` | line 71-72 | KEPT | Not contradicted by code here.",
+     "D1 | parameter 'repo' in resolve_task_repo | read nowhere in this unit | WRONG CONCLUSION: a caller may pass a repo label that is never resolved if not agent_env, abs path, or registered project; but that is handled by the raise. Actually the function reads repo thoroughly. No D1 hit.",
+     "D2 | none | KEPT | No except swallows.",
+     "D3 | none | KEPT | No checks after side effects.",
+     "D4 | none | KEPT | No impossible branches."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c44b56218c12c9f3e7ae4e66ea20907b9b6dcb648304860269e4d86e6c6278a",
+    "objective_chars": 16031,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/eval/tasks.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 13588
+ }
+}

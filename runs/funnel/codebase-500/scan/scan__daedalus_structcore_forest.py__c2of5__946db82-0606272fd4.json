@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_structcore_forest.py__c2of5__946db82",
+ "key": "scan__daedalus_structcore_forest.py__c2of5__946db82-0606272fd4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of forest.py: defines ForestHyperedge, KnowledgeForest, helper functions, and constants for type nodes and reserved relations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/forest.py",
+     "chunk": "2 of 5",
+     "purpose": "Define data classes and helper functions for knowledge forest construction",
+     "symbols": [
+      {
+       "name": "ForestHyperedge",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with id, relation, members, weight, evidence, attributes. to_dict serialises to dict."
+      },
+      {
+       "name": "KnowledgeForest",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass containing root, nodes, edges, hyperedges, provenance, schema. Provides to_dict, content_sha256, layer_counts."
+      },
+      {
+       "name": "_CLONE_RELATIONS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict mapping cluster keys to relation names for clone detection."
+      },
+      {
+       "name": "_TYPE_NODE_KINDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of node kinds that are NOT files: 'type', 'field'."
+      },
+      {
+       "name": "_RESERVED_RELATIONS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of relation names that are reserved: imports, documents, co_change, and values from _CLONE_RELATIONS."
+      },
+      {
+       "name": "_canonical_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns deterministic JSON sort-key for an attribute mapping."
+      },
+      {
+       "name": "_is_type_node_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if node_id starts with 'type:' or 'field:' and contains '#'."
+      },
+      {
+       "name": "_hyperedge_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Function starts but body is incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A total, deterministic ordering key for an attribute mapping.",
+       "where": "docstring of _canonical_key",
+       "verdict": "kept",
+       "why": "Function returns json.dumps with sort_keys=True, ensuring deterministic ordering."
+      },
+      {
+       "text": "True for an id that CANNOT be mistaken for a repo-relative path.",
+       "where": "docstring of _is_type_node_id",
+       "verdict": "kept",
+       "why": "Checks for 'type:' or 'field:' prefix and '#' separator, which cannot appear in repo-relative paths."
+      },
+      {
+       "text": "The kind: prefix follows the repo:/dir:/file: convention already used by dss's derived hierarchy, and the # separator is a character no path in an indexed repo carries",
+       "where": "docstring of _is_type_node_id",
+       "verdict": "uncheckable",
+       "why": "References to dss conventions and repo path constraints are not verifiable from this chunk alone."
+      },
+      {
+       "text": "build_forest_hierarchy segments node ids on / and would otherwise happily read type:pkg/mod.py#Foo as the directory type:pkg.",
+       "where": "docstring of _is_type_node_id",
+       "verdict": "uncheckable",
+       "why": "Function build_forest_hierarchy is not defined in this chunk."
+      },
+      {
+       "text": "The kind filter is what actually keeps a type node out of the file world; this is defence in depth, and it makes a leak legible in a diff instead of only in a stack trace.",
+       "where": "docstring of _is_type_node_id",
+       "verdict": "uncheckable",
+       "why": "Claims about 'kind filter' and 'defence in depth' refer to behaviour outside this chunk."
+      },
+      {
+       "text": "The two node kinds that are NOT files.  Kept as a literal here rather than imported from typegraph so this module stays a pure normaliser of an index dict with no dependency on the producer of one of its blocks -- the same reason document is a string literal below and not an import from markdown.  dss.FILE_NODE_KINDS is the set these are held OUT of; see this module's docstring for why that is arithmetic and not taste.",
+       "where": "comment before _TYPE_NODE_KINDS",
+       "verdict": "uncheckable",
+       "why": "References to typegraph, markdown, dss.FILE_NODE_KINDS, and module docstring are outside this chunk."
+      },
+      {
+       "text": "index[\"type_edges\"] is a mapping keyed by relation name, and this module publishes whatever keys it finds -- a seventh relation (instantiates is the planned one) then needs no edit here.  What it may NOT do is land in a layer that already means something else: an edge with a type endpoint filed under imports would be read as an import by every consumer of that layer, starting with the reachability the safety fence is built on.  Refuse rather than merge.",
+       "where": "comment before _RESERVED_RELATIONS",
+       "verdict": "uncheckable",
+       "why": "References to index[\"type_edges\"], layer semantics, and safety fence are outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _hyperedge_id is defined but incomplete; its body is truncated at end of chunk.",
+       "where": "line 121-",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "53bd2b95272d07da0889b534573d46c5eaaccbb4093404b220d70a0bb5946077",
+    "objective_chars": 4831,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/forest.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/forest.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 121
+ }
+}

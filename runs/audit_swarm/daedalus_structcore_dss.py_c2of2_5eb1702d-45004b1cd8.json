@@ -1,0 +1,129 @@
+{
+ "task_id": "daedalus/structcore/dss.py#c2of2#5eb1702d",
+ "key": "daedalus_structcore_dss.py_c2of2_5eb1702d-45004b1cd8",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"this fallback cannot fail, so for a node with no bytes on disk it does not report a gap, it reports 8 tokens\" | _estimated_tokens | KEPT | The function always returns loc * 8, where loc defaults to 1, so even a node with no bytes gets 8 tokens.",
+     "CLAIM | \"The guard upstream is what keeps that number honest -- do not relax it here.\" | _estimated_tokens | KEPT | The docstring warns not to relax the guard upstream; the code does not check node kind, so it relies on upstream validation.",
+     "CLAIM | \"Membership in the forest is not enough to be packable: only ``FILE_NODE_KINDS`` name something with bytes on disk\" | build_context_plan | KEPT | The function checks kinds[node_id] not in FILE_NODE_KINDS and raises KeyError.",
+     "CLAIM | \"A ``type``/``field`` node is valid evidence and an invalid candidate\" | build_context_plan | KEPT | The docstring describes that non-file nodes are invalid candidates; the code raises KeyError for them.",
+     "CLAIM | \"the two failures are reported separately -- an unknown id is a typo, a known id of the wrong kind is a category error\" | build_context_plan | KEPT | The function raises separate KeyError messages for unknown id vs. wrong kind.",
+     "CLAIM | \"Refusing loudly rather than skipping quietly\" | build_context_plan | KEPT | The function raises exceptions (KeyError, ValueError) instead of silently skipping.",
+     "CLAIM | \"Nothing inside this module can trigger it: ``_relation_adjacencies`` keeps diffusion file-to-file, so a type node has no path into ``fused``.\" | build_context_plan | KEPT | The docstring refers to code outside this unit; within this unit, no code calls _relation_adjacencies, so the claim is plausible but not checkable here. However, the claim is about the module, not this unit; given the unit, we cannot verify, but the code in this unit does not contradict it. Actually, the claim is that nothing inside this module can trigger the error; since the error is raised on non-FILE_NODE_KINDS, and diffusion is file-to-file, it's consistent. I'll mark KEPT because the code in this unit does not break it.",
+     "CLAIM | \"That makes this the SECOND lock on the door, and the one that turns a regression in the first into a stack trace instead of a fabricated cost.\" | build_context_plan | KEPT | The docstring describes the role; the code raises exceptions, so a regression would cause a stack trace.",
+     "CLAIM | \"Run the deterministic DSS v0 context-selection pipeline.\" | semantic_super_sample | KEPT | The function orchestrates the pipeline steps.",
+     "D1 | token_costs | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller may believe token_costs is used, but it is only passed to other functions; however, it is read in the sense that it is passed to _estimated_tokens and build_context_plan. Actually, in this unit, token_costs is used in semantic_super_sample: it is passed to build_context_plan and also appears in input_values. So it is read. Let me check: in semantic_super_sample, token_costs is used on line with `token_costs = token_costs or {}` and then later `\"token_costs\": sorted(token_costs.items())`. So it is read. No D1 here. Let me re-evaluate.",
+     "D2 | none | no except that swallows and continues where prose says refuse | KEPT | No such pattern.",
+     "D3 | none | no check running after its guard comment | KEPT | No such pattern.",
+     "D4 | none | no branch with impossible condition | KEPT | All conditions are reachable."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a60871ae1e2ff70f8a26dbabadbb1f8743e7aaf31e4a9cd28e410c8959c5be2a",
+    "objective_chars": 12540,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"this fallback cannot fail\" | loc = max(1, int(node.attributes.get(\"loc\", 1) or 1)) | BROKEN | If node.attributes.get(\"loc\", 1) returns a non-integer string that int() cannot parse, ValueError is raised; fallback can fail.",
+     "CLAIM | \"it does not report a gap, it reports 8 tokens\" | return loc * 8 | KEPT | Code returns loc * 8, no gap reporting.",
+     "CLAIM | \"Refusing loudly rather than skipping quietly\" | raise KeyError | KEPT | Code raises KeyError for unknown or non-file node ids.",
+     "CLAIM | \"Nothing inside this module can trigger it\" | (implicit) | BROKEN | The claim says nothing inside the module can trigger the error, but if forest.nodes contains a non-FILE_NODE_KINDS node that is in ranked_scores, the error triggers; that node could come from within the module (e.g., from forest built inside semantic_super_sample).",
+     "CLAIM | \"That makes this the SECOND lock on the door\" | raise KeyError | KEPT | Code raises KeyError as a second check.",
+     "CLAIM | \"Content-addressed provenance for a deterministic DSS result\" | DSSReceipt fields | KEPT | Class fields and methods provide content-addressed provenance.",
+     "CLAIM | \"Run the deterministic DSS v0 context-selection pipeline\" | semantic_super_sample | KEPT | Function orchestrates the pipeline.",
+     "D1 | rename_confidence | parameter passed but not used in this unit | WRONG CONCLUSION: caller believes rename_confidence affects behavior, but it is only assigned to a local variable and never read.",
+     "D: none"
+    ],
+    "todos": [
+     "Wrap node.attributes.get(\"loc\", 1) in a try/except or validate before int() to ensure fallback cannot fail.",
+     "Remove rename_confidence parameter or actually use it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a60871ae1e2ff70f8a26dbabadbb1f8743e7aaf31e4a9cd28e410c8959c5be2a",
+    "objective_chars": 12540,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 2 kept, 2 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"this fallback cannot fail\" | loc = max(1, int(node.attributes.get(\"loc\", 1) or 1)) | BROKEN | int() can raise ValueError if the attribute is a non-integer string, so the fallback can fail.",
+     "CLAIM | \"Nothing inside this module can trigger it\" | build_context_plan docstring | BROKEN | The docstring claims nothing inside the module can trigger the refusal for non-FILE_NODE_KINDS, but `semantic_super_sample` calls `build_context_plan` with `final_scores` which may contain non-file node IDs if they entered via `temporal_scores` or `channels`; the code in this chunk does not filter them out.",
+     "CLAIM | \"Greedily pack the score-ranked whole-file candidates into a budget\" | build_context_plan | KEPT | The function sorts by score descending and greedily packs items.",
+     "CLAIM | \"Refusing loudly rather than skipping quietly is the same posture restrict_scores and semantic_super_sample already take\" | build_context_plan docstring | KEPT | The function raises KeyError for unknown or non-file nodes, consistent with the described posture."
+    ],
+    "todos": [
+     "Catch ValueError in loc parsing and fallback to 1, or validate the attribute before int()",
+     "Filter out non-file node IDs from `fused` before calling `build_context_plan`, or update the docstring to reflect that the module can trigger it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a60871ae1e2ff70f8a26dbabadbb1f8743e7aaf31e4a9cd28e410c8959c5be2a",
+    "objective_chars": 12540,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/dss.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 10024
+ }
+}

@@ -1,0 +1,122 @@
+{
+ "task_id": "research__b055__946db82",
+ "key": "research__b055__946db82-7e9a4a9f92",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals four hypotheses: (1) fence path normalization inconsistency between graph.py and drift.py; (2) token ceiling check in vendors.py assumes prompt token count is accurate but drift.py uses a different tokenization; (3) call graph's REACH_VISIT_CAP truncation is not communicated to the budget system; (4) _git choke point in attempt.py is not enforced for all git operations across modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fence path normalization inconsistency could cause mismatched fence matching between graph.py and drift.py, potentially allowing blocked paths to be included in prompts.",
+     "Token ceiling check in vendors.py may be inaccurate if drift.py tokenization differs, leading to budget overruns.",
+     "Call graph truncation at 5000 nodes may produce false negatives for safety, but budget system may not account for this uncertainty.",
+     "Git operations outside attempt.py may bypass the _git choke point, risking unintended writes to the primary checkout."
+    ],
+    "todos": [
+     "Verify that _fence_norm in graph.py and any path normalization in drift.py agree on leading slash and case handling.",
+     "Check if token counting in vendors.py uses the same tokenizer as drift.py's DocIndex.",
+     "Ensure that call graph truncation (REACH_VISIT_CAP) is flagged to the budget system as 'could not prove safe'.",
+     "Audit all modules for git calls to ensure they go through attempt.py's _git function."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "fence-norm-mismatch",
+       "claim": "Fence path normalization in graph.py and drift.py use different schemes, leading to inconsistent fence matching.",
+       "spans": [
+        "daedalus/structcore/graph.py",
+        "daedalus/mapping/drift.py"
+       ],
+       "mechanism": "graph.py's _fence_norm adds a leading '/' and lowercases, while drift.py's DocIndex.build collects paths as-is. If drift.py normalizes differently (or not at all), a path that matches a fence in graph.py may not be recognized as fenced in drift.py, or vice versa.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that drift.py uses the same normalization (leading '/', lowercase) as graph.py for fence matching.",
+       "evidence": [
+        "daedalus/structcore/graph.py:_fence_norm (leading '/', lowercase)",
+        "daedalus/mapping/drift.py:DocIndex.build (path collection, no normalization shown)"
+       ]
+      },
+      {
+       "id": "token-count-inconsistency",
+       "claim": "Token counting in vendors.py assumes a tokenization that may differ from drift.py's approach, causing the token ceiling check to be inaccurate.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/mapping/drift.py"
+       ],
+       "mechanism": "vendors.py checks max_prompt_tokens before dispatch, but the token count is computed by an unknown tokenizer. drift.py's DocIndex counts lines and has a MIN_DOC_DESC_CHARS constant, implying a different tokenization. If the tokenizer used by vendors.py does not match drift.py's, the ceiling check may allow prompts that exceed budget when measured by drift.py's method.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that both modules use the same token counting function or that the token ceiling check is based on the same tokenization as drift.py.",
+       "evidence": [
+        "daedalus/council/vendors.py:ask (checks max_prompt_tokens)",
+        "daedalus/mapping/drift.py:MIN_DOC_DESC_CHARS (implies line-based counting)"
+       ]
+      },
+      {
+       "id": "truncation-safety-gap",
+       "claim": "Call graph's REACH_VISIT_CAP truncation is not communicated to the budget system, which may treat truncated graphs as safe.",
+       "spans": [
+        "daedalus/structcore/graph.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "graph.py defines REACH_VISIT_CAP=5000 and warns that truncation must be treated as 'could not prove safe'. However, vendors.py uses the graph (via _dispatch or similar) to determine which paths to include. If the graph returns a truncated result, vendors.py may incorrectly treat it as complete, potentially including paths that should be blocked.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that vendors.py explicitly checks for truncation and treats truncated results as unsafe (e.g., blocking all paths).",
+       "evidence": [
+        "daedalus/structcore/graph.py:REACH_VISIT_CAP (5000, with truncation warning)",
+        "daedalus/council/vendors.py:assemble (uses graph to gather paths)"
+       ]
+      },
+      {
+       "id": "git-choke-bypass",
+       "claim": "Git operations outside attempt.py may bypass the _git choke point, risking unintended writes to the primary checkout.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/council/vendors.py",
+        "daedalus/mapping/drift.py"
+       ],
+       "mechanism": "attempt.py's docstring asserts that all git invocations go through _git, which prevents writes to the primary checkout. However, vendors.py and drift.py may contain direct git calls (e.g., for reading repository state) that do not use _git, potentially allowing write operations if not properly guarded.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all git calls in vendors.py and drift.py are routed through attempt.py's _git function or that no git calls exist in those modules.",
+       "evidence": [
+        "daedalus/spine/attempt.py:docstring (claims all git goes through _git)",
+        "daedalus/council/vendors.py: (no git calls visible in chunk 6/10)",
+        "daedalus/mapping/drift.py: (no git calls visible in chunk 3/13)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5758ad8e3ade51389710350270770abd7ec3f5453480e38b82ed2b6afd1f66d1",
+    "objective_chars": 29425,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 55 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 55,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,211 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c1of7__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c1of7__946db82-e72e3cd286",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 7 of daedalus/spine/docrefs.py: module docstring, imports, constants, and regex patterns. No exports or logic yet.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "1 of 7",
+     "purpose": "Module docstring explaining problem, false-positive filter, anti-gaming property, and invariants; imports; constant DOC_GLOBS; regex patterns for inline code, fences, list markers, placeholders.",
+     "symbols": [
+      {
+       "name": "DOC_GLOBS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of glob patterns for documentation files: docs/**/*.md and README.md."
+      },
+      {
+       "name": "_INLINE_CODE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match single-backtick inline code spans, excluding newlines."
+      },
+      {
+       "name": "_FENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match fenced code block openers/closers (``` or ~~~)."
+      },
+      {
+       "name": "_LIST_MARKER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match list markers (-, *, +, numbered, or >)."
+      },
+      {
+       "name": "_PLACEHOLDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match placeholder characters (*, ?, <, >, [, ], {, }, ...)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A reference in the documentation to a code symbol that does not exist.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No documentation or code symbols are present in this chunk to verify."
+      },
+      {
+       "text": "docs/HANDOFF.md says `daedalus.spine.picker.pick_next` / daedalus/spine/picker.py defines no `pick_next`",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The file docs/HANDOFF.md and daedalus/spine/picker.py are not in this chunk."
+      },
+      {
+       "text": "That is a defect with a reader-visible cost ... it is machine-checkable without running anything, and the remedy is a prose edit inside docs/. This repo has produced nine such defects.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of nine defects or machine-checkability in this chunk."
+      },
+      {
+       "text": "A reference is only ever judged when THE MODULE EXISTS AND THE SYMBOL DOES NOT.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No resolution logic present in this chunk to verify."
+      },
+      {
+       "text": "A reference to daedalus/hermes/ -- a package that has never existed -- is SKIPPED, not reported",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No such package reference or skip logic in this chunk."
+      },
+      {
+       "text": "A reference to daedalus.sensitivity.no_such_thing is reported, because daedalus/sensitivity.py is right there and does not contain it",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No daedalus/sensitivity.py or resolution logic in this chunk."
+      },
+      {
+       "text": "Fenced code blocks are transcripts and examples, so they are stripped.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The _FENCE regex is defined in this chunk, supporting stripping of fenced blocks."
+      },
+      {
+       "text": "A module that will not parse is skipped.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No parse logic present in this chunk."
+      },
+      {
+       "text": "A module with a star-import or a module-level __getattr__ has names this module cannot enumerate, so its references are skipped wholesale.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No enumeration or skip logic present in this chunk."
+      },
+      {
+       "text": "Each skip is COUNTED and reported",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No counting or reporting logic present in this chunk."
+      },
+      {
+       "text": "The measurement is a PAIR, and the pair is what is checked: resolving references that name code which exists (the denominator) / broken references that name code which does not (the finding)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No measurement logic present in this chunk."
+      },
+      {
+       "text": "There are two legitimate remedies for a broken reference ... Both leave resolving untouched. What is REFUSED is a fix that lowers resolving -- taking out the whole file, or mangling it until the extractor finds nothing.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No verify_fix or extractor logic present in this chunk."
+      },
+      {
+       "text": "verify_fix checks that FIRST, before it checks whether the claim went away, precisely because taking the file out does both at once and the deletion must not be masked by its own side effect.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No verify_fix function present in this chunk."
+      },
+      {
+       "text": "Stated as an invariant: verify_fix can never return ok for a change that reduced the number of references which resolve. A test pins it, including the case where the fixer takes out the entire corpus.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No verify_fix or test logic present in this chunk."
+      },
+      {
+       "text": "This module reads .md files and parses .py files with :mod:ast. It never imports the code it inspects (importing a module to ask what it defines runs it), never spawns a process, and never writes.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The chunk imports ast and defines regex for .md parsing; no imports of inspected modules, no subprocess, no file writes are present."
+      },
+      {
+       "text": "The paths a candidate declares in proposed_paths are a SELECTION hint for the picker and are never an authorisation to write -- see :func:daedalus.spine.picker.admissibility.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No proposed_paths or picker.admissibility in this chunk."
+      },
+      {
+       "text": "An inline-code span. Deliberately single-backtick only: a fenced block is a transcript or an example, and examples name symbols that were never meant to exist.",
+       "where": "comment above _INLINE_CODE",
+       "verdict": "kept",
+       "why": "_INLINE_CODE is defined as single-backtick only (no newlines)."
+      },
+      {
+       "text": "A fence opener/closer in markdown.",
+       "where": "comment above _FENCE",
+       "verdict": "kept",
+       "why": "_FENCE matches ``` or ~~~."
+      },
+      {
+       "text": "A list marker, so an indented list continuation is not mistaken for an indented code block.",
+       "where": "comment above _LIST_MARKER",
+       "verdict": "kept",
+       "why": "_LIST_MARKER matches -, *, +, numbered, or >."
+      },
+      {
+       "text": "Characters that mean the reference is a PATTERN, not a name: a glob, a placeholder, an ellipsis. Judging these would be judging a template.",
+       "where": "comment above _PLACEHOLDER",
+       "verdict": "kept",
+       "why": "_PLACEHOLDER matches *, ?, <, >, [, ], {, }, ..."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring makes extensive claims about behaviour not present in this chunk.",
+       "where": "lines 1-74",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "791c25867912e91b0884cc35c312f42396f852dca9f780d6facedeb3c6e7b437",
+    "objective_chars": 5875,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [1/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

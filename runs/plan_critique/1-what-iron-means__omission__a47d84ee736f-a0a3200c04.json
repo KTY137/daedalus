@@ -1,0 +1,130 @@
+{
+ "task_id": "1-what-iron-means__omission__a47d84ee736f",
+ "key": "1-what-iron-means__omission__a47d84ee736f-a0a3200c04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 1 omits definitions for 'hard invariant', 'research prior', 'approved amendment', 'read-only challenge', 'isolated experiment', 'frozen specification', 'bounded capabilities', 'explicit budget', 'independent evaluation', 'no production promotion', 'negative evidence', 'Gate 0', and 'guards', forcing implementers to guess.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "1.1 | high | 'Hard invariants' is undefined; implementers cannot know what counts as hard. | Require a definition of hard invariant with examples.",
+     "1.2 | high | 'Research priors' is undefined; implementers cannot distinguish them from invariants. | Require a definition of research prior with examples.",
+     "1.3 | high | 'Approved amendment' is undefined; the process and authority for approval are missing. | Specify who approves amendments and how.",
+     "1.4 | high | 'Read-only challenge' is undefined; the criteria for read-only are missing. | Define what operations are permitted in a read-only challenge.",
+     "1.5 | high | 'Isolated experiment' is undefined; the isolation mechanism is missing. | Specify how an experiment is isolated (e.g., sandbox, separate process).",
+     "1.6 | high | 'Frozen specification' is undefined; the freeze process and scope are missing. | Define what it means to freeze a specification and who can do it.",
+     "1.7 | high | 'Bounded capabilities' is undefined; the bounds are missing. | Specify how capabilities are bounded (e.g., resource limits, API subset).",
+     "1.8 | high | 'Explicit budget' is undefined; what constitutes a budget (time, resources, etc.) is missing. | Define budget types and limits.",
+     "1.9 | high | 'Independent evaluation' is undefined; the evaluator's identity and criteria are missing. | Specify who performs evaluation and what standards are used.",
+     "1.10 | high | 'No production promotion' is undefined; the promotion mechanism and guard are missing. | Define what prevents an experiment from reaching production.",
+     "1.11 | high | 'Negative evidence must be retained' is undefined; retention period, format, and access are missing. | Specify retention policy for negative evidence.",
+     "1.12 | medium | 'Gate 0' is referenced but undefined; its meaning and effects are unclear. | Define Gate 0 and its role in the security model.",
+     "1.13 | high | 'Guards' are referenced but not listed or defined; the set of guards is unknown. | Enumerate all guards and their intended protections.",
+     "1.14 | medium | 'No model prompt or local hook is a security boundary' asserts a property but does not define 'security boundary' or justify the claim. | Define security boundary and provide evidence or reasoning for the claim.",
+     "1.15 | low | 'The guards in this repository prevent ordinary accidental drift and make deliberate changes explicit' assumes a specific set of guards exists in the repository, but the document does not reference or list them. | List the guards or point to a section that defines them."
+    ],
+    "todos": [
+     "Define 'hard invariant' with examples and a criterion for hardness.",
+     "Define 'research prior' and distinguish it from 'hard invariant'.",
+     "Define the 'approved amendment' process, including who approves and how.",
+     "Define 'read-only challenge' with the operations permitted.",
+     "Define 'isolated experiment' with the isolation mechanism (e.g., container, sandbox).",
+     "Define 'frozen specification' including who freezes it and what that entails.",
+     "Define 'bounded capabilities' with concrete bounds (e.g., CPU, memory, API endpoints).",
+     "Define 'explicit budget' with units (e.g., time, cost, iterations).",
+     "Define 'independent evaluation' including evaluator selection and criteria.",
+     "Define 'no production promotion' with the mechanism that prevents promotion.",
+     "Define 'negative evidence' retention policy (duration, format, access control).",
+     "Define 'Gate 0' and its implications for the document's claims.",
+     "Enumerate all 'guards' in the repository and describe what each prevents.",
+     "Provide a definition or justification for why model prompts and local hooks are not security boundaries.",
+     "Reference or list the guards that prevent drift and make changes explicit."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "1.1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "unclear",
+       "why": "The claim is a high-level goal but omits definitions of 'silent drift' and 'learning'. Without these, an implementer cannot determine if the plan achieves this goal."
+      },
+      {
+       "id": "1.2",
+       "claim": "Never violate hard invariants.",
+       "verdict": "weak",
+       "why": "The term 'hard invariants' is not defined. An implementer must guess what counts as a hard invariant, leading to inconsistent enforcement."
+      },
+      {
+       "id": "1.3",
+       "claim": "Deviate from research priors only inside an isolated, measured experiment.",
+       "verdict": "weak",
+       "why": "'Research priors' and 'isolated, measured experiment' are undefined. The criteria for isolation and measurement are missing."
+      },
+      {
+       "id": "1.4",
+       "claim": "Hard invariants require an approved amendment before they change.",
+       "verdict": "weak",
+       "why": "'Approved amendment' is undefined. The approval authority and process are not specified."
+      },
+      {
+       "id": "1.5",
+       "claim": "Research priors are deliberately falsifiable.",
+       "verdict": "unclear",
+       "why": "The claim is a design intent, but without defining 'research prior', it is unfalsifiable. An implementer cannot verify that priors are indeed falsifiable."
+      },
+      {
+       "id": "1.6",
+       "claim": "A prior may be challenged without an amendment when the challenge is read-only or an isolated experiment with a frozen specification, bounded capabilities, explicit budget, independent evaluation, and no production promotion.",
+       "verdict": "weak",
+       "why": "Multiple terms are undefined: 'read-only challenge', 'isolated experiment', 'frozen specification', 'bounded capabilities', 'explicit budget', 'independent evaluation', 'no production promotion'. Each requires a definition for the rule to be actionable."
+      },
+      {
+       "id": "1.7",
+       "claim": "Negative evidence must be retained.",
+       "verdict": "weak",
+       "why": "The term 'negative evidence' is not defined, nor is the retention period, format, or access control specified."
+      },
+      {
+       "id": "1.8",
+       "claim": "No model prompt or local hook is a security boundary.",
+       "verdict": "unclear",
+       "why": "'Security boundary' is undefined, and the claim lacks justification or evidence. An implementer cannot confirm or enforce this property."
+      },
+      {
+       "id": "1.9",
+       "claim": "Until Gate 0 closes, the guards in this repository prevent ordinary accidental drift and make deliberate changes explicit; they do not claim to cover every external client, --no-verify, direct filesystem writer, or contained candidate repository.",
+       "verdict": "weak",
+       "why": "'Gate 0' is undefined, 'guards' are not enumerated, and the scope of coverage is ambiguous. The claim acknowledges limitations but does not define them precisely."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "80506c54d723c0013c35b14d08305a4019cd6ac0d26283bb97afea133c756d69",
+    "objective_chars": 1843,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "1-what-iron-means",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

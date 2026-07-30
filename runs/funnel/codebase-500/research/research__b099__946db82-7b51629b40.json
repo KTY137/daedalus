@@ -1,0 +1,116 @@
+{
+ "task_id": "research__b099__946db82",
+ "key": "research__b099__946db82-7b51629b40",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file pattern: multiple modules assume a shared index/scope contract that is not enforced; spectral clustering silently fails on empty graphs; envelope docstring claims divergence in DB path resolution; perfile worker passes unused timestamp to analyze_file.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Unenforced scope contract between mint.py and perfile.py could lead to out-of-scope files being analyzed.",
+     "Spectral clustering returns fallback (k=1) on empty graphs, which may mislead callers.",
+     "DB path divergence (ledger vs picker) may cause inconsistent spine DB usage.",
+     "Unused timestamp parameter in analyze_chunk suggests a mismatch between caller and callee.",
+     "Multiple modules rely on external functions/symbols not defined in the provided chunks, increasing fragility."
+    ],
+    "todos": [
+     "Verify that _diffed_symbols in mint.py is consistent with analyze_file in perfile.py.",
+     "Check spectral.py's behaviour on empty graphs and ensure fallback is documented.",
+     "Resolve the ledger vs picker DB path divergence claimed in envelope.py.",
+     "Investigate why ts_on is passed to analyze_file but not used in the chunk."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "scope-contract-mismatch",
+       "claim": "The scope membership test in mint.py assumes a module index that is also used by perfile.py for file analysis, but perfile.py does not enforce any scope filtering; thus out-of-scope files may be analyzed, wasting resources and potentially causing errors.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "daedalus/structcore/perfile.py"
+       ],
+       "mechanism": "mint.py's _mint_from_diffs uses _in_scope_modules to filter files; only in-scope files are passed to _diffed_symbols. However, perfile.py's analyze_chunk receives items without any scope filter and analyzes all files in the batch, regardless of scope. If a batch includes out-of-scope files, they will be analyzed, contradicting mint.py's claim that out-of-scope files never reach _diffed_symbols.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that perfile.py's caller enforces scope filtering before calling analyze_chunk, or that analyze_chunk itself checks scope.",
+       "evidence": [
+        "daedalus/eval/mint.py:_mint_from_diffs (scope filtering logic)",
+        "daedalus/structcore/perfile.py:analyze_chunk (no scope filtering)"
+       ]
+      },
+      {
+       "id": "empty-graph-fallback",
+       "claim": "Spectral clustering in spectral.py does not handle empty graphs gracefully; _spectrum returns empty list, _pick returns fallback (1,0,0) which is meaningless, and the caller may misinterpret the result.",
+       "spans": [
+        "daedalus/mapping/spectral.py"
+       ],
+       "mechanism": "_spectrum calls nx.normalized_laplacian_spectrum on an empty graph, which returns an empty list. _pick then receives an empty gaps list and returns (1, 0.0, 0.0). This fallback is not documented and may be used as a valid cluster count.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "Evidence that spectral.py's callers handle the empty graph case before calling analyse, or that the fallback is never used in practice.",
+       "evidence": [
+        "daedalus/mapping/spectral.py:_spectrum (line using nx.normalized_laplacian_spectrum)",
+        "daedalus/mapping/spectral.py:_pick (fallback when gaps empty)"
+       ]
+      },
+      {
+       "id": "db-path-divergence",
+       "claim": "The docstring in envelope.py claims a divergence between ledger.default_db_path() (honours DAEDALUS_SPINE_DB) and picker.resolve_spine_db_path() (ignores it), but this claim is unverifiable and may be outdated or incorrect.",
+       "spans": [
+        "daedalus/spine/envelope.py"
+       ],
+       "mechanism": "The docstring states that ledger.default_db_path respects the environment variable DAEDALUS_SPINE_DB, while picker.resolve_spine_db_path does not. This is presented as a known divergence. However, the actual implementation of these functions is not present in the provided chunks, so the claim cannot be confirmed.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that both functions behave identically, or that the docstring is wrong.",
+       "evidence": [
+        "daedalus/spine/envelope.py:module docstring (claims divergence)"
+       ]
+      },
+      {
+       "id": "unused-ts-parameter",
+       "claim": "The analyze_chunk function in perfile.py receives ts_on but does not use it; it passes it to analyze_file, but analyze_file's signature in the chunk expects (rel, text, spec, ts_on), suggesting that the caller provides ts_on but it may not be needed.",
+       "spans": [
+        "daedalus/structcore/perfile.py"
+       ],
+       "mechanism": "analyze_chunk unpacks (ts_on, items) from job, but ts_on is not used in the list comprehension except as an argument to analyze_file. If analyze_file ignores ts_on, it is dead weight. This indicates a possible mismatch between the caller's contract and the actual implementation.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "Evidence that ts_on is actually used inside analyze_file (not shown in chunk).",
+       "evidence": [
+        "daedalus/structcore/perfile.py:analyze_chunk (line 127-128)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c4ce81c61d8d65eae4e0f10ea8a0876c3af43260562161f4eefe75e83664006c",
+    "objective_chars": 27504,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 99 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 99,
+  "inputs": 4
+ }
+}

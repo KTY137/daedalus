@@ -1,0 +1,156 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c17of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c17of25__946db82-c2092076df",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 17 of 25: defines _definition_fingerprint, _candidate_definition_fingerprint, and attempt_history; docstrings make claims about retry identity, read-only ledger, and error handling.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "attempt_history | medium | Uses ledger.intents_matching_payload with kind=ATTEMPT_INTENT_KIND; if ATTEMPT_INTENT_KIND is not defined or mismatched, query may return empty or wrong results. | Verify ATTEMPT_INTENT_KIND is imported correctly and matches the ledger's stored intent kind.",
+     "attempt_history | medium | Assumes intent.resolved_ts and intent.created_ts exist. If not, will raise AttributeError. | Check the Intent type definition for those attributes.",
+     "attempt_history | low | Uses intent.result as Mapping; if it's not a dict, .get may fail. | Ensure intent.result is always a dict or None.",
+     "_definition_fingerprint | low | In the legacy fallback, returns instruction_fingerprint(instruction) but instruction_fingerprint is not defined in this chunk. | Confirm instruction_fingerprint exists and is imported."
+    ],
+    "todos": [
+     "Check that ATTEMPT_INTENT_KIND is defined/imported in this module.",
+     "Verify that instruction_fingerprint function exists and is imported.",
+     "Confirm that Intent has attributes resolved_ts, created_ts, state, result, payload."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "17 of 25",
+     "purpose": "Defines fingerprinting functions for task identity and the attempt_history function to query ledger for past attempts.",
+     "symbols": [
+      {
+       "name": "_definition_fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal function to compute a SHA256 fingerprint of a task definition including instruction, base_revision, target_paths, and gate."
+      },
+      {
+       "name": "_candidate_definition_fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes definition fingerprint from a Candidate object, extracting gate fields."
+      },
+      {
+       "name": "attempt_history",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Public function that queries the ledger for attempt history by task_ids; opens ledger read-only and returns (history, error)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A queue task is not the same work merely because its prose stayed the same: a new candidate base, target scope, or executable gate changes the proposition being attempted.",
+       "where": "_definition_fingerprint docstring",
+       "verdict": "kept",
+       "why": "The function includes base_revision, target_paths, and gate in the fingerprint when present, and falls back to instruction-only fingerprint only when all are absent."
+      },
+      {
+       "text": "Legacy tasks declare none of these fields and retain the historical instruction-only fingerprint exactly.",
+       "where": "_definition_fingerprint docstring",
+       "verdict": "kept",
+       "why": "When base_revision, target_paths, and gate are all empty/falsy, the function returns instruction_fingerprint(instruction) directly."
+      },
+      {
+       "text": "Opens the ledger READ-ONLY.",
+       "where": "attempt_history docstring",
+       "verdict": "kept",
+       "why": "The code passes read_only=True to SpineLedger constructor."
+      },
+      {
+       "text": "The normal constructor creates the parent directory, sets journal_mode=WAL (a file write) and runs migrations inside BEGIN IMMEDIATE, so opening a ledger to look at it MUTATES it -- unacceptable in --dry-run, whose entire contract is that it changes nothing.",
+       "where": "attempt_history docstring",
+       "verdict": "uncheckable",
+       "why": "This claim refers to the behavior of SpineLedger constructor without read_only, which is not present in this chunk."
+      },
+      {
+       "text": "SQLite enforces that here; this function does not merely promise it.",
+       "where": "attempt_history docstring",
+       "verdict": "uncheckable",
+       "why": "The enforcement mechanism is not visible; it depends on SpineLedger's implementation with read_only=True."
+      },
+      {
+       "text": "Returns (history, error) and NEVER raises: a missing ledger (a fresh checkout has attempted nothing) is an empty history, not a failure.",
+       "where": "attempt_history docstring",
+       "verdict": "kept",
+       "why": "If db_path does not exist, returns ({}, None). The function catches Exception and returns error string. No unhandled exceptions in visible code."
+      },
+      {
+       "text": "The error string is surfaced as a queue note, because silently degrading to 'no memory' is exactly how a loop would go back to repeating itself without saying so.",
+       "where": "attempt_history docstring",
+       "verdict": "uncheckable",
+       "why": "The usage of the error string as a queue note is outside this chunk."
+      },
+      {
+       "text": "A LIKE match is a substring test; confirm the row really is one of the ids asked for rather than one that merely contains it.",
+       "where": "attempt_history comment",
+       "verdict": "kept",
+       "why": "After retrieving intents, the code explicitly checks 'if task_id not in wanted: continue' to filter out substring matches."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _definition_fingerprint references instruction_fingerprint which is not defined in this chunk.",
+       "where": "_definition_fingerprint line ~1940",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "attempt_history uses ATTEMPT_INTENT_KIND without definition or import in this chunk.",
+       "where": "attempt_history line ~1986",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "attempt_history accesses intent.resolved_ts, intent.created_ts, intent.state, intent.result, intent.payload which are not defined in this chunk.",
+       "where": "attempt_history lines ~1998-2018",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "attempt_history imports SpineLedger and default_db_path inside the function; this is fine but unusual.",
+       "where": "attempt_history line ~1978",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2b8f0f4bdf94d677b371fa29383870bc9f7269960047d28735331666fa9c0712",
+    "objective_chars": 6160,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [17/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 17,
+  "total": 25,
+  "first_line": 1921
+ }
+}

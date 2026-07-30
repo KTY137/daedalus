@@ -1,0 +1,246 @@
+{
+ "task_id": "scan__daedalus_kairos_archive.py__c1of3__946db82",
+ "key": "scan__daedalus_kairos_archive.py__c1of3__946db82-1b75aabc62",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Processed chunk 1 of 3 of archive.py: defined constants, dataclass Attempt, utility functions, and documented design decisions; all checkable claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OUTCOME_RANK ordering | high | The outcome vocabulary is defined locally rather than imported; test/test_kairos_archive.py::test_outcome_vocabulary_matches_the_evaluator is referenced but not present in this chunk, so drift risk exists. | Verify that the test exists and passes.",
+     "MAX_SUMMARY_CHARS cap | medium | The cap is defined but not enforced in this chunk; enforcement must be in the recording function (record_attempt) which is not shown. | Check record_attempt implementation for truncation.",
+     "Attempt dataclass uses meta: dict[str, Any] | medium | The meta field is unvalidated; a caller could store arbitrary data, potentially large or sensitive. | Ensure callers respect intended usage or add validation.",
+     "digest_patch function not shown | low | The function is declared in __all__ but not defined in this chunk; its behavior is uncheckable. | Review its implementation in later chunks."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/archive.py",
+     "chunk": "1 of 3",
+     "purpose": "Define constants, outcome ranking, Attempt dataclass, and module-level docstring with design rationale.",
+     "symbols": [
+      {
+       "name": "OUTCOME_RANK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping outcome strings to integer rank (worst to best). Includes five outcomes."
+      },
+      {
+       "name": "NUM_ELITE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Number of elite inspirations to sample; set to 3."
+      },
+      {
+       "name": "NUM_DIVERSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Number of diverse inspirations to sample; set to 2."
+      },
+      {
+       "name": "MAX_SUMMARY_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum characters for candidate-influenced summary; set to 600."
+      },
+      {
+       "name": "Attempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing one evaluated candidate. Contains attempt_id, outcome, patch_digest, summary, unfixed, ts, meta. Has rank property and to_dict/from_dict methods."
+      },
+      {
+       "name": "Attempt.rank",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning integer rank based on outcome; unknown outcomes get -1."
+      },
+      {
+       "name": "Attempt.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts Attempt to dict, with unfixed as list."
+      },
+      {
+       "name": "Attempt.from_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Class method to reconstruct Attempt from dict."
+      },
+      {
+       "name": "digest_patch",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      },
+      {
+       "name": "load_attempts",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      },
+      {
+       "name": "record_attempt",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      },
+      {
+       "name": "sample_inspirations",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The sampling SHAPE in this module is adapted from OpenEvolve.",
+       "where": "Module docstring, line 3",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the sampling implementation; cannot verify adaptation."
+      },
+      {
+       "text": "WE STORE A DIGEST, THEY STORE THE CODE.",
+       "where": "Module docstring, line 13",
+       "verdict": "kept",
+       "why": "Attempt dataclass has patch_digest field, no code field; matches claim."
+      },
+      {
+       "text": "DETERMINISTIC BY DEFAULT. Upstream calls the global random. Every draw here takes an explicit rng.",
+       "where": "Module docstring, line 16",
+       "verdict": "uncheckable",
+       "why": "The sampling functions are not defined in this chunk; cannot verify rng parameter."
+      },
+      {
+       "text": "BOUNDED. Every field that a candidate can influence is length-capped on the way IN.",
+       "where": "Module docstring, line 18",
+       "verdict": "uncheckable",
+       "why": "MAX_SUMMARY_CHARS is defined, but truncation enforcement is not shown; also other fields (summary, unfixed) are not capped in this dataclass definition."
+      },
+      {
+       "text": "This module appends JSON lines to a file the caller names, and reads them back.",
+       "where": "Module docstring, line 22",
+       "verdict": "uncheckable",
+       "why": "File I/O functions (record_attempt, load_attempts) are not defined in this chunk."
+      },
+      {
+       "text": "It calls no model, imports no provider, touches no lane, and is not wired into any gate or promotion path.",
+       "where": "Module docstring, line 22",
+       "verdict": "kept",
+       "why": "No model, provider, or lane imports in this chunk; only stdlib modules and dataclasses."
+      },
+      {
+       "text": "sample_inspirations returns records, and a record's summary is the ONLY free text on it.",
+       "where": "Module docstring, line 27",
+       "verdict": "uncheckable",
+       "why": "sample_inspirations not defined; cannot verify it returns Attempt records or that summary is the only free text."
+      },
+      {
+       "text": "Outcome vocabulary, ordered WORST-to-BEST.",
+       "where": "Line 50",
+       "verdict": "kept",
+       "why": "OUTCOME_RANK dict is defined with integer values increasing from 0 to 4, matching worst-to-best order."
+      },
+      {
+       "text": "Mirrored deliberately rather than imported: daedalus.eval.correctness is a heavyweight module and this one is meant to stay a leaf.",
+       "where": "Line 51",
+       "verdict": "kept",
+       "why": "The outcomes are defined locally; no import from daedalus.eval.correctness is present."
+      },
+      {
+       "text": "tests/test_kairos_archive.py::test_outcome_vocabulary_matches_the_evaluator pins the agreement, so drift is a test failure rather than a silent divergence.",
+       "where": "Line 52",
+       "verdict": "uncheckable",
+       "why": "The referenced test file is not in this chunk."
+      },
+      {
+       "text": "Upstream config.py:268-269 -- num_top_programs=3, num_diverse_programs=2.",
+       "where": "Line 54",
+       "verdict": "uncheckable",
+       "why": "Upstream config not provided; but the constants NUM_ELITE=3 and NUM_DIVERSE=2 match the claim."
+      },
+      {
+       "text": "A candidate-influenced string. Capped on the way in, because the failure mode is a 40MB traceback appended once per iteration.",
+       "where": "Line 57",
+       "verdict": "uncheckable",
+       "why": "MAX_SUMMARY_CHARS is defined, but the cap enforcement in record_attempt is not shown."
+      },
+      {
+       "text": "Deliberately NOT a program record. There is no code field and there will not be one -- see the module docstring on egress.",
+       "where": "Attempt docstring, line 62",
+       "verdict": "kept",
+       "why": "Attempt dataclass has no code field; only patch_digest and summary."
+      },
+      {
+       "text": "Unknown outcomes sort worst.",
+       "where": "Attempt.rank docstring, line 74",
+       "verdict": "kept",
+       "why": "rank property returns -1 for unknown outcomes, which sorts before 0 (task_invalid)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Outcome vocabulary defined locally; test file referenced but not present.",
+       "where": "Line 51-52",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "MAX_SUMMARY_CHARS defined but no truncation logic in this chunk.",
+       "where": "Line 57",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Attempt dataclass uses frozen=True; good for immutability.",
+       "where": "Line 60",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "from_dict method is incomplete in this chunk (cut off).",
+       "where": "Line 80",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "digest_patch, load_attempts, record_attempt, sample_inspirations declared in __all__ but not defined in this chunk.",
+       "where": "__all__",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5b237022ab48d139cc183630e19a441198af7076f98f001dd8d45f27d789b829",
+    "objective_chars": 5325,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/archive.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/archive.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

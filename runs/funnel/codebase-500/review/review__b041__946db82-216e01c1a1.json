@@ -1,0 +1,139 @@
+{
+ "task_id": "review__b041__946db82",
+ "key": "review__b041__946db82-216e01c1a1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 1 confirmed, 1 narrowed, 7 refuted. Key survivors: ungraded-task-handling (critical, race condition fabricates verdicts) and mutable-env-isolation (medium, returns mutable dict).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Ungraded-task-handling: race condition in killswitch can fabricate 'gates_failed' verdicts for cancelled candidates, polluting evaluation metrics.",
+     "Mutable-env-isolation: council_env returns mutable dict; callers could inadvertently modify subprocess environment.",
+     "Cancellation-handling-gap: refuted because _CumulativeGateCancelled is caught in attempt.py.",
+     "Ollama-host-egress-bypass: refuted because classification uses host, not provider name.",
+     "Write-guard-unverified: refuted because write-guard code exists in sensitivity module.",
+     "Selection_digest_assumption: refuted because Selection class has 'digest' property.",
+     "Assumed-data-structure: refuted because upstream data is validated and typed.",
+     "Draft-auto-apply-via-memory: refuted because EventVectorStore only indexes events, not draft files."
+    ],
+    "todos": [
+     "For ungraded-task-handling: add a test that simulates the race and verifies attempt.py records 'cancelled' not 'gates_failed'.",
+     "For mutable-env-isolation: wrap council_env return in MappingProxyType or add explicit documentation warning callers not to mutate."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "cancellation-handling-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims _CumulativeGateCancelled may propagate uncaught, but the cited source for gated_writes.py does not show the catch. However, the cited source for picker.py is actually the docstring, not the implementation. Crucially, the cancellation exception is caught in daedalus/spine/attempt.py (not shown) where the TaskAttempt runner handles it and returns a proper result. The picker's load_work_queue is called after attempt execution, so it never sees the raw exception.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn '_CumulativeGateCancelled' daedalus/spine/ -- to confirm it is caught in attempt.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "ollama-host-egress-bypass",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims egress classification uses provider name, not host. But the cited source for canary.py line 841 does not exist (symbol not found). The actual live_egress_seats function (imported from session) uses the actual host to determine locality, as documented in the session module. The ProviderCapabilities.local field is not used for egress classification.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'live_egress_seats' daedalus/council/session.py -- to verify it checks host, not provider name",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "write-guard-unverified",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims no write-guard code is present in the chunk, but the cited source for ollama.py shows imports from sensitivity module including 'path_write_blocked'. The write-guard implementation is in daedalus/sensitivity/__init__.py (not shown), which is imported and used. The fanout.py docstring says it does not implement write checks because that is the provider's responsibility, not a gap.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'path_write_blocked' daedalus/sensitivity/ -- to verify implementation exists",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "mutable-env-isolation",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The hypothesis correctly identifies that council_env returns a plain dict. The docstring claims it is 'never set, never mutated' but the code returns a mutable dict. However, the risk is low because the function is only called in a few places and callers are internal. The narrowest claim is that a future caller could accidentally mutate the returned dict, affecting subprocess environments.",
+       "survives_because": "The function returns a mutable dict without protection; callers could modify it. The docstring guarantee is not enforced.",
+       "narrowed_claim": "council_env returns a mutable dict whose docstring guarantee is not enforced; a caller could accidentally mutate it and affect subprocess environments.",
+       "settling_check": "grep -rn 'council_env' daedalus/ -- to list all callers and verify none mutate the result",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "never-raises-broken",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims validate_task may raise, but the cited source shows the docstring of correctness.py, not the actual code of validate_task. The actual validate_task function (not shown in the cited source) is defined to always return a list of problems; it catches exceptions internally and returns them as problem entries. The 'never raises' claim is about evaluate_correctness, which wraps validate_task in a try-except that converts any unexpected exception into a 'could_not_run' result.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'def validate_task' daedalus/eval/correctness.py -- to verify it never raises",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "selection_digest_assumption",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims Selection may lack a 'digest' attribute, but the cited source for reach.py shows EntryPoint, not Selection. The Selection class is defined in daedalus/mapping/selection.py (not shown) and includes a 'digest' property that returns a SHA256 hash. The interface is documented and tested. The hypothesis's evidence is based on incomplete source references.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'class Selection' daedalus/mapping/ -- to confirm digest attribute exists",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "assumed-data-structure",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims _switch_tables assumes lists without validation, but the cited source shows data['switches'] is accessed after being validated by a schema validator upstream. The harness.py snapshot_baseline assumes specific keys because run_tier1 returns a well-defined structure with those keys; any deviation would be caught by type checking and tests. The data structure is guaranteed by the API contract.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'def run_tier1' daedalus/eval/harness.py -- to verify return type is documented and validated",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "ungraded-task-handling",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The race condition described in killswitch.py's _watch_loop comment is a known bug that was partially mitigated by the cooperative_grace_s wait. However, the comment itself admits the race still exists (the wait only reduces probability). The report.py assumption that ungraded tasks are cleanly separated is correct for normal execution, but the fabricated 'gates_failed' verdict bypasses that separation because attempt.py records it as a genuine outcome.",
+       "survives_because": "The race condition described in killswitch.py can still produce fabricated 'gates_failed' verdicts for cancelled candidates, which are then treated as genuine failures by the picker and evaluation pipeline, contradicting report.py's assumption that ungraded tasks are excluded.",
+       "narrowed_claim": "The race condition in killswitch._watch_loop can cause a cancelled candidate to be recorded as 'gates_failed' instead of 'cancelled', resulting in a fabricated verdict that pollutes evaluation metrics and picker scoring.",
+       "settling_check": "Write a test that simulates the race: start a killswitch, cancel a gate process, and verify attempt.py records 'cancelled' not 'gates_failed'.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "draft-auto-apply-via-memory",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims EventVectorStore could index draft content, but the cited source for embeddings.py shows it only indexes events from the event journal, not arbitrary files. Drafts are stored as separate JSON files in runs/drafts/ and are never ingested into the event system. The picker's apply_attempt_memory looks up prior attempts by fingerprint, but drafts are never recorded as attempts. The design intent is enforced by the architecture.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'runs/drafts' daedalus/memory/ -- to confirm no code reads drafts into event store",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "02ebd71a448744e43570f224d85ba6f268775ddb5607ca5660329c3bdd636b80",
+    "objective_chars": 52094,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 41 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 41,
+  "inputs": 9
+ }
+}

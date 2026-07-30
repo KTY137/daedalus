@@ -1,0 +1,125 @@
+{
+ "task_id": "plan__b009__946db82",
+ "key": "plan__b009__946db82-697df62562",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 survivors: egress-detection-gap (critical, needs grep), missing-refresh-todo-snapshot (critical, needs grep), type-node-leak (high, needs forest.py), ambiguous-stub-resolution (medium, needs evidence). Gate 0 items: egress-detection-gap, missing-refresh-todo-snapshot. Gate 1: type-node-leak, ambiguous-stub-resolution.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "egress-detection-gap: if lane_for_host missing, MCP egress vetting is broken",
+     "missing-refresh-todo-snapshot: append_event may crash at runtime",
+     "type-node-leak: reachability analysis may include spurious type nodes",
+     "ambiguous-stub-resolution: stubs treated as runtime modules may cause silent failures"
+    ],
+    "todos": [
+     "Run grep -n 'lane_for_host' daedalus/tools/vet.py to settle finding 2",
+     "Search for 'def refresh_todo_snapshot' in daedalus/memory/__init__.py and check imports to settle finding 5",
+     "Inspect build_forest_hierarchy in forest.py for type node filtering to settle finding 4",
+     "Find a module that is only a .pyi file and check if any caller treats it as runtime module to settle finding 1"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Settle egress-detection-gap by verifying lane_for_host exists in vet.py",
+       "gate": "0",
+       "why_now": "If lane_for_host is missing, MCP egress detection is broken \u2014 a critical safety gap that blocks all other work until resolved.",
+       "steps": [
+        {
+         "do": "Run grep -n 'lane_for_host' daedalus/tools/vet.py and report result",
+         "file": "daedalus/tools/vet.py",
+         "verified_by": "grep returns line number(s) or empty output"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full vet.py file is accessible at the given path."
+      },
+      {
+       "rank": 2,
+       "title": "Settle missing-refresh-todo-snapshot by searching for its definition in memory/__init__.py",
+       "gate": "0",
+       "why_now": "append_event calls refresh_todo_snapshot which may be undefined, causing runtime crashes on every event append \u2014 this blocks the entire memory subsystem.",
+       "steps": [
+        {
+         "do": "Search for 'def refresh_todo_snapshot' in daedalus/memory/__init__.py and check imports at top of file",
+         "file": "daedalus/memory/__init__.py",
+         "verified_by": "grep returns definition line or confirms missing; import inspection reveals if imported from another module"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full file is accessible; if definition is in another file, imports will show it."
+      },
+      {
+       "rank": 3,
+       "title": "Settle type-node-leak by inspecting build_forest_hierarchy in forest.py for type node filtering",
+       "gate": "1",
+       "why_now": "If build_forest_hierarchy does not filter type nodes, reachability analysis may include spurious nodes, corrupting architectural insights. This is a high-severity data integrity issue.",
+       "steps": [
+        {
+         "do": "Inspect build_forest_hierarchy in forest.py to see if it calls _is_type_node_id or otherwise filters out type nodes from file layers",
+         "file": "UNKNOWN",
+         "verified_by": "Manual inspection: function body includes filtering logic or not. File path not provided in input; assume forest.py exists in daedalus/mapping/ or similar."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "forest.py is part of the daedalus/mapping/ package; file path not given in input, so UNKNOWN."
+      },
+      {
+       "rank": 4,
+       "title": "Settle ambiguous-stub-resolution by finding a stub-only module and checking caller behavior",
+       "gate": "1",
+       "why_now": "If _disambiguate returns a .pyi file as the only source, callers may incorrectly treat it as a runtime module, causing silent failures in test extraction or correctness analysis.",
+       "steps": [
+        {
+         "do": "Find a module that is only a .pyi file in the repository (e.g., using find . -name '*.pyi' -not -exec test -f {}.py ';' -print)",
+         "file": "UNKNOWN",
+         "verified_by": "Command returns at least one stub-only module path"
+        },
+        {
+         "do": "Check if any caller (e.g., correctness.py test extraction) treats that module as a runtime module by inspecting imports or source analysis",
+         "file": "UNKNOWN",
+         "verified_by": "Manual inspection: caller references the module without checking for .pyi, or attempts to execute it"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Stub-only modules exist in the repository; callers are in correctness.py or similar files; paths not provided in input."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1b7f4818342853ac07bf2a14af3bc60f958d2676d58070303bc135f749cf9b86",
+    "objective_chars": 10122,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 9 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 9,
+  "inputs": 5
+ }
+}

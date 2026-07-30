@@ -1,0 +1,103 @@
+{
+ "task_id": "daedalus/eval/__init__.py#c1of1#5eb1702d",
+ "key": "daedalus_eval___init__.py_c1of1_5eb1702d-72f50cee7c",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "1 claim: 1 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"never mutates it\" | module docstring | KEPT | The module only imports from structcore and defines __all__, no mutation code.",
+     "D1 | TASKS | imported from .tasks but not read in this unit | WRONG CONCLUSION: a caller expects TASKS to be used here, but it's only re-exported."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "97990c914542b7fa1d1d22ef72df35fd8d14f86986997acae35826aaefde84be",
+    "objective_chars": 3814,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "97990c914542b7fa1d1d22ef72df35fd8d14f86986997acae35826aaefde84be",
+    "objective_chars": 3814,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 0 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Tier 1 (deterministic, no LLM -- the rigorous core)\" | run_tier1 | UNCHECKABLE | need to see harness.py to verify Tier 1 is deterministic and LLM-free",
+     "CLAIM | \"Tier 2 (opt-in, needs a runtime)\" | run_tier2 | UNCHECKABLE | need to see harness.py to verify Tier 2 is opt-in and needs a runtime",
+     "CLAIM | \"Isolated package: imports structcore's stable public API; never mutates it.\" | __init__.py | KEPT | the unit only imports from .tasks and .harness, no structcore import or mutation",
+     "CLAIM | \"Gated: skipped cleanly when no provider is available.\" | run_tier2 | UNCHECKABLE | need to see harness.py to verify gating logic",
+     "CLAIM | \"The claim under test: a *distilled semantic slice* ... 'Distillation beats concatenation.'\" | __init__.py | KEPT | the docstring states the claim under test, no code contradicts it"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "97990c914542b7fa1d1d22ef72df35fd8d14f86986997acae35826aaefde84be",
+    "objective_chars": 3814,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/eval/__init__.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1368
+ }
+}

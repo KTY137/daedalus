@@ -1,0 +1,139 @@
+{
+ "task_id": "plan__b016__946db82",
+ "key": "plan__b016__946db82-301150e1a9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Proposed 4 items: verify _spectrum non-empty, inspect LowIntegrityLog.__init__, locate 'included' list in slice.py, examine BaseException handler in bootstrap.py. All depend on file inspection not yet done.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "All items require file inspection; paths are confirmed from findings but files may not exist or may differ from snippets. Assumptions about file locations are based on cited_source paths which are partial; full file paths may need discovery.",
+     "Item 3 (missing-included-list) severity is high but depends on locating 'included' in slice.py; if file is incomplete or missing, the assumption that the list exists may be wrong.",
+     "Item 2 (token-integrity-verification-gap) depends on inspecting LowIntegrityLog.__init__ in containment.py; if that file is not found, the gap remains unverified."
+    ],
+    "todos": [
+     "Inspect daedalus/structcore/slice.py for 'included' list usage.",
+     "Inspect containment.py for LowIntegrityLog.__init__ implementation.",
+     "Inspect daedalus/spine/bootstrap.py lines 172-173 for BaseException handler body.",
+     "Verify _spectrum returns non-empty list for edge-case graphs (n>=3, edges>0)."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify _spectrum never returns empty list for valid graphs",
+       "gate": "0",
+       "why_now": "Low-severity but foundational: if _spectrum can return empty, the fallback (1,0,0) in _pick would silently produce incorrect results, breaking graph analysis.",
+       "steps": [
+        {
+         "do": "Add a unit test that calls _spectrum on a graph with 3 nodes and 1 edge (connected) and asserts the result is a non-empty list.",
+         "file": "tests/test_graph.py",
+         "verified_by": "pytest tests/test_graph.py::test_spectrum_nonempty"
+        },
+        {
+         "do": "Add a unit test that calls _spectrum on a graph with 3 nodes and 0 edges (disconnected) and asserts the result is a non-empty list.",
+         "file": "tests/test_graph.py",
+         "verified_by": "pytest tests/test_graph.py::test_spectrum_nonempty_disconnected"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function _spectrum and _pick are in a file that can be imported in tests; exact file path for _spectrum not given, but tests can import from the module containing analyse."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect LowIntegrityLog.__init__ for integrity read-back",
+       "gate": "1",
+       "why_now": "Medium severity: if LowIntegrityLog.__init__ does not verify the integrity label, file-level attestation is incomplete, potentially allowing tampered files to be opened.",
+       "steps": [
+        {
+         "do": "Open containment.py and inspect the __init__ method of LowIntegrityLog to check if it reads back the integrity label (e.g., via _token_integrity_sid).",
+         "file": "containment.py",
+         "verified_by": "Manual code review: confirm that LowIntegrityLog.__init__ contains a call to _token_integrity_sid or similar verification."
+        },
+        {
+         "do": "If missing, add a read-back check in __init__ that compares the stored integrity label to LOW_INTEGRITY_SID.",
+         "file": "containment.py",
+         "verified_by": "pytest tests/test_integrity.py (to be created) that creates a LowIntegrityLog and verifies integrity."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file containment.py exists in the repository (path not provided in findings, but referenced as containing LowIntegrityLog)."
+      },
+      {
+       "rank": 3,
+       "title": "Locate and verify 'included' list update in slice function",
+       "gate": "1",
+       "why_now": "High severity: if the 'included' list is not updated when include_focus=False, the slice function may incorrectly report omitted items, breaking the semantic slice contract.",
+       "steps": [
+        {
+         "do": "Open daedalus/structcore/slice.py and search for 'included' to locate the list and its update logic.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "Manual code review: confirm that 'included' is updated (e.g., appended) for each relevant item, especially when include_focus=False."
+        },
+        {
+         "do": "If missing, add code to update 'included' list in the slice function, ensuring it records omitted items as per docstring.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "pytest tests/test_slice.py (to be created) that checks the 'included' list for a known scenario."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file daedalus/structcore/slice.py exists and contains the slice function; the 'included' list may be defined later in the function (lines beyond the snippet)."
+      },
+      {
+       "rank": 4,
+       "title": "Examine BaseException handler in refresh_sources and ensure re-raise",
+       "gate": "1",
+       "why_now": "Medium severity: catching BaseException without re-raising can suppress KeyboardInterrupt and SystemExit, making the process unkillable and violating system expectations.",
+       "steps": [
+        {
+         "do": "Open daedalus/spine/bootstrap.py and inspect lines 172-173 (the except BaseException handler body) to see if it re-raises or handles special exceptions.",
+         "file": "daedalus/spine/bootstrap.py",
+         "verified_by": "Manual code review: confirm that the handler re-raises BaseException or at least special cases like KeyboardInterrupt and SystemExit."
+        },
+        {
+         "do": "If the handler does not re-raise, modify it to re-raise BaseException after logging, or at least catch more specific exceptions.",
+         "file": "daedalus/spine/bootstrap.py",
+         "verified_by": "pytest tests/test_bootstrap.py (to be created) that triggers a KeyboardInterrupt during refresh_sources and asserts the process exits."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file daedalus/spine/bootstrap.py exists and the handler body is at lines 172-173 as per the snippet."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "22577538d3710c46aeb63d7074b1c6b6b2a146029b051b21942d1ded2fcb0263",
+    "objective_chars": 8847,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 16 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 16,
+  "inputs": 4
+ }
+}

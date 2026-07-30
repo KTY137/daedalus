@@ -1,0 +1,117 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c14of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c14of15__946db82-65a65c483a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 14 of 15 of embeddings.py: defines search() wrapper, list_indexes(), index_status(), and legacy_unversioned_count().",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "14 of 15",
+     "purpose": "Implements search() compatibility wrapper, list_indexes(), index_status(), and legacy_unversioned_count().",
+     "symbols": [
+      {
+       "name": "search",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Compatibility wrapper that calls search_report and returns only matches."
+      },
+      {
+       "name": "list_indexes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of EmbeddingSpec from embedding_indexes table."
+      },
+      {
+       "name": "index_status",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns IndexStatus for a given spec, including projection count, freshness, etc."
+      },
+      {
+       "name": "legacy_unversioned_count",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns count of rows in legacy_agent_events_v1 table if it exists."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This wrapper discards ``status`` and ``freshness``, so it cannot tell a drifted or stale index from a healthy one.",
+       "where": "docstring of search",
+       "verdict": "kept",
+       "why": "The method returns only matches (list of tuples), discarding status and freshness from search_report."
+      },
+      {
+       "text": "New code should call :meth:`search_report`.",
+       "where": "docstring of search",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk uses search_report; claim is a recommendation, not a checkable fact."
+      }
+     ],
+     "observations": [
+      {
+       "what": "search() is a compatibility wrapper that discards status and freshness.",
+       "where": "line 1591-1609",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "index_status() uses a dictionary to map freshness_status.code to a string; 'freshness' key is set but not used in the else branch where it's computed.",
+       "where": "line 1638-1642",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "legacy_unversioned_count() checks for table existence but does not return a count; it returns 0 if table missing, else falls through without returning.",
+       "where": "line 1665-1674",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "20a367a613cba606702fd4a527c852c94829b6d046e13101906044a7139a3bf8",
+    "objective_chars": 4644,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [14/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 14,
+  "total": 15,
+  "first_line": 1561
+ }
+}

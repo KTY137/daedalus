@@ -1,0 +1,161 @@
+{
+ "task_id": "scan__daedalus_structcore_perfile.py__c1of2__946db82",
+ "key": "scan__daedalus_structcore_perfile.py__c1of2__946db82-8bc4fe7aed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed perfile.py chunk 1: defines FileAnalysis dataclass, analyze_file function, and ANALYSIS_VERSION constant with extensive docstring claims. Claims about external functions/memoization/parallelism are uncheckable; internal consistency checks pass.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ANALYSIS_VERSION | medium | Version bump history in docstring references '5' but no code change visible in chunk; claim that '5' added type_facts field is verifiable but the field is present; however, the docstring claims about '4' rows raising KeyError are uncheckable.",
+     "python_units_imports_and_types | high | Claim that function returns three values (units, py_imports, type_facts) but only two are used in the Python branch; third is overwritten. This is a potential bug if the function signature doesn't match.",
+     "type_facts default value | medium | Docstring claims PyTypeFacts() is safe as default and across process boundary, but this is uncheckable as PyTypeFacts definition is not in this chunk.",
+     "analyze_file purity | medium | Claim of pure function (no I/O, no globals) is uncheckable because dependencies like count_tokens, file_metrics, extract_units may have side effects."
+    ],
+    "todos": [
+     "Verify that python_units_imports_and_types indeed returns three values and that the assignment to type_facts overwrites the initial default correctly.",
+     "Confirm that count_tokens, file_metrics, extract_units, imports_mod.extract_imports are pure functions with no side effects.",
+     "Check that PyTypeFacts is picklable and hashable for process boundary safety.",
+     "Ensure that the docstring claim about '4' rows raising KeyError is accurate by reviewing the _decode function in index module."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/perfile.py",
+     "chunk": "1 of 2",
+     "purpose": "Define FileAnalysis dataclass and analyze_file function for per-file index build, with versioning and docstring claims.",
+     "symbols": [
+      {
+       "name": "ANALYSIS_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String '5'. Used as part of disk-cache key. Version history in docstring explains bumps from '3' to '5'."
+      },
+      {
+       "name": "FileAnalysis",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields: rel, lang, n_chars, n_tokens, loc, metrics, units, runs, py_imports, raw_imports, type_facts. All plain data. type_facts default is PyTypeFacts()."
+      },
+      {
+       "name": "analyze_file",
+       "kind": "function",
+       "effects": [],
+       "note": "Takes rel, text, spec, ts_on. Returns FileAnalysis. Pure function (claimed). Calls python_units_imports_and_types for Python, else extract_units and imports_mod.extract_imports. Computes metrics via file_metrics, token count via count_tokens. Returns FileAnalysis with computed fields."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Bump whenever the MEANING of any field below changes (new metric, different unit extraction, changed window hashing). It is part of the disk-cache key, so bumping it invalidates every cached entry.",
+       "where": "docstring before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "The claim about disk-cache key and invalidation refers to external caching logic not present in this chunk."
+      },
+      {
+       "text": "A stale cache reporting wrong code health is far worse than a slow scan -- when in doubt, bump.",
+       "where": "docstring before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "This is a design principle, not checkable against code."
+      },
+      {
+       "text": "\"3\": added n_tokens. A row cached under \"2\" has no token count, and an index built from such rows would report a denominator of zero for part of the repo -- i.e. an inflated distillation headline, silently. Bumping makes that unrepresentable.",
+       "where": "docstring before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "Refers to behavior of version '2' rows and index building, which are outside this chunk."
+      },
+      {
+       "text": "\"4\": ``parse.py`` gained the type/field/signature extractor (``PyTypeFacts``). The digest of parse.py is already part of every key, so this bump is belt to that braces -- but the two locks fail differently and only one of them is under our control. The digest catches an EDIT to the extractor; this constant is what a reader greps for to answer \"which generation of rows is in this cache\", and the convention above says to bump when the meaning of a row changes. It does: a row now describes a file that has type facts, even in the generation where ``FileAnalysis`` does not yet carry them.",
+       "where": "docstring before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "Refers to parse.py and caching logic outside this chunk. The claim about FileAnalysis not carrying type_facts in version '4' is consistent with the current code having the field, but the historical state is uncheckable."
+      },
+      {
+       "text": "\"5\": ``FileAnalysis`` now actually CARRIES them (``type_facts``). \"4\" rows were written by the generation that had the extractor but not the field, so they have no ``type_facts`` key at all. Those rows would decode (``_decode`` reads by subscript, so in fact they raise KeyError and become a miss) -- but relying on a KeyError being raised and swallowed is an accidental lock, not a stated one, and ``_SCHEMA`` was bumped to 2 in the same commit so they are DELETEd on open anyway. This constant is the one a reader greps to answer \"which generation of rows is in this cache\", and the answer changed.",
+       "where": "docstring before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "Refers to _decode function and _SCHEMA constant in external index module. The claim about KeyError is not verifiable here."
+      },
+      {
+       "text": "Real tokenizer count of the file's text (tiktoken cl100k_base when installed, else tokens.count_tokens' chars/4 fallback). Carried per-file rather than recomputed at report time so it rides the disk cache: the distill ratio's DENOMINATOR then comes from the same tokenizer as its numerator, instead of a chars/4 guess. Computed in the pass that already holds the text, so it costs one encode per cache miss.",
+       "where": "FileAnalysis.n_tokens docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to tokenizer implementation and caching behavior outside this chunk."
+      },
+      {
+       "text": "EXTRACTED UNCONDITIONALLY, even when the layer is switched off. The gate is in ``index.build_index`` (resolution + publication) and deliberately NOT here: this dataclass rides a CONTENT-KEYED disk cache, so a gate on this side would let a row written with the layer off (empty facts) be served as a HIT to a later build with the layer on -- an empty type block with no error, no exception and no log line, which is the exact silent failure the plan's Cache-Kopplung note describes. Making it unconditional costs one more walk of a tree that is already parsed (~3ms/file, and only on a cache MISS) and makes the cache correct by construction instead of by a correctly-composed key.",
+       "where": "FileAnalysis.type_facts docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to index.build_index and caching strategy outside this chunk. The claim about cost (~3ms/file) is unverifiable."
+      },
+      {
+       "text": "A frozen dataclass with only tuple fields is hashable and immutable, so it is safe as a PLAIN default (no default_factory) and safe to ship across a process boundary.",
+       "where": "FileAnalysis.type_facts docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to PyTypeFacts definition and pickling behavior outside this chunk. The claim about safety across process boundary is not testable here."
+      },
+      {
+       "text": "Pure: same inputs -> same outputs, no I/O, no globals.",
+       "where": "analyze_file docstring",
+       "verdict": "uncheckable",
+       "why": "The function calls external functions (count_tokens, file_metrics, extract_units, imports_mod.extract_imports, python_units_imports_and_types) whose purity is not verifiable in this chunk."
+      },
+      {
+       "text": "ONE ast.parse feeds units, imports AND type facts (it used to be two walks of one parse; it is now three walks of the same one). The units and the import records are produced by the SAME functions as before -- ``python_units_imports_and_types`` adds a third walk, it does not change the first two (invariant I1).",
+       "where": "analyze_file function body, comment",
+       "verdict": "uncheckable",
+       "why": "Refers to python_units_imports_and_types function and its internal behavior, which is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In analyze_file, the Python branch assigns type_facts from python_units_imports_and_types, but the initial assignment type_facts = PyTypeFacts(module=rel) is overwritten. This is intentional but could be confusing.",
+       "where": "analyze_file function, lines ~70-74",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims about version history and caching are extensive but none are verifiable within this chunk; they reference external modules and behaviors.",
+       "where": "Docstring before ANALYSIS_VERSION",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The chunk ends mid-function; the return statement is missing.",
+       "where": "End of chunk at line ~78, after 'return FileAnalysis('",
+       "severity": "critical",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b6fee2cf2cfbca46c22107f1d4c313cc77b76e34f2acb7f5e0dbc4a77ea3407b",
+    "objective_chars": 6746,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/perfile.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/perfile.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

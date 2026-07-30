@@ -1,0 +1,154 @@
+{
+ "task_id": "scan__daedalus_kairos_shadow_shell.py__c1of1__946db82",
+ "key": "scan__daedalus_kairos_shadow_shell.py__c1of1__946db82-cec79a9208",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "ShadowShellManager class with run_task method; CandidateBranch dataclass. Claims about adapter honoring cwd and worktree methods are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ShadowShellManager.run_task line 50 | medium | If adapter.events() never yields SessionEnded, loop hangs indefinitely; no timeout. | Check if adapter.events() guarantees termination.",
+     "ShadowShellManager.run_task line 62 | medium | If commit_candidate fails (e.g., no changes), candidate.completed remains False but cleanup_worktree may not be called because finally block only cleans up if not completed. However, commit_candidate is called only if has_changes is true, so this is likely safe but relies on has_changes being accurate. | Verify has_changes returns correct boolean.",
+     "ShadowShellManager.run_task line 67 | low | If terminate() raises an exception, the outer finally block will not clean up the worktree because the inner finally is already executing. | Ensure terminate() does not raise."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/shadow_shell.py",
+     "chunk": "1 of 1",
+     "purpose": "Define CandidateBranch dataclass and ShadowShellManager that runs agent tasks in isolated git worktrees.",
+     "symbols": [
+      {
+       "name": "CandidateBranch",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding branch_name, worktree_path, task, completed, error, score."
+      },
+      {
+       "name": "ShadowShellManager",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Manages spawning an adapter inside a GitWorktree. Effects: process_spawn via adapter.create_session."
+      },
+      {
+       "name": "ShadowShellManager.run_task",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Creates worktree, runs agent task, commits changes, returns CandidateBranch. Effects: process_spawn via adapter, repository_mutation via worktree_manager methods."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Spawns an adapter and runs the agent inside a given GitWorktree.",
+       "where": "ShadowShellManager docstring",
+       "verdict": "kept",
+       "why": "The __init__ takes a GitWorktreeManager and adapter; run_task creates a worktree via worktree_manager and runs the agent via adapter."
+      },
+      {
+       "text": "the adapter is required to honor it at process launch",
+       "where": "Comment line 49",
+       "verdict": "uncheckable",
+       "why": "The claim refers to adapter behavior that is not defined in this chunk."
+      },
+      {
+       "text": "The task is the initial one-shot prompt.",
+       "where": "Comment line 48",
+       "verdict": "kept",
+       "why": "session_config['prompt'] is set to task, which is the prompt for the session."
+      },
+      {
+       "text": "Crucially, ``cwd`` is the worktree",
+       "where": "Comment line 49",
+       "verdict": "kept",
+       "why": "session_config['cwd'] is set to str(worktree_path)."
+      },
+      {
+       "text": "agent session ended without a process result",
+       "where": "Line 59",
+       "verdict": "kept",
+       "why": "If exit_event is None after loop, RuntimeError is raised with that message."
+      },
+      {
+       "text": "agent exited with code {exit_event.exit_code}: {detail}",
+       "where": "Line 62",
+       "verdict": "kept",
+       "why": "If exit_code != 0, RuntimeError is raised with that message."
+      },
+      {
+       "text": "agent completed without changing the candidate worktree",
+       "where": "Line 64",
+       "verdict": "kept",
+       "why": "If has_changes returns False, RuntimeError is raised with that message."
+      },
+      {
+       "text": "Commit any changes the agent made in the worktree",
+       "where": "Comment line 67",
+       "verdict": "kept",
+       "why": "commit_candidate is called after checking has_changes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "run_task uses adapter.create_session with 'cwd' set to worktree path, but adapter behavior is not defined here.",
+       "where": "ShadowShellManager.run_task line 53",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "No timeout on event loop; if adapter.events never yields SessionEnded, the coroutine hangs indefinitely.",
+       "where": "ShadowShellManager.run_task line 57",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "If commit_candidate fails (e.g., raises), candidate.completed stays False but cleanup_worktree is not called because the finally block only cleans up if not completed. However, commit_candidate is only called if has_changes is true, so this is likely safe but relies on has_changes being accurate.",
+       "where": "ShadowShellManager.run_task line 70",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "If terminate() raises an exception, the outer finally block will not clean up the worktree because the inner finally is already executing.",
+       "where": "ShadowShellManager.run_task line 76",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "98091bcb5c1d15a8c5aec5d999e809055528232c7dcb7a45ae089f85c125c4ba",
+    "objective_chars": 3633,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/shadow_shell.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/shadow_shell.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

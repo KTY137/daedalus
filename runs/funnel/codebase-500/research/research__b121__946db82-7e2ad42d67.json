@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b121__946db82",
+ "key": "research__b121__946db82-7e2ad42d67",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Three cross-file hypotheses identified: (1) embedding spec identity ignores host, but archive selection assumes stable ranking across hosts; (2) eval gate isolation via _load_baseline/_run_eval_gate but no fallback if baseline loading fails mid-queue; (3) hub cap suppression in typegraph may remove edges needed by structural matching, impacting archive diversity.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Embedding index identity does not include host, so different Ollama hosts serving the same model tag produce the same index_id. If archive.py uses embeddings from multiple hosts, ranking may be inconsistent.",
+     "_load_baseline and _run_eval_gate catch all exceptions, but if baseline loading fails, the picker may silently skip eval gates, reducing candidate quality.",
+     "Hub cap suppression in typegraph may remove edges that structural matching relies on, potentially causing false negatives in protocol detection and affecting archive diversity selection."
+    ],
+    "todos": [
+     "Verify whether archive.py assumes a single embedding source or handles multiple hosts.",
+     "Add logging or fallback behavior for eval baseline loading failures in picker.py.",
+     "Check if hub cap suppression can be tuned to avoid removing edges needed by structural matching."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "embedding-host-identity",
+       "claim": "The embedding spec identity ignores host, but archive selection assumes stable ranking across hosts, leading to potential inconsistency when multiple Ollama hosts serve the same model tag.",
+       "spans": [
+        "daedalus/memory/embeddings.py",
+        "daedalus/kairos/archive.py"
+       ],
+       "mechanism": "In daedalus/memory/embeddings.py, the docstring states that 'The service endpoint is not part of the spec identity. host is a call argument, not an EmbeddingSpec field, so two different Ollama hosts serving the same tag produce the same index_id.' Meanwhile, in daedalus/kairos/archive.py, the selection of elite and diverse attempts uses a sorting key based on rank and timestamp, implying that embeddings from different hosts (with potentially different model versions or behaviors) are treated as comparable and ranked together. If the embeddings differ across hosts, the ranking may be inconsistent.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If evidence shows that archive.py only uses embeddings from a single host, or that the embedding spec includes host in a subsequent version.",
+       "evidence": [
+        "daedalus/memory/embeddings.py: docstring claim about host not part of spec identity",
+        "daedalus/kairos/archive.py: sorting key uses rank and timestamp for selection"
+       ]
+      },
+      {
+       "id": "eval-gate-fallback",
+       "claim": "The picker isolates eval gate calls (load baseline and run gate) with try/except, but there is no fallback mechanism if baseline loading fails mid-queue, potentially causing silent degradation of candidate quality.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/kairos/archive.py"
+       ],
+       "mechanism": "In daedalus/spine/picker.py, _load_baseline and _run_eval_gate use try/except to catch all exceptions and return error strings. However, the caller's behavior on error is not specified in the chunk; if errors are ignored or cause the picker to skip eval gates, candidates may be selected without evaluation, affecting the quality of attempts stored in the archive. The archive's selection of elite and diverse attempts depends on rank, which may be derived from eval results.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If evidence shows that the picker has a fallback (e.g., retry, default baseline, or graceful degradation) when baseline loading fails.",
+       "evidence": [
+        "daedalus/spine/picker.py: _load_baseline and _run_eval_gate use try/except",
+        "daedalus/kairos/archive.py: selection depends on rank"
+       ]
+      },
+      {
+       "id": "hub-cap-matching",
+       "claim": "Hub cap suppression in typegraph may remove edges that structural matching relies on, potentially causing false negatives in protocol detection and affecting archive diversity selection.",
+       "spans": [
+        "daedalus/structcore/typegraph.py",
+        "daedalus/kairos/archive.py"
+       ],
+       "mechanism": "In daedalus/structcore/typegraph.py, hub cap suppression removes edges targeting high-fan-in nodes from _CAPPED_RELATIONS. Structural matching uses frozenset containment to find matches; if necessary edges are removed, some structural matches may be missed. The archive's diversity selection in daedalus/kairos/archive.py uses outcomes to classify attempts as fresh or stale; if structural matching is incomplete, the outcome space may be artificially limited, reducing diversity.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If evidence shows that hub cap suppression only removes edges from relations not used in structural matching, or that structural matching is robust to missing edges.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py: hub cap suppression and structural matching",
+        "daedalus/kairos/archive.py: diversity selection based on outcomes"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "84219c7d9143fb47ac2b197234fa5285f3468d0b6224643d2069eec355d1c596",
+    "objective_chars": 16320,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 121 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 121,
+  "inputs": 4
+ }
+}

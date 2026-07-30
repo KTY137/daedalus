@@ -1,0 +1,158 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c10of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c10of11__946db82-7d70682cfd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 10 of picker.py: implements attempt memory handling, rendering functions (_evidence_lines, render_queue, review_packet, _console_safe), and CLI helper (_default_attempt, _build_parser). Public symbols: render_queue, review_packet, _console_safe, _default_attempt. Checkable claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "review_packet | medium | The claim 'states in three places that nothing was applied' is uncheckable because the chunk does not contain enough context to count the places. The function does include 'NOTHING HAS BEEN APPLIED' and 'nothing has been run' but not three distinct statements. To settle: count explicit statements in the function.",
+     "_console_safe | low | The docstring claims 'Preserve the exact text when representable and escape only unsupported code points.' The implementation uses backslashreplace which escapes unsupported code points, so the claim is kept. However, the docstring also mentions 'Windows PowerShell may expose a CP-1252 stdout' which is uncheckable as it refers to external behavior.",
+     "review_packet | low | The docstring claims 'The patch bytes are decoded for display only.' The function uses artifact.diff (which is decoded) and artifact_path (for raw bytes). The claim is kept. However, the statement 'A human promoting this must write artifact_path (the raw bytes) -- a diff round-tripped through a terminal is not the artifact that was hashed and gated' is uncheckable because it refers to external behavior.",
+     "_default_attempt | medium | The docstring claims 'Split out as the single injection seam so --dry-run can be tested by passing an attempt_fn that raises: proving the flag does not attempt anything requires a way to observe an attempt that never happens.' The function does not accept an attempt_fn parameter; it always calls run_attempt. This is inconsistent with the docstring. To settle: check if the function signature is missing the parameter or if the docstring is outdated."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "10 of 11",
+     "purpose": "Implements attempt memory loading, rendering functions for queue and review packet, console-safe encoding, and CLI attempt runner.",
+     "symbols": [
+      {
+       "name": "_evidence_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper to format evidence mapping into indented lines."
+      },
+      {
+       "name": "render_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function: returns human-readable ranked queue string. Used as --dry-run deliverable."
+      },
+      {
+       "name": "_gate_line",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper to format gate verdict line from result object."
+      },
+      {
+       "name": "review_packet",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function: generates human review packet containing diff and gate verdict. States that nothing was applied."
+      },
+      {
+       "name": "_console_safe",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal helper to encode text safely for console output, escaping unsupported characters."
+      },
+      {
+       "name": "_default_attempt",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Internal function: runs a real TaskAttempt via offload_runner and run_attempt. Used as injection seam for testing."
+      },
+      {
+       "name": "_build_parser",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal function: builds argparse parser (stub, only import shown)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Human-readable ranked queue. The ``--dry-run`` deliverable.",
+       "where": "render_queue docstring",
+       "verdict": "kept",
+       "why": "The function returns a formatted string describing the queue; it is used as the output for --dry-run."
+      },
+      {
+       "text": "The thing a human reads before deciding. Contains the diff and the gate verdict, in full enough form to decide on, and states in three places that nothing was applied.",
+       "where": "review_packet docstring",
+       "verdict": "uncheckable",
+       "why": "The function does contain diff and gate verdict, but the claim 'states in three places that nothing was applied' cannot be verified from this chunk alone; the function includes 'NOTHING HAS BEEN APPLIED' once and 'nothing has been run' once, but not three distinct statements."
+      },
+      {
+       "text": "The patch bytes are decoded for display only. A human promoting this must write ``artifact_path`` (the raw bytes) -- a diff round-tripped through a terminal is not the artifact that was hashed and gated.",
+       "where": "review_packet docstring",
+       "verdict": "kept",
+       "why": "The function uses artifact.diff (decoded) and artifact_path (raw bytes) as described."
+      },
+      {
+       "text": "Render arbitrary gate output through the active console encoding. ... Preserve the exact text when representable and escape only unsupported code points.",
+       "where": "_console_safe docstring",
+       "verdict": "kept",
+       "why": "The function encodes to the given codec with backslashreplace, preserving representable characters and escaping unsupported ones."
+      },
+      {
+       "text": "Run one real :class:`daedalus.spine.attempt.TaskAttempt`. Split out as the single injection seam so ``--dry-run`` can be tested by passing an ``attempt_fn`` that raises: proving the flag does not attempt anything requires a way to observe an attempt that never happens.",
+       "where": "_default_attempt docstring",
+       "verdict": "broken",
+       "why": "The function signature does not accept an attempt_fn parameter; it always calls run_attempt. The docstring describes a seam that does not exist in the code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _default_attempt function docstring describes an injection seam (attempt_fn parameter) that is not present in the function signature.",
+       "where": "_default_attempt docstring and function definition",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The review_packet function includes a claim about stating 'nothing was applied' in three places, but the code shows only one explicit 'NOTHING HAS BEEN APPLIED' and one 'nothing has been run'.",
+       "where": "review_packet docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _console_safe docstring references Windows PowerShell CP-1252 behavior, which is uncheckable from this chunk.",
+       "where": "_console_safe docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _build_parser function is a stub; only the import statement is shown, no parser construction.",
+       "where": "_build_parser function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2e2c0380d1d7744c61451541cf37fae7d2aeca182c512959f241690c2732622",
+    "objective_chars": 12756,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [10/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 10,
+  "total": 11,
+  "first_line": 2521
+ }
+}

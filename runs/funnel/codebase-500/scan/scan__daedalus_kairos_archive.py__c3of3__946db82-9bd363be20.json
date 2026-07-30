@@ -1,0 +1,75 @@
+{
+ "task_id": "scan__daedalus_kairos_archive.py__c3of3__946db82",
+ "key": "scan__daedalus_kairos_archive.py__c3of3__946db82-9bd363be20",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 3 of 3 of archive.py, lines 241-256. No public symbols defined; all symbols are local. No docstrings or comments with checkable claims. Observations about sorting key and shuffle logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 244 | low | Sorting key uses negative rank and negative ts; ensures best rank and most recent first. This matches comment 'Best first; ties broken by recency, then by id so the order is total.' | Confirm that higher rank is better and higher ts is more recent; if reversed, sorting would be wrong.",
+     "line 249 | low | 'covered' set is built from elite outcomes; used to classify remaining as fresh or stale. This matches comment about preferring outcome classes not already shown. | Verify that 'outcome' attribute exists and is comparable.",
+     "line 253 | medium | Shuffling fresh and stale separately then concatenating: fresh first, then stale. This may not guarantee diversity if fresh list is empty; order then depends on stale shuffle. Comment says 'prefer outcome classes the elite slice did not already show' which is satisfied by ordering. | Confirm that shuffling is intended to introduce randomness; if deterministic order is required, this is a bug."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/archive.py",
+     "chunk": "3 of 3",
+     "purpose": "Selection of elite and diverse attempts from a pool based on rank, recency, and outcome diversity.",
+     "symbols": [],
+     "claims": [],
+     "observations": [
+      {
+       "what": "Sorting key uses negative rank and negative timestamp, meaning best rank (highest?) and most recent timestamp come first. Comment says 'Best first; ties broken by recency, then by id so the order is total.'",
+       "where": "line 244",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Covered outcomes built from elite slice; remaining attempts classified as fresh (new outcome) or stale (already covered). Fresh shuffled first, then stale, then sliced to n_diverse.",
+       "where": "lines 249-253",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "If n_elite or n_diverse are negative or zero, max(0, ...) ensures slicing returns empty list.",
+       "where": "lines 246, 253",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "06885a783d65513fd6b03a748a56a9fbba467ed17b04e85c9390b859803b0c55",
+    "objective_chars": 1219,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/archive.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/archive.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 241
+ }
+}

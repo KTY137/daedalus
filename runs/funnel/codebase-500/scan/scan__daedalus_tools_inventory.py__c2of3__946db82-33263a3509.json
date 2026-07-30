@@ -1,0 +1,160 @@
+{
+ "task_id": "scan__daedalus_tools_inventory.py__c2of3__946db82",
+ "key": "scan__daedalus_tools_inventory.py__c2of3__946db82-33263a3509",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/tools/inventory.py: collects MCP servers, builds inventory, renders table.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "collect_mcp_servers | medium | Uses _read_json and vet_mod.vet_mcp_server; errors from vet_mod.load_allowances and _read_json are appended to errors list; unspecified behavior if allowances is None or vet_mod.vet_mcp_server raises exception | Check if vet_mod.vet_mcp_server can raise exceptions and how they are handled",
+     "build | low | Uses _Shim to wrap verdict dicts; _Shim frozen dataclass with subject, outcome, cleared; assumes vet_mod.summarise accepts iterable of such objects | Verify vet_mod.summarise signature and behavior with _Shim objects",
+     "render | low | Verdict column uses v['outcome'] and v['findings']; assumptions about verdict dict keys | Ensure all verdict dicts have 'outcome', 'findings' keys"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/tools/inventory.py",
+     "chunk": "2 of 3",
+     "purpose": "Collect MCP servers, build full inventory dict, render terminal table.",
+     "symbols": [
+      {
+       "name": "collect_mcp_servers",
+       "kind": "function",
+       "effects": [
+        "filesystem_read",
+        "repository_mutation"
+       ],
+       "note": "Reads JSON files for MCP server configurations; uses vet_mod to vet each server."
+      },
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Top-level inventory builder; combines skills and MCP servers, sorts, returns dict with version, vet_version, root, tools, summary, errors, degraded flag."
+      },
+      {
+       "name": "_Shim",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass to wrap verdict dicts for vet_mod.summarise."
+      },
+      {
+       "name": "_summary",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Calls vet_mod.summarise and removes 'version' from result."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a flat table string for terminal display; includes summary and degraded status."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The whole inventory. Deterministic: every list sorted by (kind, scope, name).",
+       "where": "build docstring",
+       "verdict": "kept",
+       "why": "Code does records = sorted(sk + mc, key=lambda r: (r.kind, r.scope, r.name))."
+      },
+      {
+       "text": "Read errors are NEVER folded into the summary counts.",
+       "where": "build docstring (in comment)",
+       "verdict": "kept",
+       "why": "Summary counts are computed from records (which are built from sk and mc, which only include successfully read tools). Errors are stored separately in errors list."
+      },
+      {
+       "text": "\"Could not read the tool list\" and \"there are no tools\" produce the same empty list, and a caller must be able to tell them apart.",
+       "where": "build docstring (in comment)",
+       "verdict": "kept",
+       "why": "If all reads fail, sk and mc are empty, records empty, tools empty list; errors non-empty and degraded=True. If no tools exist, errors empty and degraded=False. Caller can check degraded flag."
+      },
+      {
+       "text": "A flat table for a terminal. The verdict column is the point.",
+       "where": "render docstring",
+       "verdict": "kept",
+       "why": "Function returns a string formatted as a table with columns including VERDICT."
+      },
+      {
+       "text": "Every public symbol in the chunk gets a row.",
+       "where": "instructions",
+       "verdict": "uncheckable",
+       "why": "The instruction is meta, not in code. The symbols listed above are the public ones in this chunk (collect_mcp_servers, build, _Shim, _summary, render). Note that _Shim and _summary are private (underscore prefix)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "collect_mcp_servers uses vet_mod.load_allowances, _read_json, and vet_mod.vet_mcp_server; errors are appended to errors list; if _read_json returns error, continue; if servers not dict, continue; iterates sorted keys.",
+       "where": "collect_mcp_servers function (lines ~121-160)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "build function sorts records by (kind, scope, name) and returns dict with version, vet_version, root, include_user_scope, tools, summary, errors, degraded.",
+       "where": "build function (lines ~162-190)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "render function returns string; if no tools, returns special message with degraded info; otherwise builds table lines with headers and data.",
+       "where": "render function (lines ~200-230)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Shim is a frozen dataclass with subject, outcome, cleared attributes.",
+       "where": "_Shim class (lines ~192-196)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_summary calls vet_mod.summarise and pops 'version' key.",
+       "where": "_summary function (lines ~198-201)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6e8389297a7697e1a9415f214308c03068b105197b6eccc7eafe99dafe29d2bf",
+    "objective_chars": 5271,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/inventory.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/tools/inventory.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

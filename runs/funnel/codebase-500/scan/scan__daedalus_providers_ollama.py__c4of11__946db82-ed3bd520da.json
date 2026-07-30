@@ -1,0 +1,201 @@
+{
+ "task_id": "scan__daedalus_providers_ollama.py__c4of11__946db82",
+ "key": "scan__daedalus_providers_ollama.py__c4of11__946db82-ed3bd520da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of ollama.py: lane_for_host, _refuse_if_remote, __init__, available, rollback, _resolve, _dispatch symbols; checkable claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_refuse_if_remote | medium | Method returns dict with 'report' key containing hardcoded 'files_changed': [] but run() may expect mutable list; could cause confusion if caller modifies. | Check all callers to see if they expect a mutable report object."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/ollama.py",
+     "chunk": "4 of 11",
+     "purpose": "Lane detection, enforcement, init, availability, rollback, path resolution, dispatch for git commands.",
+     "symbols": [
+      {
+       "name": "lane_for_host",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from ..sensitivity and called in cap_local property."
+      },
+      {
+       "name": "cap_local",
+       "kind": "function",
+       "effects": [],
+       "note": "Property defined earlier; calls lane_for_host(self.host) and returns result."
+      },
+      {
+       "name": "_refuse_if_remote",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns None if egress_lane is 'trusted', else returns refusal dict."
+      },
+      {
+       "name": "__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes host, model, _backups, _created_dirs, rollback_failures, _written."
+      },
+      {
+       "name": "available",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Calls server_reachable(self.host, path='/api/tags')."
+      },
+      {
+       "name": "rollback",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Restores backups, deletes new files, removes empty created dirs."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves repo_root/rel to absolute path, checks for escape."
+      },
+      {
+       "name": "_dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Handles git_status and git_diff commands via subprocess.run."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``caps.local`` is therefore reading a claim about a name, and this is the fact.",
+       "where": "line 361",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the definition of caps.local or the claim it reads; only the lane_for_host call is present."
+      },
+      {
+       "text": "The enforcement point: a non-loopback endpoint may not be fed source.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show how egress_lane is set or how non-loopback is determined; only checks if egress_lane == 'trusted'."
+      },
+      {
+       "text": "Placed in the PROVIDER, not only in the callers, because the callers are where this went wrong the first time.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of previous callers or where the method is placed relative to callers; all outside chunk."
+      },
+      {
+       "text": "``offload`` refuses its distilled slice for a remote host, but the rewrite prompt carries WHOLE FILE BODIES, the agentic loop can return ``read_file`` results over subsequent requests, and the single-shot fallback inlines with ``allow_sensitive=True``.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "References to offload, rewrite prompt, agentic loop, read_file, single-shot fallback are not in this chunk."
+      },
+      {
+       "text": "Closing only the slice door left three others open, which is what an independent review found.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "No context about 'slice door' or independent review in chunk."
+      },
+      {
+       "text": "A guard here covers every one of them, including any caller written later.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "Cannot verify coverage of all callers from this chunk alone."
+      },
+      {
+       "text": "Undo every write this instance made: restore originals, delete new files, remove dirs we created.",
+       "where": "rollback docstring line 1",
+       "verdict": "kept",
+       "why": "rollback iterates _backups, restores original bytes or deletes new file (if original is None), then removes empty created dirs."
+      },
+      {
+       "text": "Any path that can't be reverted is recorded in ``rollback_failures`` (the escalation is then 'dirty').",
+       "where": "rollback docstring line 2",
+       "verdict": "kept",
+       "why": "On OSError, path is appended to rollback_failures list (line 408)."
+      },
+      {
+       "text": "Return (absolute target, repo-relative posix path). Raises if the resolved target escapes repo_root (traversal / symlink / absolute).",
+       "where": "_resolve docstring",
+       "verdict": "kept",
+       "why": "Returns (target, relative_to(root).as_posix()) and raises ValueError if root not in target.parents."
+      },
+      {
+       "text": "Resolves repo_root/rel to absolute path, checks for escape.",
+       "where": "symbol _resolve summary",
+       "verdict": "kept",
+       "why": "Uses Path.resolve() and checks root in target.parents."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_refuse_if_remote returns a dict with 'report' key containing 'files_changed': [] and 'summary' hardcoded; this may be intended for run() report but is inconsistent with dynamic report.",
+       "where": "_refuse_if_remote return dict lines 384-388",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "cap_local is not defined in this chunk; assumed to be a property that calls lane_for_host, but not verified.",
+       "where": "line 361 comment referencing caps.local",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "rollback does not handle OSError for rmdir of created dirs; it silently passes, which may leave empty dirs if rmdir fails.",
+       "where": "rollback lines 410-414",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_dispatch git_status uses subprocess.run with timeout=20 and check=False; stderr is included in output if stdout empty, but no truncation of stderr if it's long.",
+       "where": "_dispatch git_status lines 419-430",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_dispatch git_diff uses _resolve to validate path; if invalid, returns error string; otherwise appends rel to command. But _resolve returns relative posix path, which is correct for git diff.",
+       "where": "_dispatch git_diff lines 432-444",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aeb87045676d98207db79467f3239a6b228490f00d3880eb6d9bc0863b332406",
+    "objective_chars": 5953,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/ollama.py [4/11]",
+  "rev": "946db82",
+  "module": "daedalus/providers/ollama.py",
+  "index": 4,
+  "total": 11,
+  "first_line": 361
+ }
+}

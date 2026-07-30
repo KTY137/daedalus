@@ -1,0 +1,111 @@
+{
+ "task_id": "research__b065__946db82",
+ "key": "research__b065__946db82-50692c02d8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Four reports share a pattern: each module silently assumes constants or functions defined elsewhere exist without verifying them at runtime. In inventory.py, a discrepancy in harvest() drops env/area human fields from old-style features, contradicting the lossless claim. Refutation: if harvest() explicitly handles env/area fields for old features, the drop hypothesis is wrong.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "harvest() in inventory.py silently drops env/area human fields from old-style features, contradicting its lossless contract.",
+     "Multiple modules reference external constants (FEATURE_HUMAN_FIELDS, SCHEMA, _TOKEN_RE) without runtime verification, risking silent failure if undefined."
+    ],
+    "todos": [
+     "Verify harvest() handles all human fields for old-style features.",
+     "Add assertions or guards for external constants in all modules."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "lossless-harvest-breach",
+       "claim": "harvest() in inventory.py does not preserve all human fields from old-style features, violating its lossless contract.",
+       "spans": [
+        "daedalus/mapping/inventory.py"
+       ],
+       "mechanism": "harvest() processes old-style features by extracting only FEATURE_HUMAN_FIELDS, ignoring ENV_HUMAN_FIELDS and AREA_HUMAN_FIELDS. In contrast, schema-2 annotations are cleaned with all three sets. This discrepancy causes loss of env and area human fields from old-style features.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If harvest() explicitly extracts ENV_HUMAN_FIELDS and AREA_HUMAN_FIELDS from old-style features, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/inventory.py:harvest lines 420-424, 434-438"
+       ]
+      },
+      {
+       "id": "unchecked-external-constants",
+       "claim": "Multiple modules assume external constants are defined without runtime verification, risking silent failure.",
+       "spans": [
+        "daedalus/mapping/inventory.py",
+        "daedalus/spine/bootstrap.py"
+       ],
+       "mechanism": "inventory.py uses FEATURE_HUMAN_FIELDS, ENV_HUMAN_FIELDS, AREA_HUMAN_FIELDS, SCHEMA, _TOKEN_RE without asserting they are defined. bootstrap.py may similarly rely on undefined constants. If any constant is missing, the code will raise NameError at runtime.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all referenced constants are guaranteed to be defined before these modules are imported (e.g., via __init__.py or import order), the hypothesis is weakened.",
+       "evidence": [
+        "daedalus/mapping/inventory.py:annotation_overreach line 371",
+        "daedalus/mapping/inventory.py:_module_targets line 398",
+        "daedalus/mapping/inventory.py:harvest line 419"
+       ]
+      },
+      {
+       "id": "subprocess-timeout-unhandled",
+       "claim": "refresh_sources() in bootstrap.py does not handle subprocess.TimeoutExpired, potentially crashing.",
+       "spans": [
+        "daedalus/spine/bootstrap.py"
+       ],
+       "mechanism": "subprocess.run is called with a timeout=900 but no try-except for TimeoutExpired. If the map generation exceeds 900 seconds, a TimeoutExpired exception will propagate unhandled.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the caller of refresh_sources() catches TimeoutExpired, or if the timeout is never reached in practice, the hypothesis may be less severe.",
+       "evidence": [
+        "daedalus/spine/bootstrap.py:refresh_sources line 168"
+       ]
+      },
+      {
+       "id": "exception-overreach",
+       "claim": "refresh_sources() catches BaseException (including SystemExit/KeyboardInterrupt) due to BLE001 suppression, which may be too broad.",
+       "spans": [
+        "daedalus/spine/bootstrap.py"
+       ],
+       "mechanism": "The except clause catches BaseException (due to flake8 BLE001 suppression), which will catch SystemExit, KeyboardInterrupt, etc. This could mask critical signals and prevent clean shutdown.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the exception handler re-raises or handles these special exceptions appropriately, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/bootstrap.py:refresh_sources lines 172-173"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9672f3335a170ae9882a8eaff61ba0b5dc4ea716240b8ba1a3fc83ddca848175",
+    "objective_chars": 17778,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 65 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 65,
+  "inputs": 4
+ }
+}

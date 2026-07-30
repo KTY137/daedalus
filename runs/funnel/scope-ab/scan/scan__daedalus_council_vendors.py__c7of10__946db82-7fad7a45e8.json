@@ -1,0 +1,165 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c7of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c7of10__946db82-7fad7a45e8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 7 of vendors.py (lines 721-832): _CliAdapter._dispatch, _interpret, _auth_failure, _parse_ok, _AUTH_MARKERS, _looks_unauthenticated, ClaudeAdapter, CodexAdapter. Claims about sandbox mode, auth markers, and JSON parsing are checked; some references to external code are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CodexAdapter docstring | medium | Claims 'ALWAYS read-only' and 'no constructor switch for sandbox mode' but CodexAdapter class body is empty in this chunk; the claim is uncheckable without seeing __init__ or the rest of the class. To settle, inspect the full CodexAdapter class definition.",
+     "ClaudeAdapter._parse_ok | low | Uses json.loads on raw stdout; if the output is extremely large, it could cause memory issues. To settle, check if there is any size limit on stdout before parsing.",
+     "_looks_unauthenticated | low | Concatenates all blobs with spaces; if a blob is very large, it may cause performance issues. To settle, check typical blob sizes and whether truncation occurs upstream."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "7 of 10",
+     "purpose": "Defines _CliAdapter dispatch/interpret methods, auth detection constants, ClaudeAdapter and CodexAdapter classes.",
+     "symbols": [
+      {
+       "name": "_CliAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Builds argv, runs subprocess via self._runner with cwd from council_cwd and env from council_env, then calls _interpret."
+      },
+      {
+       "name": "_CliAdapter._interpret",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Interprets RunResult: checks spawn_error, timed_out, auth_failure, nonzero exit, then calls _parse_ok."
+      },
+      {
+       "name": "_CliAdapter._auth_failure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Base method returns empty string; overridden in subclasses."
+      },
+      {
+       "name": "_CliAdapter._parse_ok",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Base method returns status 'ok' with trimmed stdout."
+      },
+      {
+       "name": "_AUTH_MARKERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of strings used to detect unauthenticated responses."
+      },
+      {
+       "name": "_looks_unauthenticated",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Concatenates blobs, lowercases, checks any marker in haystack."
+      },
+      {
+       "name": "ClaudeAdapter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Subclass of _CliAdapter; overrides _auth_failure and _parse_ok. Claims JSON output format."
+      },
+      {
+       "name": "CodexAdapter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Subclass of _CliAdapter; docstring claims read-only sandbox, but class body is empty in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Anthropic, via ``claude -p --output-format json`` with tools disallowed.",
+       "where": "ClaudeAdapter docstring",
+       "verdict": "uncheckable",
+       "why": "The actual CLI invocation is not shown in this chunk; _dispatch builds argv from profile, but no profile definition is present."
+      },
+      {
+       "text": "A non-JSON body from --output-format json means the contract moved under us; that is an error, not silently-usable prose.",
+       "where": "ClaudeAdapter._parse_ok comment",
+       "verdict": "kept",
+       "why": "The code catches json.JSONDecodeError (via except (ValueError, TypeError)) and returns status 'error' with reason 'bad_response'."
+      },
+      {
+       "text": "ALWAYS read-only.  There is no constructor switch for the sandbox mode: a reviewer that can write is not a reviewer, and an option is a thing someone sets.",
+       "where": "CodexAdapter docstring",
+       "verdict": "uncheckable",
+       "why": "The CodexAdapter class body in this chunk is empty; the constructor and sandbox enforcement are not visible."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ClaudeAdapter._parse_ok expects JSON output from 'claude -p --output-format json' and parses it; if stdout is not JSON, returns error.",
+       "where": "ClaudeAdapter._parse_ok",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "CodexAdapter docstring strongly asserts read-only sandbox, but the class implementation is not present in this chunk.",
+       "where": "CodexAdapter class definition",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "_looks_unauthenticated uses a tuple of markers to detect auth failures; used by ClaudeAdapter._auth_failure.",
+       "where": "_looks_unauthenticated and ClaudeAdapter._auth_failure",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_CliAdapter._dispatch uses council_cwd and council_env, which are imported but not defined in this chunk.",
+       "where": "_CliAdapter._dispatch",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f5b7ef3e50e2db7a048f9f56a12dd3cb2454bda5e291356626f8731aabd2e448",
+    "objective_chars": 5985,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [7/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 7,
+  "total": 10,
+  "first_line": 721
+ }
+}

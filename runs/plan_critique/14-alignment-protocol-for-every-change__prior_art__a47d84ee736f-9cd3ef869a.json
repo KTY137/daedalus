@@ -1,0 +1,102 @@
+{
+ "task_id": "14-alignment-protocol-for-every-change__prior_art__a47d84ee736f",
+ "key": "14-alignment-protocol-for-every-change__prior_art__a47d84ee736f-9cd3ef869a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 14 claims a digest-verify step but does not specify which digest algorithm or where the canonical digest is stored, making the claim unfalsifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "14.1 | high | 'verify its digest' is underspecified: no algorithm, no location of the canonical digest, no procedure to detect tampering. Without these, the step cannot be audited or automated. | Attempt to implement the step; if no algorithm is chosen, the step is ambiguous.",
+     "14.2 | medium | Classification into ALIGNED, EXPERIMENT, AMENDMENT is loosely defined; no criteria for choosing among them, leading to inconsistent use. | Two engineers classify the same change independently; compare results.",
+     "14.3 | medium | 'Name the active gate and the invariant/prior touched' assumes a single active gate and a single invariant, but the plan may have multiple gates or invariants simultaneously. | Attempt to apply the rule to a change that touches two invariants; the rule gives no guidance.",
+     "14.4 | medium | 'Prefer deletion, consolidation, or wiring over a new subsystem' is a preference with no enforcement mechanism or measurable criterion; it may be ignored without consequence. | Count how many changes actually follow this preference vs. not; if near zero, the rule is ineffective.",
+     "14.5 | low | The handoff step runs a single tool (iron_plan_guard.py) which may not exist or may be incomplete; no fallback or verification of the tool itself. | Check if the tool exists; if not, the handoff step is impossible.",
+     "14.6 | low | The report format is specified but no validation of the report content (e.g., that the gate number is in range, that evidence is provided). | Submit a report with a gate number of 6 and no evidence; check if it is accepted.",
+     "14.7 | low | 'An experiment also records its spec, scope, budget, evaluator, and expiry' \u2013 these fields are not defined (e.g., what constitutes a valid evaluator? what is the format of expiry?). | Attempt to record an experiment; ambiguity in field definitions leads to inconsistent records."
+    ],
+    "todos": [
+     "Specify the digest algorithm and the canonical source (e.g., SHA-256 of the PDF, stored in a signed file).",
+     "Define clear criteria for classifying changes as ALIGNED, EXPERIMENT, or AMENDMENT.",
+     "Clarify how to handle changes that affect multiple gates or invariants.",
+     "Add a mechanism to enforce or at least measure compliance with the preference for deletion/consolidation/wiring.",
+     "Ensure iron_plan_guard.py exists and is documented; provide fallback steps.",
+     "Define validation rules for the handoff report (e.g., gate must be integer 0-5, evidence must be non-empty).",
+     "Define the required fields for an experiment record (e.g., evaluator must be a person, expiry in ISO 8601)."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "14.1",
+       "claim": "Before editing, read this plan and verify its digest.",
+       "verdict": "weak",
+       "why": "The claim is underspecified: no digest algorithm (e.g., SHA-256) or canonical digest location is given. Without these, 'verify its digest' is ambiguous and cannot be reliably performed or audited. Prior art: cryptographic verification of documents is standard (e.g., signed PDFs, git tags), but the claim lacks the necessary details to implement it."
+      },
+      {
+       "id": "14.2",
+       "claim": "Classify the work as ALIGNED, EXPERIMENT, or AMENDMENT.",
+       "verdict": "weak",
+       "why": "The classification categories are not defined with criteria. In practice, different engineers may classify the same change differently. Prior art: taxonomy of changes exists in software engineering (e.g., semantic versioning), but this claim provides no operational definitions."
+      },
+      {
+       "id": "14.3",
+       "claim": "Name the active gate and the invariant/prior touched.",
+       "verdict": "weak",
+       "why": "Assumes a single active gate and a single invariant. The plan may have multiple gates or invariants in play; the claim gives no guidance for that case. Prior art: version control systems allow referencing multiple issues, but the claim's format is too rigid."
+      },
+      {
+       "id": "14.4",
+       "claim": "Prefer deletion, consolidation, or wiring over a new subsystem.",
+       "verdict": "weak",
+       "why": "A preference without enforcement or measurement. It may be systematically ignored. Prior art: design principles like 'YAGNI' and 'KISS' are common but similarly hard to enforce; the claim offers no mechanism to ensure compliance."
+      },
+      {
+       "id": "14.5",
+       "claim": "Run python tools/iron_plan_guard.py verify.",
+       "verdict": "weak",
+       "why": "Assumes the tool exists and is correct. No fallback if the tool is missing or fails. Prior art: automated checks in CI/CD pipelines are standard, but this claim does not describe the tool's behavior or how to handle its absence."
+      },
+      {
+       "id": "14.6",
+       "claim": "Report: Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT, Iron Gate: 0..5, Evidence: <tests, receipts, or analysis>.",
+       "verdict": "weak",
+       "why": "The report format is specified but no validation is defined. For example, the gate number could be out of range or evidence could be missing. Prior art: structured reporting with validation (e.g., JSON schemas) is well-known; the claim lacks such validation."
+      },
+      {
+       "id": "14.7",
+       "claim": "An experiment also records its spec, scope, budget, evaluator, and expiry.",
+       "verdict": "weak",
+       "why": "The fields are named but not defined; e.g., what counts as a valid evaluator? what format for expiry? Ambiguity leads to inconsistent records. Prior art: experiment registration (e.g., clinical trials, A/B testing frameworks) has clear field definitions; this claim lacks them."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3ff1a67c49292d763ff985f97abcf1f1ae16564fd24eb2f70540246400eb88ce",
+    "objective_chars": 1558,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "14-alignment-protocol-for-every-change",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

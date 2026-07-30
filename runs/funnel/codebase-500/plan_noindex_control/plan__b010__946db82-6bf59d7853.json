@@ -1,0 +1,130 @@
+{
+ "task_id": "plan__b010__946db82",
+ "key": "plan__b010__946db82-6bf59d7853",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 high-severity findings need evidence; 1 low-severity confirmed but safe. Ordered work: verify undefined symbols, inspect cleanup race, check leaky detection, confirm shell spec handling.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Undefined symbols in session.py and graph_brief.py could cause NameError at runtime.",
+     "Race condition in eval/__main__.py cleanup could leave temp files or crash.",
+     "Leaky detection mismatch could cause false negatives in mutation testing.",
+     "Missing file paths may require manual discovery."
+    ],
+    "todos": [
+     "Run settling checks for undefined symbols.",
+     "Inspect eval/__main__.py for cleanup synchronization.",
+     "Compare ceiling.py and graph_delta.py for leaky layer handling.",
+     "Check reach.py's handling of non-Python files."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify undefined symbols in session.py and graph_brief.py",
+       "gate": "1",
+       "why_now": "If symbols are missing, the code will crash with NameError during council or graph brief operations. This blocks any vertical slice that uses these modules.",
+       "steps": [
+        {
+         "do": "grep -n '_REASON_MAP\\|evidence_ref' daedalus/council/session.py",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Output shows lines where symbols are defined, or empty if missing."
+        },
+        {
+         "do": "grep -n '_deep_only_modules\\|_tail_matches\\|DEEP_EDGE_MARK' daedalus/lanes/graph_brief.py",
+         "file": "daedalus/lanes/graph_brief.py",
+         "verified_by": "Output shows lines where symbols are defined, or empty if missing."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full files exist at those paths. If not, we need to locate them."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect eval/__main__.py for cleanup race condition",
+       "gate": "1",
+       "why_now": "If cleanup runs before child processes terminate, temp files may be deleted prematurely or resources leaked. This affects reliability of the eval pipeline.",
+       "steps": [
+        {
+         "do": "Examine the main loop in eval/__main__.py after the call to harness.run_gate; check for wait, join, or synchronization before cleanup.",
+         "file": "eval/__main__.py",
+         "verified_by": "Observation of code order: if no wait before cleanup, race exists; if wait present, safe."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "eval/__main__.py exists at that path. The cited source only showed lines 43-92; we need the full file."
+      },
+      {
+       "rank": 3,
+       "title": "Compare ceiling.py and graph_delta.py for leaky layer detection",
+       "gate": "2",
+       "why_now": "If ceiling.py excludes leaky movements while graph_delta includes them, mutations moving only leaky layers would be missed by ceiling's detection, causing false negatives.",
+       "steps": [
+        {
+         "do": "Inspect ceiling.py to see how it handles leaky layers (look for 'leaky' or 'detected_leaky').",
+         "file": "ceiling.py",
+         "verified_by": "Observation of code: if leaky layers are excluded from detection count, mismatch confirmed."
+        },
+        {
+         "do": "Inspect graph_delta.py to see definition of 'detected_leaky' and whether it includes all layers.",
+         "file": "graph_delta.py",
+         "verified_by": "Observation of code: if detected_leaky counts all layers including leaky, mismatch confirmed."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "ceiling.py and graph_delta.py exist in the repository. Paths not given; may need to locate them."
+      },
+      {
+       "rank": 4,
+       "title": "Confirm reach.py safely ignores non-Python files",
+       "gate": "1",
+       "why_now": "Shell scripts cause SyntaxError if ast.parse is called on them; if not caught, the scan crashes. Low severity because it's likely already handled, but verify to close the finding.",
+       "steps": [
+        {
+         "do": "Check reach.py's _scan function for try-except around ast.parse that catches SyntaxError.",
+         "file": "mapping/reach.py",
+         "verified_by": "Observation: if SyntaxError is caught and file skipped, safe; if not, bug."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "mapping/reach.py exists at that path."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f4c961b006af5cdac1471585e44c34760a768cd4e28fb4311734d101270f71b6",
+    "objective_chars": 9618,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 10 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 4
+ }
+}

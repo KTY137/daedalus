@@ -1,0 +1,181 @@
+{
+ "task_id": "scan__daedalus_structcore_ignore.py__c2of3__946db82",
+ "key": "scan__daedalus_structcore_ignore.py__c2of3__946db82-f855c183b9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of ignore.py: defines _fingerprint, load_ignore_rules, env_extra_patterns, _norm_center, ProjectScope dataclass with center_of, in_center, is_shell, describe, and fingerprint property.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_ignore_rules / high / Missing/unreadable file returns empty rules but does not differentiate between missing and unreadable; caller may not know which. / Add a distinct fingerprint or flag for unreadable vs missing."
+    ],
+    "todos": [
+     "Verify that load_ignore_rules handles non-OSError exceptions (e.g., PermissionError) as intended; currently only catches OSError."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/ignore.py",
+     "chunk": "2 of 3",
+     "purpose": "Define ignore rule loading, environment pattern fetching, path normalization, and ProjectScope dataclass with center/shell logic.",
+     "symbols": [
+      {
+       "name": "_fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns first 16 hex chars of SHA-256 of text."
+      },
+      {
+       "name": "load_ignore_rules",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads .daedalusignore, returns IgnoreRules; empty if file missing/unreadable."
+      },
+      {
+       "name": "env_extra_patterns",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of patterns from DAEDALUS_IGNORE env var, split by os.pathsep."
+      },
+      {
+       "name": "_norm_center",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes center paths to repo-relative POSIX, sorted, deduplicated."
+      },
+      {
+       "name": "ProjectScope",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with center tuple and ignore IgnoreRules."
+      },
+      {
+       "name": "ProjectScope.fingerprint",
+       "kind": "property",
+       "effects": [],
+       "note": "Combines SCOPE_ALGO_SALT, center, and ignore.fingerprint."
+      },
+      {
+       "name": "ProjectScope.in_center",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns True if rel equals or starts with any center root; empty center returns True."
+      },
+      {
+       "name": "ProjectScope.center_of",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns the longest matching center root for rel, or None."
+      },
+      {
+       "name": "ProjectScope.is_shell",
+       "kind": "method",
+       "effects": [],
+       "note": "True if rel is outside center or matched by ignore rules."
+      },
+      {
+       "name": "ProjectScope.describe",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns dict with center list and ignore patterns."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The fingerprint covers the raw file bytes and is folded into the index cache key by ``cached_index``. Without that, editing the ignore file would hand back the previous process-cached index and look like the feature simply did not work.",
+       "where": "load_ignore_rules docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring refers to `cached_index` and process-caching behavior not present in this chunk."
+      },
+      {
+       "text": "``DAEDALUS_IGNORE`` -- os.pathsep-separated patterns, applied after the file. Exists so a scan can be scoped without editing a tracked file.",
+       "where": "env_extra_patterns docstring",
+       "verdict": "kept",
+       "why": "Code splits os.environ['DAEDALUS_IGNORE'] by os.pathsep and returns list of non-empty stripped patterns."
+      },
+      {
+       "text": "Normalise center paths to repo-relative POSIX, no leading/trailing '/'.",
+       "where": "_norm_center docstring",
+       "verdict": "kept",
+       "why": "Code replaces backslashes with forward slashes, strips '/', and excludes '.' and empty strings."
+      },
+      {
+       "text": "Sorted + de-duplicated: this feeds the cache fingerprint, so two configs that name the same roots in a different order must not build twice.",
+       "where": "_norm_center docstring",
+       "verdict": "kept",
+       "why": "Code returns `tuple(sorted(set(out)))` ensuring uniqueness and consistent order."
+      },
+      {
+       "text": "An empty center means the whole repo is the core, which is the historical behaviour and what every un-configured repo keeps getting.",
+       "where": "ProjectScope class docstring",
+       "verdict": "kept",
+       "why": "`in_center` returns True when `self.center` is empty."
+      },
+      {
+       "text": "NOT expressible as ``in_center``: that returns True for every path when no center is declared (the whole repo is the core), which is right for metric decisions and actively wrong for naming ones. A caller written as ``if scope.in_center(rel): strip_prefix(rel)`` would read as \"strip everything\" on an unconfigured repo and only no-op by accident. This returns None there, so \"no center -> no package root -> no stripping\" falls out structurally instead of coincidentally.",
+       "where": "center_of docstring",
+       "verdict": "kept",
+       "why": "`center_of` returns None when no center matches; `in_center` returns True for empty center. The code matches the described behavior."
+      },
+      {
+       "text": "LONGEST MATCH WINS, not first-sorted. With ``center=[\"a\", \"a/b\"]`` the file ``a/b/c.py`` lives in the *inner* package root, so its package-relative name is ``c`` and not ``b.c``. Ties are impossible: two centers that both match and have equal length are the same string, and ``_norm_center`` already de-duplicated. Sorted before the length sort so the iteration order is total and never depends on config ordering.",
+       "where": "center_of docstring",
+       "verdict": "kept",
+       "why": "Code sorts `self.center` lexicographically, then iterates updating `best` when len(c) > len(best). Longest match wins. De-duplication from _norm_center ensures ties are impossible."
+      },
+      {
+       "text": "True when ``rel`` is indexed-but-peripheral: outside the declared center, or matched by an ignore rule. These are the files withheld from metrics and not expanded through.",
+       "where": "is_shell docstring",
+       "verdict": "kept",
+       "why": "Code returns `(not self.in_center(rel)) or self.ignore.matches(rel)`, exactly matching the description."
+      }
+     ],
+     "observations": [
+      {
+       "what": "load_ignore_rules catches OSError but not other exceptions like PermissionError (which is a subclass of OSError in Python 3.3+). Actually PermissionError is a subclass of OSError, so it is caught. However, other exceptions like UnicodeDecodeError (if errors='replace' fails?) or MemoryError are not handled. But errors='replace' should prevent decode errors. Still, the docstring says 'Missing/unreadable file -> empty rules', which matches OSError only.",
+       "where": "load_ignore_rules",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "ProjectScope.describe returns a dict with ignore_patterns list; the patterns are formatted with '!' prefix for negated, pattern, and '/' suffix for dir_only. This matches typical .gitignore style.",
+       "where": "ProjectScope.describe",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "41559b57d0f126109a0797dd1193bbe5e432c2647e31af335d146b2e54e11b4e",
+    "objective_chars": 5873,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/ignore.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/ignore.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

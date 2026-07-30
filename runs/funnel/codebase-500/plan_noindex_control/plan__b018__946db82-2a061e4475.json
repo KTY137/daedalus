@@ -1,0 +1,162 @@
+{
+ "task_id": "plan__b018__946db82",
+ "key": "plan__b018__946db82-2a061e4475",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Plan: 4 items to fix race condition in killswitch, implement check logic, verify forest assumptions, and add foreign key validation. Depends on inspecting full files.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Race condition fix may introduce new timing issues.",
+     "Check logic implementation may be complex and require careful design.",
+     "Forest assumptions may be violated, requiring changes in dss/graph modules.",
+     "Foreign key validation may require schema migration."
+    ],
+    "todos": [
+     "Open full daedalus/lanes/checks.py and search for functions using elision_markers, min_size_ratio, min_symbol_survival.",
+     "Open daedalus/killswitch.py and daedalus/attempt.py to understand race condition.",
+     "Inspect dss._estimated_tokens and graph.fenced_dominance for type node filtering.",
+     "Check daedalus/memory/embeddings.py for foreign key enforcement.",
+     "Write tests for each item after implementation."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix race condition in killswitch that produces fabricated 'gates_failed' verdicts",
+       "gate": "1",
+       "why_now": "Critical severity: fabricated verdicts pollute evaluation metrics and picker scoring, undermining the entire evaluation pipeline. This is a confirmed bug that must be fixed before any end-to-end vertical slice.",
+       "steps": [
+        {
+         "do": "Open daedalus/killswitch.py and daedalus/attempt.py to understand the race condition in _watch_loop.",
+         "file": "daedalus/killswitch.py",
+         "verified_by": "Read the code and confirm the race condition described."
+        },
+        {
+         "do": "Modify killswitch._watch_loop to atomically check cancellation before recording 'gates_failed'.",
+         "file": "daedalus/killswitch.py",
+         "verified_by": "grep for cancellation check before gates_failed assignment."
+        },
+        {
+         "do": "Write a test that simulates the race: start killswitch, cancel gate process, verify attempt.py records 'cancelled' not 'gates_failed'.",
+         "file": "tests/test_killswitch_race.py",
+         "verified_by": "Run pytest tests/test_killswitch_race.py and see it pass."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The race condition is as described and reproducible."
+      },
+      {
+       "rank": 2,
+       "title": "Implement missing check logic in checks.py using defined CheckPolicy fields",
+       "gate": "1",
+       "why_now": "High severity: the CheckPolicy fields exist but the logic that uses them is missing, meaning the check mechanism is incomplete. This blocks the first end-to-end vertical slice because write lanes depend on these checks.",
+       "steps": [
+        {
+         "do": "Open full daedalus/lanes/checks.py and search for functions that use elision_markers, min_size_ratio, or min_symbol_survival.",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Grep for those field names in the file; if no usage found, proceed."
+        },
+        {
+         "do": "Implement check functions that use the fields, e.g., check_elision, check_truncation, check_symbol_survival.",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Run existing tests and new tests that exercise these checks."
+        },
+        {
+         "do": "Add tests for each new check function.",
+         "file": "tests/test_checks.py",
+         "verified_by": "pytest tests/test_checks.py passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The implementation does not exist elsewhere in the file or in another module."
+      },
+      {
+       "rank": 3,
+       "title": "Verify and enforce forest assumptions about type nodes in dss and graph modules",
+       "gate": "2",
+       "why_now": "High severity: if dss._estimated_tokens or graph.fenced_dominance include type nodes, token budgets and routing decisions may be incorrect. This is a needs-evidence finding that must be resolved to ensure correctness of the forest module.",
+       "steps": [
+        {
+         "do": "Inspect dss._estimated_tokens to see if it filters out type nodes.",
+         "file": "UNKNOWN",
+         "verified_by": "Grep for 'type' or node kind filtering in the function."
+        },
+        {
+         "do": "Inspect graph.fenced_dominance to see if it filters out type nodes.",
+         "file": "UNKNOWN",
+         "verified_by": "Grep for 'type' or node kind filtering in the function."
+        },
+        {
+         "do": "If either includes type nodes, modify them to exclude type nodes per forest.py contract.",
+         "file": "UNKNOWN",
+         "verified_by": "Tests pass and forest assumptions are satisfied."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The exact file paths for dss and graph modules are unknown; need to locate them. This step is blocked on finding those files."
+      },
+      {
+       "rank": 4,
+       "title": "Add foreign key validation in record_journal_watermark or schema",
+       "gate": "2",
+       "why_now": "Medium severity: orphaned watermarks are possible if no foreign key constraint exists. This could lead to data integrity issues. Prefer to fix early before data accumulates.",
+       "steps": [
+        {
+         "do": "Open daedalus/memory/embeddings.py and check if record_journal_watermark has a foreign key check or if schema enforces FK.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "grep for 'foreign key' or similar in the file and schema."
+        },
+        {
+         "do": "If missing, add a foreign key constraint in the database schema or add explicit validation in the function.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Run tests and verify no orphaned rows."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The database schema file is known and modifiable."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/lanes/checks.py",
+      "daedalus/memory/embeddings.py",
+      "daedalus/killswitch.py",
+      "daedalus/attempt.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d71a3a694ef34010d51ed082999710737c41ed7a54fcd7219fc3d73b46d11d51",
+    "objective_chars": 9887,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 18 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 18,
+  "inputs": 4
+ }
+}

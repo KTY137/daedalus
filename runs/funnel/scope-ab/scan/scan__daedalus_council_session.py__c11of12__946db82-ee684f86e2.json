@@ -1,0 +1,142 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c11of12__946db82",
+ "key": "scan__daedalus_council_session.py__c11of12__946db82-ee684f86e2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 11 of 12 of daedalus/council/session.py (lines 1201-1300). No public symbols or checkable claims found; observations about control flow and data aggregation noted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1201-1300 | medium | The code uses 'dup_by_actor.get(adapter.actor, False)' but 'dup_by_actor' is not defined in this chunk; it may be defined earlier in the file or imported. If undefined, this would raise a NameError. | Check the scope of 'dup_by_actor' in the full file.",
+     "line 1201-1300 | low | The variable 'dup_classes' is used in the CouncilRecord constructor but not defined in this chunk; it may be defined earlier. If missing, it would cause a NameError. | Verify 'dup_classes' is defined before this point.",
+     "line 1201-1300 | low | The variable 'tokens_charged' is used in the CouncilRecord constructor but not defined in this chunk; it may be defined earlier. If missing, it would cause a NameError. | Verify 'tokens_charged' is defined before this point."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "11 of 12",
+     "purpose": "Process dispatch rounds, aggregate outcomes, build participant records and CouncilRecord.",
+     "symbols": [
+      {
+       "name": "participant_records",
+       "kind": "variable",
+       "effects": [],
+       "note": "Tuple of ParticipantRecord objects built from seated adapters and outcomes dictionary."
+      },
+      {
+       "name": "requested",
+       "kind": "variable",
+       "effects": [],
+       "note": "Count of participants (len of participant_records)."
+      },
+      {
+       "name": "responded",
+       "kind": "variable",
+       "effects": [],
+       "note": "Count of participants with outcome 'responded'."
+      },
+      {
+       "name": "seated_n",
+       "kind": "variable",
+       "effects": [],
+       "note": "Count of participants with outcome in ('seated','responded','refused')."
+      },
+      {
+       "name": "unavailable",
+       "kind": "variable",
+       "effects": [],
+       "note": "Count of participants with outcome 'unavailable'."
+      },
+      {
+       "name": "heard",
+       "kind": "variable",
+       "effects": [],
+       "note": "Set of independence_class tuples for participants with outcome 'responded'."
+      },
+      {
+       "name": "intact",
+       "kind": "variable",
+       "effects": [],
+       "note": "Boolean from verify_chain(store)."
+      },
+      {
+       "name": "failures",
+       "kind": "variable",
+       "effects": [],
+       "note": "Tuple of chain failures from verify_chain(store)."
+      },
+      {
+       "name": "head",
+       "kind": "variable",
+       "effects": [],
+       "note": "Transcript head from transcript_head(store)."
+      },
+      {
+       "name": "CouncilRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Returned at end of function; fields include council_id, question, evidence_label, etc."
+      }
+     ],
+     "claims": [],
+     "observations": [
+      {
+       "what": "The code uses 'dup_by_actor' and 'dup_classes' which are not defined in this chunk; they are expected to be defined earlier in the function.",
+       "where": "line 1201-1300",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable 'tokens_charged' is used in CouncilRecord but not defined in this chunk; expected to be defined earlier.",
+       "where": "line 1300",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The code sets 'state[\"outcome\"]' and other fields on outcomes dictionary entries; assumes each adapter has an entry in outcomes.",
+       "where": "lines 1247-1265",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment 'A blown wall clock is NOT handled here' indicates that budget exhaustion is handled at the start of the next round, not by breaking early.",
+       "where": "lines 1271-1273",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b9121159bec44678561ad137811f46dc939d14c8f9026a0e5034cf446adff772",
+    "objective_chars": 7120,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [11/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 11,
+  "total": 12,
+  "first_line": 1201
+ }
+}

@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c8of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c8of10__946db82-dd2e19ff66",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 of 10: defines _config_switches, _documented_names, _mentioned_names, _augment_documented, _is_subsequence, _drift; checks doc claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "8 of 10",
+     "purpose": "Define functions for config switch extraction and documentation cross-check.",
+     "symbols": [
+      {
+       "name": "_config_switches",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSON settings files and returns a list of ConfigSwitch objects."
+      },
+      {
+       "name": "_documented_names",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Extracts env-shaped names from docs using _DOC_ENV_FORMS patterns."
+      },
+      {
+       "name": "_mentioned_names",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Extracts every env-shaped token from docs using _ENV_TOKEN pattern."
+      },
+      {
+       "name": "_augment_documented",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Augments documented dict with names from mentioned that are in read set."
+      },
+      {
+       "name": "_is_subsequence",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if short sequence is a subsequence of long sequence."
+      },
+      {
+       "name": "_drift",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes documentation drift between documented and read names."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Env-shaped names in docs, mapped to `path:line` sites.",
+       "where": "_documented_names docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes the return format; the code returns dict[str, list[str]] with path:line strings, but we cannot verify the 'env-shaped' pattern without seeing _DOC_ENV_FORMS."
+      },
+      {
+       "text": "Every env-shaped token in docs, however it is written.",
+       "where": "_mentioned_names docstring",
+       "verdict": "uncheckable",
+       "why": "The code uses _ENV_TOKEN.finditer to find tokens, but we cannot verify the pattern covers 'however it is written' without seeing _ENV_TOKEN."
+      },
+      {
+       "text": "Count a bare doc mention as documentation for names the code truly reads.",
+       "where": "_augment_documented docstring",
+       "verdict": "kept",
+       "why": "The function adds names from mentioned to documented if they are in read but not in documented, implementing the described behavior."
+      },
+      {
+       "text": "docs/HANDOFF.md lists some variables as bare lines inside a fenced block, which matches no operator-shaped form. Requiring the strict form there would manufacture a 'read but never documented' finding for a name the docs plainly show, and the whole point of the drift list is that every entry is worth acting on.",
+       "where": "_augment_documented docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring refers to docs/HANDOFF.md and 'operator-shaped form', but neither the file nor the patterns are present in this chunk."
+      },
+      {
+       "text": "Computes documentation drift between documented and read names.",
+       "where": "_drift (implicit purpose)",
+       "verdict": "kept",
+       "why": "The function produces DocDrift entries for names in doc_names - read and read - doc_names, matching the drift computation description."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_config_switches uses _read_text and _rel which are not defined in this chunk.",
+       "where": "_config_switches function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_drift function references _PLATFORM_ENV which is not defined in this chunk.",
+       "where": "_drift function body (line 883)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _drift function is incomplete; it ends abruptly without closing the list and function.",
+       "where": "end of chunk",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "40069bed34bb6ba866364f2656b4edcc5a03031729cdc94525e5f906fb9fef0e",
+    "objective_chars": 5080,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [8/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 8,
+  "total": 10,
+  "first_line": 841
+ }
+}

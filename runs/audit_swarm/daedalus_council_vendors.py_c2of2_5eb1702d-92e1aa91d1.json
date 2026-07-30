@@ -1,0 +1,165 @@
+{
+ "task_id": "daedalus/council/vendors.py#c2of2#5eb1702d",
+ "key": "daedalus_council_vendors.py_c2of2_5eb1702d-92e1aa91d1",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a vendor must never take the council down\" | except Exception as exc | KEPT | catches all exceptions and returns error reply",
+     "CLAIM | \"timeout does not bound token spend\" | tokens = count_tokens(text) | KEPT | token count is computed before dispatch, timeout not used",
+     "CLAIM | \"reconciling after the call is not a budget\" | tokens > self.max_prompt_tokens | KEPT | token ceiling check returns early",
+     "CLAIM | \"ALWAYS read-only\" | CodexAdapter docstring | KEPT | no constructor switch for sandbox mode; class has no sandbox parameter",
+     "CLAIM | \"The prompt goes on STDIN (``agy -p -``) and NEVER on a command line\" | argv method | KEPT | argv includes \"agy\", \"-p\", \"-\"",
+     "CLAIM | \"this adapter is DISABLED BY DEFAULT: it reports ``unavailable`` / ``not_authenticated`` immediately\" | AntigravityAdapter docstring | KEPT | __init__ defaults signed_in=False; _dispatch checks and returns unavailable",
+     "CLAIM | \"An operator asserts sign-in with ``signed_in=True``; nothing here probes it\" | AntigravityAdapter docstring | KEPT | no auth probe code; only checks self.signed_in",
+     "CLAIM | \"Over-budget prompts are REFUSED LOUDLY\" | OllamaAdapter docstring | KEPT | _dispatch checks tokens > window and returns error with stderr",
+     "CLAIM | \"The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented\" | OllamaAdapter docstring | UNCHECKABLE | effective_input_window and num_ctx_value are imported; their implementation is not in this unit",
+     "CLAIM | \"local is ``sensitivity.lane_for_host(host) == \"trusted\"`` -- numeric loopback only\" | OllamaAdapter docstring | KEPT | self.local = lane_for_host(self.host) == \"trusted\"",
+     "CLAIM | \"the same predicate that decides the egress lane, so the two cannot disagree about one host\" | OllamaAdapter docstring | KEPT | local and lane are derived from same host using lane_for_host",
+     "CLAIM | \"Cheap probe result.  No model is invoked to produce this.\" | VendorAvailability docstring | KEPT | available_vendors uses only which, http_probe; no model calls",
+     "CLAIM | \"``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.\" | available_vendors docstring | KEPT | agy_signed_in=False by default; code sets available=not agy_reason",
+     "CLAIM | \"Both callables are injectable so a test can establish availability with no CLI on PATH and no network.\" | available_vendors docstring | KEPT | which and http_probe are parameters with defaults",
+     "D1 | CodexAdapter._auth_failure | parameter result is read, fine; no unused parameters in this unit | KEPT",
+     "D1 | AntigravityAdapter.__init__ parameter effort | effort is stored in self.effort but never read in this unit | WRONG CONCLUSION: a caller believes effort is used for dispatch",
+     "CLAIM | \"The lane IS the predicate's return value -- no re-derivation, no second table, nothing to drift.\" | available_vendors | KEPT | lane=lane_for_host(host) is used directly"
+    ],
+    "todos": [
+     "In AntigravityAdapter, remove self.effort or actually use it in argv or dispatch.",
+     "In _CliAdapter._interpret, the check `if result.timed_out` runs after `if result.spawn_error`, but the comment says 'exit-code mapping'\u2014the order is correct; no fix needed.",
+     "In AntigravityAdapter._dispatch, the check for `result.returncode == 255` or connection errors runs after `_looks_unauthenticated` check; reorder to check connection errors first if desired.",
+     "In AntigravityAdapter._dispatch, the check for 'command not found' runs after connection errors; reorder if needed."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "50531133aea9addc82d12999348f5c63b52751021a31789690ae7ec619141dd5",
+    "objective_chars": 21727,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 5 kept, 2 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.\" | AntigravityAdapter.argv | BROKEN | The prompt is passed via stdin_text to _runner, not via argv; the claim is about the command line, but the code does pass it on stdin, so it's kept? Actually: the claim says 'NEVER on a command line' \u2013 the code passes it via stdin_text, not in argv, so it's kept. Wait, the claim is about the prompt not being on command line; the code uses stdin_text, so it's kept. But the next claim: '``ssh`` with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.' This is a claim about how ssh works; it's not checkable from this code. However, there is a claim: 'The prompt here is a diff written by a candidate model, so an ordinary patch containing backticks or ``$(...)`` -- a shell script, a test log, a Python f-string -- would execute on the bench as Administrator, with no adversarial model required.' This is a rationale, not a checkable claim. The code does not enforce this; it's just a comment. So it's uncheckable. Let's enumerate properly.",
+     "CLAIM | \"The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.\" | AntigravityAdapter.argv | KEPT | The code builds argv with '-p' and '-' as arguments, and the prompt is passed via stdin_text to _runner, so it's not on the command line.",
+     "CLAIM | \"``agy`` has not completed its one-time interactive sign-in on this machine, so this adapter is DISABLED BY DEFAULT: it reports ``unavailable`` / ``not_authenticated`` immediately rather than hanging on an auth prompt.\" | AntigravityAdapter.__init__ | KEPT | The __init__ defaults signed_in=False, and _dispatch checks self.signed_in and returns unavailable/not_authenticated if false.",
+     "CLAIM | \"An operator asserts sign-in with ``signed_in=True``; nothing here probes it, because probing means invoking a model.\" | AntigravityAdapter | KEPT | The code never probes auth; it relies on the signed_in flag.",
+     "CLAIM | \"Over-budget prompts are REFUSED LOUDLY.\" | OllamaAdapter._dispatch | KEPT | The code checks tokens against window and returns an error with a descriptive stderr if over budget.",
+     "CLAIM | \"The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented.\" | OllamaAdapter._dispatch | KEPT | The code calls effective_input_window() with an optional reserve parameter.",
+     "CLAIM | \"local is ``sensitivity.lane_for_host(host) == \"trusted\"`` -- numeric loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.\" | OllamaAdapter.__init__ | KEPT | The code sets self.local = lane_for_host(self.host) == \"trusted\".",
+     "CLAIM | \"Cheap probe result.  No model is invoked to produce this.\" | VendorAvailability docstring | KEPT | available_vendors only checks binary existence and HTTP reachability, no model invocation.",
+     "CLAIM | \"``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.\" | available_vendors | KEPT | The code sets agy_reason to 'not_authenticated' if not agy_signed_in, making available=False.",
+     "CLAIM | \"Both callables are injectable so a test can establish availability with no CLI on PATH and no network.\" | available_vendors | KEPT | The function accepts which and http_probe as injectable parameters."
+    ],
+    "todos": [
+     "CLAIM | \"The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.\" is KEPT, no todo.",
+     "CLAIM | \"``ssh`` with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.\" is UNCHECKABLE, no todo."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "50531133aea9addc82d12999348f5c63b52751021a31789690ae7ec619141dd5",
+    "objective_chars": 21727,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "28 claims: 22 kept, 5 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"timeout does not bound token spend, and reconciling after the call is not a budget.\" | line 32 | KEPT | The comment appears before the token count check and the code does not use timeout_s for token budgeting.",
+     "CLAIM | \"a vendor must never take the council down\" | line 38 | KEPT | The except Exception clause catches all exceptions and returns an error reply, preventing the vendor from crashing the council.",
+     "CLAIM | \"Shared plumbing for CLI vendors: argv build, spawn, exit-code mapping.\" | class _CliAdapter | KEPT | The class provides argv() and _dispatch() methods, and _interpret() handles exit codes.",
+     "CLAIM | \"The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.\" | class AntigravityAdapter docstring | KEPT | The argv method builds command with 'agy -p -' and stdin_text is passed to the runner.",
+     "CLAIM | \"``ssh`` with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.\" | class AntigravityAdapter docstring | KEPT | The code uses subprocess-style argv list; the docstring warns about shell re-parsing, which is a risk but the code correctly passes argv.",
+     "CLAIM | \"Local ``subprocess`` argv quoting cannot help: the escaping that matters belongs to a shell we cannot see.\" | class AntigravityAdapter docstring | KEPT | The docstring explains that local quoting is insufficient; the code does not attempt additional quoting.",
+     "CLAIM | \"this adapter is DISABLED BY DEFAULT: it reports ``unavailable`` / ``not_authenticated`` immediately rather than hanging on an auth prompt.\" | class AntigravityAdapter docstring | KEPT | The __init__ sets signed_in=False by default, and _dispatch returns unavailable/not_authenticated when signed_in is False.",
+     "CLAIM | \"An operator asserts sign-in with ``signed_in=True``; nothing here probes it, because probing means invoking a model.\" | class AntigravityAdapter docstring | KEPT | The code checks self.signed_in but does not probe auth; it relies on the operator's assertion.",
+     "CLAIM | \"ALWAYS read-only.  There is no constructor switch for the sandbox mode: a reviewer that can write is not a reviewer, and an option is a thing someone sets.\" | class CodexAdapter docstring | KEPT | The class does not expose any sandbox mode switch; it inherits _dispatch from _CliAdapter which does not change sandbox mode.",
+     "CLAIM | \"The host is passed EXPLICITLY per call.  ``OLLAMA_HOST`` is never read for routing and never written\" | class OllamaAdapter docstring | KEPT | The __init__ uses host parameter; no reference to OLLAMA_HOST environment variable.",
+     "CLAIM | ``local`` is ``sensitivity.lane_for_host(host) == \"trusted\"`` -- numeric loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.\" | class OllamaAdapter docstring | KEPT | self.local is set to lane_for_host(self.host) == \"trusted\".",
+     "CLAIM | \"Over-budget prompts are REFUSED LOUDLY.\" | class OllamaAdapter docstring | BROKEN | The code checks tokens > window and returns error/over_context_budget, but does not use 'loudly' or any additional logging; the claim is subjective but the code does refuse.",
+     "CLAIM | \"Ollama HEAD-truncates an over-long prompt -- it eats the system prompt first -- so a silently truncated council turn is a reviewer that never saw the question it is answering.\" | class OllamaAdapter docstring | KEPT | The code refuses over-budget prompts to prevent silent truncation.",
+     "CLAIM | \"The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented.\" | class OllamaAdapter docstring | KEPT | The code calls effective_input_window() with optional reserve parameter.",
+     "CLAIM | \"Cheap probe result.  No model is invoked to produce this.\" | class VendorAvailability docstring | KEPT | The dataclass contains fields that can be filled without invoking a model.",
+     "CLAIM | \"Which vendors could be seated, established by CHEAP PROBES ONLY.\" | function available_vendors docstring | KEPT | The function uses shutil.which and http_probe, which are cheap probes.",
+     "CLAIM | \"Does the binary exist; does the Ollama host answer ``/api/version``.\" | function available_vendors docstring | KEPT | The code checks claude_path, codex_path, ssh_path, and http_probe(host, path='/api/version').",
+     "CLAIM | \"No model is invoked, no prompt is sent, nothing is billed.\" | function available_vendors docstring | KEPT | The probes do not invoke any model.",
+     "CLAIM | ``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.\" | function available_vendors docstring | KEPT | The code sets agy_reason based on agy_signed_in; if not signed in, reason is 'not_authenticated'.",
+     "CLAIM | \"Both callables are injectable so a test can establish availability with no CLI on PATH and no network.\" | function available_vendors docstring | KEPT | The function accepts which and http_probe as injectable callables.",
+     "CLAIM | \"ONE predicate, shared with the egress gate it feeds. Not a local copy: ``local`` and ``lane`` must never be able to disagree about the same host, and they did (``[::1]`` was local-but-untrusted).\" | OllamaAdapter.__init__ comment | KEPT | self.local is set to lane_for_host(self.host) == 'trusted'.",
+     "CLAIM | \"Deliberately NOT keyed on host: local 7b and bench 7b are the same weights, so they must collide as one class.\" | OllamaAdapter.independence_class comment | KEPT | The property returns ('local', model_family(self.model)) ignoring host.",
+     "CLAIM | \"Field names on :class:`VendorReply` -- for the no-verdict-field test.\" | function reply_field_names docstring | KEPT | The function returns frozenset of field names from VendorReply.",
+     "CLAIM | \"The lane IS the predicate's return value -- no re-derivation, no second table, nothing to drift.\" | comment in available_vendors | KEPT | The lane for Ollama is set to lane_for_host(host), which is the same predicate.",
+     "D1 | profile_name | defined in _CliAdapter but never read in this unit | WRONG CONCLUSION: a caller might expect profile_name to be used for something, but it is only set in subclasses and never read in this file.",
+     "D1 | profile | set in __init__ of _CliAdapter but never read in this unit | WRONG CONCLUSION: a caller might expect the profile to be used, but it is only accessed via self.profile.lane and self.profile.default_model in __init__; those are used but the attribute itself is not read elsewhere.",
+     "D1 | vendor | set in __init__ of _CliAdapter but never read in this unit | WRONG CONCLUSION: a caller might expect vendor to be used, but it is only set and never read in this file.",
+     "D1 | _runner | set in __init__ of _CliAdapter but never read in this unit | WRONG CONCLUSION: a caller might expect _runner to be used, but it is used in _dispatch of the same class; however, it is set in __init__ but not read in the same unit? Actually it is read in _dispatch. So not a D1."
+    ],
+    "todos": [
+     "For claim 'Over-budget prompts are REFUSED LOUDLY': either remove 'loudly' from the docstring or add a log.warning or similar to make it loud.",
+     "For D1 'profile_name': consider removing the attribute or using it in this unit.",
+     "For D1 'profile': consider removing the attribute or using it in this unit.",
+     "For D1 'vendor': consider removing the attribute or using it in this unit."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "50531133aea9addc82d12999348f5c63b52751021a31789690ae7ec619141dd5",
+    "objective_chars": 21727,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/vendors.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 19210
+ }
+}

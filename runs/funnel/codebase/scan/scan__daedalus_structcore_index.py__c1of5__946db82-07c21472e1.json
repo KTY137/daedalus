@@ -1,0 +1,326 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c1of5__946db82",
+ "key": "scan__daedalus_structcore_index.py__c1of5__946db82-07c21472e1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/structcore/index.py: module docstring describing output keys, opt-in flags for documents/types/wiki, and helper functions (_collect, _collect_docs, _py_dotted, _disambiguate, documents_enabled, types_enabled, wiki_enabled).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_disambiguate | medium | The function may return None for ambiguous modules, causing dropped edges; callers must handle this gracefully. | Check that all callers of _disambiguate handle None return without crashing or silently skipping.",
+     "documents_enabled, types_enabled, wiki_enabled | low | Env var parsing uses _TRUTHY set; values like 'TRUE' or '1' are accepted, but unexpected values default to False. | Ensure that all expected truthy values are in _TRUTHY or that documentation clarifies accepted values."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "1 of 5",
+     "purpose": "Module-level docstring describing the build_index output, opt-in flags (documents, types, wiki), and helper functions for file collection and name disambiguation.",
+     "symbols": [
+      {
+       "name": "backend_status",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with 'tree_sitter' and 'lizard' availability."
+      },
+      {
+       "name": "_collect",
+       "kind": "function",
+       "effects": [
+        "filesystem_walk"
+       ],
+       "note": "Walks root directory, yields (Path, rel, LanguageSpec) for code files, respecting _IGNORE_DIRS and max_files."
+      },
+      {
+       "name": "documents_enabled",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool: explicit flag > env var > False."
+      },
+      {
+       "name": "types_enabled",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool: explicit flag > env var > False."
+      },
+      {
+       "name": "wiki_enabled",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bool: explicit flag > env var > False."
+      },
+      {
+       "name": "_collect_docs",
+       "kind": "function",
+       "effects": [
+        "filesystem_walk"
+       ],
+       "note": "Separate walk for document files, returns (Path, rel, DocumentSpec)."
+      },
+      {
+       "name": "_py_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a relative path like 'a/b/c.py' to 'a.b.c'."
+      },
+      {
+       "name": "_disambiguate",
+       "kind": "function",
+       "effects": [],
+       "note": "Given list of relative paths sharing a dotted name, returns the one that binds (preferring non-stub), or None if ambiguous."
+      },
+      {
+       "name": "_View",
+       "kind": "class",
+       "effects": [],
+       "note": "NamedTuple representing one importer's-eye view of the Python dotted namespace (incomplete in this chunk)."
+      },
+      {
+       "name": "_IGNORE_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of directory names to skip during walk."
+      },
+      {
+       "name": "_DOC_ENV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Environment variable name for documents opt-in."
+      },
+      {
+       "name": "_TYPES_ENV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Environment variable name for types opt-in."
+      },
+      {
+       "name": "_WIKI_ENV",
+       "kind": "constant",
+       "effects": [],
+       "note": "Environment variable name for wiki opt-in."
+      },
+      {
+       "name": "_TRUTHY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of strings considered truthy for env var parsing."
+      },
+      {
+       "name": "_STUB_SUFFIXES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of suffixes for stub files ('.pyi')."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Output: languages \u2014 files + LOC per language actually found",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the code that produces the 'languages' output; it only describes it."
+      },
+      {
+       "text": "Output: modules \u2014 per-file health metrics",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Output: dependencies / fan_in \u2014 internal import graph (Python precise; other languages best-effort via imports.py \u2014 module->file resolution is approximated without a real build graph, so unresolved edges are dropped, never guessed)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Output: duplication \u2014 exact (unit) + renamed (Type-2) + near-miss (Type-3) clone clusters, plus window-level (universal, parser-free)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Output: hotspots \u2014 complexity ranking, multiplied by normalized git churn (the CodeScene signal: rot lives where code is complex AND changing)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Output: backend \u2014 which optional precision engines were active",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "OPT-IN, absent unless documents=True (or DAEDALUS_INDEX_DOCUMENTS=1): documents \u2014 what was parsed, and everything it was withheld from",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The chunk defines documents_enabled() and _DOC_ENV, implementing the opt-in mechanism. The output itself is not produced in this chunk, but the claim about opt-in is kept."
+      },
+      {
+       "text": "OPT-IN, absent unless documents=True: document_links / document_links_reverse \u2014 intra-repo markdown links, kept in their OWN relation layer because a link is not an import",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "With documents on, modules also carries document entries, each marked kind: \"document\" (markdown.is_document / code_modules).",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "OPT-IN, absent unless types=True (or DAEDALUS_INDEX_TYPES=1): types \u2014 the type/data-structure layer's counts and its own coverage record",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The chunk defines types_enabled() and _TYPES_ENV, implementing the opt-in mechanism."
+      },
+      {
+       "text": "OPT-IN, absent unless types=True: type_nodes \u2014 one node per class/dataclass/TypedDict/NamedTuple/Enum/Protocol/alias declaration and per field, in their OWN id namespace",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "OPT-IN, absent unless types=True: type_edges \u2014 has_field / field_type / inherits / consumes / produces / alias_of, in their OWN relation layer",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Type nodes NEVER enter modules, import_edges, dependencies, fan_in, all_units or the symbol resolver.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the code that builds those structures; it only declares the policy."
+      },
+      {
+       "text": "Documents are excluded, always, from: all four clone passes, score_modules/hotspots/module_heat, import_edges/fan_in, and graph._graph_nodes.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Their links live in their own relation layer.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "The type/data-structure layer is ADDITIVE by construction: it publishes three new keys and touches nothing that already existed. modules, import_edges, import_edges_reverse, fan_in, duplication, n_files, languages, total_tokens and hotspots are byte-identical with it on and with it off, and tests/test_typegraph_index.py pins exactly that.",
+       "where": "TYPES block",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain the code that produces those outputs, nor the test file."
+      },
+      {
+       "text": "Gating extraction would put the flag on the wrong side of a content-keyed disk cache and a layer-off row would be served as a hit to a layer-on build \u2014 an empty type block with no error.",
+       "where": "TYPES block",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "What the gate covers is whole-repo RESOLUTION (serial, in the parent, not cached) and PUBLICATION. Because the gate changes the returned dict, it is part of _scope_key exactly as documents is.",
+       "where": "TYPES block",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "Type nodes are excluded, always, from: modules (so also hotspots / module_heat / score_modules), import_edges / import_edges_reverse / dependencies / fan_in, graph._graph_nodes (the fence's denominator), all_units and therefore all four clone passes, and graph.build_resolver's defs_by_file.",
+       "where": "TYPES block",
+       "verdict": "uncheckable",
+       "why": "Not present in this chunk."
+      },
+      {
+       "text": "A separate walk rather than a second return value from _collect: _collect's (root, max_files) -> list signature is monkeypatched by tests/test_structcore_parallel.py to prove walk-order independence, and widening it would break that proof for a saving of one os.walk (~0.2s on a 7k-file tree, and only when documents are enabled at all).",
+       "where": "_collect_docs docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain tests/test_structcore_parallel.py; the claim about monkeypatching is uncheckable."
+      },
+      {
+       "text": "Order-independent by construction: the answer is a function of the SET of candidates, never of the order they were walked in.",
+       "where": "_disambiguate docstring",
+       "verdict": "kept",
+       "why": "The function code does not depend on iteration order; it processes the list as a set via list comprehensions."
+      },
+      {
+       "text": "The previous {_py_dotted(rel): rel for ...} dict comprehension was a last-writer-wins race decided by os.walk \u2014 measured at 141 live collisions on project_tct, every one a .py/.pyi pair, and it bound the name to the STUB.",
+       "where": "_disambiguate docstring",
+       "verdict": "uncheckable",
+       "why": "This claim refers to previous code not present in the chunk."
+      },
+      {
+       "text": "Two rules, in order: 1. A stub is not a rival. If exactly one candidate is real source, the name is that module and the stub is its declaration. 2. Otherwise refuse.",
+       "where": "_disambiguate docstring",
+       "verdict": "kept",
+       "why": "The function code implements exactly these two rules: first checks if len(rels)==1, then filters out stubs and checks if len(real)==1."
+      },
+      {
+       "text": "A wrong edge lies about what depends on what \u2014 strictly worse than a missing one.",
+       "where": "_disambiguate docstring",
+       "verdict": "uncheckable",
+       "why": "This is a design rationale, not a checkable claim about the code in this chunk."
+      },
+      {
+       "text": "Callers report the refusal with counts rather than binding to whichever file sorted first.",
+       "where": "_disambiguate docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the caller code that would report counts."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_collect and _collect_docs share similar structure but are separate functions to maintain monkeypatch compatibility.",
+       "where": "_collect and _collect_docs definitions",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_disambiguate returns None when multiple non-stub files claim the same dotted name, which could lead to dropped imports.",
+       "where": "_disambiguate function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The env var parsing in documents_enabled, types_enabled, wiki_enabled uses the same _TRUTHY set; case-insensitive check via .lower().",
+       "where": "documents_enabled, types_enabled, wiki_enabled",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_View NamedTuple is defined but its fields are not shown in this chunk (truncated at end).",
+       "where": "end of chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ca18ab01377f171ec8ebbaabb0e9c2d7587ba1ec653d8205fa536e4de6956840",
+    "objective_chars": 14394,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

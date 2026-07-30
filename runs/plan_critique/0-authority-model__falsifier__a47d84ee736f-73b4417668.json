@@ -1,0 +1,147 @@
+{
+ "task_id": "0-authority-model__falsifier__a47d84ee736f",
+ "key": "0-authority-model__falsifier__a47d84ee736f-73b4417668",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most claims are unfalsifiable: they define authority relationships and rule types without operational tests, so the plan cannot be refuted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "0.1 | high | Unfalsifiable: 'sole semantic authority' is a self-referential claim with no observable consequence that would refute it. | Attempt to find a case where the plan is contradicted by another document and see if the plan is overruled; if it is, the claim is false, but the plan can simply reassert its authority, making the test inconclusive.",
+     "0.2 | high | Unfalsifiable: 'mechanical veto policy' cannot be tested because the scope of 'restrict or deny capabilities' is not bounded; any outcome can be explained. | Define a specific capability that should be denied and check if the policy denies it; if it does not, the claim is not necessarily false because the policy might not have been invoked.",
+     "0.3 | high | Unfalsifiable: 'derived projection' is vague; there is no criterion for what constitutes 'loading the plan' or 'reporting drift' that could be falsified. | Specify a measurable property of the projection (e.g., a hash of the plan) and test whether the projection updates when the plan changes; the current claim is too vague to test.",
+     "0.4 | high | Unfalsifiable: 'evidence' role is defined so broadly that any test or receipt can be interpreted as evidence; no outcome can refute it. | Pre-commit to a specific test result that would count as refuting a status claim; if the test passes, the claim stands; if it fails, the evidence is considered insufficient.",
+     "0.5 | high | Unfalsifiable: 'history/backlog' role is similarly broad; any document can be seen as supplying evidence or proposals. | Define a criterion for when a document fails to supply evidence; the current definition is too vague to test.",
+     "0.6 | high | Unfalsifiable: 'capability policy cannot broaden the plan' is a rule that cannot be tested because there is no operational definition of 'broaden'. | Define a specific change to a capability policy that would broaden the plan and check if the system allows it; if it does, the claim is false, but the rule can be reinterpreted to avoid falsification.",
+     "0.7 | high | Unfalsifiable: 'the plan cannot grant a capability' is similarly untestable without a definition of 'grant'. | Define a capability and see if the plan can be used to grant it; if it can, the claim is false, but the definition can be adjusted to exclude that case.",
+     "0.8 | medium | Unfalsifiable: 'stricter mechanical policy wins' is ambiguous without a clear ordering of strictness; any outcome can be rationalized. | Define two policies with a known strictness ordering and test which one prevails; the claim is falsifiable only if the ordering is predefined.",
+     "0.9 | medium | Unfalsifiable: 'only this plan is authoritative' for product meaning and sequencing is a self-referential claim; no external observation can contradict it. | Try to find a case where product meaning is determined by another document and see if the plan is overruled; if it is, the claim is false, but the plan can simply reassert authority.",
+     "0.10 | medium | Unfalsifiable: rule type definitions are not operational; e.g., 'cannot change silently' for INVARIANT is not testable without a definition of 'silently'. | Define a specific invariant and test whether it can change without notification; if it does, the claim is false, but the definition of 'silently' can be adjusted.",
+     "0.11 | medium | Unfalsifiable: 'deterministically testable delivery state' for GATE is testable only if the test is specified; the claim itself is a definition, not a falsifiable hypothesis. | Implement a gate and see if it can be tested deterministically; if not, the claim is false, but the definition can be broadened.",
+     "0.12 | medium | Unfalsifiable: 'falsifiable design hypothesis' for PRIOR is a self-referential claim; the definition is not itself falsifiable. | Define a prior and test if it is falsifiable; if it is not, the claim is false, but the definition can be changed.",
+     "0.13 | medium | Unfalsifiable: 'revision-bound measurement, never timeless truth' for STATUS is a philosophical claim; no empirical test can refute it. | Pick a status claim and see if it holds across revisions; if it does, the claim is false, but the definition can be reinterpreted.",
+     "0.14 | medium | Unfalsifiable: 'non-authoritative proposed work' for BACKLOG is a definition; no test can falsify it. | Define a backlog item and see if it is treated as authoritative; if it is, the claim is false, but the definition can be adjusted."
+    ],
+    "todos": [
+     "Replace self-referential and definitional claims with testable assertions, e.g., define a specific experiment that would refute 'sole semantic authority'.",
+     "Operationalize each rule type with a concrete test: e.g., for INVARIANT, define a monitoring mechanism and a threshold for 'silent change'.",
+     "Add a section on falsifiability criteria for each claim in the plan, so that the plan can serve as a scientific document."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0.1",
+       "claim": "This master plan is the sole semantic authority for the project's architecture and research direction.",
+       "verdict": "unfalsifiable",
+       "why": "The claim is self-referential and defines its own authority. No observable event can contradict it because any contradiction can be dismissed as not being 'semantic' or not being 'authoritative'. To be falsifiable, the claim would need to specify a concrete situation where the plan's authority could be overridden, and then test whether that situation occurs."
+      },
+      {
+       "id": "0.2",
+       "claim": "The files .agentenv/agentenv.json and .agentenv/tool-allowances.json are a mechanical veto policy that can restrict or deny capabilities.",
+       "verdict": "unfalsifiable",
+       "why": "The claim does not specify what capabilities exist, how they are restricted, or what constitutes a veto. Without a clear scope, any behavior can be interpreted as consistent with the policy. To be falsifiable, one would need to define a specific capability that the policy is expected to deny, and then test if it indeed denies it."
+      },
+      {
+       "id": "0.3",
+       "claim": "Root instructions, skills, and hooks are a derived projection that loads the plan, reports drift, and blocks ordinary mutation.",
+       "verdict": "unfalsifiable",
+       "why": "The terms 'derived projection', 'loads the plan', 'reports drift', and 'blocks ordinary mutation' are not operationally defined. There is no observable criterion to determine if the projection is correctly performing these functions. To be falsifiable, one would need to specify, for example, what constitutes a 'drift' and what action counts as 'reporting' it."
+      },
+      {
+       "id": "0.4",
+       "claim": "Tests, receipts, and experiments are evidence that can refute status claims and research priors.",
+       "verdict": "unfalsifiable",
+       "why": "The claim is definitional: it assigns a role to artifacts without specifying how they refute claims. Any test result can be interpreted as refuting or not refuting a claim depending on interpretation. To be falsifiable, one would need to pre-commit to a specific test result that would count as a refutation of a specific claim."
+      },
+      {
+       "id": "0.5",
+       "claim": "ADRs, TODOs, handoffs, and inventories are history/backlog that supply evidence and proposals.",
+       "verdict": "unfalsifiable",
+       "why": "Similar to claim 0.4, this is a definitional claim. There is no testable consequence: if these artifacts fail to supply evidence or proposals, the claim can still be maintained by saying they are still 'history/backlog'. To be falsifiable, one would need to define what it means for an artifact to fail to supply evidence."
+      },
+      {
+       "id": "0.6",
+       "claim": "A capability policy cannot broaden the plan.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'broaden' is undefined. Without an operational definition of what constitutes broadening, any change to the plan can be argued either way. To be falsifiable, one would need to define a specific change that would constitute broadening and then test whether the system prevents it."
+      },
+      {
+       "id": "0.7",
+       "claim": "The plan cannot grant a capability.",
+       "verdict": "unfalsifiable",
+       "why": "Similar to claim 0.6, 'grant a capability' is undefined. Without a clear definition, the claim cannot be tested. To be falsifiable, one would need to specify what it means for the plan to grant a capability and then test whether it can do so."
+      },
+      {
+       "id": "0.8",
+       "claim": "For effects, the stricter mechanical policy wins.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'stricter' is ambiguous. Without a predefined ordering of strictness, any outcome can be rationalized as the stricter policy winning. To be falsifiable, one would need to specify a clear ordering of policies by strictness and then test which one prevails in a conflict."
+      },
+      {
+       "id": "0.9",
+       "claim": "For product meaning and sequencing, only this plan is authoritative.",
+       "verdict": "unfalsifiable",
+       "why": "This is a self-referential claim similar to 0.1. No external observation can contradict it because any alternative source of authority can be dismissed as not being authoritative for 'product meaning and sequencing'. To be falsifiable, one would need to define a specific situation where the plan's authority is challenged and then test the outcome."
+      },
+      {
+       "id": "0.10",
+       "claim": "INVARIANT rule type: cannot change silently.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'silently' is not defined. Without a definition of what constitutes a silent change (e.g., without notification, without approval), the claim cannot be tested. To be falsifiable, one would need to specify a mechanism that detects silent changes and then test whether an invariant can change without triggering that mechanism."
+      },
+      {
+       "id": "0.11",
+       "claim": "GATE rule type: a deterministically testable delivery state.",
+       "verdict": "unfalsifiable",
+       "why": "This is a definitional claim. It does not assert any testable fact; it simply names a category. To be falsifiable, one would need to assert that a specific gate is deterministically testable and then test whether it is. The claim as written is a meta-rule, not a hypothesis."
+      },
+      {
+       "id": "0.12",
+       "claim": "PRIOR rule type: a falsifiable design hypothesis.",
+       "verdict": "unfalsifiable",
+       "why": "Similar to 0.11, this is a definition. The claim itself is not falsifiable because it defines what a prior is. To be falsifiable, one would need to assert that a specific prior is falsifiable and then attempt to falsify it. The definition is a tautology."
+      },
+      {
+       "id": "0.13",
+       "claim": "STATUS rule type: a revision-bound measurement, never timeless truth.",
+       "verdict": "unfalsifiable",
+       "why": "This is a philosophical claim about the nature of status measurements. No empirical test can refute it because it is a definition. To be falsifiable, one would need to assert that a specific status measurement is revision-bound and then test whether it changes across revisions. The claim as written is not falsifiable."
+      },
+      {
+       "id": "0.14",
+       "claim": "BACKLOG rule type: non-authoritative proposed work.",
+       "verdict": "unfalsifiable",
+       "why": "This is a definitional claim. It does not make an empirical assertion. To be falsifiable, one would need to assert that a specific backlog item is non-authoritative and then test whether it is treated as authoritative. The definition itself is not testable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "def6b0e8df7850e5876087dbda4233c1200703775ffa0d855c991b2412215eae",
+    "objective_chars": 2095,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "0-authority-model",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

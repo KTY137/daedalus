@@ -1,0 +1,92 @@
+{
+ "task_id": "13-kill-criteria__cost__a47d84ee736f",
+ "key": "13-kill-criteria__cost__a47d84ee736f-8577485916",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 13 imposes costly experimental and archival requirements without specifying how to fund or automate them, risking that kill criteria are never actually checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "13.2 | high | 'Archive the evidence, stop the affected track, submit an amendment' implies ongoing maintenance for negative results, which could be cheaper to skip if the experiment is conclusive. | Compare cost of archiving vs. discarding; if archiving provides no reuse, it's wasted effort.",
+     "13.5 | medium | 'At least 5\u201310 seeds when stochastic variance matters' is vague; 'when it matters' is undefined, leading to either over-seeding (costly) or under-seeding (invalid). | Define a statistical power analysis rule for seed count.",
+     "13.6 | high | 'Report algorithm quality, sample efficiency, repository evolution, and product reliability separately' multiplies measurement cost without specifying metrics or automation. | Estimate cost of implementing each metric; propose automated reporting pipeline or reduce scope.",
+     "13.7 | high | 'Reject results when code, prompts, memory, model, search policy, and evaluator changed together' forces expensive controlled experiments that may be infeasible in practice. | Design a cheaper incremental ablation approach that isolates variables stepwise.",
+     "13.8 | high | 'Prevent leakage from ... model-generated hypotheses re-entering the Knowledge plane as facts' requires a provenance tracking system that is expensive to build and maintain. | Investigate existing provenance tools or design a lightweight tagging scheme."
+    ],
+    "todos": [
+     "Define automated experiment pipelines to reduce manual cost of running kill criteria.",
+     "Specify seed count via power analysis formula instead of vague 'when stochastic variance matters'.",
+     "Provide default metrics and automated reporting for the four required dimensions.",
+     "Design a cheaper incremental ablation protocol for variable isolation.",
+     "Implement lightweight provenance tracking for Knowledge plane inputs to prevent leakage at lower cost."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "13.1",
+       "claim": "Stop or redesign the four-plane/latent track when replicated, budget-equal experiments show any of the listed conditions.",
+       "verdict": "weak",
+       "why": "The claim does not specify how to fund or automate the replicated experiments, making the cost of checking each condition potentially prohibitive. A cheaper alternative would be to define a minimal set of experiments that can be run automatically on a regular schedule."
+      },
+      {
+       "id": "13.2",
+       "claim": "A kill result does not silently delete this plan; archive evidence, stop affected track, submit amendment.",
+       "verdict": "weak",
+       "why": "Archiving evidence and submitting an amendment adds maintenance cost for negative results. If the evidence is not reused, this is wasted effort. Cheaper: only archive when the result is surprising or contradicts prior work."
+      },
+      {
+       "id": "13.3",
+       "claim": "For every comparative campaign, seal evaluator from candidate, use identical problem definitions and compute/token budgets, cover multiple task classes, and run at least 5\u201310 seeds when stochastic variance matters.",
+       "verdict": "weak",
+       "why": "The requirement to 'seal evaluator from candidate' is costly to implement (e.g., separate machines, blinded evaluation). The seed count rule is vague ('when it matters') leading to either over-seeding (costly) or under-seeding (invalid). Cheaper: use a fixed seed count based on a power analysis."
+      },
+      {
+       "id": "13.4",
+       "claim": "Report algorithm quality, sample efficiency, repository evolution, and product reliability separately.",
+       "verdict": "weak",
+       "why": "Reporting four separate metrics increases measurement and reporting cost without specifying what each metric means or how to compute them. Cheaper: pick one primary metric and report others only if they show a significant difference."
+      },
+      {
+       "id": "13.5",
+       "claim": "Reject results when code, prompts, memory, model, search policy, and evaluator changed together.",
+       "verdict": "weak",
+       "why": "This forces expensive controlled experiments where only one variable changes at a time. Cheaper: use factorial designs or incremental ablation to isolate effects with fewer runs."
+      },
+      {
+       "id": "13.6",
+       "claim": "Prevent leakage from gold patches, private tests, post-cutoff issue/commit text, post-task graph edges, previous solutions in adaptive memory, base/candidate snapshot mixing, evaluator paths or outputs, and model-generated hypotheses re-entering the Knowledge plane as facts.",
+       "verdict": "weak",
+       "why": "Preventing all these leakage sources requires a complex provenance tracking and isolation system, which is expensive to build and maintain. Cheaper: implement a subset of controls that cover the most common leakage paths, and monitor for unexpected correlations."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "103f3aeab3074449ee98c52088712450f154793df8c560d0b6b83bf201b934a3",
+    "objective_chars": 2769,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "13-kill-criteria",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

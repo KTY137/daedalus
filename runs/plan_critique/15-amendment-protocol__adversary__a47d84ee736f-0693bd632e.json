@@ -1,0 +1,111 @@
+{
+ "task_id": "15-amendment-protocol__adversary__a47d84ee736f",
+ "key": "15-amendment-protocol__adversary__a47d84ee736f-0693bd632e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 15.2 lacks authentication mechanism for 'owner approval', so any process with write access to the approval field can formally comply while defeating intent.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "15.2 | critical | 'Obtain explicit repository-owner approval' does not specify how approval is authenticated or recorded. An agent can log a fake approval reference without actual owner consent. | Check if the protocol verifies a cryptographic signature from the owner; if not, the rule is unenforceable.",
+     "15.3 | medium | The environment token check uses SHA-256 of the current plan, but if the plan is not frozen before the session, a race condition could allow amendment of a different version. | Verify that the token is computed from a snapshot taken atomically before the session starts.",
+     "15.4 | medium | 'Increment the plan revision monotonically' is ambiguous: revision number could be incremented by any amount (e.g., +100) or reset after overflow. | Check that the increment is exactly +1 and that the revision never decreases.",
+     "15.5 | medium | 'Append exactly one accepted record' but no check that the record is actually appended; a process could skip the append and still claim compliance. | Verify that the amendment chain is read-only and that the record's presence is enforced by policy.",
+     "15.6 | high | 'Update the plan, ledger, derived controls, and tests atomically' but no atomicity mechanism is defined; partial updates could leave the system inconsistent. | Show a test where an update fails midway and the system state is checked for consistency.",
+     "15.7 | low | 'Run policy verification and the relevant fault-injection suite' does not specify that failures block the amendment; a process could run the suite, ignore failures, and still proceed. | Check that policy verification must pass before the amendment is considered complete."
+    ],
+    "todos": [
+     "Specify an authentication mechanism for owner approval (e.g., cryptographic signature).",
+     "Define atomicity mechanism for the multi-file update (e.g., a lock or transaction).",
+     "Require that policy verification failures abort the amendment.",
+     "Clarify monotonic increment as +1 and enforce it.",
+     "Add a check that the amendment record is present in the chain after step 5."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "15.1",
+       "claim": "Ordinary tasks must not edit the plan, amendment chain, active instructions, or guards.",
+       "verdict": "weak",
+       "why": "The rule prohibits ordinary tasks from editing these files, but does not define what constitutes an 'ordinary task' or how to distinguish it from an amendment process. An agent could be designed as a non-ordinary task to bypass the restriction."
+      },
+      {
+       "id": "15.2",
+       "claim": "Obtain explicit repository-owner approval.",
+       "verdict": "weak",
+       "why": "No authentication mechanism is specified for 'explicit repository-owner approval'. An agent could forge an approval reference (e.g., a commit hash or signature) without actual owner consent. The rule cannot detect this without a cryptographically verifiable approval."
+      },
+      {
+       "id": "15.3",
+       "claim": "Start the amendment session with DAEDALUS_IRON_PLAN_AMENDMENT=<current full plan sha256>.",
+       "verdict": "weak",
+       "why": "The environment token ensures the plan is not modified during the session, but it does not prevent starting a session with a stale SHA-256 if the plan was already changed before the token was computed. A race condition exists if the plan snapshot is not taken atomically."
+      },
+      {
+       "id": "15.4",
+       "claim": "Increment the plan revision monotonically.",
+       "verdict": "weak",
+       "why": "'Monotonically' is ambiguous: it could mean strictly increasing or non-decreasing. Also, the increment amount is unspecified (could be +100). Without a specific check, the rule is formally complied with by any increase, even if the revision number jumps arbitrarily."
+      },
+      {
+       "id": "15.5",
+       "claim": "Append exactly one accepted record to docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl. It records base/result SHA-256, previous-record hash, approval reference, scope, and evidence.",
+       "verdict": "weak",
+       "why": "The rule requires appending exactly one record, but does not enforce that the record is actually appended. A process could skip this step and still claim compliance. Additionally, the format of the record fields (e.g., approval reference) is not defined, allowing placeholder values that defeat the intent."
+      },
+      {
+       "id": "15.6",
+       "claim": "Update the plan, ledger, derived controls, and tests atomically.",
+       "verdict": "weak",
+       "why": "No atomicity mechanism is specified. Without a transaction or lock, a failure during the update could leave some files updated and others not, leading to inconsistency. The rule cannot detect partial updates without an explicit atomicity guarantee."
+      },
+      {
+       "id": "15.7",
+       "claim": "Run policy verification and the relevant fault-injection suite.",
+       "verdict": "weak",
+       "why": "The rule does not specify that the verification must pass for the amendment to be accepted. A process could run the suite, ignore failures, and still consider the amendment complete. The rule as written does not detect non-compliant results."
+      },
+      {
+       "id": "15.8",
+       "claim": "The environment token only unlocks the protected files for that process. It does not waive owner approval, the amendment record, review, or evidence.",
+       "verdict": "sound",
+       "why": "This claim is a clarification that the token is not a substitute for other requirements. It is logically sound and does not introduce loopholes under this lens."
+      },
+      {
+       "id": "15.9",
+       "claim": "Rollback is a new amendment, never a history rewrite.",
+       "verdict": "sound",
+       "why": "This rule prevents rewriting history, which is a good practice. It is unambiguous and enforceable by checking that the amendment chain is append-only."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6bf43f7a01b4e67cce4157483cf5685f1b0a441613e35e8578d349e077aaaca2",
+    "objective_chars": 1879,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "15-amendment-protocol",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

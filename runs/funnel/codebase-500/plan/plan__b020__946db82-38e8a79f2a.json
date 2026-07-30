@@ -1,0 +1,122 @@
+{
+ "task_id": "plan__b020__946db82",
+ "key": "plan__b020__946db82-38e8a79f2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Missing constant GATE_OUTPUT_TAIL_CHARS causes NameError in GateResult.summary; job accounting may be lost in _spawn_pytest; Ollama policy weakness propagation unverified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Adding GATE_OUTPUT_TAIL_CHARS to attempt.py changes global namespace; other modules may rely on NameError as a guard.",
+     "Inspecting _spawn_pytest may reveal accounting is already read before close; item becomes no-op.",
+     "Ollama policy weakness may be mitigated by existing validation; settling check may find no exploit."
+    ],
+    "todos": [
+     "Define GATE_OUTPUT_TAIL_CHARS in daedalus/spine/attempt.py with an appropriate integer value.",
+     "Inspect _spawn_pytest in daedalus/eval/correctness.py to ensure job_accounting is read before close.",
+     "Run settling checks for Ollama policy propagation to confirm or refute the weakness.",
+     "Add a unit test that calls GateResult.summary to verify no NameError.",
+     "Add a unit test that verifies job_accounting is read before close in all ManagedProcess callers."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Define missing constant GATE_OUTPUT_TAIL_CHARS in attempt.py",
+       "gate": "0",
+       "why_now": "Without this constant, GateResult.summary raises NameError, breaking a critical path in the attempt lifecycle. This is a confirmed critical defect.",
+       "steps": [
+        {
+         "do": "Add GATE_OUTPUT_TAIL_CHARS = 2000 (or appropriate value) to daedalus/spine/attempt.py",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "Run: python -c 'from daedalus.spine.attempt import GATE_OUTPUT_TAIL_CHARS; print(GATE_OUTPUT_TAIL_CHARS)' should output the value without error."
+        },
+        {
+         "do": "Add a test that calls GateResult.summary on an instance with a long output and verifies it truncates without raising NameError.",
+         "file": "tests/test_spine_attempt.py",
+         "verified_by": "pytest tests/test_spine_attempt.py -k 'test_gate_result_summary_no_nameerror' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The appropriate value for GATE_OUTPUT_TAIL_CHARS is 2000; adjust if different value is required."
+      },
+      {
+       "rank": 2,
+       "title": "Ensure job_accounting read before close in _spawn_pytest",
+       "gate": "1",
+       "why_now": "The narrowed finding confirms that if close() is called without reading job_accounting first, accounting data is lost. _spawn_pytest is a concrete risk site.",
+       "steps": [
+        {
+         "do": "Inspect _spawn_pytest in daedalus/eval/correctness.py to verify job_accounting is read before the ManagedProcess context manager exits.",
+         "file": "daedalus/eval/correctness.py",
+         "verified_by": "Grep for job_accounting in that file and confirm read occurs before close. If not, add a read before the context manager exit."
+        },
+        {
+         "do": "Add a unit test that uses a mock ManagedProcess to verify that job_accounting is read before close.",
+         "file": "tests/test_spine_attempt.py",
+         "verified_by": "pytest tests/test_spine_attempt.py -k 'test_job_accounting_read_before_close' passes."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The settling check will reveal whether the accounting read is already present; if so, this item is a no-op."
+      },
+      {
+       "rank": 3,
+       "title": "Verify Ollama policy weakness propagation",
+       "gate": "1",
+       "why_now": "The finding is 'needs-evidence'; we need to confirm whether the weaker Ollama policy can bypass safety checks via fanout.py or session.py.",
+       "steps": [
+        {
+         "do": "Grep for _CHECK_POLICY in daedalus/providers/ollama.py and daedalus/providers/deepseek.py to compare policy definitions.",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "Command outputs the policy definitions; manual review determines if Ollama's is weaker."
+        },
+        {
+         "do": "Grep for validate, sanitize, filter in daedalus/lanes/fanout.py and daedalus/council/session.py to see if cross-module validation exists.",
+         "file": "daedalus/lanes/fanout.py",
+         "verified_by": "Command outputs any validation logic; if none, the weakness is unmitigated."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The settling checks will reveal the actual policy content and consumer validation; without them the finding remains speculative."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/attempt.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe3b6b5cfda157fd6b74272d64a488de69696dda70c12538d826f53c2e032aaa",
+    "objective_chars": 148733,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 20 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 20,
+  "inputs": 4
+ }
+}

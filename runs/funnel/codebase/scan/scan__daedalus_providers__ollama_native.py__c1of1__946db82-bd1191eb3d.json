@@ -1,0 +1,251 @@
+{
+ "task_id": "scan__daedalus_providers__ollama_native.py__c1of1__946db82",
+ "key": "scan__daedalus_providers__ollama_native.py__c1of1__946db82-bd1191eb3d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed _ollama_native.py: public symbols enumerated, docstring claims checked against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "effective_input_window | low | Returns max(0, num_ctx - max(0, output_reserve)). If output_reserve > num_ctx, result is 0, which may be surprising but is documented. | Confirm desired behavior with zero input window.",
+     "native_chat | medium | force_json parameter typed as object, but docstring says bool or dict; code checks isinstance(force_json, dict) then uses bool(force_json). If force_json is a non-bool non-dict truthy value (e.g. 1), it will set format to 'json', which may be unintended. | Verify callers only pass bool or dict.",
+     "_adapt_message | medium | Synthesized tool_call id is 'call_N' which may conflict with real IDs if native endpoint ever provides IDs. | Confirm native endpoint never provides IDs.",
+     "_native_messages | medium | The function mutates message dicts by dropping 'id' and 'type' keys, and re-parses arguments from JSON string to dict. If arguments is already a dict, it wraps it in an extra layer? Code: if isinstance(args, str): parse; else keep as is. Then native_calls.append({'function': {'name': ..., 'arguments': args or {}}}). If args is a dict, it's used as-is. That's correct. | No issue.",
+     "native_chat | low | num_ctx parameter defaults to None, then uses num_ctx or num_ctx_value(). If num_ctx is 0, it is falsy and falls back to default. | Ensure callers never pass 0.",
+     "native_chat | medium | timeout_s parameter defaults to 300, but urllib.request.urlopen may not respect timeout on some platforms. | Test on target OS.",
+     "native_chat | low | The docstring says 'format:\"json\" is sent only when force_json' but code sends format only if force_json is truthy. If force_json is a dict, it sends the dict as the format (schema). That matches docstring. | No issue."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/_ollama_native.py",
+     "chunk": "1 of 1",
+     "purpose": "Native Ollama /api/chat client with context window control and message adaptation.",
+     "symbols": [
+      {
+       "name": "DEFAULT_NUM_CTX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default context window size, measured VRAM-safe for the reference box."
+      },
+      {
+       "name": "OUTPUT_RESERVE_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tokens reserved for generation response."
+      },
+      {
+       "name": "num_ctx_value",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the context window to request, from env OLLAMA_NUM_CTX or default, clamped >=2048."
+      },
+      {
+       "name": "effective_input_window",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns usable input tokens = context minus output reserve."
+      },
+      {
+       "name": "_adapt_message",
+       "kind": "function",
+       "effects": [],
+       "note": "Adapts native /api/chat assistant message to OpenAI shape."
+      },
+      {
+       "name": "_native_messages",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts OpenAI-shaped tool_calls back to native form for re-POSTing."
+      },
+      {
+       "name": "native_chat",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "POSTs messages to Ollama /api/chat, returns adapted assistant message."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Ollama's OpenAI-compat /v1 shim IGNORES a top-level options block (measured this box, 2026-07-26), so it cannot request a larger context window -- an over-budget /v1 request is head-truncated at ~2050 tokens with the 4096 default ctx.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about external behavior of Ollama /v1 shim; not verifiable from this code."
+      },
+      {
+       "text": "The native /api/chat endpoint honors options.num_ctx, format:\"json\" and keep_alive -- the three fields the shim silently drops.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about Ollama native endpoint behavior; not verifiable from this code."
+      },
+      {
+       "text": "DeepSeek is a real external OpenAI API and keeps using _openai_compat; only the local Ollama provider uses this module.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about other modules; not verifiable from this chunk."
+      },
+      {
+       "text": "DEFAULT_NUM_CTX = 6144  # Sized by MEASUREMENT on the 15.7GB reference box (2026-07-26), not by the model's 32k max: the runner needs weights (~5GB) PLUS a context-scaled compute/KV buffer, and Ollama OOM-kills the runner when it doesn't fit. num_ctx=16384 -> ~3.9GB buffer: loads on an IDLE box, OOMs mid-session. num_ctx= 8192 -> OOM at 4.3GB free (typical mid-session). num_ctx= 6144 -> loads under the same pressure (~20s cold). Keep this at the measured VRAM-safe value.",
+       "where": "comment above DEFAULT_NUM_CTX",
+       "verdict": "uncheckable",
+       "why": "Claim about measurements and external behavior; not verifiable from this code."
+      },
+      {
+       "text": "Env OLLAMA_NUM_CTX overrides the default (see the measured sizing note above; e.g. OLLAMA_NUM_CTX=16384 on an idle box); the value is clamped to >= 2048. An unset or non-integer env value falls back to the default -- this never raises, so a typo in the environment degrades to the safe default instead of crashing an offload.",
+       "where": "num_ctx_value docstring",
+       "verdict": "kept",
+       "why": "Code checks os.environ.get('OLLAMA_NUM_CTX'), returns DEFAULT_NUM_CTX if None or non-int, and clamps to max(2048, val). No exceptions raised."
+      },
+      {
+       "text": "Usable input tokens = the full requested context minus generation reserve.",
+       "where": "effective_input_window docstring",
+       "verdict": "kept",
+       "why": "Code returns max(0, num_ctx_value() - max(0, output_reserve))."
+      },
+      {
+       "text": "Ollama HEAD-truncates an over-long prompt, eating the SYSTEM prompt first.",
+       "where": "effective_input_window docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about Ollama server behavior; not verifiable from this code."
+      },
+      {
+       "text": "Callers must fail loud against this reserved input budget rather than let the server truncate.",
+       "where": "effective_input_window docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about caller behavior; not verifiable from this code."
+      },
+      {
+       "text": "Native tool_calls arrive as {\"function\": {\"name\", \"arguments\": <dict>}} with NO id; the OpenAI loop expects arguments to be a JSON STRING and a stable id per call. So we re-serialize arguments with json.dumps and synthesize call_N ids.",
+       "where": "_adapt_message docstring",
+       "verdict": "kept",
+       "why": "Code checks if args is not str, then json.dumps it; synthesizes id as f'call_{i}'."
+      },
+      {
+       "text": "The tool_calls key is OMITTED entirely when the native response has none, so callers can do msg.get(\"tool_calls\") or [].",
+       "where": "_adapt_message docstring",
+       "verdict": "kept",
+       "why": "Code only adds 'tool_calls' key if native_calls is truthy; otherwise out has no 'tool_calls' key."
+      },
+      {
+       "text": "The agentic loop appends our own _adapt_message output (arguments as a JSON STRING, plus synthesized id/type) back into the history for the next round. Native /api/chat unmarshals arguments into an object and 400s on a string, so here we parse it back to a dict and drop the OpenAI-only id/type keys.",
+       "where": "_native_messages docstring",
+       "verdict": "kept",
+       "why": "Code checks if args is str, then json.loads it; native_calls built without id/type."
+      },
+      {
+       "text": "Messages without tool_calls pass through untouched (same object).",
+       "where": "_native_messages docstring",
+       "verdict": "kept",
+       "why": "Code appends m directly if not calls; no copy, same object reference."
+      },
+      {
+       "text": "options.num_ctx (defaulting to num_ctx_value) is the whole point of this path -- it is the only way to lift the ~2050-token /v1 cap.",
+       "where": "native_chat docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about /v1 cap; not verifiable from this code."
+      },
+      {
+       "text": "num_predict is optional and omitted by default, preserving every existing caller; bounded rewrite callers use it to prevent a malformed JSON generation from consuming the entire remaining context window.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code only adds num_predict to options if num_predict is not None."
+      },
+      {
+       "text": "think is likewise opt-in. Structured edit callers disable hidden reasoning so a bounded generation cannot spend its entire token allowance before emitting the required JSON value.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code only adds think to body if think is not None."
+      },
+      {
+       "text": "format:\"json\" is sent only when force_json; keep_alive and tools only when provided.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code adds 'format' only if force_json is truthy; adds keep_alive only if not None; adds tools only if truthy."
+      },
+      {
+       "text": "Raises ProviderHTTPError on any HTTP error or an unreachable host, mirroring _openai_compat._post.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code catches HTTPError, URLError, TimeoutError and raises ProviderHTTPError."
+      },
+      {
+       "text": "A dict is a JSON *schema*, and that distinction is load-bearing. format:\"json\" only promises valid JSON of any shape; a schema constrains the SHAPE at the sampler, masking invalid tokens instead of validating after the fact.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code sets body['format'] = force_json if isinstance(force_json, dict) else 'json'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring claims about Ollama /v1 shim behavior and measurements; not verifiable from this code.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "effective_input_window may return 0 if output_reserve > num_ctx, which is documented but could be unexpected.",
+       "where": "effective_input_window",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "force_json parameter typed as object but docstring says bool or dict; code handles both but could accept other truthy values.",
+       "where": "native_chat",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_adapt_message synthesizes call ids as 'call_N', which might conflict if native endpoint ever returns ids.",
+       "where": "_adapt_message",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "num_ctx parameter defaults to None, then uses num_ctx or num_ctx_value(). If num_ctx is 0 (falsy), falls back to default, which may be unintended.",
+       "where": "native_chat",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "Timeout handling uses urllib.request.urlopen timeout parameter; may not work on all platforms.",
+       "where": "native_chat",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a97ba107f7ebd238e81b58dfbc707a76ff5ae399402e199b0263c8d19c58ca73",
+    "objective_chars": 10774,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/_ollama_native.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/providers/_ollama_native.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

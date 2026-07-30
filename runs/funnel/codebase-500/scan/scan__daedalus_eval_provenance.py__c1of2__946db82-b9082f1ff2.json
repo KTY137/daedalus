@@ -1,0 +1,131 @@
+{
+ "task_id": "scan__daedalus_eval_provenance.py__c1of2__946db82",
+ "key": "scan__daedalus_eval_provenance.py__c1of2__946db82-b9082f1ff2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of provenance.py: defines PROBE_SOURCE, ProvenanceCheck dataclass, and check_import_provenance function stub. Claims about fail-closed behavior and probe design are checkable; claims about external behavior (e.g., runner invocation) are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "check_import_provenance | medium | The function is incomplete (stub after subprocess.run call), so the fail-closed logic is not fully implemented in this chunk. | Check if the rest of the function completes the fail-closed behavior as documented."
+    ],
+    "todos": [
+     "Verify that the remaining lines of check_import_provenance handle non-zero exit, timeout, and parse errors as fail-closed."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/provenance.py",
+     "chunk": "1 of 2",
+     "purpose": "Define probe source, dataclass for import provenance check, and start of check function.",
+     "symbols": [
+      {
+       "name": "PROBE_SOURCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String of Python code to be run in candidate's interpreter; reports argv0, executable, sys.path[0], and daedalus __file__/__path__ or import error."
+      },
+      {
+       "name": "ProvenanceCheck",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields ok, root, resolved, reason, raw; has as_error() method."
+      },
+      {
+       "name": "ProvenanceCheck.as_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a formatted error string stating evaluation void, not a candidate failure."
+      },
+      {
+       "name": "_under",
+       "kind": "function",
+       "effects": [],
+       "note": "Private helper; checks if a child path (string or None) is under a parent Path after resolution."
+      },
+      {
+       "name": "check_import_provenance",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function stub; takes root, executable, timeout_s; returns ProvenanceCheck. Incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Cheap: one interpreter start, ~0.3 s, against a suite run of seconds to minutes.",
+       "where": "docstring (line 28)",
+       "verdict": "uncheckable",
+       "why": "No timing code is present in this chunk to verify the performance claim."
+      },
+      {
+       "text": "Reports rather than asserts, so the caller decides. A probe that exited non-zero on mismatch would be indistinguishable from a probe that failed to start, which is the distinction this whole module is about.",
+       "where": "comment above PROBE_SOURCE (lines 33-36)",
+       "verdict": "kept",
+       "why": "PROBE_SOURCE prints JSON and does not call sys.exit; it reports results. The comment's reasoning about indistinguishability is consistent with the code."
+      },
+      {
+       "text": "Deliberately says \"evaluation\" and never \"candidate\": the candidate has not been judged, and a reader must not be able to mistake this for a bad score.",
+       "where": "ProvenanceCheck.as_error docstring (line 57)",
+       "verdict": "kept",
+       "why": "as_error() returns a string starting with 'EVALUATION VOID (not a candidate failure)'."
+      },
+      {
+       "text": "FAIL-CLOSED in every direction. A probe that will not start, times out, returns unparseable output, or cannot import daedalus at all reports ok=False -- because 'we could not establish which tree would be scored' and 'the wrong tree would be scored' have the same consequence for a promotion decision, and neither is a green light.",
+       "where": "check_import_provenance docstring (lines 82-86)",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk (truncated at subprocess.run), so the fail-closed logic is not yet implemented. The claim refers to behavior not fully present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check_import_provenance is truncated mid-function; the subprocess.run call is incomplete and no return value or error handling is shown.",
+       "where": "line 91 (end of chunk)",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "PROBE_SOURCE uses a try/except to catch import errors and includes them in the JSON output, consistent with the 'reports rather than asserts' design.",
+       "where": "lines 41-46",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring historical narrative (ADR-015, 2026 dates) contains claims about past bugs and fixes that cannot be verified from this code alone.",
+       "where": "lines 1-15",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5113abb8e5373e014af2cef6ebe4f255b05197b2e930b536d4e113f5da31c2e3",
+    "objective_chars": 5412,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/provenance.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/eval/provenance.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b018__946db82",
+ "key": "review__b018__946db82-65f5162a49",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; 1 confirmed, 3 narrowed, 5 refuted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "duplicated-timeout-constant",
+       "verdict": "refuted",
+       "strongest_counterargument": "The constant is defined with a comment acknowledging it mirrors another module. If both modules are always updated together, or if the value is stable and never expected to change, duplication is not a risk. The cited source 'line NOT PRESENT IN FILE' means the evidence does not exist in the repository, so the hypothesis rests on a missing line.",
+       "survives_because": "The cited source does not exist; the hypothesis is based on a non-existent line in the file. Without the actual constant definition, there is no evidence of duplication.",
+       "narrowed_claim": "",
+       "settling_check": "grep '_DEFAULT_GATE_TIMEOUT_S' daedalus/kairos/gated_writes.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "build-index-contract-gap",
+       "verdict": "narrowed",
+       "strongest_counterargument": "build_index is imported from .index, which may be defined in another chunk that was scanned and verified. The CLI arguments --documents and --types are self-explanatory; the behavior is trivially correct from the argument names. The cited source shows only the first 40 lines of __main__.py, which does not include the build_index call; the hypothesis's evidence is incomplete.",
+       "survives_because": "The cited source does not show the call to build_index, so the contract gap is not confirmed. However, the import of build_index without visible implementation in the chunk means the risk of an untested contract remains plausible if build_index is not defined elsewhere in the provided code.",
+       "narrowed_claim": "build_index's implementation is not visible in the provided chunks, so the contract between CLI and core logic is untested in the reviewed code.",
+       "settling_check": "grep -r 'def build_index' daedalus/structcore/",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "egress-on-read",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The egress gate (screen_egress) may be designed to check both outgoing and incoming data for policy compliance (e.g., preventing access to sensitive repos), not just outgoing data. The docstring states 'Every string that would leave this machine for GitHub ... runs through sensitivity.secret_floor_rule', but does not explicitly say it only applies to writes. The read operation may legitimately need to verify that the PR reference and repo slug are not sensitive before reading.",
+       "survives_because": "The cited source shows screen_egress is called in read_pr_thread, but the docstring focuses on outgoing data. There is ambiguity: if screen_egress only checks outgoing data, applying it on reads is unnecessary and could block legitimate reads. However, the docstring does not guarantee it only applies to writes; it could be a general policy check.",
+       "narrowed_claim": "screen_egress is applied on reads in read_pr_thread, but it is unclear from the docstring whether it is intended to block reads or only writes. If it blocks reads, it may be incorrect.",
+       "settling_check": "Inspect the implementation of screen_egress in sensitivity.py to see if it distinguishes between read and write operations.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "receipt-provenance-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "DSSReceipt.envelope returns a dict that is likely used by the caller to persist or transmit the receipt. The absence of storage/transmission code in the provided chunks does not mean it doesn't exist elsewhere. The bus (session.py) may use DSSReceipt indirectly or in other chunks. The cited source shows only first 40 lines of each file, which is insufficient to conclude the receipt is not persisted.",
+       "survives_because": "The cited source is only the first 40 lines of each file, which does not include the relevant DSSReceipt.envelope code (lines 813-816) or any bus references. Without seeing the actual code, the hypothesis is based on incomplete evidence. Moreover, the receipt is likely used by the caller; the absence of persistence code in a snippet does not indicate a gap.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'DSSReceipt' or 'envelope' in the repository to find where the receipt is stored or transmitted.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "eval-isolation-leak",
+       "verdict": "refuted",
+       "strongest_counterargument": "The eval package's __init__.py docstring claims isolation, but no code is shown to verify imports. The hypothesis assumes that if eval imports structcore, it might mutate ProjectScope. However, ProjectScope is a frozen dataclass, making mutation impossible without bypassing Python's protection. Additionally, the cited source shows only the docstring, not the actual imports; the claim is uncheckable but not evidence of a leak.",
+       "survives_because": "The cited source is only the docstring of eval/__init__.py; there is no evidence that eval imports structcore at all. The hypothesis is speculative without code evidence. Frozen dataclasses prevent mutation, so even if imported, mutation is unlikely.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'from.*structcore' eval/",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "document-link-separation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The index.py code explicitly lists document links as excluded from 'hotspots', 'import_edges', 'module_heat', etc. in the 'excluded_from' field. This shows that downstream consumers are expected to exclude document links. Reach.py does not mention document links, but it processes units; if it receives doc_units, it might inadvertently include them. However, the index explicitly excludes documents from those analyses, so downstream consumers should respect that.",
+       "survives_because": "The cited source from index.py shows document links are excluded from several analyses including 'hotspots'. This directly contradicts the hypothesis that no module enforces separation. The exclusion is documented and presumably enforced by the index.",
+       "narrowed_claim": "",
+       "settling_check": "Check if reach.py's analyse function filters out doc_units based on the index's exclusion list.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "token-integrity-verification-gap",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring of _low_integrity_token states 'The level is READ BACK afterwards', and the code shows it reads back the integrity SID via _token_integrity_sid and compares it to LOW_INTEGRITY_SID. This is exactly the verification that the hypothesis claims is missing. The open_low_append_log function claims to read back the label via LowIntegrityLog.__init__, but that code is not in the chunk; however, the token creation itself is verified.",
+       "survives_because": "The cited source shows _low_integrity_token does read back the integrity label (lines 968-974). The hypothesis incorrectly states it does not read back. However, the claim about open_low_append_log's read-back is not verifiable from the chunk, so the overall verification might be incomplete if LowIntegrityLog.__init__ does not verify.",
+       "narrowed_claim": "The token integrity label is verified during token creation, but the read-back in open_low_append_log via LowIntegrityLog.__init__ is not visible in the provided chunk, leaving a potential gap in the file-level attestation.",
+       "settling_check": "Inspect the full implementation of LowIntegrityLog.__init__ in containment.py to see if it reads back the integrity label.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unvalidated-handoff-stamp",
+       "verdict": "refuted",
+       "strongest_counterargument": "TRACE_KEY is likely imported at the top of envelope.py or defined earlier in the chunk. The cited source shows only lines 119-168, which is a table and not the beginning of the file. The import or definition of TRACE_KEY could be in lines 1-118, which are not shown. The hypothesis assumes it's missing based on incomplete evidence.",
+       "survives_because": "The cited source is a partial excerpt that does not include the top of the file where imports are typically located. Without seeing the full file, we cannot confirm TRACE_KEY is missing. The hypothesis is based on incomplete evidence.",
+       "narrowed_claim": "",
+       "settling_check": "grep 'TRACE_KEY' daedalus/spine/envelope.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "incomplete-cross-module-functions",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for lint.py shows only the first 40 lines, which is the docstring and imports, not the compare function. For embeddings.py, the first 40 lines show the docstring and imports, not the search_report function. The hypothesis claims the functions are incomplete based on observations, but the cited source does not include those functions at all. The missing parts are likely in later lines of the same files, not shown in the excerpt.",
+       "survives_because": "The cited source does not contain the functions in question; it only shows the beginning of each file. The hypothesis is based on an incomplete view of the files. Without seeing the actual function bodies, we cannot conclude they are incomplete.",
+       "narrowed_claim": "",
+       "settling_check": "View the full lint.py and embeddings.py files to see the complete compare and search_report functions.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a49b6a705f02a058e58e9d0af4f28c9cd438fd550248fbe309984116c8bfe744",
+    "objective_chars": 41244,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 18 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 18,
+  "inputs": 9
+ }
+}

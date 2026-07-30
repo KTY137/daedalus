@@ -1,0 +1,153 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c6of6__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c6of6__946db82-2786ac3bd9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of bootstrap.py: shadow_run final logic and main entry point for SHADOW iteration.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gate_discrimination import not shown; severity medium; import may fail; check if gate_discrimination is defined in spine package",
+     "offload_runner import not shown; severity medium; import may fail; check if offload_runner is defined in spine.attempt",
+     "resolve_spine_db_path import not shown; severity medium; import may fail; check if function exists in spine.picker",
+     "run_attempt import not shown; severity medium; import may fail; check if function exists in spine.attempt",
+     "pytest_gate_argv import not shown; severity medium; import may fail; check if function exists in spine.attempt"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "6 of 6",
+     "purpose": "Complete shadow_run with gate discrimination and attempt execution, then define main() entry point.",
+     "symbols": [
+      {
+       "name": "shadow_run",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Completes the run: checks gate discrimination, resolves spine ledger, runs attempt, returns state via _finish."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "spend",
+        "repository_mutation"
+       ],
+       "note": "Entry point: parses arguments, configures runner (including --local-only availability), calls shadow_run, prints results."
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"no candidates\" and \"the sources could not be consulted\" are different facts and must not collapse into one.",
+       "where": "line 603-604",
+       "verdict": "kept",
+       "why": "Code returns \"sources_unavailable\" if degraded else \"no_candidate\", keeping them distinct."
+      },
+      {
+       "text": "Promotion is refused while the gate's discrimination is unproven, and there is no flag to override that.",
+       "where": "epilog lines 636-637",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain promotion logic; the claim refers to behavior outside this chunk."
+      },
+      {
+       "text": "A green gate means the configured gate command ran.",
+       "where": "epilog line 637-638",
+       "verdict": "uncheckable",
+       "why": "The meaning of 'green gate' is not defined in this chunk; gate discrimination logic is imported but not shown."
+      },
+      {
+       "text": "--local-only DECLARES availability; it does not force the router's choice.",
+       "where": "epilog lines 638-642",
+       "verdict": "kept",
+       "why": "In main(), --local-only sets availability dict but does not force router; the epilog explains this."
+      },
+      {
+       "text": "with claude_cli declared unavailable the router still selected it, and the run stopped only because offload refuses to execute a non-free lane and escalated instead. Nothing was billed -- but the flag's name promised more than it delivers, so the run now says out loud which lane it was actually routed to.",
+       "where": "epilog lines 638-644",
+       "verdict": "uncheckable",
+       "why": "This describes historical behavior and routing logic not present in this chunk; cannot verify against this code."
+      },
+      {
+       "text": "skip source regeneration (they will likely be stale)",
+       "where": "line 651 help text for --no-refresh",
+       "verdict": "kept",
+       "why": "Code passes refresh=not args.no_refresh to shadow_run, which controls source regeneration."
+      },
+      {
+       "text": "let the runner actually invoke a model",
+       "where": "line 655 help text for --live",
+       "verdict": "kept",
+       "why": "Code sets kwargs['live'] = bool(args.live), which affects runner behavior."
+      },
+      {
+       "text": "declare only the local lane available. NOTE: this does NOT force the router's choice -- see the epilog",
+       "where": "lines 657-659 help text for --local-only",
+       "verdict": "kept",
+       "why": "Code sets availability dict with local lane true and others false, but does not enforce router selection; epilog explains limitation."
+      }
+     ],
+     "observations": [
+      {
+       "what": "gate_discrimination is called with require_gate_binding=True but the function is imported from an unspecified module; if it raises an exception, the error is unhandled.",
+       "where": "line 620",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function resolve_spine_db_path is imported from spine.picker; if it returns an error, the run returns 'sources_unavailable' without attempting the task.",
+       "where": "lines 622-626",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The main() function uses offload_runner which may spawn processes or make network calls; the --live flag controls model invocation, but the runner's behavior is not fully visible.",
+       "where": "line 666",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The exit codes (EXIT_SOURCES_UNAVAILABLE, EXIT_OK, EXIT_NO_CANDIDATE, EXIT_ERROR) are used but not defined in this chunk; they may be imported at module level.",
+       "where": "lines 682-688",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9c1f79a62d960d6c14b616d50f698014db836e57df8a1330cf234a7d54ad3e25",
+    "objective_chars": 5203,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [6/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 601
+ }
+}

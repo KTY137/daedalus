@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b039__946db82",
+ "key": "review__b039__946db82-4043c46ae4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 1 confirmed, 2 narrowed, 6 refuted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "global-cache-race",
+       "verdict": "refuted",
+       "strongest_counterargument": "_APPEND_CACHE is accessed only from append operations that are serialized by the GIL or by an external lock; the cache is a dict and CPython's GIL protects individual dict operations. The hypothesis provides no evidence that bus.py is used in a multithreaded context where race conditions are possible.",
+       "survives_because": "No evidence of concurrent access; the cited source shows only synchronous append operations.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'threading\\|Thread\\|concurrent' daedalus/council/bus.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "budget-error-unaccounted",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The canary exit_code is designed to detect liveness regressions, not budget errors. A budget refusal is a different class of failure; the hypothesis assumes it should be reflected in exit_code, but the design may intentionally separate these concerns.",
+       "survives_because": "The cited source shows exit_code only checks liveness regressions; no evidence that budget errors are tracked elsewhere in canary.py.",
+       "narrowed_claim": "Budget errors are not reflected in canary exit_code, which only checks liveness regressions, so a lane unavailable due to budget constraints would not cause a non-zero exit code.",
+       "settling_check": "Search for 'budget' or 'BudgetError' in daedalus/council/canary.py to confirm no handling exists.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "edges-data-structure-inconsistency",
+       "verdict": "refuted",
+       "strongest_counterargument": "The index always stores edges as lists of strings; the code in cycles.py uses iteration over edges values, which would only fail if a value is a string. The cited source shows cycles.py uses standard dict iteration patterns; the hypothesis assumes a data structure inconsistency without evidence that the index ever stores strings as values.",
+       "survives_because": "No evidence in cited source that edges values are ever strings; the index likely enforces list types.",
+       "narrowed_claim": "",
+       "settling_check": "In daedalus/structcore/index.py, check the type of values in the edges dict (e.g., look for type hints or assertions).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "forest-edge-assumptions",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The use of index.get() with default empty dicts/list is a deliberate design choice to handle missing keys gracefully; the hypothesis treats silent dropping as a bug, but it may be intentional to produce an incomplete graph when data is missing.",
+       "survives_because": "The cited source shows index.get() calls that silently default to empty structures, which can produce an incomplete graph without warning.",
+       "narrowed_claim": "Forest.py silently omits edges when index keys are missing, potentially producing an incomplete graph that misleads downstream metrics, without logging or validation.",
+       "settling_check": "Add a test that passes an incomplete index to forest.build_forest() and verify that missing keys are logged or cause an error.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "subprocess-timeout-unhandled",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows subprocess.run is called with timeout=timeout_s inside a function that returns a tuple. If TimeoutExpired is raised, it will propagate to the caller, which may handle it. The hypothesis assumes no caller catches it, but the function is designed to let exceptions propagate.",
+       "survives_because": "No evidence that the caller does not handle TimeoutExpired; the hypothesis is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'refresh_sources' calls in the codebase to see if TimeoutExpired is caught.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "weak-edges-unprocessed",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows weak_edges are constructed but the chunk ends before showing their usage. The comment 'Resolved exactly like real ones, then kept OUT of edges' implies they are processed separately. The hypothesis assumes they are never used, but the chunk is incomplete.",
+       "survives_because": "The cited source is a truncated view; the full file likely processes weak_edges later.",
+       "narrowed_claim": "",
+       "settling_check": "Read the full daedalus/mapping/reach.py to see if weak_edges is used after line 40.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unchecked-dict-access",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The functions are called with data that is guaranteed to have the required keys because the data is constructed by the same codebase and validated earlier.",
+       "survives_because": "The cited source shows multiple functions accessing nested keys without existence checks; no validation is visible in the provided chunk, and the pattern is consistent across several files.",
+       "narrowed_claim": "Multiple functions in render.py, docrefs.py, and parse.py access nested dictionary keys without existence checks, risking KeyError if data structure differs from expectations.",
+       "settling_check": "Run the test suite and check for KeyError traces; add unit tests with incomplete data to trigger failures.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "duplicate-env-key-handling",
+       "verdict": "refuted",
+       "strongest_counterargument": "The switch module generates EnvSite entries for env keys found in AST, while provenance module reads env variables like 'daedalus_file' which are not the same as the env keys in switches. They operate on different namespaces and do not conflict.",
+       "survives_because": "The cited source shows switches.py deals with env keys from code, while provenance.py reads specific env vars for evaluation paths; no overlap is evident.",
+       "narrowed_claim": "",
+       "settling_check": "Compare the list of env keys in switches.py with those read in provenance.py; check for any common keys.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "missing-symbols-picker",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source is only the first 40 lines of picker.py; the file likely has imports later that bring instruction_fingerprint and ATTEMPT_INTENT_KIND into scope. The hypothesis assumes they are not imported based on an incomplete view.",
+       "survives_because": "The cited source is a truncated snippet; the full file almost certainly imports the required symbols.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'from' or 'import' in the full daedalus/spine/picker.py to confirm the symbols are imported.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7a0306d8c68e392d2d467eb7328f1c228421a350f6d8f81730060e22dbe2e09a",
+    "objective_chars": 48467,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 39 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 39,
+  "inputs": 9
+ }
+}

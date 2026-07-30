@@ -1,0 +1,126 @@
+{
+ "task_id": "plan__b015__946db82",
+ "key": "plan__b015__946db82-4b86d6e48d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings reviewed: 1 confirmed, 2 narrowed, 1 needs-evidence. Plan includes 3 items for cache-key fix, egress ambiguity, and Python imports gap.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If screen_egress does not distinguish read/write, adding a guard may break legitimate reads.",
+     "If index.py already merges python_imports, the fix would be unnecessary but harmless."
+    ],
+    "todos": [
+     "Fix cache key language omission in daedalus/structcore/cache.py",
+     "Inspect screen_egress implementation and clarify read/write policy in daedalus/council/publish.py",
+     "Trace index.py usage in daedalus/eval/__main__.py to confirm Python imports handling"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix cache key to include language parameter in daedalus/structcore/cache.py",
+       "gate": "1",
+       "why_now": "Confirmed finding: file_key omits 'language' from cache key, risking collisions for same-path same-content files in different languages. This is a correctness bug.",
+       "steps": [
+        {
+         "do": "Add 'language' parameter to file_key function and include it in the cache key computation",
+         "file": "daedalus/structcore/cache.py",
+         "verified_by": "Run tests/test_structcore_parallel.py, check that cache key includes language"
+        },
+        {
+         "do": "Update all callers of file_key to pass the language argument",
+         "file": "daedalus/structcore/cache.py",
+         "verified_by": "Run tests/test_structcore_parallel.py, verify no test failures"
+        },
+        {
+         "do": "Update docstring in file_key to accurately describe the cache key composition",
+         "file": "daedalus/structcore/cache.py",
+         "verified_by": "Manual review of docstring"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The language parameter is available at all call sites; if not, we need to thread it through."
+      },
+      {
+       "rank": 2,
+       "title": "Clarify egress gate behavior on reads in daedalus/council/publish.py",
+       "gate": "1",
+       "why_now": "Narrowed finding: screen_egress is called in read_pr_thread, but its docstring focuses on outgoing data. If it blocks reads incorrectly, legitimate PR reads could fail.",
+       "steps": [
+        {
+         "do": "Inspect screen_egress implementation in sensitivity.py (if exists) or search for its definition to determine if it distinguishes read/write",
+         "file": "UNKNOWN",
+         "verified_by": "Manual inspection of screen_egress source"
+        },
+        {
+         "do": "If screen_egress does not distinguish, add a read-only mode or document that reads are not subject to egress checks",
+         "file": "daedalus/council/publish.py",
+         "verified_by": "Run tests/test_council_publish.py, ensure read_pr_thread still works"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "screen_egress exists and is defined in a file we can locate; if not, we need to trace its import."
+      },
+      {
+       "rank": 3,
+       "title": "Verify Python imports are merged in index.py via daedalus/eval/__main__.py",
+       "gate": "1",
+       "why_now": "Narrowed finding: extract_imports returns [] for Python; if index.py does not merge python_imports, Python imports would be missing from the index.",
+       "steps": [
+        {
+         "do": "Open daedalus/eval/__main__.py and trace calls to index.py to see if python_imports is merged",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Manual trace of import chain"
+        },
+        {
+         "do": "If python_imports is not merged, modify index.py to call python_imports and merge results",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Run tests/test_eval.py, verify Python imports appear in index"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "index.py is the module that builds the index and is called from eval/__main__.py; we assume python_imports exists in parse.py."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/structcore/cache.py",
+      "daedalus/council/publish.py",
+      "daedalus/eval/__main__.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3b003f7322680edc1cce9435270cdecdcee7f045c88f0fb5328522bb511b990f",
+    "objective_chars": 145029,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 15 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 15,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,139 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c10of13__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c10of13__946db82-74f4344078",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 10 of 13 of drift.py: _remedy function and check function; claims about missing snapshot, schema, digest, and acceptance parsing are checkable; references to other functions (scan, load_snapshot, etc.) are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "check function line 1132-1143 | medium | Missing snapshot handling: when write_missing is False, returns an ok=False report but does not raise an error; may silently fail if caller expects exception. | Check if callers rely on return value vs exception.",
+     "check function line 1172-1182 | medium | Schema mismatch returns immediately but does not check digest; digest check is skipped if schema mismatched. | Verify if digest check should still be performed on mismatched schema.",
+     "check function line 1198-1210 | medium | Digest check is performed but does not stop processing; items are appended but function continues. | Confirm if this is intended to be a non-fatal warning."
+    ],
+    "todos": [
+     "Review the _remedy function: all branches return strings, but there is no default for unrecognized kind (returns 'review'). Ensure callers handle this.",
+     "Check that the digest check (line 1198-1210) is intended to allow continued processing despite integrity failure.",
+     "Verify that the schema version check (line 1172-1182) is the only validation that short-circuits the function."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "10 of 13",
+     "purpose": "Contains the _remedy helper function and the check function for comparing generated state against a snapshot.",
+     "symbols": [
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a string advice message based on the kind of drift item. Defined at line 1081 (approx). All branches return a string; final fallback returns 'review'."
+      },
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Main comparison function. Accepts repo_root, snapshot_path, today, index, write_missing, reach_report, switch_report, probe_dirty. Returns DriftReport. May write snapshot if write_missing is True and snapshot is missing. Parses acceptances, validates schema and digest, compares old and new module/island/unknown sets (partial)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A missing snapshot FAILS unless ``write_missing`` is set, which is the explicit \"record a baseline\" action rather than the default.",
+       "where": "Docstring of check, line ~1119",
+       "verdict": "kept",
+       "why": "Code at line 1133-1143: if snapshot is None and write_missing is False, returns DriftReport(ok=False, first_run=True, ...) indicating failure. If write_missing is True, writes snapshot and returns ok=True."
+      },
+      {
+       "text": "The previous default -- write it and report OK -- meant ``rm docs/architecture-state.json`` was a green run, and a green run against nothing is exactly what this file exists to make impossible.",
+       "where": "Docstring of check, line ~1121",
+       "verdict": "uncheckable",
+       "why": "This claim refers to historical behavior not present in this chunk; no code shows previous defaults."
+      },
+      {
+       "text": "A missing snapshot FAILS unless ``write_missing`` is set",
+       "where": "Docstring, line ~1119",
+       "verdict": "kept",
+       "why": "See above: code returns ok=False when snapshot is None and write_missing is False."
+      },
+      {
+       "text": "the mechanical lists do not match the digest written with them: something was hand-edited.",
+       "where": "Comment at line ~1198",
+       "verdict": "kept",
+       "why": "Code compares stored_digest with recomputed digest; if mismatch, appends an INVALID_SNAPSHOT item with that detail."
+      },
+      {
+       "text": "Pre-seeding an item into 'islands' or 'dark_switches' is not a way to accept it -- an acceptance is dated and an acceptance is reviewed",
+       "where": "Comment at line ~1202",
+       "verdict": "uncheckable",
+       "why": "The acceptance mechanism is not defined in this chunk; only referenced via parse_acceptances call at line 1167."
+      },
+      {
+       "text": "stored_schema != SCHEMA_VERSION: ... the lists in a schema-{stored_schema!r} snapshot were derived by a different engine and do not mean the same thing",
+       "where": "Comment at line ~1172",
+       "verdict": "kept",
+       "why": "Code at line 1172-1182 checks stored_schema against SCHEMA_VERSION and returns an INVALID_SNAPSHOT item with that detail."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _remedy function has a fallback 'review' for unrecognized kind; no validation of kind parameter.",
+       "where": "Line ~1081-1114",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "check function uses parse_acceptances but its definition is not in this chunk; return type and error handling unknown.",
+       "where": "Line 1167",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "After digest mismatch, items are appended but function continues; does not return early like schema mismatch.",
+       "where": "Lines 1198-1210",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function compares old_modules, old_islands, old_unknown sets but does not show the comparison logic in this chunk; chunk ends before diff.",
+       "where": "Lines 1212-1214",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cfd31a59df59559b2afda891172ea18c890f74f9f3a3f1a574ddc50746f2aaa6",
+    "objective_chars": 6838,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [10/13]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 10,
+  "total": 13,
+  "first_line": 1081
+ }
+}

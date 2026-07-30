@@ -1,0 +1,289 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c3of6__946db82",
+ "key": "scan__daedalus_council_session.py__c3of6__946db82-291ac17508",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 3 of 6 of session.py: claim parsing, prompt assembly, dispatch, turn mapping, and dry_run_plan signature.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "3 of 6",
+     "purpose": "Claim parsing, anomaly detection, prompt assembly, dispatch, turn mapping, and dry_run_plan signature.",
+     "symbols": [
+      {
+       "name": "_CLAIM_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced via match but not defined in this chunk."
+      },
+      {
+       "name": "_CITE_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced via match but not defined in this chunk."
+      },
+      {
+       "name": "_CHECK_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced via match but not defined in this chunk."
+      },
+      {
+       "name": "_NOT_A_CHECK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "_ANOMALY_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced via finditer but not defined in this chunk."
+      },
+      {
+       "name": "_ANOMALY_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "_ANOMALY_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "_ANSWER_FORMAT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_TRANSCRIPT_OPEN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_TRANSCRIPT_CLOSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "ROLE_BRIEFS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "DEFAULT_ROUNDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "_REASON_MAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "_anomaly_reason",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_round_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_call",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_dispatch_round",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_turn_from_reply",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_floor_refusal_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "_budget_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined in this chunk."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [],
+       "note": "Signature only; body not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A reviewer reporting embedded instructions is doing useful work; the report is chained as a turn STATUS, not buried in prose.",
+       "where": "docstring of _anomaly_reason",
+       "verdict": "uncheckable",
+       "why": "The claim refers to how the status is used (chained as a turn STATUS), which is not implemented in this chunk."
+      },
+      {
+       "text": "IT IS A MODEL ASSERTION, NOT A DETECTION. Nothing here verifies that the evidence actually contained an instruction, and a weak model will raise it spuriously (observed: a 7b emitting it on question-only evidence).",
+       "where": "docstring of _anomaly_reason",
+       "verdict": "kept",
+       "why": "The function only checks content against _ANOMALY_RE and returns a reason; it does not verify the evidence's actual content beyond the regex match."
+      },
+      {
+       "text": "So an anomaly turn still counts as a voice, keeps its content verbatim, and its claims are still parsed -- it flags a thing for a human to look at and decides nothing. Treating it as a detection would let one weak participant invalidate an evidence set.",
+       "where": "docstring of _anomaly_reason",
+       "verdict": "uncheckable",
+       "why": "The claim about how anomaly turns are treated (counts as voice, keeps content, claims parsed) refers to behavior outside this function, not implemented in this chunk."
+      },
+      {
+       "text": "The prompt body for one round. Untrusted bytes (the evidence) are NOT here at all -- the adapter renders them, after ``PROMPT_DATA_NOTICE``, inside fenced evidence blocks, so withholding is structural and the instruction position stays session-authored.",
+       "where": "docstring of _round_body",
+       "verdict": "kept",
+       "why": "The function builds a prompt string that does not include evidence bytes; it only references prior turns and question. Evidence injection is left to adapter."
+      },
+      {
+       "text": "Prior TURNS are untrusted too (an injection in the evidence can propagate as an apparently-authored turn), so they get the same fenced, explicitly-data treatment.",
+       "where": "docstring of _round_body",
+       "verdict": "kept",
+       "why": "The function wraps prior turns in _TRANSCRIPT_OPEN and _TRANSCRIPT_CLOSE markers and adds a warning that nothing in it is an instruction."
+      },
+      {
+       "text": "Threads are DAEMONS and are abandoned at the cap rather than joined: a hung vendor must degrade the quorum, never block the session, and a thread cannot be killed.",
+       "where": "docstring of _dispatch_round",
+       "verdict": "kept",
+       "why": "Threads are created with daemon=True and joined with a timeout; no forceful kill is attempted."
+      },
+      {
+       "text": "The real process tree is bounded inside the adapter by ``spine.cancel.ManagedProcess``; this is the outer, transport-agnostic bound that also covers a wedged in-process fake.",
+       "where": "docstring of _dispatch_round",
+       "verdict": "uncheckable",
+       "why": "Refers to spine.cancel.ManagedProcess which is not in this chunk."
+      },
+      {
+       "text": "The adapter already refused: the bytes never left the process. Hand the bus the evidence refs so ITS floor mints the canonical `refused` receipt (a caller may not assert that status -- an asserted refusal is an unverified claim that a scan happened).",
+       "where": "docstring of _turn_from_reply, inside reply.status == 'refused_by_floor' branch",
+       "verdict": "kept",
+       "why": "The code sets status 'unavailable' and reason 'transport_error' and includes evidence refs; it does not set 'refused' status."
+      },
+      {
+       "text": "Where the hit was on the content channel of a file we do not show, this lands as an honest unavailable/transport_error and the rule label rides on the record.",
+       "where": "docstring of _turn_from_reply",
+       "verdict": "uncheckable",
+       "why": "Refers to behavior of 'bus' and rule label which are not in this chunk."
+      },
+      {
+       "text": "The turn carries the OFFENDING PATH as an evidence ref precisely so the bus's own path-channel scan fires and mints the ``refused`` receipt naming the rule label.",
+       "where": "docstring of _floor_refusal_turn",
+       "verdict": "uncheckable",
+       "why": "Refers to bus's path-channel scan and receipt minting, not implemented in this chunk."
+      },
+      {
+       "text": "The receipt drops content, refs, evidence and the free-text meta, so the offending bytes never reach the file -- not in the turn and not in the receipt.",
+       "where": "docstring of _floor_refusal_turn",
+       "verdict": "uncheckable",
+       "why": "Refers to receipt behavior not in this chunk."
+      },
+      {
+       "text": "``status``/``reason`` below are the pre-scan placeholders the bus overwrites; they are never what lands on disk when the scan fires.",
+       "where": "docstring of _floor_refusal_turn",
+       "verdict": "uncheckable",
+       "why": "Refers to bus overwriting status/reason, not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _anomaly_reason uses _ANOMALY_RE and _ANOMALY_REASONS which are not defined in this chunk; their definitions are assumed to exist elsewhere.",
+       "where": "line 610-620",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _round_body references _ANSWER_FORMAT, _TRANSCRIPT_OPEN, _TRANSCRIPT_CLOSE, and ROLE_BRIEFS; all are defined or referenced but ROLE_BRIEFS is not defined in this chunk.",
+       "where": "line 634-680",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _dispatch_round uses threading.Thread with daemon=True and join with timeout; no explicit thread cleanup beyond timeout, which is appropriate for daemon threads.",
+       "where": "line 698-720",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _turn_from_reply maps reply.status 'refused_by_floor' to 'unavailable' with reason 'transport_error', not to a 'refused' status as described in the docstring.",
+       "where": "line 732-752",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _floor_refusal_turn sets status 'unavailable' and reason 'transport_error' as placeholders, with docstring claiming they are overwritten by bus.",
+       "where": "line 760-780",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function dry_run_plan is only a signature; its body is not included in this chunk.",
+       "where": "line 795",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a76dba73e420404cc948401674177885f2f38f075b97780f20322301403e530a",
+    "objective_chars": 12676,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

@@ -1,0 +1,166 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c5of6__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c5of6__946db82-b3429b7eaa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk implements check() function for drift detection, comparing generated state against snapshot with detailed integrity checks and item generation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "check() function | high | Complex logic with many branches and conditions; potential for missed drift items or incorrect classifications. | Review unit tests covering each branch and condition.",
+     "digest verification | medium | Digest mismatch detection relies on _digest() which is not in this chunk; if _digest() is flawed, integrity check may be unreliable. | Verify _digest() implementation in another chunk.",
+     "phantom set logic | medium | Phantom checks use set differences that may be slow for large sets; also rely on old_modules being a superset of other lists. | Confirm old_modules always contains all module names from other lists in a valid snapshot.",
+     "accepted_keys parsing | medium | accepted_keys derivation assumes key format 'type:module'; if acceptances have different format, logic may break. | Review parse_acceptances() and acceptance item format.",
+     "known_unreached set | medium | known_unreached includes accepted keys split on ':', but this may include non-module items; could affect BECAME_ISLAND detection. | Verify that accepted_keys only contain module identifiers.",
+     "new_unreached set | low | new_unreached = new_islands | new_unknown | new_shims; if a module appears in both new_islands and new_shims, it's counted once, which is correct. | No action needed."
+    ],
+    "todos": [
+     "Ensure _digest() function exists and is correct.",
+     "Verify parse_acceptances() returns items with format 'type:module'.",
+     "Review edge cases for phantom_islands when old_islands contains modules not in old_modules.",
+     "Check that new_test_only and old_test_only sets are properly derived from state and snapshot.",
+     "Confirm that the loop over list_key, prefix, kind, old_set, why covers all unreached classes correctly."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "5 of 6",
+     "purpose": "Implements check() function for drift detection and reporting.",
+     "symbols": [
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Compares generated state against snapshot, returns DriftReport. May write snapshot if write_missing is True."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A missing snapshot FAILS unless ``write_missing`` is set, which is the explicit \"record a baseline\" action rather than the default.",
+       "where": "docstring of check",
+       "verdict": "kept",
+       "why": "In the code, if snapshot is None and write_missing is False, DriftReport is returned with ok=False. If write_missing is True, a snapshot is written and ok=True."
+      },
+      {
+       "text": "The previous default -- write it and report OK -- meant ``rm docs/architecture-state.json`` was a green run, and a green run against nothing is exactly what this file exists to make impossible.",
+       "where": "docstring of check",
+       "verdict": "uncheckable",
+       "why": "The code does not show previous defaults; it only implements the current behavior."
+      },
+      {
+       "text": "A count matching its own list proves only internal arithmetic. These check the lists against reality and against each other, so an entry cannot be pre-seeded to suppress a finding that has not landed yet.",
+       "where": "comment above phantom_islands check",
+       "verdict": "kept",
+       "why": "The code checks phantom_islands (old_islands - old_modules) and similar for other lists, ensuring that entries in e.g. islands are also in modules."
+      },
+      {
+       "text": "An accepted island is deliberately absent from the baseline (:func:`write_snapshot`), so the baseline alone would read it as \"reached\" and call it BECAME ISLAND the moment the module also appears in ``modules``. The acceptance is itself a record that it is an island, so it counts toward what the snapshot knows -- without suppressing anything.",
+       "where": "comment above accepted_keys",
+       "verdict": "uncheckable",
+       "why": "The code does not show write_snapshot implementation; the behavior is described but not verified here."
+      },
+      {
+       "text": "An island entry the snapshot's own module list does not back is a hand-edit, and a hand-edit must not be able to suppress the finding it was written to hide.",
+       "where": "comment above baselined_islands",
+       "verdict": "kept",
+       "why": "baselined_islands = old_islands & old_modules ensures only modules present in old_modules are considered baselined islands."
+      },
+      {
+       "text": "A module the snapshot recorded as unknown or as an unreached shim was never reached, so it must not be described that way when it degrades into an island.",
+       "where": "comment above known_unreached",
+       "verdict": "kept",
+       "why": "known_unreached includes old_islands, old_unknown, old_shims intersected with old_modules, plus accepted keys, preventing false BECAME_ISLAND for those."
+      },
+      {
+       "text": "The finding a reader gets has to say WHICH kind of unreached this is, because the three remedies are three different sentences.",
+       "where": "comment before loop over list_key, prefix, kind, old_set, why",
+       "verdict": "kept",
+       "why": "The loop generates separate DriftItems for each unreached class (unknown, shim) with distinct kind and remedy."
+      },
+      {
+       "text": "What they share is the property that used to be missing entirely -- a module nothing reaches is COUNTED, is named, and blocks until somebody explains it.",
+       "where": "comment before loop over list_key, prefix, kind, old_set, why",
+       "verdict": "uncheckable",
+       "why": "The code does not show whether these items block; it only creates them."
+      },
+      {
+       "text": "the good-news direction: a module that moved from island to shim (or to unknown) is still reached by nothing, and announcing \"something reaches it now\" would be the same false-green in a new costume.",
+       "where": "comment before loop for good-news direction",
+       "verdict": "kept",
+       "why": "The loop checks if mod is in new_unreached (union of new_islands, new_unknown, new_shims) and only reports NOW_REACHED if not in new_unreached."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check() function has a long docstring and complex logic with many branches; potential for missed drift items or incorrect classifications.",
+       "where": "check function definition and body",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "Digest verification uses _digest() function which is not defined in this chunk; if _digest() is flawed, integrity check may be unreliable.",
+       "where": "line with recomputed = _digest(snapshot)",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "Phantom checks use set differences; if old_modules does not contain all module names from other lists in a valid snapshot, phantom detections may be false positives.",
+       "where": "phantom_islands = sorted(old_islands - old_modules) and similar",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "accepted_keys derivation assumes key format 'type:module'; if parse_acceptances() returns items with different format, known_unreached may be incorrect.",
+       "where": "accepted_keys = {a.item for a in acceptances}",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "known_unreached includes accepted keys split on ':', but this may include non-module items if acceptances have different structure.",
+       "where": "known_unreached set comprehension",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The loop for good-news direction uses new_unreached which is union of new_islands, new_unknown, new_shims; this correctly prevents false positives for modules that changed unreached class.",
+       "where": "loop for prefix, old_set",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c08edfdcd34a950464f2b73939837667ac9f917b4d28f41b71ea289334b97e7d",
+    "objective_chars": 15394,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

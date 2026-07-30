@@ -1,0 +1,154 @@
+{
+ "task_id": "scan__daedalus_providers__ollama_native.py__c2of2__946db82",
+ "key": "scan__daedalus_providers__ollama_native.py__c2of2__946db82-35a34e4c4a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of _ollama_native.py: two functions (_native_calls, native_chat) with docstring claims about Ollama API adaptation, HTTP error handling, and format constraints.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_native_calls | medium | Assumes tool_calls structure; malformed input may cause silent fallback to empty arguments. | Add explicit validation or error logging for unexpected tool_calls shapes.",
+     "native_chat | medium | Raises ProviderHTTPError on HTTP/URL/Timeout errors; matches claimed behavior but error messages may leak internal details. | Ensure error messages are safe for user-facing output.",
+     "native_chat | low | Docstring claims 'format:\"json\" sent only when force_json' but code sends 'format' key with dict or string 'json'; if force_json is a dict, format is a schema dict, not 'json'. Claim is kept but note nuance.",
+     "native_chat | low | num_ctx default uses num_ctx_value() which is not defined in this chunk; behavior depends on external definition. | Ensure num_ctx_value is defined and imported."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/_ollama_native.py",
+     "chunk": "2 of 2",
+     "purpose": "Defines _native_calls helper and native_chat function for Ollama /api/chat endpoint.",
+     "symbols": [
+      {
+       "name": "_native_calls",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Transforms Ollama's tool_calls format to OpenAI-compatible shape; handles string arguments by JSON parsing."
+      },
+      {
+       "name": "native_chat",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Sends POST to /api/chat with options; returns adapted message dict; raises ProviderHTTPError on failures."
+      }
+     ],
+     "claims": [
+      {
+       "text": "POST ``messages`` to Ollama's native ``/api/chat`` and return the assistant message adapted to the OpenAI shape (see :func:`_adapt_message`).",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code constructs URL with '/api/chat', sends POST with messages, and returns _adapt_message(message)."
+      },
+      {
+       "text": "``options.num_ctx`` (defaulting to :func:`num_ctx_value`) is the whole point of this path -- it is the only way to lift the ~2050-token ``/v1`` cap.",
+       "where": "native_chat docstring",
+       "verdict": "uncheckable",
+       "why": "Code sets options.num_ctx using num_ctx_value() as default, but claim about /v1 cap and comparison is outside this chunk."
+      },
+      {
+       "text": "``num_predict`` is optional and omitted by default, preserving every existing caller; bounded rewrite callers use it to prevent a malformed JSON generation from consuming the entire remaining context window.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code only adds num_predict to body if it is not None, and clamps to max(1, int(num_predict))."
+      },
+      {
+       "text": "``think`` is likewise opt-in. Structured edit callers disable hidden reasoning so a bounded generation cannot spend its entire token allowance before emitting the required JSON value.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code only adds 'think' key if think is not None, converting to bool."
+      },
+      {
+       "text": "``format:\"json\"`` is sent only when ``force_json``; ``keep_alive`` and ``tools`` only when provided.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code conditionally adds format (if force_json truthy), keep_alive (if not None), and tools (if truthy)."
+      },
+      {
+       "text": "Raises :class:`ProviderHTTPError` on any HTTP error or an unreachable host, mirroring ``_openai_compat._post``.",
+       "where": "native_chat docstring",
+       "verdict": "kept",
+       "why": "Code raises ProviderHTTPError on HTTPError, URLError, and TimeoutError with descriptive messages."
+      },
+      {
+       "text": "A dict is a JSON *schema*, and that distinction is load-bearing. ``format:\"json\"`` only promises valid JSON of any shape; a schema constrains the SHAPE at the sampler, masking invalid tokens instead of validating after the fact.",
+       "where": "native_chat docstring (comment block)",
+       "verdict": "uncheckable",
+       "why": "Claim about Ollama's behavior with format vs schema is not verifiable from this code alone; depends on Ollama server."
+      },
+      {
+       "text": "MEASURED 2026-07-29 on the bench, 3 trials x 2 tasks per model, native `tools` array vs schema-constrained decoding: ...",
+       "where": "native_chat docstring (comment block)",
+       "verdict": "uncheckable",
+       "why": "Benchmark results are external performance claims; not verifiable from code."
+      },
+      {
+       "text": "The three that scored zero were not failing to *decide* -- they were failing to EMIT the decision in the structured form, narrating it in prose instead, which the harness reads as a successful turn that did nothing. Constraining the shape removes the failure entirely, on the 4.5GB model as well as the 22GB one.",
+       "where": "native_chat docstring (comment block)",
+       "verdict": "uncheckable",
+       "why": "Analysis of model behavior is external claim; not verifiable from code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _native_calls assumes tool_calls is a list of dicts; if not, it falls back to empty arguments silently.",
+       "where": "_native_calls",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "native_chat uses num_ctx_value() which is not defined in this chunk; its behavior depends on external definition.",
+       "where": "native_chat, line body['options']['num_ctx'] = num_ctx or num_ctx_value()",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Error messages in ProviderHTTPError include URL and detail, which may leak internal network paths or sensitive info.",
+       "where": "native_chat, exception handling",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "Docstring claims 'format:\"json\" sent only when force_json' but code sends format as dict if force_json is a dict, else string 'json'. The claim is accurate for the string case, but note that a dict schema is not 'json'.",
+       "where": "native_chat, line body['format'] = force_json if isinstance(force_json, dict) else 'json'",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8b5fd85b7ba35cae6f53c8d6a15ca07a94b2f879b65256b3d116fad49aabaac3",
+    "objective_chars": 5331,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/_ollama_native.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/providers/_ollama_native.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

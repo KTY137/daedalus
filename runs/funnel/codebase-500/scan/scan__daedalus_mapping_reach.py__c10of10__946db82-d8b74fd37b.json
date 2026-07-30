@@ -1,0 +1,150 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c10of10__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c10of10__946db82-d8b74fd37b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 10/10 of daedalus/mapping/reach.py: handles console scripts, __main__.py, __main__ guards, dispatch chains, and poll loops; defines helper _named_module_targets.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1083 | medium | _func_closure is undefined in this chunk; if missing, func_targets will fail | check if _func_closure is defined elsewhere in the module",
+     "line 1085 | medium | _resolve is used but not defined in this chunk; if missing, all resolution fails | check if _resolve is defined elsewhere",
+     "line 1088 | low | Comment claims 'this is the one claim that gets verified' but verification logic is not fully shown; may be incomplete | review the verification logic for console script entries",
+     "line 1113 | low | add function is used but not defined in this chunk; if missing, entries will not be populated | check if add is defined elsewhere",
+     "line 1121 | medium | _resolve called with src.records but src could be None for __main__.py case; code uses if src else () so safe | no action needed",
+     "line 1139 | medium | _named_module_targets relies on _module_level_bindings which is not defined in this chunk | check if _module_level_bindings is defined elsewhere",
+     "line 1140 | medium | _named_module_targets calls _resolve which is undefined in chunk | check if _resolve is defined elsewhere"
+    ],
+    "todos": [
+     "Verify that _func_closure, _resolve, _module_level_bindings, and add are defined in other parts of the module or imported.",
+     "Check if _console_scripts is imported or defined.",
+     "Confirm that _LOOP_FUNC_HINTS and ENTRY_KINDS are defined elsewhere.",
+     "Ensure that the entry_mods list is correctly built from entries which is defined earlier in the function."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "10 of 10",
+     "purpose": "Process entry points: console scripts, __main__.py, __main__ guards, dispatch chains, and poll loops; define helper _named_module_targets.",
+     "symbols": [
+      {
+       "name": "func_targets",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Local function inside _entry_targets; resolves targets for a given function's closure."
+      },
+      {
+       "name": "_named_module_targets",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Top-level function that resolves module-level bindings for named references."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``entry`` is the strongest claim in this report -- \"a human types this and it runs\". It is therefore the one claim that gets verified rather than believed: the module must exist AND define the named function.",
+       "where": "line 1088",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the verification logic for 'entry' claims; it only handles console scripts, not the general entry verification."
+      },
+      {
+       "text": "A dead target (`pkg = \"pkg.cli:nosuchfunc\"`) raises the moment anyone runs it, and granting it ``entry`` would paint the whole closure behind it green on the strength of a line in packaging metadata that nothing executes.",
+       "where": "line 1090",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the logic that assigns 'entry' kind or colors; it only collects broken console scripts."
+      },
+      {
+       "text": "A dispatch chain in a module nothing can run is not a way in, and admitting it would invent entry points that no human or tool can actually take.",
+       "where": "line 1132",
+       "verdict": "kept",
+       "why": "The code iterates over entry_mods (modules that are already entry points) to process dispatch chains, thereby only adding dispatch chains from modules that are already entry points."
+      },
+      {
+       "text": "HTTP handlers never import inside the branch; they call ``core.envelope`` or ``hierarchy.capabilities`` against a module-level import.",
+       "where": "line 1159",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain any HTTP handler code; this claim is in the docstring of _named_module_targets and refers to external behavior not shown."
+      },
+      {
+       "text": "Resolving the referenced name back through the import that bound it is the only way those routes reach anything.",
+       "where": "line 1160",
+       "verdict": "uncheckable",
+       "why": "The implementation uses bound.get(ref) and _resolve, but the claim about 'only way' cannot be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "func_targets is defined as a nested function but _func_closure is not defined in this chunk.",
+       "where": "line 1083",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_resolve is called multiple times but not defined in this chunk.",
+       "where": "lines 1085, 1121, 1122, 1133, 1140",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "add function is used to add entries but not defined in this chunk.",
+       "where": "lines 1109, 1118, 1125, 1142, 1149",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_named_module_targets calls _module_level_bindings which is not defined in this chunk.",
+       "where": "line 1164",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about 'entry' verification is present but the verification logic is not shown.",
+       "where": "line 1088",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code assumes that _console_scripts, _LOOP_FUNC_HINTS, ENTRY_KINDS are defined elsewhere.",
+       "where": "lines 1093, 1147, 1151",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2c62ef839239ad310301f75e58a959d73f580e93ebc551a6c71b20a2f0a302e0",
+    "objective_chars": 5682,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [10/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 10,
+  "total": 10,
+  "first_line": 1081
+ }
+}

@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c3of9__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c3of9__946db82-813cab7d7a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 9: defines helper functions for inventory, including digest check, area, dotted name, method suffix, pyproject scanning, disk packages, and orphan bytecode detection.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_pyproject_packages | medium | Line scanner for TOML may miss complex configurations (e.g., inline tables) or produce incorrect results for nested tables; the comment acknowledges this but it's a potential source of bugs. | Review whether the line scanner handles all valid TOML package specifications used in the project; consider adding a fallback to a real TOML parser if available."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "3 of 9",
+     "purpose": "Define helper functions for inventory analysis: digest validation, area derivation, dotted name conversion, method suffix lookup, pyproject.toml package scanning, on-disk package discovery, and orphan bytecode detection.",
+     "symbols": [
+      {
+       "name": "_area_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the parent directory of a relative path, or '(repo root)' if no slash."
+      },
+      {
+       "name": "_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a relative file path (possibly ending in .py or __init__) to a dotted module name."
+      },
+      {
+       "name": "_method_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the method name corresponding to a function name suffix using _METHOD_BY_SUFFIX."
+      },
+      {
+       "name": "_pyproject_packages",
+       "kind": "function",
+       "effects": [],
+       "note": "Scans pyproject.toml for a [tool.setuptools] packages array using a line scanner; returns sorted unique package names or empty list on error."
+      },
+      {
+       "name": "_packages_on_disk",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Walks directories under distribution roots to find packages (directories with __init__.py) that exist on disk."
+      },
+      {
+       "name": "_orphan_bytecode",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Finds __pycache__ directories whose parent has no .py files, indicating orphaned bytecode."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The explicit ``[tool.setuptools] packages`` list, or ``[]``.",
+       "where": "docstring of _pyproject_packages",
+       "verdict": "kept",
+       "why": "The function returns a list of strings from that TOML array, or an empty list on error."
+      },
+      {
+       "text": "A line scanner rather than a TOML parser: this module is stdlib-only across 3.10 (no ``tomllib``), and the shape being read is one array under one known table.",
+       "where": "docstring of _pyproject_packages",
+       "verdict": "kept",
+       "why": "The code uses line-by-line matching with regexes, not a TOML parser, and the module only imports stdlib."
+      },
+      {
+       "text": "An unreadable or absent pyproject yields an empty list, which both detectors below read as \"no promise was made\" -- never as a finding.",
+       "where": "docstring of _pyproject_packages",
+       "verdict": "kept",
+       "why": "The function returns [] on OSError, and the doc says it's never taken as a finding."
+      },
+      {
+       "text": "Dotted packages that exist under the distribution roots the metadata already names.",
+       "where": "docstring of _packages_on_disk",
+       "verdict": "kept",
+       "why": "The function takes listed names, extracts distribution roots, and walks them to find packages."
+      },
+      {
+       "text": "Scoped to those roots on purpose: every directory in the repo with an ``__init__.py`` is not a candidate for the wheel, and treating a fixture or a runs/ directory as one would manufacture findings.",
+       "where": "docstring of _packages_on_disk",
+       "verdict": "kept",
+       "why": "The function only walks directories derived from listed roots, not the entire repo."
+      },
+      {
+       "text": "``__pycache__`` directories holding bytecode whose sources are gone.",
+       "where": "docstring of _orphan_bytecode",
+       "verdict": "kept",
+       "why": "The function returns tuples of (path, count) for __pycache__ dirs whose parent has no .py files."
+      },
+      {
+       "text": "The exact shape of the ``daedalus/hermes`` remnant the hand-written inventory recorded: the package was deleted, the ``.pyc`` files stayed, and an import of the dotted name could still resolve.",
+       "where": "docstring of _orphan_bytecode",
+       "verdict": "uncheckable",
+       "why": "The code does not reference daedalus/hermes; this is an example, not a checkable claim."
+      },
+      {
+       "text": "A cache beside live sources is not a finding -- only one with NO sibling ``.py`` at all.",
+       "where": "docstring of _orphan_bytecode",
+       "verdict": "kept",
+       "why": "The function skips __pycache__ if the parent has any .py files (siblings list non-empty)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _pyproject_packages uses a line scanner to parse TOML, which may fail on complex TOML structures (e.g., inline tables) or produce incorrect results for non-standard formatting.",
+       "where": "_pyproject_packages",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Function _dotted handles .py and __init__ but not other extensions (e.g., .pyi) explicitly; if .pyi files appear, they will be treated as .py.",
+       "where": "_dotted",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "Function _method_of depends on _METHOD_BY_SUFFIX which is not defined in this chunk; its behavior is uncheckable.",
+       "where": "_method_of",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function _orphan_bytecode only checks for .py files in the parent directory, not .pyw or other source files; might miss orphan bytecode if only .pyw sources existed.",
+       "where": "_orphan_bytecode",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b54f34f83c3b18a20c50aca50b1824dc3cecbd57bcaaf45c47c0007de7ed003d",
+    "objective_chars": 4825,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [3/9]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 3,
+  "total": 9,
+  "first_line": 241
+ }
+}

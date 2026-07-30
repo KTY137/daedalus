@@ -1,0 +1,103 @@
+{
+ "task_id": "daedalus/bootstrap_prompt.py#c1of1#5eb1702d",
+ "key": "daedalus_bootstrap_prompt.py_c1of1_5eb1702d-875ecca03a",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "1 claim: 1 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Session bootstrap prompts for external runtimes.\" | claude_bootstrap_prompt | KEPT | The function returns a dict with 'project' and 'prompt' keys, which matches the docstring's description of a bootstrap prompt.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e22f0ea9550871480422372cf94aeb9a015dddcfd00874c292e38a653fe0520a",
+    "objective_chars": 4428,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; D1: 1",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Session bootstrap prompts for external runtimes.\" | module docstring | KEPT | The module defines a function that constructs a bootstrap prompt string for a given project, consistent with the docstring.",
+     "CLAIM | \"Use Daedalus/Ikarus for delegation, routing, local Ollama workers, queue state, and policy.\" | line 30 | KEPT | The prompt text includes that instruction verbatim, and the function builds it into the returned prompt.",
+     "D1 | claude_bootstrap_prompt | parameter `project` is used; no unused parameters. HARNESS_ROOT is defined and used. load_project, core.team_config are called. No D1 hit."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e22f0ea9550871480422372cf94aeb9a015dddcfd00874c292e38a653fe0520a",
+    "objective_chars": 4428,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "1 claim: 1 kept, 0 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Session bootstrap prompts for external runtimes.\" | claude_bootstrap_prompt | KEPT | The module docstring is a high-level description, and the function returns a prompt dictionary intended for bootstrapping a Claude session."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e22f0ea9550871480422372cf94aeb9a015dddcfd00874c292e38a653fe0520a",
+    "objective_chars": 4428,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/bootstrap_prompt.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1979
+ }
+}

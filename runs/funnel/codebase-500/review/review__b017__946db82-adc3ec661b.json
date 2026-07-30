@@ -1,0 +1,136 @@
+{
+ "task_id": "review__b017__946db82",
+ "key": "review__b017__946db82-adc3ec661b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 2 confirmed, 1 narrowed, 2 refuted, 4 need-evidence. Key findings: egress-detection-gap and unverified-docstring-claims are critical; undefined-symbols and unvalidated-totals require full source; others refuted or need evidence.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Critical: egress-detection-gap could cause silent MCP egress bypass",
+     "Critical: unverified-docstring-claims could mislead maintainers about render.py behavior",
+     "High: undefined-symbols and unvalidated-totals may cause runtime errors if variables missing"
+    ],
+    "todos": [
+     "Check full vet.py for lane_for_host definition",
+     "Verify render.py and graph_delta.py docstring claims against full source",
+     "Check report.py for variables units, renamed, near, windows, fenced",
+     "Verify session.py and graph_brief.py missing symbols in other chunks"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "egress-detection-gap",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "lane_for_host may be defined elsewhere in vet.py (later lines) or imported at module level; the chunk provided (lines 1-40, 493-542) does not include the function's definition or imports. The cited source does not show the full module.",
+       "survives_because": "The cited chunk lacks definition of lane_for_host and no import is visible. However, the full vet.py file may define or import it. The hypothesis is plausible but unconfirmed without full source.",
+       "narrowed_claim": "In the provided chunk of vet.py, lane_for_host is not defined or imported, so if it is missing from the full file, MCP egress detection would fail.",
+       "settling_check": "grep -n 'lane_for_host' daedalus/tools/vet.py",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "regression-history-assumption",
+       "verdict": "refuted",
+       "strongest_counterargument": "The canary's compare_to_history filters by vendor/model/probe, and provider capabilities (can_write, agentic) are immutable per provider instance; changes would require a new provider registration. The history records are per-probe, and a probe's 'ok' status is only meaningful for that specific probe, which is defined by the provider's capabilities at test time. The code does not need to re-check capabilities because the probe itself encodes the capability (e.g., a write test only runs on write-capable providers).",
+       "survives_because": "The hypothesis assumes provider capabilities can change dynamically, but in practice they are static per deployment. The canary's filtering by vendor/model/probe ensures comparisons are valid. No evidence of capability mutation exists in the cited source.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect ProviderMetadata definition: if fields are frozen and never mutated, hypothesis refuted.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "auth-classification",
+       "verdict": "refuted",
+       "strongest_counterargument": "The gh CLI abstracts host differences; for GitHub, auth failures return 404, but for other hosts (GitLab, Bitbucket), gh may still return 404 or a consistent error message. The function is designed for GitHub (repo hardcoded to GitHub in calls). The docstring explicitly states the order is for GitHub's behavior, and the function is only used with GitHub repos. If used with other hosts, it would be a separate issue.",
+       "survives_because": "The cited source shows the function is used with 'gh' CLI which is GitHub-specific. The hypothesis misreads the scope: the function is only for GitHub, so GitLab/Bitbucket behavior is irrelevant. No evidence of multi-host support.",
+       "narrowed_claim": "",
+       "settling_check": "Check if publish.py ever calls _classify_failure with non-GitHub repos (grep for '--repo' usage).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-symbols",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The missing symbols (_REASON_MAP, evidence_ref, _deep_only_modules, _tail_matches, DEEP_EDGE_MARK) are likely defined in other chunks of the same modules (session.py, graph_brief.py) that were not included. The chunks provided are only the first 40 lines, which typically contain docstrings and imports, not all definitions.",
+       "survives_because": "The cited source only shows partial files. Without the full files, we cannot confirm the symbols are missing. The hypothesis is plausible but unconfirmed.",
+       "narrowed_claim": "In the provided chunks of session.py (lines 1-40) and graph_brief.py (lines 1-40), the symbols _REASON_MAP, evidence_ref, _deep_only_modules, _tail_matches, DEEP_EDGE_MARK are not defined. If they are not defined elsewhere in the same files, NameError will occur.",
+       "settling_check": "grep -n '_REASON_MAP\\|evidence_ref' daedalus/council/session.py; grep -n '_deep_only_modules\\|_tail_matches\\|DEEP_EDGE_MARK' daedalus/lanes/graph_brief.py",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "freshness-contract-unimplemented",
+       "verdict": "confirmed",
+       "strongest_counterargument": "snapshot_freshness might be defined in another module (e.g., daedalus/mapping/drift.py itself) but not shown in the cited chunk. The comment references it as a function, so it likely exists elsewhere.",
+       "survives_because": "The cited source is the entire drift.py? Actually the hypothesis only provides evidence of the comment, not the full file. But the claim is that no implementation exists in any scanned module. The cited source does not include snapshot_freshness. However, the evidence is weak because the full drift.py may contain it. The hypothesis is confirmed only if we assume the cited source is complete. Given the reviewer's instruction to default to refuted when uncertain, but the hypothesis is plausible and the comment strongly implies the function should exist, I'll mark it needs-evidence.",
+       "narrowed_claim": "In the provided chunks of mapping/drift.py, no implementation of snapshot_freshness is present, and no consumer uses the freshness field. If the full file also lacks it, the contract is unimplemented.",
+       "settling_check": "grep -rn 'snapshot_freshness' daedalus/",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "resolver-cache-keying",
+       "verdict": "refuted",
+       "strongest_counterargument": "The resolver cache is internal to index.py and keyed by _scope_key. Other modules like reach.py do not use the resolver cache directly; they use the index output. The cache is only used within index.py's build process, and its keying is consistent because _scope_key is derived from the same parameters used to build the index. The historical bug mentioned in comments has been fixed.",
+       "survives_because": "The cited source shows the cache is internal and only used within index.py. reach.py does not reference the cache. The hypothesis assumes cross-module cache sharing which does not exist. No evidence of cache key mismatch in the provided code.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect index.py for all accesses to _RESOLVER_CACHE: if all are within index.py and use _scope_key, hypothesis refuted.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-docstring-claims",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring claims are likely implemented in the rest of render.py (which is thousands of lines). The chunk provided (lines 82-131) is just the end of the docstring and the beginning of code. The actual implementation may be in later lines.",
+       "survives_because": "The cited source shows only a small portion of render.py. However, the docstring makes very specific claims (analyse_once, gate mode, reconciliation, stamp generation, snapshot handling, escaping) that are not visible in the chunk. Without the full file, we cannot verify them. The hypothesis is confirmed as a documentation risk: the docstring claims are unverifiable from the provided source. This is a legitimate concern about documentation accuracy.",
+       "narrowed_claim": "The docstring of render.py makes multiple behavioral claims that are not backed by code in the provided chunk (lines 82-131). If the full file does not implement them, the documentation is misleading.",
+       "settling_check": "Read full render.py and verify each docstring claim: analyse_once, gate mode, reconciliation, stamp generation, snapshot handling, escaping.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "unvalidated-totals",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The variables units, renamed, near, windows, fenced are likely computed earlier in report.py (in lines before the chunk). The cited source shows only a partial file (lines 130-136) but not the preceding lines. They may be defined in the same module.",
+       "survives_because": "The cited source says 'symbol 'lines' NOT PRESENT IN FILE' which is confusing. Actually the cited source is not provided; the evidence says 'lines 130-136 use units, renamed, near, windows, fenced not defined in chunk'. Without the full file, we cannot confirm. The hypothesis is plausible but unconfirmed.",
+       "narrowed_claim": "In the provided chunk of report.py, the variables units, renamed, near, windows, fenced are used but not defined. If they are not defined earlier in the same file, NameError will occur.",
+       "settling_check": "grep -n 'units\\|renamed\\|near\\|windows\\|fenced' daedalus/structcore/report.py",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "inconsistent-target-tuples",
+       "verdict": "refuted",
+       "strongest_counterargument": "The tuples in typegraph.py are internal to that module and are never compared or combined with tuples from picker.py. picker.py builds dicts, not tuples. The tuple structures are consistent within typegraph.py: both ('module', alias.orig) and (module, alias.orig) are (str, str) tuples. The difference is that alias.orig is a string in both cases. No cross-module tuple comparison occurs.",
+       "survives_because": "The cited source shows that in typegraph.py, for 'import' aliases the tuple is (\"module\", alias.orig) and for 'from' aliases it is (module, alias.orig). Both are (str, str) tuples. The code is consistent. picker.py does not use such tuples. No evidence of cross-module tuple exchange.",
+       "narrowed_claim": "",
+       "settling_check": "Check if any function in typegraph.py compares tuples from different alias types (grep for tuple comparison).",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6829a893073e4c3526368b6a9770168a0bf958fe27b0a53986d1d09860c68ac0",
+    "objective_chars": 45111,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 17 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 17,
+  "inputs": 9
+ }
+}

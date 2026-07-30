@@ -1,0 +1,241 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c2of10__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c2of10__946db82-f624ca5454",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 10: defines relation constants, hub cap, structural matching limits, vocabulary set, builtin types, and node id functions for type and field nodes in the type graph.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "2 of 10",
+     "purpose": "Define relation names, hub cap constants, vocabulary, builtin types, and node id generation functions.",
+     "symbols": [
+      {
+       "name": "REL_HAS_FIELD",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'has_field' for relation name."
+      },
+      {
+       "name": "REL_FIELD_TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'field_type' for relation name."
+      },
+      {
+       "name": "REL_INHERITS",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'inherits' for relation name."
+      },
+      {
+       "name": "REL_CONSUMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'consumes' for relation name."
+      },
+      {
+       "name": "REL_PRODUCES",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'produces' for relation name."
+      },
+      {
+       "name": "REL_ALIAS_OF",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'alias_of' for relation name."
+      },
+      {
+       "name": "RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of all relation constants."
+      },
+      {
+       "name": "_CAPPED_RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of relation names whose fan-in is capped by hub cap."
+      },
+      {
+       "name": "DEFAULT_HUB_CAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer default hub cap value 64."
+      },
+      {
+       "name": "STRUCTURAL_MIN_MEMBERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant 2 for minimum structural protocol members."
+      },
+      {
+       "name": "STRUCTURAL_MAX_MATCHES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant 25 for maximum structural matches."
+      },
+      {
+       "name": "_MAX_SAMPLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant 25 for sample size."
+      },
+      {
+       "name": "_ORIGIN_RANK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping origin strings to integer ranks."
+      },
+      {
+       "name": "_VOCABULARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of typing/ABC vocabulary strings."
+      },
+      {
+       "name": "_BUILTIN_TYPES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of builtin type names, including 'None' and 'NoneType'."
+      },
+      {
+       "name": "type_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a forest node id string for a type declaration given module and qualname."
+      },
+      {
+       "name": "field_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a forest node id string for a field of a type (body incomplete in chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A SEPARATE relation rather than a second row inside ``has_field`` because its direction is field -> type while has_field's is type -> field, and one relation layer with two directions is unreadable in a forest.",
+       "where": "Lines 121-124",
+       "verdict": "uncheckable",
+       "why": "This chunk does not include the implementation of any relation layer, so the claim about readability cannot be verified here."
+      },
+      {
+       "text": "``instantiates`` is DEFERRED: it needs the call graph.",
+       "where": "Line 125",
+       "verdict": "uncheckable",
+       "why": "The constant 'instantiates' is not defined in this chunk; its deferral cannot be checked."
+      },
+      {
+       "text": "Relations whose fan-in the hub cap governs. The 2-hop blow-up that invariant I6 is about is function<->type: two functions that both mention the same type are two hops apart. ``has_field``/``inherits``/``alias_of`` are declaration structure, bounded by the number of declarations, and are not capped.",
+       "where": "Lines 133-137",
+       "verdict": "kept",
+       "why": "The code defines _CAPPED_RELATIONS as frozenset({REL_CONSUMES, REL_PRODUCES}), which includes only those two, matching the claim that has_field, inherits, alias_of are not capped."
+      },
+      {
+       "text": "MEASURED on daedalus/ (143 files, 2207 functions, 2182 carrying >=1 type edge, 227 distinct nominal types) BEFORE this module existed: ... The distribution has a MEASURED empty band, so the cap is picked off a plateau rather than judged: sorted per-type fan-in at the top is 1722, 883, 565, 394, 336, 325, 317, 175 || 33, 27, 26, 25, 23, 23, 20 ... -- a 5.3x gap between rank 8 (float) and rank 9 (Report) with NOTHING in between, so every cap in [34, 174] excludes exactly the same eight types (str, None, Any, dict, int, Path, bool, float -- the universal vocabulary, not one domain concept among them). 64 = max(8, min(64, round(0.03 * 2182))), i.e. the absolute number and the 'a type touched by more than ~3% of all functions cannot discriminate between them' rule agree here. Choosing the HIGH side of the band is deliberate: hubs only grow, while a domain type that grows into the cap would SILENTLY lose all of its edges, so the headroom is worth more than the suppression.",
+       "where": "Lines 139-160",
+       "verdict": "uncheckable",
+       "why": "The measurements and reasoning refer to external data not present in this chunk; no code here validates those numbers or the claimed empty band."
+      },
+      {
+       "text": "In a resolve-only graph most of those eight never arrive anyway (``str`` and ``int`` are builtins and ``Path`` is external -- none is DECLARED here), so on daedalus/ the cap is a guard rather than a filter. It exists for the repo where a hub IS locally declared. 0 disables it.",
+       "where": "Lines 162-166",
+       "verdict": "uncheckable",
+       "why": "The behavior of the hub cap in a resolve-only graph depends on code outside this chunk; the claim that 0 disables it is a comment but no code here implements that check."
+      },
+      {
+       "text": "Structural (Protocol) matching is a FLAGGED HEURISTIC, and these two constants are what keep it from being noise. A protocol with a single common member name (``run``, ``close``) matches half a repo by coincidence, which is the fixture corpus's own argument (``emit``/``flush`` 'make coincidence the normal case'), so one member is not evidence. And a protocol that matches more classes than the cap has told us nothing at all: the whole match set is dropped rather than truncated, because publishing the first N of an arbitrary set is a guess wearing a number.",
+       "where": "Lines 168-175",
+       "verdict": "uncheckable",
+       "why": "The constants STRUCTURAL_MIN_MEMBERS and STRUCTURAL_MAX_MATCHES are defined, but the claim about how they are used (dropping vs truncating) depends on code not in this chunk."
+      },
+      {
+       "text": "Field origins in preference order when the same member was written twice -- ``limit: int = 10`` in the class body AND ``self.limit = limit`` in ``__init__`` are two facts about ONE member (parse.py says so explicitly), and two ``field`` nodes for one member would be a fabrication. An ANNOTATED origin always wins first; this order only breaks the remaining ties.",
+       "where": "Lines 179-183",
+       "verdict": "uncheckable",
+       "why": "The constant _ORIGIN_RANK is defined, but the logic that uses it and the reference to parse.py are not in this chunk."
+      },
+      {
+       "text": "Typing / ABC vocabulary that is a WORD IN THE LANGUAGE, not a repo type. Counted in its own bucket so it never inflates ``unresolved``. Most of these arrive with an explicit ``from typing import ...`` and are classified ``external`` before this set is consulted; the set catches the spellings that arrive with no binding at all. A repo that genuinely DECLARES one of these names shadows it, because tier 1 (same-file declaration) runs first.",
+       "where": "Lines 185-189",
+       "verdict": "uncheckable",
+       "why": "The set _VOCABULARY is defined, but the classification logic and tier resolution are not in this chunk."
+      },
+      {
+       "text": "Names bound in every module by the interpreter itself. Asked of ``builtins`` rather than hand-listed so the set cannot drift from the interpreter running the scan, and filtered to actual TYPES so that ``len``/``print`` (never legal in an annotation) are not silently treated as resolved-away vocabulary. Every exception class comes along for free, which matters: ``-> ValueError`` is a real annotation shape and it is not an unresolved repo type.",
+       "where": "Lines 206-213",
+       "verdict": "kept",
+       "why": "The code defines _BUILTIN_TYPES as a frozenset of names from builtins that are types, plus 'None' and 'NoneType', which matches the claim of filtering to actual types and including exceptions."
+      },
+      {
+       "text": "A ``kind:`` prefix (the established ``repo:``/``dir:``/``file:`` convention in dss.py) PLUS a ``#`` separator that no repo-relative POSIX path carries. Both are needed and neither is the primary guard: ``dss._canonical_file_path`` would happily read ``type:pkg/mod.py#Foo`` as a relative path, so what actually keeps a type node out of the file world is the node-KIND filter. The id scheme is defence in depth, and it makes a leak legible in a diff.",
+       "where": "Lines 217-222",
+       "verdict": "uncheckable",
+       "why": "The functions type_node_id and field_node_id are defined, but the claim about dss._canonical_file_path and node-KIND filter refers to code outside this chunk."
+      },
+      {
+       "text": "Forest node id for a type declaration.",
+       "where": "Line 224 (docstring of type_node_id)",
+       "verdict": "kept",
+       "why": "The function returns a string formatted as 'type:{module}#{qualname}', which is a forest node id for a type declaration."
+      },
+      {
+       "text": "Forest node id for one member of a type.",
+       "where": "Line 228 (docstring of field_node_id)",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk, so the claim that it returns a forest node id for a member cannot be verified from the given code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "field_node_id function is truncated; only the signature and docstring are present, no implementation.",
+       "where": "Line 228",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Comment says '0 disables it' for hub cap, but no code in this chunk implements that logic.",
+       "where": "Line 166",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "38a568108dc47c107120011a0792c53c0898a44debcfc8f55e1ffb983e92309f",
+    "objective_chars": 7188,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [2/10]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 2,
+  "total": 10,
+  "first_line": 121
+ }
+}

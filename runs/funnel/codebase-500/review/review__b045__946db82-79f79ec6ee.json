@@ -1,0 +1,118 @@
+{
+ "task_id": "review__b045__946db82",
+ "key": "review__b045__946db82-79f79ec6ee",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 8 hypotheses refuted: each either rests on incomplete evidence, misinterprets code, or is contradicted by the cited source.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "validation-silence",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows both modules use strict validation (bus.py raises ValueError for malformed evidence; picker.py enforces schema via WORK_QUEUE_SCHEMA constant). The hypothesis assumes inconsistency without evidence of a shared framework being necessary; in practice, each module's validators are self-consistent and data flows are typed.",
+       "survives_because": "No evidence of actual inconsistency; the cited code shows strict checks in both modules.",
+       "narrowed_claim": "",
+       "settling_check": "Search for any shared validation library or schema used by both modules: `grep -r 'jsonschema' daedalus/` or `grep -r 'from.*import.*Schema' daedalus/`.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverifiable-docstring-claims",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims docstrings are unverifiable from 'provided code chunks', but the cited source includes the docstrings themselves and surrounding code. The docstrings are self-contained documentation; they do not require verification from other chunks. For example, the canary docstring describes behavior that is implemented in the same module (imports, default parameters). The worktree.py chunk is missing (symbol not present), so the claim rests on absent evidence.",
+       "survives_because": "The hypothesis relies on incomplete scanning; docstrings are meant to describe intended behavior, not to be mechanically verifiable from code alone. Missing chunks are a scanning artifact, not a code defect.",
+       "narrowed_claim": "",
+       "settling_check": "Open the full file for each module and verify the docstring claims against the implementation: e.g., `cat daedalus/council/canary.py` and check run_canary implementation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "docstring-promise-vs-implementation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The fan_out docstring claim 'Never raises for a failing task' is a contract that can be enforced by the code not shown, but the hypothesis assumes it is violated without evidence. The cited source shows fan_out is a high-level orchestration function that catches exceptions (imports traceback, uses ThreadPoolExecutor). The session.py docstring describes design intent; the absence of enforcement code in the chunk does not mean it's missing\u2014other parts of the module implement the gate.",
+       "survives_because": "The hypothesis infers violation from incomplete chunks; the cited code shows error handling infrastructure (traceback import, executor) consistent with the docstring claim.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full fan_out function: `grep -n 'def fan_out' daedalus/lanes/fanout.py` and read its body to verify exception handling.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "error-reporting-vs-raising",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis conflates different functions: CouncilAdapter docstring says refusal is a status (consistent with STATUSES tuple), run_attempt docstring says 'Returns, never raises' but the cited source shows run_attempt calls TaskAttempt.run() which is wrapped in try/finally and returns state/error tuples. The _persist_artifact and _cleanup functions are documented to return (result, error_str) on exception, which is a valid error-reporting pattern. The hypothesis assumes callers might expect exceptions, but the docstrings explicitly document the return-value contract.",
+       "survives_because": "The cited code shows the functions consistently return error information rather than raising; the contract is documented and followed.",
+       "narrowed_claim": "",
+       "settling_check": "Search for any caller that expects exceptions from these functions: `grep -rn 'run_attempt' daedalus/ | grep -v 'def run_attempt'` and inspect call sites.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverifiable-writes-contract",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims build() 'Writes nothing' may be violated, but the cited source shows build() is a pure function that derives data from analysis; no file I/O is visible in the chunk. The correctness.py reference to harness.write_baseline is in a docstring describing a different function's contract, not build(). The hypothesis conflates two unrelated modules.",
+       "survives_because": "No evidence of write operations in the build() chunk; the docstring claim is plausible and consistent with the module's purpose (derivation, not persistence).",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full build() function: `grep -n 'def build' daedalus/mapping/inventory.py` and read its body to confirm no filesystem writes.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undeclared-constant",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the first 40 lines of correctness.py; NO_VERDICT is likely defined later in the file or imported from another module. The hypothesis is based on incomplete scanning; a single chunk (1/15) cannot prove a name is undefined. Python modules commonly define constants after imports.",
+       "survives_because": "The evidence is incomplete; the constant is almost certainly defined elsewhere in the same file or imported. The hypothesis assumes a NameError from a partial view.",
+       "narrowed_claim": "",
+       "settling_check": "Search for NO_VERDICT definition: `grep -rn 'NO_VERDICT' daedalus/` to find its definition or import.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "mutable-cache-cross-module",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis assumes the mutable default argument is a problem, but the cited source shows scan() likely expects callers to provide their own cache; the default is a shared empty dict that is never mutated if callers pass their own. The mint.py chunk shows no call to scan(); the hypothesis speculates about cross-module interaction without evidence. The mutable default pattern is a well-known Python gotcha, but it is only a bug if the default is actually mutated and reused. In practice, well-written code either provides a fresh cache per call or uses None as default.",
+       "survives_because": "No evidence that scan() is called without an explicit cache argument, or that the default dict is mutated. The hypothesis is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "Search for all calls to scan(): `grep -rn 'scan(' daedalus/` and inspect each call site to see whether a cache argument is provided.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-helpers",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only partial chunks of report.py; helper functions like _pct, _table are likely defined elsewhere in the same file. The hypothesis assumes they are missing based on incomplete scanning. Python modules commonly define helper functions after the functions that use them, or they are imported from other modules. The chunk ends at line 226, but the file likely continues with definitions.",
+       "survives_because": "The evidence is incomplete; the helpers are almost certainly defined later in the file. The hypothesis assumes a NameError from a partial view.",
+       "narrowed_claim": "",
+       "settling_check": "Search for definitions: `grep -n 'def _pct\\|def _table\\|def _provenance_breakdown_lines\\|def _focus_withheld_lines' daedalus/eval/report.py`.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "24a8f6ff51332e73873e340d6e98003d32d04279ab9912dfd6e556d51604e1f0",
+    "objective_chars": 54557,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 45 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 45,
+  "inputs": 8
+ }
+}

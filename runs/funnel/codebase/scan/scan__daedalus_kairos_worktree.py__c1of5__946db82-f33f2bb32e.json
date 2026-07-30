@@ -1,0 +1,234 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c1of5__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c1of5__946db82-f33f2bb32e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/kairos/worktree.py: module docstring, imports, constants, and helper functions for worktree containment. Claims about attack surface, reparse detection, and path identity are checked against present code; some require external verification.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "os.rmdir | high | os.rmdir resolves intermediate components; re-verification needed each call. Code states it does so but actual re-verification logic not in this chunk.",
+     "_path_identity | medium | st_ino may be 0 on FAT/exFAT; docstring warns but callers must handle. Not testable here.",
+     "_is_reparse_point | medium | On non-Windows, function falls back to S_ISLNK/islink only. Docstring warns of mutation risk; test mentioned not in chunk.",
+     "ALLOC_DIRNAME | low | Bookkeeping directory is one .parent away from candidate worktree; docstring warns it's readable/writable. No code in chunk to verify protection."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring with containment rationale, imports, constants, and helper functions for path predicates and worktree removal.",
+     "symbols": [
+      {
+       "name": "ALLOC_DIRNAME",
+       "kind": "constant",
+       "effects": [],
+       "note": "Bookkeeping directory name, outside worktrees but accessible to candidate code."
+      },
+      {
+       "name": "ALLOC_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema identifier for allocation records."
+      },
+      {
+       "name": "WorktreeContainmentError",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for containment failures; subclass of RuntimeError."
+      },
+      {
+       "name": "WorktreeRemovalRace",
+       "kind": "class",
+       "effects": [],
+       "note": "Exception for reparse point appearing during removal; subclass of WorktreeContainmentError."
+      },
+      {
+       "name": "_worktree_root_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves worktree root directory for a given repo path using env override or default locations."
+      },
+      {
+       "name": "_lexical",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns absolute-and-normalised path without touching filesystem."
+      },
+      {
+       "name": "_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns normalised and case-folded path string for comparison."
+      },
+      {
+       "name": "_is_within",
+       "kind": "function",
+       "effects": [],
+       "note": "Lexical containment check: true if child is parent or under it."
+      },
+      {
+       "name": "_is_reparse_point",
+       "kind": "function",
+       "effects": [],
+       "note": "No-follow reparse point detection (symlinks, junctions, mount points)."
+      },
+      {
+       "name": "_path_identity",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (st_dev, st_ino) via lstat, or None if path missing."
+      },
+      {
+       "name": "_lexists",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if path exists via lstat."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Path.resolve() before the safety check turns the link into its target, so the subsequent delete is handed a real directory (the primary checkout) and never sees a link at all. This is why nothing here resolves before it checks: check no-follow first, then operate on the unresolved path.",
+       "where": "module docstring, line ~15",
+       "verdict": "uncheckable",
+       "why": "The claim references Path.resolve() behaviour and design decision. No code in this chunk performs resolve() or checks order; it is a claim about design not present in code."
+      },
+      {
+       "text": "git worktree remove --force performs its own recursive delete and FOLLOWS a junction planted inside the worktree (measured: exit 0, empty stderr, target contents gone). So git's removal is not used at all any more.",
+       "where": "module docstring, line ~20",
+       "verdict": "uncheckable",
+       "why": "No git commands or references to git worktree remove appear in this chunk. Claim refers to code not present."
+      },
+      {
+       "text": "shutil.rmtree is NOT a safe substitute either, though not for the reason an earlier version of this docstring gave. It DOES refuse a junction that is already in place when the walk starts -- CPython's shutil._rmtree_isdir rejects IO_REPARSE_TAG_MOUNT_POINT (measured: victim intact). But that classification is read from DirEntry.stat(follow_symlinks=False), which on Windows is served from the PARENT directory's scandir cache and is never refreshed: measured, a DirEntry for a path that has since become a junction still reports st_reparse_tag == 0, and _rmtree_isdir returns True for it. So a live process that swaps an ALREADY-ENUMERATED sibling for a junction is followed -- measured 3/3 victims destroyed against the last entry of a large directory.",
+       "where": "module docstring, line ~25",
+       "verdict": "uncheckable",
+       "why": "No shutil.rmtree usage or analysis in this chunk. Claim refers to behaviour of external module not present."
+      },
+      {
+       "text": "This module therefore owns the delete, via :func:`_remove_tree_no_follow`, whose invariant is that every path handed to a syscall that RESOLVES it -- os.scandir, os.rmdir, os.unlink, os.chmod, all four of them -- is re-classified with a FRESH lstat immediately beforehand; git worktree prune then deregisters.",
+       "where": "module docstring, line ~30",
+       "verdict": "uncheckable",
+       "why": "Function _remove_tree_no_follow is declared in __all__ but not defined in this chunk. No code present to verify the invariant."
+      },
+      {
+       "text": "Path hygiene cannot see an attack that uses no path trickery at all: the candidate os.renames the primary checkout INTO its own worktree, and every check then passes honestly, because what the walker finds is a real directory in a place it really is entitled to delete (measured, 3/3, whole checkout gone, cleanup returned success). What exists against it is one mitigation, not a fix -- see :meth:`GitWorktreeManager._refuse_if_the_primary_checkout_moved`.",
+       "where": "module docstring, line ~35",
+       "verdict": "uncheckable",
+       "why": "The mitigation method _refuse_if_the_primary_checkout_moved is not defined in this chunk. No code to evaluate."
+      },
+      {
+       "text": "That mitigation is an IDENTITY check, and an earlier version of this paragraph said it 'knows the identity of exactly ONE directory'. That was wrong twice over. It was wrong about the SCOPE -- it now records the no-follow identity of the checkout AND of every directory the checkout is reached through, because the same attack one component higher (move the checkout's PARENT in, junction the parent's name) went straight past a leaf-only check: measured, 40/40 work files destroyed. And it was wrong about the STRENGTH: what it knows is not an identity it cannot be lied to about. It read that identity with os.stat, which FOLLOWS a reparse point, so the answer came back THROUGH the attacker's own junction and matched. It reads os.lstat now.",
+       "where": "module docstring, line ~40",
+       "verdict": "uncheckable",
+       "why": "The identity check logic is in GitWorktreeManager method not present in this chunk. No code to verify."
+      },
+      {
+       "text": "os.rmdir removes the junction, unlink removes the link.",
+       "where": "comment before __all__, line ~140",
+       "verdict": "kept",
+       "why": "The comment states that os.rmdir and os.unlink do not follow the final component reparse point. This is consistent with standard OS behaviour and no contradictory code is present."
+      },
+      {
+       "text": "An earlier version believed os.scandir was the only follower, and the rmdir drain that belief licensed was measured deleting 3000 directories inside a stand-in primary",
+       "where": "comment before __all__, line ~145",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a measurement and a prior belief; no code in this chunk implements or references that drain."
+      },
+      {
+       "text": "os.path.islink is NOT sufficient on Windows: a junction created with mklink /J has reparse tag IO_REPARSE_TAG_MOUNT_POINT, not ...SYMLINK, so islink returns False for it (measured on this machine).",
+       "where": "docstring of _is_reparse_point, line ~100",
+       "verdict": "kept",
+       "why": "The function _is_reparse_point checks both S_ISLNK/islink AND st_file_attributes for FILE_ATTRIBUTE_REPARSE_POINT, confirming that islink alone is insufficient."
+      },
+      {
+       "text": "THE FIRST LINE IS THE ONLY ONE THAT EXISTS OFF WINDOWS, and it is worth saying because the two Windows-specific answers below it are what the junction tests exercise. st_file_attributes and st_reparse_tag are not members of a stat_result on Linux/macOS at all, so on those platforms both getattr calls yield the default and deleting the S_ISLNK/islink line turns this whole function into return False -- every symlink followed, every guard in this file silently open. That mutation SURVIVED the suite until 2026-07-28; it is killed now by test_reparse_detection_off_windows_rests_on_the_symlink_branch, which simulates the POSIX stat SHAPE rather than skipping off Windows.",
+       "where": "docstring of _is_reparse_point, line ~105",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a test (test_reparse_detection_off_windows_rests_on_the_symlink_branch) not present in this chunk. The function itself is present and its behaviour on non-Windows can be inferred from code: the S_ISLINK/islink line returns True for symlinks, but if that line were removed, the getattr calls would return 0, leading to False. The claim about mutation surviving until a date is uncheckable."
+      },
+      {
+       "text": "NO-FOLLOW, and that is the whole point. It reads os.lstat, not os.stat. An earlier version used os.stat, which FOLLOWS a reparse point, and that made the identity FORGEABLE by the one primitive this module exists to defend against -- measured on this box, against the manager's own repo_path: os.stat (real directory) ino=7318349396973012; os.stat (junction to it) ino=7318349396973012 -> identity MATCHES; os.lstat (junction to it) ino=7318349396973013 -> identity DIFFERS.",
+       "where": "docstring of _path_identity, line ~120",
+       "verdict": "kept",
+       "why": "The function _path_identity uses os.lstat, which does not follow reparse points. The claim about measurement and comparison is consistent with the function's implementation."
+      },
+      {
+       "text": "Measured on this box (Windows 11, CPython 3.10.11): lstat populates both fields for a DIRECTORY, os.rename PRESERVES them (same NTFS record under a new name -- so a renamed directory keeps its record and a fresh object cannot be handed that record while the renamed one still holds it), and a fresh directory OR JUNCTION created at the vacated name gets a different st_ino.",
+       "where": "docstring of _path_identity, line ~125",
+       "verdict": "uncheckable",
+       "why": "The claim refers to measurements and OS behaviour not verifiable from this code chunk. The function uses lstat and returns (st_dev, st_ino) but does not test rename behaviour."
+      },
+      {
+       "text": "st_ino is 0 on filesystems that do not expose one (FAT, some network mounts). Callers must treat a zero st_ino as NO identity rather than as a comparable value; see :meth:`GitWorktreeManager._refuse_if_the_primary_checkout_moved`, which is why that method also has a check that does not depend on inodes.",
+       "where": "docstring of _path_identity, line ~130",
+       "verdict": "uncheckable",
+       "why": "The method _refuse_if_the_primary_checkout_moved is not present in this chunk. The function _path_identity returns None on error, but does not handle zero st_ino specially."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring extensively describes attack surface and design decisions, but many referenced mechanisms (e.g., _remove_tree_no_follow, GitWorktreeManager methods) are not in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _is_reparse_point uses getattr with defaults to handle platforms lacking st_file_attributes or st_reparse_tag, but the first check (S_ISLNK or islink) is not guarded by platform checks.",
+       "where": "_is_reparse_point, line ~110",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about os.rmdir and os.unlink not following the final component is accurate but the code does not include any call to these functions; it's a note for future development.",
+       "where": "comment before __all__, line ~140",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _path_identity returns None on error but does not explicitly handle zero st_ino; the docstring warns callers but the function itself does not differentiate.",
+       "where": "_path_identity, line ~130",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module imports require_storage but does not use it in this chunk; it may be used later.",
+       "where": "imports, line ~70",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1f33ce6cb07d2507595dcaa367725ae012adceb93d73048810afda8dc6ab38a2",
+    "objective_chars": 14470,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

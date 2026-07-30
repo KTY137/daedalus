@@ -1,0 +1,213 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c2of2__946db82",
+ "key": "scan__daedalus_lanes_fanout.py__c2of2__946db82-f403a8a5d3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2/2 of fanout.py: defines fan_out function with resume logic, temperature guard, budget guard, threading, progress callback, and summary dict. Claims checked against code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 281-300 | high | policy and system_override parameters are accepted but never used in this chunk; if caller expects them to influence behavior, they are silently ignored. | Check if they are used in _one_call or elsewhere.",
+     "line 312-320 | medium | resume skips tasks with existing parsable result files, but if a file exists and is parseable but contains wrong data (e.g., empty answers list), it is still skipped because the code returns if res.answers is truthy. | Confirm intended behavior: should a file with empty answers be re-run?",
+     "line 328-330 | low | Exception handling in _run_task catches all exceptions and appends error string; if an exception has no traceback, format_exception_only may produce empty string. | Verify that error messages are meaningful.",
+     "line 345 | medium | on_result callback exceptions are silently ignored; if callback has side effects, failures may go unnoticed. | Consider logging or other error handling.",
+     "line 367 | medium | The return dict includes 'paid_calls' which is a count of API calls; the docstring claims it's a count, but the claim about 'budget ledger' is uncheckable. | Ensure consistency with budget module."
+    ],
+    "todos": [
+     "Verify that policy and system_override parameters are intended to be unused in fan_out (or ensure they are passed to _one_call).",
+     "Clarify resume behavior for files with empty answers list.",
+     "Consider adding logging for on_result callback exceptions.",
+     "Ensure budget ledger references are consistent across modules."
+    ],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "2 of 2",
+     "purpose": "Defines the fan_out function: orchestrates parallel task execution with resume, temperature guard, budget guard, and progress reporting.",
+     "symbols": [
+      {
+       "name": "fan_out",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "network_egress",
+        "spend"
+       ],
+       "note": "Main public function; creates output directory, spawns thread pool, calls _one_call per vote, writes result files, and returns summary dict."
+      },
+      {
+       "name": "policy",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; type Any | None, default None. Not used in this chunk."
+      },
+      {
+       "name": "system_override",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; type str | None, default None. Not used in this chunk."
+      },
+      {
+       "name": "temperature",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; float, default 0.0. Used in temperature guard and passed to _one_call."
+      },
+      {
+       "name": "resume",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; bool, default True. Controls skipping tasks with existing result files."
+      },
+      {
+       "name": "on_result",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; optional callback called per completed task."
+      },
+      {
+       "name": "progress_every",
+       "kind": "constant",
+       "effects": [],
+       "note": "Parameter of fan_out; int, default 25. Controls progress print frequency."
+      },
+      {
+       "name": "_brief_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Inner function; returns brief string for a task using render_brief."
+      },
+      {
+       "name": "_run_task",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "network_egress",
+        "spend"
+       ],
+       "note": "Inner function; runs a single task: checks resume, loops over votes, calls _one_call, writes result file."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises for a failing task: a fan-out of 1,200 in which one task dies must produce 1,199 answers and a named failure, not an exception.",
+       "where": "docstring of fan_out",
+       "verdict": "kept",
+       "why": "All exceptions in _run_task are caught and recorded as errors; the loop continues. The only exception that could propagate is from pool.submit or as_completed, but those are caught in the try block and converted to error results."
+      },
+      {
+       "text": "Transport failures are recorded on the result and the queue continues",
+       "where": "docstring of fan_out",
+       "verdict": "kept",
+       "why": "Exceptions from _one_call are caught and appended to res.errors."
+      },
+      {
+       "text": "resume skips any task whose result file already exists AND parses. A file that exists but does not parse is re-run",
+       "where": "docstring of fan_out",
+       "verdict": "kept",
+       "why": "Code checks dest.is_file(), tries to load and parse; if any exception occurs, it falls through to re-run. If parsing succeeds but res.answers is falsy, it also re-runs (fall-through after if res.answers)."
+      },
+      {
+       "text": "asking for votes you cannot get is an error at the door",
+       "where": "comment before temperature guard",
+       "verdict": "kept",
+       "why": "The guard checks any(t.votes>1) and temperature<=0.0 and returns a 'refused' state immediately."
+      },
+      {
+       "text": "At temperature 0.0 the decode is deterministic, so every vote returns the SAME answer",
+       "where": "comment in temperature guard",
+       "verdict": "uncheckable",
+       "why": "This is a claim about model behavior; not verifiable from this code."
+      },
+      {
+       "text": "a fan-out whose spend cannot be capped does not run",
+       "where": "comment before budget guard",
+       "verdict": "kept",
+       "why": "If install_process_guard raises an exception, the function returns a 'refused' state immediately."
+      },
+      {
+       "text": "A refusal that returns a different dict forces every consumer to write two code paths, and the one it will forget is the refusal -- so a caller reading `paid_calls` would crash exactly when the answer it needed was 'zero, nothing was spent'.",
+       "where": "comment in budget guard exception handler",
+       "verdict": "kept",
+       "why": "The 'refused' return dict includes all keys that the normal 'ran' dict has (tasks, ok, failed, resumed, paid_calls, out_dir, concurrency, results)."
+      },
+      {
+       "text": "PAID CALLS, separate from task count: with votes>1 they differ",
+       "where": "comment in return dict",
+       "verdict": "kept",
+       "why": "paid_calls is incremented per vote (counts['calls']), while task count is len(tasks)."
+      },
+      {
+       "text": "the budget ledger prices reservations at a deliberate worst-case, so a ledger total is a ceiling and never an invoice",
+       "where": "comment in return dict",
+       "verdict": "uncheckable",
+       "why": "Refers to budget ledger behavior not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The parameters policy and system_override are documented and accepted but never used in this function; they are presumably passed to _one_call which is not shown.",
+       "where": "function signature lines 281-300",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The resume logic re-runs if result file exists but res.answers is falsy (empty list). This may be intentional but is not explicitly documented.",
+       "where": "_run_task lines 312-320",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Exceptions from on_result callback are silently ignored; this could hide callback failures.",
+       "where": "line 345",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The progress print uses print() directly; may interfere with logging or output redirection.",
+       "where": "lines 348-352",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function returns a dict with state 'refused' or 'ran'; all keys are consistent between the two states.",
+       "where": "return statements",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e1e121ee0ac63eab63d7637307d0bf6f9f03a34c3cd006b511f5f6f5ea73b7eb",
+    "objective_chars": 10319,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

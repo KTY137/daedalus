@@ -1,0 +1,149 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c4of4__946db82",
+ "key": "scan__daedalus_lanes_graph_brief.py__c4of4__946db82-fed13e4ca5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4 of graph_brief.py: final part of graph_brief function and render_brief wrapper.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "4 of 4",
+     "purpose": "Complete graph_brief and provide render_brief convenience function.",
+     "symbols": [
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Generates structural brief from index; reads filesystem for symbols."
+      },
+      {
+       "name": "render_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Convenience wrapper that returns text or empty string on exception."
+      }
+     ],
+     "claims": [
+      {
+       "text": "PUBLIC API ONLY for a neighbour. What a caller may use from another module is its public surface; its private helpers are not callable and listing them cost 495 lines around ``offload.py`` -- enough to consume the whole budget on names nobody is allowed to reference.",
+       "where": "line 368 comment",
+       "verdict": "uncheckable",
+       "why": "Refers to offload.py and budget constraints not present in this chunk."
+      },
+      {
+       "text": "If a name is not listed under its file, it does not exist in that file. Do not import it.",
+       "where": "line 374 in _emit call",
+       "verdict": "uncheckable",
+       "why": "This is a guideline for the generated output; its truth depends on file_symbols and _emit implementations not in this chunk."
+      },
+      {
+       "text": "``document_links_reverse`` is keyed BY THE CODE FILE, which is the lookup wanted here -- a scan of the forward map would be O(all pages) per lane. Both keys are absent unless the document layer is enabled, so this section vanishes rather than lying when it is off.",
+       "where": "lines 380-383 comment",
+       "verdict": "uncheckable",
+       "why": "Refers to index structure and document layer behavior not present in this chunk."
+      },
+      {
+       "text": "Wikilinks from a page INTO code are a separate relation with its own layer, and are only forward-keyed.",
+       "where": "line 388 comment",
+       "verdict": "uncheckable",
+       "why": "Refers to wiki_code_links layer not present in this chunk."
+      },
+      {
+       "text": "A page that describes one of these files. Its claims are a PROMISE, not evidence -- where the code disagrees, the document is the bug.",
+       "where": "line 394 in _emit call",
+       "verdict": "uncheckable",
+       "why": "This is a meta-instruction about generated output; depends on document layer not present."
+      },
+      {
+       "text": "This describes SHAPE, not behaviour. Never cite it as evidence about what code does.",
+       "where": "line 403 in header",
+       "verdict": "kept",
+       "why": "The header itself states this, and the function only processes structural data (symbols, imports, documents) from an index, not runtime behavior."
+      },
+      {
+       "text": "BUDGET: truncated -- ... Absence below is NOT evidence of absence in the repo.",
+       "where": "lines 405-408 in header",
+       "verdict": "kept",
+       "why": "The code conditionally adds this header when `dropped` is non-empty, and the message correctly warns that omitted lines do not indicate absence."
+      },
+      {
+       "text": "symbols first because \"what exists\" is what a writer needs before anything else, then who reaches whom, then what has been promised.",
+       "where": "lines 410-412 comment",
+       "verdict": "kept",
+       "why": "The ordering `['symbols', 'imports', 'documents']` matches the comment, though the comment says 'who reaches whom' which corresponds to 'imports' layer."
+      },
+      {
+       "text": "No structural facts available for these files.",
+       "where": "line 414 in header",
+       "verdict": "kept",
+       "why": "The code appends this header when `sections` is empty (line 413-414)."
+      },
+      {
+       "text": "The convenience a provider calls: it must never raise into a lane, so a failure to describe the graph degrades to no description.",
+       "where": "lines 424-425 docstring",
+       "verdict": "kept",
+       "why": "The function catches all exceptions and returns empty string, ensuring it never raises."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_brief returns empty string on any exception, catching all exceptions broadly.",
+       "where": "line 427",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "graph_brief returns GraphBrief object with provenance info including scope_key, n_files, hops, budget_chars.",
+       "where": "lines 416-421",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The header includes a note that absence of lines due to truncation is not evidence of absence, but this note only appears if dropped is non-empty.",
+       "where": "lines 405-408",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c24fff0350034254889495ba904a4d670b40eca2ad1832dc9c89352ae6805d75",
+    "objective_chars": 4703,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 361
+ }
+}

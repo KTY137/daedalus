@@ -1,0 +1,185 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c3of7__946db82",
+ "key": "scan__daedalus_council_bus.py__c3of7__946db82-80c92ac438",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 7 of daedalus/council/bus.py: defines secret floor scan functions (_scan_paths, _scan_texts, _scan_turn, _scan_roster) and envelope construction helpers (_reject_unknown, _norm_evidence, _norm_strs, _norm_meta).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_scan_texts | medium | Docstring claims path='' is correct and NOT the forbidden whole-prompt call, but the function calls secret_floor_rule('', str(t)). If secret_floor_rule treats empty path specially, this might differ from intended behavior. | Inspect secret_floor_rule implementation to confirm empty path handling matches docstring."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "3 of 7",
+     "purpose": "Define secret floor scan helpers and envelope normalization functions.",
+     "symbols": [
+      {
+       "name": "_scan_paths",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Iterates over paths, calls secret_floor_rule with each path and empty string for content. Returns first hit or None."
+      },
+      {
+       "name": "_scan_texts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Iterates over texts, calls secret_floor_rule with empty string for path and each text. Skips empty strings. Returns first hit or None."
+      },
+      {
+       "name": "_meta_strings",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts string values from a dict, sorted by key. Returns list."
+      },
+      {
+       "name": "_scan_turn",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scans a turn record: first scans evidence paths, then scans various text fields including content, role, actor, etc., plus withheld, evidence paths, meta strings, and independence_class fields. Returns rule label or None."
+      },
+      {
+       "name": "_scan_roster",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scans a roster record: for each participant, scans actor, vendor, model, lane, reason, withheld, and independence_class fields. Returns rule label or None."
+      },
+      {
+       "name": "_reject_unknown",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Raises ValueError if sub dict contains keys not in allowed frozenset."
+      },
+      {
+       "name": "_norm_evidence",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes evidence list: each item must be dict with exactly 'path' and 'sha256' keys; sha256 must match 64-hex regex. Returns sorted list of dicts."
+      },
+      {
+       "name": "_norm_strs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes list of values: sorts and deduplicates string representations, dropping empty strings."
+      },
+      {
+       "name": "_norm_meta",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes meta dict: rejects unknown keys via _reject_unknown, fills defaults for cli_version, endpoint, transport; optional started_ts, latency_ms, prompt_tokens, completion_tokens, cost_usd."
+      },
+      {
+       "name": "_norm_class",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Stub function (body not shown in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "PATH channel, one path at a time -- so a hit is attributable to one path and a diff that ADDS ``.env`` cannot hide inside a blob.",
+       "where": "_scan_paths docstring",
+       "verdict": "kept",
+       "why": "The function iterates over each path individually and calls secret_floor_rule(str(p), ''), so each path is scanned separately. A hit is returned immediately, attributable to that path."
+      },
+      {
+       "text": "CONTENT channel, one string at a time. ``path=\"\"`` here is correct and is NOT the forbidden whole-prompt call: the path tier is run separately over every evidence path above, so it is never skipped.",
+       "where": "_scan_texts docstring",
+       "verdict": "kept",
+       "why": "The function iterates over each text individually, calling secret_floor_rule('', str(t)). The docstring claims the path tier is run separately elsewhere, which is consistent with _scan_paths being called first in _scan_turn. The empty path is intentional to avoid the whole-prompt call."
+      },
+      {
+       "text": "Every free-text and every path channel of a turn. Returns the rule label that fired (a fixed string -- NEVER matched text), or None.",
+       "where": "_scan_turn docstring",
+       "verdict": "kept",
+       "why": "The function calls _scan_paths on evidence paths, then _scan_texts on a list of text fields (content, role, etc.) and meta strings. It returns the hit from secret_floor_rule, which according to the docstring is a fixed string (rule label)."
+      },
+      {
+       "text": "withheld: content channel ONLY (see the carve-out in the module docstring).",
+       "where": "_scan_turn comment",
+       "verdict": "uncheckable",
+       "why": "The comment refers to a carve-out in the module docstring, which is not present in this chunk. The code does add withheld to the texts list, but the claim about 'content channel ONLY' cannot be verified without the module docstring."
+      },
+      {
+       "text": "sorted + deduped: a set of claims, not an ordered rendering (determinism).",
+       "where": "_norm_strs docstring",
+       "verdict": "kept",
+       "why": "The function returns sorted({str(v) for v in (values or ()) if str(v)}), which is sorted and deduplicated via set comprehension."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _scan_turn includes 'content' in the texts list, but the comment says 'withheld: content channel ONLY (see the carve-out in the module docstring)'. This suggests content might be excluded elsewhere, but it is included here.",
+       "where": "_scan_turn",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The function _norm_evidence requires each evidence item to be a dict with exactly keys 'path' and 'sha256', which is strict. The docstring in the claim says 'use evidence_ref(path, data)' but that function is not shown.",
+       "where": "_norm_evidence",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _norm_meta fills default values for cli_version, endpoint, transport as 'unknown', but started_ts, latency_ms, prompt_tokens, completion_tokens, cost_usd are optional (may be None).",
+       "where": "_norm_meta",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "038173bcafcb18aec93b52b6d932f840d0d675582694b6a3191048d2d62ec6d0",
+    "objective_chars": 6145,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [3/7]",
+  "rev": "946db82",
+  "module": "daedalus/council/bus.py",
+  "index": 3,
+  "total": 7,
+  "first_line": 241
+ }
+}

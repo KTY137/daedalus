@@ -1,0 +1,116 @@
+{
+ "task_id": "research__b034__946db82",
+ "key": "research__b034__946db82-ef8a65855d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: 1) Budget/egress checks in deepseek.py assume lanes always call run_checks but lanes/__init__.py has no enforcement. 2) CloneMemo caching relies on unit object identity but unit lifecycle is not guaranteed across passes. 3) load_for_publish counts turns with status 'spoke' but the bus transcript may not distinguish placeholders vs spoke turns reliably. 4) _classify_failure's auth-before-not-found ordering depends on GitHub returning 404 for auth failures, but other providers may behave differently.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget/egress checks in deepseek.py may be bypassed if a lane skips run_checks; lanes/__init__.py provides no enforcement mechanism.",
+     "CloneMemo caching uses id(u) which may be recycled if unit objects are garbage collected between passes, leading to stale or incorrect fingerprints.",
+     "load_for_publish's quorum calculation may be incorrect if the bus transcript does not reliably mark placeholder turns with a status other than 'spoke'.",
+     "_classify_failure's auth-before-not-found ordering assumes GitHub's 404 behavior; other git hosts may return 403, causing misclassification."
+    ],
+    "todos": [
+     "Verify that all lane implementations call run_checks from lanes/__init__.py; consider adding a registry or decorator to enforce.",
+     "Audit unit lifecycle in clones.py: ensure unit objects persist across unit_clusters, renamed_clusters, near_clusters calls.",
+     "Check bus transcript format to confirm that placeholder turns are always marked with a status other than 'spoke'.",
+     "Review _classify_failure for provider-specific error handling; add tests for non-GitHub hosts."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "egress-bypass",
+       "claim": "Budget and egress checks in deepseek.py's _run_rewrite assume they are part of a lane that calls run_checks from lanes/__init__.py, but lanes/__init__.py only exports run_checks without enforcing its use. A lane could skip run_checks and directly call _run_rewrite, bypassing baseline checks.",
+       "spans": [
+        "daedalus/providers/deepseek.py",
+        "daedalus/lanes/__init__.py"
+       ],
+       "mechanism": "deepseek.py's _run_rewrite performs per-file egress checks (classify_data, slice_egress_rule) but does not call run_checks itself. lanes/__init__.py exports run_checks but has no mechanism (e.g., base class, decorator) to ensure all lanes invoke it. If a new lane imports _run_rewrite directly without calling run_checks, the baseline checks (e.g., no_elision, not_truncated) are skipped.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If all existing lane implementations are found to call run_checks before _run_rewrite, and if the codebase has a lint rule or test that enforces this, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/providers/deepseek.py:_run_rewrite",
+        "daedalus/lanes/__init__.py:run_checks"
+       ]
+      },
+      {
+       "id": "clone-memo-lifetime",
+       "claim": "CloneMemo caches fingerprints using id(u) as key and holds a reference to u to prevent id reuse. However, if unit objects are created and destroyed between passes (unit_clusters, renamed_clusters, near_clusters), the memo may be scoped per build_index call but the unit list may be rebuilt, leading to id reuse and incorrect cache hits.",
+       "spans": [
+        "daedalus/structcore/clones.py"
+       ],
+       "mechanism": "CloneMemo stores tuples (u, value) keyed by id(u). The docstring claims scope is one build_index call. If build_index creates a new unit list each time, ids may be reused. Even within one build_index, if the unit list is not held alive across passes, garbage collection could recycle ids. The memo does not prevent this because it only holds references to units it has cached, not all units.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the unit list is passed as a parameter and held alive by the caller for the duration of all three passes, and the memo is scoped to that same call, id reuse is impossible.",
+       "evidence": [
+        "daedalus/structcore/clones.py:CloneMemo.__init__",
+        "daedalus/structcore/clones.py:exact_fp",
+        "daedalus/structcore/clones.py:abstract_fp"
+       ]
+      },
+      {
+       "id": "transcript-quorum",
+       "claim": "load_for_publish in publish.py counts a vendor as answered only if its turn has status 'spoke'. This assumes the bus transcript reliably distinguishes placeholder turns (e.g., not_authenticated, not_on_path) from actual responses. If the transcript sometimes marks such failures with a different status or omits the turn entirely, the quorum calculation may be wrong.",
+       "spans": [
+        "daedalus/council/publish.py"
+       ],
+       "mechanism": "load_for_publish iterates over turn records from bus.load_transcript and counts those with status 'spoke' as answered. It uses roster participants as requested. If a vendor fails but the transcript still records a turn with status 'spoke' (e.g., due to a bug), that vendor would be counted as answered. Conversely, if a vendor that never ran is not in the turn list, it won't be counted as requested, potentially undercounting quorum.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the bus transcript guarantees that only successful turns have status 'spoke' and all failures are either omitted or have a distinct status, and roster always includes all seated vendors, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/publish.py:load_for_publish"
+       ]
+      },
+      {
+       "id": "auth-classification",
+       "claim": "_classify_failure in publish.py checks auth patterns before not-found patterns because GitHub returns 404 for auth failures. This ordering is specific to GitHub; other git hosts (e.g., GitLab, Bitbucket) may return 403 for auth failures, causing the function to misclassify a not-found as auth failure.",
+       "spans": [
+        "daedalus/council/publish.py"
+       ],
+       "mechanism": "_classify_failure inspects stderr from gh CLI. It checks for auth-related strings first; if found, returns 'auth_failure'. Otherwise, checks for not-found strings. On a host that returns 403 for auth failures, the gh CLI may output a different error message that might not match auth patterns, falling through to not-found or unknown.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the function is only used with GitHub (e.g., the repo is hardcoded to GitHub), or if the gh CLI abstracts host differences to produce consistent error messages, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/publish.py:_classify_failure"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "706023f7d0ccfa8085ef1452eb6730cf8a6581f0c3f3d37c920d39b3fa0ec369",
+    "objective_chars": 23099,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 34 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 34,
+  "inputs": 4
+ }
+}

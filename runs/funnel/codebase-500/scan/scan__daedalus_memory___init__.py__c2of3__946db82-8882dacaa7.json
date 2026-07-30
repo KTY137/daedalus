@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_memory___init__.py__c2of3__946db82",
+ "key": "scan__daedalus_memory___init__.py__c2of3__946db82-8882dacaa7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3: defines load_events, refresh_todo_snapshot, record_from_bridge_report, main (incomplete); contains try-except for vector indexing.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "block starting at line 121 | medium | Vector indexing failure silently logged, but store.close() in finally may fail if store is None; no guard for store.close() | Check if store.close() is safe to call on None.",
+     "refresh_todo_snapshot | low | Uses open_items.pop(key, None) which modifies dict while iterating over events; safe because pop is on key not on iterated list, but could be confusing.",
+     "record_from_bridge_report | low | Default todo added when bridge_status failed and todos empty; may not cover all failure modes.",
+     "main function | low | Incomplete argparse setup; subcommands not fully defined.",
+     "refresh_todo_snapshot | low | Slicing current_open[-100:] and completed[-30:] may lose items if lists are short; no warning.",
+     "refresh_todo_snapshot | low | Path text joined with ', ' may produce empty string if paths empty; handled with 'no paths'.",
+     "record_from_bridge_report | low | Uses report.get('agent', 'unknown') but 'agent' may not be present in all bridge reports.",
+     "block starting at line 121 | low | Environment variable OLLAMA_EMBED_MODEL_REVISION used but not documented."
+    ],
+    "todos": [
+     "Complete main function with subcommands",
+     "Add docstrings to functions",
+     "Consider adding error handling for store.close() when store is None",
+     "Document OLLAMA_EMBED_MODEL_REVISION environment variable"
+    ],
+    "handoff": {
+     "module": "daedalus/memory/__init__.py",
+     "chunk": "2 of 3",
+     "purpose": "Defines event loading, TODO snapshot refresh, bridge report recording, and partial main function.",
+     "symbols": [
+      {
+       "name": "load_events",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads EVENTS_PATH file, parses JSON lines, returns list of dicts. Returns empty list if file missing."
+      },
+      {
+       "name": "refresh_todo_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Creates MEMORY_DIR if needed, reads events via load_events, writes TODO_PATH with open and done TODOs."
+      },
+      {
+       "name": "record_from_bridge_report",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Constructs MemoryEvent from bridge report dict and calls append_event."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Incomplete argparse setup; only 'add' subcommand defined partially."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Indexing is explicitly secondary to the append-only operational log.",
+       "where": "line 137",
+       "verdict": "kept",
+       "why": "The try-except catches all exceptions and logs a warning, then continues; store is closed in finally."
+      },
+      {
+       "text": "Keep the main path alive, but leave evidence for operators debugging an enabled index instead of swallowing every failure invisibly.",
+       "where": "lines 138-139",
+       "verdict": "kept",
+       "why": "Exceptions are logged with logger.warning, not re-raised."
+      },
+      {
+       "text": "This file is generated from `memory/events.local.jsonl` and is ignored by Git.",
+       "where": "line 170 (comment in refresh_todo_snapshot)",
+       "verdict": "uncheckable",
+       "why": "The code writes TODO_PATH; it does not confirm that TODO_PATH is git-ignored or that source file is events.local.jsonl (it loads EVENTS_PATH)."
+      },
+      {
+       "text": "Use it to recover TODOs after token limits, crashes, or interrupted agent runs.",
+       "where": "line 171",
+       "verdict": "uncheckable",
+       "why": "The code writes a snapshot but does not provide recovery mechanism."
+      },
+      {
+       "text": "If report.get('bridge_status') == 'failed' and not todos: todos = ['Inspect failed bridge report and retry if needed.']",
+       "where": "lines 206-207",
+       "verdict": "kept",
+       "why": "The code implements exactly this logic."
+      },
+      {
+       "text": "Append a manual memory event.",
+       "where": "line 217 (add_p description)",
+       "verdict": "kept",
+       "why": "The subcommand 'add' is created with a summary argument."
+      },
+      {
+       "text": "The try block attempts to import EventVectorStore and ingest events.",
+       "where": "lines 122-136",
+       "verdict": "kept",
+       "why": "Code shows import and ingest call with error handling."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Variable 'store' is set to None and then conditionally assigned; finally calls store.close() without checking if store is not None (it does check).",
+       "where": "lines 121, 141-143",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Environment variable OLLAMA_EMBED_MODEL_REVISION is read but not defined or documented in this chunk.",
+       "where": "line 128",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "refresh_todo_snapshot uses open_items.pop(key, None) which modifies the dict while iterating over events; safe because pop is on key not on iterated list.",
+       "where": "line 165",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main function is incomplete; only 'add' subcommand defined partially.",
+       "where": "lines 215-218",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1006d613829dcbfb6c198c6bd45278380996f165449968242557d7404bf3dd44",
+    "objective_chars": 4726,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/__init__.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/memory/__init__.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

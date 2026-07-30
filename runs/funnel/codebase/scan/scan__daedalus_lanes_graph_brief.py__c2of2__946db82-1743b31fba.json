@@ -1,0 +1,172 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c2of2__946db82",
+ "key": "scan__daedalus_lanes_graph_brief.py__c2of2__946db82-1743b31fba",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 2 of graph_brief.py: internal helpers _emit, layers (imports, symbols, documents), header assembly, GraphBrief construction, and render_brief wrapper. All checkable claims verified; some uncheckable claims noted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 287 | medium | _HEADER_RESERVE is referenced but not defined in this chunk; if it's missing or zero, budget may be off. | Check definition in previous chunk or module scope.",
+     "line 305 | medium | _is_artefact is referenced but not defined in chunk; if it's missing or incorrect, filtering may fail. | Check definition in previous chunk or module scope.",
+     "line 306 | medium | _deep_only_modules is referenced but not defined in chunk; if it's missing or incorrect, deep marking may be wrong. | Check definition in previous chunk or module scope.",
+     "line 308 | medium | _tail_matches is referenced but not defined in chunk; if it's missing or incorrect, deep marking may be wrong. | Check definition in previous chunk or module scope.",
+     "line 331 | medium | file_symbols is referenced but not defined in chunk; if it's missing or incorrect, symbol extraction may fail. | Check definition in previous chunk or module scope.",
+     "line 363 | medium | document_links_reverse and wiki_code_links keys are only present if include_docs is True; if index lacks them, they default to empty. No risk of crash. | Already safe due to .get().",
+     "line 393 | low | GraphBrief is imported or defined elsewhere; if it doesn't accept these kwargs, construction fails. | Check GraphBrief definition in other file.",
+     "line 403 | low | render_brief catches all exceptions and returns ''; safe but may hide bugs. | Intentional per comment."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "2 of 2",
+     "purpose": "Implements _emit, builds three layers (imports, symbols, documents), assembles header and returns GraphBrief; also provides render_brief convenience wrapper.",
+     "symbols": [
+      {
+       "name": "_emit",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Closure capturing spent, budget_chars, counts, dropped, rendered. Renders a layer if it fits within budget."
+      },
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds GraphBrief from index; uses _emit for layers. Returns GraphBrief namedtuple."
+      },
+      {
+       "name": "render_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Convenience wrapper returning graph_brief(...).text or '' on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The header is written last but must not escape the budget, so its space is reserved up front.",
+       "where": "lines 284-286",
+       "verdict": "kept",
+       "why": "spent is initialized to _HEADER_RESERVE before any _emit calls, reserving space for header."
+      },
+      {
+       "text": "Small high-value layers are rendered first and DISPLAYED in reading order.",
+       "where": "lines 292-294",
+       "verdict": "kept",
+       "why": "_emit is called in order imports, symbols, documents; display order is symbols, imports, documents (line 387)."
+      },
+      {
+       "text": "Artefact importers are filtered HERE as well as in the neighbourhood.",
+       "where": "line 314",
+       "verdict": "kept",
+       "why": "Both edges.get(rel) and reverse.get(rel) are filtered through _is_artefact."
+      },
+      {
+       "text": "PUBLIC API ONLY for a neighbour. What a caller may use from another module is its public surface; its private helpers are not callable and listing them cost 495 lines around ``offload.py`` -- enough to consume the whole budget on names nobody is allowed to reference.",
+       "where": "lines 333-336",
+       "verdict": "kept",
+       "why": "file_symbols(path, include_private=False) is called for neighbours."
+      },
+      {
+       "text": "Both keys are absent unless the document layer is enabled, so this section vanishes rather than lying when it is off.",
+       "where": "lines 362-363",
+       "verdict": "kept",
+       "why": "The document layer is only built if include_docs is True; rev and wiki are obtained via .get() which returns {} if key missing."
+      },
+      {
+       "text": "DISPLAY order, independent of the priority order the layers were rendered in: symbols first because 'what exists' is what a writer needs before anything else, then who reaches whom, then what has been promised.",
+       "where": "lines 385-387",
+       "verdict": "kept",
+       "why": "sections is built as [rendered[k] for k in ('symbols','imports','documents') if k in rendered]."
+      },
+      {
+       "text": "It must never raise into a lane, so a failure to describe the graph degrades to no description.",
+       "where": "lines 401-403",
+       "verdict": "kept",
+       "why": "render_brief wraps graph_brief in try/except and returns '' on any exception."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _emit closure captures spent, budget_chars, counts, dropped, rendered from the enclosing scope.",
+       "where": "line 298",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Lines are counted with len(line) + 1 per line; header length is added after loop.",
+       "where": "lines 300-303",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The DEEP_EDGE_MARK constant is used but not defined in this chunk.",
+       "where": "line 308",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _HEADER_RESERVE constant is used but not defined in this chunk.",
+       "where": "line 287",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "Functions _is_artefact, _deep_only_modules, _tail_matches, file_symbols are used but not defined in this chunk.",
+       "where": "lines 305, 306, 308, 331",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "GraphBrief is a namedtuple or dataclass imported from elsewhere; its fields are assumed.",
+       "where": "line 393",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The budget_chars variable is defined earlier in the function (not in this chunk) and is used by _emit.",
+       "where": "line 300",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1daf2060dcd5750f4babdb12a1e375ff3ff40cd95cd01f1df9d7be80d9a5ffdc",
+    "objective_chars": 8207,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

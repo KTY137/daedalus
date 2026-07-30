@@ -1,0 +1,164 @@
+{
+ "task_id": "research__b074__946db82",
+ "key": "research__b074__946db82-929ed81fcf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three invariant violations: (1) _refuse_primary_checkout undefined where called, (2) READ_ONLY_REPO_VERBS source mismatch, (3) type_blocks and doc_records referenced but undefined in index.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Missing function _refuse_primary_checkout could cause runtime NameError in correctness.py when _git_in_worktree is called.",
+     "Missing constants READ_ONLY_REPO_VERBS, DEFAULT_GIT_TIMEOUT_S, STATUS_* could cause ImportError or silent fallback to wrong values.",
+     "Undefined variables type_blocks, doc_records, doc_ignored, doc_totals, TYPE3_EXCLUDED_LANGUAGES in index.py will cause NameError at runtime.",
+     "Scope object methods (describe) and external functions (tokenizer_name) not imported/defined in index.py will cause runtime errors.",
+     "Set union on potentially non-set doc_ignored could cause TypeError.",
+     "PrimaryCheckoutTouch and OverlayEscape exceptions not defined in correctness.py could cause NameError if raised."
+    ],
+    "todos": [
+     "Define _refuse_primary_checkout in correctness.py or import it from its proper module.",
+     "Define or import READ_ONLY_REPO_VERBS, DEFAULT_GIT_TIMEOUT_S, STATUS_* constants in correctness.py.",
+     "Define or import PrimaryCheckoutTouch and OverlayEscape exceptions in correctness.py.",
+     "Define type_blocks, doc_records, doc_ignored, doc_totals, TYPE3_EXCLUDED_LANGUAGES in index.py or import them.",
+     "Ensure doc_ignored is a set for union with ignored.",
+     "Define or import scope.describe, tokens.tokenizer_name, graph.SymbolResolver in index.py.",
+     "Verify that _branch_literals docstring is completed in mapping/reach.py.",
+     "Ensure _same_node implementation is complete in correctness.py."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "missing-guard-function",
+       "claim": "The function _refuse_primary_checkout is called in correctness.py but never defined in that module or any other scanned module, meaning the guard against touching the primary checkout is broken.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "_git_in_worktree calls _refuse_primary_checkout(cwd) before spawning git. If this function is missing, the call will raise NameError at runtime, bypassing the safety check entirely.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If _refuse_primary_checkout is defined in a later chunk of correctness.py or in another module that is imported, then the claim is refuted.",
+       "evidence": [
+        "daedalus/eval/correctness.py:_git_in_worktree",
+        "daedalus/eval/correctness.py:_refuse_primary_checkout"
+       ]
+      },
+      {
+       "id": "allowlist-source-mismatch",
+       "claim": "The READ_ONLY_REPO_VERBS constant is imported from spine.attempt (as claimed) but not defined in any scanned module; if the actual source is different, the allowlist could be incorrect, allowing mutating git verbs in read-only contexts.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/spine/cancel.py",
+        "daedalus/mapping/reach.py"
+       ],
+       "mechanism": "_git_read checks verb not in READ_ONLY_REPO_VERBS. If the constant is missing or points to a wrong list, verbs like 'push' or 'commit' could be allowed, leading to unintended repository mutations.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If READ_ONLY_REPO_VERBS is defined in a later chunk of correctness.py or in spine/attempt.py (not scanned) with the correct allowlist, the claim is refuted.",
+       "evidence": [
+        "daedalus/eval/correctness.py:READ_ONLY_REPO_VERBS",
+        "daedalus/eval/correctness.py:_git_read"
+       ]
+      },
+      {
+       "id": "undefined-index-variables",
+       "claim": "Variables type_blocks, doc_records, doc_ignored, doc_totals, and constant TYPE3_EXCLUDED_LANGUAGES are referenced in index.py but not defined in any scanned chunk, indicating the finalization logic is incomplete.",
+       "spans": [
+        "daedalus/structcore/index.py",
+        "daedalus/mapping/reach.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "The index finalization code (lines 982-1043) uses these variables to populate the index dictionary. Without definitions, the code will raise NameError at runtime, preventing index construction.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If these variables are defined in earlier chunks of index.py or imported from other modules, the claim is refuted.",
+       "evidence": [
+        "daedalus/structcore/index.py:type_blocks",
+        "daedalus/structcore/index.py:doc_records",
+        "daedalus/structcore/index.py:doc_ignored",
+        "daedalus/structcore/index.py:doc_totals",
+        "daedalus/structcore/index.py:TYPE3_EXCLUDED_LANGUAGES"
+       ]
+      },
+      {
+       "id": "external-dependency-gap",
+       "claim": "The function scope.describe, tokens.tokenizer_name, and type graph.SymbolResolver are used in index.py but not imported or defined in any scanned module, causing runtime NameErrors.",
+       "spans": [
+        "daedalus/structcore/index.py",
+        "daedalus/eval/correctness.py",
+        "daedalus/spine/cancel.py"
+       ],
+       "mechanism": "The code calls scope.describe() (line 998), tokens.tokenizer_name() (line 1061), and uses graph.SymbolResolver as a type annotation (line 1011). Without imports, these will fail.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If these are imported at the top of index.py (not in the scanned chunk) or defined in other modules that are imported, the claim is refuted.",
+       "evidence": [
+        "daedalus/structcore/index.py:scope.describe",
+        "daedalus/structcore/index.py:tokens.tokenizer_name",
+        "daedalus/structcore/index.py:graph.SymbolResolver"
+       ]
+      },
+      {
+       "id": "set-union-type-risk",
+       "claim": "The expression ignored | doc_ignored (line 1000) may fail if doc_ignored is a list instead of a set, because the | operator is not defined for list-set union.",
+       "spans": [
+        "daedalus/structcore/index.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "The code assumes doc_ignored is a set to union with ignored (a set). If doc_ignored is a list (as typical for ignored files), a TypeError will be raised.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If doc_ignored is guaranteed to be a set (e.g., defined as set elsewhere), the claim is refuted.",
+       "evidence": [
+        "daedalus/structcore/index.py:ignored",
+        "daedalus/structcore/index.py:doc_ignored"
+       ]
+      },
+      {
+       "id": "truncated-docstring-misleading",
+       "claim": "The docstring for _branch_literals in reach.py is truncated mid-sentence, omitting the second shape of dispatch chains, which could mislead developers about the function's capabilities.",
+       "spans": [
+        "daedalus/mapping/reach.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "The docstring claims to cover two shapes but only describes one, potentially causing incorrect usage or assumptions about what patterns are recognized.",
+       "severity": "low",
+       "confidence": "certain",
+       "refuted_by": "If the docstring is completed in a later chunk of reach.py, the claim is refuted.",
+       "evidence": [
+        "daedalus/mapping/reach.py:_branch_literals"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bf539682ae6e5f0b887dd4b9238c12cbe35d9abead47c3ffe0eca5c598fc20bf",
+    "objective_chars": 22556,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 74 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 74,
+  "inputs": 4
+ }
+}

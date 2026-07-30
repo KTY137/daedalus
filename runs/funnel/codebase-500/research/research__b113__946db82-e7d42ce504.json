@@ -1,0 +1,115 @@
+{
+ "task_id": "research__b113__946db82",
+ "key": "research__b113__946db82-e7d42ce504",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file pattern: multiple modules assume exclusive ownership of side effects (filesystem writes, SQLite mutations) but do not coordinate via a central resource manager, risking conflicts and silent data corruption.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Concurrent filesystem writes from memory/__init__.py and spine/ledger.py may cause race conditions or data loss.",
+     "SpineLedger read-only mode still creates WAL sidecar files, contradicting the promise of no disk writes.",
+     "eval/tasks.py's AGENT_ENV_ROOT derivation assumes a fixed directory structure; changes to file layout could break path resolution.",
+     "No central coordination for file locks or transaction ordering across modules."
+    ],
+    "todos": [
+     "Audit all filesystem mutations across modules and implement a shared resource manager or lock service.",
+     "Verify that SpineLedger read-only mode's WAL sidecar creation is acceptable for all callers; if not, use in-memory database.",
+     "Ensure eval/tasks.py's path derivation is robust to repository restructuring."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "uncoordinated-fs-writes",
+       "claim": "Multiple modules (memory/__init__.py, spine/ledger.py) perform filesystem writes without a shared lock or transaction manager, risking race conditions and data corruption when called concurrently.",
+       "spans": [
+        "daedalus/memory/__init__.py",
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "memory/__init__.py's main() dispatches to append_event and refresh_todo_snapshot which write to disk. spine/ledger.py's SpineLedger.__init__ creates parent directories and runs pragmas that write to the database file. Neither module coordinates with the other; concurrent calls from different threads or processes can interleave writes, corrupting data.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that both modules use a shared file lock mechanism (e.g., flock) or that all filesystem operations are atomic and non-overlapping.",
+       "evidence": [
+        "daedalus/memory/__init__.py: main() calls append_event and refresh_todo_snapshot (effects: repository_mutation)",
+        "daedalus/spine/ledger.py: SpineLedger.__init__ creates parent directory and runs _apply_pragmas (effects: filesystem_write)"
+       ]
+      },
+      {
+       "id": "readonly-side-effect",
+       "claim": "SpineLedger's read-only mode claims to not mutate the database but still creates WAL sidecar files (-wal, -shm), violating the contract of being 'write-free' and potentially causing issues on read-only filesystems.",
+       "spans": [
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "The read-only branch opens with mode=ro but SQLite's WAL mode still creates -wal and -shm files for shared-memory index. The code acknowledges this in a comment but does not prevent it, so a caller expecting zero disk writes (e.g., the picker's --dry-run) will still write sidecar files.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "Evidence that the database is opened in DELETE journal mode (not WAL) when read-only is requested, or that sidecar files are redirected to a temp directory.",
+       "evidence": [
+        "daedalus/spine/ledger.py: comment in __init__ read-only branch: 'HONEST LIMIT: opening a WAL database read-only still creates the -wal/-shm sidecars'",
+        "daedalus/spine/ledger.py: _apply_pragmas sets journal_mode=WAL in read-write mode"
+       ]
+      },
+      {
+       "id": "path-assumption-fragile",
+       "claim": "eval/tasks.py assumes AGENT_ENV_ROOT is at parents[2] of its own file, which is brittle; any restructuring of the repository (e.g., moving the file or changing directory depth) will silently break path resolution.",
+       "spans": [
+        "daedalus/eval/tasks.py"
+       ],
+       "mechanism": "AGENT_ENV_ROOT = Path(__file__).resolve().parents[2] relies on the file being exactly two directories deep from the repo root. If the file is moved or the repo layout changes, the path becomes incorrect, and resolve_task_repo will either return a wrong path or raise ValueError.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that the code uses a configuration file or environment variable to set the repo root, or that the path is validated at startup.",
+       "evidence": [
+        "daedalus/eval/tasks.py: AGENT_ENV_ROOT = Path(__file__).resolve().parents[2]"
+       ]
+      },
+      {
+       "id": "unchecked-ordering-migration",
+       "claim": "SpineLedger._add_missing_columns must be called before _SCHEMA statements, but the ordering is not enforced by the class itself, creating a latent bug if called out of order.",
+       "spans": [
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "_add_missing_columns is a static method that expects to run before CREATE TABLE IF NOT EXISTS statements. If a future edit calls it after _SCHEMA, the index creation that references trace_id will fail because the column might not exist yet. The docstring warns but the code does not enforce the order.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that _add_missing_columns is always called immediately after _apply_pragmas and before _SCHEMA in a single method, or that the class has a state machine preventing out-of-order calls.",
+       "evidence": [
+        "daedalus/spine/ledger.py: _add_missing_columns docstring: 'Runs BEFORE the _SCHEMA statements, and the ordering is load-bearing'",
+        "daedalus/spine/ledger.py: _add_missing_columns is staticmethod, no enforcement"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2cdeb8e7575078a1633aef00ada28e5de34bed7aa4c6480bdb0ab98cd6df0ba",
+    "objective_chars": 24816,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 113 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 113,
+  "inputs": 4
+ }
+}

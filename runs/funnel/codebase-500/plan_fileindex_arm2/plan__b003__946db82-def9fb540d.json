@@ -1,0 +1,147 @@
+{
+ "task_id": "plan__b003__946db82",
+ "key": "plan__b003__946db82-def9fb540d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 findings: 2 high, 3 medium. Top priority: fix REPORT_SCHEMA to allow structured handoff; verify containment guarantees; check spectral truncation; audit ledger.close() and live_egress_seats.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Handoff data loss: downstream modules may silently lose structured data.",
+     "Containment guarantee unverified: missing functions could allow write escape.",
+     "Spectral truncation mismatch: potential index errors in downstream consumers.",
+     "Silent exception swallowing: may mask corruption or resource leaks.",
+     "Live_egress_reuse: duplication could lead to inconsistency in provider health checks."
+    ],
+    "todos": [
+     "Inspect daedalus/eval/report.py and modify REPORT_SCHEMA to allow structured handoff (e.g., additional fields or a handoff object).",
+     "Search daedalus/spine/attempt.py and daedalus/spine/containment.py for 'Job Object', 'refusal_attestation', '_remove_gate_tmpdir'. If missing, define them or update docstring.",
+     "Search for consumers of topology.eigenvalues in daedalus/structcore/ and adjust truncation or downstream code to handle mismatched lengths.",
+     "Inspect close() in daedalus/spine/ledger.py and add logging or re-raise exceptions appropriately.",
+     "Inspect live_egress_seats in daedalus/council/session.py and refactor to delegate to available_providers or provider_health.",
+     "Write tests for each fix to verify correctness."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix REPORT_SCHEMA to allow structured handoff data",
+       "gate": "1",
+       "why_now": "The strict schema strips structured data, breaking downstream consumers that expect more than a notes string. This is a high-severity data loss bug.",
+       "steps": [
+        {
+         "do": "Open daedalus/eval/report.py and modify REPORT_SCHEMA to allow an optional 'handoff' object with additional fields (e.g., churn results). Set additionalProperties to true or define explicit properties.",
+         "file": "daedalus/eval/report.py",
+         "verified_by": "Run existing tests for report schema and handoff; verify that structured data passes through."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "REPORT_SCHEMA is defined in daedalus/eval/report.py and is the only place that restricts handoff."
+      },
+      {
+       "rank": 2,
+       "title": "Verify and fix containment guarantees in attempt.py and containment.py",
+       "gate": "0",
+       "why_now": "The docstring claims guarantees that depend on missing functions. If those functions are absent, the containment is unenforced, allowing write escape.",
+       "steps": [
+        {
+         "do": "Search daedalus/spine/attempt.py and daedalus/spine/containment.py for 'Job Object', 'refusal_attestation', '_remove_gate_tmpdir'. If any are missing, define them or update the docstring to reflect actual guarantees.",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "grep -n 'Job Object\\|refusal_attestation\\|_remove_gate_tmpdir' daedalus/spine/attempt.py daedalus/spine/containment.py; ensure all three exist."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions are not defined elsewhere (e.g., in other files not cited)."
+      },
+      {
+       "rank": 3,
+       "title": "Fix spectral truncation mismatch in topology.py",
+       "gate": "1",
+       "why_now": "Truncating eigenvalues to 8 when component_count > 8 can cause index errors in downstream consumers that expect len(eigenvalues) == component_count.",
+       "steps": [
+        {
+         "do": "Search for code that consumes topology.eigenvalues (e.g., in daedalus/structcore/ or daedalus/mapping/). Check if any code uses len(eigenvalues) or iterates assuming one per component. If so, adjust truncation or downstream logic.",
+         "file": "daedalus/structcore/topology.py",
+         "verified_by": "Write a test that creates a topology with component_count > 8 and verifies that downstream consumers handle the truncated list correctly."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Downstream consumers exist that rely on the exact count."
+      },
+      {
+       "rank": 4,
+       "title": "Audit ledger.close() exception swallowing in ledger.py",
+       "gate": "1",
+       "why_now": "The close() method catches all sqlite3.Error and does nothing, potentially masking corruption or resource leaks.",
+       "steps": [
+        {
+         "do": "Inspect close() method in daedalus/spine/ledger.py. Add logging of the exception or re-raise if appropriate.",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "Run tests that trigger close() with a broken connection and verify that the exception is logged (or re-raised)."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "close() is defined in daedalus/spine/ledger.py and currently swallows exceptions."
+      },
+      {
+       "rank": 5,
+       "title": "Refactor live_egress_seats to delegate to available_providers",
+       "gate": "1",
+       "why_now": "If live_egress_seats duplicates logic, it may become inconsistent with available_providers. Refactoring ensures a single source of truth for provider health.",
+       "steps": [
+        {
+         "do": "Inspect live_egress_seats in daedalus/council/session.py. If it does not delegate to available_providers or provider_health, refactor it to do so.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Run tests for session.py and verify that live_egress_seats returns the same results as available_providers."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "live_egress_seats is defined in daedalus/council/session.py and currently duplicates logic."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/eval/report.py",
+      "daedalus/spine/attempt.py",
+      "daedalus/spine/containment.py",
+      "daedalus/council/session.py",
+      "daedalus/spine/ledger.py",
+      "daedalus/structcore/topology.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fd31295d51f865deb83e4418b4d416d0b03406b0bd4de28ac4d38250b6dc6283",
+    "objective_chars": 21639,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 3 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 3,
+  "inputs": 5
+ }
+}

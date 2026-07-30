@@ -1,0 +1,106 @@
+{
+  "name": "today",
+  "description": "one day's work (946db82..7064c3b, 2026-07-30) read back by a tiered swarm: does the machinery do what its own docstrings claim",
+  "_scope": "The 30 tracked .py files changed by the four commits 15fbcd2, 536f91e, 967c7c3, 7064c3b -- 10515 insertions. Listed literally rather than globbed, so the spec records exactly what 'today's work' was and a rerun measures the same set.",
+  "_why_this_target": "Most of this code is a policy mechanism: it claims to enforce a constitution it cannot itself verify. Docstring-versus-code is therefore the highest-value lens available, and it is the one the scan tier already runs. Three defects found by hand in this same code (a test sourcing its baseline from live HEAD, a repair command the guard denies, a directory rule that blocks the narrow command and permits the broad one) are the calibration: a swarm that finds none of them found nothing.",
+  "tiers": [
+    {
+      "name": "scan",
+      "system": "../codebase/scan.md",
+      "source": {
+        "kind": "code_chunks",
+        "chunk_lines": 280,
+        "glob": [
+          "daedalus/atomic.py",
+          "daedalus/build_exec.py",
+          "daedalus/config.py",
+          "daedalus/kairos/gated_writes.py",
+          "daedalus/lanes/__init__.py",
+          "daedalus/lanes/checks.py",
+          "daedalus/lanes/grounding.py",
+          "daedalus/loop.py",
+          "daedalus/schemas.py",
+          "daedalus/sensitivity.py",
+          "daedalus/spine/attempt.py",
+          "daedalus/spine/effect_boundary.py",
+          "daedalus/storage.py",
+          "tests/test_artifact_store.py",
+          "tests/test_effect_boundary.py",
+          "tests/test_funnel_truth.py",
+          "tests/test_iron_plan_guard.py",
+          "tests/test_kernel_contracts.py",
+          "tests/test_loop.py",
+          "tests/test_primary_tree_fence.py",
+          "tests/test_reference_audit.py",
+          "tests/test_self_policy_confinement.py",
+          "tests/test_spine_attempt.py",
+          "tools/audit_swarm.py",
+          "tools/effect_boundary_check.py",
+          "tools/funnel.py",
+          "tools/funnel_report.py",
+          "tools/guarded_call.py",
+          "tools/iron_plan_guard.py",
+          "tools/iron_plan_hook_runner.py"
+        ]
+      },
+      "fence": "CODE",
+      "intro": "FILE: {module}  (chunk {index} of {total}, starting at line {first_line})\n\nThis file was written or substantially rewritten in a single day. Much of this codebase is machinery that ENFORCES a policy -- guards, gates, contracts, hooks, inventories. For that kind of code the gap between what a docstring promises and what the code does is not a documentation defect; it is the failure itself, because the docstring is what everyone downstream believes.",
+      "task": "Enumerate every public symbol and every checkable claim in the docstrings and comments above, and give each claim a verdict against THIS code. Report what you observe, not what you suspect about code you cannot see. If a claim refers to something outside this chunk, its verdict is 'uncheckable'.\n\nThree questions deserve a row whenever the chunk can answer them:\n- a check that CANNOT FAIL -- an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches;\n- a refusal with NO REACHABLE REPAIR -- code that reports an error and names a fix that some other rule in this same file forbids;\n- a rule that is INVERTED with respect to its own stated goal -- it blocks the narrow, precise action and permits the broad one.\n\nCite real paths only: a reference to a file that does not exist is worse than no reference."
+    },
+    {
+      "name": "research",
+      "system": "../codebase/research.md",
+      "source": {
+        "kind": "tier",
+        "from": "scan",
+        "buckets": 25
+      },
+      "fence": "SCAN REPORTS (json)",
+      "intro": "You have {inputs} independent scan reports covering one day's work on the Daedalus agent kernel: a canonical contract layer (schemas, artifact store, effect-boundary inventory), a policy guard with its git hooks and its own test suite, a grounding checker for model-authored reports, and a fan-out funnel tool. They were written together and land together.",
+      "task": "Find what spans them. A defect that lives in one file is the scan tier's job; yours is the pattern that only appears once you hold several files at once -- a contract declared in one module and enforced differently in another, a guarantee whose test is in a file that cannot observe it, two modules disagreeing about what a term means, a check whose bypass lives elsewhere.\n\nState each cross-file pattern as a hypothesis with a refutation condition: name the observation that would kill it. Every path and symbol you cite in `evidence` must be one you actually saw in the reports above -- an invented reference cannot be checked and will be discarded."
+    },
+    {
+      "name": "review",
+      "system": "../codebase/review.md",
+      "source": {
+        "kind": "tier",
+        "from": "research",
+        "field": "hypotheses",
+        "attach_evidence": true,
+        "evidence_field": "evidence",
+        "evidence_refs": 4,
+        "evidence_window": 40,
+        "buckets": 12
+      },
+      "fence": "HYPOTHESES (json)",
+      "intro": "You have {inputs} hypotheses produced by a research tier over one day's work on the Daedalus kernel. Attack each one. A hypothesis carrying `raised_independently_by: N` was reached by N research groups that could not see each other -- weigh that as weak corroboration of the OBSERVATION, never of the EXPLANATION, since they shared a prior and the same scan reports.",
+      "task": "Each hypothesis carries `cited_source`: the ACTUAL source at the references it cites, read from the repository just now. Judge against that source, not against the hypothesis's description of it -- the description is what you are testing. If `cited_source` says NOT FOUND IN REPOSITORY or NOT PRESENT IN FILE, the hypothesis rests on evidence that does not exist and is refuted on that ground alone; say so and move on.\n\nOne failure mode is specific to this target and you should expect it: this code is full of deliberate, documented limitations -- an inventory row marked UNGUARDED, a contract whose docstring says it does not authenticate anyone, a guard that says in its own text that it is not a security boundary. A hypothesis that rediscovers a stated limitation and reports it as a discovery is refuted: the code already says it. What is NOT refuted is a limitation the code does not admit to.\n\nFor each: the strongest counterargument first, then whether it survives, then the narrowest surviving form, then the concrete check that would settle it. Default to refuted when uncertain."
+    },
+    {
+      "name": "plan",
+      "system": "../codebase/plan.md",
+      "repo_index": true,
+      "index_globs": [
+        "daedalus/**/*.py",
+        "tools/*.py",
+        "tests/*.py"
+      ],
+      "source": {
+        "kind": "tier",
+        "from": "review",
+        "field": "verdicts",
+        "attach_evidence": true,
+        "evidence_field": "evidence",
+        "evidence_refs": 3,
+        "evidence_window": 40,
+        "buckets": 6,
+        "drop_where": {
+          "verdict": ["refuted"]
+        }
+      },
+      "fence": "REVIEWED FINDINGS (json)",
+      "intro": "You have {inputs} reviewed findings about one day's work on the Daedalus kernel. The reviewer already discarded what it refuted; these survived.",
+      "task": "Turn the survivors into ordered work. Every step names a file from the repository index and the check that proves it worked.\n\nPaths are not negotiable: copy a path only if it appears in your input or in the repository index above, and answer UNKNOWN otherwise. UNKNOWN is a correct answer; an invented path only looks actionable.\n\nOne constraint on your ordering that is real and not stylistic: some of these files are PROTECTED policy artifacts (docs/IKARUS_ARIADNE_MASTER_PLAN.md, AGENTS.md, CLAUDE.md, daedalus/config.py, daedalus/sensitivity.py, daedalus/kairos/gated_writes.py, tools/iron_plan_guard.py, tools/iron_plan_hook_runner.py, tests/test_iron_plan_guard.py, .githooks/*, .github/*). A change to one of those is not an ordinary task -- it requires an owner-approved amendment. Mark every step that touches one, so the plan does not read as if they were all the same kind of work."
+    }
+  ]
+}

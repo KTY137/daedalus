@@ -1,0 +1,216 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c1of7__946db82",
+ "key": "scan__daedalus_eval_graph_delta.py__c1of7__946db82-b44082ff04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of graph_delta.py: module docstring, imports, load_mutations(), LayerDelta, DeltaResult. No test code or gate logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_mutations | high | Imports tools/gate_discrimination.py via importlib; if that file is missing or has incompatible structure, the whole module fails. Settle by verifying file exists and MUTATIONS is a tuple of dataclass instances.",
+     "LayerDelta.moved | low | Property name 'moved' could be confused with 'moved' as a verb; it's a count. Settle by reading usage.",
+     "DeltaResult | medium | Fields mutation_id, defect_class, file, applied are declared but no defaults for applied; might be incomplete. Settle by checking all usages in later chunks."
+    ],
+    "todos": [
+     "Complete DeltaResult with remaining fields (e.g., delta, verdict) as implied by docstring.",
+     "Implement compute_delta or similar function that uses graph_mod to compute deltas.",
+     "Write test to verify load_mutations works given the actual file location.",
+     "Add type annotations for DeltaResult fields missing defaults."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/graph_delta.py",
+     "chunk": "1 of 7",
+     "purpose": "Module docstring, imports, mutation loader, and core dataclasses for graph delta analysis.",
+     "symbols": [
+      {
+       "name": "DELTA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant '1' marking version of delta format."
+      },
+      {
+       "name": "load_mutations",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Imports the mutation corpus from tools/gate_discrimination.py using importlib. Registers the module before exec to avoid dataclass errors."
+      },
+      {
+       "name": "LayerDelta",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing added/removed names in one graph layer. Has property 'moved' (count) and method 'to_dict'."
+      },
+      {
+       "name": "DeltaResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with fields mutation_id, defect_class, file, applied. Incomplete; missing fields implied by docstring."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``tools/gate_discrimination.py`` seeds real, incident-modelled defects and records whether the frozen gate (pytest over the whole suite) CAUGHT or SURVIVED each one.",
+       "where": "module docstring, lines 4-6",
+       "verdict": "uncheckable",
+       "why": "The referenced file is not in this chunk; no code from tools/gate_discrimination.py is present."
+      },
+      {
+       "text": "*An audit measured the gate's rejection rate against the three known-bad changes of a single day at 0/3.*",
+       "where": "module docstring, lines 6-8",
+       "verdict": "uncheckable",
+       "why": "Quoted claim from another module's docstring; no supporting data in this chunk."
+      },
+      {
+       "text": "Tests answer one bit, and that day they answered it wrong three times.",
+       "where": "module docstring, line 8",
+       "verdict": "uncheckable",
+       "why": "Refers to test outcomes not present in this chunk."
+      },
+      {
+       "text": "The claim under test here is that the layered graph carries a second, independent signal: For a candidate patch, does the DELTA IN THE GRAPH carry information about the patch that the test suite does not \u2014 available before the tests run, at negligible cost?",
+       "where": "module docstring, lines 10-13",
+       "verdict": "uncheckable",
+       "why": "No computation or analysis code in this chunk to verify the claim."
+      },
+      {
+       "text": "If yes, a code-evolution loop gains a selection signal that Best-of-N does not have: two candidates that both pass the gate are currently indistinguishable, and a graph delta can tell them apart AND say what changed.",
+       "where": "module docstring, lines 15-17",
+       "verdict": "uncheckable",
+       "why": "No implementation of selection or comparison logic in this chunk."
+      },
+      {
+       "text": "The obvious corpus is the 91 attempts in ``runs/spine/spine.sqlite3``. It cannot answer the question: 69 of the 82 completed attempts carry a diff and **all 69 are ``state=clean``**, so the label is very nearly constant, several diffs are byte-identical repeats of one task, and the diff text was never stored (only ``diff_sha256`` and ``byte_length``).",
+       "where": "module docstring, lines 21-25",
+       "verdict": "uncheckable",
+       "why": "Refers to a database file and data not present in this chunk."
+      },
+      {
+       "text": "Calibrating a signal on a corpus where every example wears the same label would measure nothing. The mutation corpus has ground truth by construction: every mutant is bad, and the label is whether the existing gate noticed.",
+       "where": "module docstring, lines 25-27",
+       "verdict": "uncheckable",
+       "why": "No mutation corpus data or labeling logic in this chunk."
+      },
+      {
+       "text": "``Mutation.predicted_survive`` exists in the corpus for exactly this reason, so this module adopts the same discipline.",
+       "where": "module docstring, line 30",
+       "verdict": "uncheckable",
+       "why": "References a Mutation class not defined in this chunk; no prediction logic present."
+      },
+      {
+       "text": "Written 2026-07-30, before any result:",
+       "where": "module docstring, line 30",
+       "verdict": "uncheckable",
+       "why": "Date claim cannot be verified from code alone; no evidence of date in this chunk."
+      },
+      {
+       "text": "a mutation that DELETES A CALL (``_verify_reachable(...)`` -> ``pass``) should be visible \u2014 an edge disappears;",
+       "where": "module docstring, lines 32-33",
+       "verdict": "uncheckable",
+       "why": "No graph computation or edge detection logic in this chunk."
+      },
+      {
+       "text": "a mutation that makes a condition vacuous (``if X not in Y:`` -> ``if False:``) should be visible \u2014 the identifiers ``X`` and ``Y`` leave that function's body;",
+       "where": "module docstring, lines 33-35",
+       "verdict": "uncheckable",
+       "why": "No identifier tracking or graph analysis in this chunk."
+      },
+      {
+       "text": "a mutation that only changes a DATA LITERAL (adding ``\"claude_cli\"`` to a tuple) should be INVISIBLE \u2014 no edge moves, and I expect this layer to miss it;",
+       "where": "module docstring, lines 35-37",
+       "verdict": "uncheckable",
+       "why": "No literal handling or edge analysis in this chunk."
+      },
+      {
+       "text": "a mutation that inserts an early ``return`` should be INVISIBLE to a name-based view \u2014 the following statements are still lexically present, so nothing is deleted. Catching it needs control flow, which this repo does not build.",
+       "where": "module docstring, lines 37-40",
+       "verdict": "uncheckable",
+       "why": "No control flow analysis in this chunk; repo capabilities not verifiable."
+      },
+      {
+       "text": "So the honest prediction is roughly **three of five detected, two missed**, and the two misses are the interesting half: they say precisely which defect classes a graph delta cannot cover, and therefore what a fitness function built on it would still be blind to.",
+       "where": "module docstring, lines 40-44",
+       "verdict": "uncheckable",
+       "why": "No results or analysis in this chunk to verify prediction."
+      },
+      {
+       "text": "It is not a gate. Nothing here blocks, scores a candidate, or moves a picker band. It produces a measurement and the evidence behind it, and a signal that misses two of five defect classes is not a verification story \u2014 it is at best one input among several, and this module says so rather than letting a later reader assume otherwise.",
+       "where": "module docstring, lines 47-51",
+       "verdict": "kept",
+       "why": "The chunk contains only dataclasses and a loader; no gate, scoring, or picker logic is present. The docstring accurately describes what this module is not."
+      },
+      {
+       "text": "Import the corpus from ``tools/gate_discrimination.py`` rather than copying it. One corpus, one definition \u2014 a second copy would drift and then the two measurements would disagree for a bookkeeping reason.",
+       "where": "load_mutations docstring, lines 62-64",
+       "verdict": "kept",
+       "why": "The function implementation uses importlib to load from that specific path, not copying data."
+      },
+      {
+       "text": "Register BEFORE exec: ``@dataclass`` resolves annotations through ``sys.modules[cls.__module__]``, so a module that is not registered yet makes every dataclass in the imported file raise on definition.",
+       "where": "load_mutations body, lines 72-74 (comment)",
+       "verdict": "kept",
+       "why": "The code explicitly does `_sys.modules[spec.name] = mod` before calling `spec.loader.exec_module(mod)`, matching the comment."
+      }
+     ],
+     "observations": [
+      {
+       "what": "DeltaResult is incomplete; missing fields like delta, verdict, etc. implied by the module's purpose.",
+       "where": "DeltaResult class, line 89",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "load_mutations uses importlib with sys.modules manipulation; fragile if the target file has side effects or missing dependencies.",
+       "where": "load_mutations function, lines 66-78",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "LayerDelta is frozen but to_dict returns a dict; no mutability issues but frozen prevents modification after creation.",
+       "where": "LayerDelta class, lines 81-87",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DELTA_VERSION is a string '1' but never used in this chunk; may be used later for serialization.",
+       "where": "DELTA_VERSION, line 60",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0079bff095e2e47842f4ffac55608dca038ae31480bc3c6d903441f3308bf704",
+    "objective_chars": 5714,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [1/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

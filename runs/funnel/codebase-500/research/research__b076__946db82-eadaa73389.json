@@ -1,0 +1,104 @@
+{
+ "task_id": "research__b076__946db82",
+ "key": "research__b076__946db82-eadaa73389",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three hypotheses: inconsistent empty-list validation, incomplete shell language spec affecting downstream parsing, and a gap in job limit verification. Each hypothesis is falsifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Empty fail_to_pass lists may silently pass validation, causing tasks with no red-to-green tests to be accepted erroneously.",
+     "Incomplete shell LanguageSpec may cause parsing failures or misclassification of shell scripts.",
+     "Job limits read-back comparison is not visible in this chunk, potentially allowing unbounded jobs to be created under a bounded name."
+    ],
+    "todos": [
+     "Check correctness.py validate_task: does it reject empty fail_to_pass?",
+     "Complete shell LanguageSpec entry in languages.py.",
+     "Verify that _create_job in containment.py actually compares requested vs actual limits and raises on mismatch."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "empty-list-validation-gap",
+       "claim": "The same assumption that an empty list is invalid is made in correctness.py but not enforced by the validation code, while languages.py shows a pattern of incomplete or inconsistent spec entries that could lead to similar silent acceptance of invalid configurations.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/structcore/languages.py"
+       ],
+       "mechanism": "In correctness.py validate_task, the docstring claims empty fail_to_pass is an error, but the code only checks for field presence, not list emptiness. In languages.py, the shell entry is incomplete and the comment 'each is one line of coverage' contradicts the multi-line entries, indicating a pattern of documentation-specification mismatch.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If validate_task explicitly checks for empty fail_to_pass and rejects it, the hypothesis is refuted. If languages.py shell entry is completed in another chunk, the pattern weakens.",
+       "evidence": [
+        "daedalus/eval/correctness.py:validate_task docstring (lines 564-565)",
+        "daedalus/structcore/languages.py:shell entry (last line of chunk)",
+        "daedalus/structcore/languages.py:comment before kotlin entry"
+       ]
+      },
+      {
+       "id": "incomplete-shell-spec",
+       "claim": "The incomplete shell LanguageSpec in languages.py will cause downstream modules (e.g., mapping/reach.py) that rely on LanguageSpec for parsing to mishandle shell scripts, leading to incorrect import resolution or containment decisions.",
+       "spans": [
+        "daedalus/structcore/languages.py",
+        "daedalus/mapping/reach.py"
+       ],
+       "mechanism": "languages.py defines a shell LanguageSpec entry that ends abruptly after 'name=\"shell\",', missing required fields like extensions, comments, grammar, etc. mapping/reach.py uses _scan to parse source text and extract import records; if it encounters a shell script, it may fail or produce incomplete records because the shell spec is incomplete.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "If the shell LanguageSpec is completed in a later chunk not shown, or if mapping/reach.py never processes shell scripts, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/languages.py:shell entry (last line of chunk)",
+        "daedalus/mapping/reach.py:_scan function"
+       ]
+      },
+      {
+       "id": "job-limit-verification-gap",
+       "claim": "The claim in containment.py that _create_job verifies job limits by read-back is not fully verifiable in this chunk, and the absence of comparison logic in the shown code suggests that the verification may be incomplete, potentially allowing unbounded jobs to be created.",
+       "spans": [
+        "daedalus/spine/containment.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "containment.py _create_job docstring claims it asks for limits, then queries, then compares, but the shown code only validates input and creates the job object; the comparison logic is not present. If the comparison is missing, a job with mismatched limits could be created. correctness.py run_node_ids spawns pytest subprocesses; if those are spawned without containment, they could escape resource limits.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the comparison logic is present in a later chunk of containment.py, the hypothesis is refuted. If correctness.py does not use containment for subprocesses, the risk is lower.",
+       "evidence": [
+        "daedalus/spine/containment.py:_create_job (lines 1257-1267)",
+        "daedalus/spine/containment.py:_create_job docstring",
+        "daedalus/eval/correctness.py:_spawn_pytest (lines 492-504)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1aa71d9f977b456dbac8274266d4264c86ea277b8700b373fdaf30fd357665da",
+    "objective_chars": 21361,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 76 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 76,
+  "inputs": 4
+ }
+}

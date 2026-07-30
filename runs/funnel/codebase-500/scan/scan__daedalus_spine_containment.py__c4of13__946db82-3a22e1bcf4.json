@@ -1,0 +1,502 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c4of13__946db82",
+ "key": "scan__daedalus_spine_containment.py__c4of13__946db82-3a22e1bcf4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 13 in containment.py: Windows API constant definitions and structure declarations (kernel32, ntdll, job object, token, startup info).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 361-426 | medium | No error checking on ctypes function prototypes; incorrect argtypes/restype could cause silent crashes or undefined behavior. | Verify each prototype against MSDN documentation and add validation tests.",
+     "line 427-428 | medium | Comment claims breakaway flags are 'NEVER SET' and absent by default; but actual default may vary across Windows versions. | Confirm that the job object is created without these flags and test that child processes cannot break away."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "4 of 13",
+     "purpose": "Define Win32 API prototypes, constants, and structures for process/job/security operations.",
+     "symbols": [
+      {
+       "name": "_kernel32.CreateFileW.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for CreateFileW."
+      },
+      {
+       "name": "_kernel32.CreateFileW.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for CreateFileW."
+      },
+      {
+       "name": "_kernel32.GetFileInformationByHandleEx.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for GetFileInformationByHandleEx."
+      },
+      {
+       "name": "_kernel32.GetFileInformationByHandleEx.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for GetFileInformationByHandleEx."
+      },
+      {
+       "name": "_kernel32.InitializeProcThreadAttributeList.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for InitializeProcThreadAttributeList."
+      },
+      {
+       "name": "_kernel32.InitializeProcThreadAttributeList.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for InitializeProcThreadAttributeList."
+      },
+      {
+       "name": "_kernel32.UpdateProcThreadAttribute.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for UpdateProcThreadAttribute."
+      },
+      {
+       "name": "_kernel32.UpdateProcThreadAttribute.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for UpdateProcThreadAttribute."
+      },
+      {
+       "name": "_kernel32.DeleteProcThreadAttributeList.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for DeleteProcThreadAttributeList."
+      },
+      {
+       "name": "_kernel32.DeleteProcThreadAttributeList.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for DeleteProcThreadAttributeList."
+      },
+      {
+       "name": "_kernel32.CreateJobObjectW.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for CreateJobObjectW."
+      },
+      {
+       "name": "_kernel32.CreateJobObjectW.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for CreateJobObjectW."
+      },
+      {
+       "name": "_kernel32.SetInformationJobObject.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for SetInformationJobObject."
+      },
+      {
+       "name": "_kernel32.SetInformationJobObject.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for SetInformationJobObject."
+      },
+      {
+       "name": "_kernel32.QueryInformationJobObject.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for QueryInformationJobObject."
+      },
+      {
+       "name": "_kernel32.QueryInformationJobObject.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for QueryInformationJobObject."
+      },
+      {
+       "name": "_kernel32.AssignProcessToJobObject.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for AssignProcessToJobObject."
+      },
+      {
+       "name": "_kernel32.AssignProcessToJobObject.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for AssignProcessToJobObject."
+      },
+      {
+       "name": "_kernel32.TerminateJobObject.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for TerminateJobObject."
+      },
+      {
+       "name": "_kernel32.TerminateJobObject.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for TerminateJobObject."
+      },
+      {
+       "name": "_kernel32.ResumeThread.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for ResumeThread."
+      },
+      {
+       "name": "_kernel32.ResumeThread.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for ResumeThread."
+      },
+      {
+       "name": "_kernel32.GenerateConsoleCtrlEvent.argtypes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets argtypes for GenerateConsoleCtrlEvent."
+      },
+      {
+       "name": "_kernel32.GenerateConsoleCtrlEvent.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for GenerateConsoleCtrlEvent."
+      },
+      {
+       "name": "_ntdll.NtCreateFile.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for NtCreateFile."
+      },
+      {
+       "name": "_ntdll.NtQueryObject.restype",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sets restype for NtQueryObject."
+      },
+      {
+       "name": "_TOKEN_ASSIGN_PRIMARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x0001."
+      },
+      {
+       "name": "_TOKEN_DUPLICATE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x0002."
+      },
+      {
+       "name": "_TOKEN_QUERY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x0008."
+      },
+      {
+       "name": "_TOKEN_ADJUST_DEFAULT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x0080."
+      },
+      {
+       "name": "_TOKEN_ADJUST_SESSIONID",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x0100."
+      },
+      {
+       "name": "_SECURITY_IMPERSONATION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 2."
+      },
+      {
+       "name": "_TOKEN_PRIMARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 1."
+      },
+      {
+       "name": "_TOKEN_INTEGRITY_LEVEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 25."
+      },
+      {
+       "name": "_SE_GROUP_INTEGRITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000020."
+      },
+      {
+       "name": "_CREATE_SUSPENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000004."
+      },
+      {
+       "name": "_CREATE_NEW_PROCESS_GROUP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000200."
+      },
+      {
+       "name": "_CREATE_UNICODE_ENVIRONMENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000400."
+      },
+      {
+       "name": "_EXTENDED_STARTUPINFO_PRESENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00080000."
+      },
+      {
+       "name": "_STARTF_USESTDHANDLES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000100."
+      },
+      {
+       "name": "_STILL_ACTIVE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 259."
+      },
+      {
+       "name": "_CTRL_BREAK_EVENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 1."
+      },
+      {
+       "name": "_PROC_THREAD_ATTRIBUTE_HANDLE_LIST",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00020002."
+      },
+      {
+       "name": "_JobObjectBasicAccountingInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 1."
+      },
+      {
+       "name": "_JobObjectExtendedLimitInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 9."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_ACTIVE_PROCESS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000008."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_JOB_MEMORY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000200."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000400."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00002000."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_BREAKAWAY_OK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000800. Comment: NEVER SET."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00001000. Comment: NEVER SET."
+      },
+      {
+       "name": "_FILE_SHARE_READ",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000001."
+      },
+      {
+       "name": "_READ_CONTROL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00020000."
+      },
+      {
+       "name": "_OPEN_EXISTING",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 3."
+      },
+      {
+       "name": "_FILE_ATTRIBUTE_NORMAL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x80."
+      },
+      {
+       "name": "_OBJ_INHERIT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000002."
+      },
+      {
+       "name": "_OBJ_CASE_INSENSITIVE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000040."
+      },
+      {
+       "name": "_FILE_OPEN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 1."
+      },
+      {
+       "name": "_FILE_SYNCHRONOUS_IO_NONALERT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000020."
+      },
+      {
+       "name": "_FILE_NON_DIRECTORY_FILE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000040."
+      },
+      {
+       "name": "_ObjectBasicInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0."
+      },
+      {
+       "name": "_FileIdInfo",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 18."
+      },
+      {
+       "name": "_LABEL_SECURITY_INFORMATION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x00000010."
+      },
+      {
+       "name": "_SE_FILE_OBJECT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 1."
+      },
+      {
+       "name": "_SYSTEM_MANDATORY_LABEL_ACE_TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Value 0x11."
+      },
+      {
+       "name": "_SID_AND_ATTRIBUTES",
+       "kind": "class",
+       "effects": [],
+       "note": "Structure with fields Sid (c_void_p) and Attributes (DWORD)."
+      },
+      {
+       "name": "_TOKEN_MANDATORY_LABEL",
+       "kind": "class",
+       "effects": [],
+       "note": "Structure with field Label (_SID_AND_ATTRIBUTES)."
+      },
+      {
+       "name": "_STARTUPINFOW",
+       "kind": "class",
+       "effects": [],
+       "note": "Structure with 18 fields matching STARTUPINFOW."
+      },
+      {
+       "name": "_STARTUPINFOEXW",
+       "kind": "class",
+       "effects": [],
+       "note": "Structure with fields StartupInfo (_STARTUPINFOW) and lpAttributeList (c_void_p)."
+      },
+      {
+       "name": "_PROCESS_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "Structure with fields hProcess, hThread (HANDLE), dwProcessId, dwThreadId (DWORD)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "NEVER SET. Named so that the read-back can assert their ABSENCE: with either of these a child may call CreateProcess with CREATE_BREAKAWAY_FROM_JOB and step outside every limit above, which would make the whole job decorative. Absence is the Windows default, and a default is precisely the kind of thing that changes without telling you.",
+       "where": "lines 427-428 (comment for _JOB_OBJECT_LIMIT_BREAKAWAY_OK and _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK)",
+       "verdict": "uncheckable",
+       "why": "The comment asserts that these flags are never set and that their absence is the default. This chunk only defines the constants; it does not contain the code that sets job limits. Therefore, whether these flags are actually never set cannot be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Multiple ctypes function prototypes are defined without error checking or validation.",
+       "where": "lines 361-399",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment on breakaway flags claims they are 'NEVER SET' and that absence is the default, but this is a claim about runtime behavior not present in this chunk.",
+       "where": "lines 427-428",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Several constants (e.g., _TOKEN_ASSIGN_PRIMARY, _CREATE_SUSPENDED) are defined but not used in this chunk; their usage is elsewhere.",
+       "where": "lines 401-426",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "503438daae200dc0a47e4cc041615af82d5a58e0fd195e1f3820077cbcdcfb5c",
+    "objective_chars": 6162,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [4/13]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 4,
+  "total": 13,
+  "first_line": 361
+ }
+}

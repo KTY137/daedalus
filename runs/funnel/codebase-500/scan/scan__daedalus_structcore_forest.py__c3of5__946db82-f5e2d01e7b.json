@@ -1,0 +1,143 @@
+{
+ "task_id": "scan__daedalus_structcore_forest.py__c3of5__946db82",
+ "key": "scan__daedalus_structcore_forest.py__c3of5__946db82-f5e2d01e7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 5 of forest.py: implements _clone_members, build_knowledge_forest with module, document, type/field nodes, and import edges.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_clone_members | medium | The function returns a tuple of sorted member strings, but the logic for 'files' vs 'sites' may produce different results depending on input; no deduplication across keys. | Add test with mixed 'files' and 'sites' keys.",
+     "build_knowledge_forest | medium | The function assumes 'module_heat' rows have 'module' key; missing key leads to KeyError? | Confirm that 'module' is always present in module_heat rows.",
+     "build_knowledge_forest | medium | The 'kind' attribute for nodes is derived from attributes.get('kind'): if it equals 'document', node kind is 'document', else 'source_file'. This may misclassify other kinds. | Verify that the only possible non-document kind is 'source_file'.",
+     "build_knowledge_forest | medium | Type nodes are skipped if kind not in _TYPE_NODE_KINDS, but _TYPE_NODE_KINDS is not defined in this chunk. | Ensure _TYPE_NODE_KINDS is defined elsewhere.",
+     "build_knowledge_forest | medium | The function uses _is_type_node_id which is not defined in this chunk. | Ensure _is_type_node_id is defined elsewhere."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/forest.py",
+     "chunk": "3 of 5",
+     "purpose": "Defines _clone_members and build_knowledge_forest with node creation for modules, documents, types, fields, and import edges.",
+     "symbols": [
+      {
+       "name": "_clone_members",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts sorted unique member strings from a cluster mapping, preferring 'files' key over 'sites'."
+      },
+      {
+       "name": "build_knowledge_forest",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a KnowledgeForest from an index, creating nodes for modules, documents, types, fields, and edges for imports."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Negative/zero PMI evidence is kept only in attributes; the non-negative edge weight is the pair's lift, which has the intuitive neutral value 1.",
+       "where": "docstring of build_knowledge_forest",
+       "verdict": "uncheckable",
+       "why": "No edge creation with PMI or lift is present in this chunk; it may appear in later code."
+      },
+      {
+       "text": "THE PROMISED SECOND NODE KIND. This module's own docstring already said documents could be added \"as new node kinds and relation layers without changing this contract\", and this is that, in full: one discriminator read, no new field, no new dataclass, no schema bump.",
+       "where": "comment at line ~277",
+       "verdict": "kept",
+       "why": "The code creates a node with kind='document' when attributes.get('kind')=='document', else 'source_file'. It reads one discriminator, no new field or dataclass."
+      },
+      {
+       "text": "heat_score/churn come out 0 because documents are held out of module_heat upstream, which is deliberate, not missing data.",
+       "where": "comment at line ~283",
+       "verdict": "uncheckable",
+       "why": "The code sets heat_score and churn from heat_by_module, but whether documents are excluded upstream is not visible in this chunk."
+      },
+      {
+       "text": "THE THIRD AND FOURTH NODE KINDS: type and field. Same shape as the document addition -- read a block the index either carries or does not, one discriminator, no new field, no new dataclass, no schema bump.",
+       "where": "comment at line ~295",
+       "verdict": "kept",
+       "why": "The code iterates over type_nodes, checks kind against _TYPE_NODE_KINDS, and creates ForestNode with id and kind, no new dataclass."
+      },
+      {
+       "text": "type_ids is a SEPARATE set from module_ids on purpose, and this is the single most load-bearing line of the addition. module_ids is not a convenience variable: it is the membership gate of four other layers (imports, document links, co-change and clone-hyperedge members). Widen it and a type node becomes eligible to be a clone-group member or an import endpoint, which is a fabricated fact about the repository, not a cosmetic leak. So type nodes get their own set, and every gate below names exactly the sets it accepts.",
+       "where": "comment at line ~300",
+       "verdict": "kept",
+       "why": "type_ids is defined as a separate set from module_ids, and the code checks node_id in module_ids to skip collisions."
+      },
+      {
+       "text": "Absent key -> empty loop -> byte-identical forest, so an index built without the type layer produces the forest it always produced.",
+       "where": "comment at line ~308",
+       "verdict": "kept",
+       "why": "If index.get('type_nodes') is None or empty, the loop over type_rows is empty, so no type nodes are added."
+      },
+      {
+       "text": "Three refusals, none of them redundant: a row that is not one of the two type kinds is not this layer's business; an id in the namespace of files would collide with a real file in build_forest_hierarchy (which raises on two ids mapping to one path) and is refused rather than renamed; and an id outside the type:/field: namespace cannot be told apart from a path by any downstream reader.",
+       "where": "comment at line ~318",
+       "verdict": "kept",
+       "why": "The code checks kind not in _TYPE_NODE_KINDS, node_id in module_ids, and node_id in type_ids, skipping those rows."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _clone_members is defined but not used in this chunk; it may be used elsewhere.",
+       "where": "_clone_members",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "build_knowledge_forest uses variables _TYPE_NODE_KINDS and _is_type_node_id which are not defined in this chunk, likely defined earlier in the file.",
+       "where": "build_knowledge_forest",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The import edge creation filters source and target to be in module_ids only, not type_ids. This is consistent with the comment that type nodes are separate.",
+       "where": "build_knowledge_forest, import edge loop",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code for import edges uses set(targets or ()) to deduplicate targets, but the edge key tuple uses str(source) and str(target). The seen_imports set prevents duplicate edges.",
+       "where": "build_knowledge_forest, import edge loop",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b3c0ef67662d1a1a54b9f8391aa2f6859400058c3a1b5978e8a665284661a3ba",
+    "objective_chars": 6050,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/forest.py [3/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/forest.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 241
+ }
+}

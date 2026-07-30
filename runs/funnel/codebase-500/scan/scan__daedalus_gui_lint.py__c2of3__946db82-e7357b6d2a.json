@@ -1,0 +1,197 @@
+{
+ "task_id": "scan__daedalus_gui_lint.py__c2of3__946db82",
+ "key": "scan__daedalus_gui_lint.py__c2of3__946db82-e7357b6d2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3 of daedalus/gui/lint.py: continues compute_metrics with tier B metrics and begins compare function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "compare function | medium | compare function defined but not called in this chunk; may be incomplete or unused | Check if compare is called elsewhere and its output is used.",
+     "Metric class | medium | Metric class not defined in this chunk; references to m.to_dict() assume existence | Verify Metric class definition elsewhere.",
+     "BANNED_FACES | low | BANNED_FACES constant referenced but not defined in this chunk | Ensure BANNED_FACES is defined in scope.",
+     "_contains | low | _contains function referenced but not defined in this chunk | Ensure _contains is defined.",
+     "_looks_like_identifier | low | _looks_like_identifier function referenced but not defined in this chunk | Ensure it is defined.",
+     "_is_panel | low | _is_panel function referenced but not defined in this chunk | Ensure it is defined.",
+     "_sel | low | _sel function referenced multiple times but not defined in this chunk | Ensure it is defined.",
+     "cap variable | low | cap variable assumed from outer scope; not defined in this chunk | Ensure cap is defined in calling context.",
+     "els variable | low | els variable assumed from outer scope; not defined in this chunk | Ensure els is defined in calling context.",
+     "ms variable | low | ms variable assumed from outer scope; not defined in this chunk | Ensure ms is defined in calling context.",
+     "reports[0][\"metrics\"] | low | compare function assumes reports[0][\"metrics\"] exists; no guard | Add check for non-empty reports."
+    ],
+    "todos": [
+     "Verify all external references (Metric, BANNED_FACES, _contains, _looks_like_identifier, _is_panel, _sel, cap, els, ms) are defined.",
+     "Ensure compare function handles empty reports list.",
+     "Consider adding type hints and docstrings for _fmt and compare."
+    ],
+    "handoff": {
+     "module": "daedalus/gui/lint.py",
+     "chunk": "2 of 3",
+     "purpose": "Continue compute_metrics with tier B metrics and begin compare function.",
+     "symbols": [
+      {
+       "name": "compute_metrics",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a dict with metrics list. Continues from chunk 1."
+      },
+      {
+       "name": "_fmt",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Formats a number using :g format specifier."
+      },
+      {
+       "name": "compare",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates side-by-side table of metric values across reports. Returns a string."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Side-by-side table. The point of the whole exercise: do the numbers separate the surfaces a human rejected from the one he approved?",
+       "where": "docstring of compare",
+       "verdict": "uncheckable",
+       "why": "The claim about the purpose is a comment; the actual behavior (producing a side-by-side table) is partially implemented but the function is incomplete in this chunk (only header lines are built)."
+      },
+      {
+       "text": "banned_faces: grotesk defaults that mark a generated page",
+       "where": "line ~127",
+       "verdict": "kept",
+       "why": "The code counts banned fonts and stores them in a metric with description 'grotesk defaults that mark a generated page'."
+      },
+      {
+       "text": "console_errors: a broken page is not a design question",
+       "where": "line ~131",
+       "verdict": "kept",
+       "why": "The code counts console errors and stores them with description 'a broken page is not a design question'."
+      },
+      {
+       "text": "visible_elements: raw density of what is on screen at once",
+       "where": "line ~136",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'visible_elements' and description 'raw density of what is on screen at once'."
+      },
+      {
+       "text": "framed_panels: when everything is a bordered box, nothing is elevated",
+       "where": "line ~137",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'framed_panels' and description 'when everything is a bordered box, nothing is elevated'."
+      },
+      {
+       "text": "distinct_radii: more than two or three corner radii reads as unconsidered",
+       "where": "line ~142",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'distinct_radii' and description 'more than two or three corner radii reads as unconsidered'."
+      },
+      {
+       "text": "panel_nesting_depth: frames inside frames inside frames",
+       "where": "line ~156",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'panel_nesting_depth' and description 'frames inside frames inside frames'."
+      },
+      {
+       "text": "allcaps_text_share: shouted micro-labels used as decoration rather than hierarchy",
+       "where": "line ~162",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'allcaps_text_share' and description 'shouted micro-labels used as decoration rather than hierarchy'."
+      },
+      {
+       "text": "status_pills_visible: if everything is flagged, nothing is flagged",
+       "where": "line ~169",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'status_pills_visible' and description 'if everything is flagged, nothing is flagged'."
+      },
+      {
+       "text": "largest_equal_tile_row: an N-equal-tile metric row is the most recognisable trope in the category",
+       "where": "line ~188",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'largest_equal_tile_row' and description 'an N-equal-tile metric row is the most recognisable trope in the category'."
+      },
+      {
+       "text": "accent_hue_families: distinct 30-degree hue families in use, semantic colour included",
+       "where": "line ~198",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'accent_hue_families' and description 'distinct 30-degree hue families in use, semantic colour included'."
+      },
+      {
+       "text": "identifier_leaks: internal field names and raw JSON rendered as user-facing text",
+       "where": "line ~202",
+       "verdict": "kept",
+       "why": "The code appends Metric with key 'identifier_leaks' and description 'internal field names and raw JSON rendered as user-facing text'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "compare function is incomplete; only header lines are built, no metric rows.",
+       "where": "compare function, lines ~212-218",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "External dependencies (Metric class, helper functions) not defined in this chunk.",
+       "where": "Multiple lines",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Variable 'ms' is appended to but not initialized in this chunk; assumed from outer scope.",
+       "where": "compute_metrics function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Variable 'cap' and 'els' are used but not defined in this chunk; assumed from outer scope.",
+       "where": "compute_metrics function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "No type hints or docstrings for _fmt and compare functions.",
+       "where": "_fmt and compare definitions",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5a188a8b7e7cd477ec437869a74fce637d059ff6310149dab718dbef9b32cec8",
+    "objective_chars": 6187,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/gui/lint.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/gui/lint.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

@@ -1,0 +1,148 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c3of4__946db82",
+ "key": "scan__daedalus_lanes_graph_brief.py__c3of4__946db82-1b77c5e210",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 4: contains graph_brief function and helper _emit, with neighbourhood walk loop and layer rendering logic; claims about budget reservation and rendering order are checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "graph_brief | medium | The index is caught as Exception (BLE001), which may hide genuine errors; but docstring says 'Never raises for a missing or unreadable index'. | Confirm if any non-IndexError exceptions should be re-raised.",
+     "_emit | medium | 'spent' is incremented per line but not reset if budget exceeded; header cost is added after checking lines, potentially allowing overshoot by header length. | Verify that header cost is correctly accounted before or after line checks.",
+     "_neighbourhood | low | The function iterates up to 'hops' but uses max(0, hops) which may differ from caller's expectation if hops is negative. | Confirm that negative hops is handled as zero.",
+     "graph_brief | low | 'rels' is built from targets with deduplication but using dict.fromkeys; order is preserved only in Python 3.7+. | Ensure Python version compatibility or use OrderedDict."
+    ],
+    "todos": [
+     "Check that _HEADER_RESERVE is defined and correctly sized.",
+     "Verify that _deep_only_modules and _tail_matches are defined elsewhere.",
+     "Confirm that file_symbols is imported and works correctly."
+    ],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "3 of 4",
+     "purpose": "Define graph_brief and _emit; implement neighbourhood expansion and layer rendering with budget control.",
+     "symbols": [
+      {
+       "name": "_neighbourhood",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private function that expands frontier by hops, excluding artefacts and targets."
+      },
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public function returning GraphBrief; uses cached_index or supplied index."
+      },
+      {
+       "name": "_emit",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Local function inside graph_brief; renders a layer if budget allows, updates counts/dropped/rendered."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises for a missing or unreadable index: a lane that cannot get a brief must still be able to run with none. A brief is context, not a gate.",
+       "where": "graph_brief docstring",
+       "verdict": "kept",
+       "why": "The code uses try/except Exception and sets index = {} on failure, so no exception propagates."
+      },
+      {
+       "text": "The header is written last but must not escape the budget, so its space is reserved up front. A brief that overshoots by exactly the size of its own preamble is the kind of off-by-a-section that only shows up as a truncated prompt at the far end.",
+       "where": "comment before 'spent = _HEADER_RESERVE'",
+       "verdict": "uncheckable",
+       "why": "The value of _HEADER_RESERVE is not defined in this chunk; the claim that space is reserved up front is partially checkable (spent is initialized to _HEADER_RESERVE) but the correctness depends on the constant's value."
+      },
+      {
+       "text": "Priority matters because the layers are wildly different sizes: the 1-hop symbol layer around ``offload.py`` alone is 495 lines, and emitting it first consumed the entire budget and dropped the import layer -- the smallest and most valuable of the three, and the only one that answers \"what will I break\". Small high-value layers are rendered first and DISPLAYED in reading order.",
+       "where": "docstring of _emit",
+       "verdict": "kept",
+       "why": "The code calls _emit first for imports (small/high-value) then for symbols (larger), so rendering order is priority-order. Display order is not enforced here but is implied by the order of rendered dict entries; the claim about display order is uncheckable (depends on caller)."
+      },
+      {
+       "text": "Artefact importers are filtered HERE as well as in the neighbourhood. Measured: the first brief for ``shift.py`` had no artefact neighbour left and still printed \"<- imported by runs/eval/deepseek_lab/wrecked/shift.py\", because a reverse edge is read straight off the index and never passed through the walk.",
+       "where": "comment in imports layer",
+       "verdict": "kept",
+       "why": "The code explicitly filters inc with `if not _is_artefact(s)`, so artefacts are excluded. The comment explains why this filter is needed."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _neighbourhood function uses `max(0, hops)` which may treat negative hops as zero, but the docstring does not specify behavior for negative hops.",
+       "where": "line 241-251",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable `spent` is incremented per line, but the header cost is added after checking lines; if a line fits but adding the header would exceed budget, the header is added anyway, potentially causing overshoot.",
+       "where": "_emit lines 283-294",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The index is loaded via `cached_index(root)` which may return a stale index if the filesystem has changed; no invalidation logic is visible.",
+       "where": "line 262",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The function `_deep_only_modules` is called but not defined in this chunk; its behavior is unknown.",
+       "where": "line 302",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function `_tail_matches` is called but not defined in this chunk; its behavior is unknown.",
+       "where": "line 303",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant `DEEP_EDGE_MARK` is used but not defined in this chunk.",
+       "where": "line 303",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b6845c99ee9c7969e1f42dd9ba20c074a86f79e7f7448d6950077db6b870c86a",
+    "objective_chars": 5522,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 241
+ }
+}

@@ -1,0 +1,108 @@
+{
+ "task_id": "research__b087__946db82",
+ "key": "research__b087__946db82-707c523f05",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) docstring vs. implementation mismatches across modules, (2) missing type definitions that break contracts, (3) inconsistent handling of edge cases in AST parsing.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Docstring claims in multiple modules are not enforced by code, leading to incorrect assumptions.",
+     "Forward references to undefined types (JobLimits, LOW_INTEGRITY_SID) may cause runtime errors.",
+     "AST parsing silently ignores PEP 695 type aliases on Python < 3.12, causing missing type declarations.",
+     "Sorting on None line numbers in parse.py may crash.",
+     "CLASS_STATUS mapping orphan->island contradicts the comment that orphans keep their own name."
+    ],
+    "todos": [
+     "Align docstrings with implementation in graph_delta.py, render.py, and spine/containment.py.",
+     "Define or import JobLimits and LOW_INTEGRITY_SID in spine/containment.py.",
+     "Handle ast.TypeAlias absence gracefully in parse.py or document Python version requirement.",
+     "Handle None line numbers in parse.py sort keys.",
+     "Resolve orphan status rendering: either fix comment or mapping."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "docstring-code-mismatch",
+       "claim": "Multiple modules have docstrings that make claims about behavior not implemented in code, creating a systematic gap between specification and implementation.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "daedalus/mapping/render.py",
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "In graph_delta.py, comment claims line qualification but code merges same-named methods. In render.py, docstring claims all Stamp fields degrade to strings but dirty_paths and untracked_scanned default to int -1. In spine/containment.py, docstring claims cancellation ladder mirrors ManagedProcess but no cancel method exists in chunk.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If all docstrings in those modules match the code exactly, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py:line ~718 comment vs code",
+        "daedalus/mapping/render.py:Stamp docstring and fields",
+        "daedalus/spine/containment.py:ContainedProcess docstring"
+       ]
+      },
+      {
+       "id": "missing-type-definitions",
+       "claim": "The codebase has forward references to types (JobLimits, LOW_INTEGRITY_SID) that are not defined in the scanned chunks, risking runtime NameError if not imported elsewhere.",
+       "spans": [
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "ContainmentAttestation.job_limits uses 'JobLimits | None' but JobLimits is not defined in the chunk. Properties low_token_obtained and worktree_labelled reference LOW_INTEGRITY_SID without definition. These may be imported from other modules but the dependency is unclear.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If JobLimits and LOW_INTEGRITY_SID are defined in earlier chunks of the same file or imported from other modules, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/containment.py:line 1010",
+        "daedalus/spine/containment.py:lines 1015, 1018"
+       ]
+      },
+      {
+       "id": "inconsistent-ast-handling",
+       "claim": "AST parsing in parse.py silently ignores certain constructs (PEP 695 aliases, NewType with <2 args) while graph_delta.py also has incomplete AST walking (no line qualification), indicating a pattern of fragile AST processing.",
+       "spans": [
+        "daedalus/structcore/parse.py",
+        "daedalus/eval/graph_delta.py"
+       ],
+       "mechanism": "In parse.py, _visit uses getattr(ast, 'TypeAlias', None) which is None on Python < 3.12, causing isinstance(child, None) to always be False, silently skipping PEP 695 aliases. Also, _assign does not validate NewType call structure, risking annotation_text(None). In graph_delta.py, _refs_by_function does not qualify by line as claimed, merging same-named methods.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If parse.py is only run on Python >= 3.12 (so ast.TypeAlias exists) and NewType always has >=2 args, and graph_delta.py's lack of line qualification is intentional, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/parse.py:line 1138",
+        "daedalus/structcore/parse.py:line 1113",
+        "daedalus/eval/graph_delta.py:line ~718"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7885c238fc4f157fae9defdfe29a49d994e382c9b679f166d2cbf2610e3e97b1",
+    "objective_chars": 17941,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 87 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 87,
+  "inputs": 4
+ }
+}

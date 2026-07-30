@@ -1,0 +1,252 @@
+{
+ "task_id": "scan__daedalus_structcore_markdown.py__c2of8__946db82",
+ "key": "scan__daedalus_structcore_markdown.py__c2of8__946db82-b6ee457b4c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of markdown.py: defines helpers code_modules, document_modules; dataclasses DocSection, DocLink, DocumentParse; constants WIKI_KINDS, _NS_CODE, _NS_TYPE, _NS_VAULT, _WIKI_NAMESPACES.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "document_modules function | medium | Function name suggests it returns documents only, but uses is_document which may return True for non-documents if attributes have DOCUMENT_KIND. | Verify is_document logic in chunk 1.",
+     "DocSection.document property | low | Returns self.module, but property name 'document' could shadow the module attribute; no conflict here but may confuse readers. | No action needed.",
+     "DocLink embed field | low | Field embed=True indicates transclusion, but the comment says 'written as ![[...]]'. This is a claim about parsing behaviour not in this chunk. | Check the parser implementation.",
+     "DocLink namespace field | low | Comment says '.' is reserved for future; not verified here. | Check later chunks.",
+     "WIKI_KINDS includes 'deferred' | low | Comment says deferred links are recognised but not resolved; this is a claim about parser behaviour not in this chunk. | Check parser implementation.",
+     "_NS_VAULT | low | Comment says it is recognised only to avoid mistaking it for a note; implementation requires phase K6. | Check later chunks.",
+     "DocumentParse.headings property | low | Filters sections with level > 0; assumes preamble has level 0. Verified: DocSection.level defaults to 0. | No issue.",
+     "DocumentParse.wiki_links property | low | Returns links with kind in WIKI_KINDS; WIKI_KINDS includes 'deferred'. Comment says 'embeds included'. Verified: embed field exists but not used in filter. | No issue."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/markdown.py",
+     "chunk": "2 of 8",
+     "purpose": "Defines helper functions to filter modules by document status, and key dataclasses for document structure and parse results.",
+     "symbols": [
+      {
+       "name": "code_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns index[\"modules\"] excluding documents."
+      },
+      {
+       "name": "document_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns index[\"modules\"] restricted to documents."
+      },
+      {
+       "name": "DocSection",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass representing a document section with fields compatible with CodeUnit."
+      },
+      {
+       "name": "DocLink",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass representing a link occurrence in a document."
+      },
+      {
+       "name": "WIKI_KINDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of wikilink kinds: ('wiki', 'code', 'type', 'deferred')."
+      },
+      {
+       "name": "_NS_CODE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Namespace string 'code'."
+      },
+      {
+       "name": "_NS_TYPE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Namespace string 'type'."
+      },
+      {
+       "name": "_NS_VAULT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Namespace string 'vault'."
+      },
+      {
+       "name": "_WIKI_NAMESPACES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of all wikilink namespaces."
+      },
+      {
+       "name": "DocumentParse",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass representing the result of parsing a document."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``index[\"modules\"]`` with documents removed.",
+       "where": "code_modules docstring",
+       "verdict": "kept",
+       "why": "The function returns a dict filtered by not is_document(attrs)."
+      },
+      {
+       "text": "The single helper every code-only consumer inside structcore uses",
+       "where": "code_modules docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about usage in other modules cannot be verified from this chunk."
+      },
+      {
+       "text": "``index[\"modules\"]`` restricted to documents.",
+       "where": "document_modules docstring",
+       "verdict": "kept",
+       "why": "Function returns dict filtered by is_document(attrs)."
+      },
+      {
+       "text": "One section: a heading plus its body, up to the next heading of equal or higher level.",
+       "where": "DocSection docstring",
+       "verdict": "uncheckable",
+       "why": "The actual section parsing logic is not in this chunk; the docstring describes intended behaviour."
+      },
+      {
+       "text": "The document analogue of ``parse.CodeUnit`` -- and DELIBERATELY field-compatible with it (``module``/``name``/``line``/``end_line``/``loc``/``source``/``language``)",
+       "where": "DocSection docstring",
+       "verdict": "uncheckable",
+       "why": "Field compatibility with CodeUnit cannot be verified; CodeUnit is not in this chunk."
+      },
+      {
+       "text": "so a document can be handed to code that already accepts units (``graph.build_resolver``, ``slice``'s symbol lookup) without those call sites growing a type switch.",
+       "where": "DocSection docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about usage in other modules cannot be verified from this chunk."
+      },
+      {
+       "text": "``level`` 0 is the PREAMBLE -- the text before the first heading, i.e. the analogue of module-level code.",
+       "where": "DocSection docstring",
+       "verdict": "kept",
+       "why": "DocSection.level defaults to 0, consistent with preamble."
+      },
+      {
+       "text": "A document with no headings at all has exactly one section, which is the honest answer rather than zero.",
+       "where": "DocSection docstring",
+       "verdict": "uncheckable",
+       "why": "The parsing logic that produces sections is not in this chunk."
+      },
+      {
+       "text": "One link occurrence. ``href`` is the raw destination as written.",
+       "where": "DocLink docstring",
+       "verdict": "kept",
+       "why": "DocLink has an href field of type str."
+      },
+      {
+       "text": "The wikilink fields are appended with defaults on purpose: a link parsed from ``[text](path)`` carries exactly the values it carried before this module learned Obsidian syntax, so every existing consumer keeps reading the same five fields and a document without a single ``[[`` is unmoved.",
+       "where": "DocLink docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about backward compatibility and parsing behaviour cannot be verified from this chunk."
+      },
+      {
+       "text": "``deferred`` is a link this parser recognises but refuses to resolve in this phase (today: the reserved ``vault:`` literal).",
+       "where": "Comment before WIKI_KINDS",
+       "verdict": "uncheckable",
+       "why": "Parser behaviour not in this chunk; only the constant definition is here."
+      },
+      {
+       "text": "``code``/``type`` are implemented below; ``vault`` is recognised ONLY so it cannot be mistaken for a note called \"vault:NAME/path\". Implementing it is phase K6 and needs its own review -- see the module docstring.",
+       "where": "Comment before _WIKI_NAMESPACES",
+       "verdict": "uncheckable",
+       "why": "Implementation of code/type namespaces not in this chunk; module docstring not in this chunk."
+      },
+      {
+       "text": "Every ``[[...]]`` occurrence, embeds included, in document order.",
+       "where": "DocumentParse.wiki_links property docstring",
+       "verdict": "kept",
+       "why": "Property returns links filtered by kind in WIKI_KINDS, which includes wiki, code, type, deferred; embed field exists but filtering does not exclude embeds. Document order is preserved by tuple comprehension."
+      }
+     ],
+     "observations": [
+      {
+       "what": "code_modules and document_modules both call index.get('modules') and filter using is_document. They are symmetric.",
+       "where": "lines 121-137",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocSection has a property 'document' that returns self.module. This provides a common interface for code that expects a 'document' attribute.",
+       "where": "line 157",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocLink defines fields for wikilink syntax including embed, alias, and namespace, but the comment says 'href is the raw destination as written' and 'path is document-relative, before resolution'. The actual link resolution is not in this chunk.",
+       "where": "lines 161-177",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocumentParse.headings property filters sections with level > 0, which correctly excludes the preamble (level 0).",
+       "where": "line 195",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocumentParse.wiki_links property returns links whose kind is in WIKI_KINDS. The docstring says 'embeds included', but the filter does not check the embed field; it relies on the parser setting kind correctly for embeds.",
+       "where": "line 207",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "42b080fa78f63c4ade8f9bd6e8fa1b0f1808c506074cbb3a0248fab7a3994de3",
+    "objective_chars": 5146,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/markdown.py [2/8]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/markdown.py",
+  "index": 2,
+  "total": 8,
+  "first_line": 121
+ }
+}

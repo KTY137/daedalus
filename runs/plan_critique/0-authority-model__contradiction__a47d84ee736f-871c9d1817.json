@@ -1,0 +1,98 @@
+{
+ "task_id": "0-authority-model__contradiction__a47d84ee736f",
+ "key": "0-authority-model__contradiction__a47d84ee736f-871c9d1817",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "The authority model table and rules are internally consistent; no contradictions found within this document.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0.1",
+       "claim": "This master plan is the sole semantic authority and defines goals, invariants, priors, and delivery order.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere in this document. The plan's role as sole semantic authority is consistent with the rules that follow."
+      },
+      {
+       "id": "0.2",
+       "claim": ".agentenv/agentenv.json and .agentenv/tool-allowances.json are mechanical veto policies that restrict or deny capabilities.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. The mechanical veto policy is distinct from the semantic authority and consistent with the rule that stricter mechanical policy wins for effects."
+      },
+      {
+       "id": "0.3",
+       "claim": "Root instructions, skills, and hooks are derived projections that load the plan, report drift, and block ordinary mutation.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. The derived projection role is consistent with the hierarchy where the plan is supreme."
+      },
+      {
+       "id": "0.4",
+       "claim": "Tests, receipts, and experiments are evidence that refute status claims and research priors.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. This aligns with the evidence role and the falsifiability of PRIORs."
+      },
+      {
+       "id": "0.5",
+       "claim": "ADRs, TODOs, handoffs, and inventories are history/backlog that supply evidence and proposals.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. BACKLOG is defined as non-authoritative proposed work, consistent with this role."
+      },
+      {
+       "id": "0.6",
+       "claim": "A capability policy cannot broaden the plan, and the plan cannot grant a capability.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. This separation of concerns is consistent with the authority hierarchy."
+      },
+      {
+       "id": "0.7",
+       "claim": "For effects, the stricter mechanical policy wins. For product meaning and sequencing, only this plan is authoritative.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. This rule resolves conflicts between policy and plan."
+      },
+      {
+       "id": "0.8",
+       "claim": "Rule types are explicit: INVARIANT, GATE, PRIOR, STATUS, BACKLOG.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. The definitions are self-consistent and no other rule type is used elsewhere."
+      },
+      {
+       "id": "0.9",
+       "claim": "INVARIANT cannot change silently; GATE is a deterministically testable delivery state; PRIOR is a falsifiable design hypothesis; STATUS is a revision-bound measurement; BACKLOG is non-authoritative proposed work.",
+       "verdict": "sound",
+       "why": "No contradictory claim found elsewhere. These definitions are consistent with the roles described in the table."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ea05ed97e19735dcecc417ababea975f5dd43df3cc4eac5de0d068de8c5b12b3",
+    "objective_chars": 2054,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "0-authority-model",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

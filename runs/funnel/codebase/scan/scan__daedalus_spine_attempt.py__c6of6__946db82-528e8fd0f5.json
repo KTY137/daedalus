@@ -1,0 +1,301 @@
+{
+ "task_id": "scan__daedalus_spine_attempt.py__c6of6__946db82",
+ "key": "scan__daedalus_spine_attempt.py__c6of6__946db82-528e8fd0f5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Final chunk of attempt.py: cleanup, resolve, gate running, artifact persistence, and module-level run_attempt entry point. 14 public symbols enumerated; 18 claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_persist_to_store | medium | store.put_bytes might raise exceptions that are caught as generic Exception; the catch is broad and may hide unexpected errors. | Add specific exception handling or log the full traceback.",
+     "_run_gates | low | If _gate returns a non-GateResult non-bool, the function returns a GateResult with passed=False and no output. | Clarify expected return types or add explicit type check.",
+     "_cleanup | low | If _keep_worktree is True, no cleanup is attempted; the caller may expect cleanup regardless. | Document that _keep_worktree disables cleanup."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/attempt.py",
+     "chunk": "6 of 6",
+     "purpose": "Cleanup, artifact persistence, gate running, ledger resolution, and module entry point.",
+     "symbols": [
+      {
+       "name": "_resolve_base",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Calls git rev-parse to resolve base revision."
+      },
+      {
+       "name": "_capture_patch",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Stages worktree changes and captures diff as PatchArtifact."
+      },
+      {
+       "name": "_post_gate_artifact_stable",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Verifies post-gate tree matches pre-gate artifact."
+      },
+      {
+       "name": "_run_gates",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs the gate and returns a GateResult."
+      },
+      {
+       "name": "_persist",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Compatibility wrapper calling _persist_to_store."
+      },
+      {
+       "name": "_persist_to_store",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Persists artifact via ArtifactStore with provenance."
+      },
+      {
+       "name": "_cleanup",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Removes worktree unless _keep_worktree is set."
+      },
+      {
+       "name": "_resolve_and_finish",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Updates ledger and calls finish callback."
+      },
+      {
+       "name": "_get_ledger",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Lazy-initializes and returns SpineLedger."
+      },
+      {
+       "name": "run_attempt",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Module-level entry point that constructs and runs a TaskAttempt."
+      },
+      {
+       "name": "TaskAttempt",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Class defined earlier in file; only methods shown here."
+      },
+      {
+       "name": "GateResult",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "PatchArtifact",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Referenced but not defined in this chunk."
+      },
+      {
+       "name": "ArtifactStore",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Referenced but not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "git add -A writes only the worktree's private index -- worktrees do not share an index with the primary checkout",
+       "where": "_capture_patch docstring",
+       "verdict": "uncheckable",
+       "why": "The code calls _git with git_dir and work_tree, but the private index behavior is not verifiable from this chunk alone."
+      },
+      {
+       "text": "--no-renames is pinned so the digest does not move with git's rename-detection heuristics",
+       "where": "_capture_patch docstring",
+       "verdict": "kept",
+       "why": "The opts list includes '--no-renames'."
+      },
+      {
+       "text": "--no-ext-diff so a developer's configured external differ cannot rewrite the bytes we hash",
+       "where": "_capture_patch docstring",
+       "verdict": "kept",
+       "why": "'--no-ext-diff' is in opts."
+      },
+      {
+       "text": "--no-textconv because IT IS NOT IMPLIED BY --no-ext-diff",
+       "where": "_capture_patch docstring",
+       "verdict": "kept",
+       "why": "'--no-textconv' is explicitly added."
+      },
+      {
+       "text": "THIS RUNS AFTER CANDIDATE CODE AND BEFORE THE GATE, in the parent process",
+       "where": "_capture_patch docstring",
+       "verdict": "uncheckable",
+       "why": "This claim refers to the overall run order; not verifiable from this method alone."
+      },
+      {
+       "text": "The artifact is staged before the gate so the gate judges the candidate tree.",
+       "where": "_post_gate_artifact_stable docstring",
+       "verdict": "uncheckable",
+       "why": "The method is called after the gate; staging order is not visible here."
+      },
+      {
+       "text": "A gate is still code, however: it can rewrite a tracked file, create a new untracked file, or (without MIC containment) alter the index before returning 0.",
+       "where": "_post_gate_artifact_stable docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of gate behavior in this chunk."
+      },
+      {
+       "text": "Without this check, the persisted artifact and its digest could describe bytes the green gate never finished on.",
+       "where": "_post_gate_artifact_stable docstring",
+       "verdict": "uncheckable",
+       "why": "The check exists but its necessity is not proven."
+      },
+      {
+       "text": "Ignored outputs are deliberately excluded: dependency installs and builds legitimately create node_modules/dist.",
+       "where": "_post_gate_artifact_stable docstring",
+       "verdict": "uncheckable",
+       "why": "The method uses --exclude-standard for untracked files; ignored files are excluded by default."
+      },
+      {
+       "text": "Tracked, non-ignored untracked, and staged bytes must remain exactly bound.",
+       "where": "_post_gate_artifact_stable docstring",
+       "verdict": "kept",
+       "why": "The method checks staged diff SHA, unstaged changes, and untracked files."
+      },
+      {
+       "text": "THE ONE PLACE THIS MODULE WRITES A CALLER-CHOSEN PATH, and until now it wrote it unchecked.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "This claim refers to the entire module; not verifiable from this chunk."
+      },
+      {
+       "text": "Everything else here is fenced by construction -- the worktree lives under %LOCALAPPDATA%, the gate's scratch tree under %TEMP%, and every git invocation goes through _git.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of those paths in this chunk."
+      },
+      {
+       "text": "artifact_dir is a plain constructor argument, so TaskAttempt(..., artifact_dir=repo_root / 'runs' / 'patches') deposited candidate bytes straight into the primary checkout, created the intermediate directories to do it, and reported the path on a clean result as if that were the intended outcome.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "The constructor is not in this chunk."
+      },
+      {
+       "text": "The module docstring's claim that this class cannot write the primary checkout was true of every path except this one.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "Module docstring not in this chunk."
+      },
+      {
+       "text": "The fence still runs BEFORE the store can create a directory.",
+       "where": "_persist_to_store docstring",
+       "verdict": "kept",
+       "why": "assert_write_allowed is called before store.put_bytes."
+      },
+      {
+       "text": "The store then verifies diff_sha256 against the authoritative bytes, publishes them atomically without replacing an existing object, and emits a provenance-bearing immutable locator.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "ArtifactStore behavior is not defined in this chunk."
+      },
+      {
+       "text": "A corrupted existing object is a refusal, not something an attempt silently repairs.",
+       "where": "_persist_to_store docstring",
+       "verdict": "uncheckable",
+       "why": "ArtifactStore behavior is not defined in this chunk."
+      },
+      {
+       "text": "Failure is reported rather than raised because persistence is a side errand -- losing an in-memory gated candidate to a bad output directory would be strictly worse than retaining it with an explicit error.",
+       "where": "_persist_to_store docstring",
+       "verdict": "kept",
+       "why": "The method returns (None, str) on exception; does not raise."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_persist_to_store catches all exceptions and returns an error string; broad catch may mask unexpected errors.",
+       "where": "_persist_to_store",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_run_gates returns a GateResult with passed=False if _gate returns a non-bool non-GateResult; this may hide unexpected return types.",
+       "where": "_run_gates",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_cleanup returns (False, None) when _keep_worktree is True; caller may not expect skipped cleanup.",
+       "where": "_cleanup",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5234606f1b7cd671907cbc1ed3aebcf3282043f4d1b890a3f0ed05148bcd6b3f",
+    "objective_chars": 13260,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/attempt.py [6/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/attempt.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 1401
+ }
+}

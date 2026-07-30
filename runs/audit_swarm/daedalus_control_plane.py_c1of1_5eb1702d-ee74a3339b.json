@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/control_plane.py#c1of1#5eb1702d",
+ "key": "daedalus_control_plane.py_c1of1_5eb1702d-ee74a3339b",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The app is not a Claude Code replacement.\" | module docstring | KEPT | No code in this unit replaces Claude Code; it only reads/writes shared files.",
+     "CLAIM | \"It reads and writes the source files Claude Code and Daedalus already use\" | module docstring | KEPT | Functions read .claude/settings.json, .mcp.json, AGENTS.md, and project JSON files; save_autonomy writes project JSON.",
+     "CLAIM | \"presents one coherent operating model: unified agents, capabilities, autonomy policy, and Claude config status.\" | module docstring | KEPT | unified_profiles returns profiles with sync_status, capabilities, autonomy, and claude surface data.",
+     "CLAIM | \"_read_json returns {} when path does not exist\" | _read_json docstring | KEPT | Line: if not path.exists(): return {}.",
+     "CLAIM | \"_read_json returns {'_error': ...} on OSError or JSONDecodeError\" | _read_json docstring | KEPT | Line: except (OSError, json.JSONDecodeError): return {'_error': ...}.",
+     "CLAIM | \"_read_json returns data if it is a dict, else {'_error': ...}\" | _read_json docstring | KEPT | Line: return data if isinstance(data, dict) else {'_error': ...}.",
+     "CLAIM | \"_norm_mode returns the mode if it is in AUTONOMY_MODES, else fallback\" | _norm_ mode docstring | KEPT | Line: return mode if mode in AUTONOMY_MODES else fallback.",
+     "CLAIM | \"_sync_status returns 'drift' when claude_model != role_tier and both are non-empty/non-inherit\" | _sync_status docstring | KEPT | Lines: if claude_model not in ('', 'inherit') and role_tier and claude_model != role_tier: return 'drift'.",
+     "CLAIM | \"resolve_autonomy uses the most restrictive applicable mode\" | resolve_autonomy docstring | KEPT | Line: resolved = min((project_mode, agent_mode, capability_mode), key=lambda m: _MODE_RANK[m]).",
+     "CLAIM | \"resolve_autonomy returns requires_confirmation based on resolved == 'manual' or critical and capability_mode == 'manual'\" | resolve_autonomy docstring | KEPT | Line: 'requires_confirmation': resolved == 'manual' or bool(gate.get('critical') and capability_mode == 'manual').",
+     "CLAIM | \"save_autonomy writes the updated data back to the project file\" | save_autonomy docstring | KEPT | Line: path.write_text(json.dumps(data, indent=2) + '\\n', encoding='utf-8').",
+     "CLAIM | \"save_autonomy returns unified_profiles(project)\" | save_autonomy docstring | KEPT | Line: return unified_profiles(project).",
+     "CLAIM | \"save_autonomy reads the project file with json.loads\" | save_autonomy docstring | BROKEN | Line: path = PROJECT_DIR / f'{project}.json'; data = json.loads(path.read_text(encoding='utf-8')). The function does not handle OSError or JSONDecodeError; if the file is missing or malformed, it raises an exception, contradicting the implicit claim that it safely reads.",
+     "CLAIM | \"save_autonomy updates autonomy dict with patch keys\" | save_autonomy docstring | KEPT | Lines: if 'default' in patch: ... if 'agents' in patch: ... if 'capabilities' in patch: ...",
+     "D1 | PROJECT_DIR | imported from .projects and used in save_autonomy; not defined in this unit | UNCHECKABLE | Would need to see .projects module to confirm PROJECT_DIR is defined there.",
+     "D2 | none | | |",
+     "D3 | none | | |",
+     "D4 | none | | |"
+    ],
+    "todos": [
+     "Add try/except around path.read_text and json.loads in save_autonomy to handle missing or malformed project files, returning an error dict instead of raising."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "15894d34acf32ba1c9717bd4ae234d4f10ede1682a936e682f4e97bb26d788e9",
+    "objective_chars": 13837,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The app is not a Claude Code replacement. It reads and writes the source files Claude Code and Daedalus already use, then presents one coherent operating model\" | module docstring | KEPT | Code reads/writes project files and produces unified operating model via unified_profiles and save_autonomy.",
+     "CLAIM | \"AUTONOMY_MODES = (\"manual\", \"semi_auto\", \"autonomous\")\" | line 13 | KEPT | The tuple is defined as shown.",
+     "CLAIM | \"Use the most restrictive applicable mode. Critical defaults therefore stay confirmation-first unless the project explicitly relaxes them.\" | comment at line 130 | KEPT | resolve_autonomy uses min with _MODE_RANK, which picks the most restrictive (lowest rank).",
+     "CLAIM | \"resolved = min((project_mode, agent_mode, capability_mode), key=lambda m: _MODE_RANK[m])\" | line 131 | KEPT | Code matches prose exactly.",
+     "CLAIM | \"requires_confirmation: resolved == \"manual\" or bool(gate.get(\"critical\") and capability_mode == \"manual\")\" | line 133 | KEPT | The expression matches the described logic.",
+     "CLAIM | \"runtimes: [{\"id\": \"ikarus\", ... \"status\": \"configured\"}, {\"id\": \"claude_code\", ... \"status\": \"configured\" if claude[\"subagent_count\"] else \"needs_subagents\"}, {\"id\": \"codex\", ... \"status\": \"configured\" if codex[\"agents_md\"][\"managed\"] else \"needs_agents_md\"}, {\"id\": \"ollama\", ... \"status\": \"local\"}]\" | lines 175-179 | KEPT | The code constructs the list exactly as described.",
+     "CLAIM | \"_read_json returns {} if path doesn't exist\" | line 28 | KEPT | The function checks path.exists() and returns {} if false.",
+     "CLAIM | \"_read_json returns {\"_error\": ...} on parse failure or non-dict\" | lines 31-32 | KEPT | The except block returns {\"_error\": ...}, and the isinstance check does the same.",
+     "CLAIM | \"save_autonomy writes back to project file\" | lines 183-192 | KEPT | The function reads, modifies, and writes the file.",
+     "D1 | CAPABILITY_GATES | module-level constant defined but never read within this unit; it is only used in resolve_autonomy (which references the module global) and in unified_profiles (passed to core.envelope) | WRONG CONCLUSION: A developer might think it is unused or dead code.",
+     "D3 | save_autonomy reads the file, then writes it back; the comment says nothing about guarding, but the read-then-write pattern is safe; no mechanical issue found."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "15894d34acf32ba1c9717bd4ae234d4f10ede1682a936e682f4e97bb26d788e9",
+    "objective_chars": 13837,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 1 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"most restrictive applicable mode\" | resolve_autonomy | BROKEN | The code uses min() with _MODE_RANK, which picks the most permissive (lowest rank), not the most restrictive (highest rank).",
+     "CLAIM | \"Critical defaults therefore stay confirmation-first unless the project explicitly relaxes them\" | resolve_autonomy | BROKEN | The code does not enforce that critical gates remain manual; the min can pick a more permissive mode from project_default or agent_override even when capability_gate is manual.",
+     "D1 | save_autonomy parameter 'patch' | read nowhere in this unit (used only as dict keys) | WRONG CONCLUSION: a caller believes the function reads patch for other purposes",
+     "D2 | _read_json | except (OSError, json.JSONDecodeError): return {\"_error\": ...} | continues silently (returns error dict) where caller may expect an exception to propagate; docstring says nothing about error handling",
+     "D3 | none",
+     "D4 | resolve_autonomy | condition `agent_name in autonomy[\"agents\"]` is always True because agent_override is set only if the key exists, but the condition is used to decide whether to include agent_override in the result; it's logically correct but the variable name is misleading"
+    ],
+    "todos": [
+     "Change min() to max() in resolve_autonomy to pick the most restrictive mode (highest rank).",
+     "Add logic to ensure critical gates always resolve to at least 'manual' regardless of other overrides."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "15894d34acf32ba1c9717bd4ae234d4f10ede1682a936e682f4e97bb26d788e9",
+    "objective_chars": 13837,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/control_plane.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 11391
+ }
+}

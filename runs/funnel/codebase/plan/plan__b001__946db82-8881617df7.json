@@ -1,0 +1,207 @@
+{
+ "task_id": "plan__b001__946db82",
+ "key": "plan__b001__946db82-8881617df7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Plan to fix 9 reviewed findings: patch _human_bytes, implement _spec_for, document meta cap, fix docstring, improve egress, fix comment stripper, add lock, fix breadcrumb, remove undefined CLI refs.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing _human_bytes may break callers expecting bytes output.",
+     "Implementing _spec_for may require understanding of subclass usage.",
+     "Adding lock to index.py may introduce contention.",
+     "Removing CLI references may confuse users if they rely on documented options."
+    ],
+    "todos": [
+     "Verify all findings before implementation.",
+     "Ensure tests cover edge cases for each fix.",
+     "Coordinate with team on API changes."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix _human_bytes bug to return correct units",
+       "gate": "1",
+       "why_now": "Confirmed bug that always returns bytes; affects user-facing output.",
+       "steps": [
+        {
+         "do": "Correct the loop logic in _human_bytes to divide n by 1024 before the next iteration and use the appropriate unit.",
+         "file": "some_file.py",
+         "verified_by": "Run test: _human_bytes(2048) returns '2.0 KiB'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is in some_file.py; adjust if different."
+      },
+      {
+       "rank": 2,
+       "title": "Implement _spec_for method to avoid AttributeError",
+       "gate": "1",
+       "why_now": "Confirmed stub that may be called; high severity.",
+       "steps": [
+        {
+         "do": "Implement _spec_for with appropriate logic or raise NotImplementedError if abstract.",
+         "file": "gated_writes.py",
+         "verified_by": "Run tests that call _spec_for; no AttributeError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The method's intended behavior can be inferred from call sites."
+      },
+      {
+       "rank": 3,
+       "title": "Fix docstring contradiction in ingest_events_report",
+       "gate": "1",
+       "why_now": "Confirmed docstring mismatch misleads callers.",
+       "steps": [
+        {
+         "do": "Update docstring to state that ValueError is raised for invalid inputs.",
+         "file": "archive.py",
+         "verified_by": "Check docstring no longer says 'non-throwing'."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is in archive.py."
+      },
+      {
+       "rank": 4,
+       "title": "Add length cap to Attempt.meta field",
+       "gate": "1",
+       "why_now": "Narrowed finding: latent unbounded growth risk.",
+       "steps": [
+        {
+         "do": "Add validation in record_attempt to enforce a maximum meta size (e.g., 10KB).",
+         "file": "archive.py",
+         "verified_by": "Unit test: passing meta > limit raises error."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "A reasonable cap can be determined."
+      },
+      {
+       "rank": 5,
+       "title": "Improve egress completeness in classify_data paths",
+       "gate": "1",
+       "why_now": "Narrowed to high severity if paths are incomplete.",
+       "steps": [
+        {
+         "do": "Audit paths passed to classify_data and ensure all accessed files are included; add test files and dependencies.",
+         "file": "codex_cli.py",
+         "verified_by": "Trace file access with strace and compare to paths list."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The egress gate is in classify_data and paths are passed from codex_cli.py."
+      },
+      {
+       "rank": 6,
+       "title": "Fix _strip_comments_generic to handle escaped quotes",
+       "gate": "1",
+       "why_now": "Narrowed edge case that could cause false clone detections.",
+       "steps": [
+        {
+         "do": "Update regex to handle escaped backslashes before quotes.",
+         "file": "some_file.py",
+         "verified_by": "Test with '\\\\'' produces correct normalization."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is in some_file.py."
+      },
+      {
+       "rank": 7,
+       "title": "Add lock to resolver cache writes in index.py",
+       "gate": "1",
+       "why_now": "Needs-evidence finding; adding lock prevents potential inconsistency.",
+       "steps": [
+        {
+         "do": "Add threading lock around cache writes for same scope_key.",
+         "file": "index.py",
+         "verified_by": "Test concurrent builds; no cache drift."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Concurrent builds are possible."
+      },
+      {
+       "rank": 8,
+       "title": "Fix withheld breadcrumb to record all roles",
+       "gate": "1",
+       "why_now": "Low severity but misleading analysis.",
+       "steps": [
+        {
+         "do": "Update breadcrumb logic to append or overwrite with all roles.",
+         "file": "some_file.py",
+         "verified_by": "Test: withhold file under two roles; breadcrumb shows both."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The breadcrumb is in some_file.py."
+      },
+      {
+       "rank": 9,
+       "title": "Remove undefined Ikarus and watcher references from CLI help",
+       "gate": "1",
+       "why_now": "Confirmed non-existent components referenced.",
+       "steps": [
+        {
+         "do": "Update help strings in orchestrate.py to remove references to Ikarus and watcher.",
+         "file": "orchestrate.py",
+         "verified_by": "Grep for Ikarus and watcher; no false positives."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "No external documentation relies on these references."
+      }
+     ],
+     "suggested_files": [
+      "archive.py",
+      "gated_writes.py",
+      "codex_cli.py",
+      "orchestrate.py",
+      "index.py",
+      "some_file.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e93f9cb286d45b202932f3d93f4af89f8ec1ec727287eb6ef6c34454ded1e26",
+    "objective_chars": 7527,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 1 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 1,
+  "inputs": 9
+ }
+}

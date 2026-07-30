@@ -1,0 +1,145 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c1of4__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c1of4__946db82-d9cc7d20ea",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 4 of daedalus/mapping/inventory.py: module docstring, imports, constants, digest helper functions, and small derivation functions. 8 public symbols, 3 checkable claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_pyproject_packages | low | Uses line scanner instead of TOML parser; may miss complex package declarations or malformed files. | Check if any pyproject.toml in the repo uses nested tables or inline tables that the regex cannot parse.",
+     "_STALE_SKIP_DIRS | medium | Hardcoded list of directories to skip; may miss custom build directories or new tool caches. | Verify that the list is kept in sync with all directories that should not be scanned for stale packages."
+    ],
+    "todos": [
+     "Verify that _pyproject_packages regex works for all valid pyproject.toml package declarations.",
+     "Consider adding dynamic computation for _STALE_SKIP_DIRS instead of hardcoded list."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "1 of 4",
+     "purpose": "Module docstring, imports, constants, digest helper functions, and small derivation functions.",
+     "symbols": [
+      {
+       "name": "AREA_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of field names humans own on area records: ('title',)"
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'digest' used as key for the digest hash in the document."
+      },
+      {
+       "name": "ENV_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of field names humans own on env var records: ('purpose',)"
+      },
+      {
+       "name": "FEATURE_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of field names humans own on feature records: ('name', 'kind', 'notes')"
+      },
+      {
+       "name": "INVENTORY_REL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path to the inventory file: 'docs/FEATURE_INVENTORY.json'"
+      },
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema identifier string: 'daedalus-feature-inventory/2'"
+      },
+      {
+       "name": "STATUS_BY_CLASS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from reach classification to inventory status: entry/reachable->wired, island/orphan->island, shim->shim, unknown->unknown"
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function that checks if a document's digest matches its derived fields."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module replaces the typing. It derives every mechanical field from the same single walk of the tree that `daedalus map` already performs (`daedalus.mapping.render.analyse_once`), so the census cannot be older than the run that produced it.",
+       "where": "module docstring, lines 9-11",
+       "verdict": "uncheckable",
+       "why": "The claim refers to `daedalus.mapping.render.analyse_once` and the overall derivation mechanism, but this chunk does not contain any code that performs a tree walk or calls that function. The derivation functions are not present."
+      },
+      {
+       "text": "Mechanical fields are rewritten every run. Human fields live in `annotations` (keyed to a module, an env var or a route) and `narrative_features` (whole hand-written entries with no mechanical counterpart), and are merged into the output for consumers -- but the `digest` is computed over a projection that strips them again.",
+       "where": "module docstring, lines 35-39",
+       "verdict": "kept",
+       "why": "The code defines `_strip_human` which removes human top-level keys and human fields from records, and `_digest` computes a hash over that projection. The constants `FEATURE_HUMAN_FIELDS`, `ENV_HUMAN_FIELDS`, `AREA_HUMAN_FIELDS`, and `_HUMAN_TOP_KEYS` specify exactly which fields are stripped. The claim is fully supported."
+      },
+      {
+       "text": "editing a note, a name or a kind is legal and does not trip the gate; editing a `status`, a test list or an island entry DOES trip it",
+       "where": "module docstring, lines 42-44",
+       "verdict": "kept",
+       "why": "The code defines `FEATURE_HUMAN_FIELDS = (\"name\", \"kind\", \"notes\")` which are stripped before digest computation, so editing them does not change the digest. All other fields (including status, test list, island entry) are part of the mechanical projection and changing them would alter the digest. The claim is consistent with the implementation."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring claims the module is generated and derives fields from a tree walk, but no derivation code is present in this chunk.",
+       "where": "module docstring, lines 1-11",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_pyproject_packages uses line scanner with regex instead of a TOML parser, which may not correctly parse all valid pyproject.toml package declarations.",
+       "where": "_pyproject_packages function, lines 139-140",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_STALE_SKIP_DIRS is a hardcoded set of directory names; may need maintenance as tooling evolves.",
+       "where": "_STALE_SKIP_DIRS constant, lines 89-92",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7e202408cc9c24d6308d83c8ed44414223f41bc54769aadeaafb1f6a955d773b",
+    "objective_chars": 11930,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

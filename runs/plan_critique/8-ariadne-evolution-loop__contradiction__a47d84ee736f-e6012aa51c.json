@@ -1,0 +1,136 @@
+{
+ "task_id": "8-ariadne-evolution-loop__contradiction__a47d84ee736f",
+ "key": "8-ariadne-evolution-loop__contradiction__a47d84ee736f-e6012aa51c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 8.11 contradicts 8.10 and 8.2 by requiring owner-controlled promotion but providing no mechanism; also, step 2 demands exact source revision but step 7 builds candidate forest, risking ordering conflict.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "8.11 | high | Claim 8.11 states promotion is via a sealed owner-controlled path, but no such path is defined elsewhere in the document; this makes the rule unenforceable. | Check if any section defines an owner authentication mechanism or sealed path; if none exists, the claim is unsupported.",
+     "8.10 | medium | Claim 8.10 says never auto-promote, but 8.11 allows promotion via a sealed path; if the sealed path is not specified, the prohibition in 8.10 is redundant or unenforceable. | Verify that the sealed path in 8.11 is defined and distinct from auto-promotion; if not, the two claims conflict.",
+     "8.2 | medium | Claim 8.2 builds base Forest for an exact source revision, but step 7 builds a candidate Forest from a candidate source tree; if the base Forest is used for evaluation, the candidate Forest might be built from a different revision, causing inconsistency. | Trace the data flow: is the candidate source tree in step 6 derived from the same revision as step 2? If not, the evaluation cascade may compare mismatched forests."
+    ],
+    "todos": [
+     "Define the sealed owner-controlled promotion path referenced in 8.11, including authentication and authorization mechanisms.",
+     "Clarify the relationship between the base Forest in 8.2 and the candidate Forest in 8.7 to ensure they are built from the same source revision or document the intended difference.",
+     "Resolve the redundancy or conflict between 'never auto-promote' (8.10) and the existence of a promotion path (8.11) by specifying that the path is manual and requires explicit owner action."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "8.1",
+       "claim": "Every campaign follows a controlled loop with 11 steps.",
+       "verdict": "sound",
+       "why": "This is a structural claim; no contradiction found elsewhere in the document."
+      },
+      {
+       "id": "8.2",
+       "claim": "Freeze an ExperimentSpec, budget, tasks, metrics, baselines, and seed policy.",
+       "verdict": "sound",
+       "why": "No contradiction found; this is a standard initialization step."
+      },
+      {
+       "id": "8.3",
+       "claim": "Build the base Forest for an exact source revision.",
+       "verdict": "weak",
+       "why": "Step 7 builds a candidate Forest; if the base Forest is meant to be the reference, the relationship is unclear. Potential ordering conflict: the base Forest is built before the candidate is generated, but the candidate might be from a different revision."
+      },
+      {
+       "id": "8.4",
+       "claim": "Select formulation, parent, one operator axis, model, and evaluation fidelity.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.5",
+       "claim": "Compile a minimal Context Capsule from verified project evidence.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.6",
+       "claim": "Run an isolated, capability-bounded trial.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.7",
+       "claim": "Store the candidate source tree in content-addressed storage.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.8",
+       "claim": "Build a candidate Forest and revision-aware delta.",
+       "verdict": "weak",
+       "why": "Step 2 builds a base Forest; this step builds a candidate Forest. If the base Forest is used as the reference for the delta, the ordering is logical, but the document does not explain how the two forests relate. Potential conflict if the base Forest revision differs from the candidate's revision."
+      },
+      {
+       "id": "8.9",
+       "claim": "Run the evaluation cascade from cheap validity checks to held-out tests.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.10",
+       "claim": "Emit a signed/traceable receipt and archive all outcomes.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.11",
+       "claim": "Nominate successful candidates; never auto-promote them.",
+       "verdict": "weak",
+       "why": "Claim 8.12 says promote only through sealed owner-controlled path, which implies promotion is allowed. The phrase 'never auto-promote' is contradicted if the sealed path could be automated; also, if no sealed path is defined, the prohibition is unenforceable."
+      },
+      {
+       "id": "8.12",
+       "claim": "Promote only through the sealed owner-controlled path.",
+       "verdict": "weak",
+       "why": "The sealed owner-controlled path is not defined anywhere in the document. This claim is unsupported and potentially contradicts 8.11 if the path implicitly allows automation."
+      },
+      {
+       "id": "8.13",
+       "claim": "Campaigns factorize evolution: change one major axis at a time unless a pre-registered interaction experiment justifies more.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      },
+      {
+       "id": "8.14",
+       "claim": "Code, prompts, operators, evaluators, and orchestration do not silently co-evolve in one campaign.",
+       "verdict": "sound",
+       "why": "No contradiction found."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5535c240a4666512d9b6eca82e22664c90fe06b71c9485d20e0d1eb875df5d80",
+    "objective_chars": 1984,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "8-ariadne-evolution-loop",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

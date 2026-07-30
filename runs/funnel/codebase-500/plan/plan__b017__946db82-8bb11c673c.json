@@ -1,0 +1,144 @@
+{
+ "task_id": "plan__b017__946db82",
+ "key": "plan__b017__946db82-8bb11c673c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Proposed 4 work items: enforce trace_id in eval tasks (high), guard offload_runner exceptions (high), cross-module batch validation (medium), protect council_env dict (medium). Gates 0-1.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Settling checks require manual inspection of code not fully indexed; assumptions may be wrong.",
+     "Fixing trace_id mismatch could require schema changes to eval tasks, which may have broader impact.",
+     "Adding exception handling to offload_runner may change error propagation that existing callers rely on."
+    ],
+    "todos": [
+     "Inspect tasks.py for trace_id field and record_intent call sites.",
+     "Inspect offload_runner implementation for possible exceptions and current error handling.",
+     "Search for cross-module batch validation; if absent, design and implement.",
+     "Grep all callers of council_env to verify none mutate the result; if any do, fix or add copy."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Enforce trace_id consistency in eval task intents",
+       "gate": "0",
+       "why_now": "Misattributed intents could corrupt the ledger, making attempts unrecoverable. This is a core data integrity issue.",
+       "steps": [
+        {
+         "do": "Inspect the TASKS list in daedalus/eval/tasks.py to confirm trace_id is absent; if absent, add trace_id field to task schema.",
+         "file": "daedalus/eval/tasks.py",
+         "verified_by": "grep 'trace_id' daedalus/eval/tasks.py shows expected field or documentation updated."
+        },
+        {
+         "do": "Inspect all call sites of record_intent in the codebase; ensure trace_id is explicitly passed where the context may differ.",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "grep -rn 'record_intent' daedalus/ shows explicit trace_id argument at each call; no call relies on default current_trace_id() when context differs."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The TASKS list is the canonical source for task shape; trace_id field can be added without breaking existing tasks."
+      },
+      {
+       "rank": 2,
+       "title": "Guard offload_runner against unhandled exceptions",
+       "gate": "1",
+       "why_now": "If offload_runner can raise, callers lack exception handling, risking cascading failures in the critical attempt path.",
+       "steps": [
+        {
+         "do": "Locate offload_runner definition (grep 'def offload_runner') and inspect its implementation for possible exceptions (e.g., subprocess failures, I/O errors).",
+         "file": "UNKNOWN",
+         "verified_by": "List of exception types that offload_runner may raise is documented."
+        },
+        {
+         "do": "Add try/except in _recording_runner (daedalus/spine/picker.py) and _default_attempt (daedalus/spine/attempt.py) to handle exceptions from offload_runner, logging and returning a safe fallback.",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Tests show that when offload_runner raises, the callers return a safe default without crashing."
+        },
+        {
+         "do": "Update daedalus/spine/attempt.py similarly.",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "Tests pass with injected offload_runner exception."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "offload_runner is defined somewhere in the codebase; its exact location is unknown but its callers are identified."
+      },
+      {
+       "rank": 3,
+       "title": "Add cross-module batch size validation",
+       "gate": "1",
+       "why_now": "Without validation, a large batch from one module can cause timeout or overflow in another, leading to silent failures or resource exhaustion.",
+       "steps": [
+        {
+         "do": "Search for any existing cross-module batch size validation (grep for 'batch' and 'limit' in daedalus/). If none found, document the assumption and add a shared validation function.",
+         "file": "UNKNOWN",
+         "verified_by": "grep returns no existing cross-module batch validation; a new validation module is created and integrated."
+        },
+        {
+         "do": "Add a validation function in daedalus/structcore/ or daedalus/spine/ that checks input size against all consumer limits before processing.",
+         "file": "UNKNOWN",
+         "verified_by": "Unit test verifies that a batch exceeding any consumer limit is rejected with a clear error."
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "Batch-producing and batch-consuming modules are identifiable; their limits are documented or can be extracted."
+      },
+      {
+       "rank": 4,
+       "title": "Protect council_env returned dict from mutation",
+       "gate": "0",
+       "why_now": "The docstring claims the dict is never mutated, but it is mutable; a caller could accidentally alter subprocess environments, causing subtle bugs.",
+       "steps": [
+        {
+         "do": "Grep all callers of council_env (grep -rn 'council_env' daedalus/) to verify none mutate the result.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "Output shows no caller mutates the returned dict; if any does, fix the caller or add a copy."
+        },
+        {
+         "do": "In daedalus/council/vendors.py, change council_env to return a copy of the dict (e.g., dict(env)) or wrap in a read-only proxy.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "After change, callers that previously mutated (if any) now work correctly; no caller is broken."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function council_env is defined in daedalus/council/vendors.py and returns a plain dict."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0677ff1b9911e32efcdde68e2b26fa1bed38460d8b804367ce434e95c85119ae",
+    "objective_chars": 143526,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 17 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 17,
+  "inputs": 4
+ }
+}

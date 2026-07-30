@@ -1,0 +1,168 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c8of11__946db82",
+ "key": "scan__daedalus_kairos_gated_writes.py__c8of11__946db82-226d56e244",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 8 of 11 of gated_writes.py. Found _promote_one, _promote_one_inner (referenced), promote_candidates, _promote_locked. Claims about reset/clean, catch-all, order, never raises, cancellation handling are checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 846 | medium | git reset --hard and clean -fd run unconditionally after any exception in _promote_one_inner; if that exception was due to a bug, the reset may mask it. | Check if there is any logging or monitoring of the reset/clean actions.",
+     "line 878 | low | promote_candidates docstring says 'Never raises: every failure mode ... is a refusal', but the function can raise if lock acquisition raises an exception other than PromotionUnavailable (e.g., OSError). The try/except only catches PromotionUnavailable. | Verify that _PromotionLock only raises PromotionUnavailable or that other exceptions are handled.",
+     "line 869 | medium | promote_candidates docstring says 'cancel is forwarded to every STALENESS-triggered regeneration ... AND to the cumulative re-gate's own command_gate call inside _promote_one_inner'. This chunk does not show _promote_one_inner, so the forwarding cannot be verified. | Check _promote_one_inner implementation.",
+     "line 904 | high | _promote_locked calls manager.create_worktree(base_commit, integration_branch) and then checks git.admin_dir is None; if admin_dir is None, it tries to cleanup the worktree. This suggests create_worktree may fail silently. | Verify that create_worktree raises an exception on failure or that admin_dir being None is a reliable indicator."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "8 of 11",
+     "purpose": "Defines _promote_one (catch-all wrapper), promote_candidates (Phase 2 entry point), and _promote_locked (creates integration worktree).",
+     "symbols": [
+      {
+       "name": "_promote_one",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Wraps _promote_one_inner with a catch-all exception handler; returns refusal dict on any exception."
+      },
+      {
+       "name": "promote_candidates",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Phase 2 entry: acquires lock, calls _promote_locked, handles PromotionUnavailable. Returns dict with 'promoted', 'refused', 'not_gated'."
+      },
+      {
+       "name": "_promote_locked",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Creates integration worktree from base_commit, initializes _PinnedWorktreeGit. Called under lock."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Whatever partial state add/commit/gate left behind, the integration worktree must come back to EXACTLY current_head with a clean tree before the NEXT candidate's staleness check above runs -- otherwise that check is comparing against a lie.",
+       "where": "lines 841-844",
+       "verdict": "kept",
+       "why": "The code at lines 846-847 runs git reset --hard current_head and git clean -fd unconditionally after any exception in the try block, restoring clean state. This matches the claim."
+      },
+      {
+       "text": "``_promote_one_inner`` already resets the integration worktree to ``current_head`` on any failure it anticipates; this is the net under that for the failures it does not.",
+       "where": "lines 856-858",
+       "verdict": "uncheckable",
+       "why": "The code for _promote_one_inner is not in this chunk; the claim about its behavior cannot be verified here."
+      },
+      {
+       "text": "Never raises: every failure mode (lock unavailable, apply refused, cumulative gate failed, base moved and the retry also failed) is a refusal in the returned report, not an exception.",
+       "where": "line 878",
+       "verdict": "broken",
+       "why": "The function promote_candidates has a try/except that only catches PromotionUnavailable. If _PromotionLock raises any other exception (e.g., OSError), it will propagate up, violating the 'never raises' claim. The claim is not fully satisfied by this code alone."
+      },
+      {
+       "text": "``cancel`` is forwarded to every STALENESS-triggered regeneration (``_reattempt``'s own ``TaskAttempt`` -- see ``gate_candidates``' docstring for what it accepts) AND to the cumulative re-gate's own ``command_gate`` call inside ``_promote_one_inner``",
+       "where": "lines 880-883",
+       "verdict": "uncheckable",
+       "why": "The forwarding to _reattempt and command_gate is not visible in this chunk; it would be inside _promote_one_inner which is not included."
+      },
+      {
+       "text": "the SAME unconditional ``git reset --hard``/``clean -fd`` that already runs for a genuine cumulative-gate failure also runs for a cancelled one",
+       "where": "lines 885-887",
+       "verdict": "uncheckable",
+       "why": "The handling of cancellation inside _promote_one_inner is not shown; the reset/clean code seen (lines 846-847) runs only after exceptions in the try block of _promote_one_inner, but the cancellation mechanism is not detailed here."
+      },
+      {
+       "text": "Filtered by object IDENTITY, not dataclass equality: two distinct candidates can legitimately compare equal on fields.",
+       "where": "line 900",
+       "verdict": "kept",
+       "why": "The code uses `id(c)` to build the set `live_ids` and then checks `id(c) not in live_ids` at line 903, which is identity-based filtering."
+      },
+      {
+       "text": "Reported, not dropped: a candidate that never reached STATE_CLEAN in Phase 1 (escalated, gates_failed, no_change, ...) has nothing to promote, but silently omitting it here would make this report LOOK complete while actually only covering a subset of what was asked -- the same 'silent partial result' shape this whole module exists to refuse elsewhere.",
+       "where": "lines 895-899",
+       "verdict": "kept",
+       "why": "The code builds `not_gated` list for candidates whose id is not in `live_ids` (i.e., not gated) and includes it in the final report at line 917. So non-gated candidates are reported, not dropped."
+      },
+      {
+       "text": "``candidates`` is what Phase 1 (``gate_candidates``) returned, in the SAME order they were submitted -- that order is promotion order too",
+       "where": "lines 873-875",
+       "verdict": "uncheckable",
+       "why": "The order of promotion is determined by the iteration over `live` (line 904), which preserves the order of `candidates` after filtering. The claim about Phase 1 returning the same order is not verifiable here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The reset/clean commands at lines 846-847 use check=False, so failures are ignored. This matches the claim of unconditional cleanup.",
+       "where": "lines 846-847",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of promote_candidates claims 'Never raises', but the try/except only catches PromotionUnavailable. Other exceptions from _PromotionLock (e.g., OSError) would propagate.",
+       "where": "line 878",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "promote_candidates returns a dict with keys 'promoted', 'refused', 'not_gated', and 'integration_branch'. The return type is not enforced; callers may expect different structure.",
+       "where": "lines 908-917",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The variable `live` is built by checking `getattr(c.result, 'ok', False) and c.result.artifact and not c.result.artifact.is_empty`. This assumes c.result has 'ok' and 'artifact' attributes; if not, getattr returns False and candidate is excluded.",
+       "where": "lines 893-894",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The integration branch name uses uuid.uuid4().hex[:10] (10 hex chars). This is not guaranteed to be unique, but collisions are extremely unlikely.",
+       "where": "line 907",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_promote_locked calls manager.create_worktree and then checks git.admin_dir is None. If admin_dir is None, it attempts cleanup. This suggests create_worktree may not raise on failure.",
+       "where": "lines 908-912",
+       "severity": "high",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2882386353692f8b5aee51bd891399d77d7fccb931877a0e23ebb775301d4928",
+    "objective_chars": 7132,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [8/11]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 8,
+  "total": 11,
+  "first_line": 841
+ }
+}

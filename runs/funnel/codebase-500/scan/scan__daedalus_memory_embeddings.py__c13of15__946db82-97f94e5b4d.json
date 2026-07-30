@@ -1,0 +1,91 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c13of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c13of15__946db82-97f94e5b4d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 13 of 15: search query embedding and database lookup logic with error handling and freshness checks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1441-1467 | medium | Exception handling for EmbeddingUnavailableError and EmbeddingProtocolError returns SearchReport with empty matches list. | Verify that callers handle empty results correctly.",
+     "line 1478-1487 | medium | _validate_batch may raise TypeError/ValueError; returns SearchReport with empty matches. | Ensure validation errors are properly logged.",
+     "line 1499-1503 | medium | Drift detection returns SearchReport with resolved spec; no matches list. | Confirm that drift is non-retryable.",
+     "line 1505-1510 | medium | Freshness check returns SearchReport with freshness string; no matches list. | Ensure freshness string is used correctly downstream.",
+     "line 1525-1537 | low | Exception during database iteration returns SearchReport with empty matches. | Check that corrupt projections are handled gracefully.",
+     "line 1542 | low | Matches sorted descending by score; stale results are valid but incomplete. | Verify that stale results are not discarded."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "13 of 15",
+     "purpose": "Search query execution: embed query, validate, check index existence, verify identity, check freshness, query database, compute cosine similarity, sort results.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "Results are valid but demonstrably incomplete.  Do not let this",
+       "where": "line 1542",
+       "verdict": "uncheckable",
+       "why": "Comment continues beyond chunk; full handling of stale freshness not visible."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Exception handling for embedding and validation failures returns SearchReport with empty matches list.",
+       "where": "lines 1441-1467, 1478-1487",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Drift detection and freshness failures return SearchReport without matches list.",
+       "where": "lines 1499-1503, 1505-1510",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Database iteration exceptions return SearchReport with empty matches and freshness.",
+       "where": "lines 1525-1537",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Results sorted descending by cosine similarity; stale freshness indicates valid but incomplete results.",
+       "where": "lines 1541-1542",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dc3af352ad5073f4191f1d36acf0a9817e6635ebd8e2e968760efd8d35052677",
+    "objective_chars": 4953,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [13/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 13,
+  "total": 15,
+  "first_line": 1441
+ }
+}

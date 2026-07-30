@@ -1,0 +1,192 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c2of13__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c2of13__946db82-ee6352043b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 13 of drift.py: docstring describing acceptance tiers, snapshot integrity, ignore config, first-run behavior, cost, and constant definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SCHEMA_VERSION | medium | Schema version 3 is defined but the docstring references schema-2 baseline incompatibility; no migration code is present in this chunk. | Check if migration code exists elsewhere in the file or module.",
+     "SNAPSHOT_REL | low | The snapshot path is hardcoded; no validation that the file exists or is writable in this chunk. | Verify file existence logic in other functions.",
+     "MAX_HORIZON_DAYS | low | Acceptance horizon cap set to 90 days; no enforcement logic visible. | Check acceptance validation in other parts of the code.",
+     "MIN_WHY_CHARS | low | Minimum reason length set to 12 characters; no enforcement logic visible. | Check acceptance validation in other parts of the code."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "2 of 13",
+     "purpose": "Define constants and docstring describing snapshot behavior and acceptance tiers.",
+     "symbols": [
+      {
+       "name": "SNAPSHOT_REL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path to the snapshot file."
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema version for snapshot format."
+      },
+      {
+       "name": "MAX_HORIZON_DAYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of days for an acceptance horizon."
+      },
+      {
+       "name": "MIN_WHY_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Minimum number of characters for acceptance reason."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An acceptance that matches nothing is a STALE ACCEPTANCE and blocks.",
+       "where": "docstring, line ~155",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements stale acceptance detection."
+      },
+      {
+       "text": "An accepted item is NEVER written into the baseline (see :func:`write_snapshot`).",
+       "where": "docstring, line ~150",
+       "verdict": "uncheckable",
+       "why": "The function write_snapshot is not defined in this chunk."
+      },
+      {
+       "text": "Every mechanical list is covered by a DIGEST_KEY over the canonical bytes, so hand-editing islands or dark_switches to pre-seed a finding into the baseline is an INVALID SNAPSHOT rather than a silent pass.",
+       "where": "docstring, line ~165",
+       "verdict": "uncheckable",
+       "why": "No digest key or validation logic is present in this chunk."
+      },
+      {
+       "text": ":func:`check` reports INVALID SNAPSHOT.",
+       "where": "docstring, line ~170",
+       "verdict": "uncheckable",
+       "why": "Function check is not defined in this chunk."
+      },
+      {
+       "text": ":func:`~daedalus.mapping.render.accept` ... refuses to inherit them at all unless the digest it is inheriting verifies",
+       "where": "docstring, line ~172",
+       "verdict": "uncheckable",
+       "why": "Function accept is not defined in this chunk."
+      },
+      {
+       "text": ":func:`refresh` does not need the check: it rescans and overwrites every mechanical list from the tree.",
+       "where": "docstring, line ~174",
+       "verdict": "uncheckable",
+       "why": "Function refresh is not defined in this chunk."
+      },
+      {
+       "text": "A missing snapshot is NOT a pass. Both entry points refuse it: ``daedalus map --check`` exits non-zero, and ``python -m daedalus.mapping.drift`` does too.",
+       "where": "docstring, line ~190",
+       "verdict": "uncheckable",
+       "why": "No entry point code is present in this chunk."
+      },
+      {
+       "text": "Writing a baseline is an explicit named action (``--init``, ``--refresh``, or a plain ``daedalus map``), because ``rm docs/architecture-state.json`` must not be a way to get a green run.",
+       "where": "docstring, line ~192",
+       "verdict": "uncheckable",
+       "why": "No code for these actions is present in this chunk."
+      },
+      {
+       "text": "A full run parses every Python file in the tree twice (reachability and switches) and takes seconds, not milliseconds.",
+       "where": "docstring, line ~196",
+       "verdict": "uncheckable",
+       "why": "No performance measurement code is present in this chunk."
+      },
+      {
+       "text": "Wired into pre-commit it would be bypassed with ``--no-verify`` within a week",
+       "where": "docstring, line ~198",
+       "verdict": "uncheckable",
+       "why": "No pre-commit integration code is present in this chunk."
+      },
+      {
+       "text": "The configuration is recorded in the snapshot and compared on every run anyway, so that a green result taken under a narrowed configuration can never be indistinguishable from a green result taken under a clean one.",
+       "where": "docstring, line ~183",
+       "verdict": "uncheckable",
+       "why": "No snapshot comparison logic is present in this chunk."
+      },
+      {
+       "text": "Past ``until`` the acceptance stops suppressing and the underlying item comes back with the acceptance's own prose attached",
+       "where": "docstring, line ~145",
+       "verdict": "uncheckable",
+       "why": "No acceptance expiry logic is present in this chunk."
+      },
+      {
+       "text": "``until`` is capped at :data:`MAX_HORIZON_DAYS` past ``since`` AND ``since`` may not be in the future.",
+       "where": "docstring, line ~140",
+       "verdict": "uncheckable",
+       "why": "No validation logic for acceptance dates is present in this chunk."
+      },
+      {
+       "text": "``why`` under :data:`MIN_WHY_CHARS` characters is rejected",
+       "where": "docstring, line ~137",
+       "verdict": "uncheckable",
+       "why": "No validation logic for acceptance reason is present in this chunk."
+      },
+      {
+       "text": "``grep -n 'island:' docs/architecture-state.json`` lists every island anyone is currently looking away from.",
+       "where": "docstring, line ~135",
+       "verdict": "uncheckable",
+       "why": "No code referencing this grep pattern is present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk contains only a docstring and constant definitions; no executable logic is present.",
+       "where": "entire chunk",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring makes many claims about behavior that are not implemented in this chunk.",
+       "where": "docstring lines 121-200",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant SCHEMA_VERSION is set to 3, but the docstring describes schema-2 incompatibility without any migration code.",
+       "where": "line 218 (SCHEMA_VERSION definition) and docstring lines 209-214",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c06adcf7078345cac81890f192d8ff6b711a2d04d426c5ec4fc3a911d90f43e",
+    "objective_chars": 6782,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [2/13]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 2,
+  "total": 13,
+  "first_line": 121
+ }
+}

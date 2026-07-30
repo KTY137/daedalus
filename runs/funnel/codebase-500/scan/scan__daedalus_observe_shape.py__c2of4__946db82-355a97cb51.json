@@ -1,0 +1,232 @@
+{
+ "task_id": "scan__daedalus_observe_shape.py__c2of4__946db82",
+ "key": "scan__daedalus_observe_shape.py__c2of4__946db82-355a97cb51",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed shape.py chunk 2 of 4: Shape dataclass fields, to_dict, signature, render methods; helper functions _names_of, _layout_of; describe function up to array-like branch.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "describe | medium | describe() uses _attr() which is not defined in this chunk; if missing, will raise NameError | Check if _attr is defined elsewhere in the module",
+     "describe | medium | describe() calls _qualname() which is not defined in this chunk; if missing, will raise NameError | Check if _qualname is defined elsewhere in the module",
+     "describe | medium | describe() calls _human_bytes() which is not defined in this chunk; if missing, will raise NameError | Check if _human_bytes is defined elsewhere in the module",
+     "describe | low | In describe(), redact is called on generator expression 'red(f) for f in fields' but redact is applied per field, not per string; if redact expects a string, it's fine; but the comment says 'redact is called on every key/column name' which matches | Verify that redact accepts a string argument",
+     "describe | low | In describe(), the check for 'not hasattr(obj, \"columns\")' may exclude pandas DataFrames that have both dtype/shape and columns; intended behavior? | Confirm design intent"
+    ],
+    "todos": [
+     "Check that _attr, _qualname, _human_bytes are defined in this module (likely earlier or later in the file)",
+     "Verify that redact function signature matches usage: called with generator expression, expects string input"
+    ],
+    "handoff": {
+     "module": "daedalus/observe/shape.py",
+     "chunk": "2 of 4",
+     "purpose": "Define Shape dataclass fields and methods for serialization/signature/rendering, helper functions for name extraction and layout detection, and the beginning of the describe function for array-like objects.",
+     "symbols": [
+      {
+       "name": "Shape.dims",
+       "kind": "field",
+       "effects": [],
+       "note": "tuple of ints, default ()"
+      },
+      {
+       "name": "Shape.names",
+       "kind": "field",
+       "effects": [],
+       "note": "tuple of strings for keys/columns, bounded"
+      },
+      {
+       "name": "Shape.n_names",
+       "kind": "field",
+       "effects": [],
+       "note": "int, true count even when names are clipped"
+      },
+      {
+       "name": "Shape.nbytes",
+       "kind": "field",
+       "effects": [],
+       "note": "int, default 0"
+      },
+      {
+       "name": "Shape.layout",
+       "kind": "field",
+       "effects": [],
+       "note": "str: C-contiguous, F-contiguous, strided, or empty"
+      },
+      {
+       "name": "Shape.length",
+       "kind": "field",
+       "effects": [],
+       "note": "int, -1 when object has no length"
+      },
+      {
+       "name": "Shape.element",
+       "kind": "field",
+       "effects": [],
+       "note": "Optional[Shape], probe of homogeneous container"
+      },
+      {
+       "name": "Shape.truncated",
+       "kind": "field",
+       "effects": [],
+       "note": "bool, default False"
+      },
+      {
+       "name": "Shape.note",
+       "kind": "field",
+       "effects": [],
+       "note": "str, default ''"
+      },
+      {
+       "name": "Shape.provenance",
+       "kind": "field",
+       "effects": [],
+       "note": "str, default 'observed'"
+      },
+      {
+       "name": "Shape.to_dict",
+       "kind": "method",
+       "effects": [],
+       "note": "Serializes Shape to dict, includes element recursively"
+      },
+      {
+       "name": "Shape.signature",
+       "kind": "method",
+       "effects": [],
+       "note": "Stable one-line form for comparison; includes family, type, dtype, dims, names/truncated, length"
+      },
+      {
+       "name": "Shape.render",
+       "kind": "method",
+       "effects": [],
+       "note": "Debug-console line representation; includes type, dtype, dims/length, layout, nbytes, names"
+      },
+      {
+       "name": "_names_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Bounded, order-preserving name extraction; returns (shown_names, total_count, truncated_flag)"
+      },
+      {
+       "name": "_layout_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns layout string from obj.flags: C-contiguous, F-contiguous, strided, or empty"
+      },
+      {
+       "name": "describe",
+       "kind": "function",
+       "effects": [],
+       "note": "Describe one live object's shape; never reads a value; redact parameter for key obfuscation"
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"Bounded, order-preserving name extraction with the TRUE count kept.\"",
+       "where": "docstring of _names_of",
+       "verdict": "kept",
+       "why": "Function returns shown names (bounded by MAX_NAMES), total count, and truncated flag; order preserved by iterating over seq."
+      },
+      {
+       "text": "\"A stable one-line form, for comparing two observations or joining an observation against a declared type. Deterministic: names are already in a fixed order and nothing here consults a hash seed.\"",
+       "where": "docstring of signature",
+       "verdict": "kept",
+       "why": "Method constructs string from deterministic fields; no hash seed used."
+      },
+      {
+       "text": "\"The debug-console line this record stands in for.\"",
+       "where": "docstring of render",
+       "verdict": "kept",
+       "why": "Method produces a string combining type, dtype, dims/length, layout, nbytes, names."
+      },
+      {
+       "text": "\"Describe one live object's SHAPE. Never reads a value.\"",
+       "where": "docstring of describe",
+       "verdict": "uncheckable",
+       "why": "Function does not read values in this chunk; full implementation not shown."
+      },
+      {
+       "text": "\"``redact`` is called on every key/column name before it is stored and may return a replacement. Pass one whenever the observation could reach a model or leave the machine \u2014 a column name is data too.\"",
+       "where": "docstring of describe",
+       "verdict": "uncheckable",
+       "why": "redact is applied in the array-like branch via generator expression; not all branches shown; claim about all keys/columns not fully verifiable in this chunk."
+      },
+      {
+       "text": "\"A structured dtype IS a schema \u2014 surface its fields like columns.\"",
+       "where": "comment in describe",
+       "verdict": "kept",
+       "why": "For array-like with dtype having names, fields are extracted via _names_of and stored as names/n_names."
+      }
+     ],
+     "observations": [
+      {
+       "what": "describe() uses _attr() which is not defined in this chunk; will raise NameError if not imported or defined elsewhere.",
+       "where": "line ~148 (describe function, last line)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "describe() uses _qualname() which is not defined in this chunk; will raise NameError if not imported or defined elsewhere.",
+       "where": "line ~130 (describe function, tname assignment)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "describe() uses _human_bytes() in render method (line ~97) but not in this chunk; render calls _human_bytes but _human_bytes is not defined in this chunk.",
+       "where": "line ~97 (render method, uses _human_bytes)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In describe(), redact is called on generator expression 'red(f) for f in fields' but redact is a callable that should accept a string; the generator yields the result of red(f) for each f in fields; this is consistent with the docstring.",
+       "where": "line ~148 (describe function, _names_of call)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The array-like branch explicitly excludes objects with 'columns' attribute, likely to avoid pandas DataFrames which have both dtype/shape and columns.",
+       "where": "line ~133 (describe function, condition)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_names_of uses _clip function which is not defined in this chunk; will raise NameError if not defined.",
+       "where": "line ~107 (_names_of, _clip call)",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "303a3ad39e7b2c8dc5f9fa380e6bf0f071464bf3ab69afd5f23569ae77944d0e",
+    "objective_chars": 5075,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/observe/shape.py [2/4]",
+  "rev": "946db82",
+  "module": "daedalus/observe/shape.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 121
+ }
+}

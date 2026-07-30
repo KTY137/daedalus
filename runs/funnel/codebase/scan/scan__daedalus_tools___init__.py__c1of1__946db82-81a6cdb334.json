@@ -1,0 +1,190 @@
+{
+ "task_id": "scan__daedalus_tools___init__.py__c1of1__946db82",
+ "key": "scan__daedalus_tools___init__.py__c1of1__946db82-81a6cdb334",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Exported symbols and docstring claims from daedalus/tools/__init__.py chunk 1/1. All claims about module purpose are uncheckable against this file alone.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring | low | Claims about vet module (fail-closed, static-only, no score) and inventory module (derived list, verdicts) cannot be verified from this file alone. To settle: review vet.py and inventory.py.",
+     "docstring | low | Claims about provisioning and routing belonging to separate lanes (provider_router) cannot be verified from this file alone. To settle: review provider_router module."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/tools/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Expose vet and inventory submodules' public symbols; document the module's role as a capability layer.",
+     "symbols": [
+      {
+       "name": "CLEAR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .vet; verdict constant."
+      },
+      {
+       "name": "REVIEW",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .vet; verdict constant."
+      },
+      {
+       "name": "BLOCK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .vet; verdict constant."
+      },
+      {
+       "name": "UNSCANNABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .vet; verdict constant."
+      },
+      {
+       "name": "VET_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .vet; version string."
+      },
+      {
+       "name": "Finding",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .vet; represents a finding from vetting."
+      },
+      {
+       "name": "Verdict",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .vet; represents a verdict."
+      },
+      {
+       "name": "vet_skill",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .vet; vets a skill."
+      },
+      {
+       "name": "vet_mcp_server",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .vet; vets an MCP server."
+      },
+      {
+       "name": "scan_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .vet; scans text for issues."
+      },
+      {
+       "name": "summarise",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .vet; summarises findings."
+      },
+      {
+       "name": "INVENTORY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .inventory; version string."
+      },
+      {
+       "name": "ToolRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Imported from .inventory; represents a tool record."
+      },
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .inventory; builds inventory."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .inventory; renders inventory."
+      }
+     ],
+     "claims": [
+      {
+       "text": "tools \u2014 the capability layer: what tools exist, and what they are cleared for.",
+       "where": "line 1",
+       "verdict": "uncheckable",
+       "why": "This is a module-level docstring claim about the module's purpose. It cannot be verified from this file alone; it requires examining the submodules vet and inventory."
+      },
+      {
+       "text": "vet \u2014 the gate. Static-only, fail-closed inspection of a skill or an MCP server. Returns findings with evidence, never a score.",
+       "where": "line 4",
+       "verdict": "uncheckable",
+       "why": "This claim describes behaviour of the vet submodule, which is not present in this file. It cannot be checked against the provided code."
+      },
+      {
+       "text": "inventory \u2014 the derived list of every skill and MCP server visible from a project, each carrying its verdict.",
+       "where": "line 6",
+       "verdict": "uncheckable",
+       "why": "This claim describes behaviour of the inventory submodule, which is not present in this file. It cannot be checked against the provided code."
+      },
+      {
+       "text": "Neither installs, enables, starts nor routes anything.",
+       "where": "line 8",
+       "verdict": "kept",
+       "why": "The file only imports symbols and defines __all__. No code for installation, enabling, starting, or routing is present."
+      },
+      {
+       "text": "Provisioning and capability routing are separate lanes; routing in particular belongs to provider_router, which already owns lane policy.",
+       "where": "line 9",
+       "verdict": "uncheckable",
+       "why": "This claim refers to a provider_router module that is not part of this file. It cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The file exports symbols from both vet and inventory submodules, but does not define any logic itself.",
+       "where": "lines 11-20",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring makes several claims about the behaviour of submodules and external modules that cannot be verified from this file.",
+       "where": "lines 1-9",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "749fc4d0fd1177417bc4aa4320b11e5d25a869991666d9e7873abd2edb3178d3",
+    "objective_chars": 1453,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/__init__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/tools/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

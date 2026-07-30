@@ -1,0 +1,120 @@
+{
+ "task_id": "research__b123__946db82",
+ "key": "research__b123__946db82-f09fc73e2f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals four hypotheses: (1) the 'decompose' contract that never raises and returns >=1 subtask is broken by the incomplete _ask_model in decompose.py; (2) the OllamaEmbeddingBackend's embed method violates the EmbeddingBackend protocol contract of exactly one vector per input by lacking validation; (3) the INVENTORY_VERSION constant in inventory.py is '1' but no version migration logic exists across the codebase, risking stale caches; (4) the deterministic fallback in decompose.py assumes a single path per subtask, but inventory.py allows multiple paths per tool, causing m",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "decompose contract broken -> agent may crash or hang",
+     "embedding protocol violation -> downstream embedding consumers get wrong vector count",
+     "inventory version mismatch -> stale or incompatible skill data",
+     "fallback path mismatch -> decomposition may produce subtasks with multiple paths that fallback cannot handle"
+    ],
+    "todos": [
+     "Verify _ask_model implementation in decompose.py to ensure it never raises and returns >=1 subtask",
+     "Add validation in OllamaEmbeddingBackend.embed to ensure exactly one vector per input text",
+     "Implement version migration logic for INVENTORY_VERSION or document that no migration is needed",
+     "Review fallback logic in decompose.py to handle subtasks with multiple paths"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "decompose-contract-broken",
+       "claim": "The decompose function's contract (never raises, returns >=1 subtask) is broken because _ask_model is incomplete and may return [] or raise, and the fallback may return 0 subtasks when no paths are provided.",
+       "spans": [
+        "daedalus/kairos/decompose.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "decompose.py's docstring claims decompose never raises and always returns >=1 subtask. But _ask_model is incomplete (returns [] on failure) and _fallback returns a single subtask with all paths if <=1 paths, else one subtask per path. If no paths are provided, _fallback returns a single subtask with empty paths list, which may be considered invalid by downstream. Additionally, decompose itself is not defined in the chunk, so the contract cannot be verified; the incomplete _ask_model may raise or return []. The picker.py's outcome_policy function relies on decompose to provide valid subtasks for retry identity; if decompose returns [] or raises, the picker may receive no subtasks, breaking the ranking path.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the complete decompose function is implemented to catch all exceptions and always return at least one subtask (e.g., by always falling back to a passthrough subtask when _ask_model fails), then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/decompose.py:_ask_model (incomplete, returns [] on failure)",
+        "daedalus/kairos/decompose.py:_fallback (returns single subtask with all paths if <=1 paths)",
+        "daedalus/kairos/decompose.py:module docstring (contract claim)",
+        "daedalus/spine/picker.py:outcome_policy (relies on decompose for subtask identity)"
+       ]
+      },
+      {
+       "id": "embedding-vector-count-mismatch",
+       "claim": "The EmbeddingBackend protocol contract (exactly one vector per input text) is violated by OllamaEmbeddingBackend.embed because it does not validate the response vector count, and the protocol itself does not enforce it.",
+       "spans": [
+        "daedalus/memory/embeddings.py"
+       ],
+       "mechanism": "EmbeddingBackend protocol docstring claims 'Return exactly one vector per input text.' OllamaEmbeddingBackend.embed returns the raw embeddings list from the API without checking that its length matches the input texts count. If the API returns fewer or more vectors, downstream consumers (e.g., similarity search) will receive mismatched embeddings, leading to incorrect results or index corruption.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If the OllamaEmbeddingBackend.embed implementation includes validation that len(embeddings) == len(texts) and raises EmbeddingProtocolError on mismatch, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/memory/embeddings.py:EmbeddingBackend.embed docstring ('exactly one vector per input text')",
+        "daedalus/memory/embeddings.py:OllamaEmbeddingBackend.embed (no validation of vector count)"
+       ]
+      },
+      {
+       "id": "inventory-version-stagnation",
+       "claim": "The INVENTORY_VERSION constant is '1' and there is no version migration logic anywhere in the codebase, meaning that if the inventory format changes, old caches or databases will be interpreted as version 1, causing silent data corruption or misinterpretation.",
+       "spans": [
+        "daedalus/tools/inventory.py"
+       ],
+       "mechanism": "INVENTORY_VERSION is set to '1' in inventory.py. No code in the provided chunks reads this version or performs migration. If the inventory format evolves (e.g., new fields in ToolRecord), existing serialized inventories (e.g., JSON files) will be loaded with the old format and no upgrade path exists. This can lead to missing fields, type errors, or silent data loss.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If there is a version migration mechanism elsewhere in the codebase (e.g., in a loader that checks the version and upgrades), or if the inventory is never persisted (always regenerated), then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/tools/inventory.py:INVENTORY_VERSION (value '1')",
+        "daedalus/tools/inventory.py:ToolRecord (frozen dataclass, no version field)"
+       ]
+      },
+      {
+       "id": "fallback-path-assumption-mismatch",
+       "claim": "The deterministic fallback in decompose.py assumes a single path per subtask (one subtask per path), but inventory.py allows multiple paths per tool, leading to a mismatch where the fallback may produce subtasks with multiple paths that the fallback logic cannot handle.",
+       "spans": [
+        "daedalus/kairos/decompose.py",
+        "daedalus/tools/inventory.py"
+       ],
+       "mechanism": "decompose.py's _fallback function creates one subtask per path when multiple paths are given. However, inventory.py's ToolRecord has a 'source' field but no explicit 'paths' field; the 'paths' argument to decompose may come from a tool's source or other attributes. If a tool has multiple paths (e.g., multiple source files), the fallback will create multiple subtasks each with one path, but the original task may have intended them as a single unit. Conversely, if the fallback receives <=1 path, it returns a single subtask with all paths, which may be correct. The mismatch is that the fallback does not preserve the original grouping of paths per tool.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the decompose function always receives paths as a list where each element is a single file path (never grouping multiple paths per tool), or if the fallback is designed to handle multiple paths per subtask correctly, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/kairos/decompose.py:_fallback (creates one subtask per path if >1 paths)",
+        "daedalus/tools/inventory.py:ToolRecord (has source field, no explicit paths field)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f2244920d3f3aa9b72f17303f21f8a09f516946fc1708a4bfdbc528d499b7f07",
+    "objective_chars": 23961,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 123 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 123,
+  "inputs": 4
+ }
+}

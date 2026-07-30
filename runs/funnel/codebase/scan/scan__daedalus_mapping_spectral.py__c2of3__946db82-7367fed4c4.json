@@ -1,0 +1,280 @@
+{
+ "task_id": "scan__daedalus_mapping_spectral.py__c2of3__946db82",
+ "key": "scan__daedalus_mapping_spectral.py__c2of3__946db82-7367fed4c4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 2 of 3 of daedalus/mapping/spectral.py: contains modularity_report, conductance_report, eigengap_report, and partial analyse function. All public symbols enumerated; docstring claims checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "modularity_report | medium | 'beats_random' compares declared > random_max, but docstring says 'Q >= 0.3 with clear lift' but no explicit check for lift > 0. | Check if docstring intends to check lift > 0 as well.",
+     "conductance_report | medium | 'leak_rate: None' when package is whole graph or no edges; docstring says 'reported with leak_rate: None' but also mentions 'reads_as' keys for those cases. | Verify that reads_as is set correctly for no-edge case.",
+     "eigengap_report | low | 'confident' uses gap > 1.5 * runner and gap > 0.02; docstring says 'meaningfully larger than the runner-up' but no threshold given. | Threshold is arbitrary; may need tuning."
+    ],
+    "todos": [
+     "Check that 'reads_as' in conductance_report includes case for no edges (volume=0) with outside present.",
+     "Verify that 'beats_random' in modularity_report is computed as declared > random_max, not declared > random_mean."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/spectral.py",
+     "chunk": "2 of 3",
+     "purpose": "Contains modularity_report, conductance_report, eigengap_report, and partial analyse function.",
+     "symbols": [
+      {
+       "name": "modularity_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with modularity metrics; requires networkx and math."
+      },
+      {
+       "name": "conductance_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with per-package conductance metrics."
+      },
+      {
+       "name": "eigengap_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with eigengap cluster count."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Incomplete; signature present but body not shown."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``declared`` is Newman modularity Q of the on-disk package partition.",
+       "where": "modularity_report docstring",
+       "verdict": "kept",
+       "why": "Code computes declared = float(nx.community.modularity(graph, blocks)) using blocks from partition."
+      },
+      {
+       "text": "``random_mean`` is Q of partitions with the SAME block sizes and shuffled membership -- the null hypothesis, measured rather than assumed.",
+       "where": "modularity_report docstring",
+       "verdict": "kept",
+       "why": "Code shuffles nodes, splits by same sizes, computes modularity, and averages."
+      },
+      {
+       "text": "``lift`` is ``declared - random_mean``.",
+       "where": "modularity_report docstring",
+       "verdict": "kept",
+       "why": "Code computes lift = round(declared - random_mean, 6)."
+      },
+      {
+       "text": "Q >= 0.3 with clear lift -- the package layout is real structure.",
+       "where": "modularity_report docstring",
+       "verdict": "uncheckable",
+       "why": "No code in chunk checks Q threshold or lift; only returns reads_as based on declared >= 0.3, 0.1, etc."
+      },
+      {
+       "text": "lift <= 0 -- the declared layout is NO BETTER than shuffling the files.",
+       "where": "modularity_report docstring",
+       "verdict": "uncheckable",
+       "why": "No explicit check for lift <= 0 in returned dict."
+      },
+      {
+       "text": "Q < 0 -- worse than random: blocks are internally sparser than chance.",
+       "where": "modularity_report docstring",
+       "verdict": "uncheckable",
+       "why": "No such classification in code."
+      },
+      {
+       "text": "If graph.number_of_edges() == 0: return _unavailable('a graph with no edges has undefined modularity')",
+       "where": "modularity_report code",
+       "verdict": "kept",
+       "why": "Code has if graph.number_of_edges() == 0: return _unavailable(...)."
+      },
+      {
+       "text": "If len(blocks) < 2: return _unavailable('modularity needs at least 2 non-empty blocks')",
+       "where": "modularity_report code",
+       "verdict": "kept",
+       "why": "Code checks len(blocks) < 2 and returns that string."
+      },
+      {
+       "text": "``beats_random``: bool(declared > random_max)",
+       "where": "modularity_report code",
+       "verdict": "kept",
+       "why": "Code computes beats_random = bool(declared > random_max)."
+      },
+      {
+       "text": "``reads_as``: based on declared thresholds 0.3, 0.1.",
+       "where": "modularity_report code",
+       "verdict": "kept",
+       "why": "Code computes reads_as using conditional on declared >= 0.3, >= 0.1, else 'filing...'."
+      },
+      {
+       "text": "``leak_rate`` is ``cut(S) / vol(S)`` -- of all the edge-endpoints this package has, the share that point outside it.",
+       "where": "conductance_report docstring",
+       "verdict": "kept",
+       "why": "Code computes leak = cut / volume."
+      },
+      {
+       "text": "``conductance_symmetric`` is textbook conductance, ``cut(S) / min(vol(S), vol(rest))``.",
+       "where": "conductance_report docstring",
+       "verdict": "kept",
+       "why": "Code computes symmetric = round(cut / floor, 6) where floor = min(volume, outside_volume)."
+      },
+      {
+       "text": "If graph.number_of_edges() == 0: return _unavailable('a graph with no edges has undefined conductance')",
+       "where": "conductance_report code",
+       "verdict": "kept",
+       "why": "Code has if graph.number_of_edges() == 0: return _unavailable(...)."
+      },
+      {
+       "text": "If not outside or volume == 0: rows.append with leak_rate = None, conductance_symmetric = None, reads_as = 'the package is the whole graph' or 'no edges at all'.",
+       "where": "conductance_report code",
+       "verdict": "kept",
+       "why": "Code checks not outside or volume == 0; sets leak_rate=None, symmetric=None, reads_as accordingly."
+      },
+      {
+       "text": "Sorted worst-first, because the only reason to read this list is to find the top of it.",
+       "where": "conductance_report docstring",
+       "verdict": "kept",
+       "why": "Code sorts rows by -leak_rate (None treated as -1.0) then package name."
+      },
+      {
+       "text": "``reads_as`` in conductance: 'pass-through' if leak > 0.8, 'leaky' if >0.5, 'ordinary' if >0.2, else 'tight'.",
+       "where": "conductance_report code",
+       "verdict": "kept",
+       "why": "Code computes reads_as with those thresholds."
+      },
+      {
+       "text": "The normalized Laplacian's eigenvalues are sorted ascending; the largest gap between consecutive eigenvalues at position k says 'there are k clusters'.",
+       "where": "eigengap_report docstring",
+       "verdict": "kept",
+       "why": "Code sorts eigenvalues ascending, computes gaps, picks max gap, returns k."
+      },
+      {
+       "text": "If n < 3: return _unavailable('a graph with fewer than 3 nodes has no cluster count')",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code checks n < 3 and returns that string."
+      },
+      {
+       "text": "If graph.number_of_edges() == 0: return _unavailable('a graph with no edges has no cluster structure')",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code checks edges == 0 and returns that string."
+      },
+      {
+       "text": "If components > 1: k, gap, runner = components, 0.0, 0.0; confident = True; reason = 'the graph is disconnected; the cluster count is the connected-component count by theorem, not by heuristic'.",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code exactly does that."
+      },
+      {
+       "text": "confident = bool(gap > 1.5 * runner and gap > 0.02) when graph is connected.",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code sets confident = bool(gap > 1.5 * runner and gap > 0.02) in else branch."
+      },
+      {
+       "text": "If declared_blocks is not None: out['reads_as'] based on comparison with k.",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code checks declared_blocks is not None and sets reads_as accordingly."
+      },
+      {
+       "text": "If components > 1: compute giant component spectrum and add to output.",
+       "where": "eigengap_report code",
+       "verdict": "kept",
+       "why": "Code has if components > 1: giant = _giant(graph); if conditions met, compute scope values and add 'giant_component' key."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function analyse is incomplete; only signature present, no body in this chunk.",
+       "where": "line 281 (end of chunk)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "modularity_report uses _unavailable function which is not defined in this chunk.",
+       "where": "modularity_report",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "conductance_report uses _unavailable function not defined in this chunk.",
+       "where": "conductance_report",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "eigengap_report uses _unavailable and _giant functions not defined in this chunk.",
+       "where": "eigengap_report",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "modularity_report returns reads_as based on declared only, ignoring lift; docstring mentions lift but code does not use it.",
+       "where": "modularity_report",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "conductance_report uses nx.volume, nx.cut_size, nx.subgraph; assumes graph is undirected.",
+       "where": "conductance_report",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "eigengap_report uses nx.normalized_laplacian_spectrum; may raise for directed graphs.",
+       "where": "eigengap_report",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "modularity_report's 'beats_random' compares declared > random_max, not declared > random_mean as might be expected from docstring's 'lift <= 0' discussion.",
+       "where": "modularity_report",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "21aef6057e5e54e86d0689cbde09855b1322091971a06f6dd180d4742439830f",
+    "objective_chars": 13707,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/spectral.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/spectral.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,199 @@
+{
+ "task_id": "scan__daedalus_eval_tasks.py__c1of3__946db82",
+ "key": "scan__daedalus_eval_tasks.py__c1of3__946db82-dc6b135963",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/eval/tasks.py chunk 1 of 3: module docstring describing task formats, resolve_task_repo function, and is_correctness_task function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_task_repo | medium | Raises ValueError for unknown repo labels; callers must handle or else crash. | Ensure all callers catch ValueError.",
+     "is_correctness_task | low | Only checks for keys 'fail_to_pass' or 'pass_to_pass'; a task with both but also 'must_include' would be misidentified. | Verify that correctness tasks never have 'must_include'.",
+     "module docstring | low | Claims correctness tasks live in their own store and never enter harness.all_tasks(); uncheckable in this chunk. | Check correctness.py for DEFAULT_CORPUS_PATH and harness.all_tasks()."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/tasks.py",
+     "chunk": "1 of 3",
+     "purpose": "Define task formats, resolve_task_repo, and is_correctness_task for distillation eval.",
+     "symbols": [
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps repo label to absolute path; raises ValueError if unresolved."
+      },
+      {
+       "name": "is_correctness_task",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if task has 'fail_to_pass' or 'pass_to_pass' keys."
+      },
+      {
+       "name": "CORRECTNESS_KEYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of keys that indicate a correctness task."
+      },
+      {
+       "name": "AGENT_ENV_ROOT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Absolute path to agent_env repo root (parents[2] of this file)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "a label is only listed if a competent answer about the target genuinely needs it AND it is a real dependency or caller in the neighborhood.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No task data provided in this chunk to verify label selection criteria."
+      },
+      {
+       "text": "must_include items are matched as substrings against the slice text.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Scoring logic not present in this chunk."
+      },
+      {
+       "text": "For a symbol target the slice is 1-hop (the focus symbol's direct callees/callers), so we only label symbols reachable within that hop -- we do NOT claim transitive callees-of-callees are present when they are not.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Slice construction not shown in this chunk."
+      },
+      {
+       "text": "hand_reachable -- a human picked the label AND verified it reachable by running semantic_slice (see daedalus.eval.harness). This is CIRCULAR: the slicer chose what it is graded on. Every task below is this provenance today.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No task list present to verify provenance values."
+      },
+      {
+       "text": "Recall computed over hand_reachable tasks is an upper bound / sanity check, NOT independent proof the slicer works -- report.py says so on every render, and harness.run_tier1 never blends it with the other provenances into one number.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced report.py and harness.run_tier1 not in this chunk."
+      },
+      {
+       "text": "independent_diff -- labels derived from what an on-disk diff LITERALLY changed, with no graph walk involved. Independent of the slicer.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code implementing this provenance present."
+      },
+      {
+       "text": "temporal_churn -- labels derived from git co-change (files that change together), surfacing edges the static import graph doesn't have. Independent of the slicer.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code implementing this provenance present."
+      },
+      {
+       "text": "primary tasks count toward any go/no-go recall number.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No task list or scoring logic present."
+      },
+      {
+       "text": "quarantine tasks are minted but not yet confirmed -- harness.run_tier1 excludes them from every headline/aggregate and reports them separately so the labelling flywheel stays observable instead of silently inflating (or deflating) the real number.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced harness.run_tier1 not in this chunk."
+      },
+      {
+       "text": "a correctness task carries no must_include, so scoring one with harness._recall would return the vacuous 1.0 -- a task that cannot fail, silently inflating the very number the tier machinery exists to keep honest.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced harness._recall not in this chunk."
+      },
+      {
+       "text": "is_correctness_task below is the single predicate that decides, and harness.eval_task_tier1/eval_task_arms refuse such a task loudly (an ERRORED row, which run_gate reports and fails on for a primary tier) instead of grading it.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced harness functions not in this chunk."
+      },
+      {
+       "text": "Correctness tasks live in their own store (correctness.DEFAULT_CORPUS_PATH) and never enter harness.all_tasks().",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced correctness module and harness.all_tasks() not in this chunk."
+      },
+      {
+       "text": "agent_env repo root == parents[2] of this file (daedalus/eval/tasks.py).",
+       "where": "comment before AGENT_ENV_ROOT assignment",
+       "verdict": "kept",
+       "why": "AGENT_ENV_ROOT is defined as Path(__file__).resolve().parents[2], which matches the claim."
+      },
+      {
+       "text": "Map a task's repo label to an absolute repo root.",
+       "where": "resolve_task_repo docstring",
+       "verdict": "kept",
+       "why": "Function returns absolute path as described."
+      },
+      {
+       "text": "True iff task uses the FAIL_TO_PASS/PASS_TO_PASS format.",
+       "where": "is_correctness_task docstring",
+       "verdict": "kept",
+       "why": "Function returns True if task has 'fail_to_pass' or 'pass_to_pass' keys."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring is extensive and references many external components not present in this chunk.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_task_repo handles 'agent_env', absolute paths, and registered project names; raises ValueError for unknown labels.",
+       "where": "resolve_task_repo function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "is_correctness_task checks for any of CORRECTNESS_KEYS; a task with both fail_to_pass and pass_to_pass but also must_include would be misclassified.",
+       "where": "is_correctness_task",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ad6531546ae46bfb86d0e04cd936a7fc0f45047973f50d8ec84459fc7ffc2f44",
+    "objective_chars": 6549,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/tasks.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/eval/tasks.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,154 @@
+{
+ "task_id": "plan__b015__946db82",
+ "key": "plan__b015__946db82-4b86d6e48d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 items planned: verify unresolved symbols (high), fix cache key (high), clarify egress on reads (medium), confirm Python imports merge (medium). All steps use only paths from findings.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If full files define the missing symbols, item 1 is a no-op but the check is still needed to rule out runtime errors.",
+     "file_key fix may require coordination with callers that rely on current behavior.",
+     "screen_egress implementation may already handle read/write distinction, making item 3 a documentation fix only.",
+     "index.py may already merge python_imports; check may reveal no change needed."
+    ],
+    "todos": [
+     "Assign owner for each item.",
+     "Schedule settling checks for items 1-4.",
+     "After checks, update code or file bugs accordingly."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify all symbols referenced in partial excerpts are defined in their full files",
+       "gate": "0",
+       "why_now": "Unresolved symbols would cause runtime NameErrors, blocking any further execution. This is the highest severity and blocks all other work.",
+       "steps": [
+        {
+         "do": "Search for 'def platform_supported' in containment.py",
+         "file": "containment.py",
+         "verified_by": "grep -n 'def platform_supported' containment.py returns a line number"
+        },
+        {
+         "do": "Search for 'def spec_for' in graph_delta.py",
+         "file": "graph_delta.py",
+         "verified_by": "grep -n 'def spec_for' graph_delta.py returns a line number"
+        },
+        {
+         "do": "Search for 'def parse_mod' and 'def graph_mod' in the appropriate files (paths unknown; assume they are in parse.py and graph.py respectively)",
+         "file": "UNKNOWN",
+         "verified_by": "If files exist, grep for definitions; else report missing files"
+        },
+        {
+         "do": "Check imports of _advapi32 in the files that reference it",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn '_advapi32' *.py shows import or definition"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The files containment.py and graph_delta.py exist in the repository root or a known subdirectory. If not, the paths must be located."
+      },
+      {
+       "rank": 2,
+       "title": "Fix file_key to include language parameter to avoid cache collisions",
+       "gate": "0",
+       "why_now": "Cache key omission can cause incorrect caching across languages, leading to wrong analysis results. Confirmed finding, high severity.",
+       "steps": [
+        {
+         "do": "Add language parameter to file_key signature and include it in the cache key computation (e.g., tuple key includes language)",
+         "file": "UNKNOWN (likely a cache module)",
+         "verified_by": "Run existing tests that call file_key and verify the key changes when language differs"
+        },
+        {
+         "do": "Update all callers of file_key to pass language argument",
+         "file": "UNKNOWN",
+         "verified_by": "grep for 'file_key(' and confirm each call includes language"
+        },
+        {
+         "do": "Update docstring to reflect actual parameters",
+         "file": "UNKNOWN",
+         "verified_by": "Docstring mentions language parameter"
+        }
+       ],
+       "depends_on": "Must know the file containing file_key; settling check in finding suggests checking parse.py or callers.",
+       "effort": "hours",
+       "assumption": "The file_key function is defined in a file that can be located via grep. The language parameter is available at call sites."
+      },
+      {
+       "rank": 3,
+       "title": "Clarify screen_egress behavior on read operations in read_pr_thread",
+       "gate": "1",
+       "why_now": "Ambiguity could cause unnecessary blocking of reads or incorrect security policy. Medium severity, but blocks correct e2e flow.",
+       "steps": [
+        {
+         "do": "Inspect implementation of screen_egress in sensitivity.py to see if it distinguishes read vs write",
+         "file": "sensitivity.py",
+         "verified_by": "Read the function body; look for any parameter or logic that treats reads differently"
+        },
+        {
+         "do": "If screen_egress does not distinguish, update docstring to clarify policy scope or modify code to skip egress check on reads if inappropriate",
+         "file": "sensitivity.py",
+         "verified_by": "Updated docstring or code; run unit tests for read_pr_thread to ensure no regression"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "sensitivity.py exists and contains screen_egress. read_pr_thread is in a known file (not given)."
+      },
+      {
+       "rank": 4,
+       "title": "Confirm that index.py merges python_imports from parse.python_imports",
+       "gate": "1",
+       "why_now": "If Python imports are missing from the index, analysis will be incomplete. Medium severity, but needed for correct indexing.",
+       "steps": [
+        {
+         "do": "Open daedalus/eval/__main__.py and trace the call to index.py to see if python_imports is merged",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Read lines 1-30 and any relevant function calls; look for merge or call to python_imports"
+        },
+        {
+         "do": "If __main__.py does not call index.py directly, locate the index.py entry point and check its logic",
+         "file": "UNKNOWN",
+         "verified_by": "grep for 'python_imports' in index.py or related files"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file daedalus/eval/__main__.py exists as cited. index.py exists and is callable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e9f7e9adfbb8cd8deb95da1869ace80b345e4bd99d81bb4b9cb4d7ab2b2bb90f",
+    "objective_chars": 6819,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 15 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 15,
+  "inputs": 4
+ }
+}

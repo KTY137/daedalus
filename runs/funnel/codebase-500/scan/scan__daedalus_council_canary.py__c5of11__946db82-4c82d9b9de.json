@@ -1,0 +1,193 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c5of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c5of11__946db82-4c82d9b9de",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5/11 of daedalus/council/canary.py: defines build_comprehension, expect_comprehension, check_comprehension, ProbeSpec dataclass, PROBES tuple, probes_for function, and starts results section. Claims about behaviour are checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "build_comprehension | low | Uses _summaries which is defined in chunk 4; if _summaries mutates global state or has side effects, each call to _summaries (build, expect, check) may produce different results. To settle: examine _summaries implementation.",
+     "PROBES | medium | The probe list is a tuple of ProbeSpec objects; if any build/check/expect function is not defined or imported, the module will fail at import time. To settle: verify all referenced functions exist in this file or are imported.",
+     "QUICK_PROBE = 'arrival' | low | If the 'arrival' probe is not in PROBES (e.g., removed later), quick mode will raise KeyError. To settle: ensure 'arrival' ProbeSpec is always present."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "5 of 11",
+     "purpose": "Define comprehension probes, ProbeSpec dataclass, PROBES tuple, probes_for function, and start results section.",
+     "symbols": [
+      {
+       "name": "build_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a prompt with three summaries, one mentioning rollback; returns a question string."
+      },
+      {
+       "name": "expect_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the expected answer (the line number of the rollback summary) as a string."
+      },
+      {
+       "name": "check_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks reply against expected answer; returns (bool, reason)."
+      },
+      {
+       "name": "ProbeSpec",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a probe specification; validates severity in __post_init__."
+      },
+      {
+       "name": "PROBES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of four ProbeSpec instances: arrival, instruction, anchoring, comprehension."
+      },
+      {
+       "name": "QUICK_PROBE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'arrival' indicating the probe used in --quick mode."
+      },
+      {
+       "name": "probes_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of ProbeSpec based on names or quick flag; validates names."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A tiny real task with a checkable answer.",
+       "where": "build_comprehension docstring line 1",
+       "verdict": "kept",
+       "why": "Function builds a prompt and returns it; the answer is a number, checkable via check_comprehension."
+      },
+      {
+       "text": "The nonce is deliberately NOT in this prompt: the answer is a digit, and a nonce full of digits would give a lazy checker something to trip over.",
+       "where": "build_comprehension docstring lines 2-4",
+       "verdict": "uncheckable",
+       "why": "The claim refers to the content of the built prompt (nonce not included). The prompt is built using _summaries(nonce), whose implementation is not in this chunk. Cannot verify nonce omission without seeing _summaries."
+      },
+      {
+       "text": "A probe is (prompt, checker) and the checker is deterministic Python.",
+       "where": "ProbeSpec docstring",
+       "verdict": "kept",
+       "why": "ProbeSpec has fields build (prompt), check (checker), and the check functions are pure Python functions."
+      },
+      {
+       "text": "head+tail token round trip; catches a truncated prompt",
+       "where": "PROBES first entry blurb",
+       "verdict": "uncheckable",
+       "why": "Refers to behaviour of build_arrival and check_arrival, which are not defined in this chunk."
+      },
+      {
+       "text": "exact-string obedience; catches plausible-but-not-asked-for",
+       "where": "PROBES second entry blurb",
+       "verdict": "uncheckable",
+       "why": "Refers to build_instruction and check_instruction, not in this chunk."
+      },
+      {
+       "text": "decoy prior answer; catches a lane echoing the transcript",
+       "where": "PROBES third entry blurb",
+       "verdict": "uncheckable",
+       "why": "Refers to build_anchoring and check_anchoring, not in this chunk."
+      },
+      {
+       "text": "pick the summary that mentions rollback",
+       "where": "PROBES fourth entry blurb",
+       "verdict": "kept",
+       "why": "build_comprehension creates three summaries, one mentions rollback; check_comprehension checks that the reply picks the correct one."
+      },
+      {
+       "text": "--quick runs this one. It is the probe that would have caught both real incidents on day one, so if only one probe can be afforded, it is this one.",
+       "where": "QUICK_PROBE comment",
+       "verdict": "uncheckable",
+       "why": "Reference to real incidents is outside the code; cannot verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "build_comprehension, expect_comprehension, check_comprehension all call _summaries(nonce) independently. If _summaries has side effects (e.g., mutating a global counter), the three calls may not be consistent.",
+       "where": "build_comprehension line 481, expect_comprehension line 493, check_comprehension line 496",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "check_comprehension uses _NUMBER_RE and _NUMBER_WORDS; these are not defined in this chunk. They must be imported or defined elsewhere.",
+       "where": "check_comprehension lines 497-500",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "ProbeSpec uses Callable from typing; not imported in this chunk, but likely imported at top of file.",
+       "where": "ProbeSpec fields build, check, expect",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "ProbeSpec.__post_init__ references SEVERITIES; not defined in this chunk. Must be defined elsewhere.",
+       "where": "ProbeSpec.__post_init__ line 514",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "probes_for function uses Sequence from typing; not imported here, but likely imported at top.",
+       "where": "probes_for signature line 532",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c33d9ac3bd8217695f559210b05d723db1c619a04c589e4f757b28c79b76e0fd",
+    "objective_chars": 4270,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [5/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 5,
+  "total": 11,
+  "first_line": 481
+ }
+}

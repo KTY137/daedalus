@@ -1,0 +1,164 @@
+{
+ "task_id": "scan__daedalus_structcore_dss.py__c3of9__946db82",
+ "key": "scan__daedalus_structcore_dss.py__c3of9__946db82-a5bd6e2b1b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of dss.py: restrict_scores, Prolongation, prolongate_scores, TemporalEvidence. Verified claims: restrict_scores sums scores up ancestors; prolongate_scores limits children per branch. Some claims uncheckable (e.g., _finite_non_negative).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "restrict_scores | medium | Uses leaf.parent_id lookup in nodes.get() but parent_id may be None; code handles None correctly. | Verify that leaf.parent_id is None only for root nodes.",
+     "prolongate_scores | medium | queue.pop(0) is O(n) and could be inefficient for large hierarchies. | Confirm performance requirements; consider collections.deque.",
+     "prolongate_scores | medium | Uses REPOSITORY_NODE_ID constant; not defined in this chunk. | Ensure constant is defined elsewhere or import is correct.",
+     "TemporalEvidence | low | Unused in this chunk; may be dead code or used elsewhere. | Check if TemporalEvidence is imported or used in other modules."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/dss.py",
+     "chunk": "3 of 9",
+     "purpose": "Define restrict_scores, Prolongation dataclass, prolongate_scores, and TemporalEvidence dataclass.",
+     "symbols": [
+      {
+       "name": "restrict_scores",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public function. Sums file scores up the hierarchy to all ancestors. Raises KeyError for unknown forest_node_id."
+      },
+      {
+       "name": "Prolongation",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass holding file_scores, selected_hierarchy_nodes, pruned_hierarchy_nodes. Has to_dict() method."
+      },
+      {
+       "name": "prolongate_scores",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public function. Projects restricted scores down the hierarchy with branch_limit. Returns Prolongation instance."
+      },
+      {
+       "name": "TemporalEvidence",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with previous_id, current_id, kind, confidence, previous_score, carried_score."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Input keys are authoritative Forest node IDs. Output keys are hierarchy IDs.",
+       "where": "restrict_scores docstring",
+       "verdict": "kept",
+       "why": "Code iterates over file_scores keys (forest_node_id) and accumulates into restricted dict keyed by node.id (hierarchy ID)."
+      },
+      {
+       "text": "Unknown source IDs are rejected so a typo cannot silently alter the branch selection.",
+       "where": "restrict_scores docstring",
+       "verdict": "kept",
+       "why": "If leaf is None (unknown ID), raises KeyError."
+      },
+      {
+       "text": "The restriction sum makes a child/parent ratio a deterministic share of incoming relevance.",
+       "where": "prolongate_scores docstring",
+       "verdict": "kept",
+       "why": "share = float(restricted_scores[child.id]) / parent_score uses restricted_scores, which are sums from restrict_scores."
+      },
+      {
+       "text": "Pruned mass is not renormalised onto other branches; doing so would make a surviving low-score file appear more relevant merely because its sibling was removed.",
+       "where": "prolongate_scores docstring",
+       "verdict": "kept",
+       "why": "No renormalisation occurs in code; pruned children are simply excluded."
+      },
+      {
+       "text": "If branch_limit < 1: raise ValueError.",
+       "where": "prolongate_scores docstring",
+       "verdict": "kept",
+       "why": "Code explicitly checks if branch_limit < 1 and raises ValueError."
+      },
+      {
+       "text": "If not restricted_scores.get(REPOSITORY_NODE_ID, 0.0): return Prolongation((), (), ()).",
+       "where": "prolongate_scores docstring",
+       "verdict": "kept",
+       "why": "Code returns empty Prolongation if repository score is zero or missing."
+      },
+      {
+       "text": "Bounded coarse-to-fine traversal and the relevance mass it preserves.",
+       "where": "Prolongation docstring",
+       "verdict": "uncheckable",
+       "why": "The concept of 'bounded coarse-to-fine traversal' is not elaborated in this chunk; the class only stores data."
+      }
+     ],
+     "observations": [
+      {
+       "what": "restrict_scores uses _finite_non_negative helper; definition not in this chunk.",
+       "where": "line 242",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "prolongate_scores uses REPOSITORY_NODE_ID constant; definition not in this chunk.",
+       "where": "line 307",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "prolongate_scores uses children_map() method; not defined in this chunk.",
+       "where": "line 310",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "TemporalEvidence dataclass is defined but not used in this chunk.",
+       "where": "line 368",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "queue.pop(0) is used; for large queues this is O(n) per pop.",
+       "where": "line 321",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e9631326aeacb58407430046cf6cfe440a71dfa2e2aebb382e3703b803d7cba9",
+    "objective_chars": 4585,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/dss.py [3/9]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/dss.py",
+  "index": 3,
+  "total": 9,
+  "first_line": 241
+ }
+}

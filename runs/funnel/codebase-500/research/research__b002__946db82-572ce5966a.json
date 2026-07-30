@@ -1,0 +1,89 @@
+{
+ "task_id": "research__b002__946db82",
+ "key": "research__b002__946db82-572ce5966a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two systemic patterns: (1) provenance/identity checks across evolution.py, memory/embeddings.py, and tools/vet.py share a common assumption that a stored reference (provenance string, anchor row, body_sha256) can validate runtime behavior, but none verify that the reference is still current or that the check itself is tamper-proof. (2) The picker's scoring model (BAND + offset) and the vet's allowance system (downgrade to REVIEW) both depend on constant definitions (SOURCE_BANDS, OUTCOME_POLICY, ALLOWANCE_PATH) and downgrade logic that are absent from the scanned ch",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Provenance checks are not cross-validated; a stale or replaced anchor/provenance could silently pass",
+     "Pinned allowance body_sha256 is stored but no scanned module verifies the pin against the actual artifact at runtime",
+     "The picker's BAND+offset and outcome ceiling rely on constants and logic not present in scanned chunks, making the scoring model unverifiable"
+    ],
+    "todos": [
+     "Verify that daedalus.eval.provenance.check_import_provenance actually compares the candidate's tree against the stored provenance, and that the comparison is resistant to tampering",
+     "Ensure that _record_identity_anchor in memory/embeddings.py performs an actual embedding call on the selected projection to confirm the backend is unchanged",
+     "Confirm that the allowance downgrade logic (REVIEW vs CLEAR) is implemented in a scanned module and that the pin check (body_sha256) is enforced at runtime",
+     "Add cross-module audit: the picker's outcome ceiling and the vet's severity downgrade should be testable via integration tests"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "stale-provenance",
+       "claim": "Multiple modules trust a stored provenance/anchor/pin without verifying it is still current, creating a window where stale data can bypass runtime checks.",
+       "spans": [
+        "daedalus/kairos/evolution.py",
+        "daedalus/memory/embeddings.py",
+        "daedalus/tools/vet.py"
+       ],
+       "mechanism": "evolution.py stores candidate.score = -1.0 on provenance failure but relies on check_import_provenance (unseen) to compare the candidate's tree against a stored reference; memory/embeddings.py records an identity anchor using an existing projection without re-embedding, assuming the projection's vector still matches the backend's current output; tools/vet.py stores body_sha256 as a pin but the scanned chunk does not show any runtime verification that the pinned artifact matches the current code.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that check_import_provenance performs a fresh embedding or cryptographic hash of the candidate's actual tree, or that _record_identity_anchor recomputes the embedding, or that vet's allowance application verifies the sha256 against the scanned artifact.",
+       "evidence": [
+        "daedalus/kairos/evolution.py: check_import_provenance call (import from daedalus.eval.provenance, line 78)",
+        "daedalus/memory/embeddings.py: _record_identity_anchor selects existing projection without embedding call (lines 795-821)",
+        "daedalus/tools/vet.py: load_allowances returns body_sha256 in dict (line 106+) but no verification logic in chunk"
+       ]
+      },
+      {
+       "id": "untrusted-constants",
+       "claim": "The picker's scoring model (BAND + offset) and the vet's allowance system depend on constants and logic defined in uncanned modules, creating a trust boundary where no scanned module enforces the intended behavior.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/tools/vet.py"
+       ],
+       "mechanism": "picker.py docstring describes a scoring model using SOURCE_BANDS, BAND_SPAN, OUTCOME_POLICY, and a downgrade from REVIEW to CLEAR, but none of these constants or the downgrade logic appear in the scanned chunk; vet.py's load_allowances returns allowances but the actual application (downgrade to REVIEW) is not in the chunk. The system's correctness relies on code not yet scanned.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Evidence that SOURCE_BANDS, BAND_SPAN, OUTCOME_POLICY are defined in another scanned chunk and that the downgrade logic is implemented in a scanned module with verifiable behavior.",
+       "evidence": [
+        "daedalus/spine/picker.py: docstring references SOURCE_BANDS (line 21), BAND_SPAN (line 25), OUTCOME_POLICY (line 29), but __all__ lists them as undefined (lines 47-91)",
+        "daedalus/tools/vet.py: Finding docstring claims severity downgrade to REVIEW (line 72) but no logic present; load_allowances comment references 'apply_allowances' (line 106+) not in chunk"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d4b68d5fab14a7a48b1750fe9a6666e1cca24f91857375983276057c734b23fc",
+    "objective_chars": 32594,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 2 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 2,
+  "inputs": 5
+ }
+}

@@ -1,0 +1,211 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c3of6__946db82",
+ "key": "scan__daedalus_mapping_render.py__c3of6__946db82-8386663f11",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 6: defines analyse_once, build, CSS/JS constants, and helper functions for rendering HTML page components.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "3 of 6",
+     "purpose": "Define analysis orchestration (analyse_once, build), CSS/JS theme constants, and HTML helper functions (_chip, _section, _narrative_section).",
+     "symbols": [
+      {
+       "name": "analyse_once",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Single walk of the tree; returns (reach report, switch report). Accepts repo_root and optional index; if index is None, calls cached_index with refresh=True."
+      },
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Derives whole payload. Reads tree, snapshot, narrative; writes nothing. Returns dict with schema, root, stamp, counts, reach, switches, gate, narrative."
+      },
+      {
+       "name": "_THEME_VARS_LIGHT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "CSS custom properties for light theme."
+      },
+      {
+       "name": "_THEME_VARS_DARK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "CSS custom properties for dark theme."
+      },
+      {
+       "name": "_CSS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Complete CSS string with light/dark theme variables and all page styles."
+      },
+      {
+       "name": "_TOGGLE_JS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "IIFE that creates a theme toggle button and appends it to #stampbar."
+      },
+      {
+       "name": "_chip",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a <span> with class 'chip s-{status}' and optional title attribute."
+      },
+      {
+       "name": "_section",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a <section> with id, <h2>, and body."
+      },
+      {
+       "name": "_narrative_section",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a <section> with narrative content if present and non-empty; otherwise returns empty string or fallback."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The single walk of the tree. Returns ``(reach report, switch report)``.",
+       "where": "analyse_once docstring",
+       "verdict": "kept",
+       "why": "Function returns tuple of reach_mod.analyse and switches_mod.analyse results."
+      },
+      {
+       "text": "Extracted so that ONE analysis can serve the page, the gate and the re-baseline inside a single ``daedalus map`` run.",
+       "where": "analyse_once docstring",
+       "verdict": "uncheckable",
+       "why": "No code in chunk shows usage of analyse_once by page, gate, or re-baseline."
+      },
+      {
+       "text": "When they were three calls they were also three chances to disagree, and they took them: the page reported six islands while the gate on the same page reported eleven, with not one member in common.",
+       "where": "analyse_once docstring",
+       "verdict": "uncheckable",
+       "why": "Anecdotal claim; no code in chunk references previous behaviour."
+      },
+      {
+       "text": "refresh=True on purpose. ``cached_index`` memoises per process, and this map's whole value is that it describes the tree NOW -- a map served from an index some earlier caller in this process warmed would be exactly the silently-stale artifact the command exists to replace.",
+       "where": "analyse_once docstring",
+       "verdict": "uncheckable",
+       "why": "Comment about cached_index behaviour; cached_index not defined in this chunk."
+      },
+      {
+       "text": "The on-disk cache is content-keyed, so the rebuild is still cheap.",
+       "where": "analyse_once docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about on-disk cache; no code in chunk verifies this."
+      },
+      {
+       "text": "Derive the whole payload. PURE with respect to the repository: it reads the tree, the snapshot and the narrative, and writes nothing.",
+       "where": "build docstring",
+       "verdict": "kept",
+       "why": "Function body only reads files (Path, load_narrative) and returns dict; no write operations."
+      },
+      {
+       "text": "The theme toggle stamps data-theme on <html>, and BOTH data-theme rules are emitted so the toggle wins in either direction: a viewer whose OS says dark must be able to force light, which a bare prefers-color-scheme block cannot do.",
+       "where": "Comment before _CSS",
+       "verdict": "kept",
+       "why": "_CSS contains :root[data-theme=\"dark\"] and :root[data-theme=\"light\"] rules, and _TOGGLE_JS sets data-theme attribute."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The analyse_once function imports reach_mod and switches_mod from relative imports; these modules are not defined in this chunk.",
+       "where": "analyse_once",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The build function uses drift_mod.check and expects a snapshot path; drift_mod is imported locally within build.",
+       "where": "build",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The build function calls git_stamp with scanned argument; git_stamp is not defined in this chunk.",
+       "where": "build",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _narrative_section function calls _render_md which is not defined in this chunk.",
+       "where": "_narrative_section",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The CSS constant _CSS uses .replace('__LIGHT__', _THEME_VARS_LIGHT).replace('__DARK__', _THEME_VARS_DARK) to inject theme variables.",
+       "where": "_CSS",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _TOGGLE_JS script appends a button to an element with id 'stampbar'; that element is expected to exist in the HTML.",
+       "where": "_TOGGLE_JS",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The build function's return dict includes a 'gate' key with fields 'ok', 'first_run', 'snapshot_path', 'snapshot_exists', 'state', 'counts', 'items', 'blocking', 'text'.",
+       "where": "build return dict",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a46978fabb0e55dd72f2ce4b100754bed95d76a74e3c9cfbc21f4814e92ad9e0",
+    "objective_chars": 14543,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

@@ -1,0 +1,284 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c4of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c4of15__946db82-4f9fd48bc6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of embeddings.py: internal helper functions for packing/unpacking, vector coercion, normalization, batch validation, embedding, cosine similarity, and event text/hash generation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_embed_batch | medium | Returns None on EmbeddingError; callers must handle None gracefully. | Review all callers for None handling.",
+     "_projection_text | low | Uses event.content directly; if content is not a string, may raise AttributeError. | Ensure event.content is always a string.",
+     "_source_hash | low | Uses event.metadata directly; assumes it is JSON-serializable. | Verify metadata types.",
+     "_source_hash | low | Uses hashlib.sha256; hash function is not a security risk but note it's not a cryptographic commitment. | Confirm intended use.",
+     "_coerce_vector | medium | Raises ValueError for str/bytes; but str is a Sequence, so check catches it first. | Verify callers never pass str/bytes.",
+     "_normalize_vector | medium | Raises ValueError if norm is zero or invalid; callers must catch. | Review exception handling in callers."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "4 of 15",
+     "purpose": "Internal helpers: pack/unpack, coerce, normalize, batch validation, embed, cosine, projection text, source hash.",
+     "symbols": [
+      {
+       "name": "_pack_embedding",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Packs a vector into little-endian float32 bytes."
+      },
+      {
+       "name": "_unpack_embedding",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Unpacks bytes into list of floats."
+      },
+      {
+       "name": "_coerce_vector",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Validates and converts input to list of finite floats."
+      },
+      {
+       "name": "_normalize_vector",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Coerces and optionally L2-normalizes a vector."
+      },
+      {
+       "name": "_validate_batch",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Validates batch of embeddings, normalizes, returns list and resolved dimension."
+      },
+      {
+       "name": "_embed_batch",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Compatibility helper using OllamaEmbeddingBackend to embed texts."
+      },
+      {
+       "name": "_cosine",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes cosine similarity between two vectors."
+      },
+      {
+       "name": "_projection_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a string representation of an AgentEvent."
+      },
+      {
+       "name": "_source_hash",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes SHA-256 hash of event payload for deduplication."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pack a non-empty finite vector as explicit little-endian float32.",
+       "where": "docstring of _pack_embedding",
+       "verdict": "kept",
+       "why": "Function uses struct.pack with '<{len(vector)}f' format, which is little-endian float32. It raises ValueError if vector is empty or contains non-finite values (via _coerce_vector)."
+      },
+      {
+       "text": "Unpack an explicit little-endian float32 vector.",
+       "where": "docstring of _unpack_embedding",
+       "verdict": "kept",
+       "why": "Function uses struct.unpack with '<{size}f' format, which is little-endian float32. Validates blob length is multiple of 4."
+      },
+      {
+       "text": "embedding blob must contain one or more float32 values",
+       "where": "error message in _unpack_embedding",
+       "verdict": "kept",
+       "why": "Function raises ValueError if blob is empty or length not divisible by 4."
+      },
+      {
+       "text": "embedding must be a numeric sequence",
+       "where": "error message in _coerce_vector",
+       "verdict": "kept",
+       "why": "Function raises ValueError if input is str, bytes, or not a Sequence."
+      },
+      {
+       "text": "embedding must not be empty",
+       "where": "error message in _coerce_vector",
+       "verdict": "kept",
+       "why": "Function raises ValueError if vector is empty."
+      },
+      {
+       "text": "embedding contains a non-numeric value",
+       "where": "error message in _coerce_vector",
+       "verdict": "kept",
+       "why": "Function catches TypeError, ValueError, OverflowError when converting to float and re-raises with that message."
+      },
+      {
+       "text": "embedding contains NaN or infinity",
+       "where": "error message in _coerce_vector",
+       "verdict": "kept",
+       "why": "Function checks math.isfinite for each value and raises ValueError with that message."
+      },
+      {
+       "text": "cannot index a zero or invalid embedding for cosine search",
+       "where": "error message in _normalize_vector",
+       "verdict": "kept",
+       "why": "Function raises ValueError if norm is not finite or <= 0.0."
+      },
+      {
+       "text": "unsupported normalization: {normalization}",
+       "where": "error message in _normalize_vector",
+       "verdict": "kept",
+       "why": "Function raises ValueError if normalization is not 'none' or 'l2'."
+      },
+      {
+       "text": "expected {expected_count} embeddings, got {len(embeddings)}",
+       "where": "error message in _validate_batch",
+       "verdict": "kept",
+       "why": "Function checks len(embeddings) != expected_count and raises ValueError."
+      },
+      {
+       "text": "embedding dimension changed inside batch",
+       "where": "error message in _validate_batch",
+       "verdict": "kept",
+       "why": "Function checks each vector length against resolved_dimension and raises ValueError if mismatch."
+      },
+      {
+       "text": "empty embedding batch",
+       "where": "error message in _validate_batch",
+       "verdict": "kept",
+       "why": "If resolved_dimension is None after loop, raises ValueError."
+      },
+      {
+       "text": "Compatibility helper using the current batch API.",
+       "where": "docstring of _embed_batch",
+       "verdict": "uncheckable",
+       "why": "Claim about 'current batch API' refers to external design; not verifiable from this chunk."
+      },
+      {
+       "text": "New callers should use the report-returning :class:`EventVectorStore` methods so an unavailable embedder is distinguishable from an empty index.",
+       "where": "docstring of _embed_batch",
+       "verdict": "uncheckable",
+       "why": "Refers to EventVectorStore class and its methods not present in this chunk."
+      },
+      {
+       "text": "Compute cosine similarity without silently truncating dimensions.",
+       "where": "docstring of _cosine",
+       "verdict": "kept",
+       "why": "Function raises ValueError if dimensions differ, and does not truncate."
+      },
+      {
+       "text": "cosine dimension mismatch: {len(left)} != {len(right)}",
+       "where": "error message in _cosine",
+       "verdict": "kept",
+       "why": "Function checks len(left) != len(right) and raises ValueError."
+      },
+      {
+       "text": "cosine similarity is undefined for a zero vector",
+       "where": "error message in _cosine",
+       "verdict": "kept",
+       "why": "Function raises ValueError if either norm <= 0.0."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_pack_embedding and _unpack_embedding are symmetric and use little-endian float32 format.",
+       "where": "lines 361-374",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_coerce_vector rejects str and bytes explicitly, but str is a Sequence; the check must come before the Sequence check to avoid incorrect acceptance.",
+       "where": "line 376",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_normalize_vector calls _coerce_vector first, so all validation from _coerce_vector applies.",
+       "where": "line 392",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_validate_batch uses _normalize_vector on each embedding, which includes L2 normalization if normalization is 'l2'.",
+       "where": "line 407",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_embed_batch returns None on EmbeddingError, which may be indistinguishable from an empty result unless caller checks.",
+       "where": "line 420",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_cosine calls _coerce_vector on both inputs, ensuring they are valid finite vectors before computation.",
+       "where": "lines 426-427",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_projection_text uses f-string with event.content; assumes content is a string.",
+       "where": "line 441",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_source_hash uses hashlib.sha256 and _canonical_json; assumes _canonical_json is defined elsewhere.",
+       "where": "line 449",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6bff6ddfb4ab170153ae7b3fb0a91f4fb9b72ec2af209ca513c0f0983eaf47eb",
+    "objective_chars": 4998,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [4/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 4,
+  "total": 15,
+  "first_line": 361
+ }
+}

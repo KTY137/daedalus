@@ -1,0 +1,59 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c4of4__946db82",
+ "key": "scan__daedalus_council_publish.py__c4of4__946db82-b853e3b23c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4: small function returning PRTurn object with field extraction.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "4 of 4",
+     "purpose": "Construct and return a PRTurn object from raw data.",
+     "symbols": [],
+     "claims": [],
+     "observations": [
+      {
+       "what": "No public symbols defined; this is a code fragment inside a function.",
+       "where": "lines 841-847",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bc17f9378eaa9b2cf485376229c9298a2adaec5f708ba6efa0c7ad059be901c5",
+    "objective_chars": 763,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

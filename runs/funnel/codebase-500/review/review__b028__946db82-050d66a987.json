@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b028__946db82",
+ "key": "review__b028__946db82-050d66a987",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted: each either misreads cited source, ignores existing guards, or relies on missing evidence. No action needed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "unchecked-resource-limits",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that MAX_LOCAL_NODES and MAX_LINKS_PER_PAGE are local constants in links.py used only within that module. Other modules like projection_worker.py and picker.py have their own independent limits (batch size, DEFAULT_LIMIT) and are not required to enforce limits defined in an unrelated module. Cross-module validation is not expected; limits are per-module design choices.",
+       "survives_because": "No evidence of cross-module data flow that would require enforcement of these specific limits. Each module is responsible for its own constraints.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'MAX_LOCAL_NODES' daedalus/ -- confirms only links.py references it.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "normalisation-vs-bounded-reads",
+       "verdict": "refuted",
+       "strongest_counterargument": "canary.py's _normalise is applied to model replies, not to raw file reads. artifacts.py's bounded reads are used for schema detection of files, not for probe evaluation. The two modules operate on entirely different data streams: canary.py processes LLM responses, artifacts.py processes file content. There is no path where a truncated file read becomes input to canary.py's normalisation.",
+       "survives_because": "No evidence that canary.py receives data from artifacts.py. The hypothesis conflates two independent pipelines.",
+       "narrowed_claim": "",
+       "settling_check": "Check call sites of canary.py functions: they are invoked with model replies, not with artifact schema output.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "budget-enforcement-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for session.py (lines 1158-1159) is not provided; the hypothesis claims budget enforcement exists there. However, the cited source for ollama.py shows that run() method tracks writes via self._written, which is a different concern (byte-level output). Budget enforcement is typically done at a higher level (e.g., before calling the provider), not within the provider itself. The hypothesis provides no evidence that offload.py or other paths bypass session.py's budget check.",
+       "survives_because": "No evidence of a code path that calls providers without going through session.py's budget check. The provider's run() method is not expected to enforce budget.",
+       "narrowed_claim": "",
+       "settling_check": "Trace all callers of ollama.py's run() to verify they pass through session.py's budget check.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "egress-floor-invocation-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for vendors.py shows only the docstring and imports; the actual implementation of ask() methods is not shown. The hypothesis assumes floor_check is not invoked because it is not visible in the provided chunk. However, the docstring states floor_check runs per file, which implies it is called within ask() methods that are not included in the scan. attempt.py's run() is a higher-level orchestrator; it delegates to adapters which may call floor_check internally.",
+       "survives_because": "Incomplete evidence: the critical code (ask() methods) is not shown. The hypothesis cannot conclude absence from a partial scan.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'floor_check' in daedalus/council/vendors.py and all adapter files.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "structcore-import-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for ceiling.py shows only the docstring and first 40 lines; imports are not visible. Similarly, inventory.py's first 40 lines show only docstring. The hypothesis incorrectly assumes that the provided chunk contains all imports. It is standard for imports to appear later in the file. The docstring of ceiling.py explicitly states it imports from structcore modules; this is a forward reference to code not shown.",
+       "survives_because": "The provided chunks are incomplete; imports are likely present in later lines. The hypothesis is based on absence of evidence, not evidence of absence.",
+       "narrowed_claim": "",
+       "settling_check": "Check full files: 'cat daedalus/eval/ceiling.py | head -80' to see all imports.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "languages-backend-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for languages.py shows only the first 40 lines of a file that likely contains many more lines. The field definitions are present, but consumption code may exist in other files not shown (e.g., safety fence module, tree-sitter extractor). The hypothesis claims no code consumes these fields, but the scan only covered a subset of the codebase. Additionally, the fields may be consumed by external or optional dependencies that are not part of the main codebase.",
+       "survives_because": "Incomplete scan: the codebase likely contains consumers of LanguageSpec fields in modules not included in the report.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'safety_content' and 'ts_grammar' across the entire repository.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "missing-narrative-sections-constant",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source states that the symbols 'Narrative.missing' and 'Narrative.extra' are NOT PRESENT IN FILE. This means the hypothesis references code that does not exist in the provided source. The hypothesis is based on a false premise; the constant NARRATIVE_SECTIONS may be defined elsewhere or the properties may not exist. Without actual source code showing the reference, the claim is unsubstantiated.",
+       "survives_because": "Evidence does not exist: the cited source does not contain the claimed references. The hypothesis is refuted for lack of evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Check if daedalus/mapping/render.py actually contains Narrative class with missing/extra properties.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "dead-filter-log",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that the 'filtered' dict is defined and populated via _refuse(), but the code continues after the loop to use 'sites' and 'rejected' dict. The 'filtered' dict is not used in the shown chunk, but it may be used later in the generate() function (lines beyond 371). The comment says filtering is reported; it is plausible that after the shown chunk, the function logs or returns the 'filtered' dict. The hypothesis prematurely concludes it is never used.",
+       "survives_because": "The provided chunk is incomplete; the function may use 'filtered' in later lines not shown.",
+       "narrowed_claim": "",
+       "settling_check": "View the complete generate() function to see if 'filtered' is logged or returned.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "hardcoded-paths",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for picker.py shows string literals in _eval_instruction, but this function returns a help text for human readers, not a programmatic path resolution. The actual file paths for baseline.json and tasks.py are resolved elsewhere (e.g., via pkg_resources or __file__). For embeddings.py, the cited source says '_count_legacy_events' is NOT PRESENT IN FILE, meaning the claimed hardcoded table name does not exist in the provided source. The hypothesis is based on a misreading of the evidence.",
+       "survives_because": "The picker.py example is a human-readable instruction, not a code path. The embeddings.py evidence is missing. No actual hardcoded path issues are demonstrated.",
+       "narrowed_claim": "",
+       "settling_check": "Check how daedalus/eval/baseline.json is actually loaded in the codebase (e.g., using importlib.resources).",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe2988d230ba5cc49ea2e542d8b5cf7a1f5d859e3ab1db5f2ed58e18c845939d",
+    "objective_chars": 47292,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 28 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 28,
+  "inputs": 9
+ }
+}

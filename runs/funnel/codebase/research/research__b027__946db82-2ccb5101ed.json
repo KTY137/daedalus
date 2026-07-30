@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b027__946db82",
+ "key": "research__b027__946db82-2ccb5101ed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) killswitch.arm's force=True silently ignores marker deletion failure, contradicting the 'deliberate act' guarantee; (2) worktree.py's resolved-root reparse point check and vendors.py's council_cwd repo_root containment share a TOCTOU vulnerability pattern; (3) resolve_spec's dimension=None fallback and killswitch's marker_present stat() rely on local-only state, but vector index journal and worktree allocations depend on external state.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "killswitch.arm's force=True may leave a stop marker in place, undoing the intended guard against unattended re-arm.",
+     "worktree.py's resolved-root reparse point check and vendors.py's council_cwd repo_root containment both have TOCTOU windows where the path could be replaced between check and use.",
+     "resolve_spec's dimension=None fallback silently adopts existing spec without verifying it matches the intended model, which could lead to silent dimension mismatch if a different model was used to create the index."
+    ],
+    "todos": [
+     "Verify killswitch.arm: when force=True and marker unlink fails, does it still proceed? If so, the 'deliberate act' guarantee is broken.",
+     "Verify worktree.py's resolved-root reparse point check and vendors.py's council_cwd repo_root containment for TOCTOU: can the path be replaced between check and use?",
+     "Verify resolve_spec's dimension=None fallback: does it verify the stored spec matches the intended model? If not, document the assumption."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "killswitch-force-bypass",
+       "claim": "KillSwitch.arm(force=True) silently ignores marker deletion failure, allowing a stop to be undone without the operator's knowledge, contradicting the 'deliberate act' guarantee.",
+       "spans": [
+        "daedalus/spine/killswitch.py"
+       ],
+       "mechanism": "arm() with force=True attempts to unlink the marker file but ignores OSError. If unlink fails (e.g., permissions), the marker remains, yet arm proceeds to write the permit. The next read_state() may still see the marker and report stopped, but the permit exists, creating an inconsistent state. The docstring claims re-arming after a stop must be deliberate, but a failed unlink is not detected.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If arm() with force=True raises an exception or returns an error when marker unlink fails, or if the code checks marker presence after unlink and refuses to proceed if marker still exists.",
+       "evidence": [
+        "daedalus/spine/killswitch.py:arm method, line ~571: unlink(marker) ignored on OSError"
+       ]
+      },
+      {
+       "id": "check-use-toctou",
+       "claim": "Both worktree.py's resolved-root reparse point check and vendors.py's council_cwd repo_root containment have a time-of-check/time-of-use (TOCTOU) vulnerability where the path could be replaced between the check and the actual use.",
+       "spans": [
+        "daedalus/kairos/worktree.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "In worktree.py, _require_allocated_worktree performs reparse point checks on the unresolved path, then resolves and re-checks repo adjacency. However, between the resolved check and the actual operation (e.g., git worktree add), a symlink could be placed on one of the ancestor components, redirecting the path. In vendors.py, council_cwd checks that the temp directory is not inside repo_root, but returns the temp directory path; between the check and the subprocess spawn, the temp directory could be replaced by a symlink pointing into repo_root.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If both functions re-check the path immediately before use (e.g., inside run_managed or create_worktree), or if the environment prevents replacement (e.g., temp directory is locked).",
+       "evidence": [
+        "daedalus/kairos/worktree.py:_require_allocated_worktree: reparse point check on unresolved path, then resolved check",
+        "daedalus/council/vendors.py:council_cwd: checks repo_root containment, returns temp directory"
+       ]
+      },
+      {
+       "id": "state-assumption-mismatch",
+       "claim": "The codebase has an implicit assumption that state read from the filesystem or database is stable and consistent across calls, but different modules make different assumptions: killswitch relies on stat() (which is not atomic), resolve_spec relies on stored specs (which may be stale), and worktree allocation records are retained after cleanup, leading to potential inconsistent views.",
+       "spans": [
+        "daedalus/spine/killswitch.py",
+        "daedalus/memory/projection_worker.py",
+        "daedalus/kairos/worktree.py"
+       ],
+       "mechanism": "KillSwitch.stop writes marker first, then permit, and relies on marker_present() using os.stat (which doesn't open the file) to avoid blocking. However, between stat and the actual write, the marker could be deleted. resolve_spec's dimension=None fallback adopts a stored spec without verifying it matches the intended model, assuming the stored spec was created by the same model. worktree.py retains allocation records after cleanup, assuming they won't be used to re-authorize a delete (since cleanup refuses non-existent paths). These assumptions are not coordinated across modules.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If all modules use a distributed consensus mechanism (e.g., database transactions) to ensure consistent state, or if the assumptions are explicitly documented and enforced by tests.",
+       "evidence": [
+        "daedalus/spine/killswitch.py:stop: marker written first, permit second; marker_present uses stat",
+        "daedalus/memory/projection_worker.py:resolve_spec: dimension=None returns sibling spec without verification",
+        "daedalus/kairos/worktree.py:cleanup_worktree: retains allocation record after removal"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4da4d0eabfd3b664ba366bb5f8fd39ef36fcb39c481cdab2f687b4fb7ee78c15",
+    "objective_chars": 34548,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 27 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 27,
+  "inputs": 5
+ }
+}

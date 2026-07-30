@@ -1,0 +1,326 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c2of3__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c2of3__946db82-49565a2f5a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of SpineLedger class: docstring, __init__, _apply_pragmas, _add_missing_columns, _migrate, pragmas, _txn, record_intent, mark_completed, mark_failed, _resolve, _append_event, _terminal_event, get, open_intents, recent_intents (partial).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SpineLedger.__init__ | medium | Read-only mode still creates -wal/-shm sidecars, not truly read-only on disk. | Add an explicit note in docstring; test on read-only filesystem.",
+     "record_intent | low | trace_id defaults to current_trace_id() but that function is not in this chunk; claim about ambient trace is uncheckable. | Verify envelope.current_trace_id exists and returns correct value.",
+     "recent_intents | low | recent_intents docstring is cut off; implementation not fully visible. | Complete the method and verify behaviour."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "2 of 3",
+     "purpose": "SpineLedger class implementation with read-only mode, migration, transaction management, and intent recording/resolution.",
+     "symbols": [
+      {
+       "name": "SpineLedger",
+       "kind": "class",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Crash-safe intent ledger over SQLite. Uses WAL, BEGIN IMMEDIATE, and internal lock."
+      },
+      {
+       "name": "SpineLedger.__init__",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Initializes connection; in read-only mode uses URI with mode=ro, otherwise creates parent dir, opens connection, applies pragmas, and migrates."
+      },
+      {
+       "name": "SpineLedger._apply_pragmas",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Sets journal_mode=WAL, synchronous=NORMAL, busy_timeout, foreign_keys=ON."
+      },
+      {
+       "name": "SpineLedger._add_missing_columns",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Adds missing columns like trace_id to intents table based on PRAGMA table_info."
+      },
+      {
+       "name": "SpineLedger._migrate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Runs _add_missing_columns, executes _SCHEMA statements, updates schema_version, and raises SpineError if journal_mode is not WAL."
+      },
+      {
+       "name": "SpineLedger.pragmas",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads and returns actual pragma values from the database."
+      },
+      {
+       "name": "SpineLedger._txn",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Context manager that executes BEGIN IMMEDIATE, yields connection, commits or rolls back."
+      },
+      {
+       "name": "SpineLedger.record_intent",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Inserts a new intent row and an 'intended' event. Returns an Intent object."
+      },
+      {
+       "name": "SpineLedger.mark_completed",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Resolves an intent as COMPLETED with optional effect_id and result."
+      },
+      {
+       "name": "SpineLedger.mark_failed",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Resolves an intent as FAILED with an error string."
+      },
+      {
+       "name": "SpineLedger._resolve",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Internal method: validates intent exists, checks for prior terminal event, appends event, returns updated Intent."
+      },
+      {
+       "name": "SpineLedger._append_event",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Inserts an event row into intent_events."
+      },
+      {
+       "name": "SpineLedger._terminal_event",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Queries the most recent terminal event (COMPLETED or FAILED) for an intent."
+      },
+      {
+       "name": "SpineLedger.get",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns an Intent by id, or None."
+      },
+      {
+       "name": "SpineLedger.open_intents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns intents with no terminal event, optionally filtered by kind, ordered oldest first."
+      },
+      {
+       "name": "SpineLedger.recent_intents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns all intents (resolved or not) newest first, with optional kind filter and limit. Implementation incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One connection per instance. ``check_same_thread=False`` plus an internal lock lets a single instance be shared across threads (the loop's worker and a status reader) without two statements interleaving on one connection; separate instances on the same file are arbitrated by SQLite itself under ``busy_timeout``.",
+       "where": "class docstring",
+       "verdict": "kept",
+       "why": "The code uses check_same_thread=False, has an internal RLock (self._lock), and sets busy_timeout. It is designed for shared use."
+      },
+      {
+       "text": "A READER MUST NOT WRITE. The normal path creates the parent directory, sets journal_mode=WAL (which writes the file header) and runs migrations inside BEGIN IMMEDIATE -- so merely OPENING a ledger to look at it mutates it. That is intolerable for callers whose whole contract is that they change nothing (the picker's --dry-run ranks a queue and must stay a read). SQLite enforces it here rather than this class promising it: mode=ro fails any write at the engine, so a future edit that adds one cannot pass tests.",
+       "where": "__init__ comment for read_only",
+       "verdict": "kept",
+       "why": "In read_only mode, the code opens with ?mode=ro and sets PRAGMA query_only=ON, which prevents writes. The comment accurately describes the design."
+      },
+      {
+       "text": "HONEST LIMIT: opening a WAL database read-only still creates the ``-wal``/``-shm`` sidecars, because the shared-memory index is how WAL reads work. The ledger's CONTENTS are untouched (a test pins the file's sha256 across a read), but this is not \"touches nothing on disk\", and a genuinely read-only filesystem will fail the open -- which callers surface as an error rather than as a silently empty history.",
+       "where": "__init__ comment for read_only",
+       "verdict": "kept",
+       "why": "The comment honestly acknowledges that WAL sidecars are created even in read-only mode, and that a read-only filesystem will fail. This is a known limitation."
+      },
+      {
+       "text": "journal_mode is persistent in the FILE (not per connection); the rest are per connection and must be re-applied on every open, which is why they live here rather than in _migrate.",
+       "where": "_apply_pragmas comment",
+       "verdict": "kept",
+       "why": "The code applies journal_mode=WAL (persistent) and other pragmas each time the connection is opened. This matches the comment."
+      },
+      {
+       "text": "Bring a pre-v2 ``intents`` table up to the current column set. Runs BEFORE the ``_SCHEMA`` statements, and the ordering is load-bearing: ``idx_intents_trace`` names ``trace_id``, so on a v1 database the index creation fails outright unless the column exists first.",
+       "where": "_add_missing_columns docstring",
+       "verdict": "kept",
+       "why": "The method adds trace_id column if missing, and it is called before _SCHEMA execution in _migrate. This ensures the index can be created."
+      },
+      {
+       "text": "Driven off ``PRAGMA table_info`` rather than off the recorded ``schema_version``, because the two can disagree -- a database created by a newer checkout and then opened by an older one has the column without the version, and a version number is a claim about the file while ``table_info`` is the file. Ask the file.",
+       "where": "_add_missing_columns docstring",
+       "verdict": "kept",
+       "why": "The method queries PRAGMA table_info(intents) to detect existing columns, not schema_version. This matches the claim."
+      },
+      {
+       "text": "On a FRESH database ``table_info`` returns nothing (no table yet), so this is a no-op and ``CREATE TABLE`` installs the full v2 shape.",
+       "where": "_add_missing_columns docstring",
+       "verdict": "kept",
+       "why": "The code checks if cols is empty and returns early. The subsequent _migrate runs CREATE TABLE statements via _SCHEMA."
+      },
+      {
+       "text": "REPLACE, not INSERT OR IGNORE: a v1 file that has just been migrated in place still carries \"1\" here, and leaving it would make spine_meta lie about the schema the file now has.",
+       "where": "_migrate comment",
+       "verdict": "kept",
+       "why": "The code uses INSERT OR REPLACE INTO spine_meta to update schema_version, overwriting any previous value."
+      },
+      {
+       "text": "A ledger without WAL loses the durability posture this module is built on; that must be loud, not a quietly weaker guarantee.",
+       "where": "_migrate comment",
+       "verdict": "kept",
+       "why": "After migration, it checks pragmas() and raises SpineError if journal_mode is not WAL."
+      },
+      {
+       "text": "The durability settings AS THE DATABASE REPORTS THEM -- read back, not echoed from what we asked for. A pragma that silently failed to apply is exactly the failure worth surfacing.",
+       "where": "pragmas docstring",
+       "verdict": "kept",
+       "why": "The method executes PRAGMA statements to read the actual values from the database, not from a cached variable."
+      },
+      {
+       "text": "Every write runs here. BEGIN IMMEDIATE takes the write lock UP FRONT instead of on first write, so two writers never deadlock upgrading a read transaction (which returns SQLITE_BUSY without consulting the busy handler -- unlike BEGIN IMMEDIATE, which waits out busy_timeout).",
+       "where": "_txn docstring",
+       "verdict": "kept",
+       "why": "The context manager executes BEGIN IMMEDIATE before yielding, ensuring the write lock is acquired immediately."
+      },
+      {
+       "text": "Call this BEFORE the effect.",
+       "where": "record_intent docstring",
+       "verdict": "kept",
+       "why": "The docstring states this, and the method writes the intent before the effect is performed (as per design)."
+      },
+      {
+       "text": "``effect_key`` is the caller's after-the-fact identifier for the effect (see the module docstring). It is NOT unique-constrained: a retried intent legitimately reuses the key, and the ledger records both attempts rather than hiding one.",
+       "where": "record_intent docstring",
+       "verdict": "kept",
+       "why": "The schema does not have a UNIQUE constraint on effect_key; the INSERT statement does not enforce uniqueness."
+      },
+      {
+       "text": "``trace_id`` defaults to the AMBIENT one (:func:`envelope.current_trace_id`), which is why converting this producer required editing no caller. The sole in-tree caller lives in ``spine/attempt.py``; a run that opens ``envelope.trace_context()`` anywhere above it gets its intents correlated without that module knowing this feature exists. Outside a traced scope the value is NULL and the row is byte-for-byte what v1 wrote.",
+       "where": "record_intent docstring",
+       "verdict": "uncheckable",
+       "why": "The method calls current_trace_id() which is not defined in this chunk. The claim about callers and envelope module cannot be verified from this code alone."
+      },
+      {
+       "text": "payload is re-read from the canonical text, not echoed: what the caller gets back is what a later reader will get back (a tuple stored is a list read), so no code path is written against a shape that only exists in the writing process.",
+       "where": "record_intent comment",
+       "verdict": "kept",
+       "why": "The method returns an Intent with payload=json.loads(payload_json), ensuring the returned payload matches the serialized form."
+      },
+      {
+       "text": "Closes an open intent as COMPLETED. Rejects a second resolution.",
+       "where": "mark_completed docstring",
+       "verdict": "kept",
+       "why": "The method calls _resolve, which checks for prior terminal event and raises IntentAlreadyResolved if one exists."
+      },
+      {
+       "text": "Closes an open intent as FAILED. Rejects a second resolution.",
+       "where": "mark_failed docstring",
+       "verdict": "kept",
+       "why": "Same logic as mark_completed; _resolve enforces once-only resolution."
+      },
+      {
+       "text": "canonical_json before opening the transaction: an unserialisable result must fail without leaving a half-open write lock.",
+       "where": "_resolve comment",
+       "verdict": "kept",
+       "why": "The code calls canonical_json(detail) before entering the _txn context manager, so a serialization error occurs before any database write."
+      },
+      {
+       "text": "Every intent with no terminal event, oldest first. This is the crash-recovery worklist: anything here either never had its effect performed, or had it performed and lost the acknowledgement -- the caller distinguishes the two by looking for ``effect_key`` in the world (see the module docstring).",
+       "where": "open_intents docstring",
+       "verdict": "kept",
+       "why": "The SQL query excludes intents with a terminal event, orders by i.id (oldest first), and the docstring explains the purpose."
+      },
+      {
+       "text": "Every intent, RESOLVED OR NOT, newest first. The read that closes the loop's return path. ``open_intents`` is a crash-recovery worklist and deliberately excludes anything terminal, so before this existed a COMPLETED attempt was reachable only by an id or an effect_key the caller had to already know -- which meant nothing could ask the ledger the one question a self-improving loop has to ask: *what have I already tried, and how did it end?* Without it the picker re-selects the same candidate forever (measured: five recorded gate-failed attempts left the top five of the queue unchanged).",
+       "where": "recent_intents docstring",
+       "verdict": "uncheckable",
+       "why": "The method implementation is incomplete in this chunk (only docstring shown). Cannot verify the actual SQL query or behaviour."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Read-only mode still creates WAL sidecars (-wal, -shm) on disk, which is acknowledged in the comment but may be surprising.",
+       "where": "SpineLedger.__init__",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "trace_id default uses current_trace_id() which is not defined in this module; assumes it exists in envelope.",
+       "where": "record_intent",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "recent_intents method is incomplete in this chunk; only docstring and partial implementation.",
+       "where": "recent_intents",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4292fc67e5dca8afc7baa986252aa8d35f279d73c72206a34c812dcb69abfe7f",
+    "objective_chars": 14533,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

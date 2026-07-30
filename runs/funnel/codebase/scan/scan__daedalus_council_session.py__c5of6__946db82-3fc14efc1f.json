@@ -1,0 +1,175 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c5of6__946db82",
+ "key": "scan__daedalus_council_session.py__c5of6__946db82-3fc14efc1f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of session.py: council execution loop with floor refusal, budget rounds, token ceiling, and turn recording; helpers for turn refs and chain reading.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_first_offending_path | medium | The function imports secret_floor_rule from sensitivity module which is not shown; if that module behaves unexpectedly, the floor check could miss paths. | Review the secret_floor_rule implementation in the sensitivity module."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "5 of 6",
+     "purpose": "Implements the main council execution loop including floor refusal, token ceiling enforcement, round dispatch, and budget rounds; defines helper functions for turn creation and chain reading.",
+     "symbols": [
+      {
+       "name": "_first_offending_path",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the first evidence path that triggers the secret floor rule, or empty string if none."
+      },
+      {
+       "name": "_unavailable_turn",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates a turn dict for an unavailable adapter (timeout or transport error)."
+      },
+      {
+       "name": "_append_budget_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Records a budget-exhausted round for all seated adapters."
+      },
+      {
+       "name": "_chained",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads this round's turns from the chain (load_transcript)."
+      },
+      {
+       "name": "_turn_ref",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructs a TurnRef from a turn id and chain record."
+      }
+     ],
+     "claims": [
+      {
+       "text": "a trusted lane disables the egress allow-list and reports nothing withheld.",
+       "where": "line 1121-1124",
+       "verdict": "uncheckable",
+       "why": "The claim about trusted lane behavior is in a ValueError message; the actual logic for trusted lanes is not in this chunk."
+      },
+      {
+       "text": "PRE-FLIGHT SECRET FLOOR. Per path, per file, never over the assembled prompt: the path tier is the only thing that catches a patch which ADDS `.env`, and a concatenated scan kills it. A hit refuses the whole council -- there is no redact-and-send -- and NO VENDOR IS CALLED.",
+       "where": "comment before line 1158",
+       "verdict": "uncheckable",
+       "why": "The comment describes behavior of floor_check and the refusal process; the actual floor_check function is not defined in this chunk."
+      },
+      {
+       "text": "Charge the token ceiling BEFORE dispatch, from the assembled prompt. Reconciling after the call is not a budget.",
+       "where": "comment before line 1180",
+       "verdict": "kept",
+       "why": "The code at lines 1180-1184 checks token_ceiling before dispatching and charges tokens_charged accordingly."
+      },
+      {
+       "text": "Hung or crashed: recorded as a turn, never as an absence.",
+       "where": "comment before line 1197",
+       "verdict": "kept",
+       "why": "Code at lines 1197-1201 creates a turn via _unavailable_turn when reply is None."
+      },
+      {
+       "text": "Nobody had a voice this round; another round would prompt on an empty transcript and pretend to be a deliberation.",
+       "where": "comment before line 1240",
+       "verdict": "kept",
+       "why": "Code at lines 1238-1240 breaks the loop with ended='no_voice' if no actor spoke."
+      },
+      {
+       "text": "A blown wall clock is NOT handled here: the next iteration's top-of-round check records a budget_exhausted turn per participant first. Breaking early would shorten the council silently.",
+       "where": "comment after line 1242",
+       "verdict": "kept",
+       "why": "The loop continues to next iteration where the top-of-round check (line 1170) records budget rounds if remaining <= 0."
+      },
+      {
+       "text": "A blown budget is a RECORDED round, not a shortened one.",
+       "where": "docstring of _append_budget_round",
+       "verdict": "kept",
+       "why": "The function creates a batch of turns for all seated adapters and appends them as a round."
+      },
+      {
+       "text": "Read this round's turns back FROM THE CHAIN. Round 2 prompts are built from these, not from the in-memory replies: a turn the secret floor refused is a receipt on disk, and re-feeding the raw reply would smuggle the refused bytes into another vendor's prompt.",
+       "where": "docstring of _chained",
+       "verdict": "uncheckable",
+       "why": "The claim about how prompts are built and the security implication refers to code outside this chunk (e.g., _round_body)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _first_offending_path imports secret_floor_rule inside the function body, which may cause repeated imports if called many times.",
+       "where": "line 1265",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In the main loop, the variable 'prior' is built from chained records (line 1236) and used in _round_body (line 1178). This ensures that only persisted turns are fed back, as per the _chained docstring.",
+       "where": "lines 1178, 1236",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The variable 'floor_rule' is set from refusal.rule (line 1160) and also updated from ref.reason when status is 'refused' (line 1233). This ensures floor_rule captures the first refusal reason.",
+       "where": "lines 1160, 1233",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code uses time.monotonic() for deadline and started, but does not account for time spent in floor_check or other operations before the loop. The wall_clock_s measurement includes the entire function after seating.",
+       "where": "lines 1133-1134, 1136",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The token_ceiling check uses tokens_charged + per_call_tokens > token_ceiling (line 1184). If token_ceiling is very large, this could overflow if tokens_charged is large, but Python integers are arbitrary precision so no overflow.",
+       "where": "line 1184",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "98271c9ef22181f89b75619096cbd26d0794d8a30b21b6e471ec3b581bd3ca3c",
+    "objective_chars": 13226,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

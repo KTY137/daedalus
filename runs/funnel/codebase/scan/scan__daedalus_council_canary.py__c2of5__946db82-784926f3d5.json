@@ -1,0 +1,375 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c2of5__946db82",
+ "key": "scan__daedalus_council_canary.py__c2of5__946db82-784926f3d5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of canary.py: defines probe builders and checkers for arrival, instruction, anchoring, comprehension, and ProbeSpec dataclass.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_anchor_pair | low | Uses rng.sample on _ANCHOR_SETS which is not defined in this chunk; could raise NameError at runtime if _ANCHOR_SETS is missing or empty. | Check that _ANCHOR_SETS is defined in another chunk with at least 2 elements.",
+     "_summaries | low | Uses _SUMMARY_DECOYS and _SUMMARY_TARGETS which are defined in this chunk but could be empty; rng.sample would raise ValueError. | Ensure these tuples have sufficient elements.",
+     "_filler | low | References _FILLER_WORDS not defined in this chunk; will raise NameError. | Verify _FILLER_WORDS is defined in another chunk.",
+     "check_anchoring | medium | The function assumes _anchor_pair returns consistent results for same nonce; if _rng is not deterministic, probe may fail. | Confirm _rng uses a seeded random.Random for reproducibility.",
+     "check_arrival | medium | Uses re.IGNORECASE on tail word which may be case-sensitive; could cause false negatives if model capitalizes. | Verify that tail words are lowercase or adjust regex.",
+     "check_comprehension | medium | The regex _NUMBER_RE matches digits and number words; if reply contains multiple numbers, only first is used, potentially missing correct answer. | Consider checking all numbers or requiring exactly one number.",
+     "PROBES tuple | low | References SEVERITIES not defined in this chunk; will raise NameError. | Ensure SEVERITIES is defined in another chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "2 of 5",
+     "purpose": "Define probe builders and checkers for four probes (arrival, instruction, anchoring, comprehension) and ProbeSpec dataclass.",
+     "symbols": [
+      {
+       "name": "_SUMMARY_DECOYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of decoy summary strings for comprehension probe."
+      },
+      {
+       "name": "_SUMMARY_TARGETS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of target summary strings (rollback-related) for comprehension probe."
+      },
+      {
+       "name": "_filler",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generate padding lines of random words for prompt construction."
+      },
+      {
+       "name": "ARRIVAL_PAD_LINES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Number of filler lines for arrival probe (40)."
+      },
+      {
+       "name": "build_arrival",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Build arrival probe prompt with nonce and tail word."
+      },
+      {
+       "name": "expect_arrival",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Return expected reply for arrival probe."
+      },
+      {
+       "name": "check_arrival",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Check reply for both head token and tail word."
+      },
+      {
+       "name": "_FENCE_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to strip code fences from reply."
+      },
+      {
+       "name": "build_instruction",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Build instruction probe prompt."
+      },
+      {
+       "name": "expect_instruction",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Return expected reply for instruction probe."
+      },
+      {
+       "name": "_normalise",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Strip transport artefacts from reply, preserving content."
+      },
+      {
+       "name": "check_instruction",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Check reply for exact match to expected string."
+      },
+      {
+       "name": "_anchor_pair",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generate prompt body, decoy, and correct answer for anchoring probe."
+      },
+      {
+       "name": "build_anchoring",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Build anchoring probe prompt."
+      },
+      {
+       "name": "expect_anchoring",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Return expected reply for anchoring probe."
+      },
+      {
+       "name": "check_anchoring",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Check reply for anchoring on decoy vs correct answer."
+      },
+      {
+       "name": "_NUMBER_WORDS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Mapping of number words to integers for comprehension probe."
+      },
+      {
+       "name": "_NUMBER_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to match digits or number words."
+      },
+      {
+       "name": "_summaries",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generate list of summaries and target index for comprehension probe."
+      },
+      {
+       "name": "build_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Build comprehension probe prompt."
+      },
+      {
+       "name": "expect_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Return expected reply for comprehension probe."
+      },
+      {
+       "name": "check_comprehension",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Check reply for correct number."
+      },
+      {
+       "name": "ProbeSpec",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a probe specification."
+      },
+      {
+       "name": "PROBES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of ProbeSpec instances for all probes (first three shown)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "probe's answer is defined by being the ONLY line that does.",
+       "where": "line 281 comment",
+       "verdict": "uncheckable",
+       "why": "Comment refers to summary targets being the only ones mentioning rollback; the logic is in _summaries function which picks from _SUMMARY_TARGETS, but the claim about 'only line' is not verifiable from this chunk alone (depends on content of strings)."
+      },
+      {
+       "text": "~40 lines of filler is roughly 800 tokens: long enough that a transport which truncates has something to truncate, and far enough under the Ollama usable input window that the probe itself never provokes the failure it measures.",
+       "where": "comment before ARRIVAL_PAD_LINES",
+       "verdict": "uncheckable",
+       "why": "Token count estimate and Ollama window size are not verifiable from this chunk."
+      },
+      {
+       "text": "Both incidents were truncation, in OPPOSITE DIRECTIONS, so one token cannot catch both",
+       "where": "docstring of build_arrival",
+       "verdict": "uncheckable",
+       "why": "Refers to incidents outside this chunk."
+      },
+      {
+       "text": "Ollama HEAD-truncates an over-budget prompt (it eats the system prompt first), so the HEAD token disappears;",
+       "where": "docstring of build_arrival",
+       "verdict": "uncheckable",
+       "why": "Behaviour of external system not verifiable from this chunk."
+      },
+      {
+       "text": "the npm .cmd shim cut a multi-line argv at the first newline, so the TAIL -- including the instruction telling the model what to do -- disappeared, and the model answered 'your message was cut off'.",
+       "where": "docstring of build_arrival",
+       "verdict": "uncheckable",
+       "why": "Behaviour of external system not verifiable from this chunk."
+      },
+      {
+       "text": "Requiring BOTH tokens back is what makes a single cheap probe cover both. It also closes the obvious false pass: a model that lost the tail may still echo the head token while complaining about the cut, and that reply is correctly rejected because it cannot contain a tail word it never received.",
+       "where": "docstring of build_arrival",
+       "verdict": "kept",
+       "why": "The logic in check_arrival checks for both head token and tail word; if tail is missing, returns False."
+      },
+      {
+       "text": "Strip TRANSPORT artefacts only -- never content. Code fences, surrounding quotes and stray whitespace are things a CLI wrapper adds; removing them keeps the probe measuring instruction-following rather than punishing a lane for its own output framing. Anything the model actually chose to say survives this and is judged.",
+       "where": "docstring of _normalise",
+       "verdict": "kept",
+       "why": "The function strips fences, quotes, and whitespace, and does not remove any other content."
+      },
+      {
+       "text": "It knew the answer and said more anyway. That is the degradation this probe exists for -- a lane that is alive and no longer obedient.",
+       "where": "docstring comment in check_instruction",
+       "verdict": "kept",
+       "why": "The check returns False with 'not_exact' if the wanted string is present but not exact match."
+      },
+      {
+       "text": "Detect a lane that copied the decoy instead of answering. Reported as a QUALITY signal by PROBES: a model anchoring on a prior turn is alive, reachable and useless for reasoning work. Calling that a liveness failure would page someone about a model choice; calling it nothing is how it went unnoticed for a day.",
+       "where": "docstring of check_anchoring",
+       "verdict": "kept",
+       "why": "The function checks for decoy word in reply and returns 'anchored_on_decoy' if present."
+      },
+      {
+       "text": "The nonce is deliberately NOT in this prompt: the answer is a digit, and a nonce full of digits would give a lazy checker something to trip over.",
+       "where": "docstring of build_comprehension",
+       "verdict": "kept",
+       "why": "The function does not include nonce in the prompt string."
+      },
+      {
+       "text": "Exactly one of them mentions a rollback. Which one? Answer with just its number.",
+       "where": "build_comprehension prompt string",
+       "verdict": "uncheckable",
+       "why": "The claim about summaries mentioning rollback depends on content of _SUMMARY_TARGETS, which are defined in this chunk but the actual strings are not shown; the logic in _summaries picks one target from _SUMMARY_TARGETS, so at least one mentions rollback, but 'exactly one' is guaranteed by construction (only one line replaced)."
+      },
+      {
+       "text": "A probe is (prompt, checker) and the checker is deterministic Python.",
+       "where": "docstring of ProbeSpec",
+       "verdict": "kept",
+       "why": "ProbeSpec has build and check fields; check functions are deterministic given same nonce and reply."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _filler function references _FILLER_WORDS which is not defined in this chunk; will cause NameError at runtime.",
+       "where": "line 294",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _anchor_pair function references _ANCHOR_SETS which is not defined in this chunk; will cause NameError at runtime.",
+       "where": "line 332",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The PROBES tuple references SEVERITIES which is not defined in this chunk; will cause NameError at runtime.",
+       "where": "line 414",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The check_arrival function uses re.IGNORECASE on the tail word, which may cause false negatives if the tail word is case-sensitive and the model uses different casing.",
+       "where": "line 319",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The check_comprehension function only checks the first number found in the reply; if the reply contains multiple numbers, it may miss the correct one.",
+       "where": "line 386",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _summaries function uses rng.sample on _SUMMARY_DECOYS which has only 8 elements; sample(3) is safe, but if _SUMMARY_DECOYS were shorter, it would raise ValueError.",
+       "where": "line 364",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _anchor_pair function uses rng.sample on _ANCHOR_SETS; if _ANCHOR_SETS is defined elsewhere but has fewer than 2 elements, it will raise ValueError.",
+       "where": "line 332",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The check_anchoring function uses word set from reply; if the correct or decoy word appears as part of another word (e.g., 'back' in 'rollback'), it may cause false positive.",
+       "where": "line 348",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "eac66074f9bd43b907be5ff3a978b04692b58dd84f2e8acec8efdd6a2a60325a",
+    "objective_chars": 10576,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

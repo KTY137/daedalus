@@ -1,0 +1,138 @@
+{
+ "task_id": "plan__b014__946db82",
+ "key": "plan__b014__946db82-ac38fdd214",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings: unparsed-claims (medium), build-index-contract-gap (medium), not-substituted (high), unchecked-dict-access (high). Plan: inspect, test, fix unchecked access.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Unparsed claims may cause incorrect quorum or render; need to verify handling.",
+     "not_substituted function missing from scan; full implementation must be checked.",
+     "Unchecked dict access may cause KeyError in production; high severity.",
+     "build_index contract gap: implementation location unknown; risk of untested path."
+    ],
+    "todos": [
+     "Inspect session.py quorum and render for parsed=False handling.",
+     "Open and read full not_substituted function in checks.py.",
+     "Add existence checks for nested dict access in render.py, docrefs.py, parse.py.",
+     "Write unit tests with incomplete data to trigger KeyError.",
+     "Locate build_index definition with grep; verify contract."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Add dict key existence checks in render.py, docrefs.py, parse.py",
+       "gate": "1",
+       "why_now": "Confirmed high-severity risk of KeyError on malformed data; must fix before any production use.",
+       "steps": [
+        {
+         "do": "In daedalus/mapping/render.py, wrap all nested dict accesses in .get() calls or try/except KeyError.",
+         "file": "daedalus/mapping/render.py",
+         "verified_by": "Run existing tests: pytest tests/test_mapping_cli.py -v"
+        },
+        {
+         "do": "In daedalus/spine/docrefs.py, add existence checks before accessing nested keys.",
+         "file": "daedalus/spine/docrefs.py",
+         "verified_by": "Run existing tests: pytest tests/test_prose_gate.py -v"
+        },
+        {
+         "do": "In daedalus/structcore/parse.py, add existence checks before accessing nested keys.",
+         "file": "daedalus/structcore/parse.py",
+         "verified_by": "Run existing tests: pytest tests/test_structcore.py -v"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The exact locations of unchecked accesses are in the cited source lines; full review of each file may reveal more."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect session.py's handling of unparsed claims in quorum and render",
+       "gate": "1",
+       "why_now": "Medium risk of incorrect behavior if unparsed claims reach session; must verify to prevent rendering or quorum bugs.",
+       "steps": [
+        {
+         "do": "In daedalus/council/session.py, inspect quorum property and render method for handling of parsed=False claims.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Run existing tests: pytest tests/test_council_session.py -v"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The unparsed Claim objects are actually passed to session; code review needed."
+      },
+      {
+       "rank": 3,
+       "title": "Read full not_substituted function in checks.py and verify its effectiveness",
+       "gate": "1",
+       "why_now": "High severity because the function is a critical guard; if missing or incomplete, write lanes may not detect substitutions.",
+       "steps": [
+        {
+         "do": "Open daedalus/lanes/checks.py and read lines 199-250 to see the full not_substituted function.",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Manual inspection; run pytest tests/test_lanes_checks.py to ensure existing tests pass."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function exists starting at line 199 as indicated by the finding."
+      },
+      {
+       "rank": 4,
+       "title": "Locate build_index definition and verify CLI contract",
+       "gate": "0",
+       "why_now": "Medium risk of untested contract between CLI and core; need to confirm build_index exists and is correctly wired.",
+       "steps": [
+        {
+         "do": "Run 'grep -r def build_index daedalus/structcore/' to locate build_index definition.",
+         "file": "UNKNOWN",
+         "verified_by": "Command output shows the file and line number."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "build_index is defined somewhere under daedalus/structcore/; if not, the CLI path is broken."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/session.py",
+      "daedalus/lanes/checks.py",
+      "daedalus/mapping/render.py",
+      "daedalus/spine/docrefs.py",
+      "daedalus/structcore/parse.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c24dad63f693e19248ce12d2caa600f7ea0a238d829efa91d18f721cd1a6584f",
+    "objective_chars": 144636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 14 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 14,
+  "inputs": 4
+ }
+}

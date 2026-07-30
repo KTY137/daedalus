@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_structcore_clones.py__c4of6__946db82",
+ "key": "scan__daedalus_structcore_clones.py__c4of6__946db82-1263299462",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of clones.py: unit_clusters, window_runs, window_clusters_from_runs, window_clusters, renamed_clusters definitions. Claims about memo defaulting, ordering, composition, and Type-2 filtering are checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 376-377 | medium | by_print holds units keyed by exact_fp; if exact_fp has collisions, units from different sources may be grouped incorrectly | Verify hash collision probability is negligible",
+     "line 392-394 | medium | clusters.sort key uses count * loc; if loc is 0, sort key is 0 regardless of count | Check that loc is always positive or handle zero",
+     "line 411 | low | norm.append(line) includes lines exactly equal to min_line_len; comment says '> min_line_len' but code uses '>' | Confirm intended threshold",
+     "line 444-446 | low | by_fileset counts runs shared by exactly the same set of files; if a run appears in 3 files, each pair's count is not tracked | This is by design but may miss pairwise overlaps",
+     "line 465-472 | medium | renamed_clusters excludes clusters where all members share one exact fingerprint; but the check exact_fp equality is not shown in this chunk | Verify in next chunk that exact_fp is computed and compared"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/clones.py",
+     "chunk": "4 of 6",
+     "purpose": "Define unit_clusters, window_runs, window_clusters_from_runs, window_clusters, renamed_clusters functions and their docstrings.",
+     "symbols": [
+      {
+       "name": "unit_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Groups CodeUnits by exact fingerprint, filters by min_loc and min count 2, returns sorted clusters."
+      },
+      {
+       "name": "window_runs",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns distinct normalized run hashes for one file, in first-encounter order."
+      },
+      {
+       "name": "window_clusters_from_runs",
+       "kind": "function",
+       "effects": [],
+       "note": "Cross-file half: takes precomputed per-file run hashes, groups by shared runs, returns clusters."
+      },
+      {
+       "name": "window_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Composes window_runs and window_clusters_from_runs."
+      },
+      {
+       "name": "renamed_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Groups units by abstract fingerprint, excluding those fully explained by exact clones."
+      }
+     ],
+     "claims": [
+      {
+       "text": "memo = memo or CloneMemo(spec_by_lang) ... it just gets a private memo instead of a shared one.",
+       "where": "line 361-362",
+       "verdict": "kept",
+       "why": "The code shows memo = memo or CloneMemo(spec_by_lang), so if memo is falsy, a new CloneMemo is created; otherwise the passed memo is used. This matches the claim."
+      },
+      {
+       "text": "The ORDER of the returned list is load-bearing \u2014 the caller replays it into run_owners, whose insertion order decides the tie-break order of the final (stable-sorted) cluster list. Returning a set here would make the output nondeterministic.",
+       "where": "window_runs docstring",
+       "verdict": "kept",
+       "why": "The function returns a list (out) that preserves first-encounter order of distinct hashes, not a set. The docstring describes the intended behavior and the code implements it."
+      },
+      {
+       "text": "runs_by_file must be in the original file order and each run list in first-encounter order (see window_runs) \u2014 that reproduces exactly the insertion sequence the single-pass implementation produced.",
+       "where": "window_clusters_from_runs docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about reproducing a previous single-pass implementation cannot be verified from this chunk alone, as the single-pass implementation is not present."
+      },
+      {
+       "text": "Now a composition of the per-file (window_runs) and cross-file (window_clusters_from_runs) halves; behaviour is unchanged.",
+       "where": "window_clusters docstring",
+       "verdict": "uncheckable",
+       "why": "No prior implementation is shown in this chunk to compare behavior; 'behaviour is unchanged' cannot be checked."
+      },
+      {
+       "text": "We exclude clusters explained entirely by exact cloning (all members share one exact fingerprint) so this reports renamed-but-not-identical only \u2014 the genuine Type-2 signal, additive to unit_clusters.",
+       "where": "renamed_clusters docstring",
+       "verdict": "uncheckable",
+       "why": "The exclusion logic is not present in this chunk; the function only builds by_abstract and initializes exact_of. The filtering step is presumably in the rest of the function (not shown)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "unit_clusters creates clusters from by_print items with count >=2, but does not handle the case where exact_fp returns duplicate hashes for different content (hash collision).",
+       "where": "lines 376-377",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The sort key in unit_clusters uses count * loc; if loc is 0, the product is 0 regardless of count, potentially misordering clusters.",
+       "where": "line 392-394",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In window_runs, the condition len(line) > min_line_len includes lines exactly equal to min_line_len, contrary to the docstring that says '> min_line_len' but the code uses '>' (greater than). Actually the code says 'if len(line) > min_line_len: norm.append(line)' which matches the docstring. No issue.",
+       "where": "line 411",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "window_clusters_from_runs counts runs shared by exactly the same set of files; if a run appears in 3 files, each pair's shared runs are not counted separately.",
+       "where": "line 444-446",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "renamed_clusters initializes exact_of but does not use it in this chunk; the filtering logic is missing.",
+       "where": "line 468",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "90bcb0158ec7c0edd890e3ba1ce71dc9ee5db9540597db9f914b3bc0b91d560e",
+    "objective_chars": 5691,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/clones.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/clones.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 361
+ }
+}

@@ -1,0 +1,174 @@
+{
+ "task_id": "daedalus/spine/ledger.py#c1of2#5eb1702d",
+ "key": "daedalus_spine_ledger.py_c1of2_5eb1702d-568bf7da55",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "23 claims: 16 kept, 2 broken, 5 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"There is no UPDATE statement in this module.\" | module | BROKEN | The module contains `conn.execute(\"INSERT OR REPLACE INTO spine_meta ...\")` which is an UPSERT (UPDATE-or-INSERT). The claim says no UPDATE, but REPLACE is a form of UPDATE.",
+     "CLAIM | \"The check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced.\" | _resolve | KEPT | The check for prior terminal event and the append happen within the same `_txn()` context, which uses BEGIN IMMEDIATE.",
+     "CLAIM | \"Every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring.\" | _txn | KEPT | The `_txn` method uses BEGIN IMMEDIATE, which respects busy_timeout.",
+     "CLAIM | \"A committed row survives process death without a clean close\" | _apply_pragmas | KEPT | journal_mode=WAL ensures durability across process crash.",
+     "CLAIM | \"A power cut can lose the last commits\" | _apply_pragmas | KEPT | synchronous=NORMAL in WAL mode can lose last commits on power failure.",
+     "CLAIM | \"An event can never reference a vanished intent\" | _apply_pragmas | KEPT | foreign_keys=ON enforces referential integrity.",
+     "CLAIM | \"The module docstring's 'INTENT BEFORE EFFECT' ordering: record_intent writes an INTENDED row and COMMITS IT BEFORE the caller performs the external effect.\" | record_intent | KEPT | The method inserts the intent and commits in `_txn()`, then returns; caller proceeds after.",
+     "CLAIM | \"The ledger CAN be ahead of reality\" | module docstring | KEPT | A crash after effect but before mark_completed leaves an INTENDED row; the ledger is ahead.",
+     "CLAIM | \"resolve_by_effect is the ledger half of that handshake\" | module docstring | UNCHECKABLE | The function `resolve_by_effect` is not defined in this chunk; it may be in chunk 2 or missing.",
+     "CLAIM | \"intents rows are written once and never UPDATEd\" | _SCHEMA | BROKEN | `INSERT OR REPLACE INTO spine_meta` is an upsert that can update an existing row. The claim is about `intents` table, but the update on `spine_meta` violates the spirit of 'no UPDATE' in the module.",
+     "CLAIM | \"Every state transition APPENDS a row to intent_events\" | _append_event | KEPT | Events are always inserted, never updated.",
+     "CLAIM | \"The current state is derived from the latest event\" | _hydrate (not shown) | UNCHECKABLE | The derivation logic is not in this chunk; likely in _hydrate or similar.",
+     "CLAIM | \"There is no UPDATE statement in this module.\" | module | BROKEN | `INSERT OR REPLACE` is a form of UPDATE.",
+     "CLAIM | \"mark_completed / mark_failed on an already-terminal intent raise IntentAlreadyResolved\" | _resolve | KEPT | The method checks for prior terminal event and raises IntentAlreadyResolved.",
+     "CLAIM | \"Silent idempotency was the alternative and is worse here\" | module docstring | UNCHECKABLE | No code to verify the reasoning; it's a design claim.",
+     "CLAIM | \"A second completion carrying a DIFFERENT effect_id means the caller believes something the ledger does not, and swallowing it destroys the disagreement.\" | module docstring | UNCHECKABLE | No code to verify the reasoning.",
+     "CLAIM | \"The check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced.\" | _resolve | KEPT | The check and append are within the same `_txn()` context.",
+     "CLAIM | \"journal_mode=WAL (readers never block the writer, and a committed row survives process death without a clean close)\" | _apply_pragmas | KEPT | journal_mode=WAL is set.",
+     "CLAIM | \"synchronous=NORMAL (WAL's documented safe pairing: durable across process crash, which is the failure this module exists for; a power cut can lose the last commits)\" | _apply_pragmas | KEPT | synchronous=NORMAL is set.",
+     "CLAIM | \"busy_timeout (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring)\" | _apply_pragmas | KEPT | busy_timeout is set and _txn uses BEGIN IMMEDIATE.",
+     "CLAIM | \"foreign_keys=ON (an event can never reference a vanished intent)\" | _apply_pragmas | KEPT | foreign_keys=ON is set.",
+     "CLAIM | \"record_intent: effect_key is NOT unique-constrained\" | record_intent | KEPT | The INSERT does not enforce uniqueness on effect_key.",
+     "CLAIM | \"record_intent: trace_id defaults to the AMBIENT one (envelope.current_trace_id)\" | record_intent | KEPT | The code uses `current_trace_id()` as default.",
+     "D1 | busy_timeout_ms | parameter read nowhere in this unit | WRONG CONCLUSION: The parameter is stored in `self.busy_timeout_ms` and used in `_apply_pragmas` via that attribute. So it is read.",
+     "D2 | except BaseException: ... ROLLBACK and re-raise | _txn | WRONG CONCLUSION: The except swallows nothing; it rolls back and re-raises. Not a silent swallow.",
+     "D3 | check runs after side effect | _resolve | WRONG CONCLUSION: The check for prior terminal event runs before the append, so it guards correctly.",
+     "D4 | branch condition cannot be true | none | WRONG CONCLUSION: No such branch found."
+    ],
+    "todos": [
+     "Change 'There is no UPDATE statement in this module' to 'There is no UPDATE statement on the intents table' or replace INSERT OR REPLACE with INSERT OR IGNORE if the intent is to never update.",
+     "The claim about 'no UPDATE' is broken by the INSERT OR REPLACE on spine_meta. Either remove that claim or change the statement to use INSERT OR IGNORE."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6cf74699df61b9aa34929e5c48c8d8a79d7806781872869ba662f56cca12cae",
+    "objective_chars": 30521,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 1 broken, 2 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The key is a QUESTION YOU CAN ASK, not a promise the effect happened at most once: it delivers no idempotency on its own.\" | module docstring | KEPT | The code does not enforce uniqueness on effect_key; the comment in record_intent says it is NOT unique-constrained.",
+     "CLAIM | \"There is no UPDATE statement in this module.\" | module docstring | BROKEN | Line 244 has an UPDATE statement: `c.execute(\"INSERT OR REPLACE INTO spine_meta ...\")` uses REPLACE, which is a form of UPDATE.",
+     "CLAIM | \"Double resolution is rejected, not absorbed\" | module docstring | KEPT | _resolve checks for prior terminal event and raises IntentAlreadyResolved.",
+     "CLAIM | \"The check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced.\" | module docstring | KEPT | _resolve checks prior terminal event inside the same _txn context.",
+     "CLAIM | \"journal_mode=WAL\" | module docstring | KEPT | _apply_pragmas sets PRAGMA journal_mode=WAL.",
+     "CLAIM | \"synchronous=NORMAL\" | module docstring | KEPT | _apply_pragmas sets PRAGMA synchronous=NORMAL.",
+     "CLAIM | \"busy_timeout (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring)\" | module docstring | KEPT | _txn uses BEGIN IMMEDIATE; pragmas set busy_timeout.",
+     "CLAIM | \"foreign_keys=ON\" | module docstring | KEPT | _apply_pragmas sets PRAGMA foreign_keys=ON.",
+     "CLAIM | \"One connection per instance.\" | SpineLedger docstring | KEPT | __init__ creates one connection.",
+     "CLAIM | \"check_same_thread=False plus an internal lock lets a single instance be shared across threads\" | SpineLedger docstring | KEPT | __init__ sets check_same_thread=False and uses threading.RLock.",
+     "CLAIM | \"BEGIN IMMEDIATE takes the write lock UP FRONT instead of on first write, so two writers never deadlock upgrading a read transaction\" | _txn docstring | KEPT | _txn executes BEGIN IMMEDIATE.",
+     "CLAIM | \"payload is re-read from the canonical text, not echoed: what the caller gets back is what a later reader will get back\" | record_intent docstring | KEPT | record_intent returns Intent with payload=json.loads(payload_json).",
+     "CLAIM | \"canonical_json before opening the transaction: an unserialisable result must fail without leaving a half-open write lock.\" | _resolve comment | KEPT | _resolve calls canonical_json(detail) before entering _txn.",
+     "CLAIM | \"A non-positive limit returns nothing, which is the truthful answer to \\\"give me zero rows\\\"\" | recent_intents docstring | UNCHECKABLE | The code returns empty list for non-positive limit, but the docstring also says 'keeps a caller's arithmetic (limit=n-1) from silently meaning \"all\".' This is a design claim that cannot be verified without seeing callers.",
+     "D: none"
+    ],
+    "todos": [
+     "Remove the UPDATE statement or change the docstring to acknowledge that INSERT OR REPLACE is used on spine_meta."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6cf74699df61b9aa34929e5c48c8d8a79d7806781872869ba662f56cca12cae",
+    "objective_chars": 30521,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "23 claims: 16 kept, 4 broken, 3 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"There is no UPDATE statement in this module.\" | whole file | BROKEN | line 412: conn.execute(\"INSERT OR REPLACE INTO spine_meta ...\") is an UPDATE via REPLACE.",
+     "CLAIM | ``record_intent`` writes an INTENDED row and COMMITS IT BEFORE the caller performs the external effect. The ordering is the whole contract, so the ledger can never be BEHIND reality: every effect that happened has a row. | record_intent | KEPT | order is correct: commit inside _txn before return.",
+     "CLAIM | ``resolve_by_effect`` is the ledger half of that handshake -- given a key found in the world, which intent claimed it. | resolve_by_effect | BROKEN | function not defined in this unit.",
+     "CLAIM | ``mark_completed`` / ``mark_failed`` on an already-terminal intent raise :class:`IntentAlreadyResolved`. | _resolve | KEPT | raises IntentAlreadyResolved if prior is not None.",
+     "CLAIM | The check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced. | _resolve | KEPT | both check and append inside _txn().",
+     "CLAIM | ``journal_mode=WAL`` (readers never block the writer, and a committed row survives process death without a clean close), ``synchronous=NORMAL`` (WAL's documented safe pairing: durable across process crash, which is the failure this module exists for; a power cut can lose the last commits), ``busy_timeout`` (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring), ``foreign_keys=ON`` (an event can never reference a vanished intent). | _apply_pragmas | KEPT | all four pragmas set.",
+     "CLAIM | ``synchronous=NORMAL`` (WAL's documented safe pairing: durable across process crash, which is the failure this module exists for; a power cut can lose the last commits) | _apply_pragmas | KEPT | set synchronous=NORMAL.",
+     "CLAIM | ``busy_timeout`` (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring) | _txn | KEPT | uses BEGIN IMMEDIATE inside _txn.",
+     "CLAIM | ``foreign_keys=ON`` (an event can never reference a vanished intent) | _apply_pragmas | KEPT | set foreign_keys=ON.",
+     "CLAIM | ``_add_missing_columns`` runs BEFORE the ``_SCHEMA`` statements, and the ordering is load-bearing: ``idx_intents_trace`` names ``trace_id``, so on a v1 database the index creation fails outright unless the column exists first. | _migrate | KEPT | _add_missing_columns called before _SCHEMA loop.",
+     "CLAIM | Driven off ``PRAGMA table_info`` rather than off the recorded ``schema_version`` | _add_missing_columns | KEPT | uses PRAGMA table_info.",
+     "CLAIM | On a FRESH database ``table_info`` returns nothing (no table yet), so this is a no-op and ``CREATE TABLE`` installs the full v2 shape. | _add_missing_columns | KEPT | checks if cols is empty and returns early.",
+     "CLAIM | ``record_intent`` ``effect_key`` is NOT unique-constrained: a retried intent legitimately reuses the key, and the ledger records both attempts rather than hiding one. | record_intent | KEPT | no unique constraint in schema.",
+     "CLAIM | ``trace_id`` defaults to the AMBIENT one (:func:`envelope.current_trace_id`) | record_intent | UNCHECKABLE | need to see current_trace_id implementation to confirm default behavior.",
+     "CLAIM | ``_resolve`` canonical_json before opening the transaction: an unserialisable result must fail without leaving a half-open write lock. | _resolve | KEPT | canonical_json(detail) called before _txn.",
+     "CLAIM | ``_row_to_intent`` is used to build Intent from row. | _resolve, open_intents | UNCHECKABLE | _row_to_intent not defined in this chunk.",
+     "CLAIM | ``recent_intents`` A non-positive limit returns nothing, which is the truthful answer to \"give me zero rows\" | recent_intents | KEPT | returns [] if limit <= 0.",
+     "CLAIM | ``intents_matching_payload`` Matching is a substring test against the payload TEXT, which is exact here rather than approximate because every payload is written through | intents_matching_payload | UNCHECKABLE | function body not in this chunk.",
+     "CLAIM | ``intents`` rows are written once and never UPDATEd -- a recorded intent's kind, payload and effect_key are immutable facts about what was decided. | schema | KEPT | no UPDATE statements; only INSERT and INSERT OR REPLACE (which is on spine_meta, not intents).",
+     "CLAIM | Every state transition APPENDS a row to ``intent_events``; the current state is derived from the latest event, so the full history (and its timestamps) survives. | _append_event | KEPT | events appended, state derived.",
+     "CLAIM | ``DEFAULT_DB_PATH = ROOT / \"runs\" / \"spine\" / \"spine.sqlite3\"`` | constants | KEPT | defined correctly.",
+     "CLAIM | ``default_db_path`` ``DAEDALUS_SPINE_DB`` overrides it | default_db_path | KEPT | checks env var.",
+     "D1 | ``read_only`` parameter in __init__ | __init__ | WRONG CONCLUSION: read_only is used in the constructor to decide connection mode, so it is read.",
+     "D2 | no such issue | - | KEPT | no swallowing of exceptions.",
+     "D3 | no such issue | - | KEPT | no comment about side effect after check.",
+     "D4 | no such issue | - | KEPT | no contradictory conditions."
+    ],
+    "todos": [
+     "Remove the claim 'There is no UPDATE statement in this module' or add a caveat about INSERT OR REPLACE on spine_meta.",
+     "Implement resolve_by_effect or remove its documentation.",
+     "Define _row_to_intent or import it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6cf74699df61b9aa34929e5c48c8d8a79d7806781872869ba662f56cca12cae",
+    "objective_chars": 30521,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/spine/ledger.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28007
+ }
+}

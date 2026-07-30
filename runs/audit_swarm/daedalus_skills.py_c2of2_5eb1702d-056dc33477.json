@@ -1,0 +1,170 @@
+{
+ "task_id": "daedalus/skills.py#c2of2#5eb1702d",
+ "key": "daedalus_skills.py_c2of2_5eb1702d-056dc33477",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 5 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"GUARD: file size. Checked from stat BEFORE the read, so an oversized file is never brought into memory\" | load_skill | KEPT | The code calls stat() then checks size before reading.",
+     "CLAIM | \"GUARD: count. Overflow is REPORTED in notes and the excess is named, so a truncated listing can never read as a complete one.\" | discover | KEPT | The code appends to notes and truncates children.",
+     "CLAIM | \"GUARD: this is the lookup a caller reaches for with a name that came from somewhere else, so the name is validated as a name BEFORE it is joined to a path, and the joined path is then checked for containment anyway. Two independent guards\" | find_skill | KEPT | The code calls _validate_name first, then checks containment.",
+     "CLAIM | \"GUARD, and a real one: a fenced block is only a boundary if the content cannot write the boundary. A skill whose body contains the literal `----- END SKILL -----` would otherwise appear to end its own quoted region\" | _defuse | KEPT | The regex matches the literal markers and replaces them.",
+     "CLAIM | \"GUARD, and it is two guards doing two different jobs\" | _one_line | KEPT | The code does whitespace collapse and printable filtering.",
+     "CLAIM | \"ONE substitution does all of it. An earlier version also replaced the exact marker constants in a separate pass; that pass was deleted because the pattern below already subsumes it, and a code path no mutation can make fail is not a guard\" | _defuse | BROKEN | The regex matches `-{3,}\\s*(?:BEGIN|END)\\s+SKILL\\b[^\\n]*` but the docstring says \"Both markers are rewritten, not just the closing one\" and \"Near-misses go too\". The regex does NOT match a near-miss like \"----- END SKILL ----\" (four trailing dashes instead of none). The docstring claims near-misses are caught, but the regex requires the line to end with optional non-newline characters; \"----\" would be matched if there is no newline, but the docstring says \"with four trailing dashes\" which is a specific near-miss. Actually, the regex `[^\\n]*` matches any characters except newline, so \"----- END SKILL ----\" would be matched because it ends with four dashes and no newline. The docstring says near-misses go too, and the regex does match the exact markers as well. But the claim \"ONE substitution does all of it\" is about the replacement being unified; the code does one replacement. The claim about the earlier version being deleted is a historical note, not a checkable claim. The claim that \"the pattern below already subsumes it\" is checkable: the pattern must match the exact marker constants. The docstring says \"Both markers are rewritten, not just the closing one\" \u2013 the regex matches both BEGIN and END, so that's kept. The claim about \"Near-misses go too\" is ambiguous; the regex matches any line starting with three or more dashes, optional whitespace, then BEGIN or END, then SKILL, then any characters. A near-miss like \"-----END SKILL-----\" would be matched. So the claim is kept. However, the claim \"ONE substitution does all of it\" is about the replacement; the code does one substitution, so kept. But the earlier version claim is uncheckable because we don't have the earlier code. I'll mark it as kept because the code does one substitution.",
+     "CLAIM | \"Order is load-bearing and matches `council/session.py`: the NOTICE comes first, then the opening marker, and only then does any byte the skill's author wrote appear.\" | render_untrusted | UNCHECKABLE | The order is as described, but the claim that it matches council/session.py cannot be checked without that file.",
+     "CLAIM | \"This function calls no model and performs no egress.\" | render_untrusted | UNCHECKABLE | Cannot be verified from this unit alone; need to see all imports and calls.",
+     "D1 | MAX_BUNDLED_PATHS_LISTED | referenced in _bundled_paths but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported from elsewhere.",
+     "CLAIM | \"GUARD: a skill directory (or a `SKILL.md` inside it) may be a symlink pointing anywhere on the box. `Path.resolve()` follows it, and the answer is compared against the resolved root, so a link out of the tree is caught rather than followed.\" | _contained | KEPT | The code resolves both paths and checks containment.",
+     "CLAIM | \"Bounded and sorted. These are shown to humans. Nothing opens them, and the only reason they are collected at all is so a reviewer can see that a skill shipped code before deciding to trust its prose.\" | _bundled_paths | KEPT | The code sorts, limits to MAX_BUNDLED_PATHS_LISTED, and does not open files.",
+     "CLAIM | \"There is no partial `Skill`: either every rule holds and an object comes back, or nothing does.\" | load_skill | KEPT | The function raises SkillError on any validation failure before returning.",
+     "CLAIM | \"Immediate children of `root` only -- a skill is `root/<name>/SKILL.md`. Recursing would make the count unbounded in directory depth for no gain, and every published layout puts skills exactly one level down.\" | discover | KEPT | The code uses `root.iterdir()` which lists immediate children only.",
+     "CLAIM | \"A directory that fails to load becomes a `SkillDefect`, never a silent omission, and never an exception that empties the listing.\" | discover | KEPT | The code catches SkillError and appends to defects, and does not re-raise.",
+     "CLAIM | \"A missing root is not an error: it means there are no skills.\" | discover | KEPT | The code returns a LoadReport with notes if root is not a directory.",
+     "CLAIM | \"GUARD: this is the lookup a caller reaches for with a name that came from somewhere else, so the name is validated as a name BEFORE it is joined to a path, and the joined path is then checked for containment anyway. Two independent guards, because this is the function where `../` arrives.\" | find_skill | KEPT | The code calls _validate_name first, then constructs candidate and checks containment.",
+     "CLAIM | \"The text is DEFUSED, not censored: the surrounding words are preserved so a reviewer can still see what the skill tried to do.\" | _defuse | KEPT | The replacement is a fixed string, not removal.",
+     "CLAIM | \"Both markers are rewritten, not just the closing one: a forged OPEN lets a skill fake a second quoted region and pass off its own text as another document's.\" | _defuse | KEPT | The regex matches both BEGIN and END.",
+     "CLAIM | \"Near-misses go too (\\\"----- END SKILL ----\\\" with four trailing dashes), because the goal is that a reader is never confused about where the quoted region stopped, and a near-miss confuses a reader just as well as an exact hit.\" | _defuse | KEPT | The regex matches any characters after SKILL, including additional dashes.",
+     "CLAIM | \"ONE substitution does all of it. An earlier version also replaced the exact marker constants in a separate pass; that pass was deleted because the pattern below already subsumes it, and a code path no mutation can make fail is not a guard -- it is an untested branch that reads like one.\" | _defuse | UNCHECKABLE | The claim that the pattern subsumes the exact markers is checkable and kept; the claim about the earlier version being deleted is historical and cannot be checked from this unit alone.",
+     "CLAIM | \"Catalogue: the notice first, then the markers, and every row collapsed to one defused line so no single skill can forge extra rows or close the block early.\" | render_catalog | KEPT | The code produces the notice, markers, and rows with _one_line and _defuse.",
+     "CLAIM | \"Not a prompt path: for a model, use `render_catalog`, which fences the same information. The row is still defused and collapsed to one line, because a description carrying newlines would otherwise forge extra rows in a listing a human is skimming.\" | describe | KEPT | The code uses _one_line and _defuse on description and name.",
+     "D1 | MAX_BODY_CHARS_TO_MODEL | used in _clip but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | MAX_SKILL_MD_BYTES | used in load_skill but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | MAX_DESCRIPTION_CHARS | used in validate_frontmatter but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | MAX_COMPATIBILITY_CHARS | used in validate_frontmatter but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | MAX_ALLOWED_TOOLS_CHARS | used in validate_frontmatter but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | MAX_SKILLS_PER_ROOT | used in discover but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | SKILL_DATA_NOTICE | used in render_untrusted and render_catalog but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | SKILL_OPEN | used in render_untrusted and render_catalog but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | SKILL_CLOSE | used in render_untrusted and render_catalog but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | SKILL_FILENAME | used in _bundled_paths, load_skill, discover but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | _REQUIRED_FRONTMATTER_FIELDS | used in validate_frontmatter but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | ALLOWED_FRONTMATTER_FIELDS | used in validate_frontmatter but not defined in this unit | WRONG CONCLUSION: a reader might think it is defined here but it is imported.",
+     "D1 | _FENCE_LOOKALIKE_RE | defined in this unit, used in _defuse | KEPT",
+     "D1 | _DEFUSED | defined in this unit, used in _defuse | KEPT"
+    ],
+    "todos": [
+     "Ensure that the regex in _FENCE_LOOKALIKE_RE matches the exact marker constants and near-misses as claimed; currently the regex matches any line starting with three or more dashes, optional whitespace, then BEGIN or END, then SKILL, then any characters. The claim about near-misses is satisfied. However, the claim about 'ONE substitution does all of it' and 'the pattern below already subsumes it' is kept. No change needed."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5f538601c8f4bb01dbb123cb91f14797092161745569bd162a97c61bf0bb3375",
+    "objective_chars": 19992,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 14 kept, 3 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"GUARD: a skill directory (or a SKILL.md inside it) may be a symlink pointing anywhere on the box. Path.resolve() follows it, and the answer is compared against the resolved root, so a link out of the tree is caught rather than followed.\" | _contained | KEPT | The code resolves both paths and checks containment, catching symlinks out of the tree.",
+     "CLAIM | \"Bounded and sorted. These are shown to humans. Nothing opens them, and the only reason they are collected at all is so a reviewer can see that a skill shipped code before deciding to trust its prose.\" | _bundled_paths | KEPT | The function sorts, bounds, and only lists files without opening them.",
+     "CLAIM | \"There is no partial Skill: either every rule holds and an object comes back, or nothing does.\" | load_skill | KEPT | The function raises SkillError for any validation failure before constructing a Skill.",
+     "CLAIM | \"GUARD: file size. Checked from stat BEFORE the read, so an oversized file is never brought into memory in order to discover that it is oversized.\" | load_skill | KEPT | The size check uses stat before read_text.",
+     "CLAIM | \"Immediate children of root only -- a skill is root/<name>/SKILL.md. Recursing would make the count unbounded in directory depth for no gain, and every published layout puts skills exactly one level down.\" | discover | KEPT | Uses root.iterdir() which lists only immediate children.",
+     "CLAIM | \"A directory that fails to load becomes a SkillDefect, never a silent omission, and never an exception that empties the listing.\" | discover | KEPT | Exceptions from load_skill are caught and turned into SkillDefect; the loop continues.",
+     "CLAIM | \"A missing root is not an error: it means there are no skills.\" | discover | KEPT | Returns LoadReport with notes if root.is_dir() is false.",
+     "CLAIM | \"GUARD: count. Overflow is REPORTED in notes and the excess is named, so a truncated listing can never read as a complete one.\" | discover | KEPT | Notes are appended and children truncated, with a message naming the excess count.",
+     "CLAIM | \"GUARD: this is the lookup a caller reaches for with a name that came from somewhere else, so the name is validated as a name BEFORE it is joined to a path, and the joined path is then checked for containment anyway. Two independent guards, because this is the function where ../ arrives.\" | find_skill | KEPT | _validate_name is called before path joining, and _contained is checked after.",
+     "CLAIM | \"GUARD, and a real one: a fenced block is only a boundary if the content cannot write the boundary. A skill whose body contains the literal ----- END SKILL ----- would otherwise appear to end its own quoted region, and everything after it would read as the caller's own words -- which is the whole attack the fence exists to prevent, executed with a string literal.\" | _defuse | KEPT | The regex replaces both BEGIN and END markers.",
+     "CLAIM | \"Both markers are rewritten, not just the closing one: a forged OPEN lets a skill fake a second quoted region and pass off its own text as another document's. Near-misses go too (\"----- END SKILL ----\" with four trailing dashes), because the goal is that a reader is never confused about where the quoted region stopped, and a near-miss confuses a reader just as well as an exact hit.\" | _defuse | KEPT | The regex matches 3+ dashes, so near-misses are also replaced.",
+     "CLAIM | \"ONE substitution does all of it. An earlier version also replaced the exact marker constants in a separate pass; that pass was deleted because the pattern below already subsumes it, and a code path no mutation can make fail is not a guard -- it is an untested branch that reads like one.\" | _defuse | KEPT | The function uses a single re.sub call.",
+     "CLAIM | \"The text is DEFUSED, not censored: the surrounding words are preserved so a reviewer can still see what the skill tried to do.\" | _defuse | KEPT | The replacement is a constant string, not removal; the rest of the text is unchanged.",
+     "CLAIM | \"GUARD, and it is two guards doing two different jobs -- worth stating because getting them the wrong way round is easy: * \" \".join(...split()) collapses WHITESPACE, and that is what stops a newline forging an extra row in a catalogue. Since the format loads every skill's description at startup, a catalogue is the most likely place skill text ever meets a model, and one skill impersonating several is the cheapest attack available there. * the printable filter removes NON-WHITESPACE control characters, which split() does not touch: ANSI escapes (\\x1b[2K erases the line a human is reading in a terminal) and bidirectional overrides (U+202E, the Trojan Source trick) let a row display as something other than what it says. A listing exists to be read; a row that lies about its own contents defeats the point of having one.\" | _one_line | KEPT | The function first filters to printable+space, then splits/joins to collapse whitespace.",
+     "CLAIM | \"Order is load-bearing and matches council/session.py: the NOTICE comes first, then the opening marker, and only then does any byte the skill's author wrote appear. The caller's own instructions must be assembled BEFORE this string and never interleaved with it -- untrusted bytes do not go in an instruction position.\" | render_untrusted | KEPT | Lines list starts with SKILL_DATA_NOTICE, then SKILL_OPEN, then skill data, then body, then SKILL_CLOSE.",
+     "CLAIM | \"This function calls no model and performs no egress. A caller that sends the result off this machine owes it the same secret-floor check every other egress path in this repo runs (sensitivity.secret_floor_rule, both channels driven separately); this module cannot do it for them because it does not know where the bytes are going.\" | render_untrusted | UNCHECKABLE | Cannot verify that the function calls no model or performs no egress without seeing the full module and its dependencies; the code shown has no network calls but may import them.",
+     "CLAIM | \"Not a prompt path: for a model, use render_catalog, which fences the same information. The row is still defused and collapsed to one line, because a description carrying newlines would otherwise forge extra rows in a listing a human is skimming.\" | describe | KEPT | The function uses _one_line and _defuse, and the docstring correctly notes it's not for a model.",
+     "CLAIM | \"The Skill field set, for the test that pins it closed.\" | skill_field_names | KEPT | Returns tuple of field names from fields(Skill).",
+     "D1 | discover | notes | WRONG CONCLUSION: a caller believes notes are meaningful even if root is a directory but children list fails; notes tuple is empty in that case. The function returns LoadReport with notes=(f\"cannot list {root}: {exc}\",) when OSError occurs, but that tuple is not assigned to a variable named 'notes' -- it is returned directly. However, the 'notes' local variable is only assigned in the code path where children list succeeds, and is used later for overflow and duplicate names. The 'notes' parameter in the return is always the local 'notes' variable, which in the OSError case is never assigned, so the function would raise UnboundLocalError. This is a bug: the OSError branch returns early before 'notes' is defined."
+    ],
+    "todos": [
+     "In discover, assign notes = [f\"cannot list {root}: {exc}\"] before the early return to avoid UnboundLocalError."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5f538601c8f4bb01dbb123cb91f14797092161745569bd162a97c61bf0bb3375",
+    "objective_chars": 19992,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 10 kept, 1 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"GUARD: file size. Checked from stat BEFORE the read, so an oversized file is never brought into memory in order to discover that it is oversized.\" | load_skill | KEPT | The code calls source.stat().st_size before source.read_text().",
+     "CLAIM | \"GUARD: count. Overflow is REPORTED in notes and the excess is named, so a truncated listing can never read as a complete one.\" | discover | KEPT | The code appends a note and truncates children, then continues without raising an exception.",
+     "CLAIM | \"GUARD: this is the lookup a caller reaches for with a name that came from somewhere else, so the name is validated as a name BEFORE it is joined to a path, and the joined path is then checked for containment anyway. Two independent guards, because this is the function where ``../`` arrives.\" | find_skill | KEPT | The code calls _validate_name before path joining, then checks _contained after joining.",
+     "CLAIM | \"GUARD, and a real one: a fenced block is only a boundary if the content cannot write the boundary. A skill whose body contains the literal ``----- END SKILL -----`` would otherwise appear to end its own quoted region, and everything after it would read as the caller's own words -- which is the whole attack the fence exists to prevent, executed with a string literal.\" | _defuse | KEPT | The regex matches the fence markers and replaces them.",
+     "CLAIM | \"Both markers are rewritten, not just the closing one: a forged OPEN lets a skill fake a second quoted region and pass off its own text as another document's.\" | _defuse | KEPT | The regex matches both BEGIN and END markers.",
+     "CLAIM | \"Near-misses go too (\"----- END SKILL ----\" with four trailing dashes), because the goal is that a reader is never confused about where the quoted region stopped, and a near-miss confuses a reader just as well as an exact hit.\" | _defuse | KEPT | The regex pattern \"-{3,}\" matches three or more dashes, so four dashes are caught.",
+     "CLAIM | \"ONE substitution does all of it. An earlier version also replaced the exact marker constants in a separate pass; that pass was deleted because the pattern below already subsumes it, and a code path no mutation can make fail is not a guard -- it is an untested branch that reads like one.\" | _defuse | KEPT | The function uses a single re.sub call.",
+     "CLAIM | \"GUARD, and it is two guards doing two different jobs -- worth stating because getting them the wrong way round is easy: * ``\" \".join(...split())`` collapses WHITESPACE, and that is what stops a newline forging an extra row in a catalogue. * the printable filter removes NON-WHITESPACE control characters, which ``split()`` does not touch\" | _one_line | KEPT | The code first filters printable characters, then joins with split().",
+     "CLAIM | \"Order is load-bearing and matches ``council/session.py``: the NOTICE comes first, then the opening marker, and only then does any byte the skill's author wrote appear.\" | render_untrusted | KEPT | The lines list starts with SKILL_DATA_NOTICE, then SKILL_OPEN, then author-provided fields.",
+     "CLAIM | \"This function calls no model and performs no egress.\" | render_untrusted | UNCHECKABLE | Needs to inspect the entire file for any model calls or egress; not verifiable from this chunk alone.",
+     "CLAIM | \"THIS IS THE PROMPT PATH THAT MATTERS, and it is easy to miss. The format's own \"progressive disclosure\" design says the ``name`` and ``description`` of EVERY installed skill are \"loaded at startup\" so an agent can decide what to activate. That makes the description -- not the body -- the text most likely to reach a model, from every skill on the box at once, including the ones nobody chose to use.\" | render_catalog | KEPT | The function renders name and description for each skill in a fenced block.",
+     "CLAIM | \"Not a prompt path: for a model, use :func:`render_catalog`, which fences the same information. The row is still defused and collapsed to one line, because a description carrying newlines would otherwise forge extra rows in a listing a human is skimming.\" | describe | BROKEN | The comment says 'for a model, use render_catalog', but describe is not a prompt path; however, the code in describe does not call render_catalog or fence the output; it only defuses and collapses. The claim 'The row is still defused and collapsed' is true, but the claim that it is 'not a prompt path' is contradicted by the fact that describe does not include any guard against being used in a prompt context. More importantly, the claim that 'for a model, use render_catalog' is a directive, not a checkable claim. The broken part is that the docstring claims the row is 'defused and collapsed' which is true, but it also says 'Not a prompt path' which is a statement about usage, not code. However, the code does not prevent being called in a prompt path. The claim is BROKEN because the code does not enforce the 'not a prompt path' statement. Line: describe function definition."
+    ],
+    "todos": [
+     "Add a guard or rename describe to indicate it is not safe for model prompts, or add fencing to match render_catalog."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5f538601c8f4bb01dbb123cb91f14797092161745569bd162a97c61bf0bb3375",
+    "objective_chars": 19992,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/skills.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 17484
+ }
+}

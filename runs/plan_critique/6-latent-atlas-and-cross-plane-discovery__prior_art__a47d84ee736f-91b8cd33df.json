@@ -1,0 +1,99 @@
+{
+ "task_id": "6-latent-atlas-and-cross-plane-discovery__prior_art__a47d84ee736f",
+ "key": "6-latent-atlas-and-cross-plane-discovery__prior_art__a47d84ee736f-91b8cd33df",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 6 makes multiple unsupported claims about novelty and feasibility of latent cross-plane discovery without citing any prior art or addressing known failures of similar approaches.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "6.1 | high | Claim of 'schema-light Node Cards' with a fixed set of fields contradicts 'schema-light' and is not novel; similar constructs exist in knowledge graphs (e.g., RDF quads, 2004). | Compare with existing knowledge graph node models that include identity, revision, provenance, etc.",
+     "6.2 | medium | 'never receives a literally schema-free graph' is vague and self-contradictory given 'schema-light'; the minimum contract is not justified. | Check if the stated minimum fields are indeed necessary and sufficient for cross-plane discovery.",
+     "6.3 | high | Claim that latent layer 'proposes typed cross-plane bindings with score and rationale' is a restatement of standard embedding-based link prediction; no novelty. | Survey embedding-based link prediction methods (e.g., TransE, 2013; RotatE, 2019) that already produce typed relations with scores.",
+     "6.4 | high | 'A verifier checks source evidence, revision compatibility, ...' is a generic pipeline also used in knowledge base construction (e.g., Google Knowledge Vault, 2014). | Compare with existing verification pipelines in knowledge base construction.",
+     "6.5 | medium | 'Unverified similarities remain proposals and expire or are retested' is vague and lacks mechanism; similar to temporal decay in recommendation systems. | Check if any existing system implements this expiry mechanism and how it performs.",
+     "6.6 | low | '4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion' is an unsupported formula; unclear how it is 'canonical'. | No prior art needed, but the claim is unfalsifiable without definition.",
+     "6.7 | low | 'Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary' is metaphorical and not a technical claim. | Not falsifiable; no observation can settle it."
+    ],
+    "todos": [
+     "Replace 'schema-light' with a precise definition of the node card schema and justify its minimality.",
+     "Cite existing work on embedding-based link prediction and verification pipelines to acknowledge prior art.",
+     "Clarify the 'expire or retest' mechanism with specific design or reference to known systems.",
+     "Define the 'canonical formula' with concrete architecture or remove the claim."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "6.1",
+       "claim": "Embeddings may consume schema-light Node Cards with stable node identity, revision, plane, source locator, compact content, local neighborhood, and provenance.",
+       "verdict": "weak",
+       "why": "The claim is not novel; knowledge graphs already use similar node representations (e.g., RDF quads with graph identifiers, 2004). The term 'schema-light' is misleading because the listed fields constitute a fixed schema. Prior art: RDF 1.1 (2014), Wikidata (2012) uses entity identifiers, revision, etc."
+      },
+      {
+       "id": "6.2",
+       "claim": "A shared embedding space can retrieve possible relations without a single giant ontology, but it never receives a literally schema-free graph: identity, revision, plane, provenance, and relation-candidate shape are the minimum contract.",
+       "verdict": "unclear",
+       "why": "The claim is self-contradictory: 'schema-light' vs. 'minimum contract'. It is also unclear what 'relation-candidate shape' means. No evidence that this minimum contract is necessary or sufficient. Prior art: embedding spaces in knowledge graphs (e.g., TransE, 2013) do not require such a contract."
+      },
+      {
+       "id": "6.3",
+       "claim": "The latent layer is a hypothesis machine. It proposes typed cross-plane bindings with score and rationale.",
+       "verdict": "weak",
+       "why": "This is exactly what embedding-based link prediction does (e.g., TransE, 2013; RotatE, 2019). The addition of 'rationale' is vague and not novel; some methods provide explanations (e.g., knowledge graph attention networks, 2019)."
+      },
+      {
+       "id": "6.4",
+       "claim": "A verifier checks source evidence, revision compatibility, type/rule constraints, and task relevance before an edge becomes trusted.",
+       "verdict": "weak",
+       "why": "This is a standard verification pipeline in knowledge base construction (e.g., Google Knowledge Vault, 2014; DeepDive, 2015). The claim does not specify how these checks are implemented or what makes them novel."
+      },
+      {
+       "id": "6.5",
+       "claim": "Unverified similarities remain proposals and expire or are retested.",
+       "verdict": "weak",
+       "why": "This is a common mechanism in systems with temporal decay (e.g., recommendation systems, knowledge graph completion with time, e.g., TComplEx, 2020). No specific mechanism or novelty is claimed."
+      },
+      {
+       "id": "6.6",
+       "claim": "Canonical formula: 4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion",
+       "verdict": "unfalsifiable",
+       "why": "The formula is not defined; '4fold Project-Twin IR' is unexplained. No claim that can be tested. It is a slogan, not a technical statement."
+      },
+      {
+       "id": "6.7",
+       "claim": "Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary.",
+       "verdict": "unfalsifiable",
+       "why": "This is metaphorical language with no operational meaning. It cannot be verified or refuted."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bd16471d402644ddeab10df1066ab004269077d1936a66efe9bd7fd0e5c383c5",
+    "objective_chars": 1951,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "6-latent-atlas-and-cross-plane-discovery",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

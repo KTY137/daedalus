@@ -1,0 +1,100 @@
+{
+ "task_id": "research__b042__946db82",
+ "key": "research__b042__946db82-87885da2c5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals a consistent claim that a 'repo-level' type graph is resolved from per-file facts, but no module actually guarantees cross-module import resolution; each module assumes another owns the boundary, leaving a gap.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The type resolution pipeline has an unowned boundary: no single module ensures that import resolution spans all files, leading to possible false negatives or incomplete graphs."
+    ],
+    "todos": [
+     "Determine which module is responsible for cross-file import resolution and ensure it is implemented."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "cross-file-type-resolution-gap",
+       "claim": "The type graph resolution pipeline claims to be 'repo-level' but no module actually implements cross-file import resolution; each module assumes another owns that boundary.",
+       "spans": [
+        "daedalus/structcore/__init__.py",
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "daedalus.structcore.__init__ re-exports resolve_type_graph as the 'whole-repo second pass'. daedalus.structcore.typegraph.resolve_type_graph accepts imports_by_file and naming parameters but only uses imports_by_file to filter facts; it does not perform cross-file import resolution. The imports_by_file parameter is expected to come from an external index, but no module in the scans provides that index or guarantees it covers all files.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that resolve_type_graph or a caller actually resolves imports across files, e.g., by calling build_index with types=True and using the result.",
+       "evidence": [
+        "daedalus/structcore/__init__.py: comment about resolve_type_graph being 'whole-repo second pass build_index runs when types=True'",
+        "daedalus/structcore/typegraph.py: resolve_type_graph signature and usage of imports_by_file only for filtering"
+       ]
+      },
+      {
+       "id": "delta-evaluation-assumes-cross-file-graph",
+       "claim": "The delta evaluation module assumes a complete cross-file graph exists to detect mutations, but the graph resolution pipeline does not guarantee cross-file completeness.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "daedalus/structcore/__init__.py",
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "graph_delta.py's docstring claims to detect mutations via layer deltas (references, literals, structure) and assumes these layers capture changes across files. However, the type graph that would enable cross-file reference resolution is not guaranteed to be complete (see previous hypothesis). The delta module may only detect changes within single files or rely on incomplete graphs.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the delta module actually performs cross-file analysis, e.g., by using a complete index or graph.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py: docstring claims about detecting mutations via layers",
+        "daedalus/structcore/__init__.py: claims about whole-repo type graph",
+        "daedalus/structcore/typegraph.py: incomplete cross-file resolution"
+       ]
+      },
+      {
+       "id": "drift-snapshot-acceptance-persistence",
+       "claim": "The drift module carries acceptances forward verbatim during refresh, but the acceptance parsing logic is not defined in the scanned chunks, so the guarantee is unverifiable and may be broken.",
+       "spans": [
+        "daedalus/mapping/drift.py",
+        "daedalus/eval/graph_delta.py"
+       ],
+       "mechanism": "drift.py's refresh() claims to carry acceptances forward verbatim, but the parse_acceptances function is not shown. Meanwhile, graph_delta.py's load_mutations dynamically imports a module, which could affect the state of sys.modules and potentially interfere with acceptance parsing if they share a common module cache.",
+       "severity": "low",
+       "confidence": "possible",
+       "refuted_by": "Inspection of parse_acceptances in drift.py's full source showing it faithfully preserves acceptances.",
+       "evidence": [
+        "daedalus/mapping/drift.py: refresh() docstring and code referencing parse_acceptances",
+        "daedalus/eval/graph_delta.py: load_mutations modifies sys.modules"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2a4db27ed08485f2e33f3209304df22fcbf4b541f4617fde1b19ab1d44588969",
+    "objective_chars": 37473,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 42 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 42,
+  "inputs": 5
+ }
+}

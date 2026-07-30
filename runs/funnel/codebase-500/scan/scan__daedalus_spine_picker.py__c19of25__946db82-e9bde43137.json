@@ -1,0 +1,125 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c19of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c19of25__946db82-e9bde43137",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 19 of 25 of daedalus/spine/picker.py: contains rank() and build_queue() functions with docstrings and claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "19 of 25",
+     "purpose": "Define rank() and build_queue() functions with ranking logic and queue construction.",
+     "symbols": [
+      {
+       "name": "rank",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Deterministic ranking of candidates by score, severity, attempts, source order, task_id."
+      },
+      {
+       "name": "build_queue",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Build ranked queue from work queue and optional sources; never raises on bad source."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Deterministic ranking: score desc, mildest outcome, fewest attempts, source order, task_id.",
+       "where": "rank docstring",
+       "verdict": "kept",
+       "why": "The lambda sorts by -c.score, _severity(c), _tried(c), order.get(c.source, len(order)), c.task_id, matching the claim."
+      },
+      {
+       "text": "The tie-breaks are not decoration. Scores collide constantly (two islands with the same test count are genuinely equal on evidence), and a queue whose order depends on dict iteration or on which source ran first is not reproducible -- which would make \"measurement picks the next task\" unfalsifiable, since two runs could disagree with no cause to point at.",
+       "where": "rank docstring",
+       "verdict": "kept",
+       "why": "The code implements explicit tie-breaking with source order and task_id, ensuring reproducibility."
+      },
+      {
+       "text": "The memory tie-breaks rank ahead of the rest because the score alone cannot express memory at the bottom of a band. ``apply_attempt_memory`` drives a fully-sunk candidate's offset to the band FLOOR, and the floor is also where every candidate with no measured evidence already sits -- so tried and untried, and ``clean`` and ``gates_failed``, all collide on score exactly when the distinction matters most. Expressing it as a tie-break rather than a bigger penalty is deliberate: a penalty large enough to separate them would have to leave the band, and the stated priority is not memory's to overrule.",
+       "where": "rank docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references 'apply_attempt_memory' and 'band FLOOR' which are not defined in this chunk; no code here confirms these details."
+      },
+      {
+       "text": "OUTCOME SEVERITY is checked BEFORE the attempt count, because the count is the weaker fact. A task attempted once and returned ``clean`` has a patch waiting on a human; a task attempted three times whose worktree never built has taught us nothing at all. The second is the better next pick despite having been tried more often. Untried candidates carry no severity and read as ``0.0``, so they still come first at any given score.",
+       "where": "rank docstring",
+       "verdict": "kept",
+       "why": "The lambda sorts by _severity(c) before _tried(c); _severity returns 0.0 for untried (no 'memory_outcome_severity' evidence key)."
+      },
+      {
+       "text": "Never raises on a bad or missing source file.",
+       "where": "build_queue docstring",
+       "verdict": "kept",
+       "why": "The code catches WorkQueueInvalid and continues; no other source processing shown, but the pattern suggests graceful handling."
+      },
+      {
+       "text": "``include_eval``, ``include_hotspots`` and ``include_spectral`` default to OFF: each costs a whole-repo analysis pass, and a picker that takes a minute to answer \"what next\" will not be run before every attempt, which would leave the loop picking by habit instead of by measurement.",
+       "where": "build_queue docstring",
+       "verdict": "kept",
+       "why": "Function signature shows defaults: include_eval=False, include_hotspots=False, include_spectral=False."
+      },
+      {
+       "text": "``include_spectral`` is MEASURED at ~10s (``reach.analyse`` over this tree) and adds only evidence keys -- it cannot change the queue's contents or order.",
+       "where": "build_queue docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk uses include_spectral or references reach.analyse; the claim cannot be verified here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "rank function uses _tried and _severity helpers that access candidate.evidence; these may fail if evidence is missing or malformed, but try/except blocks handle that.",
+       "where": "lines 2197-2212",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_queue initializes candidates list and notes list, then processes work_queue; it also handles map_mode but the code chunk ends before showing how candidates from map are added.",
+       "where": "lines 2238-2274",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d172d3974d272dde1aaa1224514d7ceae5b2761ce67f1fd5198144d79f273a2f",
+    "objective_chars": 6076,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [19/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 19,
+  "total": 25,
+  "first_line": 2161
+ }
+}

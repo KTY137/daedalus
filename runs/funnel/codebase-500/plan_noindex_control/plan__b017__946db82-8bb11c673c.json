@@ -1,0 +1,138 @@
+{
+ "task_id": "plan__b017__946db82",
+ "key": "plan__b017__946db82-8bb11c673c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 reviewed findings: high-severity trace_id mismatch and offload_runner exception handling need evidence; medium-severity batch size validation and mutable env isolation need fixes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Without explicit trace_id passing, intents may be misattributed across traces.",
+     "Unhandled exceptions from offload_runner could cascade and break attempt recording.",
+     "Large batches may cause silent timeouts or overflow in projection worker or wiki links.",
+     "Mutable dict returned by council_env could be accidentally mutated, affecting subprocess environments."
+    ],
+    "todos": [
+     "Inspect TASKS list in tasks.py for trace_id field.",
+     "Check all call sites of record_intent for explicit trace_id argument.",
+     "Inspect offload_runner implementation for possible exceptions.",
+     "Check if run_attempt or _recording_runner catch exceptions from offload_runner.",
+     "Search for cross-module validation of batch sizes (grep for 'batch' and 'limit').",
+     "List all callers of council_env and verify none mutate the result."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify trace_id in task shapes and record_intent calls",
+       "gate": "1",
+       "why_now": "Misattributed intents could corrupt trace provenance; high severity.",
+       "steps": [
+        {
+         "do": "Inspect TASKS list in daedalus/tasks.py to check if trace_id is present in each task shape.",
+         "file": "daedalus/tasks.py",
+         "verified_by": "grep -n 'trace_id' daedalus/tasks.py"
+        },
+        {
+         "do": "Check all call sites of record_intent in daedalus/ledger.py and other files to see if trace_id is explicitly passed.",
+         "file": "daedalus/ledger.py",
+         "verified_by": "grep -rn 'record_intent' daedalus/ -- and inspect each call for trace_id argument"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Files daedalus/tasks.py and daedalus/ledger.py exist with the referenced functions."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect offload_runner for exceptions and verify error handling in callers",
+       "gate": "1",
+       "why_now": "Unhandled exceptions from offload_runner could cascade and break attempt recording; high severity.",
+       "steps": [
+        {
+         "do": "Inspect offload_runner implementation (grep for 'def offload_runner') and list possible exceptions it can raise.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn 'def offload_runner' daedalus/ -- then check function body for raise statements"
+        },
+        {
+         "do": "Check if run_attempt or _recording_runner catch exceptions from offload_runner.",
+         "file": "daedalus/runner.py",
+         "verified_by": "grep -rn 'except' daedalus/runner.py -- and verify except clauses cover offload_runner calls"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "offload_runner is defined in some file under daedalus/; daedalus/runner.py exists and contains run_attempt and _recording_runner."
+      },
+      {
+       "rank": 3,
+       "title": "Add cross-module batch size validation",
+       "gate": "1",
+       "why_now": "Large batches can cause timeout or overflow in downstream modules without feedback; medium severity.",
+       "steps": [
+        {
+         "do": "Search for any cross-module validation of batch sizes (grep for 'batch' and 'limit' in the codebase). If none found, add validation at the entry point of batch processing.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn 'batch' daedalus/ -- and grep -rn 'limit' daedalus/ -- then inspect relevant files"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The codebase has batch processing entry points; files are under daedalus/."
+      },
+      {
+       "rank": 4,
+       "title": "Protect council_env return value from mutation",
+       "gate": "1",
+       "why_now": "Mutable dict returned by council_env could be accidentally mutated, affecting subprocess environments; medium severity.",
+       "steps": [
+        {
+         "do": "List all callers of council_env and verify none mutate the result. If any mutate, fix by returning a copy or freezing the dict.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn 'council_env' daedalus/ -- then inspect each call site"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "council_env is defined somewhere under daedalus/; callers are in the same directory."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/tasks.py",
+      "daedalus/ledger.py",
+      "daedalus/runner.py",
+      "UNKNOWN"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f7c9073023b63bdf9253e60f88aa5a921d892066d40b66c86ae4e109bb5a0767",
+    "objective_chars": 5316,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 17 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 17,
+  "inputs": 4
+ }
+}

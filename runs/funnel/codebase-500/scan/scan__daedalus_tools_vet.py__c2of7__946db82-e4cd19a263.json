@@ -1,0 +1,259 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c2of7__946db82",
+ "key": "scan__daedalus_tools_vet.py__c2of7__946db82-e4cd19a263",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of vet.py: defines rule constants for exec, net, secret, inject, destructive, and the Finding dataclass and load_allowances function with docstrings.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_allowances | medium | The docstring claims the function returns a tuple of dict and list, but the code shows it returns a tuple of dict and list; no inconsistency found.",
+     "ALLOWANCE_PATH | low | The constant is defined but its usage is not seen in this chunk; uncheckable.",
+     "Finding.acknowledged | low | The docstring says acknowledged downgrades severity to REVIEW, but the code does not implement that logic here; uncheckable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "2 of 7",
+     "purpose": "Defines rule patterns, Finding dataclass, allowance loading function.",
+     "symbols": [
+      {
+       "name": "_EXEC",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of tuples defining execution-related rules."
+      },
+      {
+       "name": "_NET",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of tuples defining network-related rules."
+      },
+      {
+       "name": "_SECRET",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of tuples defining secret-related rules."
+      },
+      {
+       "name": "_INJECT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of tuples defining injection-related rules."
+      },
+      {
+       "name": "_DESTRUCTIVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of tuples defining destructive-action rules."
+      },
+      {
+       "name": "RULES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Compiled list of regex rules from all rule categories."
+      },
+      {
+       "name": "Finding",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a single finding."
+      },
+      {
+       "name": "Finding.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts Finding to a dict, optionally including acknowledged field."
+      },
+      {
+       "name": "ALLOWANCE_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to the allowances file."
+      },
+      {
+       "name": "load_allowances",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Loads allowances from JSON file, returns dict and errors list."
+      }
+     ],
+     "claims": [
+      {
+       "text": "reads a secrets file",
+       "where": "comment after _SECRET[0]",
+       "verdict": "uncheckable",
+       "why": "The comment describes the purpose of the rule, but the actual detection is done via regex; the claim refers to behavior not verifiable from this chunk alone."
+      },
+      {
+       "text": "references a credential path",
+       "where": "comment after _SECRET[1]",
+       "verdict": "uncheckable",
+       "why": "Same as above; the claim is about the rule's intent, not directly checkable from the code."
+      },
+      {
+       "text": "assigns something named like a credential",
+       "where": "comment after _SECRET[2]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "tries to discard the operator's instructions",
+       "where": "comment after _INJECT[0]",
+       "verdict": "uncheckable",
+       "why": "The comment describes the rule's intent; not verifiable from this chunk."
+      },
+      {
+       "text": "tries to discard prior context",
+       "where": "comment after _INJECT[1]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "attempts to reassign the model's role",
+       "where": "comment after _INJECT[2]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "asks about or for the system prompt",
+       "where": "comment after _INJECT[3]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "asks for content to be sent somewhere",
+       "where": "comment after _INJECT[4]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "carries a directive inside a comment",
+       "where": "comment after _INJECT[5]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "deletes a tree",
+       "where": "comment after _DESTRUCTIVE[0]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "writes to a file",
+       "where": "comment after _DESTRUCTIVE[1]",
+       "verdict": "uncheckable",
+       "why": "Same as above."
+      },
+      {
+       "text": "The severity is then downgraded to REVIEW \u2014 never to CLEAR, because the capability still exists and the operator still deserves to see it.",
+       "where": "Finding docstring",
+       "verdict": "uncheckable",
+       "why": "This claim about downgrading behavior is not implemented in this chunk; the code only stores the acknowledged field."
+      },
+      {
+       "text": "it DOWNGRADES to REVIEW, never to CLEAR \u2014 an acknowledged capability is still reported on every run, with its reason attached;",
+       "where": "Comment in block above ALLOWANCE_PATH",
+       "verdict": "uncheckable",
+       "why": "This claim about downgrade behavior is not implemented in this chunk; the code only loads allowances, does not apply them."
+      },
+      {
+       "text": "an unparseable allowance file is an error that degrades the report, never an empty allowance set that silently blocks everything.",
+       "where": "Comment in block above ALLOWANCE_PATH",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behavior in other code (applying allowances), not present in this chunk."
+      },
+      {
+       "text": "{subject: {rule_id: reason}} plus read errors. Absent file is fine.",
+       "where": "load_allowances docstring",
+       "verdict": "kept",
+       "why": "The code returns a dict of subject to dict of rule_id to reason (the item dict contains reason and optionally body_sha256), and returns errors list. FileNotFoundError returns empty dict and no errors."
+      },
+      {
+       "text": "TWO accepted shapes, and the PINNED one is the point. An adversarial review on 2026-07-30 found this loader rejecting the exact form `apply_allowances` reads -- it required `entry` to be a str, so `{\"reason\": ..., \"body_sha256\": ...}` was discarded with a \"needs a non-empty reason\" error and the whole subject vanished.",
+       "where": "Comment in load_allowances",
+       "verdict": "kept",
+       "why": "The code now accepts both str and dict entry shapes. The comment describes a historical bug that has been fixed; the current code handles dict entries correctly."
+      },
+      {
+       "text": "Consequence, measured: `pinned` could never be non-empty, so `mcp_spec_digest`, the `identity=` arguments and the pin-mismatch refusal were all unreachable, and EVERY allowance anyone could actually write was the weak name-keyed kind. The byte-binding written to close the name-inheritance breach was present in the reader, absent from the writer, and documented as working. It failed closed (the BLOCK stood) but it was reported as a mitigation that did not exist.",
+       "where": "Comment in load_allowances",
+       "verdict": "uncheckable",
+       "why": "This claim refers to behavior and code outside this chunk (mcp_spec_digest, identity= arguments, pin-mismatch refusal, writer). Not verifiable from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The load_allowances function returns a dict where values are dicts with 'reason' and optionally 'body_sha256', but the docstring says it returns {subject: {rule_id: reason}} which is not exactly accurate because the inner dict has a 'reason' key, not the reason string directly.",
+       "where": "load_allowances docstring and code",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about the historical bug in load_allowances is detailed and describes a specific scenario, but the verification of that claim requires code outside this chunk.",
+       "where": "Comment in load_allowances",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The Finding class has an acknowledged field but no logic to downgrade severity; the downgrade logic must be elsewhere.",
+       "where": "Finding class",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1b623109b1364095af97aba9b1c5e21a72f53cceba912b60a0593e5288c78d9e",
+    "objective_chars": 6756,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [2/7]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 121
+ }
+}

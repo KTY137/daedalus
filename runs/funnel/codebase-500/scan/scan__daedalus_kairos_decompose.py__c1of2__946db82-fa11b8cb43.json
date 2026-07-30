@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_kairos_decompose.py__c1of2__946db82",
+ "key": "scan__daedalus_kairos_decompose.py__c1of2__946db82-fa11b8cb43",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of decompose.py: module docstring, imports, helper functions for parsing and fallback decomposition.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/decompose.py",
+     "chunk": "1 of 2",
+     "purpose": "Define dynamic task decomposition logic with Ollama and fallback splitting.",
+     "symbols": [
+      {
+       "name": "_SYSTEM",
+       "kind": "constant",
+       "effects": [],
+       "note": "System prompt for the model, instructing JSON-only output with subtasks."
+      },
+      {
+       "name": "_user_prompt",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds user prompt string from objective, paths, and max_subtasks."
+      },
+      {
+       "name": "_coerce_item",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes a single subtask candidate into {objective, paths} dict."
+      },
+      {
+       "name": "_parse_subtasks",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses model response JSON into list of subtask dicts, with fallback for prose-wrapped JSON."
+      },
+      {
+       "name": "_fallback",
+       "kind": "function",
+       "effects": [],
+       "note": "Deterministic fallback: one subtask per path if >1 path, else single passthrough subtask."
+      },
+      {
+       "name": "_ask_model",
+       "kind": "function",
+       "effects": [],
+       "note": "Best-effort dynamic breakdown via local Ollama; returns [] on failure (incomplete in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Nothing leaves the machine (local server), so this is cheap and private.",
+       "where": "module docstring, line 6",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behavior of _ask_model which is not fully implemented in this chunk; no network calls are visible here."
+      },
+      {
+       "text": "FALLBACK (deterministic): if the local server is unreachable, the call errors, or the response can't be parsed, split by path -- one subtask per supplied path (or a single passthrough subtask when there is <=1 path).",
+       "where": "module docstring, lines 8-10",
+       "verdict": "kept",
+       "why": "_fallback function implements exactly this: for >1 paths returns list of subtasks each with one path; for <=1 paths returns single subtask with all paths."
+      },
+      {
+       "text": "Contract: :func:`decompose` NEVER raises and ALWAYS returns >=1 subtask.",
+       "where": "module docstring, line 12",
+       "verdict": "uncheckable",
+       "why": "The function decompose is not defined in this chunk; the claim cannot be verified here."
+      },
+      {
+       "text": "It is import-safe -- no network I/O happens at import time, only inside the call.",
+       "where": "module docstring, line 13",
+       "verdict": "kept",
+       "why": "All imports are standard library or local modules; no network calls are executed at module level. Network calls would only occur inside _ask_model which is not invoked at import."
+      },
+      {
+       "text": "Return ONLY a json object of the form {\"subtasks\": [{\"objective\": \"<what to do>\", \"paths\": [\"<repo-relative path>\"]}]}.",
+       "where": "_SYSTEM constant docstring, lines 21-24",
+       "verdict": "uncheckable",
+       "why": "This is a prompt instruction to the model, not a claim about the code's behavior. The code does not enforce this format; it only parses the response."
+      },
+      {
+       "text": "Accepts a top-level JSON array, or an object wrapping the array under subtasks/tasks/items, or a single subtask object. Any junk is dropped. Returns [] when nothing usable is found (caller then falls back).",
+       "where": "_parse_subtasks docstring, lines 39-42",
+       "verdict": "kept",
+       "why": "The function handles top-level array, object with subtasks/tasks/items/steps keys, single object with objective/task, and returns [] if nothing usable. Junk is dropped via _coerce_item returning None."
+      },
+      {
+       "text": "Returns [] (never raises) when the server is down, the call fails, or parsing fails.",
+       "where": "_ask_model docstring, line 74",
+       "verdict": "uncheckable",
+       "why": "_ask_model is incomplete in this chunk; the implementation of error handling is not present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _ask_model function is incomplete in this chunk; it ends with only a docstring and the function signature.",
+       "where": "line 74",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Module docstring mentions decompose function, but it is not defined in this chunk.",
+       "where": "line 12",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Imports from ..providers._openai_compat and ..providers.ollama are used but not present in this chunk.",
+       "where": "lines 11-12",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "053b5511d9f5b3476b99adac63a59613df07c8f3f3665e5c4de8daadc1ac997a",
+    "objective_chars": 5197,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/decompose.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/decompose.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

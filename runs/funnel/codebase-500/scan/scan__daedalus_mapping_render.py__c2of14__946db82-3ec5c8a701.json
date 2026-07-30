@@ -1,0 +1,177 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c2of14__946db82",
+ "key": "scan__daedalus_mapping_render.py__c2of14__946db82-3ec5c8a701",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 14: defines status vocabulary, CLASS_STATUS/CLASS_MEANING mappings, NARRATIVE_SECTIONS, helper functions esc/_slug, Stamp dataclass with properties and methods.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLASS_STATUS | medium | orphan mapped to 'island' but comment says orphan has no hand-written counterpart and borrows colour; that distinction is not enforced by this mapping. | Check if downstream code treats orphan differently despite same status label."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "2 of 14",
+     "purpose": "Define status vocabulary, classification mappings, narrative sections, helper functions, and the Stamp dataclass.",
+     "symbols": [
+      {
+       "name": "STATUS_VOCABULARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (key, label, description) for statuses: wired, island, shim, baseline, stale, planned, broken, unknown."
+      },
+      {
+       "name": "CLASS_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping reachability engine class names to status vocabulary keys."
+      },
+      {
+       "name": "CLASS_MEANING",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping class names to human-readable meanings."
+      },
+      {
+       "name": "NARRATIVE_SECTIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (key, title) for narrative sections to be rendered."
+      },
+      {
+       "name": "_SECTION_KEY_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to match section keys like {#key}."
+      },
+      {
+       "name": "_SLUG_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to replace non-alphanumeric characters."
+      },
+      {
+       "name": "esc",
+       "kind": "function",
+       "effects": [],
+       "note": "HTML-escape a value, defaulting to empty string on None."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Convert text to a slug for use in URLs or anchors."
+      },
+      {
+       "name": "Stamp",
+       "kind": "class",
+       "effects": [],
+       "note": "Immutable dataclass holding staleness information (generated_at, revision, branch, dirty, dirty_paths, untracked_scanned, untracked_sample)."
+      },
+      {
+       "name": "Stamp.short",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns first 12 characters of revision or 'unknown'."
+      },
+      {
+       "name": "Stamp.describes_revision",
+       "kind": "property",
+       "effects": [],
+       "note": "Boolean property: true if dirty=='clean' and untracked_scanned==0."
+      },
+      {
+       "name": "Stamp.to_dict",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns dict representation of the stamp."
+      },
+      {
+       "name": "Stamp.one_line",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns a human-readable one-line summary string."
+      }
+     ],
+     "claims": [
+      {
+       "text": "orphan and test have no hand-written counterpart, so they borrow a colour and keep their own name rather than being flattened into 'island': an orphan imports nothing AND is imported by nothing AND has no test, which is a strictly different remedy from an island's.",
+       "where": "comment before CLASS_STATUS",
+       "verdict": "uncheckable",
+       "why": "The claim about rendering behaviour (keeping own name) is not verifiable from this chunk; it refers to code outside this chunk."
+      },
+      {
+       "text": "A key that is absent from the file is rendered as ABSENT rather than skipped.",
+       "where": "comment after NARRATIVE_SECTIONS",
+       "verdict": "uncheckable",
+       "why": "The claim about rendering behaviour is not verifiable from this chunk; it refers to code outside this chunk."
+      },
+      {
+       "text": "Every field degrades to a string that says it does not know, because a stamp that raises stops the map from being written at all -- and no map is worse than an honestly-unsure one.",
+       "where": "Stamp docstring",
+       "verdict": "broken",
+       "why": "Field 'dirty_paths' defaults to int -1, not a string; field 'untracked_scanned' defaults to int -1, not a string. The claim says 'every field degrades to a string' but these are integers."
+      },
+      {
+       "text": "May this page be read as 'the architecture at ``revision``'? Only when git says the tree is clean AND every module the scanner actually read is tracked. Both halves are needed: the first was the whole claim before, and it is checkable in a way that says nothing about the files git was told to ignore.",
+       "where": "Stamp.describes_revision docstring",
+       "verdict": "kept",
+       "why": "The property returns self.dirty == 'clean' and self.untracked_scanned == 0, matching the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "CLASS_STATUS maps 'orphan' to 'island' but comment says orphan has no hand-written counterpart and keeps its own name; this mapping does not reflect that distinction.",
+       "where": "CLASS_STATUS definition",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Stamp fields dirty_paths and untracked_scanned have default int -1, not a string, contradicting the docstring claim that every field degrades to a string.",
+       "where": "Stamp dataclass fields",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Stamp.one_line method uses self.dirty_paths >= 0 and self.untracked_scanned > 0 to conditionally add text, but does not handle the case where untracked_scanned is 0 (no extra text).",
+       "where": "Stamp.one_line",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5629df388322dfe228f84a046e646f069bfd31f2e45f5b4e12506798e1adc381",
+    "objective_chars": 5527,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [2/14]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 2,
+  "total": 14,
+  "first_line": 121
+ }
+}

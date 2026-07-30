@@ -1,0 +1,138 @@
+{
+ "task_id": "plan__b007__946db82",
+ "key": "plan__b007__946db82-36a9da9eed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Five reviewed findings: high-severity missing None check in codex_cli.py and unvalidated digest in subject_for; medium-severity ambiguous untracked sentinel and baseline recall assumption; high-severity missing _verify_reachable in worktree.py. All need inspection before delivery.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If shutil.which returns None, codex_cli.py may raise TypeError, blocking all codex tasks.",
+     "If subject_for accepts both sha256 and payload without validation, inconsistent ledger entries may go undetected.",
+     "Ambiguous -1 untracked could cause silent logic errors in docref_gate or harness.",
+     "eval_baseline_candidates skipping tasks with baseline recall 1.0 may miss regressions.",
+     "If _verify_reachable is missing or a no-op, worktree containment is ineffective, risking host compromise."
+    ],
+    "todos": [
+     "Inspect daedalus/providers/codex_cli.py for shutil.which usage and add None guard.",
+     "Test subject_for with mismatched sha256 and payload; add validation if needed.",
+     "Check consumers of untracked in docref_gate.py and harness.py for disambiguation.",
+     "Inspect eval_baseline_candidates in picker.py for current recall check.",
+     "Search for def _verify_reachable in daedalus/kairos/worktree.py and verify implementation."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Add None guard after shutil.which('codex') in codex_cli.py",
+       "gate": "0",
+       "why_now": "Without guard, missing codex CLI causes TypeError, blocking all codex tasks; high severity.",
+       "steps": [
+        {
+         "do": "Inspect daedalus/providers/codex_cli.py for shutil.which usage and add None check.",
+         "file": "daedalus/providers/codex_cli.py",
+         "verified_by": "grep -n 'shutil.which' daedalus/providers/codex_cli.py && run pytest on module"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "File daedalus/providers/codex_cli.py exists and contains shutil.which call."
+      },
+      {
+       "rank": 2,
+       "title": "Validate sha256 matches payload in subject_for when both provided",
+       "gate": "0",
+       "why_now": "Unvalidated digest leads to inconsistent ledger entries; high severity.",
+       "steps": [
+        {
+         "do": "Add test: call subject_for with mismatched sha256 and payload, expect error.",
+         "file": "UNKNOWN",
+         "verified_by": "Test fails without fix; add validation in subject_for to raise ValueError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "subject_for function exists; file location unknown."
+      },
+      {
+       "rank": 3,
+       "title": "Search for _verify_reachable in worktree.py and confirm implementation",
+       "gate": "0",
+       "why_now": "Missing or no-op _verify_reachable breaks containment; high severity.",
+       "steps": [
+        {
+         "do": "Search for 'def _verify_reachable' in daedalus/kairos/worktree.py and inspect body.",
+         "file": "daedalus/kairos/worktree.py",
+         "verified_by": "grep -n 'def _verify_reachable' daedalus/kairos/worktree.py"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "File daedalus/kairos/worktree.py exists."
+      },
+      {
+       "rank": 4,
+       "title": "Check consumers of untracked in docref_gate.py and harness.py for ambiguity",
+       "gate": "1",
+       "why_now": "Ambiguous -1 sentinel may cause silent logic errors; medium severity.",
+       "steps": [
+        {
+         "do": "grep -r 'untracked' daedalus/spine/docref_gate.py daedalus/eval/harness.py",
+         "file": "daedalus/spine/docref_gate.py",
+         "verified_by": "Inspect usage; if any consumer uses untracked alone for decisions, add disambiguation."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Files daedalus/spine/docref_gate.py and daedalus/eval/harness.py exist."
+      },
+      {
+       "rank": 5,
+       "title": "Verify eval_baseline_candidates checks current recall before skipping",
+       "gate": "1",
+       "why_now": "Assuming baseline recall 1.0 still passes may miss regressions; medium severity.",
+       "steps": [
+        {
+         "do": "grep -A 30 'def eval_baseline_candidates' daedalus/spine/picker.py",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Inspect if it re-measures recall; if not, add check."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "File daedalus/spine/picker.py exists."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0cda83c0126550bacbcf33231adaa20bffc1be1176e2a259a86e796e629db3f6",
+    "objective_chars": 16528,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 7 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 7,
+  "inputs": 5
+ }
+}

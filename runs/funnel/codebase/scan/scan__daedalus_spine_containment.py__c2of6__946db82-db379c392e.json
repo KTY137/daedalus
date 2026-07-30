@@ -1,0 +1,471 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c2of6__946db82",
+ "key": "scan__daedalus_spine_containment.py__c2of6__946db82-db379c392e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of containment.py: defines exception class, platform_supported, unmeasured_vectors, Windows API bindings with explicit ctypes signatures, and helper function _win_error.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_win_error | low | Uses ctypes.get_last_error() only if os.name == 'nt', else returns 0; on non-Windows the error code is meaningless. | Add a comment or fallback for non-Windows."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "2 of 6",
+     "purpose": "Define Windows API bindings and helper types for process containment.",
+     "symbols": [
+      {
+       "name": "unmeasured_vectors",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the UNMEASURED tuple (defined earlier in file)."
+      },
+      {
+       "name": "ContainmentUnavailable",
+       "kind": "class",
+       "effects": [],
+       "note": "Custom exception for containment failures."
+      },
+      {
+       "name": "platform_supported",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True only on Windows (os.name == 'nt')."
+      },
+      {
+       "name": "_win_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Helper to create ContainmentUnavailable with last Windows error code."
+      },
+      {
+       "name": "_advapi32",
+       "kind": "constant",
+       "effects": [],
+       "note": "ctypes WinDLL for advapi32."
+      },
+      {
+       "name": "_kernel32",
+       "kind": "constant",
+       "effects": [],
+       "note": "ctypes WinDLL for kernel32."
+      },
+      {
+       "name": "_ntdll",
+       "kind": "constant",
+       "effects": [],
+       "note": "ctypes WinDLL for ntdll."
+      },
+      {
+       "name": "_TOKEN_ASSIGN_PRIMARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows token access mask constant."
+      },
+      {
+       "name": "_TOKEN_DUPLICATE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows token access mask constant."
+      },
+      {
+       "name": "_TOKEN_QUERY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows token access mask constant."
+      },
+      {
+       "name": "_TOKEN_ADJUST_DEFAULT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows token access mask constant."
+      },
+      {
+       "name": "_TOKEN_ADJUST_SESSIONID",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows token access mask constant."
+      },
+      {
+       "name": "_SECURITY_IMPERSONATION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Security impersonation level constant."
+      },
+      {
+       "name": "_TOKEN_PRIMARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Token type constant."
+      },
+      {
+       "name": "_TOKEN_INTEGRITY_LEVEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Token information class for integrity level."
+      },
+      {
+       "name": "_SE_GROUP_INTEGRITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "SID attribute for integrity."
+      },
+      {
+       "name": "_CREATE_SUSPENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Process creation flag."
+      },
+      {
+       "name": "_CREATE_NEW_PROCESS_GROUP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Process creation flag."
+      },
+      {
+       "name": "_CREATE_UNICODE_ENVIRONMENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Process creation flag."
+      },
+      {
+       "name": "_EXTENDED_STARTUPINFO_PRESENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Startup info flag."
+      },
+      {
+       "name": "_STARTF_USESTDHANDLES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Startup info flag."
+      },
+      {
+       "name": "_STILL_ACTIVE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Windows process exit code constant."
+      },
+      {
+       "name": "_CTRL_BREAK_EVENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Console control event constant."
+      },
+      {
+       "name": "_PROC_THREAD_ATTRIBUTE_HANDLE_LIST",
+       "kind": "constant",
+       "effects": [],
+       "note": "Attribute list constant."
+      },
+      {
+       "name": "_JobObjectBasicAccountingInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object information class."
+      },
+      {
+       "name": "_JobObjectExtendedLimitInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object information class."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_ACTIVE_PROCESS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_JOB_MEMORY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_BREAKAWAY_OK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag (deliberately not set)."
+      },
+      {
+       "name": "_JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Job object limit flag (deliberately not set)."
+      },
+      {
+       "name": "_FILE_SHARE_READ",
+       "kind": "constant",
+       "effects": [],
+       "note": "File sharing constant."
+      },
+      {
+       "name": "_READ_CONTROL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Access mask constant."
+      },
+      {
+       "name": "_OPEN_EXISTING",
+       "kind": "constant",
+       "effects": [],
+       "note": "File open disposition."
+      },
+      {
+       "name": "_FILE_ATTRIBUTE_NORMAL",
+       "kind": "constant",
+       "effects": [],
+       "note": "File attribute constant."
+      },
+      {
+       "name": "_OBJ_INHERIT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Object attribute flag."
+      },
+      {
+       "name": "_OBJ_CASE_INSENSITIVE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Object attribute flag."
+      },
+      {
+       "name": "_FILE_OPEN",
+       "kind": "constant",
+       "effects": [],
+       "note": "NtCreateFile disposition."
+      },
+      {
+       "name": "_FILE_SYNCHRONOUS_IO_NONALERT",
+       "kind": "constant",
+       "effects": [],
+       "note": "NtCreateFile flag."
+      },
+      {
+       "name": "_FILE_NON_DIRECTORY_FILE",
+       "kind": "constant",
+       "effects": [],
+       "note": "NtCreateFile flag."
+      },
+      {
+       "name": "_ObjectBasicInformation",
+       "kind": "constant",
+       "effects": [],
+       "note": "Object information class."
+      },
+      {
+       "name": "_FileIdInfo",
+       "kind": "constant",
+       "effects": [],
+       "note": "File information class."
+      },
+      {
+       "name": "_LABEL_SECURITY_INFORMATION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Security information constant."
+      },
+      {
+       "name": "_SE_FILE_OBJECT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Security object type constant."
+      },
+      {
+       "name": "_SYSTEM_MANDATORY_LABEL_ACE_TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "ACE type constant."
+      },
+      {
+       "name": "_SID_AND_ATTRIBUTES",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for SID and attributes."
+      },
+      {
+       "name": "_TOKEN_MANDATORY_LABEL",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for token mandatory label."
+      },
+      {
+       "name": "_STARTUPINFOW",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for STARTUPINFOW."
+      },
+      {
+       "name": "_STARTUPINFOEXW",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for STARTUPINFOEXW."
+      },
+      {
+       "name": "_PROCESS_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for PROCESS_INFORMATION."
+      },
+      {
+       "name": "_UNICODE_STRING",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for UNICODE_STRING."
+      },
+      {
+       "name": "_OBJECT_ATTRIBUTES",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for OBJECT_ATTRIBUTES."
+      },
+      {
+       "name": "_IO_STATUS_BLOCK",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for IO_STATUS_BLOCK."
+      },
+      {
+       "name": "_PUBLIC_OBJECT_BASIC_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for public object basic info."
+      },
+      {
+       "name": "_FILE_ID_INFO",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for FILE_ID_INFO."
+      },
+      {
+       "name": "_ACL",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for ACL."
+      },
+      {
+       "name": "_ACE_HEADER",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for ACE header."
+      },
+      {
+       "name": "_IO_COUNTERS",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for I/O counters."
+      },
+      {
+       "name": "_JOBOBJECT_BASIC_LIMIT_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for job object basic limit info."
+      },
+      {
+       "name": "_JOBOBJECT_BASIC_ACCOUNTING_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for job object basic accounting info."
+      },
+      {
+       "name": "_JOBOBJECT_EXTENDED_LIMIT_INFORMATION",
+       "kind": "class",
+       "effects": [],
+       "note": "ctypes Structure for job object extended limit info."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Containment could not be established. NEVER downgraded silently.",
+       "where": "ContainmentUnavailable docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring states a design intent; no code in this chunk verifies that the exception is never caught and downgraded."
+      },
+      {
+       "text": "True only where the measured mechanism exists. No optimism.",
+       "where": "platform_supported docstring",
+       "verdict": "kept",
+       "why": "The function returns os.name == 'nt', which is True on Windows and False elsewhere, consistent with the claim that the mechanism exists only on Windows."
+      },
+      {
+       "text": "Without them ctypes assumes c_int and truncates the 64-bit pseudo-handle from GetCurrentProcess; that surfaces as ERROR_INVALID_HANDLE and reads exactly like 'the OS refused us', which cost a debugging round the first time this was measured.",
+       "where": "Comment before _kernel32.GetCurrentProcess.restype",
+       "verdict": "kept",
+       "why": "The code sets restype and argtypes explicitly for GetCurrentProcess and other APIs, addressing the described issue."
+      },
+      {
+       "text": "NEVER SET. Named so that the read-back can assert their ABSENCE: with either of these a child may call CreateProcess with CREATE_BREAKAWAY_FROM_JOB and step outside every limit above, which would make the whole job decorative. Absence is the Windows default, and a default is precisely the kind of thing that changes without telling you.",
+       "where": "Comment before _JOB_OBJECT_LIMIT_BREAKAWAY_OK and _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK",
+       "verdict": "uncheckable",
+       "why": "The constants are defined but never used in this chunk; the claim about read-back and assertion of absence refers to code outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "All Windows API bindings are inside a conditional block for os.name == 'nt', ensuring they are only loaded on Windows.",
+       "where": "Lines ~290-550",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Explicit ctypes signatures are set for many Windows API functions, preventing truncation of 64-bit handles.",
+       "where": "_kernel32.GetCurrentProcess.restype and others",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _win_error function uses ctypes.get_last_error() only if os.name == 'nt', else returns 0; on non-Windows the error code is meaningless.",
+       "where": "_win_error function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8ada6b28f0b660dcf1f4dcfed347fd813c17ebb6b7729624730bc8f4d4237fc1",
+    "objective_chars": 14053,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [2/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 2,
+  "total": 6,
+  "first_line": 281
+ }
+}

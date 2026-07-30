@@ -1,0 +1,217 @@
+{
+ "task_id": "scan__daedalus_kairos_archive.py__c2of3__946db82",
+ "key": "scan__daedalus_kairos_archive.py__c2of3__946db82-2676bdd616",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of archive.py: defines digest_patch, _truncate, record_attempt, load_attempts, sample_inspirations. Claims verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_truncate | medium | Truncation keeps tail, but if text length <= limit, returns original; tail logic only applies when exceeding limit. Verified correct.",
+     "record_attempt | medium | Truncates summary and limits unfixed to 20; patch_digest not truncated. Claim about truncation happening here is kept.",
+     "load_attempts | low | Skips unparseable lines; returns empty on OSError. Claim 'never raises' is kept.",
+     "sample_inspirations | medium | Deduplication by digest and exclude_digest logic visible; outcome-based diversity claim is uncheckable (no outcome filtering code shown).",
+     "sample_inspirations | low | Failures included; no filtering to winners. Claim kept.",
+     "sample_inspirations | medium | Ordering best-first not visible; pool order depends on input iteration order. Claim uncheckable.",
+     "sample_inspirations | low | 'fully deterministic given rng' kept; rng used only if provided, else Random(0)."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/archive.py",
+     "chunk": "2 of 3",
+     "purpose": "Define patch digest, truncation, record/load attempts, and sample inspirations.",
+     "symbols": [
+      {
+       "name": "digest_patch",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns first 16 hex chars of SHA-256 of encoded patch bytes."
+      },
+      {
+       "name": "_truncate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Truncates text to limit, keeping tail if over limit; prepends '...'."
+      },
+      {
+       "name": "record_attempt",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends one JSONL line to path; creates parent dirs; returns truncated Attempt."
+      },
+      {
+       "name": "load_attempts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads JSONL file, skips unparseable lines, returns tuple of Attempt; never raises."
+      },
+      {
+       "name": "sample_inspirations",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Samples attempts with deduplication by digest; excludes exclude_digest; outcome diversity not enforced in visible code."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Stable short identity for a change, so duplicates are recognisable.",
+       "where": "digest_patch",
+       "verdict": "kept",
+       "why": "Returns first 16 hex chars of SHA-256; deterministic and short."
+      },
+      {
+       "text": "Two candidates that produced byte-identical changes are the same attempt for inspiration purposes, and saying so costs 16 hex characters instead of a diff.",
+       "where": "digest_patch",
+       "verdict": "kept",
+       "why": "Digest length is 16 hex chars; identical patches produce same digest."
+      },
+      {
+       "text": "Keep the TAIL: a traceback's last lines carry the actual error, and the head is import noise.",
+       "where": "_truncate",
+       "verdict": "kept",
+       "why": "Truncation keeps the tail by taking last (limit-3) characters."
+      },
+      {
+       "text": "Append-only and one JSON object per line, so a crashed run leaves a readable prefix rather than a corrupt document, and two processes appending cannot interleave a half-record into another's.",
+       "where": "record_attempt",
+       "verdict": "kept",
+       "why": "Uses 'a' mode; writes single JSON line per call. OS append is atomic for small writes on most systems."
+      },
+      {
+       "text": "Truncation happens HERE, not at the call site, so there is a single place that decides how much candidate-influenced text is allowed to persist.",
+       "where": "record_attempt",
+       "verdict": "kept",
+       "why": "Calls _truncate on summary and limits unfixed to 20; no truncation elsewhere visible."
+      },
+      {
+       "text": "Read the notebook. Never raises.",
+       "where": "load_attempts",
+       "verdict": "kept",
+       "why": "Catches OSError and returns empty tuple; catches ValueError/TypeError/AttributeError per line."
+      },
+      {
+       "text": "A line that will not parse is SKIPPED rather than fatal: this is advisory data, and a torn final line from a killed process must not take down the run that comes after it.",
+       "where": "load_attempts",
+       "verdict": "kept",
+       "why": "Skips lines that raise (ValueError, TypeError, AttributeError) during json.loads or Attempt.from_dict."
+      },
+      {
+       "text": "Pick a few prior attempts worth showing the next one.",
+       "where": "sample_inspirations",
+       "verdict": "uncheckable",
+       "why": "The docstring describes intent; actual selection logic not fully visible (no sorting or diversity enforcement shown)."
+      },
+      {
+       "text": "Adapted from upstream database.py::_sample_inspirations: take the best few, then FILL THE REST WITH VARIETY rather than with more of the best.",
+       "where": "sample_inspirations",
+       "verdict": "uncheckable",
+       "why": "Upstream reference not available; variety logic not implemented in visible code (no outcome-based filtering)."
+      },
+      {
+       "text": "Upstream draws its variety from neighbouring MAP-Elites cells; without a feature grid we approximate the same intent by preferring attempts whose OUTCOME class is not already represented, which is the coarsest honest diversity signal available from data we actually have.",
+       "where": "sample_inspirations",
+       "verdict": "uncheckable",
+       "why": "No outcome-based filtering visible in this chunk; claim about diversity signal not implemented here."
+      },
+      {
+       "text": "DEDUPLICATION BY DIGEST. Five candidates that made byte-identical changes are one lesson, not five, and showing the same failing patch five times is how a loop talks itself into a rut.",
+       "where": "sample_inspirations",
+       "verdict": "kept",
+       "why": "Uses 'seen' set to skip attempts with duplicate patch_digest; excludes exclude_digest."
+      },
+      {
+       "text": "exclude_digest drops the attempt currently being worked on, so a candidate is never offered itself as inspiration.",
+       "where": "sample_inspirations",
+       "verdict": "kept",
+       "why": "Initializes seen with exclude_digest if non-empty."
+      },
+      {
+       "text": "Failures are as instructive as successes here -- a regressed attempt tells the next one what not to touch -- so this does NOT filter to winners.",
+       "where": "sample_inspirations",
+       "verdict": "kept",
+       "why": "No filtering based on outcome visible; all attempts added to pool."
+      },
+      {
+       "text": "Ordering is best-first and fully deterministic given rng.",
+       "where": "sample_inspirations",
+       "verdict": "uncheckable",
+       "why": "No sorting visible; pool order depends on input iteration. rng used only for random seeding, not for ordering."
+      }
+     ],
+     "observations": [
+      {
+       "what": "digest_patch returns first 16 hex chars of SHA-256; deterministic.",
+       "where": "digest_patch",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_truncate keeps tail when text exceeds limit; prepends '...'.",
+       "where": "_truncate",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "record_attempt writes one JSONL line; creates parent dirs; truncates summary and unfixed.",
+       "where": "record_attempt",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_attempts never raises; skips unparseable lines; returns empty tuple if file missing or unreadable.",
+       "where": "load_attempts",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "sample_inspirations deduplicates by patch_digest; excludes exclude_digest; no outcome-based diversity or sorting visible.",
+       "where": "sample_inspirations",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ac3f31be425d7bd5b63996e75211acdb94969d069647728dc31c798529aebcfb",
+    "objective_chars": 5128,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/archive.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/archive.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

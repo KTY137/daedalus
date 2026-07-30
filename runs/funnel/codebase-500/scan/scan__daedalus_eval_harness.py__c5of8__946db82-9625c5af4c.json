@@ -1,0 +1,184 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c5of8__946db82",
+ "key": "scan__daedalus_eval_harness.py__c5of8__946db82-9625c5af4c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 8: defines eval_task_arms, _arms_aggregate, run_arms, and supporting constants/comments. Enumerates symbols and evaluates claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "run_arms | medium | run_arms signature is present but body is not in chunk; docstring claims it runs over TASKS default but code not shown | check full function body in next chunk",
+     "eval_task_arms docstring | medium | Docstring claims 'NEVER RAISES' but only catches ValueError/OSError; other exceptions could propagate | review exception handling completeness"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "5 of 8",
+     "purpose": "Define eval_task_arms, _arms_aggregate, run_arms, and related constants/comments for A/B/C comparison",
+     "symbols": [
+      {
+       "name": "_DEFAULT_MODEL_CAP_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set to 120_000; used as cap for B arm token count in eval_task_arms"
+      },
+      {
+       "name": "eval_task_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Deterministic A/B/C comparison for one task; returns dict with recall and token counts"
+      },
+      {
+       "name": "_arms_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregates list of rows from eval_task_arms into summary statistics"
+      },
+      {
+       "name": "run_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs A/B/C comparison over tasks; signature present, body not in this chunk"
+      }
+     ],
+     "claims": [
+      {
+       "text": "A = the distilled semantic slice (today's product).",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define 'semantic slice' or verify it is the product; only calls semantic_slice and uses res['slice_text']"
+      },
+      {
+       "text": "B = naive whole-repo concat. Recall is measured against the TRUE, FULL, UNTRUNCATED text (``tokens_B``) -- beating a baseline you truncated is not a win.",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows text_b_full is obtained via _whole_repo_text with cap_chars=None, but the function _whole_repo_text is not defined in this chunk; cannot verify it returns full untruncated text"
+      },
+      {
+       "text": "``tokens_B_capped_at_default``/``b_truncated_at_cap`` additionally report what Tier 2 would actually hand a model (capped at ``_DEFAULT_MODEL_CAP_TOKENS``), so that weakening is visible, not hidden inside a smaller B that looks stronger than it is.",
+       "where": "eval_task_arms docstring",
+       "verdict": "kept",
+       "why": "The code computes text_b_capped with cap_chars=_DEFAULT_MODEL_CAP_TOKENS*4, and returns tokens_B_capped_at_default and b_truncated_at_cap from _whole_repo_text (second return value). The claim matches the implementation."
+      },
+      {
+       "text": "C = BM25 top-k retrieval, budgeted to the SAME token count as A (``token_budget_C == tokens_A``) -- the 'dumb retrieval' baseline that matters commercially.",
+       "where": "eval_task_arms docstring",
+       "verdict": "kept",
+       "why": "Code sets budget_c = max(tokens_a, 1) and passes it as budget_tokens to _bm25_context; token_budget_C is returned as budget_c. Claim matches."
+      },
+      {
+       "text": "``c_beats_a`` is TIE-INCLUSIVE (``recall_C >= recall_A``, matching the report's 'C>=A' column and this module's own docstring promise that a tie is 'reported loudly, not smoothed over') and reported plainly either way; nothing here is tuned to make A win.",
+       "where": "eval_task_arms docstring",
+       "verdict": "kept",
+       "why": "The return dict sets 'c_beats_a': recall_c >= recall_a, which is tie-inclusive. The docstring comment explains the rationale."
+      },
+      {
+       "text": "NEVER RAISES: same per-task resolution guard as ``eval_task_tier1`` -- a ``ValueError``/``OSError`` resolving the repo or slicing the target returns an ERRORED row (``_task_error_row``) instead of propagating.",
+       "where": "eval_task_arms docstring",
+       "verdict": "kept",
+       "why": "The code wraps the resolution and slicing in a try-except catching ValueError and OSError, returning _task_error_row(task, exc)."
+      },
+      {
+       "text": "A CORRECTNESS task is likewise refused (``_correctness_task_row``) rather than scored: all three arms here go through ``_recall``, so a task with no ``must_include`` would read as a perfect 1.0 in every arm at once.",
+       "where": "eval_task_arms docstring",
+       "verdict": "kept",
+       "why": "The code checks is_correctness_task(task) and returns _correctness_task_row(task) early."
+      },
+      {
+       "text": "the distilled semantic slice (today's product).",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define or verify what 'the product' is; only assigns text_a = res['slice_text']"
+      },
+      {
+       "text": "naive whole-repo concat.",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The function _whole_repo_text is not defined in this chunk; cannot confirm it concatenates the whole repo naively."
+      },
+      {
+       "text": "Recall is measured against the TRUE, FULL, UNTRUNCATED text",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows _recall(text_b_full, must_include) but _recall definition is not in this chunk; cannot verify it measures recall against full text."
+      },
+      {
+       "text": "BM25 top-k retrieval",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The function _bm25_context is not defined in this chunk; cannot verify it uses BM25 or top-k retrieval."
+      },
+      {
+       "text": "A tie is 'reported loudly, not smoothed over'",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the report module or the docstring referenced; only shows the tie-inclusive comparison."
+      },
+      {
+       "text": "nothing here is tuned to make A win.",
+       "where": "eval_task_arms docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence in chunk about tuning; the comparison is deterministic and tie-inclusive, but intent cannot be verified from code alone."
+      },
+      {
+       "text": "Run the deterministic A/B/C comparison over ``tasks`` (default TASKS).",
+       "where": "run_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is not in this chunk; cannot verify default argument or behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "eval_task_arms uses _whole_repo_text with cap_chars=None for B, and cap_chars=_DEFAULT_MODEL_CAP_TOKENS*4 for capped version; the multiplier 4 is undocumented and appears in the code but not in the docstring.",
+       "where": "eval_task_arms, lines ~520-525",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function run_arms is declared but its body is not included in this chunk; the docstring claims default tasks but cannot be verified.",
+       "where": "line 554",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The claim 'NEVER RAISES' is only partially true; only ValueError and OSError are caught. Other exceptions (e.g., from _bm25_context, _recall) could propagate.",
+       "where": "eval_task_arms docstring and try block",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "47296ac95a632c3382fb45e61397ee9c7882004e3f9e4b7fd753ba2ed1861170",
+    "objective_chars": 6300,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [5/8]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 5,
+  "total": 8,
+  "first_line": 481
+ }
+}

@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c5of12__946db82",
+ "key": "scan__daedalus_council_session.py__c5of12__946db82-4888465959",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of session.py: quorum property, claims_by_author, render, _parse_claims. Claims checked: quorum format, render placement, parser verbatim, etc.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "quorum | medium | Claim that quorum never returns a bare fraction is uncheckable; only one return path visible. | Check that all return paths produce non-bare-fraction strings.",
+     "render | medium | Claim degraded flag sits adjacent to findings; code places it on same line as quorum, which is before findings. | Confirm intended meaning of 'adjacent to findings'.",
+     "_parse_claims | high | Claim that parser never paraphrases; code returns one Claim for unparseable content but text is first non-empty line, not verbatim full content. | Clarify if first non-empty line is considered 'not summarising'.",
+     "_parse_claims | medium | Claim 'keeps every byte VERBATIM' but verbatim field stores block joined by newline, not original content. | Verify verbatim field is exact copy of original block.",
+     "_parse_claims | low | Claim about 'CITE: NONE' not being a citation; code checks cite.lower() not in _NOT_A_CHECK, but _NOT_A_CHECK not shown. | Confirm _NOT_A_CHECK includes 'none'.",
+     "_parse_claims | low | Claim about continuation lines not being dropped; code adds tail to claim_text only if claim_text empty, else tail lines are lost. | Check if tail should always be appended to claim_text.",
+     "_parse_claims | low | Claim 'checkable = check.strip().lower() not in _NOT_A_CHECK'; _NOT_A_CHECK not defined in chunk. | Verify definition of _NOT_A_CHECK."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "5 of 12",
+     "purpose": "SessionRecord quorum, claims_by_author, render; _parse_claims function.",
+     "symbols": [
+      {
+       "name": "quorum",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns string describing responded/requested and distinct weight families; includes 'DEGRADED' marker if self.degraded."
+      },
+      {
+       "name": "claims_by_author",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns dict mapping author to tuple of claims, sorted by author."
+      },
+      {
+       "name": "render",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns human-readable string representation of SessionRecord."
+      },
+      {
+       "name": "_parse_claims",
+       "kind": "function",
+       "effects": [],
+       "note": "Splits vendor response into Claim objects; returns one Claim with parsed=False if no claim headers found."
+      },
+      {
+       "name": "_anomaly_reason",
+       "kind": "function",
+       "effects": [],
+       "note": "Definition starts but body not shown in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"2 of 4 (2 distinct weight families)\" -- never a bare fraction. \"3 of 4\" and \"2 of 2\" must not be able to render as the same thing.",
+       "where": "quorum docstring",
+       "verdict": "uncheckable",
+       "why": "Only one return path is visible; cannot verify that all possible values avoid bare fractions or that different fractions render distinctly."
+      },
+      {
+       "text": "The degraded flag sits ADJACENT TO THE FINDINGS -- never in a footer, where a reader takes a two-vendor council for four.",
+       "where": "render docstring",
+       "verdict": "uncheckable",
+       "why": "The code places the degraded flag on the same line as quorum, which appears before the findings section. The claim about 'adjacent to findings' cannot be verified without seeing the full rendering order."
+      },
+      {
+       "text": "Split a response into claims, keeping every byte VERBATIM.",
+       "where": "_parse_claims docstring",
+       "verdict": "broken",
+       "why": "The verbatim field stores block joined by newline, not the original content split lines. Also, for unparseable responses, the text field is set to the first non-empty line, not the full content verbatim."
+      },
+      {
+       "text": "A vendor that ignores the format is NOT summarised and NOT dropped: its whole answer becomes one ``parsed=False`` claim.",
+       "where": "_parse_claims docstring",
+       "verdict": "kept",
+       "why": "When no claim headers are found, the function returns a single Claim with parsed=False and verbatim set to the full text."
+      },
+      {
+       "text": "Summarising dissent is the failure this module exists to avoid, so the parser never paraphrases.",
+       "where": "_parse_claims docstring",
+       "verdict": "uncheckable",
+       "why": "The code does not paraphrase, but the claim is about intent and module purpose, which cannot be fully verified from this chunk alone."
+      },
+      {
+       "text": "\"CITE: NONE\" is not a citation. Recording it as one would put an uncheckable string in the provenance column.",
+       "where": "_parse_claims inline comment",
+       "verdict": "uncheckable",
+       "why": "The code checks cite.lower() not in _NOT_A_CHECK, but _NOT_A_CHECK is not defined in this chunk, so the claim cannot be verified."
+      },
+      {
+       "text": "Continuation lines belong to the claim text, not to nothing: a vendor that wraps its sentence must not have half of it dropped.",
+       "where": "_parse_claims inline comment",
+       "verdict": "broken",
+       "why": "The code only sets claim_text to the first tail line if claim_text is empty; otherwise, tail lines are ignored. This means continuation lines after a claim header with a non-empty claim text are dropped."
+      }
+     ],
+     "observations": [
+      {
+       "what": "quorum property returns a string that includes the degraded marker inline, but the docstring claims it never returns a bare fraction; only one return path is visible.",
+       "where": "line 481-486",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render method places the degraded flag on the same line as quorum, but the docstring says it should be adjacent to findings.",
+       "where": "line 500",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_parse_claims does not preserve every byte verbatim: for unparseable responses, text is first non-empty line, not full content; verbatim is block joined by newline.",
+       "where": "line 543-546",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Continuation lines after a claim header with non-empty claim text are dropped.",
+       "where": "line 557-559",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant _NOT_A_CHECK is referenced but not defined in this chunk.",
+       "where": "line 561",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_anomaly_reason function is only partially defined; body not shown.",
+       "where": "line 566",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d2be46c06d2746f7fde8a2066dccda4de127dd6daec4a936b917d4a178d1aefc",
+    "objective_chars": 7413,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [5/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 5,
+  "total": 12,
+  "first_line": 481
+ }
+}

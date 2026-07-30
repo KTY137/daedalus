@@ -1,0 +1,116 @@
+{
+ "task_id": "research__b013__946db82",
+ "key": "research__b013__946db82-aa79358c2a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals a systemic pattern: multiple modules independently validate inputs with strict checks but then silently ignore failures in adjacent subsystems, creating gaps where invalid state can propagate.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Validation gaps can allow invalid data to propagate across subsystem boundaries, leading to silent data corruption or security bypasses.",
+     "Inconsistent error handling increases the likelihood of unhandled exceptions in production.",
+     "Shared assumptions about data shape are not enforced by a common library, so each module's validators drift independently."
+    ],
+    "todos": [
+     "Audit all callers of secret_floor_rule to ensure they respect the 'fixed string label' contract.",
+     "Add a common validation layer for path and content scanning to eliminate redundant scanning.",
+     "Ensure promote_candidates catches all exceptions, not just PromotionUnavailable, to uphold its 'never raises' contract.",
+     "Verify that work_queue_candidates' fail-closed behavior is consistent with how other modules handle malformed input."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "redundant-scan",
+       "claim": "The secret floor scanning in bus.py scans evidence paths twice: once in _scan_paths and again in _scan_turn when it adds those same paths to the texts list for _scan_texts. This duplicates work and could cause double-counting of rule hits.",
+       "spans": [
+        "daedalus/council/bus.py"
+       ],
+       "mechanism": "_scan_turn builds a list of texts that includes evidence paths (line 275-276), then calls _scan_texts on that list. But _scan_paths already scanned those paths separately. So each path is scanned twice.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that _scan_turn's texts list does not include paths, or that _scan_paths is not called before _scan_turn.",
+       "evidence": [
+        "daedalus/council/bus.py:_scan_paths",
+        "daudalus/council/bus.py:_scan_turn line 275-276"
+       ]
+      },
+      {
+       "id": "exception-leak",
+       "claim": "promote_candidates claims 'Never raises' but only catches PromotionUnavailable. Any other exception (e.g., OSError from git operations) will propagate upward, breaking the contract and potentially crashing the caller.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py"
+       ],
+       "mechanism": "The try/except in promote_candidates (line 878) only catches PromotionUnavailable. The lock acquisition and _promote_locked calls can raise other exceptions (e.g., git errors, OSError) which are not caught, violating the docstring claim.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that _promote_locked or the lock context manager only raise PromotionUnavailable, or that the docstring is inaccurate.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py:promote_candidates line 878"
+       ]
+      },
+      {
+       "id": "label-contract",
+       "claim": "_scan_turn claims rule labels are 'fixed string -- NEVER matched text', but this contract is not enforced by any shared type or validation, so other modules (e.g., picker.py) might produce labels that include matched text, violating the assumption.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "bus.py's _scan_turn docstring states rule labels are fixed strings. But the secret_floor_rule function (not in these chunks) might return arbitrary text. If picker.py or other modules produce labels dynamically, the assumption breaks.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that secret_floor_rule always returns a fixed string label, or that all callers enforce the fixed-string contract.",
+       "evidence": [
+        "daedalus/council/bus.py:_scan_turn docstring",
+        "daedalus/spine/picker.py:work_queue_candidates"
+       ]
+      },
+      {
+       "id": "validation-silence",
+       "claim": "work_queue_candidates fails closed on malformed ready tasks, but other modules (e.g., bus.py's norm_evidence) also have strict validators. However, there is no shared validation framework, so different modules may accept or reject the same data inconsistently, leading to data that passes one module's checks but fails another's.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "Each module independently validates data (e.g., bus.py checks evidence dict shape, picker.py checks work queue structure). Without a common schema, a malformed piece of data might be accepted by one module but rejected by another, causing silent propagation.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all modules share a common validation library or that data flows are strictly typed and enforced by a central schema.",
+       "evidence": [
+        "daedalus/council/bus.py:_norm_evidence",
+        "daedalus/spine/picker.py:work_queue_candidates"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ad2bf35a1099342c6dbf05931a026351232c8b571b13c8341eca1623dcb5bd07",
+    "objective_chars": 20365,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 13 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 13,
+  "inputs": 5
+ }
+}

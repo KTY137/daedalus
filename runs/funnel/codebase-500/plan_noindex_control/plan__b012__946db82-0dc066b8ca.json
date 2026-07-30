@@ -1,0 +1,132 @@
+{
+ "task_id": "plan__b012__946db82",
+ "key": "plan__b012__946db82-0dc066b8ca",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings survived review: missing hash functions (critical, needs evidence), unverified docstring claims (critical, confirmed), token count mismatch (high, confirmed), budget error unaccounted (medium, narrowed). Plan: verify hash functions exist, audit render.py docstring, reconcile token counting, add budget error handling to canary.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If _body_sha and _entry_sha are missing, verify_chain will crash at runtime (critical).",
+     "render.py docstring may be misleading if claims are not implemented (critical).",
+     "Token count mismatch may cause confusion in reduction_pct reporting (high).",
+     "Budget errors silently ignored in canary, lane may appear healthy when actually unavailable (medium)."
+    ],
+    "todos": [
+     "Locate and verify _body_sha and _entry_sha in bus.py or imports.",
+     "Read full render.py and verify each docstring claim.",
+     "Compare token counting implementations in slice.py and harness.py.",
+     "Search for budget handling in canary.py and add if missing."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify _body_sha and _entry_sha exist in bus.py or imports",
+       "gate": "0",
+       "why_now": "Without these functions, verify_chain will fail at runtime (critical). Blocks all chain verification.",
+       "steps": [
+        {
+         "do": "Search for 'def _body_sha' and 'def _entry_sha' in full bus.py. If not found, check imports for external module.",
+         "file": "daedalus/bus.py",
+         "verified_by": "grep -n 'def _body_sha\\|def _entry_sha' daedalus/bus.py; if not found, grep -r '_body_sha\\|_entry_sha' daedalus/ --include='*.py'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full bus.py file exists at daedalus/bus.py and contains the relevant code."
+      },
+      {
+       "rank": 2,
+       "title": "Audit render.py docstring claims against implementation",
+       "gate": "1",
+       "why_now": "Docstring makes specific behavioral claims (analyse_once, gate mode, reconciliation, etc.) that are not verified. Misleading docs cause developer confusion and potential bugs.",
+       "steps": [
+        {
+         "do": "Read full render.py and verify each claim: analyse_once, gate mode, reconciliation, stamp generation, snapshot handling, escaping.",
+         "file": "daedalus/render.py",
+         "verified_by": "Manual review: for each claim, confirm corresponding function/class exists and behavior matches docstring."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Full render.py exists at daedalus/render.py and contains the implementation referenced in docstring."
+      },
+      {
+       "rank": 3,
+       "title": "Reconcile token counting methods between slice.py and harness.py",
+       "gate": "2",
+       "why_now": "Different denominators in reduction_pct calculation cause incomparable values, leading to incorrect budget decisions.",
+       "steps": [
+        {
+         "do": "Compare count_tokens in slice.py with _whole_repo_text in harness.py. Document differences and decide if unification is needed.",
+         "file": "daedalus/token/slice.py",
+         "verified_by": "Run both functions on same input and compare outputs; assert they are equal or document intentional difference."
+        },
+        {
+         "do": "If unification desired, update both files to use same counting method.",
+         "file": "daedalus/eval/harness.py",
+         "verified_by": "pytest tests/unit/test_token_counting.py"
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "The token counting functions are in daedalus/token/slice.py and daedalus/eval/harness.py respectively."
+      },
+      {
+       "rank": 4,
+       "title": "Add budget error detection to canary.py exit_code logic",
+       "gate": "2",
+       "why_now": "Currently budget errors are not reflected in canary exit code, so a lane unavailable due to budget constraints appears healthy (medium severity).",
+       "steps": [
+        {
+         "do": "Search for 'budget' or 'BudgetError' in canary.py. If not found, add handling to detect budget errors and set exit_code non-zero.",
+         "file": "daedalus/council/canary.py",
+         "verified_by": "grep -n 'budget\\|BudgetError' daedalus/council/canary.py; after changes, pytest tests/unit/test_canary.py -k 'budget'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "canary.py exists at daedalus/council/canary.py and budget errors are not currently handled."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/canary.py",
+      "daedalus/bus.py",
+      "daedalus/render.py",
+      "daedalus/token/slice.py",
+      "daedalus/eval/harness.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58f3a47c15c5ff4724af6ec71627270f2aab08fc5fb7591a018ef6ed1948447d",
+    "objective_chars": 6889,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 12 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 12,
+  "inputs": 4
+ }
+}

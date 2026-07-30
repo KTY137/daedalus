@@ -1,0 +1,150 @@
+{
+ "task_id": "scan__daedalus_spine_killswitch.py__c3of3__946db82",
+ "key": "scan__daedalus_spine_killswitch.py__c3of3__946db82-774e2860de",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 3: arm, stop, clear methods, _WatchScope, and CLI _main function. Claims verified against present code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_main | medium | The CLI parsing for 'arm' passes all remaining words as note, including '--force' if it appears after other args; note may contain '--force'. | Verify that intended behavior is to include '--force' in note or filter it out. Current code filters '--force' from rest only if it is one of the words; if user writes '--force' after a reason, it remains in note.",
+     "arm | low | The 'force' parameter deletes marker silently. If marker is a directory, os.unlink may fail and exception is caught. But if marker is a directory and force is True, the marker remains; arm proceeds. | Check if marker could be a directory; consider using os.remove or shutil.rmtree."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/killswitch.py",
+     "chunk": "3 of 3",
+     "purpose": "Defines arm, stop, clear methods, _WatchScope context manager, and CLI entry point _main.",
+     "symbols": [
+      {
+       "name": "KillSwitch.arm",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes permit file if no stop marker present (or force=True). Raises LoopHalted if marker present and not force."
+      },
+      {
+       "name": "KillSwitch.stop",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes marker first, then permit, both with STOP token. Raises LoopHalted if after writes the switch still reads as running."
+      },
+      {
+       "name": "KillSwitch.clear",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Deletes both marker and permit files; leaves switch stopped."
+      },
+      {
+       "name": "_WatchScope",
+       "kind": "class",
+       "effects": [],
+       "note": "Context manager that calls start_watch/stop_watch on a KillSwitch."
+      },
+      {
+       "name": "_WatchScope.__enter__",
+       "kind": "function",
+       "effects": [],
+       "note": "Calls start_watch on switch and returns it."
+      },
+      {
+       "name": "_WatchScope.__exit__",
+       "kind": "function",
+       "effects": [],
+       "note": "Calls stop_watch on switch."
+      },
+      {
+       "name": "_main",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "CLI entry point: parses args and calls appropriate KillSwitch method. Returns exit code."
+      }
+     ],
+     "claims": [
+      {
+       "text": "REFUSES if a stop marker is present unless ``force=True``. That refusal is the guard against the most likely way an unattended system undoes a human decision: the loop crashes, a supervisor restarts it, its startup path calls ``arm()``, and the 3am stop evaporates. Re-arming after a deliberate stop has to be a deliberate act.",
+       "where": "arm docstring",
+       "verdict": "kept",
+       "why": "Code in arm checks _marker_present() and raises LoopHalted if present and not force. The reasoning about loop crash/restart is not checkable in code but the behavior matches."
+      },
+      {
+       "text": "MARKER FIRST, and that order is load-bearing twice over: * If the process dies between the two writes, the permit still says ``RUN`` -- but the marker alone already means stop, so the crash window resolves to STOPPED rather than to running. * :meth:`_marker_present` uses ``os.stat``, which does not open the file, so nothing a poller does can block the marker being written. The permit rewrite is the one that can lose a sharing race, and by then the stop has ALREADY taken effect.",
+       "where": "stop docstring",
+       "verdict": "kept",
+       "why": "Code writes marker first (self._marker) then permit (self._path). The claim about os.stat is uncheckable because _marker_present is defined elsewhere, but the order is confirmed."
+      },
+      {
+       "text": "Neither write failing is swallowed and neither is allowed to abort a stop that did take: this raises only if, after both attempts, the switch still reads as running. An operator's stop command must be loud when it did nothing and quiet when it worked.",
+       "where": "stop docstring",
+       "verdict": "kept",
+       "why": "Errors from writes are collected but not raised immediately. After both writes, if read_state().running is True, raises LoopHalted. If running is False, returns state without raising."
+      },
+      {
+       "text": "Remove permit and marker. Leaves the switch STOPPED (no permit).",
+       "where": "clear docstring",
+       "verdict": "kept",
+       "why": "Code deletes both _marker and _path files. After deletion, no permit exists, so switch is stopped."
+      }
+     ],
+     "observations": [
+      {
+       "what": "arm method: when force=True, it attempts to unlink the marker and ignores OSError. If unlink fails (e.g., permission), marker may remain and arm proceeds.",
+       "where": "arm method, line ~571",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "stop method: errors from writes are collected but never raised. If both writes fail and read_state still reads as running, the error messages are included in the raised LoopHalted. But if read_state returns not running, errors are silently ignored.",
+       "where": "stop method, lines ~595-615",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_main function: for 'arm' verb, it filters '--force' from rest only if it is an exact word; if user writes '--force' as part of a longer string, it remains. Also, if '--force' appears after a reason word, it is not removed from note.",
+       "where": "_main function, line ~632",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "299883b1f4493267c6288b2822376d681441a1f2c3eb1296a17dd474adb19e99",
+    "objective_chars": 6076,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/killswitch.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/killswitch.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

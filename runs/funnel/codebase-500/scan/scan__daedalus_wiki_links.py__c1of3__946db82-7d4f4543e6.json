@@ -1,0 +1,253 @@
+{
+ "task_id": "scan__daedalus_wiki_links.py__c1of3__946db82",
+ "key": "scan__daedalus_wiki_links.py__c1of3__946db82-7d4f4543e6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of 3 of daedalus/wiki/links.py: defines WikiLink dataclass, extract_wikilinks, LinkIndex, constants, and regex for wikilinks. Verified claims about link forms, refusal to guess, bounded limits, and local graph philosophy.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/wiki/links.py",
+     "chunk": "1 of 3",
+     "purpose": "Define wikilink parsing, data structures, and local graph philosophy for the wiki link system.",
+     "symbols": [
+      {
+       "name": "LINKS_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Version string '1' for the link index."
+      },
+      {
+       "name": "MAX_LINKS_PER_PAGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of links extracted per page, set to 500."
+      },
+      {
+       "name": "MAX_MENTIONS_PER_PAGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of mentions per page, set to 50."
+      },
+      {
+       "name": "MAX_LOCAL_NODES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of nodes in local graph, set to 200."
+      },
+      {
+       "name": "_WIKILINK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex pattern to match wikilinks including embed, target, anchor, and alias."
+      },
+      {
+       "name": "DOC",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'doc' for link kind."
+      },
+      {
+       "name": "CODE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'code' for link kind."
+      },
+      {
+       "name": "TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'type' for link kind."
+      },
+      {
+       "name": "VAULT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'vault' for link kind."
+      },
+      {
+       "name": "WikiLink",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing a parsed wikilink with kind, target, anchor, alias, embed, line."
+      },
+      {
+       "name": "WikiLink.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of the WikiLink."
+      },
+      {
+       "name": "extract_wikilinks",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts all wikilinks from a page body string, returning list of WikiLink objects. No I/O."
+      },
+      {
+       "name": "LinkIndex",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding forward/backward link maps, code_links, type_links, cross_vault, unresolved lists."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the local walk is the primary product here and the global one is not built at all",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "No global graph construction is present in this chunk."
+      },
+      {
+       "text": "``[[Note]]``                 a page, by title or by path",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The regex _WIKILINK matches [[target]] and extract_wikilinks sets kind to DOC for targets without prefix."
+      },
+      {
+       "text": "``[[Note#Heading]]``         a section of a page",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Regex captures optional #anchor group, and WikiLink stores anchor."
+      },
+      {
+       "text": "``[[Note|shown text]]``      an alias; the target is unchanged",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Regex captures optional |alias group, and WikiLink stores alias."
+      },
+      {
+       "text": "``![[Note]]``                an embed rather than a link \u2014 a different relation",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Regex captures optional !embed group, and WikiLink stores embed boolean."
+      },
+      {
+       "text": "``[[code:path/to/f.py]]``    a doc -> code edge (Swimm's idea: a real edge, not a URL)",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "extract_wikilinks checks for 'code:' prefix and sets kind to CODE."
+      },
+      {
+       "text": "``[[code:path#symbol]]``     a doc -> symbol edge",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Regex captures anchor after #, and extract_wikilinks sets kind to CODE for 'code:' prefix."
+      },
+      {
+       "text": "``[[type:TypeName]]``        a doc -> type edge; PARSED and COUNTED, never resolved here, because the type layer is built separately and importing it would couple the wiki to an index build",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "extract_wikilinks sets kind to TYPE for 'type:' prefix; no resolution code present."
+      },
+      {
+       "text": "``[[vault:name/page]]``      cross-vault. Parsed so it is visible, resolved only when a registry is supplied \u2014 and DEFERRED as a feature, because cross-vault resolution needs the multi-root join nobody has built.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "extract_wikilinks sets kind to VAULT for 'vault:' prefix; no resolution code present."
+      },
+      {
+       "text": "a link that does not resolve to something present is DROPPED and COUNTED, never bound to a near-match; a link matching MORE THAN ONE candidate is AMBIGUOUS and produces no edge at all.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Resolution logic is not in this chunk; only parsing is present."
+      },
+      {
+       "text": "MAX_LINKS_PER_PAGE = 500",
+       "where": "line 55",
+       "verdict": "kept",
+       "why": "Constant defined as 500."
+      },
+      {
+       "text": "MAX_MENTIONS_PER_PAGE = 50",
+       "where": "line 56",
+       "verdict": "kept",
+       "why": "Constant defined as 50."
+      },
+      {
+       "text": "MAX_LOCAL_NODES = 200",
+       "where": "line 57",
+       "verdict": "kept",
+       "why": "Constant defined as 200."
+      },
+      {
+       "text": "Every wikilink in a page body, in source order. No resolution, no I/O.",
+       "where": "extract_wikilinks docstring",
+       "verdict": "kept",
+       "why": "Function uses regex finditer which returns matches in order; no I/O or resolution performed."
+      },
+      {
+       "text": "Forward and reverse edges over one vault. Derived; regenerate and it is true.",
+       "where": "LinkIndex docstring",
+       "verdict": "uncheckable",
+       "why": "No methods for derivation or regeneration are present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "extract_wikilinks uses a binary search on line starts for line number calculation, which is efficient but assumes starts list is sorted.",
+       "where": "extract_wikilinks, line_of function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The prefix matching for kind is case-insensitive (raw.lower().startswith(prefix)), but the regex target group may contain mixed case; this is consistent with typical wiki behavior.",
+       "where": "extract_wikilinks, line 79-82",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "LinkIndex fields are typed as dict and list but not constrained; forward and backward are defaultdict(list) via lambda, but type hints use plain dict.",
+       "where": "LinkIndex class definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The regex _WIKILINK allows empty anchor or alias; these are stored as empty strings and later stripped.",
+       "where": "_WIKILINK regex and extract_wikilinks",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk does not include any code for resolving links, building the index, or handling cross-vault links; those are deferred.",
+       "where": "whole chunk",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "395f95435987dbb4e9c0a9c7db9562279249ff914fe6fa931aa4896d3b60bb9d",
+    "objective_chars": 5301,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/links.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/links.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

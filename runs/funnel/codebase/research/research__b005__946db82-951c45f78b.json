@@ -1,0 +1,108 @@
+{
+ "task_id": "research__b005__946db82",
+ "key": "research__b005__946db82-951c45f78b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified 3 cross-file patterns: (1) inconsistent error handling for missing dict keys across modules; (2) unenforced approval protocol with NotImplementedError; (3) potential race condition due to multiple process spawns without coordination.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "KeyError crashes in report renderers if result dict is malformed",
+     "Calling approve/reject on subprocess adapter crashes due to NotImplementedError",
+     "Multiple process spawns in subprocess_adapter and attempt.py could race or leak resources"
+    ],
+    "todos": [
+     "Add missing key checks in render_tier1 and render_arms",
+     "Implement or guard against approve/reject calls in subprocess_adapter",
+     "Add process lifecycle coordination between stream, interrupt, terminate"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "missing-key-crash",
+       "claim": "Multiple modules assume that nested dict keys exist without checking, leading to KeyError crashes when data is incomplete.",
+       "spans": [
+        "daedalus/eval/report.py",
+        "daedalus/mapping/render.py"
+       ],
+       "mechanism": "render_tier1 and render_arms access result['per_task'] and result['by_provenance'] directly without .get() or try/except. If the result dict lacks these keys (e.g., from a partial pipeline run), the program crashes. Similarly, _provenance_breakdown_lines expects a specific structure inside by_provenance. In render.py, _reconciliation accesses data fields without null checks.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If all callers guarantee that result dicts always contain the required keys, the risk is eliminated. Evidence of such a guarantee in the harness code would refute this.",
+       "evidence": [
+        "daedalus/eval/report.py:render_tier1 (~line 150): result['per_task']",
+        "daedalus/eval/report.py:render_arms (~line 210): result['per_task']",
+        "daedalus/eval/report.py:_provenance_breakdown_lines (~line 90): by_provenance dict",
+        "daedalus/mapping/render.py:_reconciliation: data fields"
+       ]
+      },
+      {
+       "id": "unimplemented-approval",
+       "claim": "The approval protocol (approve/reject) is declared but raises NotImplementedError, and there is no guard preventing its invocation, which would crash the agent.",
+       "spans": [
+        "daedalus/adapters/subprocess_adapter.py"
+       ],
+       "mechanism": "The subprocess adapter defines approve() and reject() methods that raise NotImplementedError. The comment states they are not needed for one-shot CLI profiles, but the methods are public and could be called by the harness or a user. If invoked, the agent crashes.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If the harness never calls approve/reject on this adapter (e.g., all call paths are guarded by a feature flag), the risk is mitigated. Evidence of such a guard in the harness code would refute this.",
+       "evidence": [
+        "daedalus/adapters/subprocess_adapter.py:approve (line ~384): raise NotImplementedError",
+        "daedalus/adapters/subprocess_adapter.py:reject (line ~387): raise NotImplementedError"
+       ]
+      },
+      {
+       "id": "process-spawn-race",
+       "claim": "Multiple modules spawn subprocesses without coordination, leading to potential race conditions or resource leaks when processes are interrupted/terminated while being spawned.",
+       "spans": [
+        "daedalus/adapters/subprocess_adapter.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "subprocess_adapter.stream spawns a process and yields events. interrupt/terminate send signals or kill the process. attempt.py:_resolve_base, _capture_patch, _post_gate_artifact_stable, _run_gates also spawn processes via _git. There is no shared lock or coordination between these process spawns. If stream is running while a gate process is spawned, or if terminate is called concurrently with a spawn, the subprocess may be in an inconsistent state.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If all process spawns are sequential (e.g., run_attempt waits for stream to finish before spawning gates), or if there is a global process manager, this is not a race. Evidence of sequential execution or a manager would refute this.",
+       "evidence": [
+        "daedalus/adapters/subprocess_adapter.py:stream: process_spawn",
+        "daedalus/adapters/subprocess_adapter.py:interrupt: process_spawn",
+        "daedalus/adapters/subprocess_adapter.py:terminate: process_spawn",
+        "daedalus/spine/attempt.py:_resolve_base: process_spawn",
+        "daedalus/spine/attempt.py:_capture_patch: process_spawn",
+        "daedalus/spine/attempt.py:_post_gate_artifact_stable: process_spawn",
+        "daedalus/spine/attempt.py:_run_gates: process_spawn"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "37a178da57b430ea2ad115ca81d3edfb84c75a2ff159a4177e219e628d3c3743",
+    "objective_chars": 38203,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 5 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 5,
+  "inputs": 5
+ }
+}

@@ -1,0 +1,101 @@
+{
+ "task_id": "research__b082__946db82",
+ "key": "research__b082__946db82-87f5014d76",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified 3 cross-file patterns: (1) representation of 'leaky' detection diverges between eval/graph_delta and eval/ceiling, (2) code.refs.leaky exclusion is claimed but not present in graph_delta, (3) breakaway flags are defined but never set, contradicting possible usage in containment.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Leaky detection inconsistency may cause different verdicts between eval subsystems.",
+     "Breakaway flags silently enabled could bypass job object limits.",
+     "Untracked breakaway flag usage in containment.py would violate the 'NEVER SET' guarantee."
+    ],
+    "todos": [
+     "Verify whether eval/ceiling.py uses a 'leaky' arm that contradicts graph_delta's exclusion.",
+     "Check if containment.py's SetInformationJobObject call includes breakaway flags.",
+     "Confirm that code.refs.leaky is defined and excluded in the full graph_delta module."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "leaky-detection-mismatch",
+       "claim": "The 'detected_leaky' property in eval/graph_delta includes all layers (including leaky), while eval/ceiling.py separates 'clean' and 'leaky' arms, implying that 'leaky' detection is treated differently in the evaluation ceiling. This inconsistency means the two subsystems may produce conflicting verdicts on the same mutation.",
+       "spans": [
+        "daedalus/eval/graph_delta.py",
+        "daedalus/eval/ceiling.py"
+       ],
+       "mechanism": "graph_delta defines detected_leaky as any layer moved (all layers). ceiling.py (referenced in graph_delta docstring) separates clean and leaky arms, likely counting leaky movements differently. If ceiling.py excludes leaky from detection while graph_delta includes it, a mutation that only moves leaky layers would be detected by graph_delta but not by ceiling.py's clean arm.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that ceiling.py's leaky arm also counts leaky movements as detected, aligning with graph_delta's detected_leaky.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py: MutationDelta.detected_leaky",
+        "daedalus/eval/graph_delta.py: docstring of _ast_refs mentioning 'eval/ceiling.py separates with its clean and leaky arms'"
+       ]
+      },
+      {
+       "id": "code-refs-leaky-exclusion-absent",
+       "claim": "The comment in graph_delta.py claims that 'code.refs.leaky' is deliberately excluded from SCORING_LAYERS, but the chunk does not define or reference 'code.refs.leaky', and the SCORING_LAYERS tuple is shown without it. This suggests the exclusion may not be enforced in code, only documented, leaving a gap where the leaky refs could accidentally be included if SCORING_LAYERS is updated.",
+       "spans": [
+        "daedalus/eval/graph_delta.py"
+       ],
+       "mechanism": "SCORING_LAYERS is a tuple of layer names. The comment says leaky is excluded, but no code prevents its inclusion. If a future change adds 'leaky' to SCORING_LAYERS, the exclusion claim becomes false without any compilation error.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that 'code.refs.leaky' is defined elsewhere and that SCORING_LAYERS is generated or validated to exclude it programmatically.",
+       "evidence": [
+        "daedalus/eval/graph_delta.py: SCORING_LAYERS constant",
+        "daedalus/eval/graph_delta.py: comment near SCORING_LAYERS"
+       ]
+      },
+      {
+       "id": "breakaway-flags-never-set",
+       "claim": "The constants _JOB_OBJECT_LIMIT_BREAKAWAY_OK and _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK are defined in containment.py with the comment 'NEVER SET', but the same module likely contains a call to SetInformationJobObject that could set these flags. If that call inadvertently includes these flags, the job's breakaway prevention is disabled, allowing child processes to escape the job.",
+       "spans": [
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "The constants are defined but commented as never set. However, SetInformationJobObject is also defined in this chunk. If the calling code uses a bitmask that includes these constants (e.g., by ORing all limit flags), the breakaway flags would be set, contradicting the claim.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that SetInformationJobObject is called with a mask that explicitly excludes these flags, or that the calling code is in a different module that does not use these constants.",
+       "evidence": [
+        "daedalus/spine/containment.py: _JOB_OBJECT_LIMIT_BREAKAWAY_OK constant",
+        "daedalus/spine/containment.py: _JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK constant",
+        "daedalus/spine/containment.py: SetInformationJobObject prototype"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d85e7c0f6c08c4c465db6f5649c577cc054c2204815602568e606aadeb2fcaaa",
+    "objective_chars": 32536,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 82 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 82,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,104 @@
+{
+ "task_id": "research__b117__946db82",
+ "key": "research__b117__946db82-c6b42b0c47",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Three cross-file hypotheses identified: (1) inconsistent tuple structure in targets from typegraph.py and picker.py, (2) incomplete functions across modules, (3) unresolved external dependencies shared by multiple chunks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Inconsistent tuple structure in targets may cause downstream bugs in comparison or deduplication.",
+     "Incomplete functions (compare, search_report) may lead to runtime errors when called.",
+     "Unresolved external dependencies (Metric class, _candidate, top) may cause NameError or AttributeError at runtime."
+    ],
+    "todos": [
+     "Verify the targets tuple format in typegraph.py and picker.py to ensure consistency.",
+     "Complete the compare function in lint.py and search_report in embeddings.py.",
+     "Define or import missing symbols (Metric, _candidate, top) in respective modules."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "inconsistent-target-tuples",
+       "claim": "Two modules construct tuples with inconsistent structures for representing import targets, which may cause bugs when these tuples are compared or used as dictionary keys across module boundaries.",
+       "spans": [
+        "daedalus/structcore/typegraph.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "In typegraph.py _bare_candidates, for 'import' aliases the code adds (\"module\", alias.orig) \u2014 a tuple of two strings. For 'from' aliases it adds (module, alias.orig) where module is a string. In picker.py, the code builds detail dicts with keys like 'module_path' and 'symbol', but does not directly use these tuples. However, if targets are ever exchanged or compared, the tuple structure mismatch could cause errors.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If all callers of _bare_candidates never compare or combine targets from different alias types, or if the tuple structure is intentionally different and handled correctly.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py: _bare_candidates lines 535-540 show inconsistent tuple construction",
+        "daedalus/spine/picker.py: detail dict construction lines 1132-1138 uses module_path and symbol keys"
+       ]
+      },
+      {
+       "id": "incomplete-cross-module-functions",
+       "claim": "Multiple modules contain functions that are incomplete (missing core logic) in the scanned chunks, and these functions are likely called from other modules, risking runtime errors.",
+       "spans": [
+        "daedalus/gui/lint.py",
+        "daedalus/memory/embeddings.py"
+       ],
+       "mechanism": "In lint.py, the compare function only builds header lines and does not produce metric rows. In embeddings.py, search_report is cut off mid-function. If other modules call these functions expecting full functionality, they will fail.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If the missing parts are defined in later chunks of the same files and are present at runtime, or if these functions are never called externally.",
+       "evidence": [
+        "daedalus/gui/lint.py: compare function incomplete (observations)",
+        "daedalus/memory/embeddings.py: search_report ends mid-function (observations)"
+       ]
+      },
+      {
+       "id": "missing-external-dependencies",
+       "claim": "Several chunks rely on symbols that are not defined within the scanned files, indicating unresolved cross-module dependencies that could cause NameError at runtime.",
+       "spans": [
+        "daedalus/gui/lint.py",
+        "daedalus/spine/picker.py",
+        "daedalus/structcore/typegraph.py"
+       ],
+       "mechanism": "lint.py uses Metric class and variables cap, els not defined in chunk. picker.py uses _candidate, _slug, _short_hash, and variable top. typegraph.py uses parse.resolve_python_imports. If these are not provided by other modules or later chunks, the code will fail.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If these symbols are defined in other chunks of the same files or in other modules that are always imported before these functions are called.",
+       "evidence": [
+        "daedalus/gui/lint.py: observations mention Metric, cap, els undefined",
+        "daedalus/spine/picker.py: observations mention _candidate, _slug, _short_hash, top undefined",
+        "daedalus/structcore/typegraph.py: claim references parse.resolve_python_imports not in chunk"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b1e7995a419c14cc0e418f133d163b573e9436e4c4210e031cb15b366d72a200",
+    "objective_chars": 25452,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 117 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 117,
+  "inputs": 4
+ }
+}

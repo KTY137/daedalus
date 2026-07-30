@@ -1,0 +1,156 @@
+{
+ "task_id": "daedalus/eval/correctness.py#c4of4#5eb1702d",
+ "key": "daedalus_eval_correctness.py_c4of4_5eb1702d-f7dd73e959",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "D1 | `root` parameter of `_gate` | defined but never read in this unit | WRONG CONCLUSION: a caller passes a root path that is ignored",
+     "D2 | except Exception as e: # noqa: BLE001 | swallows exception and returns a verdict | WRONG CONCLUSION: a caller expects exceptions to propagate, but they are caught and turned into a verdict"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2db2fce4fb9bf94faecb7d3213f6bc9f922083d005ac4d41d348362d22ad3f55",
+    "objective_chars": 10005,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 6 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"makes no vendor call and never writes the primary checkout\" | main | BROKEN | The docstring says the tool never writes the primary checkout, but _run_lists and apply_test_overlay may modify the worktree which is a copy, not primary; however the claim is about \"primary checkout\" and the code does not write to the primary checkout, so this is actually KEPT. Re-evaluating: the claim is \"makes no vendor call and never writes the primary checkout\". The code does not make vendor calls (no external API calls) and does not write to the primary checkout (ctx.worktree is a disposable worktree). So KEPT.",
+     "CLAIM | \"Runs the repo's own pytest in a disposable worktree\" | main | KEPT | The CLI description states it runs pytest in a disposable worktree; the code calls _run_lists which runs pytest in the worktree.",
+     "CLAIM | \"makes no vendor call and never writes the primary checkout\" | main | KEPT | As above, no vendor calls and no writes to primary checkout.",
+     "CLAIM | \"measure the BEFORE state of every corpus task\" | --verify | KEPT | --verify calls verify_before_state for each task.",
+     "CLAIM | \"evaluate every corpus task against its own reference fix\" | --run | KEPT | --run calls run_corpus(tasks).",
+     "CLAIM | \"propose a candidate task from a fix commit (prints JSON, writes nothing)\" | --derive | KEPT | --derive calls derive_task_from_commit and prints JSON, no writes.",
+     "CLAIM | \"derive AND measure a candidate task's before-state in a disposable worktree (prints JSON, writes nothing)\" | --seed | KEPT | --seed calls seed_task_from_commit and prints JSON, no writes.",
+     "D1 | seed_task_from_commit | imported but not defined in this unit; read? It is called in main, so read. No D1.",
+     "D1 | freeze_selection | used in _gate, defined elsewhere, no D1.",
+     "D1 | verify_before_state | used in main, no D1.",
+     "D1 | run_corpus | used in main, no D1.",
+     "D1 | load_correctness_tasks | used in main, no D1.",
+     "D1 | derive_task_from_commit | used in main, no D1.",
+     "D1 | judge_after_state | used in _gate, no D1.",
+     "D1 | OUTCOMES | used in main, no D1.",
+     "D1 | OUTCOME_FIXED | used in _gate and main, no D1.",
+     "D1 | BeforeState | used in _gate, no D1.",
+     "D1 | apply_test_overlay | used in _gate, no D1.",
+     "D1 | _check_selection | used in _gate, defined elsewhere, no D1.",
+     "D1 | _run_lists | used in _gate, defined elsewhere, no D1.",
+     "D1 | validate_task | used in _gate, no D1.",
+     "D1 | AGENT_ENV_ROOT | imported, used in main, no D1.",
+     "D1 | freeze_selection | used in _gate, no D1.",
+     "D1 | GateResult | used in _gate, no D1.",
+     "D1 | root | used in _gate, no D1.",
+     "D1 | ctx | used in _gate, no D1.",
+     "D1 | runner | used in _gate, no D1.",
+     "D1 | receipt | used in _gate, no D1.",
+     "D1 | selection | used in _gate, no D1.",
+     "D1 | a_f2p, a_p2p | used in _gate, no D1.",
+     "D1 | started | used in _gate, no D1.",
+     "D1 | text | used in _gate, no D1.",
+     "D1 | passed | used in _gate, no D1.",
+     "D1 | verdict | used in _gate, no D1.",
+     "D1 | BeforeState | used in _gate, no D1.",
+     "D1 | judge_after_state | used in _gate, no D1.",
+     "D1 | json | used in _gate and main, no D1.",
+     "D1 | time | used in _gate, no D1.",
+     "D1 | Path | used in _gate, no D1.",
+     "D1 | Sequence | used in main, no D1.",
+     "D1 | argparse | used in main, no D1.",
+     "D1 | sys | used in main, no D1.",
+     "D1 | os | not used in this chunk, but imported? Not shown. Not a D1.",
+     "D1 | typing | not used in this chunk, but imported? Not shown. Not a D1.",
+     "D2: none",
+     "D3: none",
+     "D4: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2db2fce4fb9bf94faecb7d3213f6bc9f922083d005ac4d41d348362d22ad3f55",
+    "objective_chars": 10005,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 1 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"makes no vendor call and never writes the primary checkout\" | main | BROKEN | The code calls verify_before_state, derive_task_from_commit, seed_task_from_commit, load_correctness_tasks, run_corpus, which are external functions that may make vendor calls or write to the primary checkout; the claim is not enforced within this unit.",
+     "CLAIM | \"Runs the repo's own pytest in a disposable worktree\" | main | UNCHECKABLE | The runner and worktree setup are not shown in this unit; need to see how _run_lists creates the worktree and whether it uses a disposable copy.",
+     "CLAIM | \"The test set, the base revision and the gate configuration are fixed before a candidate runs and may not be re-derived, widened or narrowed afterwards\" | line 116-119 | KEPT | The code checks that the selection digest matches the declared one and rejects if not, ensuring the test set is not changed after verification.",
+     "CLAIM | \"makes no vendor call and never writes the primary checkout\" (in description) | main | BROKEN | Same as first entry: the functions called may make vendor calls or write to the primary checkout; the claim is not verifiable from this unit alone.",
+     "D1 | verify_before_state | imported but not used in this unit | WRONG CONCLUSION: A caller may think verify_before_state is used for verification, but it is only called in the CLI branch (args.verify) which is not part of the gate function.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Clarify the scope of the claim 'makes no vendor call and never writes the primary checkout' to only cover the gate function, or remove it if the CLI functions may violate it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2db2fce4fb9bf94faecb7d3213f6bc9f922083d005ac4d41d348362d22ad3f55",
+    "objective_chars": 10005,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/eval/correctness.py",
+  "chunk": 4,
+  "chunks": 4,
+  "bytes": 7487
+ }
+}

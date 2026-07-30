@@ -1,0 +1,153 @@
+{
+ "task_id": "daedalus/offload.py#c2of2#5eb1702d",
+ "key": "daedalus_offload.py_c2of2_5eb1702d-4a63c3f14e",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 5 kept, 2 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A file whose context was dropped to fit the local window is surfaced from the worker's report here.\" | lines 24-28 | KEPT | The code checks `report.get(\"handoff\").get(\"slice_context_dropped\")` and adds to `slice_meta[\"dropped_for_window\"]`.",
+     "CLAIM | \"Which files ACTUALLY changed on disk (create, edit, or delete) -- this, not report[\"files_changed\"], is what the write-mode gate trusts.\" | lines 31-35 | KEPT | The code computes `disk_changed` from before/after snapshots and uses it for the gate.",
+     "CLAIM | \"In write mode ``disk_changed`` is always the before/after content-hash diff, so use it; advisory runs (``disk_changed is None``) keep the old self-report fallback, since they legitimately write nothing.\" | lines 45-49 | KEPT | The code sets `changed_for_tests = disk_changed if disk_changed is not None else report.get(\"files_changed\")`.",
+     "CLAIM | \"Write-mode work MUST actually change files -- otherwise it's a silent no-op that would fake acceptance (zero Claude tokens, zero work done).\" | lines 55-56 | KEPT | The code passes `require_changes=(decision.mode == \"write\")` to `verify()`.",
+     "CLAIM | \"A prose file with no before-image is refused, not waved through.\" | line 59 | UNCHECKABLE | Depends on `prose_before_images` implementation, which is not in this unit.",
+     "CLAIM | \"The routing-time reachability check in select_provider only ever saw the DECLARED --paths.\" | lines 65-66 | KEPT | The comment states this and the code re-runs the fence with `disk_changed`.",
+     "CLAIM | \"Only meaningful with a loaded policy (writes without one are already refused above); fail-closed like the routing precheck (an unbuildable index escalates rather than passes).\" | lines 70-72 | BROKEN | The condition `if decision.mode == \"write\" and pol is not None and disk_changed:` does not check `pol is not None` for the exception handler; if `pol is None`, the block is skipped, but if `pol` is not None and an exception occurs, it escalates. However, the claim says \"writes without one are already refused above\" \u2013 but there is no such refusal above in this unit. The code does not refuse writes when `pol is None`; it just skips the blast-radius check. So the claim is not fully supported.",
+     "CLAIM | \"A FRESH index is load-bearing here: the routing-time index predates these writes, so a just-CREATED leaf would read as \"absent from the graph\" and the fail-closed precheck would (wrongly) escalate every legitimate new-file write.\" | lines 74-76 | KEPT | The code uses `cached_index(repo_root, refresh=True)` to get a fresh index.",
+     "D: none"
+    ],
+    "todos": [
+     "CLAIM | \"Only meaningful with a loaded policy (writes without one are already refused above); fail-closed like the routing precheck (an unbuildable index escalates rather than passes).\" | Add a check earlier in `offload()` to refuse writes when `pol is None` and `decision.mode == \"write\"`, or remove the claim.",
+     "CLAIM | \"A prose file with no before-image is refused, not waved through.\" | Verify `prose_before_images` returns `None` or raises for missing before-images, and `verify` handles it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78a6118f7fde064395505700fec49faed1c9b0c6d8731fd0bfaa38cc74eced68",
+    "objective_chars": 13007,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 8 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Path-agnostic so a genuine write is caught even with no --paths\" | _snap | KEPT | The snapshot uses paths or [] if isolate_paths else whole-repo snapshot, catching writes outside paths.",
+     "CLAIM | \"isolate_paths (parallel dispatch): attribute changes by hashing ONLY this task's declared paths\" | _snap | KEPT | When isolate_paths is truthy, _snap calls _scoped_snapshot(repo_root, paths or []), which hashes only declared paths.",
+     "CLAIM | \"a sibling task writing concurrently to the same repo can't leak into this task's diff\" | _snap | KEPT | Scoped snapshot isolates changes to declared paths, preventing cross-task leakage.",
+     "CLAIM | \"Default stays the whole-repo snapshot (catches sneaky writes outside --paths; correct for sequential runs)\" | _snap | KEPT | When isolate_paths is falsy, _snap uses _repo_snapshot(repo_root), which catches all writes.",
+     "CLAIM | \"Slice-context provenance rides the result even on escalation\" | lines after out | KEPT | The code sets result[\"slice_context\"] = slice_meta after checking dropped files, regardless of verification outcome.",
+     "CLAIM | \"what the worker actually saw (or why it saw nothing) must never be reconstructable only from logs\" | lines after out | UNCHECKABLE | The claim about reconstructability requires knowledge of other parts of the system (logging, storage), not present in this unit.",
+     "CLAIM | \"A file whose context was dropped to fit the local window is surfaced from the worker's report here\" | dropped handling | KEPT | The code extracts dropped from report.get(\"handoff\").get(\"slice_context_dropped\") and stores it in slice_meta[\"dropped_for_window\"].",
+     "CLAIM | \"This, not report['files_changed'], is what the write-mode gate trusts\" | disk_changed calculation | KEPT | disk_changed is computed from before/after snapshots, and later used for verification and test gate, not report[\"files_changed\"].",
+     "CLAIM | \"Advisory tasks legitimately write nothing (they produce a draft) -- [] here plus mode=='advisory' is a draft, NOT a no-op\" | result[\"wrote\"] = list(disk_changed or []) | KEPT | For advisory mode, disk_changed is None, so result[\"wrote\"] becomes [].",
+     "CLAIM | \"Callers must render 'wrote' from THIS field, never from action=='offloaded'/verify.ok alone (the op-test harness once printed 'wrote yes' for pure drafts that way)\" | result[\"wrote\"] | UNCHECKABLE | The claim about caller behavior and historical bug requires knowledge outside this unit.",
+     "CLAIM | \"ARMED BY DISK TRUTH, not by the self-report. This used to key off report['files_changed']... That let a worker DODGE the test gate entirely\" | changed_for_tests assignment | KEPT | changed_for_tests uses disk_changed when available (write mode), falling back to report.get(\"files_changed\") only when disk_changed is None (advisory).",
+     "CLAIM | \"In write mode disk_changed is always the before/after content-hash diff, so use it; advisory runs (disk_changed is None) keep the old self-report fallback\" | changed_for_tests assignment | KEPT | The code explicitly checks disk_changed is not None before using it; otherwise falls back to report.",
+     "D1 | test_timeout_s | parameter, keyword argument or module-level constant defined in this unit and read nowhere in this unit | WRONG CONCLUSION: test_timeout_s is assigned but never used in this unit (it is passed to verify, but verify is not defined here). However, the assignment is used in the verify call, so it is read. No D1.",
+     "D2 | none | no except that swallows and continues where prose says refuse | KEPT | The except Exception: block sets escalate=True and detail, which leads to fail-closed behavior, not silent continuation.",
+     "D3 | none | no check after side effect | KEPT | All checks appear before or at the point of side effects.",
+     "D4 | none | no impossible branch | KEPT | All conditions are possible given assignments.",
+     "CLAIM | \"The prose check needs the text from the instant BEFORE the write, and the writer is the only thing that has it -- git show HEAD: is a lie the moment the tree was already dirty.\" | prose_before_images call | KEPT | The comment explains why prose_before_images is used; the code calls it with worker._backups.",
+     "CLAIM | \"A prose file with no before-image is refused, not waved through.\" | prose_before_images | UNCHECKABLE | The behavior of prose_before_images is not defined in this unit; the claim is about its internal logic.",
+     "CLAIM | \"POST-WRITE BLAST-RADIUS FENCE... re-run the fence over what ACTUALLY landed on disk (the verified before/after diff, not the model's self-report) and, if any changed file reaches a fenced module, fail the gate\" | blast radius check | KEPT | The code re-runs _reachability_precheck on disk_changed (the verified diff) and sets escalate if fence indicates escalation.",
+     "CLAIM | \"fail-closed like the routing precheck (an unbuildable index escalates rather than passes)\" | except Exception block | KEPT | On exception, escalate and detail are set to True and a descriptive message, leading to fail-closed behavior.",
+     "CLAIM | \"A FRESH index is load-bearing here: the routing-time index predates these writes, so a just-CREATED leaf would read as 'absent from the graph' and the fail-closed precheck would (wrongly) escalate every legitimate new-file write.\" | cached_index(repo_root, refresh=True) | KEPT | The code calls cached_index with refresh=True to get a fresh index.",
+     "CLAIM | \"Advisory proposals used to evaporate with the result dict. Persist them so daedalus drafts can list/review/apply later (Era 3 #1).\" | save_draft call | KEPT | The code calls save_draft and stores the result in result[\"draft\"].",
+     "CLAIM | \"persistence is best-effort, never fatal\" | except OSError: result[\"draft\"] = None | KEPT | On OSError, draft is set to None and execution continues.",
+     "CLAIM | \"After rollback the disk is (mostly) restored -- only paths that could NOT be reverted remain truly changed. Keep 'wrote' ground-truthful.\" | rolled and dirty handling | KEPT | The code updates result[\"wrote\"] to still_dirty (normalized dirty paths) if there are rollback failures.",
+     "CLAIM | \"Label the recorded reason with the tests check's machine-readable status. Without this the metrics DB stores a bare 'tests' for BOTH a genuinely red suite and a suite we killed for overrunning its budget, so the lane statistics that decide future routing would blame the local lane for a timeout we configured.\" | note construction | KEPT | The note includes \"tests:\" + status for tests checks with status.",
+     "CLAIM | \"Only 'tests' is annotated; every other check name is recorded exactly as before.\" | note construction | KEPT | Only tests checks get the status annotation; other checks are recorded by name.",
+     "CLAIM | \"THE FLYWHEEL SEAM (closed here): a landed write mints its own eval task. Stamped on every write-mode run -- including the ones that did NOT mint -- so the seam is observable instead of silent.\" | auto_mint call | KEPT | The code calls _auto_mint for every write-mode run and stores the result.",
+     "CLAIM | \"Advisory/dry runs get no field at all, keeping their result dict byte-identical to before.\" | auto_mint condition | KEPT | auto_mint is only called when decision.mode == \"write\", so advisory/dry runs do not get the field."
+    ],
+    "todos": [
+     "Fix prose claim 'what the worker actually saw (or why it saw nothing) must never be reconstructable only from logs' to be checkable in this unit or remove it.",
+     "Fix prose claim 'A prose file with no before-image is refused, not waved through' to be checkable in this unit or remove it.",
+     "Fix prose claim 'Callers must render wrote from THIS field...' to be checkable in this unit or remove it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78a6118f7fde064395505700fec49faed1c9b0c6d8731fd0bfaa38cc74eced68",
+    "objective_chars": 13007,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 1 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"files_changed (a narrating model claims edits it never made). Path-agnostic so a genuine write is caught even with no --paths.\" | comment before _snap() | UNCHECKABLE | The comment is a docstring for the variable `files_changed`? It's not a claim about code behavior; it's a comment explaining design intent. The code's behavior of `_snap` is path-agnostic only when `isolate_paths` is false, which is default. The comment says \"Path-agnostic so a genuine write is caught even with no --paths.\" \u2013 this is a design rationale, not a checkable claim. If we treat it as a claim that the snapshot is path-agnostic, it's kept because `_repo_snapshot` is used when not isolating paths. But the comment is ambiguous. I'll mark UNCHECKABLE because the claim is not precise.",
+     "CLAIM | \"isolate_paths (parallel dispatch): attribute changes by hashing ONLY this task's declared paths, so a sibling task writing concurrently to the same repo can't leak into this task's diff.\" | comment before _snap() | KEPT | The code uses `_scoped_snapshot(repo_root, paths or [])` when `isolate_paths` is true, which hashes only the given paths, preventing cross-task interference.",
+     "CLAIM | \"Default stays the whole-repo snapshot (catches sneaky writes outside --paths; correct for sequential runs).\" | comment before _snap() | KEPT | When `isolate_paths` is false (default), `_repo_snapshot(repo_root)` is used, which captures the whole repo.",
+     "CLAIM | \"Slice-context provenance rides the result even on escalation: what the worker actually saw (or why it saw nothing) must never be reconstructable only from logs. A file whose context was dropped to fit the local window is surfaced from the worker's report here.\" | comment before slice_meta check | KEPT | The code checks `slice_meta is not None` and then looks for `dropped` in the report's handoff, adding it to `slice_meta`. This matches the claim.",
+     "CLAIM | \"Which files ACTUALLY changed on disk (create, edit, or delete) -- this, not report['files_changed'], is what the write-mode gate trusts.\" | comment before disk_changed | KEPT | The code computes `disk_changed` from before/after snapshots and uses that for verification and result, not `report['files_changed']`.",
+     "CLAIM | \"Advisory tasks legitimately write nothing (they produce a draft) -- [] here plus mode=='advisory' is a draft, NOT a no-op.\" | comment before result['wrote'] | KEPT | The code sets `result['wrote'] = list(disk_changed or [])`. For advisory mode, `disk_changed` is None (since mode != \"write\"), so `result['wrote']` becomes `[]`, which is a draft.",
+     "CLAIM | \"In write mode disk_changed is always the before/after content-hash diff, so use it; advisory runs (disk_changed is None) keep the old self-report fallback, since they legitimately write nothing.\" | comment before changed_for_tests | KEPT | The code uses `disk_changed if disk_changed is not None else report.get('files_changed')` for `changed_for_tests`, matching the claim.",
+     "CLAIM | \"Write-mode work MUST actually change files -- otherwise it's a silent no-op that would fake acceptance (zero Claude tokens, zero work done).\" | comment before verify call | KEPT | The `verify` call passes `require_changes=(decision.mode == \"write\")`, which enforces that writes must change files.",
+     "CLAIM | \"A prose file with no before-image is refused, not waved through.\" | comment before verify call | UNCHECKABLE | This claim refers to behavior inside `verify` or `prose_before_images`, which are not in this unit. It cannot be checked here.",
+     "CLAIM | \"Stamped on every write-mode run -- including the ones that did NOT mint -- so the seam is observable instead of silent. Advisory/dry runs get no field at all, keeping their result dict byte-identical to before.\" | comment before auto_mint | KEPT | The code only sets `result['auto_mint']` when `decision.mode == 'write'`, leaving advisory/dry runs without that field."
+    ],
+    "todos": [
+     "Clarify the comment about files_changed to be a precise claim about code behavior, or remove the ambiguity."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78a6118f7fde064395505700fec49faed1c9b0c6d8731fd0bfaa38cc74eced68",
+    "objective_chars": 13007,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/offload.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 10498
+ }
+}

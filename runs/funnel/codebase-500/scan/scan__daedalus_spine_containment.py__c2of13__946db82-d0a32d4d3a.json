@@ -1,0 +1,332 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c2of13__946db82",
+ "key": "scan__daedalus_spine_containment.py__c2of13__946db82-d0a32d4d3a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 13: docstring continuation, imports, constants, and __all__.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "JOB_ACTIVE_PROCESS_LIMIT | medium | Value 96 is claimed to be measured from a real run, but no measurement code or data is present in this chunk. | Check that the value is derived from actual measurement or add a reference.",
+     "JOB_MEMORY_LIMIT_BYTES | medium | Value 4 GiB is claimed to be far above a measured real run, but no measurement is shown. | Verify the measurement or document the source.",
+     "LOW_APPEND_ACCESS | high | The constant is claimed to be checked as an equality to prevent unnoticed additions, but this chunk does not contain the check. | Ensure the check exists elsewhere and is enforced.",
+     "LOW_APPEND_ACCESS | medium | Deviation from original ruling (APPEND+SYNCHRONIZE only) is justified by a test that showed pytest output goes to /dev/null without FILE_READ_ATTRIBUTES. The justification relies on behavior of os.fstat and pytest not shown here. | Confirm that the test exists and the reasoning holds.",
+     "JOB_ACTIVE_PROCESS_LIMIT | medium | Claimed to be a ceiling on damage, not a scheduling policy, and that a near-real-run cap can cause false failures. This is design rationale, not a code issue, but the constant's exact value is critical. | Review the choice of 96 against actual test parallelism.",
+     "JOB_LIMITS_DO_NOT_COVER | high | States that network egress is not covered by job objects and that Codex CLI uses a firewall rule scoped to a dedicated user principal. This chunk does not implement that firewall rule, leaving network unrestricted. | Implement or document the intended mechanism.",
+     "JOB_LIMITS_DO_NOT_COVER | medium | Claims confidentiality is not covered; MIC is a write-up barrier and job is resource bound. This is accurate but highlights a gap. | Ensure the threat model acknowledges this gap."
+    ],
+    "todos": [
+     "Verify that the measurement for JOB_ACTIVE_PROCESS_LIMIT and JOB_MEMORY_LIMIT_BYTES is documented or code exists to generate it.",
+     "Confirm that LOW_APPEND_ACCESS is checked for equality in the code (likely in spawn_contained or attestation).",
+     "Implement or explicitly defer network egress containment (firewall rule per Codex CLI approach).",
+     "Document the deviation from the original 'APPEND and SYNCHRONIZE only' ruling and the test that motivated it."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "2 of 13",
+     "purpose": "Docstring continuation, imports, and constant definitions for containment module.",
+     "symbols": [
+      {
+       "name": "LOW_INTEGRITY_SID",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant for Low mandatory level SID: S-1-16-4096."
+      },
+      {
+       "name": "_FILE_APPEND_DATA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Private constant for file append data access right (0x0004)."
+      },
+      {
+       "name": "_FILE_READ_ATTRIBUTES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Private constant for file read attributes access right (0x0080)."
+      },
+      {
+       "name": "_SYNCHRONIZE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Private constant for synchronize access right (0x00100000)."
+      },
+      {
+       "name": "LOW_APPEND_ACCESS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Access mask for handles crossing boundary: APPEND_DATA | READ_ATTRIBUTES | SYNCHRONIZE (0x00100084)."
+      },
+      {
+       "name": "JOB_ACTIVE_PROCESS_LIMIT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum active processes allowed in the job: 96."
+      },
+      {
+       "name": "JOB_MEMORY_LIMIT_BYTES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum committed memory for the whole job in bytes: 4 GiB."
+      },
+      {
+       "name": "JOB_LIMITS_DO_NOT_COVER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of strings describing what the job caps do not cover (network egress, confidentiality)."
+      },
+      {
+       "name": "ContainedProcess",
+       "kind": "class",
+       "effects": [],
+       "note": "Public class listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "ContainmentAttestation",
+       "kind": "class",
+       "effects": [],
+       "note": "Public class listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "ContainmentUnavailable",
+       "kind": "class",
+       "effects": [],
+       "note": "Public class listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "JobLimits",
+       "kind": "class",
+       "effects": [],
+       "note": "Public class listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "LowIntegrityLog",
+       "kind": "class",
+       "effects": [],
+       "note": "Public class listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "integrity_label",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "job_accounting",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "label_low_integrity",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "label_low_integrity_file",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "open_low_append_log",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "platform_supported",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "spawn_contained",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      },
+      {
+       "name": "unmeasured_vectors",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function listed in __all__; not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Neither ``BREAKAWAY_OK`` nor ``SILENT_BREAKAWAY_OK`` is set, so ``CREATE_BREAKAWAY_FROM_JOB`` in the child fails.",
+       "where": "docstring line ~126",
+       "verdict": "uncheckable",
+       "why": "The actual job creation code is not in this chunk; the claim refers to flags not present here."
+      },
+      {
+       "text": "the read-back below ASSERTS their absence rather than assuming it.",
+       "where": "docstring line ~128",
+       "verdict": "uncheckable",
+       "why": "The read-back code is not in this chunk."
+      },
+      {
+       "text": "EVERY ONE OF THOSE IS READ BACK out of the kernel with ``QueryInformationJobObject`` and compared before a child is allowed to start.",
+       "where": "docstring line ~131",
+       "verdict": "uncheckable",
+       "why": "The attestation code is not in this chunk."
+      },
+      {
+       "text": "``SetInformationJobObject`` returning TRUE is a claim; ``LimitFlags`` coming back out of the kernel is a fact, and only facts reach the attestation.",
+       "where": "docstring line ~133",
+       "verdict": "uncheckable",
+       "why": "The attestation logic is not in this chunk."
+      },
+      {
+       "text": "Only the GATE CHILD is contained. The harness process that spawns it, the git calls it makes, and ``attempt.py``'s ``_persist`` all run at the invoking user's full integrity",
+       "where": "docstring line ~139",
+       "verdict": "uncheckable",
+       "why": "No code defining containment boundaries is in this chunk."
+      },
+      {
+       "text": "``daedalus.primary_tree``'s fence resolves a path and then writes to it, and a junction swapped in between those two steps is NOT closed by Python; nothing written in Python can close it.",
+       "where": "docstring line ~143",
+       "verdict": "uncheckable",
+       "why": "Reference to code outside this chunk."
+      },
+      {
+       "text": "MIC containment of the child is the mechanism that actually bounds that class, because the swap only buys the attacker a write the KERNEL will still refuse at Low integrity. It bounds it; it does not close it, and it does nothing at all for the uncontained harness code on the other side of the boundary.",
+       "where": "docstring line ~145",
+       "verdict": "uncheckable",
+       "why": "No MIC or integrity label code is in this chunk."
+      },
+      {
+       "text": "An AppContainer or a restricted token with its own SID would bound network, IPC, capabilities and confidentiality. That belongs in its own ADR with its own threat model.",
+       "where": "docstring line ~149",
+       "verdict": "uncheckable",
+       "why": "No such code or ADR in this chunk."
+      },
+      {
+       "text": "The ruling said 'APPEND and SYNCHRONIZE rights only'. That mask was implemented, measured, and BLINDS THE GATE: ``os.fstat(1)`` needs FILE_READ_ATTRIBUTES, and when it raises, pytest concludes fd 1 is invalid and redirects all output to ``os.devnull``.",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "The test or measurement that produced this finding is not in this chunk."
+      },
+      {
+       "text": "Measured with the strict mask -- ``python -m pytest -q`` exited 0 and produced ZERO bytes",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "No test code in this chunk."
+      },
+      {
+       "text": "FILE_READ_ATTRIBUTES is a READ right, MIC does not restrict reads at all (a limit this module already states and a test already pins)",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "No MIC statement or test in this chunk."
+      },
+      {
+       "text": "the target is a Low-labelled file the child could open for itself",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "No file labeling code in this chunk."
+      },
+      {
+       "text": "So it does not violate 'no capability crosses the boundary that the Low child could not have obtained itself'",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "The principle is stated but not enforced in this chunk."
+      },
+      {
+       "text": "Measured with the mask below: reading and truncating through the handle are still refused.",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "verdict": "uncheckable",
+       "why": "No test code in this chunk."
+      },
+      {
+       "text": "Concurrent processes allowed inside the gate's job. MEASURED, not guessed: a real contained ``python -m pytest`` of this repo's own tests was run with the job's accounting counters read back afterwards, and the number below is that measured peak with a wide margin over it.",
+       "where": "comment near JOB_ACTIVE_PROCESS_LIMIT",
+       "verdict": "uncheckable",
+       "why": "No measurement code or data in this chunk."
+      },
+      {
+       "text": "The cap is a CEILING ON DAMAGE, not a scheduling policy. Set it near a real run's peak and an unlucky-but-honest candidate fails its gate for a reason that has nothing to do with its patch -- which this repo has already shipped once, with ``pytest docs/THAT.md``, and calls fail-closed-but-useless.",
+       "where": "comment near JOB_ACTIVE_PROCESS_LIMIT",
+       "verdict": "uncheckable",
+       "why": "No code or test for this scenario in this chunk."
+      },
+      {
+       "text": "network egress: there is no Job Object limit for it. Codex CLI's Windows sandbox closes network with a FIREWALL RULE SCOPED TO A DEDICATED USER PRINCIPAL, not with the job -- a different mechanism with its own privileged setup step. Unimplemented here, and so still unrestricted",
+       "where": "JOB_LIMITS_DO_NOT_COVER",
+       "verdict": "kept",
+       "why": "The constant string states that network egress is not covered; this chunk does not implement any network restriction."
+      },
+      {
+       "text": "confidentiality: the caps bound consumption, not reads. MIC is a write-up barrier and the job is a resource bound; neither stops a Low child",
+       "where": "JOB_LIMITS_DO_NOT_COVER",
+       "verdict": "kept",
+       "why": "The constant string states that confidentiality is not covered; this chunk does not implement confidentiality protection."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring contains extensive design rationale and warnings about what containment does not cover, but the actual implementation of containment (job creation, integrity labeling) is not in this chunk.",
+       "where": "entire docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant LOW_APPEND_ACCESS includes FILE_READ_ATTRIBUTES, which is justified by a claimed test result that pytest output is lost without it. The justification is plausible but not verifiable from this chunk.",
+       "where": "comment near LOW_APPEND_ACCESS",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The active process limit and memory limit are stated as measured, but no measurement code or data is present in this chunk. The values may be arbitrary or derived from external tests.",
+       "where": "JOB_ACTIVE_PROCESS_LIMIT and JOB_MEMORY_LIMIT_BYTES",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "JOB_LIMITS_DO_NOT_COVER explicitly acknowledges that network egress and confidentiality are not covered by job object limits, which is a significant gap in containment. The comment suggests a firewall rule approach is planned but not implemented.",
+       "where": "JOB_LIMITS_DO_NOT_COVER",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk imports many modules (ctypes, os, subprocess, sys, time, dataclasses, pathlib) but does not use them in this chunk; they are presumably used in later chunks.",
+       "where": "imports",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9febdeac66bab5c119743a746a0a4eb972bb5150b9ed712e85cefa792b3e01c7",
+    "objective_chars": 6547,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [2/13]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 2,
+  "total": 13,
+  "first_line": 121
+ }
+}

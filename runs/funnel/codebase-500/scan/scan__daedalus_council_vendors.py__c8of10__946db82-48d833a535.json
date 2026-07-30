@@ -1,0 +1,189 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c8of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c8of10__946db82-48d833a535",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 8 of 10 of vendors.py: AntigravityAdapter and OllamaAdapter class definitions with docstrings and claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "AntigravityAdapter docstring | high | Claims that prompt goes on STDIN via 'agy -p -' and never on command line; code argv shows '-p' and '-' as separate args, but final argv includes '--', 'agy', '-p', '-'. This is consistent with the claim. | Review if the SSH command line construction could be vulnerable to shell injection despite quoting.",
+     "AntigravityAdapter docstring | high | Claims that 'ssh with a trailing command does not take an argv' and concatenates arguments; code uses subprocess list form which bypasses local shell, but remote shell re-parses. This is accurate and noted as a risk. | Verify that the remote shell does not interpret the prompt as commands.",
+     "AntigravityAdapter docstring | medium | Claims that adapter is DISABLED BY DEFAULT and reports 'unavailable'/'not_authenticated'; code checks self.signed_in and returns that status when False. | Confirm that signed_in defaults to False in __init__.",
+     "AntigravityAdapter docstring | medium | Claims that probing means invoking a model; code does not probe, it relies on signed_in flag. | No code to probe is present.",
+     "AntigravityAdapter docstring | low | Mentions 'one-time interactive sign-in on this machine'; code has no sign-in logic. | Uncheckable if sign-in is handled externally.",
+     "AntigravityAdapter docstring | medium | 'agy has not completed its one-time interactive sign-in' appears in _dispatch return; code includes that string. | Verified.",
+     "AntigravityAdapter _auth_failure method | low | Inherited from CouncilAdapter? Not defined in this chunk, but referenced in docstring? No claim. | Uncheckable.",
+     "OllamaAdapter docstring | medium | Claims that host is passed EXPLICITLY per call and OLLAMA_HOST is never read/written; no code shown to verify. | Uncheckable.",
+     "OllamaAdapter docstring | medium | Claims that 'local' is sensitivity.lane_for_host(host) == 'trusted'; no code shown. | Uncheckable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "8 of 10",
+     "purpose": "Define AntigravityAdapter and begin OllamaAdapter with docstrings and method implementations.",
+     "symbols": [
+      {
+       "name": "AntigravityAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Adapter for Google/Antigravity 'agy' over SSH. Disabled by default; requires signed_in=True. Uses ssh to run agy -p - with prompt on stdin."
+      },
+      {
+       "name": "AntigravityAdapter.vendor",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'google'"
+      },
+      {
+       "name": "AntigravityAdapter.local",
+       "kind": "constant",
+       "effects": [],
+       "note": "Boolean False"
+      },
+      {
+       "name": "AntigravityAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes adapter with ssh_target, effort, signed_in, ssh_command, runner, and sets endpoint."
+      },
+      {
+       "name": "AntigravityAdapter.argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of command-line arguments for ssh and agy."
+      },
+      {
+       "name": "AntigravityAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Executes the model via SSH, parses response, returns status dict."
+      },
+      {
+       "name": "OllamaAdapter",
+       "kind": "class",
+       "effects": [],
+       "note": "Adapter for Ollama over /api/chat contract. Only class docstring and beginning shown; no methods in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.",
+       "where": "AntigravityAdapter docstring (line 843)",
+       "verdict": "kept",
+       "why": "Code in argv() includes '-p' and '-' as separate arguments, and _dispatch passes stdin_text=text to runner, so prompt is on stdin."
+      },
+      {
+       "text": "``ssh`` with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.",
+       "where": "AntigravityAdapter docstring (line 844)",
+       "verdict": "kept",
+       "why": "This is a factual statement about SSH behavior; code uses subprocess list form which avoids local shell but remote shell will concatenate the list into a string and parse it. The code is consistent with this risk."
+      },
+      {
+       "text": "The prompt here is a diff written by a candidate model, so an ordinary patch containing backticks or ``$(...)`` -- a shell script, a test log, a Python f-string -- would execute on the bench as Administrator, with no adversarial model required.",
+       "where": "AntigravityAdapter docstring (line 845)",
+       "verdict": "kept",
+       "why": "The code passes the prompt via stdin_text to the runner, which will be sent over SSH. The remote shell will interpret the text, so shell injection is possible. The code does not sanitize the prompt."
+      },
+      {
+       "text": "Local ``subprocess`` argv quoting cannot help: the escaping that matters belongs to a shell we cannot see.",
+       "where": "AntigravityAdapter docstring (line 846)",
+       "verdict": "kept",
+       "why": "The code uses list form for subprocess, which quotes arguments for the local shell, but the remote shell will re-parse the concatenated string. The claim is accurate."
+      },
+      {
+       "text": "``agy`` has not completed its one-time interactive sign-in on this machine, so this adapter is DISABLED BY DEFAULT: it reports ``unavailable`` / ``not_authenticated`` immediately rather than hanging on an auth prompt.",
+       "where": "AntigravityAdapter docstring (line 848)",
+       "verdict": "kept",
+       "why": "In __init__, signed_in defaults to False. In _dispatch, if not self.signed_in, it returns status 'unavailable' with reason 'not_authenticated' immediately."
+      },
+      {
+       "text": "An operator asserts sign-in with ``signed_in=True``; nothing here probes it, because probing means invoking a model.",
+       "where": "AntigravityAdapter docstring (line 849)",
+       "verdict": "kept",
+       "why": "The code only checks the boolean flag; no authentication probe is performed."
+      },
+      {
+       "text": "The host is passed EXPLICITLY per call. ``OLLAMA_HOST`` is never read for routing and never written -- see the module docstring; normalising a remote Ollama into this process would silently flip ``offload.py``'s trusted lane.",
+       "where": "OllamaAdapter docstring (line 895)",
+       "verdict": "uncheckable",
+       "why": "No code for OllamaAdapter is present in this chunk beyond the docstring; the module docstring is not provided."
+      },
+      {
+       "text": "``local`` is ``sensitivity.lane_for_host(host) == \"trusted\"`` -- numeric",
+       "where": "OllamaAdapter docstring (line 896)",
+       "verdict": "uncheckable",
+       "why": "The class definition is cut off; no implementation of 'local' attribute or method is shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "AntigravityAdapter docstring warns about shell injection via remote shell, but code does not sanitize the prompt.",
+       "where": "AntigravityAdapter docstring (line 844-846) and _dispatch method",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "AntigravityAdapter._dispatch returns 'not_authenticated' when signed_in is False, consistent with docstring.",
+       "where": "_dispatch method lines 878-882",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "AntigravityAdapter.argv constructs ssh command with -T, BatchMode=yes, ConnectTimeout=5, StrictHostKeyChecking=yes, which are sensible for automation.",
+       "where": "argv method lines 870-877",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "OllamaAdapter class docstring references module docstring and offload.py, but no code in this chunk to verify.",
+       "where": "OllamaAdapter docstring (line 895)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_auth_failure method is defined but not used in this chunk; possibly inherited or used elsewhere.",
+       "where": "AntigravityAdapter._auth_failure (line 841)",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b627c1ce8d9d95f94816e2998720a3aa68df3c9858cc9880b32b06a03e83a279",
+    "objective_chars": 5979,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [8/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 8,
+  "total": 10,
+  "first_line": 841
+ }
+}

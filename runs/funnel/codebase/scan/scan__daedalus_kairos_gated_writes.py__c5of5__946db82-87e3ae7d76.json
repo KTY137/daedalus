@@ -1,0 +1,236 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c5of5__946db82",
+ "key": "scan__daedalus_kairos_gated_writes.py__c5of5__946db82-87e3ae7d76",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5/5 of gated_writes.py: final loop building result dicts for gated write candidates; governance and policy holding logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1121-1125 | medium | write_assignments and write_gates derived from tasks but tasks not defined in this chunk; if tasks list is empty or indices out of range, IndexError occurs. | Check that tasks list is non-empty and write_idx are valid indices.",
+     "line 1126-1131 | medium | gate_candidates call uses scheduler.project, avail, ledger_path, cancel, write_gates, artifact_dir; any of these could be None or cause runtime error. | Verify all arguments are properly initialized.",
+     "line 1133 | low | promotion_allowed, gov_state, gov_verdict from _governance_verdict; if project is None, error. | Ensure scheduler.project is not None.",
+     "line 1141-1150 | low | held list built under else branch assumes all candidates are held with same reason; if write_gates contain gates, this may be incorrect. | Confirm that gated writes are always held by policy when promotion_allowed is True.",
+     "line 1157-1179 | medium | Loop iterates over write_idx and candidates; uses assignment.paths, res.artifact.changed_paths, etc. If any attribute missing, AttributeError. | Ensure all result objects have expected attributes.",
+     "line 1180-1186 | medium | When res.ok is False or res.artifact is None, result status is 'write_gate_failed'; but gate failure may have been caught earlier; this else branch may be unreachable. | Review logic to ensure this branch is reachable.",
+     "line 1188-1196 | medium | If res.artifact_path is falsy, status 'gated_artifact_lost'; else 'gated_held'. But held_by_task may not have entry for task_id, leading to fallback reason. | Ensure held_by_task covers all candidates.",
+     "line 1198 | low | Return type annotation ignored; actual return may not match expected type. | Add proper type cast or fix return type."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "5 of 5",
+     "purpose": "Build final results list for gated write candidates, applying governance and policy holding logic.",
+     "symbols": [
+      {
+       "name": "write_assignments",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "List of assignments corresponding to write_idx."
+      },
+      {
+       "name": "write_gates",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "List of gate dicts or None for each write_idx."
+      },
+      {
+       "name": "candidates",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Result of gate_candidates() call."
+      },
+      {
+       "name": "promotion_allowed",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Boolean from _governance_verdict."
+      },
+      {
+       "name": "gov_state",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Governance state string."
+      },
+      {
+       "name": "gov_verdict",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Governance verdict string."
+      },
+      {
+       "name": "held",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "List of (candidate, why_held) tuples."
+      },
+      {
+       "name": "held_by_task",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict mapping task_id to hold reason."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Clean candidate, not (yet) submitted for promotion: held by policy or by governance -- see `held_by_task` for exactly which.",
+       "where": "line 1176-1178",
+       "verdict": "kept",
+       "why": "The code builds held_by_task from held list, which is populated based on governance or policy, and later uses held_by_task to set the 'reason' field for each candidate."
+      },
+      {
+       "text": "If requested_auto_promote != auto_promote, include requested_auto_promote in base dict.",
+       "where": "line 1165-1166",
+       "verdict": "kept",
+       "why": "Code checks if requested_auto_promote != auto_promote and adds key if true."
+      },
+      {
+       "text": "If receipt is not None, include provider_receipt and model.",
+       "where": "line 1167-1170",
+       "verdict": "kept",
+       "why": "Code checks receipt is not None and adds key, and conditionally adds model if receipt.get('model')."
+      },
+      {
+       "text": "If res.artifact is not None, include artifact_sha256, artifact_bytes, changed_paths.",
+       "where": "line 1171-1174",
+       "verdict": "kept",
+       "why": "Code checks res.artifact is not None and adds those fields."
+      },
+      {
+       "text": "If res.artifact_path, include artifact_path.",
+       "where": "line 1175",
+       "verdict": "kept",
+       "why": "Code checks res.artifact_path truthy and adds key."
+      },
+      {
+       "text": "If res.persist_error, include artifact_persist_error.",
+       "where": "line 1176",
+       "verdict": "kept",
+       "why": "Code checks res.persist_error truthy and adds key."
+      },
+      {
+       "text": "If not res.ok or not res.artifact: results[i] = {status: write_gate_failed, reason: ...}.",
+       "where": "line 1177-1180",
+       "verdict": "kept",
+       "why": "Code checks not res.ok or not res.artifact and sets status to 'write_gate_failed'."
+      },
+      {
+       "text": "If not res.artifact_path: status 'gated_artifact_lost'.",
+       "where": "line 1181-1188",
+       "verdict": "kept",
+       "why": "Code checks not res.artifact_path and sets status to 'gated_artifact_lost'."
+      },
+      {
+       "text": "Else: status 'gated_held' with reason from held_by_task or fallback.",
+       "where": "line 1189-1197",
+       "verdict": "kept",
+       "why": "Code sets status to 'gated_held' and reason from held_by_task.get(task_id, fallback)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The variable 'tasks' is referenced but not defined in this chunk; write_idx derived from tasks indices.",
+       "where": "line 1121-1125",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "gate_candidates is called with many arguments; some may be None causing runtime error.",
+       "where": "line 1126-1131",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_governance_verdict is called; its implementation is not in this chunk.",
+       "where": "line 1133",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "If promotion_allowed is True, all candidates are held with same reason regardless of gates; this may be intentional but could be incorrect if some gates allow promotion.",
+       "where": "line 1141-1150",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The loop uses 'tasks' to get gates, but 'tasks' may be out of scope or modified.",
+       "where": "line 1123-1125",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable 'auto_promote' is used in base dict but not defined in this chunk.",
+       "where": "line 1164",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The variable 'requested_auto_promote' is used but not defined in this chunk.",
+       "where": "line 1165-1166",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The variable 'results' is returned but not defined in this chunk; assumed to be a list or dict passed in.",
+       "where": "line 1198",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The type ignore comment suggests a type mismatch in return.",
+       "where": "line 1198",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2dad104b33218b543a9db1ca426cbbab96706d1ae92ede6c2c6f5e95d533adaf",
+    "objective_chars": 4224,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [5/5]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

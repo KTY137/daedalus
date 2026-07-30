@@ -1,0 +1,204 @@
+{
+ "task_id": "plan__b007__946db82",
+ "key": "plan__b007__946db82-36a9da9eed",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Proposed 8 items addressing documented gaps: docstring fix, exception handling, outcome policy, path safety, drift freshness, suffix matching, dedup normalization, identity anchor validation. Each item has steps, verification, and dependencies.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing docstring may cause confusion if consumers rely on can_write=False behavior.",
+     "Changing exception handling may break existing error recovery.",
+     "Adding drift freshness check may increase latency if drift data is expensive to regenerate.",
+     "Path safety fix may break existing workflows that rely on symlinks.",
+     "Identity anchor validation may reject existing valid data if assumptions about current state are wrong."
+    ],
+    "todos": [
+     "Verify existing tests pass after each change.",
+     "Update integration tests for path safety and identity anchor.",
+     "Document assumptions about node ID uniqueness and attribute normalization."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix docstring in ollama.py to match can_write=True or change flag to False",
+       "gate": "1",
+       "why_now": "Documentation inconsistency could mislead developers; fixing it prevents future bugs.",
+       "steps": [
+        {
+         "do": "Update docstring in OllamaProvider to state it is not read-only or change can_write to False if appropriate",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "grep -A5 'class OllamaProvider' daedalus/providers/ollama.py | grep -E 'can_write|read.only'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "No consumer relies on can_write=False; if so, change docstring only."
+      },
+      {
+       "rank": 2,
+       "title": "Restrict exception handling in _run to only catch subprocess.CalledProcessError",
+       "gate": "1",
+       "why_now": "Broad except Exception masks unexpected errors like MemoryError; narrowing improves error transparency.",
+       "steps": [
+        {
+         "do": "Modify _run to catch only subprocess.CalledProcessError and let other exceptions propagate",
+         "file": "daedalus/executor.py",
+         "verified_by": "Inspect _run function: ensure except Exception is replaced with except subprocess.CalledProcessError"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "No other exception types need to be caught; if so, add specific exceptions."
+      },
+      {
+       "rank": 3,
+       "title": "Add missing outcome keys to OUTCOME_POLICY in picker.py",
+       "gate": "1",
+       "why_now": "Missing keys cause valid outcomes to be mapped to UNKNOWN_OUTCOME with inappropriate residual/severity.",
+       "steps": [
+        {
+         "do": "Add entries for OUTCOME_TASK_INVALID and OUTCOME_COULD_NOT_RUN to OUTCOME_POLICY dict",
+         "file": "daedalus/picker.py",
+         "verified_by": "grep -E 'OUTCOME_TASK_INVALID|OUTCOME_COULD_NOT_RUN' daedalus/picker.py"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Appropriate residual and severity values can be determined; if not, use reasonable defaults."
+      },
+      {
+       "rank": 4,
+       "title": "Add symlink resolution to _safe_join and _refuse_primary_checkout",
+       "gate": "2",
+       "why_now": "Without realpath, symlinks can escape containment, compromising path safety.",
+       "steps": [
+        {
+         "do": "Add os.path.realpath call in _safe_join before checking path containment",
+         "file": "daedalus/path.py",
+         "verified_by": "Write test creating symlink pointing outside and verify _safe_join raises error"
+        },
+        {
+         "do": "Add os.path.realpath call in _refuse_primary_checkout",
+         "file": "daedalus/path.py",
+         "verified_by": "Write test with symlink in worktree path and verify refusal"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Worktree manager does not already prevent symlinks; if it does, this is redundant."
+      },
+      {
+       "rank": 5,
+       "title": "Add drift freshness check in picker.py before using drift data",
+       "gate": "2",
+       "why_now": "Stale drift snapshots could lead to incorrect scheduling decisions.",
+       "steps": [
+        {
+         "do": "Add check that drift snapshot timestamp is not older than a threshold (e.g., inventory timestamp)",
+         "file": "daedalus/picker.py",
+         "verified_by": "Write unit test verifying picker rejects stale drift data"
+        },
+        {
+         "do": "If drift.py check() returns timestamp, use it; otherwise add timestamp return",
+         "file": "daedalus/drift.py",
+         "verified_by": "grep 'def check' daedalus/drift.py and check return value includes timestamp"
+        }
+       ],
+       "depends_on": "Add missing outcome keys to OUTCOME_POLICY in picker.py",
+       "effort": "days",
+       "assumption": "Drift data is persisted and not regenerated each time; if regenerated, freshness check is unnecessary."
+      },
+      {
+       "rank": 6,
+       "title": "Clarify node ID uniqueness requirement or change _same_node to use full equality",
+       "gate": "1",
+       "why_now": "Suffix matching can cause false positives if node IDs are not unique suffixes.",
+       "steps": [
+        {
+         "do": "Document that node IDs must be unique suffixes; optionally change _same_node to use exact match if practical",
+         "file": "daedalus/picker.py",
+         "verified_by": "Inspect _same_node implementation and add comment"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Test framework ensures unique suffixes; if not, change to exact match."
+      },
+      {
+       "rank": 7,
+       "title": "Add test for edge deduplication with None vs empty string attributes",
+       "gate": "1",
+       "why_now": "Canonical key normalization may incorrectly deduplicate edges with semantically different attribute values.",
+       "steps": [
+        {
+         "do": "Write a test that creates two edges with attributes {'a': None} and {'a': ''} and asserts both are kept",
+         "file": "daedalus/tests/test_forest.py",
+         "verified_by": "pytest daedalus/tests/test_forest.py -k dedup"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Current behavior may deduplicate; if test passes (both kept), no fix needed."
+      },
+      {
+       "rank": 8,
+       "title": "Add validation for identity_anchor in EventVectorStore",
+       "gate": "2",
+       "why_now": "Without enforcement, invalid or misused identity_anchor values can corrupt event data.",
+       "steps": [
+        {
+         "do": "Add validation in EventVectorStore that identity_anchor is one of 'missing', 'created', 'adopted' and that 'created' is only set on first write",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Write unit tests that attempt to set invalid identity_anchor and expect errors"
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "No existing valid data violates the constraints; if so, migration needed."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/providers/ollama.py",
+      "daedalus/executor.py",
+      "daedalus/picker.py",
+      "daedalus/path.py",
+      "daedalus/tests/test_picker.py",
+      "daedalus/tests/test_path.py",
+      "daedalus/tests/test_forest.py",
+      "daedalus/memory/embeddings.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "06f6c386b782d1a2fdc5e4edec4674bab215c345164f7b3d4e337e085507fc53",
+    "objective_chars": 6708,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 7 (8 inputs)",
+  "rev": "946db82",
+  "bucket": 7,
+  "inputs": 8
+ }
+}

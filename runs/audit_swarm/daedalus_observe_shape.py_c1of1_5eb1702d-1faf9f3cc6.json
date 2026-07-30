@@ -1,0 +1,160 @@
+{
+ "task_id": "daedalus/observe/shape.py#c1of1#5eb1702d",
+ "key": "daedalus_observe_shape.py_c1of1_5eb1702d-1faf9f3cc6",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "21 claims: 16 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Nothing here reads an element, a cell, a row or a scalar payload.\" | describe | BROKEN | line 220: `next(iter(obj.values()))` reads a value from a dict, line 233: `next(iter(obj))` reads an element from a sequence.",
+     "CLAIM | \"Even names are not automatically safe \u2014 a column called ``patient_id`` is a disclosure. So ``describe`` takes a ``redact`` hook, and the caller that ships an observation anywhere near a model is expected to pass one.\" | describe | KEPT | The `redact` parameter is used in all relevant places: lines 196, 203, 213, 220.",
+     "CLAIM | \"Duck-typed throughout: numpy, pandas, h5py and uproot are probed by attribute, never imported.\" | describe | KEPT | No imports of those libraries; uses `hasattr` and attribute access.",
+     "CLAIM | \"A tree without them degrades to the generic families and says so.\" | describe | UNCHECKABLE | Needs to see how the module behaves when those libraries are absent; cannot check within this unit.",
+     "CLAIM | \"Bounded, order-preserving name extraction with the TRUE count kept.\" | _names_of | KEPT | Returns `shown` (bounded), `total` (true count), and `trunc` flag.",
+     "CLAIM | \"Attribute or default, WITHOUT using truthiness.\" | _attr | KEPT | Uses `getattr` and explicit `None` check, avoids truthiness.",
+     "CLAIM | \"A stable one-line form, for comparing two observations or joining an observation against a declared type. Deterministic: names are already in a fixed order and nothing here consults a hash seed.\" | Shape.signature | KEPT | Uses sorted order for names and deterministic string construction.",
+     "CLAIM | \"The debug-console line this record stands in for.\" | Shape.render | KEPT | Produces a human-readable line similar to debugger output.",
+     "CLAIM | \"Refuses to compare rather than manufacturing findings: an observation with no names (a scalar, an unstructured array, an opaque object) is ``comparable=False`` with a reason.\" | compare_declared | KEPT | Returns `comparable=False` if `declared` empty or `shape.names` empty.",
+     "CLAIM | \"Reporting every declared field as \"missing\" because the observation carries no names at all would turn 'we learned nothing here' into a wall of false positives.\" | compare_declared | KEPT | Returns `comparable=False` with reason when no names.",
+     "CLAIM | \"missing_in_observation is the softest signal \u2014 these inputs did not exercise that field.\" | ShapeConflict | KEPT | `missing_in_observation` is a tuple of declared names not in observation.",
+     "CLAIM | \"undeclared_in_observation is the sharp one: the object carries something the code never declared, so the declaration is incomplete or the payload has undocumented shape.\" | ShapeConflict | KEPT | `undeclared_in_observation` is set difference of observed names minus declared.",
+     "CLAIM | \"A declaration says ``def load(p: str) -> Run``. A checker can sometimes prove a little more. Neither can tell you what you see the moment you stop in a debugger\" | module docstring | UNCHECKABLE | This is a description of the problem domain, not a checkable claim about this code.",
+     "CLAIM | \"That is the **shape of a live object**\" | module docstring | KEPT | The module defines `Shape` and `describe` to produce such representations.",
+     "CLAIM | \"One observed instance names its real keys.\" | describe | KEPT | For mappings, keys are extracted and stored.",
+     "CLAIM | \"Every record carries ``provenance=\"observed\"`` and the run it came from\" | Shape | KEPT | `provenance` defaults to `\"observed\"`.",
+     "CLAIM | \"any consumer that reports it as a fact is wrong \u2014 the same discipline ``eval/ceiling.py`` applies\" | module docstring | KEPT | The `provenance` field is set; no claim about enforcement.",
+     "CLAIM | \"A dict with 40 000 keys is described by its first ``MAX_NAMES`` and a count, never by all of them\" | _names_of | KEPT | `MAX_NAMES` is 64; `_names_of` clips to 64.",
+     "CLAIM | \"The point is a stable vocabulary the graph can join on\" | module docstring | KEPT | Family constants are defined and used.",
+     "CLAIM | \"``describe`` takes a ``redact`` hook, and the caller that ships an observation anywhere near a model is expected to pass one.\" | describe | KEPT | `redact` parameter exists and is applied.",
+     "D1 | _human_bytes | Parameter `n` is used, but the loop variable `unit` shadows nothing; no unused parameter found.",
+     "D2 | None | No `except` that swallows and continues where prose says refuse.",
+     "D3 | None | No check that runs after the side effect its comment says it guards.",
+     "D4 | None | No branch whose condition cannot be true given assignments above it."
+    ],
+    "todos": [
+     "Fix broken claim: \"Nothing here reads an element, a cell, a row or a scalar payload.\" Change `describe` to not read values: for dict, use `obj.keys()` only; for sequences, use `len()` or probe without reading element.",
+     "Fix broken claim: \"Nothing here reads an element, a cell, a row or a scalar payload.\" Remove the line `first = next(iter(obj.values()))` and associated `describe` call for dict element, and remove `el = describe(next(iter(obj)), ...)` for sequences."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "499f3cd3a525d517cbd3f3cb601f9a95d373afb970712ee9b8ebeddf2e9db66d",
+    "objective_chars": 19355,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never reads a value\" | describe docstring line 1 | BROKEN | line `first = next(iter(obj.values()))` reads a value from a dict, and passes it to recursive `describe`; also `next(iter(obj))` for sequences, and `redact` is called on keys but keys are not values. However, the explicit reading of the first element of a dict or sequence is reading a value.",
+     "CLAIM | \"redact is called on every key/column name before it is stored\" | describe docstring | BROKEN | The `redact` function is called in `_names_of(red(c) for c in ...)`, but `_names_of` expects an iterable of items; the generator expression passes the result of `red(c)` for each `c`, but `redact` is supposed to be called on the name string. However, the code also calls `red(f)` for structured dtype fields, and `red(k)` for dict keys, etc. The claim is kept for those. But for the `columns` case, the code does `_names_of(red(c) for c in _attr(obj, \"columns\", ()))`, which calls `red` on each column name, so that is fine. Actually there is a subtlety: for the table case, `_names_of` receives an iterator of `red(c)` results, which is fine. However, for the ROOT/h5py case, the code does `_names_of(red(k) for k in list(obj.keys()))`, which is also fine. For the dict case, `_names_of(red(k) for k in list(obj.keys()))` is fine. For dataclass and slots, `_names_of(red(k) for k in df)` and `_names_of(red(s) for s in slots)` are fine. So the claim is actually kept for all cases where names are extracted. There is no broken case for redact. I need to re-examine: the claim says \"redact is called on every key/column name before it is stored\". The code does call redact on every name. So this claim is KEPT. I will remove the BROKEN for this claim and adjust. However, I already have a BROKEN for the \"Never reads a value\" claim. Let me check the other claim about \"Never reads a value\" more carefully. The docstring says \"Describe one live object's SHAPE. Never reads a value.\" But the code reads the first value of a dict and the first element of a sequence to probe the element shape. That is reading a value. So that claim is BROKEN. Also, the code reads `memory_usage(deep=False).sum()` which might read some internal metadata but not values per se, but it's still accessing data. The key violation is the explicit `next(iter(obj.values()))` and `next(iter(obj))`. So that claim is BROKEN.",
+     "D1 | describe function parameter `redact` | Parameter `redact` is used in the function body, so it is read. Actually all parameters are used. No other unused parameters. So D1: none.",
+     "D2 | except Exception: pass | In `_names_of`, the `except Exception: return (), 0, False` swallows all exceptions and returns a default, which could hide errors. The surrounding prose does not say refuse or fail-closed, so this is not a D2 hit. D2 requires that the surrounding prose says refuse, fail-closed, or must not. The docstring for `_names_of` does not specify error handling. So not D2.",
+     "D3 | None found.",
+     "D4 | None found.",
+     "Mechanical: D: none"
+    ],
+    "todos": [
+     "Change the docstring of `describe` to remove 'Never reads a value' or add a caveat that the first element of a container is probed for its shape (but not its value contents beyond metadata). Alternatively, change the code to not read any element values; but that would lose the element probing feature."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "499f3cd3a525d517cbd3f3cb601f9a95d373afb970712ee9b8ebeddf2e9db66d",
+    "objective_chars": 19355,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"redact hook is called on every key/column name before it is stored\" | describe | BROKEN | In the array-likes branch, `_names_of(red(f) for f in fields)` applies redact to each field, but the table branch uses `_attr(obj, \"columns\", ())` without redact: `_names_of(red(c) for c in _attr(obj, \"columns\", ()))` is correct, but the dict branch uses `_names_of(red(k) for k in list(obj.keys()))` which is correct; however, the docstring says \"called on every key/column name\" and the ROOT branch does NOT apply redact: `_names_of(red(k) for k in list(obj.keys()))` is missing (line 245).",
+     "CLAIM | \"Nothing here reads an element, a cell, a row or a scalar payload\" | describe | BROKEN | The dict branch calls `describe(first, depth=depth+1, ...)` on the first value, which reads an element (line 256).",
+     "CLAIM | \"Nothing here reads an element, a cell, a row or a scalar payload\" | describe | KEPT | For other branches, no element is read.",
+     "CLAIM | \"It records metadata \u2014 concrete class, dtype, shape, strides, contiguity, byte size, and KEY or COLUMN NAMES\" | Shape fields | KEPT | Shape dataclass includes all those fields.",
+     "CLAIM | \"a value can be gigabytes, and an observer that copies data is a memory bug\" | describe | KEPT | No copying of values occurs.",
+     "CLAIM | \"a value can be a secret, and this repo's whole egress posture is built on not moving those\" | describe | KEPT | No values are returned.",
+     "CLAIM | \"Even names are not automatically safe \u2014 a column called patient_id is a disclosure. So describe takes a redact hook\" | describe | KEPT | redact parameter exists and is applied to names.",
+     "CLAIM | \"An observation with no names (a scalar, an unstructured array, an opaque object) is comparable=False\" | compare_declared | KEPT | Lines 326-328 check `if not shape.names` and return comparable=False.",
+     "CLAIM | \"Refuses to compare rather than manufacturing findings\" | compare_declared | KEPT | Returns comparable=False with reason when names are missing.",
+     "CLAIM | \"Reporting every declared field as missing because the observation carries no names at all would turn 'we learned nothing here' into a wall of false positives.\" | compare_declared | KEPT | The function returns comparable=False without listing missing fields.",
+     "CLAIM | \"Deterministic: names are already in a fixed order and nothing here consults a hash seed.\" | signature | KEPT | signature uses sorted names (via _names_of which preserves order from input but names are stored in tuple order) and no hash seed is used.",
+     "CLAIM | \"A dict with 40 000 keys is described by its first MAX_NAMES and a count, never by all of them\" | _names_of | KEPT | _names_of clips to MAX_NAMES and returns total count.",
+     "CLAIM | \"the caller that ships an observation anywhere near a model is expected to pass one [redact hook]\" | describe | UNCHECKABLE | No caller code is present to verify this.",
+     "D1 | _human_bytes | parameter `n` is read? | The function reads `n` and uses it, so not D1. But `_human_bytes` has a bug: in the loop, for unit=\"KiB\" etc., the division `n /= 1024.0` modifies n, but the formatting uses `n / 1.0` which is a no-op; the intended format is `f\"{n:.1f} {unit}\"` but n has already been divided, so the output is wrong. However, this is a bug, not a D1. D1 check: `_human_bytes` parameter `n` is read and used, so no D1. Let's re-evaluate mechanical checks.",
+     "D1 | `_attr` parameter `obj` | read? | Yes, used in `getattr(obj, ...)`. No D1.",
+     "D1 | `_clip` parameter `name` | read? | Yes, used. No D1.",
+     "D1 | `_qualname` parameter `obj` | read? | Yes. No D1.",
+     "D1 | `_names_of` parameter `seq` | read? | Yes. No D1.",
+     "D1 | `_layout_of` parameter `obj` | read? | Yes. No D1.",
+     "D1 | `describe` parameters | all read? | `obj` used, `depth` used, `redact` used. No D1.",
+     "D1 | `compare_declared` parameters | all read? | Yes. No D1.",
+     "D2 | except that swallows and continues where prose says refuse/fail-closed | describe | No such prose; the docstring does not promise fail-closed on exceptions. The excepts in describe are silent swallows (e.g., `except Exception: pass`) but not contradicted by prose. No D2.",
+     "D3 | check after side effect | None found. No D3.",
+     "D4 | branch condition impossible given assignments above | In `_human_bytes`, the loop condition `n < 1024 or unit == \"TiB\"` will always be true for the last iteration because unit becomes \"TiB\" and the condition is true, so the loop always breaks at TiB. But the division `n /= 1024.0` happens before the check? Actually the check is at the top of the loop: `for unit in ...: if n < 1024 or unit == \"TiB\": return ...; n /= 1024.0`. For the first units (B, KiB, MiB, GiB), if n >= 1024, the condition is false, so n is divided and loop continues. For TiB, the condition is always true because unit == \"TiB\". So the loop always returns at TiB. But there is a logic error: for unit=\"B\", the condition `n < 1024` is checked, and if n is large, it goes to the next unit. But the return statement for B uses `f\"{n:.0f} {unit}\"` which is correct. For subsequent units, the return statement uses `f\"{n / 1:.1f} {unit}\"` which is a no-op division; it should be `f\"{n:.1f} {unit}\"`. This is a bug but not D4. No D4."
+    ],
+    "todos": [
+     "In describe, the ROOT/HDF5 branch (line 245) does not apply redact to keys; add redact: `_names_of(red(k) for k in list(obj.keys()))`.",
+     "In describe, the dict branch reads an element (line 256) contradicting 'never reads an element'; either remove that claim or remove the element probing."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "499f3cd3a525d517cbd3f3cb601f9a95d373afb970712ee9b8ebeddf2e9db66d",
+    "objective_chars": 19355,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/observe/shape.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 16909
+ }
+}

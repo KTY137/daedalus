@@ -1,0 +1,143 @@
+{
+ "task_id": "daedalus/structcore/slice.py#c2of2#5eb1702d",
+ "key": "daedalus_structcore_slice.py_c2of2_5eb1702d-9c77c3f8e0",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 5 kept, 3 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Same egress gate, same order (``_emit_ok`` BEFORE ``_skeleton``, so a file that trips the floor is never read into the emitted text).\" | _emit_ok before _skeleton | KEPT | The code calls _emit_ok first, then _skeleton only for those that pass the filter.",
+     "CLAIM | \"Lowest keep rank (0) so a token budget sheds prose before it sheds code.\" | keep = 0 | KEPT | The inc dict sets \"keep\": 0, which is the lowest rank.",
+     "CLAIM | \"sorted() for determinism: the withheld block and its breadcrumbs are order-independent of dict insertion / set iteration.\" | sorted withheld | KEPT | The code sorts withheld_map items by file and role.",
+     "CLAIM | \"Fail-loud breadcrumb IN the slice text (matching the spirit of shell_boundary_stops, but inline so the model sees it): a withheld neighbour leaves a marked gap, never an unmarked one it might hallucinate across.\" | withheld_lines | KEPT | The code appends a WITHHELD section to the slice text.",
+     "CLAIM | \"``withheld`` is already sorted() for determinism.\" | sorted withheld | KEPT | The withheld list is sorted before building withheld_lines.",
+     "CLAIM | \"This block is kept LAST and is NEVER dropped by the budget -- degrade sheds neighbours, not the gate's own report.\" | withheld_lines never dropped | BROKEN | The _assemble_slice call with max_tokens=None includes withheld_lines, but the _fit_budget call in the budget-trimming branch does not guarantee withheld_lines are kept; it passes withheld_lines to _fit_budget which could drop them. The comment says \"NEVER dropped\" but the code allows dropping via _fit_budget.",
+     "CLAIM | \"With max_tokens=None this is byte-identical to the old flat join\" | byte-identical | UNCHECKABLE | Cannot verify without the old flat join code.",
+     "CLAIM | \"over budget it drops WHOLE neighbour units (never truncates) and appends a visible TRIMMED marker, keeping FOCUS + WITHHELD.\" | keeping FOCUS + WITHHELD | BROKEN | The code appends a marker after _fit_budget, but the marker is separate from the withheld_lines; the comment says \"keeping FOCUS + WITHHELD\" but the code does not explicitly ensure withheld_lines are kept; _fit_budget could drop them.",
+     "CLAIM | \"Edges that pointed OUT of the declared center and were therefore not expanded through. Reported rather than dropped in silence\" | shell_boundary_stops | KEPT | The return dict includes shell_boundary_stops.",
+     "D1 | max_tokens | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller may believe max_tokens is used, but it is read in the code (line: if max_tokens is not None). Actually it is read, so no D1 hit.",
+     "D2 | except: none | no except found | WRONG CONCLUSION: no except found, so no D2 hit.",
+     "D3 | check after side effect: _assemble_slice called before budget check | _assemble_slice called before the budget check, but the comment says over budget it drops and appends marker; the first _assemble_slice is wasteful but not a guard-after-side-effect issue. No D3 hit.",
+     "D4 | condition cannot be true: None | no such condition | WRONG CONCLUSION: no D4 hit."
+    ],
+    "todos": [
+     "Fix the claim that withheld_lines are NEVER dropped: ensure _fit_budget preserves them, or change the comment.",
+     "Fix the claim that over budget keeps FOCUS + WITHHELD: ensure _fit_budget keeps withheld_lines, or adjust the comment."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e594f88da282ed0e8025a7f777144a4df75dd85835c563f753c3b7b9e256776f",
+    "objective_chars": 9739,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 7 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Same egress gate, same order (``_emit_ok`` BEFORE ``_skeleton``, so a file that trips the floor is never read into the emitted text). Lowest keep rank (0) so a token budget sheds prose before it sheds code.\" | lines 4-9 | KEPT | The loop calls _emit_ok before _skeleton, and keep=0 is set.",
+     "CLAIM | \"sorted() for determinism: the withheld block and its breadcrumbs are order- independent of dict insertion / set iteration.\" | line 11 | KEPT | withheld is sorted with a key lambda.",
+     "CLAIM | \"Fail-loud breadcrumb IN the slice text (matching the spirit of shell_boundary_stops, but inline so the model sees it): a withheld neighbour leaves a marked gap, never an unmarked one it might hallucinate across.\" | line 16 | KEPT | withheld_lines are appended with a header and each withheld entry.",
+     "CLAIM | \"This block is kept LAST and is NEVER dropped by the budget -- degrade sheds neighbours, not the gate's own report.\" | line 17 | UNCHECKABLE | Need to see _fit_budget implementation to verify that withheld_lines are never dropped.",
+     "CLAIM | \"With max_tokens=None this is byte-identical to the old flat join\" | line 20 | KEPT | When max_tokens is None, the code uses _assemble_slice with None and no trimming.",
+     "CLAIM | \"over budget it drops WHOLE neighbour units (never truncates) and appends a visible TRIMMED marker, keeping FOCUS + WITHHELD.\" | lines 21-24 | KEPT | The code calls _fit_budget and then _assemble_slice with kept and a marker, keeping focus and withheld.",
+     "CLAIM | \"Edges that pointed OUT of the declared center and were therefore not expanded through. Reported rather than dropped in silence\" | line 28 | KEPT | shell_stops is included in the output.",
+     "CLAIM | \"False => the index predates total_tokens, so the denominator fell back to the chars/4 whole-repo estimate rather than the per-file token sum. True only means 'same tokenizer as the numerator', NOT 'tiktoken- measured'\" | lines 30-31 | KEPT | The docstring and code match: whole_exact is returned and the comment explains its meaning.",
+     "CLAIM | \"Honest label: name the actual tokenizer instead of blanket 'measured'.\" | line 36 | BROKEN | The comment says \"Honest label\" but the code uses a variable `denom` that may be \"ESTIMATED chars/4\" or \"ESTIMATED {tk}\" or \"measured: {tk}\" or \"measured\". The comment claims it always names the tokenizer, but when `tk` is falsy and `whole_repo_tokens_exact` is true, `denom` becomes just \"measured\" without naming the tokenizer.",
+     "D1 | line 36 | The parameter `argv` is used in the function signature but never read in this unit (it is passed to `ap.parse_args` but that is a call, not a read; the variable itself is not read elsewhere). | WRONG CONCLUSION: A caller may think the function uses `argv` directly, but it is only passed to argparse."
+    ],
+    "todos": [
+     "Fix the comment on line 36 to accurately describe the labeling logic, or adjust the code to always include the tokenizer name when whole_repo_tokens_exact is true.",
+     "Remove the unused parameter `argv` or use it in the function body."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e594f88da282ed0e8025a7f777144a4df75dd85835c563f753c3b7b9e256776f",
+    "objective_chars": 9739,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 13 kept, 2 broken, 1 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"emitted on BOTH paths (symbol and module) and for BOTH directions\" | loop over (\"documents\", sorted(documents_out)), (\"documented_by\", sorted(documented_by)) | KEPT | both roles are iterated regardless of symbol or module path.",
+     "CLAIM | \"Same egress gate, same order (``_emit_ok`` BEFORE ``_skeleton``, so a file that trips the floor is never read into the emitted text)\" | kept_docs = [r for r in rels if _emit_ok(r, role)] then sk = _skeleton(root, r) | KEPT | _emit_ok filter is applied before _skeleton call.",
+     "CLAIM | \"Lowest keep rank (0) so a token budget sheds prose before it sheds code\" | \"keep\": 0 | KEPT | keep is set to 0 in the appended dict.",
+     "CLAIM | \"sorted() for determinism: the withheld block and its breadcrumbs are order-independent of dict insertion / set iteration\" | withheld = sorted(..., key=lambda w: (w[\"file\"], w[\"role\"])) | KEPT | sorting is applied.",
+     "CLAIM | \"Fail-loud breadcrumb IN the slice text (matching the spirit of shell_boundary_stops, but inline so the model sees it): a withheld neighbour leaves a marked gap, never an unmarked one it might hallucinate across\" | withheld_lines.append(...) and inclusion in slice_text via _assemble_slice | KEPT | withheld lines are added and included.",
+     "CLAIM | \"``withheld`` is already sorted() for determinism\" | withheld = sorted(...) | KEPT | sorted is called.",
+     "CLAIM | \"This block is kept LAST and is NEVER dropped by the budget -- degrade sheds neighbours, not the gate's own report.\" | marker appended only after trimming, withheld_lines always included | KEPT | withheld_lines are passed directly to _assemble_slice in both calls.",
+     "CLAIM | \"With max_tokens=None this is byte-identical to the old flat join\" | slice_text = _assemble_slice(focus_block, kept, withheld_lines, None) | UNCHECKABLE | Need to see _assemble_slice implementation to confirm byte-identical behavior.",
+     "CLAIM | \"over budget it drops WHOLE neighbour units (never truncates) and appends a visible TRIMMED marker, keeping FOCUS + WITHHELD\" | _fit_budget called, marker appended | KEPT | code shows trimming and marker.",
+     "CLAIM | \"Reported rather than dropped in silence: a slice that stops at the shell boundary and a slice with no neighbors at all look identical from the outside, and only one of them is complete.\" | \"shell_boundary_stops\": shell_stops | KEPT | shell_stops is included in the return dict.",
+     "CLAIM | \"Files that carried secret markers / non-allow-listed egress and were therefore withheld from the slice. sorted(); each entry names the rule that fired. Empty list on a clean slice.\" | \"withheld\": withheld, \"withheld_count\": len(withheld) | KEPT | withheld is sorted and included.",
+     "CLAIM | \"False => the index predates total_tokens, so the denominator fell back to the chars/4 whole-repo estimate rather than the per-file token sum.\" | \"whole_repo_tokens_exact\": whole_exact | KEPT | whole_exact is a boolean from _whole_repo_tokens.",
+     "CLAIM | \"True only means 'same tokenizer as the numerator', NOT 'tiktoken-measured' -- when tiktoken is absent both sides are chars/4 and the ratio is consistent but the absolute count is a heuristic.\" | comment in return dict | KEPT | comment explains the meaning.",
+     "CLAIM | \"whole_repo_tokenizer for the honest label; a degraded tokenizer is reported there, never silent.\" | \"whole_repo_tokenizer\": idx.get(\"tokenizer\") | KEPT | tokenizer is taken from index.",
+     "CLAIM | \"Honest label: name the actual tokenizer instead of blanket 'measured'.\" | main prints denom based on whole_repo_tokens_exact and tokenizer | KEPT | logic distinguishes cases.",
+     "CLAIM | \"whole_repo_tokens_exact only says the denominator is the per-file token sum (not the legacy chars/4 whole-repo fallback); it does NOT say a real BPE tokenizer was used.\" | comment in main | KEPT | comment explains.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e594f88da282ed0e8025a7f777144a4df75dd85835c563f753c3b7b9e256776f",
+    "objective_chars": 9739,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/slice.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 7221
+ }
+}

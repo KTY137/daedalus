@@ -1,0 +1,123 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c4of7__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c4of7__946db82-f2669ff55b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 7 of docrefs.py: contains helper functions _module_file, _collect_names, _parse_cache, and resolve_reference. No new claims or symbols beyond what is defined.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "4 of 7",
+     "purpose": "Define helper functions for resolving references: file path resolution, AST name collection, cache parsing, and reference resolution.",
+     "symbols": [
+      {
+       "name": "_module_file",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Returns the Path to a module file given root and parts; checks .py file and __init__.py, then uses suffix index if provided."
+      },
+      {
+       "name": "_collect_names",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Collects top-level names, class members, and dynamic flag from AST body; walks into if/try bodies."
+      },
+      {
+       "name": "_parse_cache",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Reads a module file, parses it, caches the result; returns names, classes, dynamic, error string."
+      },
+      {
+       "name": "resolve_reference",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Decides whether a Reference exists; never raises; returns Reference with state and why."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Top-level names, class members, and whether the namespace is DYNAMIC. Walks into module-level ``if``/``try`` bodies, because a conditional or guarded import is a normal way to define a public name and missing it would manufacture a false \"this symbol does not exist\".",
+       "where": "_collect_names docstring",
+       "verdict": "kept",
+       "why": "The code iterates over ast.stmt nodes and explicitly handles If and Try by recursing into their bodies, orelse, finalbody, and handlers."
+      },
+      {
+       "text": "Decide whether ``ref`` names code that exists. Never raises.",
+       "where": "resolve_reference docstring",
+       "verdict": "kept",
+       "why": "The function signature and implementation (no try/except visible) indicate it never raises; the docstring states it."
+      },
+      {
+       "text": "The precondition for judging AT ALL is that the module resolves. A reference whose module is absent is ``skipped`` -- see the module docstring on why that is the entire false-positive filter.",
+       "where": "resolve_reference docstring",
+       "verdict": "uncheckable",
+       "why": "The module docstring is not in this chunk; the logic for skipping absent modules is not visible in this chunk."
+      },
+      {
+       "text": "known non-module dotted name; a coincidental module basename must not turn it into an autonomous edit target",
+       "where": "resolve_reference docstring (via code comment in the function)",
+       "verdict": "uncheckable",
+       "why": "_NON_MODULE_DOTTED_NAMES is not defined in this chunk; the check is present but the set's contents are not visible."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _module_file accepts optional suffixes parameter but the method of using it is not fully visible; it checks if len(hits)==1.",
+       "where": "line 374-381",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "resolve_reference uses cache.get('__suffixes__') and sets it if missing, but the cache dict is passed in; the function also uses _NON_MODULE_DOTTED_NAMES which is not defined in this chunk.",
+       "where": "line 411-416",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8dea6ae4629c32ba24d5e8ac7124cc0eb01ec45a44381da0706ed23b428a28e0",
+    "objective_chars": 5703,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [4/7]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 4,
+  "total": 7,
+  "first_line": 361
+ }
+}

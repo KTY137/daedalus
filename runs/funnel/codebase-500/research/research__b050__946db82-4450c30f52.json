@@ -1,0 +1,138 @@
+{
+ "task_id": "research__b050__946db82",
+ "key": "research__b050__946db82-4450c30f52",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis identifies shared assumptions about egress enforcement, snapshot integrity, and gate precedence that are untested or contradicted across modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Egress floor check may not actually run per file as claimed in vendors.py because floor_check is imported but its implementation is in a different module; no evidence that it is invoked before bytes leave the process.",
+     "Drift.py's known_unreached set includes accepted islands, contradicting the claim that accepted islands are absent from the baseline, potentially allowing hidden drift.",
+     "TaskAttempt.run() calls _resolve_base() and _get_ledger() but these are not defined in the shown chunk; their behavior is unknown and could fail or bypass checks.",
+     "Vendors.py docstring claims adapters have a uniform ask() signature, but no adapter classes are defined in the shown chunk; the contract may not be enforced.",
+     "Forest.py uses _TYPE_NODE_KINDS and _RESERVED_RELATIONS to prevent type nodes from leaking into file layers, but the enforcement via build_forest_hierarchy is not shown; the defense may be incomplete."
+    ],
+    "todos": [
+     "Verify that floor_check is actually called before any egress in all adapter paths.",
+     "Review drift.py to ensure accepted islands are correctly excluded from baseline and that known_unreached does not suppress legitimate drift.",
+     "Inspect attempt.py for the definitions of _resolve_base() and _get_ledger() to confirm they are safe and do not bypass fail-closed logic.",
+     "Check that all adapters in vendors.py implement the same ask() signature and that the docstring contract is enforced.",
+     "Confirm that build_forest_hierarchy uses _is_type_node_id to prevent type nodes from being treated as files."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "egress-floor-invocation-gap",
+       "claim": "The egress floor check (floor_check) is claimed to run per file in vendors.py, but the scan shows it is only imported and never invoked in the shown chunk; the actual invocation may be missing or incomplete, leaving egress unguarded.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "vendors.py docstring asserts floor_check runs per file before any bytes leave; attempt.py run() is the entry point for task execution but does not reference floor_check. If floor_check is not called in the adapter ask() methods (not shown), the egress guard is a no-op.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that floor_check is called in any adapter's ask() method or in attempt.py before egress.",
+       "evidence": [
+        "daedalus/council/vendors.py:docstring EGRESS section",
+        "daedalus/spine/attempt.py:run()"
+       ]
+      },
+      {
+       "id": "snapshot-accepted-island-suppression",
+       "claim": "Drift.py claims accepted islands are absent from the baseline so they cannot suppress findings, but the code includes accepted islands in known_unreached, potentially allowing them to be treated as unreached and thus suppress BECAME ISLAND drift.",
+       "spans": [
+        "daedalus/mapping/drift.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "drift.py computes known_unreached as (old_islands | old_unknown | old_shims) & old_modules plus accepted keys with prefixes island/unknown/shim. If an accepted island is in old_islands, it ends up in known_unreached, which is used to filter BECAME ISLAND items. This contradicts the docstring claim that accepted islands are absent from the baseline.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that accepted islands are removed from old_islands before computing known_unreached, or that known_unreached is not used to suppress BECAME ISLAND.",
+       "evidence": [
+        "daedalus/mapping/drift.py:known_unreached computation",
+        "daedalus/mapping/drift.py:comment at line ~1260"
+       ]
+      },
+      {
+       "id": "gate-precedence-untested",
+       "claim": "TaskAttempt's gate precedence (explicit gate > correctness > pytest) is documented but the correctness_gate is imported lazily to avoid circular dependency, and its behavior is untested in the shown chunk; a failure in correctness_gate could silently fall back to pytest_gate.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/structcore/forest.py"
+       ],
+       "mechanism": "attempt.py imports correctness_gate inside __init__ to avoid circular import; if the import fails or the gate returns unexpected results, the fallback is pytest_gate. Forest.py's _RESERVED_RELATIONS comment warns against merging type edges into wrong layers, suggesting similar precedence issues exist elsewhere.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that correctness_gate import is guarded and that its failure is explicitly handled, or that the precedence logic is tested in other chunks.",
+       "evidence": [
+        "daedalus/spine/attempt.py:lines 1108-1116",
+        "daedalus/structcore/forest.py:_RESERVED_RELATIONS comment"
+       ]
+      },
+      {
+       "id": "type-node-leak-into-files",
+       "claim": "Forest.py uses _is_type_node_id to prevent type nodes from being treated as files, but the enforcement relies on build_forest_hierarchy which is not shown; if that function does not use the check, type nodes may leak into file layers, corrupting reachability analysis.",
+       "spans": [
+        "daedalus/structcore/forest.py",
+        "daedalus/council/vendors.py"
+       ],
+       "mechanism": "vendors.py docstring mentions 'the reachability the safety fence is built on'. If type nodes leak into file layers, the safety fence's reachability analysis would include non-file nodes, potentially creating false positives or bypasses.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that build_forest_hierarchy calls _is_type_node_id or that type nodes are otherwise excluded from file layers.",
+       "evidence": [
+        "daedalus/structcore/forest.py:_is_type_node_id",
+        "daedalus/structcore/forest.py:_TYPE_NODE_KINDS"
+       ]
+      },
+      {
+       "id": "adapter-signature-uniformity",
+       "claim": "Vendors.py docstring claims all adapters have the same ask() signature, but no adapter classes are defined in the shown chunk; the contract may be violated by some adapters, leading to silent failures or inconsistent behavior.",
+       "spans": [
+        "daedalus/council/vendors.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "If an adapter's ask() does not match the expected signature, attempt.py's call to the adapter (via _gate or runner) could fail or produce unexpected results. The docstring claim is unverifiable in this chunk.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all adapters implement the same ask() signature and that the contract is enforced by type checking or tests.",
+       "evidence": [
+        "daedalus/council/vendors.py:docstring line 4-5",
+        "daedalus/spine/attempt.py:run() (assumes adapter interface)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "05b42db6a1bf54ad64fee465ab0c3ff209e0d4472c8c4828fdd64cb2f3296ff5",
+    "objective_chars": 23647,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 50 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 50,
+  "inputs": 4
+ }
+}

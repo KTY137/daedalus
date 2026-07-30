@@ -1,0 +1,105 @@
+{
+ "task_id": "research__b012__946db82",
+ "key": "research__b012__946db82-85033a064b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) global mutable caches without synchronization (bus.py _APPEND_CACHE, vault.py constants unused), (2) docstring over-promising vs code under-delivering across modules (picker.py state enumeration missing 'invalid', vault.py missing symlink/outside-vault checks), (3) inconsistent error handling for cancellations (gated_writes.py distinct exception, but no evidence other modules handle it).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Race condition on _APPEND_CACHE in bus.py could cause data corruption or lost updates.",
+     "Docstring in picker.py omits 'invalid' state, misleading consumers (e.g., load_work_queue callers).",
+     "Vault path resolution (vault_rel) lacks symlink and outside-vault checks despite docstring claims, enabling path traversal.",
+     "Cancellation exception _CumulativeGateCancelled may not be caught by upstream modules, leading to unhandled exceptions."
+    ],
+    "todos": [
+     "Add threading lock to _APPEND_CACHE accesses in bus.py.",
+     "Update picker.py docstrings to list all possible states including 'invalid'.",
+     "Complete vault_rel implementation with symlink resolution and outside-vault check.",
+     "Verify that _CumulativeGateCancelled is properly caught and handled in the promote flow."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "global-cache-race",
+       "claim": "Multiple modules use global mutable caches without synchronization, risking race conditions.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/wiki/vault.py"
+       ],
+       "mechanism": "bus.py defines _APPEND_CACHE as a global dict, accessed from append operations across threads. vault.py defines constants (MAX_PAGES, MAX_PAGE_BYTES, etc.) that are globally accessible but not mutated. The pattern of global mutable state without locks in bus.py is a race condition risk.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If _APPEND_CACHE is only accessed from a single thread or protected by an external lock, the race condition is mitigated.",
+       "evidence": [
+        "daedalus/council/bus.py: _APPEND_CACHE",
+        "daedalus/wiki/vault.py: MAX_PAGES, MAX_PAGE_BYTES"
+       ]
+      },
+      {
+       "id": "docstring-overpromise",
+       "claim": "Docstrings in multiple modules claim behavior not implemented in code, misleading maintainers.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/wiki/vault.py"
+       ],
+       "mechanism": "picker.py's _picker_source_mode docstring lists three return values but code returns 'invalid' as a fourth. load_work_queue docstring lists four states but code can return 'invalid' for multiple subcases not documented. vault.py's vault_rel docstring claims symlink and outside-vault checks that are not present in the chunk.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If later chunks of those modules implement the missing checks or the docstrings are updated to match code, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py: _picker_source_mode docstring vs code",
+        "daedalus/spine/picker.py: load_work_queue docstring vs code",
+        "daedalus/wiki/vault.py: vault_rel docstring claims vs implementation"
+       ]
+      },
+      {
+       "id": "cancellation-handling-gap",
+       "claim": "Cancellation exceptions (e.g., _CumulativeGateCancelled) may not be handled consistently across modules, risking unhandled exceptions or incorrect error reporting.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "gated_writes.py defines _CumulativeGateCancelled and raises it on cancellation. The chunk does not show where it is caught. picker.py's load_work_queue returns state strings but does not handle cancellation exceptions. If the cancellation propagates uncaught, it could crash the picker.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If upstream code (e.g., in daedalus.spine or daedalus.kairos) catches _CumulativeGateCancelled and handles it gracefully, the gap is closed.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py: _CumulativeGateCancelled",
+        "daedalus/spine/picker.py: load_work_queue (no cancellation handling)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a38ad12baa25bea9e6123e820f70ca999d5633770c65bcf3f17e707bd2b32a80",
+    "objective_chars": 30207,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 12 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 12,
+  "inputs": 5
+ }
+}

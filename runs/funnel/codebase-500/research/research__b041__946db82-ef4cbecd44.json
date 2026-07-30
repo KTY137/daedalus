@@ -1,0 +1,126 @@
+{
+ "task_id": "research__b041__946db82",
+ "key": "research__b041__946db82-ef4cbecd44",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: static capabilities vs runtime behavior discrepancies, unenforced promises, and missing constants across daedalus modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OllamaProvider caps claim local=True but host is configurable via OLLAMA_HOST, enabling remote egress.",
+     "warm_model claims no egress but makes HTTP request to configurable host.",
+     "fan_out docstring promises never raises but error handling not fully visible in chunk.",
+     "session.py constants unreferenced in other chunks may lead to silent defaults.",
+     "dss.py references undefined constants (FILE_NODE_KINDS, REPOSITORY_NODE_ID, HIERARCHY_SCHEMA_VERSION)."
+    ],
+    "todos": [
+     "Verify OllamaProvider caps are dynamic or document that they can change.",
+     "Ensure fan_out error handling matches docstring promise.",
+     "Define missing constants in dss.py or import them.",
+     "Add tests for OllamaProvider with non-local host to confirm egress behavior."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "static-caps-vs-runtime",
+       "claim": "Static capability declarations (e.g., local=True) in provider classes are contradicted by runtime behavior (e.g., configurable host), leading to incorrect assumptions about egress and trust.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "OllamaProvider declares local=True at class level, but host is determined by OLLAMA_HOST env var at runtime. warm_model makes HTTP request to that host, potentially causing network egress. Similarly, session.py snapshots transport callables at import, but if a provider's host changes later, the snapshot may not reflect the actual endpoint.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If OllamaProvider caps are dynamically computed based on host (e.g., local=False when host is not localhost), then the static declaration is not misleading.",
+       "evidence": [
+        "daedalus/providers/ollama.py:OllamaProvider.caps (line 338)",
+        "daedalus/providers/ollama.py:warm_model (line 282)",
+        "daedalus/council/session.py:_SHIPPED_TRANSPORTS (line 151)"
+       ]
+      },
+      {
+       "id": "docstring-promise-vs-implementation",
+       "claim": "Promises made in docstrings (e.g., never raises, same summary shape) are not enforced by the visible code, leading to potential contract violations.",
+       "spans": [
+        "daedalus/lanes/fanout.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "fan_out docstring claims 'Never raises for a failing task', but the error handling inside the fan-out loop is not shown in the chunk; only guard installation and temperature check are present. Similarly, session.py docstring claims about live-wire gate and testing are not backed by code in the chunk.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the full fan_out function (in other chunks) indeed catches all task failures without raising, then the docstring is accurate.",
+       "evidence": [
+        "daedalus/lanes/fanout.py:fan_out docstring (line not specified)",
+        "daedalus/council/session.py:docstring (lines 121-127)"
+       ]
+      },
+      {
+       "id": "missing-constants-across-modules",
+       "claim": "Several modules reference constants that are not defined within the visible chunks, causing potential import errors or silent fallbacks to defaults.",
+       "spans": [
+        "daedalus/structcore/dss.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "dss.py uses FILE_NODE_KINDS, REPOSITORY_NODE_ID, HIERARCHY_SCHEMA_VERSION, and _digest without defining them. ollama.py uses WINDOW_ANCHOR_FRAC, num_ctx_value(), DEFAULT_KEEP_ALIVE, DEFAULT_HOST, DEFAULT_MODEL, and Provider without definitions. These may be defined in other chunks of the same files, but cross-file usage could break if not properly imported.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If all missing constants are defined in earlier or later chunks of the same file, then no cross-file issue exists.",
+       "evidence": [
+        "daedalus/structcore/dss.py:build_forest_hierarchy (line 141)",
+        "daedalus/providers/ollama.py:line 247 (WINDOW_ANCHOR_FRAC)",
+        "daedalus/providers/ollama.py:line 299 (num_ctx_value)",
+        "daedalus/providers/ollama.py:line 275 (DEFAULT_KEEP_ALIVE)",
+        "daedalus/providers/ollama.py:line 289 (DEFAULT_HOST, DEFAULT_MODEL)",
+        "daedalus/providers/ollama.py:line 330 (Provider)"
+       ]
+      },
+      {
+       "id": "budget-egress-assumption",
+       "claim": "The budget and egress subsystems assume that all provider calls are local and free, but Ollama's warm_model can make remote HTTP calls, potentially bypassing budget controls.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "OllamaProvider declares local=True, so the budget system may not track egress costs for its calls. However, warm_model makes an HTTP request to a configurable host, which could be remote. If the budget system relies on the static caps, it may not account for this egress.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "If the budget system dynamically checks the actual host (e.g., by inspecting the URL) before deciding whether to charge, then the static caps are not misleading.",
+       "evidence": [
+        "daedalus/providers/ollama.py:OllamaProvider.caps (line 338)",
+        "daedalus/providers/ollama.py:warm_model (line 282)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d6a82cc9cefc8f2bc7376e57f7de03629906ff9a2cbf3fcd6f1eeccacc0b3c5d",
+    "objective_chars": 24792,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 41 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 41,
+  "inputs": 4
+ }
+}

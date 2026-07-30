@@ -1,0 +1,152 @@
+{
+ "task_id": "daedalus/structcore/markdown.py#c2of2#5eb1702d",
+ "key": "daedalus_structcore_markdown.py_c2of2_5eb1702d-6b22a84297",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 16 kept, 2 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"(by full rel path, by basename), both lower-cased, values sorted.\" | wiki_lookup | KEPT | The code builds dicts with lower-cased keys and stores sorted values.",
+     "CLAIM | \"Built once per document rather than once per link, and sorted at build time so two processes see candidates in the same order\" | wiki_lookup | KEPT | lookup is built once per document and values are sorted.",
+     "CLAIM | \"A path is read BOTH as vault-root-relative (what Obsidian does) and as document-relative (what a reader who knows markdown assumes).\" | _hits | KEPT | The code tries both root-relative and document-relative candidates.",
+     "CLAIM | \"default_ext is appended ONLY as a second round, when the name as written matches nothing\" | resolve_wiki_target | KEPT | The code first tries raw, then if no hits and default_ext, tries raw+default_ext.",
+     "CLAIM | \"[(link, target or None, status)] for every wikilink, in document order.\" | resolve_wiki_links | KEPT | Returns list in document order (iteration order of parse.wiki_links).",
+     "CLAIM | \"A document linking to itself is not an edge\" | resolve_wiki_links | KEPT | The code appends (link, None, WIKI_RESOLVED) and does not add to targets.",
+     "CLAIM | \"doc_targets is a superset of internal_links' first return value: same standard-markdown edges, plus the wikilink ones.\" | knowledge_links | KEPT | doc_targets includes std_targets and additional targets from wiki links.",
+     "CLAIM | \"code_targets is kept apart on purpose\" | knowledge_links | KEPT | Code targets are stored separately in code set.",
+     "CLAIM | \"type_refs carries names this module never tried to resolve.\" | knowledge_links | KEPT | type_refs are added from deferred type links, never resolved.",
+     "CLAIM | \"(resolved rel targets, unresolved count). Sorted, de-duplicated, self excluded\" | internal_links | KEPT | Returns sorted list of resolved targets, excludes self, counts unresolved.",
+     "CLAIM | \"distilled False means the raw document was returned because no skeleton of it was SMALLER than the document itself\" | DocSkeleton | KEPT | The code returns text when no skeleton fits.",
+     "CLAIM | \"HARD INVARIANT, tested: len(result.text) <= len(text), and <= max_chars when one is given.\" | document_skeleton | KEPT | All returned DocSkeleton instances have text length <= original text and <= max_chars when given.",
+     "CLAIM | \"The ladder is fixed and deterministic\" | document_skeleton | KEPT | The order of attempts is fixed: full annotations, no annotations, truncated, raw.",
+     "CLAIM | \"Every rung says what it dropped. There is no rung that drops silently.\" | document_skeleton | KEPT | Each DocSkeleton includes dropped_chars and degraded field.",
+     "CLAIM | \"A distilled view larger than its own source is not a distillation.\" | document_skeleton | KEPT | The code checks _fits(rendered) before returning, ensuring len(rendered) <= cap.",
+     "CLAIM | \"the tree truncated to the first N headings, saying how many were omitted (N halved until it fits, so the outcome is a function of the input, not of a search order)\" | document_skeleton | KEPT | The code halves limit until it fits, and includes a message about omitted headings.",
+     "D1 | documents | parse_document function accepts 'document' parameter but it is not used in the function body. | WRONG CONCLUSION: A caller might expect document to be used.",
+     "D2 | None | No except clauses that swallow and continue.",
+     "D3 | None | No check that runs after the side effect it claims to guard.",
+     "D4 | heads[0][0] if heads else len(lines) | The line 'first = heads[0][0] if heads else len(lines)' assumes heads[0][0] exists; but heads is a list of tuples, so heads[0][0] is valid. No branch condition that cannot be true."
+    ],
+    "todos": [
+     "Use the 'document' parameter inside parse_document, or remove it from the signature."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "71c1f17f2e4b7200fb3e6098ce27f8cfbdf016876d72bf2963f356185d23ca66",
+    "objective_chars": 19418,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"both lower-cased, values sorted\" | wiki_lookup | KEPT | by_path and by_base have lower-cased keys and sorted values via sorted(known_files).",
+     "CLAIM | \"sorted at build time so two processes see candidates in the same order\" | wiki_lookup | KEPT | Sorting of known_files ensures deterministic iteration.",
+     "CLAIM | \"default_ext is appended ONLY as a second round, when the name as written matches nothing\" | resolve_wiki_target | KEPT | The code appends default_ext only if raw doesn't match and if raw doesn't end with default_ext.",
+     "CLAIM | \"(target rel or None, status) for one wikilink target\" | resolve_wiki_target | KEPT | Returns tuple as described.",
+     "CLAIM | \"A document linking to itself is not an edge\" | resolve_wiki_links | KEPT | The code appends (link, None, WIKI_RESOLVED) when target == parse.document.",
+     "CLAIM | \"Deliberately NOT folded into internal_links\" | KnowledgeLinks | KEPT | The dataclass docstring states this, and knowledge_links keeps separate sets.",
+     "CLAIM | \"doc_targets is a superset of internal_links' first return value\" | knowledge_links | KEPT | std_targets are included in docs set, plus wikilink targets.",
+     "CLAIM | \"distilled False means the raw document was returned because no skeleton of it was SMALLER than the document itself\" | DocSkeleton | BROKEN | The code returns distilled=False also when max_chars truncates the raw document, not only when skeleton is larger. See line 'return DocSkeleton(text=body, distilled=False, ...)'.",
+     "CLAIM | \"HARD INVARIANT, tested: len(result.text) <= len(text), and <= max_chars when one is given\" | document_skeleton | KEPT | The code caps at len(text) or max_chars, and truncates appropriately.",
+     "CLAIM | \"Every rung says what it dropped. There is no rung that drops silently.\" | document_skeleton | KEPT | Each return path includes a degraded field and prose about dropped content.",
+     "CLAIM | \"limit halved until it fits, so the outcome is a function of the input, not of a search order\" | document_skeleton | KEPT | The loop halves limit each iteration.",
+     "CLAIM | \"A distilled view larger than its own source is not a distillation\" | document_skeleton | UNCHECKABLE | The invariant is stated but not enforced by code in this unit; would need to see test code.",
+     "CLAIM | \"the rule internal_links already applies, restated here rather than left to the caller\" | resolve_wiki_links | KEPT | The comment says so, and the code handles self-links.",
+     "D1 | default_ext | resolve_wiki_target | parameter default_ext is read but its value is only used if not empty; however it is read inside the function, so not dead.",
+     "D2 | none | no except that swallows and continues where prose says refuse.",
+     "D3 | none | no check after side effect.",
+     "D4 | limit //= 2 after _fits fails | document_skeleton | WRONG CONCLUSION: a caller might think limit halves only after a failed fit, but it also halves before the loop (limit = len(heads)//2). That initial assignment is correct, not a bug."
+    ],
+    "todos": [
+     "CLAIM | \"distilled False means the raw document was returned because no skeleton of it was SMALLER than the document itself\" | BROKEN | Change the fallback returns to set distilled=True when the skeleton is smaller, or update the docstring to allow distilled=False for truncated raw as well.",
+     "D4 | limit = len(heads) // 2 | The initial limit is set to half the heads, then halved again in the loop; this is intentional and not a bug, but the comment 'N halved until it fits' could be misread. No change needed."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "71c1f17f2e4b7200fb3e6098ce27f8cfbdf016876d72bf2963f356185d23ca66",
+    "objective_chars": 19418,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 1 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"(by full rel path, by basename), both lower-cased, values sorted\" | wiki_lookup | KEPT | The function builds two dicts with lower-cased keys and sorted values.",
+     "CLAIM | \"Built once per document rather than once per link, and sorted at build time so two processes see candidates in the same order\" | wiki_lookup | KEPT | The sorting is done once, ensuring deterministic order.",
+     "CLAIM | \"A bare note name is Obsidian's 'shortest path when possible': it names a file anywhere in the vault. Two files with that basename is exactly the tie this module refuses to break.\" | _hits | KEPT | For names without '/', returns set from by_base which may have multiple entries.",
+     "CLAIM | \"A path is read BOTH as vault-root-relative (what Obsidian does) and as document-relative (what a reader who knows markdown assumes). When the two readings name two different files that BOTH exist, the link is genuinely ambiguous and gets counted as such\" | _hits | KEPT | The code builds two candidates: one with leading '/' stripped, one document-relative if not absolute.",
+     "CLAIM | \"default_ext is appended ONLY as a second round, when the name as written matches nothing\" | resolve_wiki_target | KEPT | The code appends default_ext only if raw doesn't end with it, and tries forms in order.",
+     "CLAIM | \"A document linking to itself is not an edge\" | resolve_wiki_links | KEPT | The code appends (link, None, WIKI_RESOLVED) when target == parse.document.",
+     "CLAIM | \"doc_targets is a superset of internal_links' first return value: same standard-markdown edges, plus the wikilink ones\" | knowledge_links | KEPT | The function starts with std_targets from internal_links, then adds wikilink targets.",
+     "CLAIM | \"HARD INVARIANT, tested: len(result.text) <= len(text), and <= max_chars when one is given\" | document_skeleton | KEPT | All return paths produce text that is a substring or truncated version, ensuring length constraints.",
+     "CLAIM | \"The ladder is fixed and deterministic: ... 3. the tree truncated to the first N headings, saying how many were omitted (N halved until it fits, so the outcome is a function of the input, not of a search order)\" | document_skeleton | KEPT | The while loop halves limit deterministically.",
+     "CLAIM | \"Every rung says what it dropped. There is no rung that drops silently.\" | document_skeleton | KEPT | Each return path includes a dropped_chars field set appropriately.",
+     "CLAIM | \"Nothing describes this document more cheaply than the document. Say so -- and distinguish 'returned whole' from 'returned whole but clipped to fit a caller's hard cap', because those are different claims about completeness.\" | document_skeleton | KEPT | The code returns raw or raw_truncated with appropriate degraded flag.",
+     "CLAIM | \"returning the raw text there is the honest outcome: the alternative is a 'distillation' that grows the prompt, which this repo has already measured as a lie and pinned with a test.\" | DocSkeleton docstring | UNCHECKABLE | Would need to see the referenced test to verify the claim.",
+     "CLAIM | \"A distilled view larger than its own source is not a distillation.\" | document_skeleton docstring | UNCHECKABLE | The invariant checks length, but the docstring's claim about 'not a distillation' is a design statement, not checkable from code alone."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "71c1f17f2e4b7200fb3e6098ce27f8cfbdf016876d72bf2963f356185d23ca66",
+    "objective_chars": 19418,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/markdown.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 16897
+ }
+}

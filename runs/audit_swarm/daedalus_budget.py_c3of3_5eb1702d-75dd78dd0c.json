@@ -1,0 +1,109 @@
+{
+ "task_id": "daedalus/budget.py#c3of3#5eb1702d",
+ "key": "daedalus_budget.py_c3of3_5eb1702d-75dd78dd0c",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "2 claims: 2 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"EVERY known billable site in this repo, audited 2026-07-29\" | BILLABLE_SITES | KEPT | The tuple lists all sites with file, func, vendor, how, explicit fields; no contradiction found in this unit.",
+     "CLAIM | \"tests/test_budget.py fails if a NEW vendor spawn appears in the tree that is not listed here\" | BILLABLE_SITES docstring | KEPT | This is a statement about a test file not in this unit, but it is not contradicted by any code here; the docstring is consistent with the tuple's purpose."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "84f99b9f4e132832558302a4b97142db1df2c5d401ff0b57e6ce7dfbeba36f04",
+    "objective_chars": 7857,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 4 kept, 2 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"EVERY known billable site in this repo, audited 2026-07-29\" | BILLABLE_SITES | BROKEN | The audit date is future (2026-07-29), so the audit cannot have happened; also the list contains entries added later (summarize.py) that were \"found by the drift detector the first time it ran\", contradicting the claim that all are known and audited.",
+     "CLAIM | \"tests/test_budget.py fails if a NEW vendor spawn appears in the tree that is not listed here\" | BILLABLE_SITES docstring | UNCHECKABLE | Would need to see tests/test_budget.py to verify this test exists and behaves as described.",
+     "CLAIM | \"explicit is True only when the site itself reserves\" | BILLABLE_SITES | BROKEN | All entries have explicit=False, but the comment implies some might be True; however, the code shows no True values, and the claim about 'only when' is vacuously true but misleading because no site is explicit. The real issue: the comment says 'the rest are covered ONLY when install_process_guard() has run' but the code for install_process_guard does not cover urlopen-based sites (e.g., remote_inference via urlopen) - only subprocess.run, subprocess.Popen, and urllib.request.urlopen are guarded. So sites using urlopen are NOT covered by install_process_guard, contradicting the claim.",
+     "CLAIM | \"a hole named in code is a hole someone can close\" | BILLABLE_SITES docstring | KEPT | The list does name holes, and the code allows closing them via install/uninstall.",
+     "CLAIM | \"a hole in a report is a hole nobody reads twice\" | BILLABLE_SITES docstring | UNCHECKABLE | This is a motivational statement about the list's purpose, not a checkable claim about code behavior.",
+     "CLAIM | \"install_process_guard() returns uninstall_process_guard\" | install_process_guard | KEPT | The function returns uninstall_process_guard.",
+     "CLAIM | \"uninstall_process_guard restores originals and clears _INSTALLED\" | uninstall_process_guard | KEPT | The function pops each original and clears _INSTALLED.",
+     "CLAIM | \"_INSTALLED acts as a guard: if set, install is no-op\" | install_process_guard | KEPT | The function checks if _INSTALLED is truthy and returns early."
+    ],
+    "todos": [
+     "Change the audit date to a past date or remove it; update the comment to reflect that the list is not exhaustive and may be updated by the drift detector.",
+     "Ensure that urlopen-based sites are either guarded by install_process_guard or the claim about coverage is corrected; add urlopen guarding if intended."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "84f99b9f4e132832558302a4b97142db1df2c5d401ff0b57e6ce7dfbeba36f04",
+    "objective_chars": 7857,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "84f99b9f4e132832558302a4b97142db1df2c5d401ff0b57e6ce7dfbeba36f04",
+    "objective_chars": 7857,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/budget.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 5349
+ }
+}

@@ -1,0 +1,129 @@
+{
+ "task_id": "research__b105__946db82",
+ "key": "research__b105__946db82-54b8047268",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: filtered dict dead code in mutate.py, unenforced egress gating in slice.py, and killswitch claims unverifiable across chunks. All hypotheses have refutation conditions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Filtered dict dead code: mutation operators may skip sites without logging, biasing detection metrics",
+     "Unenforced egress gating: egress rules defined but emission path may not invoke them, allowing secret leakage",
+     "Killswitch docstring claims unverifiable: critical safety properties rely on code not present in analyzed chunks"
+    ],
+    "todos": [
+     "Verify that filtered dict in mutate.py is consumed elsewhere or remove it",
+     "Confirm that slice.py emission code actually calls _emit_ok and _rule_for",
+     "Audit killswitch.py for actual implementations matching docstring claims"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "dead-filter-log",
+       "claim": "The mutation generator discards filtered sites silently because the `filtered` dict is populated but never read, contradicting the comment that filtering is reported.",
+       "spans": [
+        "daedalus/eval/mutate.py"
+       ],
+       "mechanism": "In generate(), a `filtered` dict is created and incremented via _refuse() for each filtered site, but the dict is never returned, logged, or used. The comment claims filtering is reported, but it is effectively discarded.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If any code outside this chunk reads or logs the `filtered` dict after generate() returns, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/mutate.py:filtered dict defined and populated but never used"
+       ]
+      },
+      {
+       "id": "egress-gate-unenforced",
+       "claim": "The egress gate functions (_rule_for, _emit_ok) are defined but never called in the emission path shown, so egress rules may not be enforced.",
+       "spans": [
+        "daedalus/structcore/slice.py"
+       ],
+       "mechanism": "In slice.py, _rule_for and _emit_ok are defined to gate file emission based on egress rules. However, the emission code that would call them is not present in the analyzed chunk (lines 392-404). The comments describe gating but the actual invocation is missing from this chunk.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If later chunks or other modules show that _emit_ok is called at every emission point, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/slice.py:_rule_for defined but usage not shown",
+        "daedalus/structcore/slice.py:_emit_ok defined but usage not shown"
+       ]
+      },
+      {
+       "id": "killswitch-claims-unverifiable",
+       "claim": "Critical safety properties of KillSwitch (e.g., absence-means-stop, monotonic should_stop, atomic file reads) are asserted in docstrings but no code in the analyzed chunks implements them, leaving the system potentially unsafe.",
+       "spans": [
+        "daedalus/spine/killswitch.py",
+        "daedalus/spine/attempt.py",
+        "daedalus/spine/cancel.py",
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "The killswitch.py docstring makes numerous claims about behavior (e.g., permit file semantics, child death, no new spend) that reference methods and functions in other modules (attempt.pytest_gate, cancel.cancel_all_managed, containment.spawn_contained). None of these methods or their interactions are present in the analyzed chunks, so the claims cannot be verified.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "If the referenced methods (KillSwitch.read_state, should_stop, checkpoint, etc.) are implemented in later chunks and match the docstring claims exactly, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/killswitch.py:docstring claims not backed by code",
+        "daedalus/spine/killswitch.py:no methods defined in chunk"
+       ]
+      },
+      {
+       "id": "scope-boundary-ghost",
+       "claim": "The scope boundary re-assertion for symbol paths is described but not implemented in the analyzed chunk, meaning shell units may leak into symbol resolution.",
+       "spans": [
+        "daedalus/structcore/slice.py"
+       ],
+       "mechanism": "In slice.py, lines 428-440 describe re-asserting the scope boundary on symbol paths because the resolver can return shell units. However, the actual filtering logic (e.g., checking shell_boundary_stops) is not present; the comment describes intent but code is missing.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If later chunks show that the scope boundary is actually enforced (e.g., shell_boundary_stops incremented and used), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/slice.py:scope boundary re-assertion described but code missing"
+       ]
+      },
+      {
+       "id": "unused-filter-symbols",
+       "claim": "Filter functions (SKIP_PATH_PARTS, SKIP_FUNCTIONS, etc.) are defined but never called, as claimed in a comment, potentially allowing unwanted mutants.",
+       "spans": [
+        "daedalus/eval/mutate.py"
+       ],
+       "mechanism": "A comment (lines 258-263) states that filter functions SKIP_PATH_PARTS, SKIP_FUNCTIONS, etc., appear only in their own definitions and are never called. The chunk confirms they are referenced but not defined here; if they are defined elsewhere but never called, mutants on __repr__ bodies and log strings would not be filtered.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the symbols are actually called from generate() or other functions in the full file, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/mutate.py:comment claims filters never called"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a68c94fee2b0a4cde26e574f740acde5fdc902789dd2fe592399e9b94ebbbe50",
+    "objective_chars": 22474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 105 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 105,
+  "inputs": 4
+ }
+}

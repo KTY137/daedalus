@@ -1,0 +1,161 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c6of11__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c6of11__946db82-0bcab78221",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 6 of parse.py: _destring, annotation_text, _AnnAcc, _gather_dropped, _collect.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "6 of 11",
+     "purpose": "Contains _destring, annotation_text, _AnnAcc, _gather_dropped, _collect.",
+     "symbols": [
+      {
+       "name": "_destring",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Recursively replaces forward-reference strings with parsed expressions."
+      },
+      {
+       "name": "annotation_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns canonical unparsed annotation text, copying before destring."
+      },
+      {
+       "name": "_AnnAcc",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Accumulator for annotation members, dropped names, and flags."
+      },
+      {
+       "name": "_gather_dropped",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Collects nominal names from positions the element rule discards."
+      },
+      {
+       "name": "_collect",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Collects members and flags from annotation AST."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Replace forward-reference string constants by the expression they spell.",
+       "where": "_destring docstring",
+       "verdict": "kept",
+       "why": "The function checks for ast.Constant with string value and parses it recursively."
+      },
+      {
+       "text": "x: \"Later\" and x: Later mean the same thing and must produce the same text",
+       "where": "_destring docstring",
+       "verdict": "kept",
+       "why": "The function replaces the string with the parsed expression, so both become the same AST."
+      },
+      {
+       "text": "Two places are deliberately left alone: Literal[\"a\"], whose strings are VALUES and would become a type called a, and every Annotated[...] argument after the first, which is metadata and not a type at all.",
+       "where": "_destring docstring",
+       "verdict": "kept",
+       "why": "The code checks for tail 'Literal' and returns early; for 'Annotated' it only destrings the first element of the slice tuple."
+      },
+      {
+       "text": "RAW annotation text for one ast annotation slot (\"\" when absent).",
+       "where": "annotation_text docstring",
+       "verdict": "kept",
+       "why": "The function returns '' if node is None, otherwise returns ast.unparse of destringed deepcopy."
+      },
+      {
+       "text": "ast.unparse rather than a source slice, so the whitespace of dict[str,Item] and dict[str, Item] canonicalizes to one string and two files that mean the same thing are counted once.",
+       "where": "annotation_text docstring",
+       "verdict": "kept",
+       "why": "The function uses ast.unparse which produces canonical output; the code does exactly that."
+      },
+      {
+       "text": "The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them.",
+       "where": "annotation_text docstring",
+       "verdict": "kept",
+       "why": "The function calls copy.deepcopy(node) before passing to _destring."
+      },
+      {
+       "text": "Nominal names in a position the element rule discards (mapping keys, Callable parameters). Structural vocabulary is filtered out, so dict[str, X] drops str and not also dict.",
+       "where": "_gather_dropped docstring",
+       "verdict": "kept",
+       "why": "The function checks for _NONE_NAMES, _ANY_NAMES, _STRUCTURAL_NAMES and only drops if not in those sets."
+      },
+      {
+       "text": "Structural vocabulary is filtered out",
+       "where": "_gather_dropped docstring",
+       "verdict": "uncheckable",
+       "why": "The constants _NONE_NAMES, _ANY_NAMES, _STRUCTURAL_NAMES are not defined in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _destring handles Literal and Annotated specially; Annotated only destrings the first element of a tuple slice.",
+       "where": "_destring, lines 617-623",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _collect handles None by setting saw_none flag, and string constants by parsing and recursing; non-string constants are ignored.",
+       "where": "_collect, lines 680-689",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _gather_dropped uses _NONE_NAMES, _ANY_NAMES, _STRUCTURAL_NAMES which are not defined in this chunk.",
+       "where": "_gather_dropped, line 668",
+       "severity": "high",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "44fc17fa5eb4bef47448e1ede585e129a54f6994f17742b27171fffe67803ecf",
+    "objective_chars": 5226,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [6/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 6,
+  "total": 11,
+  "first_line": 601
+ }
+}

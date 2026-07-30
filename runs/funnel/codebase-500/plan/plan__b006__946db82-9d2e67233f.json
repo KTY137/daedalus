@@ -1,0 +1,142 @@
+{
+ "task_id": "plan__b006__946db82",
+ "key": "plan__b006__946db82-9d2e67233f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 confirmed/narrowed findings: human-bytes-bug (medium), available-vendors-incomplete (critical), error-return-shape-mismatch (high), egress-gate-unenforced (high). root-path-inconsistency (low) is fragile but low urgency.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "available-vendors-incomplete is critical: missing implementation blocks vendor discovery",
+     "error-return-shape-mismatch may cause StopIteration crash in lint.py",
+     "egress-gate-unenforced may allow unintended content leakage",
+     "human-bytes-bug misrepresents very large sizes, but severity is medium"
+    ],
+    "todos": [
+     "Implement available_vendors in vendors.py",
+     "Fix _human_bytes to return PiB for sizes >= 1024 TiB",
+     "Add 'matches' field to all SearchReport returns in embeddings.py",
+     "Wire _emit_ok calls in slice.py to enforce egress gates",
+     "Document root path fragility with a comment"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Implement available_vendors function in vendors.py",
+       "gate": "0",
+       "why_now": "Critical: the function is missing, breaking vendor discovery and any code that depends on it.",
+       "steps": [
+        {
+         "do": "Open daedalus/council/vendors.py and implement available_vendors to return a list of available vendor names based on configured providers.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "Import the module and call available_vendors() to confirm it returns a list."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full vendors.py file exists and the function is indeed missing; the index shows available_vendors is listed in __all__ but the implementation may be elsewhere."
+      },
+      {
+       "rank": 2,
+       "title": "Fix _human_bytes to return PiB for sizes >= 1024 TiB",
+       "gate": "1",
+       "why_now": "Bug causes misrepresentation of very large byte sizes; affects any code using this function for large values.",
+       "steps": [
+        {
+         "do": "Edit daedalus/observe/shape.py: modify _human_bytes to allow unit progression beyond TiB to PiB.",
+         "file": "daedalus/observe/shape.py",
+         "verified_by": "Run _human_bytes(1024**5) and assert output == '1.0 PiB'."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function _human_bytes is in observe/shape.py as per the index."
+      },
+      {
+       "rank": 3,
+       "title": "Ensure all SearchReport returns include 'matches' field",
+       "gate": "2",
+       "why_now": "Prevents StopIteration crash in lint.py when compare() expects 'matches' key.",
+       "steps": [
+        {
+         "do": "Inspect lines 1499-1503 in daedalus/memory/embeddings.py and add 'matches' field to any SearchReport lacking it.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Run lint.py compare() on a report that previously lacked 'matches' and confirm no StopIteration."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Lines 1499-1503 exist and are the ones returning SearchReport without matches; the cited source excerpt does not include them."
+      },
+      {
+       "rank": 4,
+       "title": "Wire _emit_ok calls in slice.py to enforce egress gates",
+       "gate": "3",
+       "why_now": "Without calls to _emit_ok, egress gates are not enforced, potentially allowing unintended content leakage.",
+       "steps": [
+        {
+         "do": "Search daedalus/structcore/slice.py for calls to _emit_ok; add calls where needed to enforce egress gates.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "grep -n '_emit_ok' daedalus/structcore/slice.py should show calls in emission paths."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "_emit_ok is defined but not called; the full file may contain calls not shown in the provided chunk."
+      },
+      {
+       "rank": 5,
+       "title": "Document root path fragility with comment",
+       "gate": "5",
+       "why_now": "Low severity but prevents future breakage if directory structure changes.",
+       "steps": [
+        {
+         "do": "Add a comment in daedalus/memory/__init__.py and daedalus/spine/ledger.py noting the assumption about directory depth.",
+         "file": "daedalus/memory/__init__.py",
+         "verified_by": "Manually verify comment is present."
+        },
+        {
+         "do": "Add a comment in daedalus/spine/ledger.py noting the assumption about directory depth.",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "Manually verify comment is present."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Both files use parents[2] and are at the same depth; the comment will warn future developers."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c159cab7c705f3313cd1ca302667798e8810d354a4478d3946e851f44f9ed737",
+    "objective_chars": 150976,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 6 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 6,
+  "inputs": 5
+ }
+}

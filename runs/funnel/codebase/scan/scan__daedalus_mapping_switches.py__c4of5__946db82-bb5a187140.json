@@ -1,0 +1,217 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c4of5__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c4of5__946db82-bb5a187140",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of daedalus/mapping/switches.py: defines functions for collecting env switches, reconciling defaults, and computing drift between documented and read env vars.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_reconcile | medium | DARK requires unanimity on default plus at least one site with no fallback; logic uses `any(s.dark for s in real)` but doc says 'at least one site with no fallback' which is not directly checked. | Check if `s.dark` actually indicates no fallback or if additional check needed.",
+     "_drift | low | Near-miss pair detection uses token subsequence; may miss some near-misses or produce false positives for short names. | Review examples of near-misses to ensure correctness.",
+     "analyse | low | Uses `_augment_documented` to add bare mentions as documentation; may overcount if bare mention is not actual documentation. | Verify with specific doc files."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "4 of 5",
+     "purpose": "Define functions for collecting env switches, reconciling defaults, and computing doc drift.",
+     "symbols": [
+      {
+       "name": "_config_switches",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Collects config switches from settings and config JSON files."
+      },
+      {
+       "name": "_documented_names",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns dict of env-shaped names found in docs with strict forms."
+      },
+      {
+       "name": "_mentioned_names",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns dict of every env-shaped token in docs."
+      },
+      {
+       "name": "_augment_documented",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Adds bare doc mentions as documentation for names that are read."
+      },
+      {
+       "name": "_is_subsequence",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if one sequence is a subsequence of another."
+      },
+      {
+       "name": "_drift",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes drift between documented and read env names."
+      },
+      {
+       "name": "_default_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the default value representation for a site."
+      },
+      {
+       "name": "_majority",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the most common value in a sequence."
+      },
+      {
+       "name": "_reconcile",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Folds multiple reads of one env var into a single EnvSwitch."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Main analysis function: scans sources, resolves defaults, computes drift."
+      }
+     ],
+     "claims": [
+      {
+       "text": "DARK requires unanimity on the default (every site reads it as off) plus at least one site with no fallback",
+       "where": "_reconcile docstring",
+       "verdict": "broken",
+       "why": "Code checks `states == {\"OFF\"} and any(s.dark for s in real)`. But `s.dark` is set in _collect_module? Not in this chunk. It doesn't check 'no fallback' directly; it checks `dark` attribute which may or may not mean no fallback."
+      },
+      {
+       "text": "A variable that is off at one site and defaulted at another is MIXED, never dark",
+       "where": "_reconcile docstring",
+       "verdict": "kept",
+       "why": "Code sets `dark=False` if states != {'OFF'} (since condition requires states=={'OFF'}). So if any site is not OFF, dark is False."
+      },
+      {
+       "text": "Two passes: every module is parsed before any default is resolved, so a default written as an imported constant is compared by VALUE.",
+       "where": "analyse docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows two passes but does not show how _Resolver resolves defaults. The claim about comparing by value is not verifiable from this chunk."
+      },
+      {
+       "text": "Names the code defines as module constants and never reads from the environment are dropped before drift is computed.",
+       "where": "analyse body comment",
+       "verdict": "kept",
+       "why": "Code: `for name in sorted(const_names - set(by_name)): documented.pop(name, None)` -- drops constant names not in by_name from documented."
+      },
+      {
+       "text": "A near-miss pair is the silent bug: the operator sets the documented name and nothing happens.",
+       "where": "_drift comment",
+       "verdict": "uncheckable",
+       "why": "This is a general statement about the purpose; no code to verify."
+      },
+      {
+       "text": "Only strict token-subsequence pairs qualify, so OLLAMA_NUM_CTX and OLLAMA_NUM_PARALLEL are not accused of being the same variable spelled two ways.",
+       "where": "_drift comment",
+       "verdict": "kept",
+       "why": "Code checks `len(a) == len(b): continue` so same-length pairs are skipped. Also checks `short[0] != long[0]` and `_is_subsequence`. OLLAMA_NUM_CTX (3 tokens) and OLLAMA_NUM_PARALLEL (3 tokens) have same length, so they are skipped."
+      },
+      {
+       "text": "docs/HANDOFF.md lists some variables as bare lines inside a fenced block, which matches no operator-shaped form.",
+       "where": "_augment_documented docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a specific file not in this chunk."
+      },
+      {
+       "text": "Requiring the strict form there would manufacture a 'read but never documented' finding for a name the docs plainly show, and the whole point of the drift list is that every entry is worth acting on.",
+       "where": "_augment_documented docstring",
+       "verdict": "uncheckable",
+       "why": "Rationale not verifiable from code alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_reconcile uses `any(s.dark for s in real)` but docstring says 'at least one site with no fallback'. The 'dark' attribute might not exactly represent 'no fallback'.",
+       "where": "_reconcile",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_config_switches reads JSON files from projects/*.json and *settings*.json, config.json. It uses `_read_text` and `_flatten` which are not defined in this chunk.",
+       "where": "_config_switches",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "analyse function calls `_iter_sources`, `_collect_module`, `_Resolver`, `_scan_module`, `_iter_docs`, `_DOC_ENV_FORMS`, `_ENV_TOKEN`, `_PLATFORM_ENV`, `_tokens` which are not defined in this chunk.",
+       "where": "analyse",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_drift function uses `_tokens` which is not defined in this chunk.",
+       "where": "_drift",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment 'DARK requires unanimity ... plus at least one site with no fallback' may be inaccurate if `s.dark` does not represent 'no fallback'.",
+       "where": "_reconcile",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bc97a8bc4e023b2f4293576b32dfffd7219b3ee1774368b64a873017b1c915bf",
+    "objective_chars": 11591,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

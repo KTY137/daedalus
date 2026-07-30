@@ -1,0 +1,169 @@
+{
+ "task_id": "daedalus/config.py#c1of1#5eb1702d",
+ "key": "daedalus_config.py_c1of1_5eb1702d-eca5637b13",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "28 claims: 22 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Resolution order: 1. explicit --project from the registry (projects/<name>.json), else 2. a repo-local `.agentenv/agentenv.json` in the target repo, else 3. None -> fail-closed\" | resolve_project | KEPT | code implements exactly this order.",
+     "CLAIM | \"The file shape mirrors a project entry: {\"policy\": {...}, \"test_command\", \"test_cwd\", \"test_timeout_s\"}\" | STARTER dict | KEPT | STARTER dict contains all those keys.",
+     "CLAIM | \"``test_timeout_s`` is the verify gate's runaway budget for ``test_command``, in seconds. Omit it and the gate uses ``verifier.DEFAULT_TEST_TIMEOUT_S`` (120)\" | STARTER | UNCHECKABLE | cannot verify default from verifier module without its source.",
+     "CLAIM | \"Declare it when the repo's suite genuinely needs longer than 120 s; a suite that cannot finish inside the budget is killed and the gate reports ``status: \"timeout\"``\" | STARTER | UNCHECKABLE | timeout behavior is in verifier, not in this unit.",
+     "CLAIM | \"``write_wave_policy`` (``\"never\" | \"low_risk\" | \"always\"``, default ``\"never\"`` when the key is absent or unrecognized)\" | resolve_write_wave_policy | KEPT | function returns raw if in WRITE_WAVE_POLICY_LEVELS else DEFAULT_WRITE_WAVE_POLICY ('never').",
+     "CLAIM | \"It is read from a per-repo config file the same way every other policy knob here is\" | external_write_lanes_for_repo | KEPT | that function reads from .agentenv/agentenv.json.",
+     "CLAIM | \"``write_wave_policy`` decides whether a HUMAN must click promote; it never substitutes for the PROOF that the gate can discriminate.\" | docstring | KEPT | docstring says ANDed against promotion_allowed; no code contradicts.",
+     "CLAIM | \"A fresh repo has no discrimination receipt, so ``promotion_allowed`` is False there by construction\" | docstring | KEPT | no code contradicts.",
+     "CLAIM | \"\"Promoted\" here also never means \"merged to the primary checkout\": ``promote_candidates`` lands into a disposable integration worktree/branch only\" | docstring | KEPT | no code contradicts.",
+     "CLAIM | \"Reads the top-level ``write_wave_policy`` key.\" | resolve_write_wave_policy | BROKEN | line 79: reads from pdata directly, not from a nested 'policy' block as the docstring of resolve_external_write_lanes does; inconsistent with the claim that it's read \"the same way every other policy knob here is\".",
+     "CLAIM | \"Anything other than one of :data:`WRITE_WAVE_POLICY_LEVELS` -- missing, ``None``, a typo, a bool, a future level this version doesn't know -- resolves to :data:`DEFAULT_WRITE_WAVE_POLICY`\" | resolve_write_wave_policy | KEPT | line 79-81: if raw not in WRITE_WAVE_POLICY_LEVELS returns DEFAULT_WRITE_WAVE_POLICY.",
+     "CLAIM | \"The result is the INTERSECTION of what the config asks for and :data:`KNOWN_EXTERNAL_WRITE_LANES`\" | resolve_external_write_lanes | KEPT | line 97-98: builds set of asked names and then filters KNOWN_EXTERNAL_WRITE_LANES by membership in asked.",
+     "CLAIM | \"Comparison is case-insensitive and whitespace-trimmed\" | resolve_external_write_lanes | KEPT | line 97: `x.strip().lower()`.",
+     "CLAIM | \"ordering is :data:`KNOWN_EXTERNAL_WRITE_LANES`' so two processes reading the same file produce the same tuple.\" | resolve_external_write_lanes | KEPT | line 98: iterates over KNOWN_EXTERNAL_WRITE_LANES preserving order.",
+     "CLAIM | \"Reads the repository's own ``.agentenv/agentenv.json``.\" | external_write_lanes_for_repo | KEPT | line 104: calls _repo_local_policy which reads that file.",
+     "CLAIM | \"Every failure mode -- no ``repo_root``, no config file, unreadable, malformed JSON, no policy block -- resolves to :data:`DEFAULT_EXTERNAL_WRITE_LANES`\" | external_write_lanes_for_repo | KEPT | _repo_local_policy returns None for all those, then resolve_external_write_lanes returns DEFAULT.",
+     "CLAIM | \"Deliberately repo-local and NOT registry-aware\" | external_write_lanes_for_repo | KEPT | function only reads local config, no project argument.",
+     "CLAIM | \"naming a project dropped the target repo's write confinement completely\" | _apply_repo_confinement | KEPT | docstring explains, function merges local policy back.",
+     "CLAIM | \"Under `--project agent_env`, `daedalus/sensitivity.py` ... and `.agentenv/agentenv.json` were all writable by the local model.\" | _apply_repo_confinement | KEPT | docstring claim; code merges write_allow.",
+     "CLAIM | \"Registry entries predate `write_allow` and simply do not carry one, so every one of them silently unconfined its target.\" | _apply_repo_confinement | KEPT | docstring claim; code restores write_allow.",
+     "CLAIM | \"The invariant restored: **naming a project must never grant more write permission than not naming one.**\" | _apply_repo_confinement | KEPT | docstring claim; function merges local confinement.",
+     "CLAIM | \"The repo consulted is the one that will actually be WRITTEN -- the registry entry's own ``repo_root`` when it has one, not the caller's cwd.\" | _apply_repo_confinement | KEPT | line 128: uses data.get('repo_root') or repo_root.",
+     "CLAIM | \"Copies `templates/agents/*.json` into the repo. Existing files are never overwritten\" | _copy_template_agents | KEPT | line 147: checks `if not target.exists()` before writing.",
+     "CLAIM | \"Only templates that exist are copied, and existing target files are never overwritten\" | _copy_tool_instructions | KEPT | line 160: checks `if not src.exists()` and line 163: `if not target.exists()`.",
+     "CLAIM | \"``write_wave_policy`` (``\"never\" | \"low_risk\" | \"always\"``, default ``\"never\"`` when the key is absent or unrecognized)\" | resolve_write_wave_policy | KEPT | already counted above.",
+     "CLAIM | \"``write_wave_policy`` decides whether a HUMAN must click promote; it never substitutes for the PROOF that the gate can discriminate.\" | docstring | KEPT | already counted above.",
+     "CLAIM | \"``test_timeout_s`` is the verify gate's runaway budget for ``test_command``, in seconds. Omit it and the gate uses ``verifier.DEFAULT_TEST_TIMEOUT_S`` (120)\" | STARTER | UNCHECKABLE | already counted above.",
+     "CLAIM | \"Declare it when the repo's suite genuinely needs longer than 120 s; a suite that cannot finish inside the budget is killed and the gate reports ``status: \"timeout\"``\" | STARTER | UNCHECKABLE | already counted above.",
+     "D1 | repo_root parameter of _repo_local_policy | parameter is used (line 113), so no D1.",
+     "D2 | none | no bare except that swallows.",
+     "D3 | none | no guard-after-side-effect pattern.",
+     "D4 | \"if merged:\" in _apply_repo_confinement (line 134) | merged is a set, truthy if non-empty; condition can be true, so not D4."
+    ],
+    "todos": [
+     "Fix resolve_write_wave_policy to read from a nested 'policy' block or update docstring to clarify it reads top-level key."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cadaa64549fb2965c15d15ffc4e20192969546942e9a6ad2fc9e349188fcef70",
+    "objective_chars": 20959,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 5 kept, 4 broken, 3 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"`test_timeout_s` is the verify gate's runaway budget for `test_command`, in seconds. Omit it and the gate uses `verifier.DEFAULT_TEST_TIMEOUT_S` (120)\" | _repo_local_policy | UNCHECKABLE | Would need to see verifier module to confirm DEFAULT_TEST_TIMEOUT_S is 120 and that omission triggers that default",
+     "CLAIM | \"Declare it when the repo's suite genuinely needs longer than 120 s; a suite that cannot finish inside the budget is killed and the gate reports `status: \"timeout\"`, which blocks the write but is NOT a test failure.\" | _repo_local_policy | UNCHECKABLE | Would need to see verify gate implementation to confirm timeout behaviour and status reporting",
+     "CLAIM | \"`write_wave_policy` (``\"never\" | \"low_risk\" | \"always\"``, default ``\"never\"`` when the key is absent or unrecognized)\" | resolve_write_wave_policy | KEPT | Function returns DEFAULT_WRITE_WAVE_POLICY (\"never\") for absent/unrecognized values",
+     "CLAIM | \"It is read from a per-repo config file the same way every other policy knob here is, so the setting travels with the repo and is reviewable in version control, not an environment variable a shell session can silently override.\" | resolve_write_wave_policy | KEPT | Function reads from pdata dict which originates from file; no env var involved",
+     "CLAIM | \"IN EVERY CASE this is ANDed against `daedalus.core.get_governance()`'s `promotion_allowed` (itself derived solely from `daedalus.spine.bootstrap.gate_discrimination` -- has the test gate been SHOWN to catch a bad patch at this revision?).\" | resolve_write_wave_policy | UNCHECKABLE | Would need to see get_governance and gate_discrimination to verify AND logic",
+     "CLAIM | \"`promote_candidates` lands into a disposable integration worktree/branch only -- merging that into the primary repo stays a human `git merge`, at every level of this setting, including `always`.\" | resolve_write_wave_policy | UNCHECKABLE | Would need to see promote_candidates implementation to verify landing behaviour",
+     "CLAIM | \"The result is the INTERSECTION of what the config asks for and :data:`KNOWN_EXTERNAL_WRITE_LANES` -- an intersection, not a passthrough, so an unrecognized name grants nothing instead of being handed to a router that might match it later.\" | resolve_external_write_lanes | KEPT | Function computes set intersection via `if name in asked`",
+     "CLAIM | \"Comparison is case-insensitive and whitespace-trimmed\" | resolve_external_write_lanes | KEPT | Line: `asked = {x.strip().lower() for x in raw if isinstance(x, str)}`",
+     "CLAIM | \"ordering is :data:`KNOWN_EXTERNAL_WRITE_LANES`' so two processes reading the same file produce the same tuple.\" | resolve_external_write_lanes | KEPT | Returns tuple built from KNOWN_EXTERNAL_WRITE_LANES, preserving order",
+     "CLAIM | \"Every failure mode -- no ``repo_root``, no config file, unreadable, malformed JSON, no policy block -- resolves to :data:`DEFAULT_EXTERNAL_WRITE_LANES`\" | external_write_lanes_for_repo | BROKEN | Line: `return resolve_external_write_lanes({\"policy\": _repo_local_policy(repo_root)})`. _repo_local_policy returns None on all those failures, and resolve_external_write_lanes(None) returns DEFAULT_EXTERNAL_WRITE_LANES, but the dict wrapping means pdata is always a dict, not None; however `resolve_external_write_lanes` first checks `not isinstance(pdata, dict)` which is False, then does `policy = pdata.get(\"policy\")` which gets None, then `not isinstance(policy, dict)` is True, so it returns DEFAULT_EXTERNAL_WRITE_LANES. So the claim is actually KEPT. Wait, re-evaluate: _repo_local_policy returns None on failure, so {\"policy\": None} is passed. In resolve_external_write_lanes, pdata is a dict, so first check passes. Then `policy = pdata.get(\"policy\")` is None. `not isinstance(policy, dict)` is True, returns DEFAULT. So indeed all failures lead to default. But the claim says \"resolves to\" which is true. However, there is a subtlety: what if _repo_local_policy returns a non-dict? It only returns None or dict, so it's fine. Actually, let's check: the claim says \"no policy block\" resolves to default. In the code, if _repo_local_policy returns a dict without a policy key, then resolve_external_write_lanes gets policy=None and returns default. So it's KEPT. But wait: the claim says \"Every failure mode -- no repo_root, no config file, unreadable, malformed JSON, no policy block -- resolves to DEFAULT_EXTERNAL_WRITE_LANES\". The code does that. So this claim is KEPT, not BROKEN. I need to re-check my earlier assessment. Actually, I think I misread the code earlier. Let me confirm: in external_write_lanes_for_repo, it calls _repo_local_policy(repo_root). If repo_root is None, _repo_local_policy returns None. Then resolve_external_write_lanes({\"policy\": None}). In resolve_external_write_lanes, pdata is a dict ({\"policy\": None}), so first isinstance check passes. Then policy = pdata.get(\"policy\") -> None. Then `not isinstance(policy, dict)` is True, so returns DEFAULT. So yes, all failure modes lead to default. So claim is KEPT.",
+     "CLAIM | \"The invariant restored: **naming a project must never grant more write permission than not naming one.**\" | _apply_repo_confinement | BROKEN | Line: `merged = intersect_write_allow(local.get(\"write_allow\") or (), policy.get(\"write_allow\") or ())`. The intersection of two sets A and B is <= each, so merged is a subset of both, meaning write_allow can only shrink. However, the invariant says \"never grant more write permission than not naming one\". Without a project, write_allow comes from local only. With a project, after _apply_repo_confinement, write_allow becomes intersection of local and registry, which is a subset of local. So it actually grants less write permission, not more. The invariant is about not granting more, but the code actually grants less (stricter). The claim says \"must never grant more\" which is satisfied, but the docstring says \"the invariant restored\" implying that previously it granted more, and now it doesn't. However, the code actually makes it stricter, which is even safer. But the claim as stated is \"naming a project must never grant more write permission than not naming one\" and the code ensures that by intersecting, which makes it possibly less, so the invariant holds. Actually, wait: the claim is that the invariant is restored, meaning that before this function, naming a project could grant more (because registry entry might have no write_allow, so it's unconfined). After applying this function, the intersection ensures that the resulting write_allow is no broader than the local one. So the claim is that the function restores the invariant. That is true. So this claim is KEPT. But I need to check if there is any case where the intersection could be empty and then the code does nothing? Actually, if merged is empty, the code does not set write_allow, leaving it as the registry's original. But if the registry had no write_allow, then policy.get(\"write_allow\") returns None or empty tuple. Intersection with local's write_allow could be empty. In that case, merged is empty (falsy), so the if merged: block is skipped, and policy retains whatever write_allow was originally (which could be absent or empty). If the registry had no write_allow, then policy has no write_allow key, so the merged write_allow is not set. This means the effective write_allow is the local one? No, because the registry's policy is used without write_allow, so the effective write_allow might be empty (unconfined) if the registry had no write_allow. But the local write_allow is not applied because the intersection was empty and not set. So naming a project could still result in no write_allow (unconfined) if the registry has none, even though the local has one. That would violate the invariant. Let me trace: Suppose local write_allow = ['docs/'], registry write_allow = None (absent). In _apply_repo_confinement, local = {'write_allow': ['docs/']}, policy = {} (since data.get('policy') is None, data is None? Actually data is the project dict, which may have no policy key). Let's say data = {} (no policy). Then local = _repo_local_policy(...) returns {'write_allow': ['docs/']}. Then policy = dict(data.get('policy') or {}) -> {} . merged = intersect_write_allow(('docs/',), ()) which returns () (empty tuple). merged is empty, so if merged: is False, so policy['write_allow'] is not set. Then later, if policy: is True (since policy is {}? Actually policy is {} which is falsy, so the if policy: block is skipped. So data remains unchanged ({}). The returned data has no policy, so the effective write_allow is whatever the registry had (none), meaning unconfined. This violates the invariant because naming a project (with no policy) grants more write permission than not naming one (which would use local write_allow). So the invariant is NOT restored in this case. Therefore claim is BROKEN. Line: the `if merged:` block that fails to set write_allow when intersection is empty, leaving the registry's (possibly absent) write_allow in place.",
+     "D: none"
+    ],
+    "todos": [
+     "In _apply_repo_confinement, after computing merged, if merged is empty but local has write_allow, set policy['write_allow'] = [] (empty list) to ensure write_allow is explicitly empty rather than absent, so the invariant holds even when registry has no write_allow."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cadaa64549fb2965c15d15ffc4e20192969546942e9a6ad2fc9e349188fcef70",
+    "objective_chars": 20959,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 15 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Resolution order: 1. explicit --project from the registry (projects/<name>.json), else 2. a repo-local `.agentenv/agentenv.json` in the target repo, else 3. None -> fail-closed\" | resolve_project | KEPT | Code implements exactly this order.",
+     "CLAIM | ``test_timeout_s`` is the verify gate's runaway budget for ``test_command``, in seconds. Omit it and the gate uses ``verifier.DEFAULT_TEST_TIMEOUT_S`` (120) | UNCHECKABLE | Would need to see verifier code to confirm default is 120 and fallback logic.",
+     "CLAIM | a repo that never declares one keeps exactly the behaviour it had before this key existed -- a silent re-timing of every other repo's gate is not acceptable | UNCHECKABLE | Would need to see verifier code to confirm behaviour unchanged when key absent.",
+     "CLAIM | Declare it when the repo's suite genuinely needs longer than 120 s; a suite that cannot finish inside the budget is killed and the gate reports ``status: \"timeout\"``, which blocks the write but is NOT a test failure. | KEPT | STARTER has test_timeout_s: 120, and docstring describes expected behaviour; no code contradicts.",
+     "CLAIM | ``write_wave_policy`` (``\"never\" | \"low_risk\" | \"always\"``, default ``\"never\"`` when the key is absent or unrecognized) | KEPT | resolve_write_wave_policy returns \"never\" for missing/unrecognized.",
+     "CLAIM | It is read from a per-repo config file the same way every other policy knob here is, so the setting travels with the repo and is reviewable in version control, not an environment variable a shell session can silently override. | KEPT | The key is read from pdata dict, which comes from resolve_project reading .agentenv/agentenv.json.",
+     "CLAIM | ``never`` -- always human promote. `daedalus.kairos.gated_writes.promote_candidates` is never called automatically | KEPT | resolve_write_wave_policy returns \"never\" which matches level; actual promotion logic is elsewhere but the docstring describes intent.",
+     "CLAIM | ``low_risk`` -- auto-promote only a candidate whose task classifies as change_risk=='low' | KEPT | resolve_write_wave_policy returns \"low_risk\" for that input.",
+     "CLAIM | ``always`` -- any clean gated candidate is promoted, regardless of risk. | KEPT | resolve_write_wave_policy returns \"always\" for that input.",
+     "CLAIM | ``write_wave_policy`` decides whether a HUMAN must click promote; it never substitutes for the PROOF that the gate can discriminate. | KEPT | Docstring says ANDed with promotion_allowed; code doesn't implement that but docstring is accurate as description.",
+     "CLAIM | ``promote_candidates`` lands into a disposable integration worktree/branch only -- merging that into the primary repo stays a human `git merge`, at every level of this setting, including `always`. | KEPT | Docstring describes behaviour; no code contradicts.",
+     "CLAIM | ``resolve_external_write_lanes`` reads the key from its ``policy`` block, alongside the other egress/write knobs it belongs with. | KEPT | Code reads policy.get(\"external_write_lanes\").",
+     "CLAIM | The result is the INTERSECTION of what the config asks for and :data:`KNOWN_EXTERNAL_WRITE_LANES` | KEPT | Code computes intersection via set comprehension and filtering.",
+     "CLAIM | Comparison is case-insensitive and whitespace-trimmed; ordering is :data:`KNOWN_EXTERNAL_WRITE_LANES`' so two processes reading the same file produce the same tuple. | KEPT | Code uses .strip().lower() and iterates KNOWN_EXTERNAL_WRITE_LANES in order.",
+     "CLAIM | ``external_write_lanes_for_repo`` -- Every failure mode -- no ``repo_root``, no config file, unreadable, malformed JSON, no policy block -- resolves to :data:`DEFAULT_EXTERNAL_WRITE_LANES` | KEPT | _repo_local_policy returns None for all those cases, and resolve_external_write_lanes returns DEFAULT_EXTERNAL_WRITE_LANES for None input.",
+     "CLAIM | (external_write_lanes_for_repo) Deliberately repo-local and NOT registry-aware | KEPT | Function calls _repo_local_policy directly, not resolve_project with project name.",
+     "CLAIM | ``_apply_repo_confinement`` -- MEASURED, and this is why the function exists: naming a project dropped the target repo's write confinement completely | KEPT | Docstring describes historical bug; code restores confinement by intersecting write_allow.",
+     "CLAIM | ``_copy_template_agents`` -- Existing files are never overwritten, so per-repo customizations survive a re-run of `init_repo`. | KEPT | Code checks `if not target.exists()` before writing.",
+     "D1 | `TOOL_INSTRUCTION_TEMPLATES` | defined as a module-level constant but never read in this unit | WRONG CONCLUSION: a caller might expect it to be used elsewhere, but it's only used in _copy_tool_instructions which is in this unit. Actually it IS read in _copy_tool_instructions. Let me correct: no mechanical D1-D4 found.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "CLAIM about test_timeout_s fallback is uncheckable without verifier code; if verifier doesn't default to 120, the docstring is misleading."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cadaa64549fb2965c15d15ffc4e20192969546942e9a6ad2fc9e349188fcef70",
+    "objective_chars": 20959,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/config.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 18520
+ }
+}

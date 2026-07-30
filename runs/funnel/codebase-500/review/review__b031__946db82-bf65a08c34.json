@@ -1,0 +1,135 @@
+{
+ "task_id": "review__b031__946db82",
+ "key": "review__b031__946db82-bf65a08c34",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses. 1 confirmed, 2 narrowed, 6 refuted. See verdicts for details.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Incomplete shell LanguageSpec may cause runtime errors if reach.py processes shell scripts.",
+     "Type nodes may leak into file layers if build_forest_hierarchy does not use _is_type_node_id.",
+     "Eval gate failure handling may degrade candidate quality silently."
+    ],
+    "todos": [
+     "Verify shell LanguageSpec is completed or confirm reach.py never processes shell scripts.",
+     "Inspect build_forest_hierarchy to confirm it calls _is_type_node_id.",
+     "Review picker.py error handling for eval gate failures and ensure fallback exists."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "unverified-claim-about-file-generation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows picker.py lines 131-133 are part of a docstring that describes the architecture-state.json file as generated, but the actual generation code may reside in a different module not scanned (e.g., a build script). The hypothesis assumes that because the scanned modules don't implement the generation, the claim is unverifiable; however, the claim could be correct and simply out of scope of the scan.",
+       "survives_because": "No evidence in the cited source contradicts the claim; the comment is just a comment. The hypothesis fails to demonstrate a concrete bug or missing functionality.",
+       "narrowed_claim": "",
+       "settling_check": "Search the repository for 'architecture-state.json' to find generation code or drift gate implementation.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "side-effect-summaries",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims _summaries has side effects, but the cited source for canary.py does not show _summaries at all (the chunk ends at line 181, and _summaries is not defined there). For worktree.py, the cited source says 'NOT PRESENT IN FILE' for delete_branch. The hypothesis rests on evidence that does not exist in the provided source.",
+       "survives_because": "The hypothesis's evidence is not present in the cited source; it is refuted on that ground alone.",
+       "narrowed_claim": "",
+       "settling_check": "Check if _summaries is a pure function by reading its definition in canary.py.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "duplicate-identity-evasion",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The hypothesis assumes that actors with different configurations but same model produce functionally identical turns, but that is not necessarily true. The duplicate identity check is designed to catch exact duplicates; allowing different configurations is intentional. The hypothesis lacks evidence that identical outputs from different IDs cause any issue.",
+       "survives_because": "The hypothesis correctly identifies a design choice, but the severity is low because the system likely expects different IDs for different configs. The claim is too vague to be a bug.",
+       "narrowed_claim": "If two actors have the same model and identical configs (same temperature, etc.) but different IDs due to hash collision, they could evade detection, though unlikely.",
+       "settling_check": "Check if actor.id includes a hash of the full configuration; if so, identical configs produce identical IDs.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "type-node-leak-into-files",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The hypothesis claims build_forest_hierarchy does not use _is_type_node_id, but the cited source does not show build_forest_hierarchy at all (it is only mentioned in docstring). The function _is_type_node_id exists and is intended as defense in depth. Without seeing build_forest_hierarchy, we cannot confirm the leak.",
+       "survives_because": "The hypothesis correctly notes that the enforcement is not visible in the provided source. However, the docstring of _is_type_node_id explicitly states it is defense in depth, implying the primary filter is elsewhere. The risk is real if build_forest_hierarchy is missing the check.",
+       "narrowed_claim": "If build_forest_hierarchy does not call _is_type_node_id, type nodes may leak into file layers, potentially corrupting reachability analysis.",
+       "settling_check": "Inspect build_forest_hierarchy in forest.py to see if it filters out type nodes.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "unenforceable-no-write-claim",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for attempt.py shows the module has a _git function that raises PrimaryCheckoutWrite if the working directory overlaps the primary checkout, and READ_ONLY_REPO_VERBS restrict git verbs. The docstring's claim is structurally enforced by code present in the chunk. The hypothesis incorrectly states the class is incomplete; the chunk shows the enforcement mechanisms.",
+       "survives_because": "The evidence in the cited source directly contradicts the hypothesis: the no-write property is enforced by _git and READ_ONLY_REPO_VERBS.",
+       "narrowed_claim": "",
+       "settling_check": "Verify that _git raises PrimaryCheckoutWrite for mutating commands on the primary checkout.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "incomplete-shell-spec",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The cited source shows the shell LanguageSpec is complete: it has name, extensions, line_comment, ts_grammar, function_types, guard_keywords. The hypothesis claims it is incomplete, but the provided chunk shows a full entry. The hypothesis may be based on an earlier incomplete version.",
+       "survives_because": "The cited source shows a complete shell LanguageSpec. However, the hypothesis's concern about reach.py mishandling shell scripts is valid if reach.py only handles Python (it uses ast.parse). The shell spec is complete but reach.py does not use it for parsing; it only handles Python. So the shell spec being complete does not address the original concern.",
+       "narrowed_claim": "mapping/reach.py uses ast.parse which only handles Python; shell scripts will cause SyntaxError and be skipped, not mishandled. The shell LanguageSpec is complete but irrelevant to reach.py.",
+       "settling_check": "Check if reach.py's _scan function handles non-Python files by trying ast.parse and catching SyntaxError; if so, shell scripts are safely ignored.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "inconsistent-sorting",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims _whole_repo_text does not sort dirnames, but the cited source does not show _whole_repo_text (only _repo_chunks is shown). The docstring of _repo_chunks says 'Unlike _whole_repo_text, dirnames ARE sorted here', implying _whole_repo_text does not sort. However, the hypothesis provides no evidence that this inconsistency causes any problem; it is a design choice. Different sorting orders do not necessarily lead to different candidate orders because the selection logic may be deterministic regardless.",
+       "survives_because": "The hypothesis identifies a difference but fails to show it causes a bug. The docstring explicitly acknowledges the difference, so it is intentional.",
+       "narrowed_claim": "",
+       "settling_check": "Check if the order of files affects the BM25 retrieval results; if BM25 is order-invariant, the inconsistency is harmless.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "scope-boundary-ghost",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for slice.py does not show the lines 428-440 mentioned in the hypothesis (the chunk ends at line 263). The hypothesis claims code is missing, but the provided source does not contain the described comment or missing logic. The hypothesis rests on evidence not present in the cited source.",
+       "survives_because": "The cited source does not contain the claimed missing code; the hypothesis is based on lines not provided. It is refuted due to lack of evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Read lines 428-440 of slice.py to see if the scope boundary re-assertion is implemented.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "eval-gate-fallback",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The cited source for picker.py does not show _load_baseline or _run_eval_gate functions; the chunk only shows the module docstring. The hypothesis claims these functions use try/except, but no evidence is provided. The archive.py chunk shows selection depends on rank, but does not show how rank is derived. The hypothesis is speculative.",
+       "survives_because": "Without seeing the actual try/except blocks, the hypothesis is unverifiable. However, the concern about silent degradation is valid if the picker catches exceptions and continues without eval.",
+       "narrowed_claim": "If _load_baseline or _run_eval_gate catch all exceptions and return error strings that are ignored by the caller, candidates may be selected without proper evaluation.",
+       "settling_check": "Inspect picker.py for the error handling after _load_baseline and _run_eval_gate calls.",
+       "severity_after_review": "medium"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6ff93a9ae1674094ac184b3e78e2c81399fd1fda7eafcfde7c192bb6e87a5de4",
+    "objective_chars": 46521,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 31 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 31,
+  "inputs": 9
+ }
+}

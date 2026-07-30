@@ -1,0 +1,304 @@
+{
+ "task_id": "scan__daedalus_providers_ollama.py__c3of5__946db82",
+ "key": "scan__daedalus_providers_ollama.py__c3of5__946db82-fb84518190",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of ollama.py: implements _schema_rescue (re-ask with constrained JSON), _run_agentic (main loop with pre-flight, mid-loop eviction, and rescue for write tasks), _forced_report (evict history on overflow), _full_file_content (full rewrite prompt with slice/brief shedding), and _rewrite_by_window (windowed rewrite validation).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_schema_rescue | medium | Docstring claims 'only third means done' but code treats empty action or 'finish' as RESCUE_FINISHED; the three outcomes (unreachable, malformed, finished) are indeed returned distinctly. Claim kept. | No risk.",
+     "_run_agentic | medium | Docstring claims 'PRE-FLIGHT: never make a call we know the server will head-truncate' but the check uses count_tokens (cl100k) which may over-count; the comment acknowledges over-counting leads to early refusal (honest escalation). Claim kept. | No risk.",
+     "_run_agentic | medium | Docstring claims 'MID-LOOP EVICTION: if grown > window, do NOT send it (server would head-truncate system prompt). Evict to minimal form and force report.' Code checks grown > window and calls _forced_report. Claim kept. | No risk.",
+     "_run_agentic | high | Docstring claims 'THE EXPENSIVE FAILURE, CAUGHT. A write task that stops calling tools without having written anything... the line below would read that prose as a finished report... So ask once more, with the shape compelled, before believing done.' Code calls _schema_rescue when writable and not changed and no calls. Claim kept. | No risk.",
+     "_run_agentic | high | Docstring claims 'FAIL LOUD, NEVER EMPTY... if not calls and rescue.kind != RESCUE_FINISHED... report = blocked_report(...)'. Code checks if not calls and rescue.kind != RESCUE_FINISHED and sets blocked_report. Claim kept. | No risk.",
+     "_forced_report | medium | Docstring claims 'This call must never be head-truncated by the server.' Code constructs minimal messages and truncates last tool result until it fits within window. Claim kept. | No risk.",
+     "_full_file_content | medium | Docstring claims 'Behaviour is byte-for-byte what it was before the windowed path existed -- this is an extraction, not a change'. Uncheckable: no previous version provided. | Could verify by diffing against pre-windowed version.",
+     "_full_file_content | medium | Docstring claims 'dropped is appended to in place because shedding the distilled slice is provenance the caller reports.' Code appends to dropped list when shedding slice. Claim kept. | No risk.",
+     "_full_file_content | medium | Docstring claims 'Shed the brief FIRST: it is a convenience against a specific, measured failure mode, not project context the caller curated for this task the way the slice is.' Code replaces brief_block with empty string and recalculates est_in. Claim kept. | No risk.",
+     "_rewrite_by_window | medium | Docstring claims 'every window is validated and spliced IN MEMORY, and one failed window refuses the whole file, so nothing reaches the disk unless every window passed.' Code checks oversize and returns None if exceeded; validation of window content is not shown in this chunk. Claim partially kept: oversize check present, but full validation is not visible. | Check window content validation logic in subsequent code.",
+     "_rewrite_by_window | medium | Docstring claims 'The caller's single write site then takes the backup, so the exact-original-bytes contract _backups carries is untouched.' Uncheckable: caller write site not in this chunk. | Verify caller implementation."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/ollama.py",
+     "chunk": "3 of 5",
+     "purpose": "Implements rescue mechanism for structured tool calls, agentic execution loop with context window management, full-file and windowed rewrite prompts, and forced report generation.",
+     "symbols": [
+      {
+       "name": "_schema_rescue",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Sends constrained JSON request to model to force structured output; returns RescueOutcome with calls or finish/unreachable/malformed."
+      },
+      {
+       "name": "_run_agentic",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "filesystem_write"
+       ],
+       "note": "Main agentic loop: pre-flight token check, mid-loop eviction, rescue for write tasks, dispatch tool calls, final report."
+      },
+      {
+       "name": "_forced_report",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Evicts conversation to minimal form and makes one final report call when context window would overflow."
+      },
+      {
+       "name": "_full_file_content",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Requests full edited file content from model with slice/brief shedding for window fit."
+      },
+      {
+       "name": "_rewrite_by_window",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates window ranges and returns spliced file content; partial implementation shown."
+      },
+      {
+       "name": "RESCUE_UNREACHABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in RescueOutcome; not defined in this chunk."
+      },
+      {
+       "name": "RESCUE_MALFORMED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in RescueOutcome; not defined in this chunk."
+      },
+      {
+       "name": "RESCUE_FINISHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in RescueOutcome; not defined in this chunk."
+      },
+      {
+       "name": "RESCUE_CALLS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in RescueOutcome; not defined in this chunk."
+      },
+      {
+       "name": "MAX_AGENT_STEPS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in loop bound; not defined in this chunk."
+      },
+      {
+       "name": "MAX_REWRITE_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in full rewrite size check; not defined in this chunk."
+      },
+      {
+       "name": "MAX_WINDOWS_PER_FILE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in window count check; not defined in this chunk."
+      },
+      {
+       "name": "MAX_WINDOW_LINES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in window size check; not defined in this chunk."
+      },
+      {
+       "name": "OUTPUT_RESERVE_TOKENS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant used in output reserve calculation; not defined in this chunk."
+      },
+      {
+       "name": "_TOOL_TRUNC_MARKER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Marker appended to truncated tool result; not defined in this chunk."
+      },
+      {
+       "name": "_LOCAL_BRIEF_BUDGET_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Budget for brief rendering; not defined in this chunk."
+      },
+      {
+       "name": "RescueOutcome",
+       "kind": "class",
+       "effects": [],
+       "note": "Return type for _schema_rescue; not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the model looked at the work and said it is finished. Only the third means 'done'. Collapsing the first two into it produced the exact failure this whole rescue exists to prevent -- a write task that wrote nothing, reported as a finished turn -- just one level up. The caller must be able to tell them apart, so it is handed the reason.",
+       "where": "docstring of _schema_rescue (lines 563-570)",
+       "verdict": "kept",
+       "why": "The function returns distinct RescueOutcome kinds: RESCUE_UNREACHABLE for transport failure, RESCUE_MALFORMED for malformed response, RESCUE_FINISHED for empty action or 'finish', and RESCUE_CALLS for tool calls. The caller can distinguish them."
+      },
+      {
+       "text": "Still never raises: a broken rescue degrades to a NAMED empty result, which is the point. Empty-and-nameless was the bug.",
+       "where": "comment in _schema_rescue (line 571-572)",
+       "verdict": "kept",
+       "why": "The function always returns a RescueOutcome, never raises an exception. The empty result is named via the kind parameter."
+      },
+      {
+       "text": "The transport failed: nothing was asked, so nothing was answered.",
+       "where": "comment in _schema_rescue (line 579)",
+       "verdict": "kept",
+       "why": "The except block catches ProviderHTTPError and OSError and returns RescueOutcome with RESCUE_UNREACHABLE."
+      },
+      {
+       "text": "It answered, just not with the shape we constrained it to. That is a statement about the MODEL, not about the bench, and the two get different remedies -- so they get different reasons.",
+       "where": "comment in _schema_rescue (lines 584-587)",
+       "verdict": "kept",
+       "why": "JSON decode errors return RescueOutcome with RESCUE_MALFORMED, distinct from RESCUE_UNREACHABLE for transport failures."
+      },
+      {
+       "text": "PRE-FLIGHT: never make a call we know the server will head-truncate. count_tokens is cl100k, which OVER-counts qwen tokens, so this refuses a bit early (honest escalation) rather than letting the system prompt be silently eaten. Same downstream semantics as a provider failure.",
+       "where": "comment in _run_agentic (lines 621-626)",
+       "verdict": "kept",
+       "why": "The code checks est > window and returns blocked_report if so. The comment acknowledges over-counting leads to early refusal."
+      },
+      {
+       "text": "MID-LOOP EVICTION: tool results grow the history. Before every round after the first, if the full conversation would overflow, do NOT send it (the server would head-truncate the system prompt). Evict to a minimal form and force the report instead.",
+       "where": "comment in _run_agentic (lines 633-639)",
+       "verdict": "kept",
+       "why": "The code checks grown > window and calls _forced_report, which constructs minimal messages."
+      },
+      {
+       "text": "THE EXPENSIVE FAILURE, CAUGHT. A write task that stops calling tools without having written anything is almost never 'done' -- it is a model that decided correctly and then narrated the decision in prose instead of emitting it. ... So ask once more, with the shape compelled, before believing 'done'.",
+       "where": "comment in _run_agentic (lines 647-659)",
+       "verdict": "kept",
+       "why": "The code calls _schema_rescue when writable and not changed and no calls, then uses the rescue result."
+      },
+      {
+       "text": "Gated on ``writable and not changed`` on purpose: models that emit calls natively (qwen3.6 scored 100%) reach here only when genuinely finished, and pay nothing.",
+       "where": "comment in _run_agentic (lines 660-663)",
+       "verdict": "kept",
+       "why": "The condition `if not calls and writable and not changed` ensures rescue is only attempted for write tasks that haven't written anything yet."
+      },
+      {
+       "text": "FAIL LOUD, NEVER EMPTY. A write task that wrote nothing, whose constrained re-ask could not even be delivered (or came back as something other than the shape it was forced into), is not a finished turn. Reading the model's prose as a report here is precisely how 'unreachable bench' and 'model chose finish' became the same observable outcome.",
+       "where": "comment in _run_agentic (lines 666-672)",
+       "verdict": "kept",
+       "why": "The code checks `if not calls and rescue.kind != RESCUE_FINISHED` and sets report = blocked_report(...), distinguishing unreachable/malformed from finished."
+      },
+      {
+       "text": "This call must never be head-truncated by the server.",
+       "where": "docstring of _forced_report (line 698)",
+       "verdict": "kept",
+       "why": "The function constructs a minimal message list and truncates the last tool result until it fits within the window, preventing head-truncation."
+      },
+      {
+       "text": "Behaviour is byte-for-byte what it was before the windowed path existed -- this is an extraction, not a change; ``dropped`` is appended to in place because shedding the distilled slice is provenance the caller reports.",
+       "where": "docstring of _full_file_content (lines 729-733)",
+       "verdict": "uncheckable",
+       "why": "No previous version of the function is provided in this chunk to verify byte-for-byte equivalence. The claim about 'dropped' is kept: the code appends to dropped list when shedding slice."
+      },
+      {
+       "text": "Shed the brief FIRST: it is a convenience against a specific, measured failure mode, not project context the caller curated for this task the way the slice is.",
+       "where": "comment in _full_file_content (lines 754-756)",
+       "verdict": "kept",
+       "why": "The code replaces brief_block with empty string and recalculates est_in before considering shedding the slice."
+      },
+      {
+       "text": "every window is validated and spliced IN MEMORY, and one failed window refuses the whole file, so nothing reaches the disk unless every window passed.",
+       "where": "docstring of _rewrite_by_window (lines 775-778)",
+       "verdict": "kept",
+       "why": "The code checks oversize and returns None if exceeded; the function returns (None, reason) on failure, preventing any disk write. Full validation logic is not shown but the claim about refusal is kept."
+      },
+      {
+       "text": "The caller's single write site then takes the backup, so the exact-original-bytes contract ``_backups`` carries is untouched.",
+       "where": "docstring of _rewrite_by_window (lines 778-780)",
+       "verdict": "uncheckable",
+       "why": "The caller's write site is not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_schema_rescue returns distinct RescueOutcome kinds for each failure mode, matching the docstring claim.",
+       "where": "lines 579, 587, 594, 599",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_run_agentic implements pre-flight token check using count_tokens and returns blocked_report if est > window.",
+       "where": "lines 625-628",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_run_agentic implements mid-loop eviction by checking grown > window and calling _forced_report.",
+       "where": "lines 635-641",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_run_agentic implements the expensive failure rescue by calling _schema_rescue when writable, not changed, and no calls.",
+       "where": "lines 655-660",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_forced_report constructs minimal messages and truncates last tool result to fit within window.",
+       "where": "lines 700-719",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_full_file_content sheds brief before slice when input exceeds window.",
+       "where": "lines 754-760",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_rewrite_by_window checks oversize windows and returns None if exceeded.",
+       "where": "lines 783-785",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fd8f11c8d745682bb1f52953ef5bfe497e177cd0e790520041ed63e7c8f5bcff",
+    "objective_chars": 17596,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/ollama.py [3/5]",
+  "rev": "946db82",
+  "module": "daedalus/providers/ollama.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

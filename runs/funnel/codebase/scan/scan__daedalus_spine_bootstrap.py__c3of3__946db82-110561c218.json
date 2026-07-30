@@ -1,0 +1,123 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c3of3__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c3of3__946db82-110561c218",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 3: shadow_run and main functions, with claims about gate discrimination, source refresh, and local-only flag behavior.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gate_discrimination called twice with different arguments; first call may be stale | medium | First gate_discrimination call uses head but no expected_gate; second call adds expected_gate. If first call fails, result disc may be from a different state. | Check if first call's result is overwritten by second call and if first call's effect is intended."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "3 of 3",
+     "purpose": "Define shadow_run and main entry point for one iteration of the self-improvement circle.",
+     "symbols": [
+      {
+       "name": "shadow_run",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Runs one iteration of the circle, calls refresh_sources, build_queue, gate_discrimination, run_attempt."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "CLI entry point parsing arguments and calling shadow_run with offload_runner."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``runner`` is required and has no default, mirroring :class:`daedalus.spine.attempt.TaskAttempt`: no run may quietly reach a model because a caller forgot an argument.",
+       "where": "shadow_run docstring",
+       "verdict": "kept",
+       "why": "shadow_run signature has runner without default; function body checks if runner is None or not callable and raises ValueError."
+      },
+      {
+       "text": "A receipt proves ONE frozen gate, never \"whatever gate the next candidate happens to use\".  Until a candidate exists there is nothing to bind, so the promotion answer is deliberately unproven.",
+       "where": "shadow_run body, comment before first gate_discrimination call",
+       "verdict": "uncheckable",
+       "why": "The comment describes intent about receipt and promotion, but no code in this chunk implements or verifies that logic; it refers to concepts outside the chunk."
+      },
+      {
+       "text": "\"no candidates\" and \"the sources could not be consulted\" are different facts and must not collapse into one.",
+       "where": "shadow_run body, comment before return _finish(...)",
+       "verdict": "kept",
+       "why": "Code returns 'sources_unavailable' if degraded is truthy, else 'no_candidate', distinguishing the two cases."
+      },
+      {
+       "text": "Promotion is refused while the gate's discrimination is unproven, and there is no flag to override that. A green gate means the configured gate command ran.",
+       "where": "main docstring, epilog",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements promotion refusal or defines 'green gate'; these are external to the chunk."
+      },
+      {
+       "text": "--local-only DECLARES availability; it does not force the router's choice. Measured: with claude_cli declared unavailable the router still selected it, and the run stopped only because offload refuses to execute a non-free lane and escalated instead. Nothing was billed -- but the flag's name promised more than it delivers, so the run now says out loud which lane it was actually routed to.",
+       "where": "main docstring, epilog",
+       "verdict": "uncheckable",
+       "why": "The claim describes behavior of offload_runner and router selection, which are not in this chunk. The code sets availability but does not log the lane; the claim about logging is not verifiable here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "gate_discrimination is called twice: first with require_gate_binding=True but no expected_gate, then later with expected_gate and require_gate_binding=True. The first result is stored in disc and used in _finish; the second call overwrites disc variable but the first disc is already captured in the closure _finish, so the second call's result is used for the return after run_attempt. The first call's result is used only in the early return for no candidates.",
+       "where": "lines 572-573 and 598-599",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function shadow_run uses a closure _finish that captures the variable disc at the time of definition. However, disc is reassigned later. The closure captures the variable name, not the value, so the later reassignment affects the closure's behavior. This means when _finish is called after the second assignment, it uses the second disc. For the early return (no candidates), _finish uses the first disc because it is called before the reassignment. This is intentional but subtle.",
+       "where": "lines 573-577 and 599-602",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The main function sets availability for local-only mode, but the claim in the epilog says the router still selected claude_cli. This chunk does not show that the router respects the availability map; the offload_runner is imported but not shown.",
+       "where": "main function, lines 632-634",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "762432e7774313185a445f2252fbc91ad605c225b55352aae2b50fbb14cb5c27",
+    "objective_chars": 6796,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

@@ -1,0 +1,80 @@
+{
+ "task_id": "scan__daedalus_structcore_churn.py__c3of3__946db82",
+ "key": "scan__daedalus_structcore_churn.py__c3of3__946db82-5634e31dd5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of 3 of daedalus/structcore/churn.py. Found no public symbols, three checkable claims in comments, and one observation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 249-255 | medium | The comment describes filtering logic but the code does not match: it drops pairs when a side is a document, but the comment says 'dropped ONLY when a side is a document' and mentions exclusion for doc<->code pairs, yet the code also drops pairs when _linked is true. This inconsistency could mislead maintainers. | Clarify comment to match actual logic or adjust code."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/churn.py",
+     "chunk": "3 of 3",
+     "purpose": "Filters PMI pairs by removing linked modules and documents, then sorts by PMI descending.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "A document has no import edge by construction, so a doc<->code pair can never be excluded",
+       "where": "line 242-243",
+       "verdict": "uncheckable",
+       "why": "The claim refers to the property that documents have no import edges, which is defined outside this chunk. The code does not define what a document is or how import edges are constructed."
+      },
+      {
+       "text": "Every such pair would enter the report as maximal-confidence 'hidden coupling'",
+       "where": "line 244-245",
+       "verdict": "uncheckable",
+       "why": "The claim refers to the report generation and confidence assignment, which are outside this chunk."
+      },
+      {
+       "text": "A pair is dropped ONLY when a side is a document -- a rel absent from ``modules`` entirely (deleted, shell, out of scope) keeps its previous treatment, so this filter is inert on an index built without documents.",
+       "where": "line 252-255",
+       "verdict": "broken",
+       "why": "The code also drops pairs when _linked(a,b) is true (line 249). The comment says 'dropped ONLY when a side is a document', but the code drops for both conditions. Additionally, the code checks _is_doc(a) or _is_doc(b) which uses modules.get(rel) and checks is_document; if rel is absent from modules, _is_doc returns False (since is_document(None) likely returns False), so the filter is not inert as claimed. The claim that 'this filter is inert on an index built without documents' is false because the code still checks for documents and will skip the pair if either side is a document, which would be impossible if there are no documents."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment on line 252-255 claims that a pair is dropped ONLY when a side is a document, but the code also drops pairs when _linked is true. This is a discrepancy between comment and code.",
+       "where": "line 249 and line 252-255",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e29416e2fd654bfb3a78939020ca01ce096cdfc03c94bae56105fd5913f68a2d",
+    "objective_chars": 1997,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/churn.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/churn.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 241
+ }
+}

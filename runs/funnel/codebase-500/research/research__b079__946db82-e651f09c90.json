@@ -1,0 +1,123 @@
+{
+ "task_id": "research__b079__946db82",
+ "key": "research__b079__946db82-e651f09c90",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified cross-file pattern: selection digest assumption in correctness.py's to_dict is not guaranteed by Selection contract; containment.py docstring claims handle rights that may conflict with actual file operations; reach.py BFS visited sets and correctness.py's guard assume node sets are frozen but markdown.py's deferred links may introduce mutable sets.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "correctness.py to_dict assumes Selection has a 'digest' attribute, but no module in the reports guarantees this; if Selection is replaced or altered, to_dict may break silently.",
+     "containment.py docstring claims handle rights are exactly FILE_APPEND_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE, but markdown.py and other modules may need to write to log files, potentially violating the claimed invariant.",
+     "reach.py BFS uses per-tier visited sets to allow crossing claimed nodes, but correctness.py's guard_measurement_match assumes the set of nodes is exactly the frozen selection; if BFS visits a node not in the selection, guard may reject valid results.",
+     "markdown.py's deferred links (vault:) are not resolved, meaning the set of test nodes may be incomplete; correctness.py's guard and judge_before_state assume the node set is complete and frozen.",
+     "No module explicitly defines the contract for 'Selection' or 'digest', so cross-module assumptions about its structure are unverified."
+    ],
+    "todos": [
+     "Verify that Selection class (likely in daedalus/mapping/) has a 'digest' attribute or method.",
+     "Check that containment.py implementation matches its docstring claims about handle rights and share modes.",
+     "Ensure that the BFS in reach.py does not introduce nodes outside the frozen selection, or that guard_measurement_match can handle such cases.",
+     "Clarify how deferred links in markdown.py affect test node selection and whether they are excluded from the frozen set.",
+     "Define a clear contract for Selection and its digest to be used across modules."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "selection_digest_assumption",
+       "claim": "correctness.py's BeforeState.to_dict assumes that the Selection object has a 'digest' attribute, but no module in the reports guarantees this contract. The Selection class is defined elsewhere (likely in daedalus/mapping/) and its interface is not enforced by any common base or protocol.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/mapping/reach.py"
+       ],
+       "mechanism": "BeforeState.to_dict (line 882) calls self.selection.digest. If Selection lacks a 'digest' attribute, this will raise AttributeError. The reach.py module computes a selection (via _discover_entries) but does not document whether the resulting object has a 'digest' attribute. No other module in the reports shows Selection's definition.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Discovery of Selection class definition (e.g., in daedalus/mapping/selection.py) that includes a 'digest' attribute (property or method) would refute this hypothesis.",
+       "evidence": [
+        "daedalus/eval/correctness.py:882",
+        "daedalus/mapping/reach.py:entries (line 870)"
+       ]
+      },
+      {
+       "id": "handle_rights_contract_violation",
+       "claim": "containment.py docstring claims the inherited handle carries only FILE_APPEND_DATA | FILE_READ_ATTRIBUTES | SYNCHRONIZE, but the log file is Low-labelled and append-only. However, markdown.py and other modules may need to write to log files with broader rights (e.g., FILE_WRITE_DATA) for structured logging, potentially violating the claimed invariant.",
+       "spans": [
+        "daedalus/spine/containment.py",
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "containment.py docstring (line 51) states the handle mask. If any module (e.g., markdown.py) opens the log file with a different mask (e.g., via open() which grants FILE_WRITE_DATA), the handle rights claim in containment.py is incorrect. The docstring also claims share mode excludes FILE_SHARE_DELETE and FILE_SHARE_WRITE, but markdown.py may not respect this.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Inspection of containment.py implementation showing that the handle mask is enforced by the OS and that all log writes go through the same restricted handle; or examination of markdown.py showing it does not write to logs.",
+       "evidence": [
+        "daedalus/spine/containment.py:51",
+        "daedalus/spine/containment.py:60",
+        "daedalus/structcore/markdown.py:161-177"
+       ]
+      },
+      {
+       "id": "node_set_completeness_mismatch",
+       "claim": "correctness.py's guard_measurement_match and judge_before_state assume the set of test nodes is exactly the frozen selection (from BeforeState.selection). However, reach.py's tiered BFS may visit nodes not in the selection (e.g., via weak edges or dynamic surfaces), and markdown.py's deferred links (vault:) are not resolved, meaning the node set may be incomplete. This could cause guard_measurement_match to reject valid results or judge_before_state to produce incorrect verdicts.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/mapping/reach.py",
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "guard_measurement_match (line 841) compares observed node sets to declared sets from selection. If reach.py's BFS includes nodes from weak edges or dynamic surfaces not in the selection, the observed set will have extra nodes, causing rejection. Similarly, markdown.py's deferred links (vault:) are not resolved, so nodes referenced only via deferred links may be missing from the declared set, causing false negatives.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that reach.py's BFS only visits nodes in the selection (e.g., the selection is a superset of all possible nodes); or that markdown.py's deferred links are excluded from the selection entirely; or that guard_measurement_match is never called with nodes from these sources.",
+       "evidence": [
+        "daedalus/eval/correctness.py:841-856",
+        "daedalus/mapping/reach.py:875-893",
+        "daedalus/structcore/markdown.py:207"
+       ]
+      },
+      {
+       "id": "unfalsifiable_containment_claims",
+       "claim": "containment.py docstring makes many specific claims about measured behaviors (e.g., 'write through junction refused', 'handle returns ERROR_INVALID_HANDLE') that cannot be verified from any code in the reports. These claims are unfalsifiable without the implementation or test data.",
+       "spans": [
+        "daedalus/spine/containment.py"
+       ],
+       "mechanism": "The entire chunk is a docstring; no executable code is present. Claims about kernel behavior, handle rights, share modes, etc., are stated as facts but cannot be cross-checked against any implementation in the reports.",
+       "severity": "medium",
+       "confidence": "unfalsifiable",
+       "refuted_by": "This hypothesis is unfalsifiable because no code is provided to test against. A narrower testable claim would be: 'containment.py implements MIC write containment as described in its docstring' which could be refuted by examining the implementation.",
+       "evidence": [
+        "daedalus/spine/containment.py:12-78"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "29307e5cfe918fdc7d9750cf174ef18ee68e688570bc8eafe9485421fd959040",
+    "objective_chars": 30313,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 79 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 79,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,129 @@
+{
+ "task_id": "plan__b021__946db82",
+ "key": "plan__b021__946db82-7249912944",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings narrowed; plan: verify budget centralization, byte-identity, error-row contract, and opt-in flags wiring.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Byte-identity test may fail if dict ordering is non-deterministic; need to use OrderedDict or sorted keys.",
+     "Opt-in flags may be read later in index.py; grep needed to confirm before adding wiring.",
+     "error-row contract may already be universal; grep needed to avoid unnecessary changes."
+    ],
+    "todos": [
+     "Grep for effective_input_window and budget across all adapter classes in vendors.py.",
+     "Write test for ReachReport.to_dict byte equality.",
+     "Grep for all eval_task_* and run_* functions and verify _task_error_row usage.",
+     "Grep for DAEDALUS_INDEX_DOCUMENTS, DAEDALUS_INDEX_TYPES, documents=True, types=True in index.py and correctness.py."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify budget enforcement centralization in vendors.py",
+       "gate": "0",
+       "why_now": "Potential over-budget prompts if per-adapter budget checks are missing; centralization is a canonical kernel concern.",
+       "steps": [
+        {
+         "do": "Search for 'effective_input_window' and 'budget' in daedalus/council/vendors.py to confirm each adapter has its own check.",
+         "file": "daedalus/council/vendors.py",
+         "verified_by": "grep -n 'effective_input_window\\|budget' daedalus/council/vendors.py | wc -l > 1 (at least one check per adapter)"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "If grep shows no budget checks, we need to add a shared budget decorator; if checks exist but are per-adapter, we may still refactor to base class."
+      },
+      {
+       "rank": 2,
+       "title": "Write byte-identity test for ReachReport.to_dict",
+       "gate": "1",
+       "why_now": "Byte-identity is critical for deterministic caching and comparison; non-determinism can cause false negatives in evaluation.",
+       "steps": [
+        {
+         "do": "Add a test that calls ReachReport.to_dict twice with same input and asserts byte equality of the JSON output.",
+         "file": "tests/test_mapping_reach.py",
+         "verified_by": "pytest tests/test_mapping_reach.py -k 'byte_identity' passes"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "ReachReport.to_dict is defined in daedalus/mapping/reach.py; we assume it returns a dict that can be serialized to JSON."
+      },
+      {
+       "rank": 3,
+       "title": "Verify opt-in flags are read in index.py and correctness.py",
+       "gate": "1",
+       "why_now": "If flags are never read, index will lack document/type data even if consumers expect them, causing silent failures.",
+       "steps": [
+        {
+         "do": "Grep for 'DAEDALUS_INDEX_DOCUMENTS', 'DAEDALUS_INDEX_TYPES', 'documents=True', 'types=True' in daedalus/structcore/index.py.",
+         "file": "daedalus/structcore/index.py",
+         "verified_by": "grep -n 'DAEDALUS_INDEX_DOCUMENTS\\|DAEDALUS_INDEX_TYPES\\|documents=True\\|types=True' daedalus/structcore/index.py | wc -l > 0"
+        },
+        {
+         "do": "Grep for 'documents' and 'types' in daedalus/eval/correctness.py to see if flags are passed.",
+         "file": "daedalus/eval/correctness.py",
+         "verified_by": "grep -n 'documents\\|types' daedalus/eval/correctness.py | wc -l > 0"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "If flags are not read, we need to add wiring; if they are read, no change needed."
+      },
+      {
+       "rank": 4,
+       "title": "Verify all eval_task_* and run_* functions use _task_error_row",
+       "gate": "1",
+       "why_now": "Inconsistent error rows can cause misaggregation; this is a high-severity contract that must be enforced.",
+       "steps": [
+        {
+         "do": "Search for all definitions of eval_task_* and run_* functions in daedalus/eval/ and verify each calls _task_error_row in exception handlers.",
+         "file": "daedalus/eval/",
+         "verified_by": "grep -rn 'def eval_task_\\|def run_' daedalus/eval/ | wc -l; then grep -rn '_task_error_row' daedalus/eval/ | wc -l; counts should match"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "If some functions lack _task_error_row, we need to add it; if all have it, no change needed."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/vendors.py",
+      "daedalus/structcore/index.py",
+      "daedalus/eval/correctness.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9160556507693cf5902a4dd4469847c1a6175aac2704aab9baa3c908a66f364f",
+    "objective_chars": 21614,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 21 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 21,
+  "inputs": 4
+ }
+}

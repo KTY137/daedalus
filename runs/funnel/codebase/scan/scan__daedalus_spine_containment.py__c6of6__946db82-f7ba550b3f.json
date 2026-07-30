@@ -1,0 +1,183 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c6of6__946db82",
+ "key": "scan__daedalus_spine_containment.py__c6of6__946db82-f7ba550b3f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 6 of containment.py: defines spawn_contained() function with docstring and implementation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "spawn_contained | high | Multiple except BaseException blocks may mask errors; they catch and re-raise but also catch KeyboardInterrupt etc. | Confirm that catching BaseException is intentional and that TerminateProcess etc. are safe to call even if the exception is not an OS error.",
+     "spawn_contained | medium | The function uses _kernel32.CloseHandle in multiple places; if any of these fail, the exception is swallowed silently. | Verify that failure to close handles is acceptable and does not leak resources.",
+     "spawn_contained | low | The docstring claims that bInheritHandles is written as 'allowlist is not None' so inheritance and the allowlist can never disagree. This is true in the code, but the docstring also says there is no inherit parameter, which is correct. However, the claim about 'no state in which handles are inheritable and the allowlist is absent' is verified. | No action needed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "6 of 6",
+     "purpose": "Define spawn_contained() function for low-integrity process creation with job object containment.",
+     "symbols": [
+      {
+       "name": "spawn_contained",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write",
+        "spend"
+       ],
+       "note": "Creates a low-integrity process, assigns it to a job object, and returns a ContainedProcess. Uses Windows API calls. May raise ContainmentUnavailable."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Start ``argv`` at Low integrity with ``cwd`` as its working directory.",
+       "where": "docstring line 1",
+       "verdict": "kept",
+       "why": "The code calls _low_integrity_token() and passes the token to CreateProcessAsUserW, and sets cwd parameter. No explicit working directory change is visible, but CreateProcessAsUserW receives cwd via the startup info? Actually, cwd is passed as the 8th argument to CreateProcessAsUserW. So the claim is kept."
+      },
+      {
+       "text": "``max_processes`` and ``max_job_memory_bytes`` TIGHTEN the job's caps and cannot loosen them: each is combined with the module ceiling by ``min()``, written as one expression so there is no state in which a caller asked for more and got it.",
+       "where": "docstring paragraph 2",
+       "verdict": "kept",
+       "why": "The code uses min(int(max_processes), JOB_ACTIVE_PROCESS_LIMIT) and similarly for memory. If max_processes is None, it uses JOB_ACTIVE_PROCESS_LIMIT directly. So the caps are tightened, never loosened."
+      },
+      {
+       "text": "Passing ``None`` -- what every production caller does -- gets :data:`JOB_ACTIVE_PROCESS_LIMIT` and :data:`JOB_MEMORY_LIMIT_BYTES`.",
+       "where": "docstring paragraph 2",
+       "verdict": "kept",
+       "why": "The code checks if max_processes is None and then assigns JOB_ACTIVE_PROCESS_LIMIT; similarly for max_job_memory_bytes and JOB_MEMORY_LIMIT_BYTES."
+      },
+      {
+       "text": "HANDLE INHERITANCE IS BOUNDED, NOT CONFIGURABLE. There is no ``inherit`` parameter, no ``close_fds``, and no way to pass a raw handle: ``log`` is typed to :class:`LowIntegrityLog`, an object only this module can construct, on a target only this module labels, with rights only this module chooses.",
+       "where": "docstring paragraph 3",
+       "verdict": "kept",
+       "why": "The function signature has no inherit, close_fds, or raw handle parameters. The log parameter is typed as LowIntegrityLog (though not enforced by type hints in this chunk, but the docstring says it's typed). The code verifies log is a LowIntegrityLog instance and calls log.verify(). The allowlist is built only from log.handle. So handle inheritance is bounded and not configurable."
+      },
+      {
+       "text": "``bInheritHandles`` is written as ``allowlist is not None`` so inheritance and the allowlist can never disagree.",
+       "where": "docstring paragraph 3",
+       "verdict": "kept",
+       "why": "The variable 'inherit' is set to 'allowlist is not None' and passed as bInheritHandles to CreateProcessAsUserW. So inheritance is true exactly when there is an allowlist."
+      },
+      {
+       "text": "With ``log=None`` no handle crosses at all and the child has no stdio; that is the original behaviour and remains the default.",
+       "where": "docstring paragraph 4",
+       "verdict": "kept",
+       "why": "When log is None, allowlist remains None, inherit is False, and no handles are set in startup (dwFlags does not include STARTF_USESTDHANDLES). So the child has no inherited handles and no stdio."
+      },
+      {
+       "text": "Raises :class:`ContainmentUnavailable` on any platform or API failure, and never falls back to an ordinary spawn.",
+       "where": "docstring paragraph 5",
+       "verdict": "kept",
+       "why": "The function calls _require_win32() which raises ContainmentUnavailable on non-Windows. It raises ContainmentUnavailable for empty argv, invalid log type, and on CreateProcessAsUserW failure. It does not fall back to any other spawn."
+      },
+      {
+       "text": "RE-VERIFIED HERE, not merely at construction: target and rights are checked on the handle at the moment of use.",
+       "where": "comment at line 1438",
+       "verdict": "uncheckable",
+       "why": "The code calls log.verify() but the implementation of LowIntegrityLog.verify() is not in this chunk. So we cannot verify that it checks target and rights."
+      },
+      {
+       "text": "CREATE_SUSPENDED so the child cannot spawn a grandchild before it is inside the job; resumed below, only once assignment succeeded.",
+       "where": "comment at line 1450",
+       "verdict": "kept",
+       "why": "The code includes _CREATE_SUSPENDED in flags, and after AssignProcessToJobObject succeeds, it calls ResumeThread. So the child is suspended until after job assignment."
+      },
+      {
+       "text": "A Low child cannot write %TEMP% (Medium), so a caller that wants a usable child gives it a TEMP inside a Low-labelled directory.",
+       "where": "comment at line 1456",
+       "verdict": "uncheckable",
+       "why": "The comment explains why env might be needed, but the code does not enforce or check that TEMP is Low-labelled. It just passes the env block to CreateProcessAsUserW. The claim about TEMP is informational and not checkable from this code."
+      },
+      {
+       "text": "stdin is NULL, deliberately: a handle on the null device would be a SECOND inherited handle for no security benefit.",
+       "where": "comment at line 1465",
+       "verdict": "kept",
+       "why": "The code sets startup.StartupInfo.hStdInput = None (NULL). So stdin is not inherited."
+      },
+      {
+       "text": "TIGHTENING ONLY. min() with the module ceiling is the whole mechanism: there is no argument that makes the blast radius larger than the constant at the top of this file.",
+       "where": "comment at line 1474",
+       "verdict": "kept",
+       "why": "The code uses min() with JOB_ACTIVE_PROCESS_LIMIT and JOB_MEMORY_LIMIT_BYTES, which are constants presumably defined earlier in the file. The argument values are capped by these constants."
+      },
+      {
+       "text": "THE ONE PLACE INHERITANCE IS DECIDED. `inherit` is literally 'is there an allowlist?', so there is no reachable state in which handles are inheritable and the allowlist is absent.",
+       "where": "comment at line 1483",
+       "verdict": "kept",
+       "why": "The variable 'inherit' is set to 'allowlist is not None' and passed to CreateProcessAsUserW. So inheritance is true only when an allowlist exists."
+      },
+      {
+       "text": "THE LABEL IS DELIBERATELY UNCHANGED by the arrival of the caps. It is a coarse name, and the caps are not a coarse fact: `job_limits` below carries the LimitFlags the kernel handed back.",
+       "where": "comment at line 1508",
+       "verdict": "uncheckable",
+       "why": "The comment refers to the mechanism string in the attestation. The code constructs 'mic-low+job' and appends '+bounded-inherit' if log is present. It does not include cap values in the label. The claim about job_limits carrying LimitFlags is uncheckable because we don't see the attestation class or how job_limits is populated."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function catches BaseException in two places, which will catch KeyboardInterrupt, SystemExit, etc. This is unusual and may be intentional for cleanup, but it could mask user interrupts.",
+       "where": "lines 1493 and 1502",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "In the except block starting at line 1493, after catching BaseException, the code calls _kernel32.CloseHandle on the job handle. If that fails, it raises the original exception? Actually, it just raises the original exception because the except clause re-raises after close. But the close failure is ignored? Actually, the close is done before the raise, so if close fails, the exception from close would propagate? No, the close is in the try block of the except? Wait, line 1493 is 'except BaseException:' then line 1494 closes job, then line 1495 raises. If close fails, it will raise a new exception instead of the original. This could swallow the original error.",
+       "where": "lines 1493-1495",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "In the except block starting at line 1502, the code catches all exceptions with bare 'except Exception' and passes. This silently ignores failures in TerminateProcess, CloseHandle, etc. This is intentional to ensure cleanup continues, but it may hide important errors.",
+       "where": "lines 1502-1505",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function uses _kernel32.CloseHandle in multiple places without checking the return value. Failure to close handles could lead to resource leaks, but the code assumes these calls succeed.",
+       "where": "lines 1494, 1503-1505",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The docstring claims that the function raises ContainmentUnavailable on any platform or API failure. However, if CreateProcessAsUserW fails, it raises _win_error, which may not be ContainmentUnavailable? Actually, _win_error is defined earlier? Not in this chunk, but likely it raises ContainmentUnavailable. Similarly, AssignProcessToJobObject and ResumeThread failures raise _win_error. So the claim is likely kept, but we cannot verify _win_error's behavior.",
+       "where": "docstring and lines 1493, 1497, 1499",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8b2d362553af7fc30275e2a217512fd444b5fd26d02e6d5d2d1551a106da2ff6",
+    "objective_chars": 7757,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [6/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 1401
+ }
+}

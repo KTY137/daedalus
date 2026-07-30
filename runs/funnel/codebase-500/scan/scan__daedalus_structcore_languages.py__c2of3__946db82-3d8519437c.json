@@ -1,0 +1,187 @@
+{
+ "task_id": "scan__daedalus_structcore_languages.py__c2of3__946db82",
+ "key": "scan__daedalus_structcore_languages.py__c2of3__946db82-3d8519437c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3: defines LanguageSpec entries for JavaScript, TypeScript, C#, QML, CSS, QSS, SCSS, Kotlin, Swift, Ruby, PHP, Lua, and starts Shell.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/languages.py",
+     "chunk": "2 of 3",
+     "purpose": "Define LanguageSpec entries for multiple languages from JavaScript through Shell.",
+     "symbols": [
+      {
+       "name": "javascript",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for JavaScript with string_delims, extensions, comments, grammar, function/import types, guard keywords, safety_content."
+      },
+      {
+       "name": "typescript",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for TypeScript with similar fields as JavaScript."
+      },
+      {
+       "name": "csharp",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for C# with extensions, comments, grammar, function/import types, guard keywords, safety_content."
+      },
+      {
+       "name": "qml",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for QML with extensions, comments, grammar, function/import types, guard keywords."
+      },
+      {
+       "name": "css",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for CSS with extensions, block comments, grammar, function types."
+      },
+      {
+       "name": "qss",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for QSS (Qt Style Sheets) with extensions, block comments, grammar, function types."
+      },
+      {
+       "name": "scss",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for SCSS with extensions, line/block comments, grammar, function types."
+      },
+      {
+       "name": "kotlin",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for Kotlin with extensions, comments, grammar, function/import types, guard keywords."
+      },
+      {
+       "name": "swift",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for Swift with string_delims, extensions, comments, grammar, function/import types, guard keywords."
+      },
+      {
+       "name": "ruby",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for Ruby with extensions, line comment, grammar, function/import types, guard keywords."
+      },
+      {
+       "name": "php",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for PHP with extensions, line/block comments, grammar, function/import types, guard keywords."
+      },
+      {
+       "name": "lua",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec for Lua with extensions, line comment, grammar, function types, guard keywords."
+      },
+      {
+       "name": "shell",
+       "kind": "constant",
+       "effects": [],
+       "note": "LanguageSpec entry for shell, started but incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Qt Style Sheets \u2014 CSS-like; the css grammar parses most of it, and the window-clone pass catches duplicated style blocks regardless.",
+       "where": "comment before qss entry",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behavior of 'window-clone pass' which is not present in this chunk."
+      },
+      {
+       "text": "each is one line of coverage",
+       "where": "comment before kotlin entry",
+       "verdict": "broken",
+       "why": "The comment says 'each is one line of coverage' but the following LanguageSpec entries span multiple lines (e.g., kotlin, swift, ruby, php, lua are all multi-line)."
+      },
+      {
+       "text": "styling / markup (GUI look-and-feel; clone-heavy, caught well at window level even when the grammar is imperfect)",
+       "where": "comment before css entry",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behavior at 'window level' which is not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The shell LanguageSpec entry is incomplete; it ends abruptly after 'name=\"shell\",'.",
+       "where": "last line of chunk",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Comment says 'each is one line of coverage' but the following entries are multi-line.",
+       "where": "comment before kotlin entry",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Multiple languages share identical safety_content patterns (JavaScript, TypeScript).",
+       "where": "javascript and typescript entries",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "QML entry has no string_delims, safety_content, or import_types fields.",
+       "where": "qml entry",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "CSS and QSS both use ts_grammar='css' and have same function_types.",
+       "where": "css and qss entries",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Ruby entry has import_types=('import_header',) but Ruby uses 'require' or 'load', not 'import'.",
+       "where": "ruby entry",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "53285a883ebe26e4c83359c3c67138fd141c47df6ea0a4453847f701824a98f1",
+    "objective_chars": 4829,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/languages.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/languages.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

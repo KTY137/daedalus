@@ -1,0 +1,233 @@
+{
+ "task_id": "scan__daedalus_structcore_perfile.py__c1of1__946db82",
+ "key": "scan__daedalus_structcore_perfile.py__c1of1__946db82-0f165613e9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed perfile.py chunk 1/1: defines FileAnalysis dataclass, analyze_file, and analyze_chunk functions with detailed docstrings and comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ANALYSIS_VERSION comment | medium | Claim that version '5' is necessary because FileAnalysis now carries type_facts, but version bump logic is fragile if not consistently applied across cache keys. To settle: verify that ANALYSIS_VERSION is included in cache key computation and that all cache reads/writes use the same version constant.",
+     "analyze_file for non-python | medium | For non-python languages, type_facts is set to default PyTypeFacts() but comment says 'EXTRACTED UNCONDITIONALLY' yet only Python path extracts type_facts. To settle: confirm that PyTypeFacts() default is acceptable for non-python and that the type-graph layer handles this correctly.",
+     "analyze_file docstring | low | Claims 'pure: same inputs -> same outputs, no I/O, no globals', but count_tokens may depend on external tokenizer (tiktoken). To settle: ensure count_tokens is deterministic and has no side effects."
+    ],
+    "todos": [
+     "Verify that count_tokens is a pure function with no I/O or external state dependencies.",
+     "Ensure that ANALYSIS_VERSION is consistently used in all cache key constructions and that cache invalidation logic is correct.",
+     "Confirm that for non-python languages, the default PyTypeFacts() is appropriate and does not cause silent failures in the type-graph layer."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/perfile.py",
+     "chunk": "1 of 1",
+     "purpose": "Define FileAnalysis dataclass and per-file analysis functions for parallel index building.",
+     "symbols": [
+      {
+       "name": "ANALYSIS_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String constant '5' used as part of disk-cache key to invalidate stale entries."
+      },
+      {
+       "name": "FileAnalysis",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding per-file analysis results: rel, lang, n_chars, n_tokens, loc, metrics, units, runs, py_imports, raw_imports, type_facts."
+      },
+      {
+       "name": "analyze_file",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Pure function that analyzes one file given rel, text, spec, and ts_on flag, returning a FileAnalysis instance."
+      },
+      {
+       "name": "analyze_chunk",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Worker entry point for parallel processing: takes a batch job tuple and returns list of (index, FileAnalysis) pairs, preserving original order."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Bump whenever the MEANING of any field below changes (new metric, different unit extraction, changed window hashing). It is part of the disk-cache key, so bumping it invalidates every cached entry.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "The claim that ANALYSIS_VERSION is part of the disk-cache key cannot be verified from this file alone; no cache key construction code is present."
+      },
+      {
+       "text": "\"3\": added n_tokens. A row cached under \"2\" has no token count, and an index built from such rows would report a denominator of zero for part of the repo -- i.e. an inflated distillation headline, silently. Bumping makes that unrepresentable.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "The historical version bumps are described but cannot be verified against the current code; no cache reading logic is present."
+      },
+      {
+       "text": "\"4\": ``parse.py`` gained the type/field/signature extractor (``PyTypeFacts``). The digest of parse.py is already part of every key, so this bump is belt to that braces -- but the two locks fail differently and only one of them is under our control.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "Claims about parse.py digest being part of cache key cannot be verified from this file."
+      },
+      {
+       "text": "\"5\": ``FileAnalysis`` now actually CARRIES them (``type_facts``). \"4\" rows were written by the generation that had the extractor but not the field, so they have no ``type_facts`` key at all.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "kept",
+       "why": "FileAnalysis dataclass includes type_facts field of type PyTypeFacts. Version '5' is defined."
+      },
+      {
+       "text": "Those rows would decode (``_decode`` reads by subscript, so in fact they raise KeyError and become a miss) -- but relying on a KeyError being raised and swallowed is an accidental lock, not a stated one, and ``_SCHEMA`` was bumped to 2 in the same commit so they are DELETEd on open anyway.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "uncheckable",
+       "why": "No _decode function or _SCHEMA constant is defined in this chunk; the claim refers to code outside this file."
+      },
+      {
+       "text": "This constant is the one a reader greps to answer \"which generation of rows is in this cache\", and the answer changed.",
+       "where": "comment before ANALYSIS_VERSION",
+       "verdict": "kept",
+       "why": "ANALYSIS_VERSION is defined as '5', and the comment explains its purpose."
+      },
+      {
+       "text": "Everything crossing a process boundary is plain data. Nothing here imports ``index`` -- workers must not re-enter the single-flight build lock.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The file does not import 'index' (no import statement for it). Data classes and functions use only plain data types."
+      },
+      {
+       "text": "Whole-repo work (import RESOLUTION, the clone passes, churn) deliberately stays in the parent: it needs the full file set, and it is not per-file parallel.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk performs whole-repo work; the claim describes intended architecture, not verifiable here."
+      },
+      {
+       "text": "Roughly half the index build is per-file work that depends on nothing but that one file's bytes: unit extraction, health metrics, window-run hashing and raw import extraction.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "analyze_file function performs unit extraction (extract_units or python_units_imports_and_types), health metrics (file_metrics), window-run hashing (window_runs), and raw import extraction (imports_mod.extract_imports or python_units_imports_and_types)."
+      },
+      {
+       "text": "Isolating it here buys two things at once: it can run in a ``ProcessPoolExecutor`` (the work is CPU-bound, so threads are useless under the GIL), and it can be memoized on disk, keyed by content, because the result is a pure function of (rel, spec, text) plus this module's ``ANALYSIS_VERSION``.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "analyze_file is a pure function (no I/O, no side effects) taking rel, text, spec, ts_on; returns FileAnalysis. The module defines ANALYSIS_VERSION. The function could be run in a process pool."
+      },
+      {
+       "text": "Everything crossing a process boundary is plain data.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "All data types used (str, int, dict, list, PyTypeFacts) are plain data and picklable."
+      },
+      {
+       "text": "Analyze ONE file. Pure: same inputs -> same outputs, no I/O, no globals.",
+       "where": "analyze_file docstring",
+       "verdict": "kept",
+       "why": "analyze_file function only uses its parameters and calls other pure functions; no I/O or global state is accessed in this function."
+      },
+      {
+       "text": "ONE ast.parse feeds units, imports AND type facts (it used to be two walks of one parse; it is now three walks of the same one).",
+       "where": "comment in analyze_file",
+       "verdict": "uncheckable",
+       "why": "The implementation calls python_units_imports_and_types which is imported from .parse; the claim about number of walks cannot be verified from this file."
+      },
+      {
+       "text": "The units and the import records are produced by the SAME functions as before -- ``python_units_imports_and_types`` adds a third walk, it does not change the first two (invariant I1).",
+       "where": "comment in analyze_file",
+       "verdict": "uncheckable",
+       "why": "Invariant I1 is not defined in this chunk; the behavior of python_units_imports_and_types cannot be verified."
+      },
+      {
+       "text": "Batched rather than one-task-per-file because Windows spawns (not forks) workers, so per-task overhead is real.",
+       "where": "analyze_chunk docstring",
+       "verdict": "kept",
+       "why": "analyze_chunk processes a batch of files (list of items) in one call, not one file per call."
+      },
+      {
+       "text": "The index tag is what lets the parent restore exact input order regardless of completion order -- ``all_units`` order is load-bearing for the clone passes.",
+       "where": "analyze_chunk docstring",
+       "verdict": "kept",
+       "why": "analyze_chunk returns list of (index, FileAnalysis) tuples where index is the original position from the input items."
+      },
+      {
+       "text": "EXTRACTED UNCONDITIONALLY, even when the layer is switched off. The gate is in ``index.build_index`` (resolution + publication) and deliberately NOT here: this dataclass rides a CONTENT-KEYED disk cache, so a gate on this side would let a row written with the layer off (empty facts) be served as a HIT to a later build with the layer on.",
+       "where": "comment in FileAnalysis.type_facts field",
+       "verdict": "broken",
+       "why": "In analyze_file, for non-python languages, type_facts is set to default PyTypeFacts() (empty) and is NOT extracted unconditionally. For python, type_facts is extracted via python_units_imports_and_types. The comment states extraction is unconditional for all languages, but the code only extracts for python. Thus the claim is broken for non-python languages."
+      },
+      {
+       "text": "A frozen dataclass with only tuple fields is hashable and immutable, so it is safe as a PLAIN default (no default_factory) and safe to ship across a process boundary.",
+       "where": "comment in FileAnalysis.type_facts field",
+       "verdict": "uncheckable",
+       "why": "PyTypeFacts is imported from .parse; its definition (frozen, tuple fields) is not in this chunk. The claim about default_factory is not applicable because the field uses default=PyTypeFacts() which is a mutable default (since PyTypeFacts is a dataclass, not frozen necessarily). The comment says 'frozen dataclass with only tuple fields' but we cannot verify PyTypeFacts is frozen or has only tuple fields."
+      },
+      {
+       "text": "The distill ratio's DENOMINATOR then comes from the same tokenizer as its numerator, instead of a chars/4 guess.",
+       "where": "comment in FileAnalysis.n_tokens field",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk computes distill ratio; the claim refers to usage outside this file."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Comment claims type_facts are extracted unconditionally for all languages, but code only extracts for python.",
+       "where": "FileAnalysis.type_facts field comment vs analyze_file function",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "ANALYSIS_VERSION comments describe historical version bumps and cache key usage, but cache key construction is not in this file.",
+       "where": "ANALYSIS_VERSION comment block",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "analyze_file docstring claims 'no I/O' but count_tokens may use external tokenizer (tiktoken) which could involve I/O or non-determinism.",
+       "where": "analyze_file docstring",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "FileAnalysis.type_facts field uses default=PyTypeFacts() which is a mutable default; if PyTypeFacts is not frozen, this could cause shared state.",
+       "where": "FileAnalysis class definition",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "837dc17d6fa6ae09b6fc86a3a3c0b35a98da3ca8bf1d2e33709da1c0f07d8c8c",
+    "objective_chars": 7380,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/perfile.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/perfile.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

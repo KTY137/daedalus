@@ -1,0 +1,115 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c5of9__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c5of9__946db82-257222b41f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 9: inventory.py lines 481-590. Contains annotation merging logic, _feature builder, and _stale_features function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "5 of 9",
+     "purpose": "Contains annotation merging for multiple rels, _feature helper, and _stale_features function.",
+     "symbols": [
+      {
+       "name": "_feature",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a feature dict from rel, facts, entry_idents, dark_by_module, and annotation."
+      },
+      {
+       "name": "_stale_features",
+       "kind": "function",
+       "effects": [],
+       "note": "Detects stale packages (ghosts) and orphan bytecode, returns features and packaging info."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Both reasons are kept, joined, rather than one silently winning.",
+       "where": "line 487 comment",
+       "verdict": "kept",
+       "why": "The code merges both reasons by joining with ' | ' if the value is not already present."
+      },
+      {
+       "text": "Deliberately only two. ... They stay in narrative_features, where a human signed them.",
+       "where": "docstring of _stale_features",
+       "verdict": "uncheckable",
+       "why": "The claim about 'narrative_features' refers to a variable not defined in this chunk."
+      },
+      {
+       "text": "pyproject.toml [tool.setuptools] packages promises {pkg!r}, and no directory with an __init__.py answers to that name -- a non-editable install would ship a package that is not there",
+       "where": "line 542-545",
+       "verdict": "kept",
+       "why": "The code uses _pyproject_packages and _packages_on_disk to find ghosts, and the reason string is exactly as stated."
+      },
+      {
+       "text": "{rel} holds {count} .pyc file(s) and its parent directory contains no .py source at all -- the module was deleted and its bytecode was not",
+       "where": "line 557-559",
+       "verdict": "kept",
+       "why": "The code uses _orphan_bytecode to find orphans, and the reason string matches."
+      },
+      {
+       "text": "Reported, NOT filed as a stale feature. Its remedy is 'add it to the list', the exact opposite verb from the stale remedy ('remove it'), and handing a fixer the wrong verb is how a finding becomes damage.",
+       "where": "comment lines 569-572",
+       "verdict": "kept",
+       "why": "The code places 'on_disk_but_unlisted' in the packaging dict, not in the features list, matching the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Annotation merging logic: if multiple features name the same module, their human annotations are merged with ' | ' for conflicting fields.",
+       "where": "lines 483-491",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_feature function does not include 'detector' key in output dict, unlike _stale_features.",
+       "where": "lines 507-522",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_stale_features uses _pyproject_packages, _packages_on_disk, and _orphan_bytecode which are not defined in this chunk.",
+       "where": "lines 535-537",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ce9311d2b0182af8cee9124da6fddb83e5cb621d37fc60adda7be299c8f383e9",
+    "objective_chars": 5513,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [5/9]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 5,
+  "total": 9,
+  "first_line": 481
+ }
+}

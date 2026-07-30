@@ -1,0 +1,174 @@
+{
+ "task_id": "daedalus/kairos/gated_writes.py#c2of3#5eb1702d",
+ "key": "daedalus_kairos_gated_writes.py_c2of3_5eb1702d-56ec4dee39",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 8 kept, 2 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Bounded to ONE retry\" | _promote_one_inner | KEPT | the code sets _retried=True and returns if _retried is already True, so exactly one retry is allowed.",
+     "CLAIM | \"a non-zero exit here means the integration worktree is exactly as it was before this call\" | _promote_one_inner, apply_proc.returncode != 0 branch | KEPT | git apply with --no-3way and --no-reject validates the whole patch before writing; non-zero indicates nothing written.",
+     "CLAIM | \"the integration worktree must come back to EXACTLY current_head with a clean tree before the NEXT candidate's staleness check above runs\" | _promote_one_inner, except block | KEPT | the except block runs git reset --hard current_head and git clean -fd unconditionally.",
+     "CLAIM | \"Distinct exception type on purpose -- see _CumulativeGateCancelled's own docstring\" | _promote_one_inner, raise _CumulativeGateCancelled | KEPT | the exception is raised only when gate_result.cancelled is true, and the docstring explains the rationale.",
+     "CLAIM | \"_promote_one_inner already resets the integration worktree to current_head on any failure it anticipates\" | _promote_one_inner, except block | KEPT | the except block runs reset and clean.",
+     "CLAIM | \"Never raises: every failure mode ... is a refusal in the returned report, not an exception.\" | promote_candidates | BROKEN | line: `except PromotionUnavailable as e:` catches only that exception; other exceptions (e.g., TypeError from _as_cancel_predicate, OSError from Path.resolve) would propagate uncaught. The docstring says \"never raises\", but the function does not catch all exceptions.",
+     "CLAIM | \"Filtered by object IDENTITY, not dataclass equality: two distinct candidates can legitimately compare equal on fields.\" | promote_candidates | KEPT | the code uses `id(c) not in live_ids` and `id(c) not in live_ids` in the not_gated list comprehension, which compares by identity.",
+     "CLAIM | \"Passed in once, length-checked, used once.\" | run_write_wave | UNCHECKABLE | the provided code chunk ends before the length check and usage; need to see the rest of run_write_wave to verify length check and single use.",
+     "CLAIM | \"Non-write tasks in the SAME wave (advisory, or bounced\" | run_write_wave | UNCHECKABLE | the docstring is cut off; need the full docstring and implementation to verify.",
+     "CLAIM | \"_as_cancel_predicate ... Same three-way contract as the original\" | _as_cancel_predicate | KEPT | the code implements the three-way contract: None->lambda False, callable->try/except, is_set->try/except, else TypeError.",
+     "CLAIM | \"the except block below still resets the integration worktree exactly as it does for a real failure\" | _CumulativeGateCancelled docstring | KEPT | the except block in _promote_one_inner runs reset and clean unconditionally, covering both real failures and cancellation.",
+     "CLAIM | \"the reason string a caller sees now says cancelled, not gate failed\" | _CumulativeGateCancelled docstring | KEPT | the exception message includes \"cancelled\" and the except block catches all exceptions, so the reason string will contain the exception message.",
+     "D1 | _GIT_EXEC_CONFIG | defined but not read anywhere in this unit | WRONG CONCLUSION: a caller may think it is used, but it is never referenced in the code shown.",
+     "D2 | except OSError: pass (in unlock method) | swallows locking errors silently | WRONG CONCLUSION: the comment/docstring says nothing about swallowing, but the unlock may fail silently, which could mask bugs."
+    ],
+    "todos": [
+     "wrap the body of promote_candidates in a try/except Exception to truly never raise.",
+     "either use _GIT_EXEC_CONFIG in _PinnedWorktreeGit.run (it is not used there) or remove it if unused."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d1fb6dd37d23e93490d22fda4ba9f96bb0259dfd7e892b067cb94c91ef26a84e",
+    "objective_chars": 30525,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "26 claims: 22 kept, 1 broken, 3 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Mirrors ``daedalus.spine.attempt._read_gitdir_pointer``\" | _read_gitdir_pointer | KEPT | The function mirrors the described logic (reads .git, checks is_dir, reads text, checks gitdir: prefix).",
+     "CLAIM | \"reimplemented here rather than imported\" | _read_gitdir_pointer | KEPT | The function is defined locally, not imported from daedalus.spine.attempt.",
+     "CLAIM | \"the pointer is read ONCE, at construction\" | _PinnedWorktreeGit.__init__ | KEPT | __init__ calls _read_gitdir_pointer once and stores result in self.admin_dir.",
+     "CLAIM | \"callers must construct this immediately after ``create_worktree`` and before the first ``git apply``\" | _PinnedWorktreeGit | UNCHECKABLE | The docstring describes intended usage; no enforcement in this unit.",
+     "CLAIM | \"every subsequent call is pinned to that captured path explicitly, never re-resolved from the (by-then possibly candidate-controlled) working tree\" | _PinnedWorktreeGit.run | KEPT | run uses self.admin_dir and self.worktree directly, does not re-read .git.",
+     "CLAIM | \"Re-run the SAME instruction/target_paths against a NEW base commit\" | _reattempt | KEPT | Creates fresh_spec with base_revision=new_base, same spec otherwise.",
+     "CLAIM | \"no new isolation mechanism\" | _reattempt docstring | KEPT | Uses existing run_attempt path, no new isolation.",
+     "CLAIM | \"``cancel`` is forwarded unchanged to this regeneration's own ``TaskAttempt``\" | _reattempt | KEPT | cancel is passed to run_attempt as keyword argument.",
+     "CLAIM | \"Normalise a cancel token to a zero-arg predicate\" | _as_cancel_predicate | KEPT | Returns a lambda that takes no arguments.",
+     "CLAIM | \"for the ONE call site in this module\" | _as_cancel_predicate docstring | KEPT | Only used in _promote_one_inner to create is_cancelled.",
+     "CLAIM | \"Deliberately NOT an import of ``daedalus.spine.attempt._as_predicate``\" | _as_cancel_predicate docstring | KEPT | No import of that name; function is defined locally.",
+     "CLAIM | \"Same three-way contract as the original\" | _as_cancel_predicate | KEPT | Handles None, callable, and is_set() with same broken-token rule.",
+     "CLAIM | \"Raised (never silently swallowed)\" | _CumulativeGateCancelled | KEPT | Raised explicitly; no except clause catches it silently.",
+     "CLAIM | \"the REASON string a caller sees now says ``cancelled``, not ``gate failed``\" | _CumulativeGateCancelled docstring | KEPT | The exception message includes \"cancelled\".",
+     "CLAIM | \"Bounded to ONE retry\" | _promote_one_inner | KEPT | Uses _retried flag; if True, returns refusal without retrying again.",
+     "CLAIM | \"a second staleness hit means something is landing candidates faster than this one can be recomputed, which is a reason to stop and report, not to loop\" | _promote_one_inner | KEPT | Returns refusal with appropriate reason when _retried is True.",
+     "CLAIM | \"NOTHING WRITTEN. `git apply` (no --3way, no --reject) validates the whole patch before writing anything\" | _promote_one_inner | KEPT | git.run with \"apply\" and check=False; non-zero return leads to return before any other git operations.",
+     "CLAIM | \"Refused and reported, never retried with a fuzzier match and never merged with conflict markers\" | _promote_one_inner | KEPT | Returns refusal with reason; no retry logic for apply failure.",
+     "CLAIM | \"``_promote_one_inner`` already resets the integration worktree to ``current_head`` on any failure it anticipates\" | _promote_one_inner | KEPT | The except block resets to current_head.",
+     "CLAIM | \"this is the net under that for the failures it does not\" | _promote_one | KEPT | Wraps _promote_one_inner in try/except to catch unexpected exceptions.",
+     "CLAIM | \"Never raises\" | promote_candidates docstring | BROKEN | _promote_locked calls _promote_one which may raise _CumulativeGateCancelled (not caught by _promote_one's except clause because it's a RuntimeError? Actually _CumulativeGateCancelled inherits from RuntimeError, and _promote_one catches Exception, so it is caught. But the docstring says \"Never raises\" but the function itself does not catch exceptions from _promote_locked? Actually promote_candidates calls _promote_locked inside try/except PromotionUnavailable, but _promote_locked can raise other exceptions (e.g., from resolve_project, uuid, etc.) that are not caught. Line 298: `report = _promote_locked(...)` could raise. So claim is broken.",
+     "CLAIM | \"``cancel`` is forwarded to every STALENESS-triggered regeneration (``_reattempt``'s own ``TaskAttempt``) AND to the cumulative re-gate's own ``command_gate`` call\" | promote_candidates docstring | KEPT | cancel is passed to _promote_locked, which passes to _promote_one, which passes to _promote_one_inner, which uses it in both places.",
+     "CLAIM | \"A cancellation landing there is reported distinctly (``_CumulativeGateCancelled`` in the refusal ``reason``, never conflated with an ordinary ``cumulative gate failed``)\" | promote_candidates docstring | KEPT | _promote_one_inner raises _CumulativeGateCancelled, which is caught by _promote_one and included in reason.",
+     "CLAIM | \"the SAME unconditional ``git reset --hard``/``clean -fd`` that already runs for a genuine cumulative-gate failure also runs for a cancelled one\" | promote_candidates docstring | KEPT | The except block in _promote_one_inner runs reset and clean for any Exception, including _CumulativeGateCancelled.",
+     "CLAIM | \"``cancel``, when given, is forwarded unchanged to both phases\" | run_write_wave docstring | UNCHECKABLE | The docstring describes forwarding to gate_candidates and promote_candidates, but the unit ends before showing those calls.",
+     "CLAIM | \"``assignments`` MUST be ``scheduler.accept(tasks, repo_root=repo_root)``'s own return\" | run_write_wave docstring | UNCHECKABLE | The unit ends before showing validation of assignments.",
+     "D1 | test_cwd | _promote_one_inner | WRONG CONCLUSION: parameter accepted and read only to raise an error if not '.'; but that is intentional, not a bug.",
+     "D2 | none | | | No except clause that swallows and continues where prose says refuse/fail-closed.",
+     "D3 | none | | | No check that runs after the side effect its comment says it guards.",
+     "D4 | none | | | No branch whose condition cannot be true given assignments above."
+    ],
+    "todos": [
+     "Change promote_candidates to catch all exceptions from _promote_locked and return a refusal report, or update docstring to reflect that it can raise."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d1fb6dd37d23e93490d22fda4ba9f96bb0259dfd7e892b067cb94c91ef26a84e",
+    "objective_chars": 30525,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 14 kept, 3 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Mirrors ``daedalus.spine.attempt._read_gitdir_pointer`` (private there, reimplemented here rather than imported). See ``_PinnedWorktreeGit``.\" | _read_gitdir_pointer | KEPT | The function mirrors the described pattern.",
+     "CLAIM | \"Every git call against ONE worktree, pinned to the admin dir read BEFORE any candidate-authored patch is applied into it.\" | _PinnedWorktreeGit.__init__ | KEPT | The admin_dir is read once at construction.",
+     "CLAIM | \"Mirrors ``daedalus.spine.attempt``'s ``_read_gitdir_pointer`` + ``_git(..., git_dir=, work_tree=)`` pattern (independently written here; both are module-private there).\" | _PinnedWorktreeGit | KEPT | The class follows the described pattern.",
+     "CLAIM | \"a linked worktree's ``.git`` is a FILE containing ``gitdir: <path>``.\" | _read_gitdir_pointer | KEPT | The function reads a file and checks for 'gitdir:' prefix.",
+     "CLAIM | \"the pointer is read ONCE, at construction -- callers must construct this immediately after ``create_worktree`` and before the first ``git apply`` -- and every subsequent call is pinned to that captured path explicitly, never re-resolved from the (by-then possibly candidate-controlled) working tree.\" | _PinnedWorktreeGit.__init__ and run | KEPT | admin_dir is set once in __init__ and used in run without re-reading.",
+     "CLAIM | \"Re-run the SAME instruction/target_paths against a NEW base commit.\" | _reattempt | KEPT | The function creates a fresh TaskSpec with new base_revision and runs again.",
+     "CLAIM | \"Used only when the integration branch has moved past the base a candidate's artifact was built against -- see ``promote_candidates``.\" | _reattempt | KEPT | The function is called only from _promote_one_inner when base_revision != current_head.",
+     "CLAIM | \"A fresh ``TaskSpec`` (same content, new ``base_revision``) through the same ``TaskAttempt``/``offload_runner`` path as Phase 1: no new isolation mechanism, just the existing one invoked again with an updated base.\" | _reattempt | KEPT | The function calls run_attempt with fresh_spec.",
+     "CLAIM | \"Normalise a cancel token to a zero-arg predicate, for the ONE call site in this module (the cumulative re-gate's ``RunnerContext.is_cancelled``, see ``_promote_one_inner``) that builds a ``RunnerContext`` directly rather than going through ``TaskAttempt`` (which does this normalisation itself, internally, for every ``cancel`` this module forwards via ``run_attempt``).\" | _as_cancel_predicate | KEPT | The function is used only in _promote_one_inner for RunnerContext.",
+     "CLAIM | \"Deliberately NOT an import of ``daedalus.spine.attempt._as_predicate`` -- that name is module-private there, and this file's own convention is to mirror a small private helper rather than reach across another module's underscore boundary (see ``_read_gitdir_pointer`` above, which does the same for the same reason).\" | _as_cancel_predicate | KEPT | The function is independently implemented.",
+     "CLAIM | \"Same three-way contract as the original: ``None`` -> never cancelled; a callable -> called, a broken callable treated as 'not cancelled' (a token that raises must not be able to abort work it was only supposed to observe); anything exposing ``is_set()`` (a ``threading.Event``, a ``KillSwitch``) -> that, same broken-token rule.\" | _as_cancel_predicate | KEPT | The function implements the described three-way contract.",
+     "CLAIM | \"The cumulative re-gate stopped because ``cancel`` fired, not because a test genuinely failed. Raised (never silently swallowed) so the SAME fabricated-verdict shape this repo already fixed once -- a cooperative stop reported as an ordinary gate failure -- cannot recur here: the ``except`` block below still resets the integration worktree exactly as it does for a real failure (that reset is unconditional and was already safe for cancellation before this class existed -- see the comment on that reset), but the REASON string a caller sees now says ``cancelled``, not ``gate failed``, so a loop driver reading ``reason`` back cannot mistake 'I was asked to stop' for 'this candidate is bad.'\" | _CumulativeGateCancelled | KEPT | The exception is raised with a message containing 'cancelled'.",
+     "CLAIM | \"Bounded to ONE retry -- a second staleness hit means something is landing candidates faster than this one can be recomputed, which is a reason to stop and report, not to loop.\" | _promote_one_inner | KEPT | The function checks _retried and returns a refusal if True.",
+     "CLAIM | \"``git apply`` (no --3way, no --reject) validates the whole patch before writing anything; a non-zero exit here means the integration worktree is exactly as it was before this call.\" | _promote_one_inner | BROKEN | The docstring claims git apply validates before writing, but the code uses `--whitespace=nowarn` which does not change that behavior; however, the claim that 'a non-zero exit here means the integration worktree is exactly as it was' is correct. But the line `git.run([\"apply\", \"--whitespace=nowarn\", \"-\"], input_bytes=artifact.diff_bytes, check=False)` does not include `--3way` or `--reject`, so the claim is kept. Actually, the claim is about `git apply` behavior, which is standard and correct. The code does not contradict. Re-evaluating: The claim is KEPT.",
+     "CLAIM | \"Never raises: every failure mode (lock unavailable, apply refused, cumulative gate failed, base moved and the retry also failed) is a refusal in the returned report, not an exception.\" | promote_candidates | BROKEN | The function raises `PromotionUnavailable` which is caught and converted to a refusal, but `_promote_one` catches all exceptions and returns a refusal, so this claim holds. Actually, `promote_candidates` does not raise; it catches `PromotionUnavailable`. However, the claim says 'Never raises', but the function could raise from other parts like `Path.resolve()` or `GitWorktreeManager.__init__` if the path is invalid or manager fails. The code does not catch those. So the claim is BROKEN because there are unhandled exceptions that could propagate.",
+     "CLAIM | \"``cancel`` is forwarded to every STALENESS-triggered regeneration (``_reattempt``'s own ``TaskAttempt`` -- see ``gate_candidates``' docstring for what it accepts) AND to the cumulative re-gate's own ``command_gate`` call inside ``_promote_one_inner`` -- the longest-running step in this whole call, since it re-runs the project's whole test command.\" | promote_candidates | KEPT | The function passes cancel to _promote_one_inner which uses it in _reattempt and command_gate.",
+     "CLAIM | \"A cancellation landing there is reported distinctly (``_CumulativeGateCancelled`` in the refusal ``reason``, never conflated with an ordinary ``cumulative gate failed``), and the SAME unconditional ``git reset --hard``/``clean -fd`` that already runs for a genuine cumulative-gate failure also runs for a cancelled one -- honouring ``cancel`` here does not add a new way to leave the integration worktree in a worse state than finishing would; it only shortens how long a stop request takes to land.\" | promote_candidates | KEPT | The code in _promote_one_inner catches _CumulativeGateCancelled and resets worktree.",
+     "CLAIM | \"``(promotion_allowed, governance_state, headline)`` -- read straight off ``daedalus.core.get_governance``, never re-derived here.\" | _governance_verdict | KEPT | The function calls get_governance and returns its values.",
+     "CLAIM | \"That function's own docstring is explicit that a SECOND opinion on ``promotion_allowed`` is how an override sneaks in ('the other gates inform the operator; they do not get a vote on promotion'); this module composes with it by calling it, not by re-implementing the discrimination check.\" | _governance_verdict | KEPT | The function does not re-implement any check.",
+     "CLAIM | \"Any failure to even ASK the question -- ``daedalus.core`` unimportable, the call itself raising -- reports the vocabulary's ``unknown``, not a silent True. ``unknown`` and ``absent`` stay distinct facts (see ``daedalus.core.GOVERNANCE_STATES``): this only ever manufactures ``unknown`` for a failure that happened HERE; a real ``absent`` receipt is already reported correctly by ``get_governance`` itself and passes through unchanged.\" | _governance_verdict | KEPT | The function returns False, 'unknown' on import or call failure.",
+     "CLAIM | \"``assignments`` MUST be ``scheduler.accept(tasks, repo_root=repo_root)``'s own return, in the SAME order as ``tasks`` -- the caller (``WaveExecutor.run_wave``) already computed this to decide ``has_writes``/``wave_parallel``. Recomputing it here would still be SAFE (``accept`` is a pure classification -- no persona-cycling or other per-call state feeds it; two calls on the same tasks always agree) but would silently trust two call sites to keep agreeing forever, which is exactly the 'two surfaces, two answers, same instant' drift ``daedalus.core.get_governance``'s own docstring was written to stop. Passed in once, length-checked, used once.\" | run_write_wave | UNCHECKABLE | The function signature includes assignments but the code is truncated before the body; cannot verify the claim about length-checking and usage.",
+     "D1 | _GIT_EXEC_CONFIG | Defined but never read in this unit | WRONG CONCLUSION: a caller might expect it to be used, but it is only used in _PinnedWorktreeGit.run, which is in this unit. Actually, it IS read in _PinnedWorktreeGit.run. Re-check: _GIT_EXEC_CONFIG is defined and used in run method. No D1 hit.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In promote_candidates, wrap the entire function body in a try-except to catch any unexpected exceptions and convert them to refusal entries, to fulfill the 'Never raises' claim.",
+     "Complete the run_write_wave function to include the length check and usage of assignments as described."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d1fb6dd37d23e93490d22fda4ba9f96bb0259dfd7e892b067cb94c91ef26a84e",
+    "objective_chars": 30525,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/gated_writes.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28004
+ }
+}

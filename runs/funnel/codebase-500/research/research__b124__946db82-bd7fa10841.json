@@ -1,0 +1,87 @@
+{
+ "task_id": "research__b124__946db82",
+ "key": "research__b124__946db82-bd7fa10841",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two shared assumptions: (1) embedding vectors are finite and normalized, but no upstream caller enforces this before cosine search; (2) fingerprinting and inventory both rely on undefined symbols, indicating missing imports or shared dependencies that could cause runtime errors. Both patterns span at least two modules and are refutable by specific observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Missing definitions (instruction_fingerprint, ATTEMPT_INTENT_KIND) in picker.py will cause NameError at runtime if those symbols are not imported or defined elsewhere.",
+     "Embedding functions assume finite, normalized vectors but callers in other modules may pass raw embeddings without validation, leading to silent failures or incorrect cosine similarity results.",
+     "Inventory's collect_mcp_servers uses vet_mod.load_allowances and vet_mod.vet_mcp_server; if vet_mod is not properly initialized or missing, the entire inventory build fails."
+    ],
+    "todos": [
+     "Verify that instruction_fingerprint is defined/imported in daedalus/spine/picker.py or its parent module.",
+     "Verify that ATTEMPT_INTENT_KIND is defined/imported in daedalus/spine/picker.py.",
+     "Check if any caller of _cosine or _normalize_vector passes vectors that bypass _coerce_vector validation (e.g., from external sources).",
+     "Ensure vet_mod is available and correctly configured in daedalus/tools/inventory.py."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "missing-symbols-picker",
+       "claim": "The fingerprinting and attempt_history functions in daedalus/spine/picker.py rely on symbols (instruction_fingerprint, ATTEMPT_INTENT_KIND) that are not defined in that file, creating a latent runtime error unless those symbols are imported from elsewhere. This cross-module dependency is invisible to a single-file scan but critical for correctness.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/kairos/decompose.py (assumed location of instruction_fingerprint)"
+       ],
+       "mechanism": "picker.py calls instruction_fingerprint() and references ATTEMPT_INTENT_KIND without defining them. If these symbols are not imported from another module (e.g., daedalus.kairos.decompose), Python will raise NameError at the first call. The chunk does not show any import statements for these symbols, so the dependency is unresolved within the scanned code.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If a scan of daedalus/spine/picker.py (or its parent __init__.py) shows an import statement that brings instruction_fingerprint and ATTEMPT_INTENT_KIND into scope, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/picker.py: _definition_fingerprint references instruction_fingerprint (line ~1940)",
+        "daedalus/spine/picker.py: attempt_history references ATTEMPT_INTENT_KIND (line ~1986)"
+       ]
+      },
+      {
+       "id": "embedding-validation-gap",
+       "claim": "The embedding functions in daedalus/memory/embeddings.py assume that input vectors are finite and normalized (via _coerce_vector and _normalize_vector), but no upstream caller in other modules (e.g., the vector store or retrieval code) is guaranteed to enforce these constraints before calling _cosine or _normalize_vector. This creates a cross-module contract breach where one module assumes validated input and another may provide raw, unvalidated vectors, leading to runtime errors or silent incorrect results.",
+       "spans": [
+        "daedalus/memory/embeddings.py",
+        "daedalus/spine/picker.py (or other callers)"
+       ],
+       "mechanism": "In embeddings.py, _cosine calls _coerce_vector on both inputs, raising ValueError if any value is NaN or inf. Similarly, _normalize_vector raises ValueError if norm is not finite. However, if a caller (e.g., a similarity search function in another module) passes vectors that have not been coerced, the error will surface at the point of cosine computation. The scan reports do not show any caller code that validates vectors before passing them to these functions.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If a scan of any module that calls _cosine or _normalize_vector shows that it first validates vectors (e.g., by calling _coerce_vector or ensuring finite values), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/memory/embeddings.py: _cosine calls _coerce_vector (lines 426-427)",
+        "daedalus/memory/embeddings.py: _normalize_vector calls _coerce_vector (line 392)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "54fcad64ced22033c46a977ffc79e83d7d16fe691070755a92931c0df10e055f",
+    "objective_chars": 17769,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 124 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 124,
+  "inputs": 4
+ }
+}

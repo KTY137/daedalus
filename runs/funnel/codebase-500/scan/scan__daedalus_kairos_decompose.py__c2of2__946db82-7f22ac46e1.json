@@ -1,0 +1,49 @@
+{
+ "task_id": "scan__daedalus_kairos_decompose.py__c2of2__946db82",
+ "key": "scan__daedalus_kairos_decompose.py__c2of2__946db82-7f22ac46e1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. content matches sensitive marker /\\bapi[_-]?key\\b\\s*[=:]/",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Route this task to Claude or local Ollama."
+    ],
+    "handoff": {
+     "offending": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ec3d5e888100b458ab56412c234727b71912b6837b9110e1b1f5dcd79c012fc4",
+    "objective_chars": 1834,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/decompose.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/decompose.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

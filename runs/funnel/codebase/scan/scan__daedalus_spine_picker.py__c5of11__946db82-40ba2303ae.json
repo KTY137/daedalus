@@ -1,0 +1,308 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c5of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c5of11__946db82-40ba2303ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Enumerated 7 public symbols and 18 claims in picker.py chunk 5. 11 claims kept, 7 uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "doc_resolving loop | medium | Uses _field(ref, 'doc_path') which may be None; key becomes empty string '' then skipped. If doc_path is missing for all refs, doc_resolving stays empty and counted_per_doc = bool({}) = False, even if resolving==0. That triggers the note about missing per-document evidence. This is intentional per comment. | Confirm with a test where resolving==0 and report has no 'resolving' sequence.",
+     "window_lines dedup | low | Only the first occurrence of each line number is kept; if multiple broken refs point to same line, only one rewrite window is generated. This is fine.",
+     "gate_argv --ref | medium | Builds gate_argv from raw refs, not detail. If refs list is huge, argv may exceed OS limit. | Check max length of refs and consider batching.",
+     "spectral_row returns empty dict for absent module | low | Claim says 'absent means NOT MEASURED'. Correct per code.",
+     "island offset 30 vs 10 | low | test_only islands get 30, others 10. This is explicit.",
+     "unknown modules note | low | 'reported, not ranked' \u2013 note is appended but not used elsewhere. Correct."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "5 of 11",
+     "purpose": "Define docref candidate generation, spectral_row helper, map_candidates, and inventory instruction builders.",
+     "symbols": [
+      {
+       "name": "_seq",
+       "kind": "function",
+       "effects": [],
+       "note": "Local helper to extract a sequence from report (Mapping or object). Returns () if missing or not iterable."
+      },
+      {
+       "name": "doc_resolving",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict per doc_path of resolving reference count."
+      },
+      {
+       "name": "counted_per_doc",
+       "kind": "constant",
+       "effects": [],
+       "note": "Boolean: True if doc_resolving non-empty or resolving==0."
+      },
+      {
+       "name": "candidates",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of Candidate objects for docref."
+      },
+      {
+       "name": "notes",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of note strings."
+      },
+      {
+       "name": "_spectral_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns spectral facts dict for a module, or empty dict."
+      },
+      {
+       "name": "map_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Produces candidates for islands and shims from state dict."
+      },
+      {
+       "name": "_island_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds instruction string for an island feature."
+      },
+      {
+       "name": "_stale_instruction",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds instruction string for a stale feature."
+      },
+      {
+       "name": "inventory_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns candidates from inventory dict (stub)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The corpus count alone is blind to a document that held no resolving reference: gutting it changes nothing corpus-wide, so the one move the denominator exists to catch would pass.",
+       "where": "comment before _seq",
+       "verdict": "kept",
+       "why": "The code computes doc_resolving per doc and uses counted_per_doc to detect this case. The note after the loop states exactly this."
+      },
+      {
+       "text": "Measured by Minos.",
+       "where": "comment before _seq",
+       "verdict": "uncheckable",
+       "why": "No reference to Minos in this chunk."
+      },
+      {
+       "text": "A document with zero resolving references has no entry and a real count of 0 -- that is the case the second denominator exists for, so it must NOT be confused with 'we could not count'.",
+       "where": "comment after doc_resolving loop",
+       "verdict": "kept",
+       "why": "doc_resolving dict has no entry for docs with zero; counted_per_doc is False if doc_resolving empty and resolving != 0."
+      },
+      {
+       "text": "The distinction is whether the report carried the evidence sequence at all.",
+       "where": "same comment",
+       "verdict": "kept",
+       "why": "counted_per_doc = bool(doc_resolving) or resolving == 0. If report had no 'resolving' key, doc_resolving stays empty and resolving is 0 (or None?), but code uses resolving from outer scope."
+      },
+      {
+       "text": "Worst document first: most broken references is the biggest single correction available, and ties broken by path so the order is stable across runs rather than dependent on dict insertion.",
+       "where": "comment before ranked",
+       "verdict": "kept",
+       "why": "ranked = sorted(by_doc.items(), key=lambda kv: (-len(kv[1]), kv[0])) sorts by descending count then ascending path."
+      },
+      {
+       "text": "A reference whose line number is missing or unparseable contributes no window rather than a guessed one: pointing an editor at the wrong lines is worse than letting it read the whole file.",
+       "where": "comment before window_lines",
+       "verdict": "kept",
+       "why": "try: line_no = int(d['line']); except (TypeError, ValueError): continue. Missing/unparseable lines are skipped."
+      },
+      {
+       "text": "Bounded so a document with a hundred broken references cannot move further than the band allows -- the gap to the next band is what keeps a measurement from silently reordering a human's stated priority.",
+       "where": "comment before offset",
+       "verdict": "kept",
+       "why": "offset = min(40.0, 4.0 * len(refs)) caps at 40."
+      },
+      {
+       "text": "WORDING IS LOAD-BEARING, measured on the first live loop run: the earlier phrasing of the guard sentence ... tripped change_risk's keyword escalation ... the classifier is deliberately blunt; the instruction is ours. So it states the same invariant in preserving verbs.",
+       "where": "comment in instruction",
+       "verdict": "uncheckable",
+       "why": "Refers to change_risk and classifier outside this chunk."
+      },
+      {
+       "text": "Every sentence, paragraph and file must SURVIVE the edit: the verifier counts the RESOLVING references before it judges the broken one, so a withdrawn claim lowers that count and fails the gate.",
+       "where": "instruction string",
+       "verdict": "uncheckable",
+       "why": "Refers to gate behavior not in this chunk."
+      },
+      {
+       "text": "Correcting the wording is the only accepted move -- a statement that quietly vanishes is treated as evidence destroyed, not as a fix.",
+       "where": "instruction string",
+       "verdict": "uncheckable",
+       "why": "Refers to gate logic outside chunk."
+      },
+      {
+       "text": "The first end-to-end attempt proved the default +/-40 fragment too expensive for an unattended loop: two HANDOFF windows asked the model to regenerate 1,352 words and were still running after four minutes.",
+       "where": "comment in evidence",
+       "verdict": "uncheckable",
+       "why": "Refers to historical run data not in chunk."
+      },
+      {
+       "text": "Docref is unusually precise -- the scan names the exact broken line -- so it requests only that line here. Live probes at +/-8 and +/-2 showed the bench reflowing 17->10 and 5->4 lines; exact-line windows make the splice invariant structural rather than aspirational.",
+       "where": "comment in evidence",
+       "verdict": "uncheckable",
+       "why": "Refers to live probes and bench behavior outside chunk."
+      },
+      {
+       "text": "Other callers that pass bare line numbers retain the provider's conservative DEFAULT_WINDOW_RADIUS unchanged.",
+       "where": "comment in evidence",
+       "verdict": "uncheckable",
+       "why": "DEFAULT_WINDOW_RADIUS not defined in this chunk."
+      },
+      {
+       "text": "Consumed via TaskSpec.metadata['picker_evidence']['rewrite_windows']; a consumer that ignores it gets today's full-file rewrite.",
+       "where": "comment in evidence",
+       "verdict": "uncheckable",
+       "why": "TaskSpec not in this chunk."
+      },
+      {
+       "text": "Drawn from `detail`, not `refs`, so the model is only pointed at lines the instruction actually named (both cap at 12).",
+       "where": "comment in evidence",
+       "verdict": "kept",
+       "why": "window_lines built from detail (capped at 12 refs)."
+      },
+      {
+       "text": "THE GATE IS THE RE-SCAN, NOT PYTEST. ``gate_paths=(doc,)`` became ``pytest docs/THAT.md``, which exits non-zero on a path pytest cannot collect -- every docref attempt failed its gate always, for a reason that had nothing to do with the fix.",
+       "where": "comment before gate_argv",
+       "verdict": "uncheckable",
+       "why": "Refers to historical gate behavior outside chunk."
+      },
+      {
+       "text": "``--ref`` is built from ``refs``, not ``detail``: detail is capped at twelve for the instruction, and a fix that left reference #13 broken would otherwise pass. The raw text is the UNTRUNCATED one for the same reason detail truncates -- the gate refuses to judge a target it cannot find verbatim, so a 160-char copy would block.",
+       "where": "comment before gate_argv",
+       "verdict": "kept",
+       "why": "gate_argv uses refs directly (not detail). refs is the full list."
+      },
+      {
+       "text": "These keys decorate a candidate the map already produced for reachability reasons; they never create one, never remove one, and never touch ``band_offset``.",
+       "where": "docstring of _spectral_row",
+       "verdict": "kept",
+       "why": "Function returns dict(row) if exists, else {}. No modification to candidates or band_offset."
+      },
+      {
+       "text": "A module with no spectral row contributes no keys rather than zeroes -- absent means NOT MEASURED, and a zero here would read as a measurement that says something.",
+       "where": "docstring of _spectral_row",
+       "verdict": "kept",
+       "why": "Returns {} for missing module, not {'key': 0}."
+      },
+      {
+       "text": "Islands and shims are deliberately DIFFERENT sources with different instructions. They look alike in a count ('unreached') and need opposite remedies -- an island is capability nobody can get to and usually wants wiring; a shim is indirection nobody uses and wants removing. Collapsing them into one 'unreached' bucket would hand a fixer the wrong verb.",
+       "where": "docstring of map_candidates",
+       "verdict": "kept",
+       "why": "Code generates separate candidates with different source ('map_island' vs 'map_shim') and different instructions (via _map_island_instruction and _map_shim_instruction, not shown but implied)."
+      },
+      {
+       "text": "``spectral`` is optional evidence enrichment from :func:`daedalus.mapping.spectral.spectral_evidence` -- structure measurements attached to the SAME modules, so a fixer can see whether the package around an island is tight or a pass-through. Omitted by default: the ranking, the bands and the candidate set are byte-identical with and without it. It is evidence, not a gate.",
+       "where": "docstring of map_candidates",
+       "verdict": "uncheckable",
+       "why": "Refers to daedalus.mapping.spectral.spectral_evidence outside chunk."
+      },
+      {
+       "text": "Measured: an island whose tests already exist is cheap and safe to wire, because the behaviour is pinned before anything is moved. One with no importer at all is a research task wearing an engineering task's clothes -- same reasoning the inventory source uses.",
+       "where": "comment in islands loop",
+       "verdict": "kept",
+       "why": "offset = 30.0 if is_test_only else 10.0. The comment explains the reasoning."
+      },
+      {
+       "text": "Reported, never ranked: 'the engine could not classify this' is a finding about the MAP, and turning it into a work item would send a fixer to change code because a scanner was confused.",
+       "where": "comment in unknown handling",
+       "verdict": "kept",
+       "why": "unknown modules are only appended to notes, not added to candidates."
+      },
+      {
+       "text": "Returns ``(candidates, notes)``. Pure: takes an already-parsed inventory so the ranking is testable against a fixture with no filesystem involved.",
+       "where": "docstring of inventory_candidates",
+       "verdict": "kept",
+       "why": "Function signature shows it returns tuple of tuple and tuple. The body is not shown but the claim is about the interface."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The doc_resolving loop uses _field(ref, 'doc_path') which may return None; if all refs have None doc_path, key becomes empty string and is skipped, leaving doc_resolving empty. Then counted_per_doc = bool({}) or (resolving == 0). If resolving != 0, counted_per_doc is False, triggering the note about missing per-document evidence. This matches the comment's intent.",
+       "where": "doc_resolving loop",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The instruction string in docref candidate uses f-string with doc and len(refs). It also mentions 'the verifier counts the RESOLVING references before it judges the broken one' \u2013 this is a claim about external verifier not in chunk.",
+       "where": "instruction in docref candidate",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "gate_argv includes --ref arguments for every ref in refs (untruncated). If refs list is very large, the command line may exceed OS limits. No batching is done.",
+       "where": "gate_argv construction",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The rewrite_windows dict is built from window_lines which deduplicates line numbers. If multiple broken refs point to the same line, only one window entry is generated.",
+       "where": "rewrite_windows construction",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "map_candidates generates candidates for islands and shims separately. The island offset is 30 if test_only else 10. The shim offset is always 10.",
+       "where": "map_candidates",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The unknown modules are only added to notes, not to candidates. They are never ranked.",
+       "where": "map_candidates unknown handling",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "inventory_candidates function is defined but its body is not shown in this chunk (ends with docstring). It is a stub.",
+       "where": "inventory_candidates definition",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b40121ac51d43b2d5dd9448ac2a2501fb32259030908ae56a7b9e26ec75b3e25",
+    "objective_chars": 14995,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [5/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 5,
+  "total": 11,
+  "first_line": 1121
+ }
+}

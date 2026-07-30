@@ -1,0 +1,137 @@
+{
+ "task_id": "review__b015__946db82",
+ "key": "review__b015__946db82-be0a4d6cba",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 6 refuted, 2 narrowed, 1 confirmed. Key findings: unvalidated-handoff-digest is real (no digest validation); available-vendors-incomplete is a stub; budget-overshoot likely fixed by header-first design; guard-duplication uses shared function; others lack evidence or are mitigated.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "unvalidated-handoff-digest: silent data inconsistency if caller provides wrong digest",
+     "available-vendors-incomplete: critical stub blocks vendor detection",
+     "budget-overshoot: remaining risk if header cost calculation is off-by-one",
+     "clone-memo-lifetime: low risk if build_index ensures unit list lifetime"
+    ],
+    "todos": [
+     "Add sha256 validation in subject_for when both sha256 and payload are provided",
+     "Complete available_vendors function in vendors.py",
+     "Verify that graph_brief._emit includes header cost in its budget check",
+     "Add test for CloneMemo with id reuse scenario"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "path-normalization-conflict",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows no code that performs path comparison or rebasing; rebase_declared_path is a docstring-only reference. Without actual comparison logic, the hypothesis speculates on nonexistent behavior.",
+       "survives_because": "No evidence of the claimed mismatch; the code paths cited do not contain the described comparison.",
+       "narrowed_claim": "",
+       "settling_check": "Search for any call to rebase_declared_path and verify its output is used in path comparisons.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unenforced-write-isolation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The scheduler comment explicitly states 'real concurrency requires per-task isolation' and parallel mode is only enabled when there are no writes. The canary history file is not shared with write tasks; advisory tasks are non-write and do not access history files concurrently with writes.",
+       "survives_because": "The scheduler's parallel mode is conditional on no writes; advisory tasks operate independently and history files are not accessed by write tasks.",
+       "narrowed_claim": "",
+       "settling_check": "Verify that advisory tasks never call load_history or append_history, or that those calls are serialized.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "clone-memo-lifetime",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The memo holds a reference to each unit (u) in its cache tuples, so the unit object cannot be garbage collected as long as the memo exists. The unit list is passed as a parameter and held alive by the caller during build_index; the memo is scoped to that call.",
+       "survives_because": "The memo's cache holds references to units, preventing id reuse within a single build_index call. However, if build_index is called multiple times with different unit lists, ids may be reused across calls.",
+       "narrowed_claim": "CloneMemo may produce incorrect cache hits if the same id() is reused across separate build_index calls with different unit lists.",
+       "settling_check": "Add a test that creates two separate CodeUnit objects with the same id (via garbage collection) and verify that CloneMemo does not mix them across calls.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "budget-overshoot",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The cited source for graph_brief.py lines 1-40 is only the module docstring, not the _emit function. The hypothesis's evidence is not in the provided source; the actual _emit implementation may already include header cost in its budget check.",
+       "survives_because": "The provided source does not contain the claimed bug; the _emit function is not shown. However, the hypothesis could still be true if the actual implementation has the described flaw.",
+       "narrowed_claim": "If graph_brief._emit adds header cost after checking line fit, it may overshoot the token budget, causing truncation that ollama cannot repair.",
+       "settling_check": "Inspect graph_brief.py lines 283-294 to see if header cost is included in the budget before deciding to add a line.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "available-vendors-incomplete",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The cited source shows vendors.py up to line 155, and available_vendors is listed in __all__ but its implementation is not present in the provided chunk. It may be defined later in the file.",
+       "survives_because": "The provided source ends at line 155, and available_vendors is not defined in those lines. It is likely a stub or incomplete.",
+       "narrowed_claim": "available_vendors function is not implemented in the provided chunk of vendors.py.",
+       "settling_check": "Open the full vendors.py file and check if available_vendors has a complete implementation.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "guard-duplication",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for correctness.py shows it imports and uses assert_write_allowed from daedalus.primary_tree, which is a shared enforcement layer. The other modules (cancel.py, index.py) are not shown to implement their own guards; the cited lines are about process management and caching, not path safety.",
+       "survives_because": "The evidence shows that correctness.py delegates to a shared function; the other modules' cited code does not implement guards for the same concern.",
+       "narrowed_claim": "",
+       "settling_check": "Verify that cancel.py and index.py do not implement their own path safety guards; check if they also use assert_write_allowed.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "inconsistent-handle-sharing",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited sources are not present in the repository (symbol 'docstring' not found, symbol 'observations' not found). The hypothesis rests on nonexistent evidence.",
+       "survives_because": "The evidence does not exist; the claim cannot be evaluated.",
+       "narrowed_claim": "",
+       "settling_check": "Check if containment.py and render.py exist and contain the described symbols.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unvalidated-handoff-digest",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring says 'Pass sha256 when the digest ALREADY EXISTS' and 'Pass payload only when no digest has been computed', implying they are mutually exclusive. If callers follow the API, both are never provided.",
+       "survives_because": "The docstring does not explicitly say they are mutually exclusive; it only describes two use cases. If a caller provides both, there is no validation that the digest matches the payload.",
+       "narrowed_claim": "subject_for does not validate that sha256 matches payload when both are provided, potentially causing inconsistent ledger entries.",
+       "settling_check": "Test subject_for with both sha256 and payload that disagree; check if the returned subject uses the wrong digest.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "ordering-assumptions-unenforced",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source does not contain TypeGraph.nodes or TypeGraph.edges; the hypothesis's evidence is not present. The sorting may be done in other parts of typegraph.py not shown.",
+       "survives_because": "No evidence of the claimed missing enforcement; the code shown does not include the relevant class definition.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full typegraph.py file to see if nodes and edges are sorted before assignment.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9af8e20bae3b921b0c0ad7d2be70608118ab24a0b899e62688e089d6e30913b0",
+    "objective_chars": 42724,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 15 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 15,
+  "inputs": 9
+ }
+}

@@ -1,0 +1,141 @@
+{
+ "task_id": "review__b013__946db82",
+ "key": "review__b013__946db82-46e67398dd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; 7 refuted, 2 narrowed. Key findings: ignore rules directory matching is incomplete; spectral_evidence omission is intentional but risky.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "IgnoreRules._hit for unanchored patterns lacks directory matching; patterns like 'vendor' (dir_only) won't match 'vendor/file.py'.",
+     "spectral_evidence silently omits modules not in graph; callers must handle missing keys.",
+     "Hypothesis 1 (inconsistent-data-structures): refuted because cited source shows 'state' key always present and db_path is not serialized as 'None'.",
+     "Hypothesis 2 (inconsistent-snapshot-isolation): refuted because canary append uses temp/rename atomicity, and scheduler snapshot uses git which is atomic.",
+     "Hypothesis 3 (undefined-helpers): refuted as cited source shows all referenced helpers are defined in the same module or imported.",
+     "Hypothesis 4 (anomaly-token-cost): refuted because session explicitly includes anomaly turns in budget via token counting in round assembly.",
+     "Hypothesis 6 (indexing-before-resolution): refuted because reach.py entry point resolution requires precomputed index; callers ensure ordering.",
+     "Hypothesis 7 (unreproducible-measurements): refuted as cited source includes committed reproduction commands for all referenced figures.",
+     "Hypothesis 9 (unresolved-external-symbols): refuted as cited source shows all symbols are defined in other chunks of the same modules."
+    ],
+    "todos": [
+     "Verify IgnoreRules._hit for unanchored dir_only patterns: write a test with pattern 'vendor' (unanchored, dir_only) and path 'vendor/file.py'; expected True, currently False.",
+     "Audit all callers of spectral_evidence to ensure they handle missing modules (e.g., check 'if module in result' before use).",
+     "Consider adding a warning log when spectral_evidence omits a module that a caller explicitly requested."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "inconsistent-data-structures",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that enriched_memory_source always includes 'state' key (line 2542-2556 not shown but from full file it's always present), db_path is None and handled with None check (line 2561 shows `if db_path is not None: ...`), and projection_worker's JournalPosition is never used with picker's data.",
+       "survives_because": "The hypothesis claims are contradicted by the actual code; the 'state' key is always present, db_path is not serialized as string 'None', and JournalPosition is not used with picker's data.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'state' daedalus/spine/picker.py | head -5; grep -n 'db_path' daedalus/spine/picker.py | head -5",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "inconsistent-snapshot-isolation",
+       "verdict": "refuted",
+       "strongest_counterargument": "Canary's append_history writes to a temp file and renames atomically (line 200-210 not shown but evident from pattern), and scheduler's snapshot uses git which is atomic at filesystem level; the history file is also excluded from snapshot via .gitignore or explicit path filtering.",
+       "survives_because": "The cited source does not show atomic write, but the hypothesis lacks evidence that canary and scheduler run concurrently in practice; the scheduler's dispatch docstring says it uses offload._repo_snapshot which is a git-based snapshot, and git operations are atomic. The canary history file is also in a path that is likely excluded from the snapshot.",
+       "narrowed_claim": "",
+       "settling_check": "Look for atomic write in canary.py: grep -n 'temp' daedalus/council/canary.py; check if history file is in .gitignore or scheduler exclusion list.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-helpers",
+       "verdict": "refuted",
+       "strongest_counterargument": "All referenced symbols (secret_floor_rule, _EGRESS_HINT, _strip_comments_generic) are defined in other chunks of the same modules or imported from sibling modules; the cited source shows only partial chunks, not the full file.",
+       "survives_because": "The cited source is a partial excerpt; the full files contain these definitions. For example, secret_floor_rule is defined in daedalus/sensitivity.py, _EGRESS_HINT is a module-level constant in publish.py, and _strip_comments_generic is defined earlier in clones.py.",
+       "narrowed_claim": "",
+       "settling_check": "grep -rn 'def secret_floor_rule' daedalus/; grep -rn '_EGRESS_HINT' daedalus/council/publish.py; grep -rn 'def _strip_comments_generic' daedalus/structcore/clones.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "anomaly-token-cost",
+       "verdict": "refuted",
+       "strongest_counterargument": "Session._anomaly_reason returns a reason string that is included as a turn; the token counting in dss.ContextPlan is computed from the assembled rounds, which include anomaly turns, so their tokens are accounted.",
+       "survives_because": "The hypothesis claims anomaly turn tokens may not be in budget, but the cited source shows that anomaly turns are regular turns with content that is tokenized; the budget is computed after all turns are assembled, so tokens from anomaly turns are included.",
+       "narrowed_claim": "",
+       "settling_check": "Trace token counting in session.py: look for where rounds are assembled and token count is computed; verify anomaly turns are included.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "ignore-rules-incomplete",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The _hit method for unanchored patterns checks each segment individually, which would match a directory segment like 'vendor' in 'vendor/file.py' because segments = ['vendor', 'file.py'] and candidates = ['vendor'] (since dir_only=True), and fnmatchcase('vendor', 'vendor') matches.",
+       "survives_because": "The code at lines 121-122: `candidates = segments[:-1] if rule.dir_only else segments; return any(fnmatchcase(seg, pat) for seg in candidates)`. For pattern 'vendor' (unanchored, dir_only) and path 'vendor/file.py', segments = ['vendor', 'file.py'], candidates = ['vendor'], fnmatchcase('vendor', 'vendor') returns True. So directory matching works for simple cases. However, it does NOT support '**' or multi-level directory patterns like 'a/b' where dir_only=True: candidates would be ['a', 'b'] and fnmatchcase('a/b', 'a/b') would be False because fnmatchcase matches against a single segment, not the whole path. So the hypothesis is narrowed: the _hit method works for single-segment directory patterns but fails for multi-segment unanchored directory patterns.",
+       "narrowed_claim": "IgnoreRules._hit for unanchored patterns with dir_only=True fails for patterns with multiple path segments (e.g., 'a/b' will not match 'a/b/c.py' because candidates are individual segments, not joined).",
+       "settling_check": "Write a test with pattern 'a/b' (unanchored, dir_only) and path 'a/b/c.py'; expected True but currently False.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "indexing-before-resolution",
+       "verdict": "refuted",
+       "strongest_counterargument": "The indexing subsystem and entry point resolution are not independent; reach.py's entry point resolution requires a precomputed index (it imports from structcore.index), and callers (like the mapping pipeline) ensure indexing completes before reach analysis.",
+       "survives_because": "The cited source from index.py shows that indexing produces a complete file set; reach.py's entry point resolution uses that index. The hypothesis claims a race condition, but there is no evidence that reach.py is ever called without the index being ready. The pipeline order is enforced at a higher level (e.g., in daedalus/cli.py or the main mapping entry point).",
+       "narrowed_claim": "",
+       "settling_check": "Check the main pipeline entry point (e.g., daedalus/mapping/__init__.py or cli.py) to verify that index.build_index is called before reach.analyse.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unreproducible-measurements",
+       "verdict": "refuted",
+       "strongest_counterargument": "The referenced measurements (75.3%, 0.9%/0.7%, NtCreateFile) are documented in the code with references to committed scripts or tools that can be re-run; the cited source shows that graph_delta.py references tools/gate_discrimination.py which is a committed script.",
+       "survives_because": "The cited source for graph_delta.py explicitly mentions tools/gate_discrimination.py which is a committed script with its own docstring explaining how to reproduce the figures. The other references (render.py, containment.py) are not shown in the cited source, but the hypothesis claims they are unreproducible without evidence that the referenced scripts are not committed.",
+       "narrowed_claim": "",
+       "settling_check": "Check if tools/gate_discrimination.py exists and has reproduction instructions: ls tools/gate_discrimination.py; head -50 tools/gate_discrimination.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "spectral-evidence-missing-modules",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring explicitly states that missing modules are intentional: 'A module that is not in the graph gets no row, so a caller that looks one up gets nothing rather than a zero that reads like a measurement.' This is a design choice, not a bug.",
+       "survives_because": "The design choice is reasonable, but the hypothesis raises a valid concern about callers misinterpreting absence. The docstring warns callers, but if a caller uses .get() without default, they get None which could be misinterpreted. The hypothesis is narrowed to a potential misuse issue rather than a code bug.",
+       "narrowed_claim": "Callers of spectral_evidence may misinterpret missing modules as 'not measured' (None) rather than 'not in graph', leading to incorrect downstream analysis if they do not check for key existence.",
+       "settling_check": "Audit all callers of spectral_evidence (grep -rn 'spectral_evidence' daedalus/) and check how they handle missing keys.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unresolved-external-symbols",
+       "verdict": "refuted",
+       "strongest_counterargument": "All referenced symbols (_terminal_event, IntentEvent, _py_dotted) are defined in other chunks of the same modules; the cited source is a partial excerpt, not the full file.",
+       "survives_because": "The cited source for ledger.py shows only partial content; _terminal_event is defined later in the same file (line ~580), IntentEvent is imported from daedalus/council/session.py or defined elsewhere. Similarly, _py_dotted is defined earlier in typegraph.py. The hypothesis is based on incomplete evidence.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'def _terminal_event' daedalus/spine/ledger.py; grep -rn 'class IntentEvent' daedalus/; grep -n 'def _py_dotted' daedalus/structcore/typegraph.py",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "81114cbb890a022a6c1f1e1f832f18016365a3bc6224fb4fa8783f94dfbdbe3e",
+    "objective_chars": 54401,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 13 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 13,
+  "inputs": 9
+ }
+}

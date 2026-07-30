@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_spine_attempt.py__c3of14__946db82",
+ "key": "scan__daedalus_spine_attempt.py__c3of14__946db82-2a3338af98",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 14: defines _jsonable, _existing_ancestor, _as_predicate, _read_gitdir_pointer, constants; contains comments about moved symbols and git config.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_jsonable | low | Unserialisable values are degraded to repr; may mask errors but prevents abort. | Verify that repr output is acceptable for ledger writes.",
+     "_as_predicate | low | A token that raises is treated as 'not cancelled'; may mask cancellation failures. | Confirm that this behaviour is intended.",
+     "_read_gitdir_pointer | medium | Returns None for unusual shapes; caller may misidentify a linked worktree. | Ensure callers handle None correctly and don't assume safety."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/attempt.py",
+     "chunk": "3 of 14",
+     "purpose": "Define utility functions and constants for serialisation, cancellation, and git worktree detection.",
+     "symbols": [
+      {
+       "name": "_jsonable",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Coerce value to JSON-acceptable types; degrades unserialisable values to repr."
+      },
+      {
+       "name": "_existing_ancestor",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Alias for nearest_existing; finds nearest existing ancestor directory."
+      },
+      {
+       "name": "_as_predicate",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalise cancel token to zero-arg predicate; treats raising tokens as not cancelled."
+      },
+      {
+       "name": "_GIT_EXEC_CONFIG",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of git config keys that name programs to execute; pinned empty."
+      },
+      {
+       "name": "_read_gitdir_pointer",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads .git file in linked worktree to find admin directory; returns None on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A caller's metadata must never be able to abort an attempt: an unserialisable value is degraded to its repr rather than raising out of the ledger write, which would strand the attempt between intent and effect.",
+       "where": "_jsonable docstring",
+       "verdict": "kept",
+       "why": "The function returns repr(value) for unsupported types, never raises."
+      },
+      {
+       "text": "Walking up asks the question that was actually meant: does the VOLUME have room -- and it asks it without creating anything, so the storage check stays side-effect free.",
+       "where": "_existing_ancestor docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes behaviour of nearest_existing, which is defined outside this chunk; the alias does not implement the walk."
+      },
+      {
+       "text": "This was a third private copy of the same walk (the fence needs it to find the GROUND a not-yet-created file will land on). Same function, same semantics, so it is an alias rather than a reimplementation.",
+       "where": "_existing_ancestor docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to external code (nearest_existing, fence) not present in chunk."
+      },
+      {
+       "text": "A token that raises is treated as 'not cancelled': a broken token must not be able to abort work it was only supposed to observe.",
+       "where": "_as_predicate docstring",
+       "verdict": "kept",
+       "why": "Both _call and _event catch Exception and return False."
+      },
+      {
+       "text": "Every one of them is pinned empty on the command line, where no config file can override it. See :func:`_git` for the measurement that made this necessary.",
+       "where": "_GIT_EXEC_CONFIG docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to _git function not in this chunk; claim about pinning is not verifiable here."
+      },
+      {
+       "text": "A linked worktree's .git is a FILE containing 'gitdir: <abs path>'. Read once, before any candidate code exists, so later git invocations can name the directory explicitly instead of re-resolving a pointer the candidate may since have rewritten.",
+       "where": "_read_gitdir_pointer docstring",
+       "verdict": "kept",
+       "why": "The function reads the file and extracts the path after 'gitdir:'."
+      },
+      {
+       "text": "Returns None when the shape is not the expected one -- a plain directory (an ordinary clone rather than a linked worktree), a missing file, or an unreadable one. None means 'do not pin', which leaves git's normal discovery in place; it is the pre-existing behaviour, so a caller is never worse off than before this existed. It is emphatically NOT a claim that the worktree is safe.",
+       "where": "_read_gitdir_pointer docstring",
+       "verdict": "kept",
+       "why": "Function returns None if directory, OSError, or not starting with 'gitdir:'."
+      },
+      {
+       "text": "They must be carried over, and that was measured rather than foreseen. Emptying GIT_CONFIG_GLOBAL removes core.autocrlf along with everything else, and on Windows that setting is what makes a CRLF working tree compare equal to an LF index.",
+       "where": "Comment after _read_gitdir_pointer",
+       "verdict": "uncheckable",
+       "why": "Refers to external behaviour (Windows CRLF) and measurements not in chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_jsonable handles Mapping, list, tuple, set, frozenset; note that set and frozenset are converted to list, losing order determinism.",
+       "where": "_jsonable function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_as_predicate uses try-except to swallow exceptions; the docstring claims this is intentional.",
+       "where": "_as_predicate",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_read_gitdir_pointer returns Path for directory .git, not None; docstring says returns None for plain directory, but code returns Path if is_dir(). Possible inconsistency.",
+       "where": "_read_gitdir_pointer",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "Comment states _identity and _overlap_reason used to be defined here; now imported from daedalus.primary_tree. No import statement visible in chunk.",
+       "where": "Comment after _as_predicate",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6448b99e212ffdf65c9bb19d3aade5039e918a784cebdb0a0023e879247eb25e",
+    "objective_chars": 5827,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/attempt.py [3/14]",
+  "rev": "946db82",
+  "module": "daedalus/spine/attempt.py",
+  "index": 3,
+  "total": 14,
+  "first_line": 241
+ }
+}

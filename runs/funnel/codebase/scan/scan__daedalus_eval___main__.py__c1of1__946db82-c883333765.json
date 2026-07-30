@@ -1,0 +1,190 @@
+{
+ "task_id": "scan__daedalus_eval___main__.py__c1of1__946db82",
+ "key": "scan__daedalus_eval___main__.py__c1of1__946db82-c883333765",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Evaluated daedalus/eval/__main__.py chunk 1 of 1: CLI entrypoint with argparse. Verified docstring claims against visible code; uncheckable references to external modules noted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "mint_from_commit | medium | Function called but not defined in this chunk; relies on external module daedalus.eval.mint which may have errors. | Review mint.py to confirm correct behavior.",
+     "add_minted_task | medium | Function called but not defined in this chunk; relies on external module. | Review mint.py.",
+     "confirm_minted_task | medium | Function called but not defined in this chunk; relies on external module. | Review mint.py.",
+     "run_tier1 | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "run_tier2 | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "run_arms | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "run_gate | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "write_baseline | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "all_tasks | medium | Function called but not defined in this chunk; relies on external module. | Review harness.py.",
+     "render | medium | Function called but not defined in this chunk; relies on external module. | Review report.py.",
+     "render_gate | medium | Function called but not defined in this chunk; relies on external module. | Review report.py.",
+     "task_project_label | medium | Function called but not defined in this chunk; relies on external module. | Review tasks.py.",
+     "AGENT_ENV_ROOT | low | Constant imported but not defined in this chunk; relies on external module. | Review tasks.py.",
+     "DEFAULT_MINT_STORE_PATH | low | Referenced in docstring but not imported or used in this chunk; may be defined in mint.py. | Review mint.py."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/__main__.py",
+     "chunk": "1 of 1",
+     "purpose": "Define CLI entrypoint for the eval package, parsing arguments and dispatching to appropriate harness/mint/report functions.",
+     "symbols": [
+      {
+       "name": "_select",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private function that filters tasks by project label; calls all_tasks() and task_project_label() from external modules."
+      },
+      {
+       "name": "_print_ascii",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private function that prints text, falling back to ASCII replacement on UnicodeEncodeError."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public entry point; parses arguments and dispatches to mint, baseline, gate, or tier1/tier2/arms; returns exit code."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tier 1 always runs (deterministic, no LLM).",
+       "where": "docstring line 3",
+       "verdict": "kept",
+       "why": "In main(), line 'tier1 = run_tier1(tasks)' always executes regardless of flags."
+      },
+      {
+       "text": "--arms adds the deterministic A/B/C retrieval comparison (also no LLM).",
+       "where": "docstring line 4",
+       "verdict": "kept",
+       "why": "In main(), 'arms = run_arms(tasks) if args.arms else None' shows --arms flag enables it."
+      },
+      {
+       "text": "Tier 2 runs only with --tier2 AND a reachable provider; otherwise it is skipped with a clear message.",
+       "where": "docstring line 5-6",
+       "verdict": "uncheckable",
+       "why": "The condition 'args.tier2' is checked, but 'reachable provider' logic is inside run_tier2() which is not in this chunk."
+      },
+      {
+       "text": "--gate is an ADVISORY local regression check against baseline.json -- see daedalus.eval.harness.run_gate. It is never wired into anything automatic; run it by hand before shipping a slice-heuristic change.",
+       "where": "docstring lines 8-10",
+       "verdict": "kept",
+       "why": "In main(), 'if args.gate:' calls harness.run_gate() and returns; no other code path invokes it automatically."
+      },
+      {
+       "text": "--update-baseline is the only thing that writes baseline.json, and only when explicitly passed.",
+       "where": "docstring line 11",
+       "verdict": "kept",
+       "why": "In main(), 'if args.update_baseline:' calls harness.write_baseline() and returns; no other code writes baseline."
+      },
+      {
+       "text": "--mint-commit/--confirm-mint are the ONLY entry points that persist a task to the mint store (daedalus.eval.mint.DEFAULT_MINT_STORE_PATH); every other flag above only READS it via harness.all_tasks().",
+       "where": "docstring lines 13-15",
+       "verdict": "uncheckable",
+       "why": "The claim about persistence and reading is dependent on mint.py and harness.all_tasks() which are not in this chunk. However, in main(), only --mint-commit and --confirm-mint call add_minted_task() or confirm_minted_task() which presumably persist; other paths do not call those functions."
+      },
+      {
+       "text": "This is the human-invoked half of the mint -> quarantine -> confirm -> primary flywheel -- there is no automatic caller (offload.py does not invoke this today; see mint.py's module docstring).",
+       "where": "docstring lines 16-18",
+       "verdict": "uncheckable",
+       "why": "References external files offload.py and mint.py not in this chunk."
+      },
+      {
+       "text": "Output is ASCII-only for a raw Windows console.",
+       "where": "docstring line 20",
+       "verdict": "kept",
+       "why": "_print_ascii() is used for final output, which replaces non-ASCII characters."
+      },
+      {
+       "text": "Tier 1 and --arms are deterministic (no LLM); Tier 2 is opt-in; --gate is an advisory local regression check.",
+       "where": "ArgumentParser description",
+       "verdict": "kept",
+       "why": "Matching the docstring claims; main() enforces opt-in via --tier2 and --gate."
+      },
+      {
+       "text": "--gate: ADVISORY: replay tasks against baseline.json and report per-task recall regressions on the primary tier. Exits non-zero on a regression; never blocks anything automatic.",
+       "where": "ArgumentParser help for --gate",
+       "verdict": "uncheckable",
+       "why": "The behavior depends on harness.run_gate() which is not in this chunk. However, the exit code logic is present: 'return 0 if gate[\"passed\"] else 1'."
+      },
+      {
+       "text": "--update-baseline: EXPLICIT ONLY: overwrite baseline.json with current recall. Never happens automatically.",
+       "where": "ArgumentParser help for --update-baseline",
+       "verdict": "kept",
+       "why": "Only triggered by --update-baseline flag; no other path calls write_baseline."
+      },
+      {
+       "text": "--mint-commit: EXPLICIT ONLY: mint a quarantined, independent_diff task from git commit SHA in --repo (default: this agent_env checkout) and persist it to the mint store so it joins every subsequent run via all_tasks().",
+       "where": "ArgumentParser help for --mint-commit",
+       "verdict": "uncheckable",
+       "why": "Depends on mint_from_commit() and add_minted_task() which are not in this chunk. The default repo is AGENT_ENV_ROOT (imported)."
+      },
+      {
+       "text": "--confirm-mint: EXPLICIT ONLY: record one independent confirmation for a quarantined minted task, promoting it to primary at daedalus.eval.mint.MINT_CONFIRM_THRESHOLD.",
+       "where": "ArgumentParser help for --confirm-mint",
+       "verdict": "uncheckable",
+       "why": "Depends on confirm_minted_task() and MINT_CONFIRM_THRESHOLD constant in mint.py."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring and argument help texts are aligned with the code in this chunk; all flag-based control flow is correctly implemented.",
+       "where": "entire file",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several functions and constants are imported from sibling modules but not defined here; correctness depends on those modules.",
+       "where": "imports and calls",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring claims about 'only reads via all_tasks()' and 'no automatic caller' cannot be verified from this chunk alone.",
+       "where": "docstring lines 13-18",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0aeb9b971fe7c316af74120af9f535205adf6caf89a278954a77c60b0eb70211",
+    "objective_chars": 6943,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/__main__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/eval/__main__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

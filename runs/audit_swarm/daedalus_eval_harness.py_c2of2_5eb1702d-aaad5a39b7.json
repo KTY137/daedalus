@@ -1,0 +1,170 @@
+{
+ "task_id": "daedalus/eval/harness.py#c2of2#5eb1702d",
+ "key": "daedalus_eval_harness.py_c2of2_5eb1702d-aaad5a39b7",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 15 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"c_beats_a\": recall_c >= recall_a | line 127 | KEPT | The comment and code match: recall_c >= recall_a implements tie-inclusive comparison.",
+     "CLAIM | Model-free (recall via ``_recall``), offline, no LLM -- safe to run alongside Tier 1 | line 143 | KEPT | The docstring accurately describes run_arms as deterministic and model-free.",
+     "CLAIM | B's tokens were ALREADY measured with the real tokenizer before this change (``count_tokens`` is exact whenever tiktoken is installed) -- that part was honest | line 231 | KEPT | The code uses count_tokens which is exact when tiktoken is installed.",
+     "CLAIM | B is capped at ``cap_tokens * 4`` chars before being measured, so ``tokens_B`` silently reflected a TRUNCATED text, not the real whole-repo size | line 233 | KEPT | The code sets cap_chars = cap_tokens * 4 and passes it to _whole_repo_text.",
+     "CLAIM | ``tokens_B_true`` (added here) is the untruncated whole-repo token count | line 235 | KEPT | The code computes whole_true_tokens_cache[repo] from full_text with cap_chars=None.",
+     "CLAIM | Cleanly skipped (never crashes) when no provider is up | line 227 | KEPT | detect_provider returns None, and the code returns a skipped dict without calling _ask.",
+     "CLAIM | Only a local Ollama HTTP endpoint is probed (free, no key, no egress). The probe is a 2s GET to /api/tags -- it does nothing unless Tier 2 is requested | line 195 | KEPT | The code does a GET to /api/tags with timeout=2 and only runs when detect_provider is called.",
+     "CLAIM | Never raises to the caller | line 217 | KEPT | _ask catches Exception and returns empty string.",
+     "CLAIM | Single text-only turn against the provider | line 217 | KEPT | _ask makes one call to chat_completion.",
+     "CLAIM | Read baseline.json, or an empty baseline if it does not exist yet (a fresh repo checkout before the first ``--update-baseline`` run) | line 293 | KEPT | load_baseline checks os.path.exists and returns empty dict if not found.",
+     "CLAIM | Pure: build the baseline structure for the CURRENT recall of ``tasks`` (default TASKS). Does not touch disk -- see ``write_baseline`` | line 306 | KEPT | snapshot_baseline returns a dict and does not write to disk.",
+     "CLAIM | Every task is snapshotted (including quarantine ones) so quarantine promotion is still comparable later; only PRIMARY tasks are ever gated (see ``run_gate``) | line 308 | KEPT | The snapshot includes all tasks without error or focus_withheld, regardless of tier.",
+     "CLAIM | ERRORED tasks (``run_tier1``) have no recall to snapshot and are skipped here -- they simply get no baseline entry | line 311 | KEPT | The code filters out tasks with 'error' key.",
+     "CLAIM | FOCUS-WITHHELD tasks are skipped for the same reason | line 313 | KEPT | The code filters out tasks with 'focus_withheld' key.",
+     "CLAIM | Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves | line 345 | KEPT | run_gate compares per-task recall values individually.",
+     "CLAIM | GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action | line 353 | UNCHECKABLE | Cannot verify no CI workflows or autonomous usage from this unit alone.",
+     "CLAIM | ERRORED tasks ... PRIMARY tier -- FAILS the gate loudly (``errored_primary``, named in the rendered report) | line 355 | KEPT | The code checks _is_primary_tier and adds to errored_primary, and 'passed' is False if len(errored_primary) > 0.",
+     "CLAIM | QUARANTINE tier -- reported only (``errored_quarantine``), never fails the gate | line 358 | KEPT | The code adds to errored_quarantine and does not affect 'passed'.",
+     "CLAIM | FOCUS-WITHHELD tasks ... SPLIT OUT, not folded into ``regressions`` | line 361 | KEPT | The code adds to focus_withheld list and does not compare recall.",
+     "D1 | parameter 'retry_s' | not present in this unit | WRONG CONCLUSION: No such parameter found; D1 not applicable.",
+     "D2 | none | no except that swallows and continues where prose says refuse | KEPT | All except blocks either continue with error rows or return None/empty string.",
+     "D3 | none | no check after side effect | KEPT | No such pattern observed.",
+     "D4 | none | no branch with impossible condition | KEPT | All conditions appear reachable."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "254888be65fcf17bbb956cfad43f44f0cdb84d678b94f600e1c592b9a2af9701",
+    "objective_chars": 20583,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Tie-inclusive on purpose: a strict '>' here silently counted a BM25 tie as an A win\" | line 17 | KEPT | code uses >= so tie counts as C beats A, matching docstring.",
+     "CLAIM | \"Model-free (recall via ``_recall``), offline, no LLM -- safe to run alongside Tier 1\" | docstring of run_arms | KEPT | run_arms calls eval_task_arms which uses _recall, no LLM.",
+     "CLAIM | \"Success = every expected substring appears (case-insensitive)\" | docstring of _score | KEPT | implementation checks each substring in answer.lower() and returns True only if all present.",
+     "CLAIM | \"Only a local Ollama HTTP endpoint is probed (free, no key, no egress)\" | docstring of detect_provider | KEPT | code probes OLLAMA_HOST, no other providers.",
+     "CLAIM | \"The probe is a 2s GET to /api/tags\" | docstring of detect_provider | KEPT | timeout=2, url is /api/tags.",
+     "CLAIM | \"Single text-only turn against the provider. Never raises to the caller.\" | docstring of _ask | KEPT | wrapped in try/except returning ''.",
+     "CLAIM | \"B's tokens were ALREADY measured with the real tokenizer before this change (``count_tokens`` is exact whenever tiktoken is installed)\" | docstring of run_tier2 | KEPT | tokens_B is computed via count_tokens(ctx_b).",
+     "CLAIM | \"B is capped at ``cap_tokens * 4`` chars before being measured, so ``tokens_B`` silently reflected a TRUNCATED text, not the real whole-repo size.\" | docstring of run_tier2 | KEPT | code uses whole_cache[repo] = _whole_repo_text(repo, cap_chars) and then count_tokens(ctx_b).",
+     "CLAIM | ``tokens_B_true`` (added here) is the untruncated whole-repo token count, so a truncated B can never be mistaken for the real baseline.\" | docstring of run_tier2 | KEPT | code computes whole_true_tokens_cache[repo] = count_tokens(full_text) with cap_chars=None.",
+     "CLAIM | \"Never call this from an automatic code path -- a baseline that updates itself is not a ratchet, it is a no-op.\" | docstring of write_baseline | KEPT | function is standalone, no automatic call in this unit.",
+     "CLAIM | \"Deterministic formatting (sorted keys) so the diff is meaningful in review.\" | docstring of write_baseline | KEPT | json.dump uses sort_keys=True.",
+     "CLAIM | \"ERRORED tasks (see ``run_tier1``) have no recall to compare and are SPLIT by tier, not folded into ``regressions``\" | docstring of run_gate | KEPT | code separates errored_primary and errored_quarantine.",
+     "CLAIM | \"FOCUS-WITHHELD tasks ... are likewise SPLIT OUT, not folded into ``regressions``\" | docstring of run_gate | KEPT | code collects focus_withheld separately and does not add to regressions.",
+     "CLAIM | \"It must never be wired to block an autonomous action.\" | docstring of run_gate | UNCHECKABLE | would need to see all callers of run_gate to verify no autonomous caller.",
+     "D1 | run_gate parameter baseline_path | defined but never read in this unit (only used to pass to load_baseline) | WRONG CONCLUSION: a caller might think it's used elsewhere, but it's just passed along."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "254888be65fcf17bbb956cfad43f44f0cdb84d678b94f600e1c592b9a2af9701",
+    "objective_chars": 20583,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 14 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"c_beats_a\": recall_c >= recall_a | line 33-34 | BROKEN | The comment says \"Tie-inclusive on purpose\" but the code uses >= which includes ties; the comment claims that with '>' the tie case was absorbed into \"no\", which is correct, but the prose also says \"if C ties or beats A ... that is reported loudly, not smoothed over\" which matches the code. However, the comment contains a contradiction: it says the previous strict '>' silently counted a tie as an A win, but the docstring of eval_task_arms says \"if C ties or beats A ... that is reported loudly\". The claim in the comment that the previous behavior contradicted the docstring is a claim about past code not present. The current code is >=, so the claim \"c_beats_a\": recall_c >= recall_a is kept. But there is a claim that the previous behavior was wrong. Since this is not checkable from current code, it is UNCHECKABLE.",
+     "CLAIM | \"Tie-inclusive on purpose\" | line 33-34 | KEPT | The code uses >=, which includes ties.",
+     "CLAIM | \"if C ties or beats A ... that is reported loudly, not smoothed over\" | line 33-34 | KEPT | The code reports c_beats_a as recall_c >= recall_a, so ties are reported as True.",
+     "CLAIM | \"recall_A==1.0 on every current hand_reachable task makes a strict C win impossible\" | line 33-34 | UNCHECKABLE | This claim depends on actual data not present in this unit.",
+     "CLAIM | \"Model-free (recall via _recall), offline, no LLM -- safe to run alongside Tier 1\" | line 44 | KEPT | The function run_arms does not call any LLM, only _recall.",
+     "CLAIM | \"See eval_task_arms for what each arm measures and by_provenance for the (never-blended) per-provenance-tier breakdown.\" | line 44 | UNCHECKABLE | References to eval_task_arms and by_provenance are not in this unit.",
+     "CLAIM | \"Success = every expected substring appears (case-insensitive). Also return the fraction present for a softer signal.\" | line 60 | KEPT | The _score function returns True if all substrings are present, and also returns the fraction.",
+     "CLAIM | \"Only a local Ollama HTTP endpoint is probed (free, no key, no egress).\" | line 65 | KEPT | The code probes only the Ollama host.",
+     "CLAIM | \"The probe is a 2s GET to /api/tags -- it does nothing unless Tier 2 is requested.\" | line 65 | KEPT | The code does a GET with timeout=2.",
+     "CLAIM | \"Single text-only turn against the provider. Never raises to the caller.\" | line 76 | KEPT | The _ask function catches all exceptions and returns empty string.",
+     "CLAIM | \"B's tokens were ALREADY measured with the real tokenizer before this change (count_tokens is exact whenever tiktoken is installed) -- that part was honest.\" | line 89 | KEPT | The code uses count_tokens.",
+     "CLAIM | \"What was NOT honest: B is capped at cap_tokens * 4 chars before being measured, so tokens_B silently reflected a TRUNCATED text, not the real whole-repo size.\" | line 89 | KEPT | The code uses cap_chars = cap_tokens * 4 and passes it to _whole_repo_text.",
+     "CLAIM | \"tokens_B_true (added here) is the untruncated whole-repo token count, so a truncated B can never be mistaken for the real baseline.\" | line 89 | KEPT | The code computes whole_true_tokens_cache from full_text without cap.",
+     "CLAIM | \"Cleanly skipped (never crashes) when no provider is up.\" | line 89 | KEPT | If detect_provider returns None, it returns a skipped dict.",
+     "CLAIM | \"Read baseline.json, or an empty baseline if it does not exist yet (a fresh repo checkout before the first --update-baseline run).\" | line 111 | KEPT | The code checks existence and returns empty dict if not exists.",
+     "CLAIM | \"Pure: build the baseline structure for the CURRENT recall of tasks (default TASKS). Does not touch disk -- see write_baseline.\" | line 117 | KEPT | The function snapshot_baseline only returns a dict, no file I/O.",
+     "CLAIM | \"Every task is snapshotted (including quarantine ones) so quarantine promotion is still comparable later; only PRIMARY tasks are ever gated (see run_gate).\" | line 117 | KEPT | The comprehension includes all tasks without filtering by tier.",
+     "CLAIM | \"ERRORED tasks (run_tier1) have no recall to snapshot and are skipped here -- they simply get no baseline entry, which makes them a 'new task' (not silently a pass) the next time run_gate sees them resolve successfully.\" | line 117 | KEPT | The comprehension filters out tasks with 'error' in t.",
+     "CLAIM | \"FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file) are skipped for the same reason: there is no recall key to snapshot, and re-baselining a fence-refused task would silently launder 'never measured' into 'passing'.\" | line 117 | KEPT | The comprehension filters out tasks with t.get('focus_withheld').",
+     "CLAIM | \"Never auto-updates -- only 'python -m daedalus.eval --update-baseline' (an explicit, human-invoked action) writes this file.\" | line 117 | KEPT | The snapshot function does not write to disk.",
+     "CLAIM | \"EXPLICIT-ONLY baseline write. Never call this from an automatic code path -- a baseline that updates itself is not a ratchet, it is a no-op.\" | line 131 | KEPT | The function write_baseline has no guard, but the docstring says it should only be called explicitly. This is a claim about usage, not code.",
+     "CLAIM | \"Returns the path written. Deterministic formatting (sorted keys) so the diff is meaningful in review.\" | line 131 | KEPT | The json.dump uses sort_keys=True.",
+     "CLAIM | \"ADVISORY regression ratchet. Replays tasks (default TASKS) against a stored baseline.json and flags any PRIMARY-tier task whose recall DECREASED.\" | line 142 | KEPT | The function run_gate compares recalls and flags decreases.",
+     "CLAIM | \"Compares PER TASK, never on a mean -- a mean hides one task collapsing while another improves (see tests/test_eval_oracle.py for the mean-preserving-swap test that proves this).\" | line 142 | KEPT | The code iterates per task and compares individually.",
+     "CLAIM | \"GUARDRAIL: this gate is ADVISORY ONLY. It is a local developer command plus a unit test (there is no CI in this repo -- verified: no .github/workflows). It must never be wired to block an autonomous action.\" | line 142 | KEPT | The returned dict has 'advisory': True.",
+     "CLAIM | \"ERRORED tasks (see run_tier1) have no recall to compare and are SPLIT by tier, not folded into regressions:\" | line 142 | KEPT | The code splits errored tasks by tier into errored_primary and errored_quarantine.",
+     "CLAIM | \"PRIMARY tier -- FAILS the gate loudly (errored_primary, named in the rendered report). A broken primary-corpus task means the gate itself can no longer vouch for that task at all, which must scream exactly like a real recall regression would.\" | line 142 | KEPT | The code includes errored_primary in the 'passed' condition (len(errored_primary)==0).",
+     "CLAIM | \"QUARANTINE tier -- reported only (errored_quarantine), never fails the gate -- flywheel debris (an unconfirmed minted task whose target moved/vanished) must not be able to block a developer's gate run.\" | line 142 | KEPT | errored_quarantine is not included in the 'passed' condition.",
+     "CLAIM | \"FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file -- lane A1) are likewise SPLIT OUT, not folded into regressions: a task that TRANSITIONS to focus-withheld this run has no recall to compare (fail-closed is not 'recall dropped to 0'), so treating it as a regression would be a false alarm on the fence doing its job. Reported in its own focus_withheld section, regardless of tier, and never fails the gate.\" | line 142 | KEPT | The code collects focus_withheld tasks separately and does not include them in regressions or the 'passed' condition.",
+     "D1 | _score | parameter 'answer_contains' is read | No unused parameters found.",
+     "D2 | _ask | except Exception: return '' | No surrounding prose says refuse/fail-closed.",
+     "D3 | No check-after-side-effect found.",
+     "D4 | No impossible branches found."
+    ],
+    "todos": [
+     "In the comment block about c_beats_a, the claim about previous behavior (strict '>' silently counted tie as A win) is a historical claim not verifiable from current code. Either remove that historical narrative or add a test that verifies the current behavior."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "254888be65fcf17bbb956cfad43f44f0cdb84d678b94f600e1c592b9a2af9701",
+    "objective_chars": 20583,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/eval/harness.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 18069
+ }
+}

@@ -1,0 +1,137 @@
+{
+ "task_id": "review__b001__946db82",
+ "key": "review__b001__946db82-a3beb3f360",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; 3 confirmed, 3 narrowed, 3 refuted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring-claim-contradictions: systematic documentation drift in drafts.py",
+     "freshness-prefix-collision: potential false freshness if short SHA used",
+     "handoff-data-loss: structured data may be lost due to restrictive schema",
+     "trace_id_default_contradiction: runtime TypeError if trace_id omitted"
+    ],
+    "todos": [
+     "Fix docstring in set_status and apply_payload to reflect actual behavior",
+     "Add minimum length enforcement for prefix matching in picker.py",
+     "Widen REPORT_SCHEMA handoff to accept additional fields or document notes format",
+     "Add default value for trace_id in Intent dataclass or update docstring"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "docstring-claim-contradictions",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring may be aspirational for a future refactoring, or the file write is considered a 'touch' only on the target repo's filesystem, not the draft store.",
+       "survives_because": "The cited source clearly shows p.write_text() in set_status, contradicting the docstring's claim that it does NOT touch the filesystem. apply_payload calls set_status, so it also performs a write despite claiming otherwise.",
+       "narrowed_claim": "drafts.py contains docstrings that are false: set_status writes to the filesystem, apply_payload indirectly writes via set_status.",
+       "settling_check": "grep -n 'write_text' daedalus/kairos/drafts.py and compare with docstring claims.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "freshness-prefix-collision",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The code validates recorded against _ABBREV_SHA_RE, which likely requires at least 7 hex chars (common git abbreviation). The docstring warning about 'a' matching is hypothetical.",
+       "survives_because": "The cited source does not show the definition of _ABBREV_SHA_RE. If it requires fewer than 7 characters, the collision risk is real. The docstring itself warns about the issue, indicating the developers are aware but may not have fixed it.",
+       "narrowed_claim": "If _ABBREV_SHA_RE allows fewer than 7 hex characters, prefix matching can cause false freshness.",
+       "settling_check": "Print the regex pattern for _ABBREV_SHA_RE and check minimum length. Run test with recorded='a' and actual='abcdef1' to see if startswith passes.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "handoff-data-loss",
+       "verdict": "confirmed",
+       "strongest_counterargument": "Downstream modules may not expect structured handoff; they might only read the notes string. The handoff is just a message to the human reviewer, not a data pipe.",
+       "survives_because": "REPORT_SCHEMA explicitly sets additionalProperties: false, so any extra fields are stripped. If any downstream code expects structured data (e.g., churn results) in handoff, it will be missing. The evidence shows churn.py returns a dict that could be part of handoff, but the schema only allows a string.",
+       "narrowed_claim": "The strict REPORT_SCHEMA prevents any structured handoff data beyond a single notes string, which could break future or existing consumers that expect more.",
+       "settling_check": "Search for code that reads the 'handoff' field from a report and check what fields it accesses. If any access other than 'notes', the hypothesis is confirmed.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "hardcoded-refusal-summary",
+       "verdict": "refuted",
+       "strongest_counterargument": "_refuse_if_remote is called only when the request is refused before any file operations, so there are no actual changes to report. The hardcoded values are appropriate.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Trace call paths to _refuse_if_remote to verify it is only called before any writes.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "truncation-safety-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for vendors.py does not show any code that uses the graph for safety decisions. The hypothesis speculates about _dispatch without evidence. The graph's truncation warning is for callers; if no caller uses it unsafely, there is no gap.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Examine how vendors.py uses the graph. If it never uses the reachability result for safety decisions, the hypothesis is moot.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "naming-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring describes the design and rationale, not necessarily the implementation. The implementation may be in a different chunk or file. The cited source shows only the class definition, but the methods could be defined elsewhere.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search for method definitions within _PyNaming class in the complete file. If they exist, the hypothesis is refuted.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unmeasured-vectors-contract",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring says 'a test fails if the three original entries ever disappear', but such a test may exist elsewhere in the test suite. The claim that no enforcement exists is unproven.",
+       "survives_because": "The cited source does not include any test. The docstring claims a test exists, but without evidence, the risk of silent modification remains.",
+       "narrowed_claim": "If no test enforces the contents of UNMEASURED, the documentation could become outdated without detection.",
+       "settling_check": "Search for tests that reference UNMEASURED or check its contents. If none found, the hypothesis stands.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "positional-empty-crash",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows the guard 'if positional else' on line 986, which correctly handles empty positional. The hypothesis incorrectly claims there is no guard.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect line 986 of parse.py to confirm the guard exists.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "trace_id_default_contradiction",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring may refer to a future version where trace_id is defaulted, or the default is provided via a different mechanism (e.g., a factory function).",
+       "survives_because": "The cited source shows the dataclass definition with no default for trace_id, while the docstring claims it is defaulted. This is a clear contradiction that will cause TypeError if any caller omits trace_id.",
+       "narrowed_claim": "Intent.trace_id has no default value, contradicting its docstring, causing a breaking change for callers that omit it.",
+       "settling_check": "Attempt to construct Intent without trace_id in a Python shell and observe TypeError.",
+       "severity_after_review": "high"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58e7fad9fbc149a3c8a26bf232a2e3491893b70478fefc6a40d6a175e6255779",
+    "objective_chars": 58770,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 1 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 1,
+  "inputs": 9
+ }
+}

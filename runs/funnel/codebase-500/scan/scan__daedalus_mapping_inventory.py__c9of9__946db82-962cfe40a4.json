@@ -1,0 +1,115 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c9of9__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c9of9__946db82-962cfe40a4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Final chunk of daedalus/mapping/inventory.py: defines render_text, main, and an __main__ guard. No new claims beyond what is present in the code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "9 of 9",
+     "purpose": "Defines render_text, main (CLI entry point), and __main__ guard.",
+     "symbols": [
+      {
+       "name": "render_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Formats a human-readable inventory summary string from a doc dict."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "none"
+       ],
+       "note": "CLI entry point with --check, --json, --refresh modes. May write to filesystem (refresh), spawn git (probe), or print to stdout."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Mechanical fields are rewritten every run; human notes are carried forward and excluded from the digest.",
+       "where": "main docstring (line 981)",
+       "verdict": "uncheckable",
+       "why": "The claim refers to behaviour of harvest() and build() which are not defined in this chunk. No code here verifies exclusion from digest."
+      },
+      {
+       "text": "gate mode: exit non-zero if the file is missing, hand-edited or stale; writes nothing",
+       "where": "main docstring (line 989)",
+       "verdict": "uncheckable",
+       "why": "The claim depends on check() which is not defined in this chunk. The code here only calls check() and prints its report; the actual gate logic is external."
+      },
+      {
+       "text": "print the generated document; writes nothing",
+       "where": "main docstring (line 993)",
+       "verdict": "uncheckable",
+       "why": "The claim depends on load(), render_mod.analyse_once(), harvest(), and build() which are not defined in this chunk. The code here prints json.dumps(doc) but the doc generation is external."
+      },
+      {
+       "text": "skip the working-tree dirty probe",
+       "where": "main docstring (line 995)",
+       "verdict": "uncheckable",
+       "why": "The argument --no-git sets probe = not args.no_git, but the actual probe logic is in render_mod.analyse_once() or check() which are not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_text accesses doc keys 'counts', 'repo_state', 'unmatched_annotations' without defaulting for missing keys; may raise KeyError.",
+       "where": "render_text function, lines 962-976",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "main calls ap.error() which prints usage and exits; this is fine for CLI but might be unexpected if called programmatically.",
+       "where": "main function, line 1033",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of main claims 'writes nothing' for --json but the code writes to stdout; that is a contradiction only if one considers stdout as writing. Typically 'writes nothing' means no file I/O, so this is accurate.",
+       "where": "main docstring (line 993) and code at line 1028",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cedfdf9a75ee2bcabf1f586574df61c60425cdc56593fa63a7a89848e9d0e726",
+    "objective_chars": 4507,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [9/9]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 9,
+  "total": 9,
+  "first_line": 961
+ }
+}

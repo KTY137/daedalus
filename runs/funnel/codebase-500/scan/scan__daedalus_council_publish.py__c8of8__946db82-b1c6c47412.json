@@ -1,0 +1,59 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c8of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c8of8__946db82-b1c6c47412",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 of 8: final lines of PRTurn data conversion function, extracting fields from raw API response.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "8 of 8",
+     "purpose": "Convert raw fields to PRTurn object",
+     "symbols": [],
+     "claims": [],
+     "observations": [
+      {
+       "what": "The function uses helper _text and _field with multiple fallback keys; behavior depends on those helpers not shown here.",
+       "where": "lines 841-847",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5cc956cb1b9294a4330663727e894964f61ad4a21a7a0560b731a413578e45dd",
+    "objective_chars": 855,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [8/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 8,
+  "total": 8,
+  "first_line": 841
+ }
+}

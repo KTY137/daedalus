@@ -1,0 +1,126 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c20of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c20of25__946db82-3f8423630b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 20/25 of daedalus/spine/picker.py: handles map source with spectral enrichment, docref source, and inventory source initialization with error handling.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 2281-2300 | medium | Map source: if project_config is not None and map_snapshot is None and map_path does not exist, the map is marked absent. However, if map_snapshot is provided but map_path exists, the code still loads map_state from snapshot (ignoring the file). This may be intentional but could lead to stale data if snapshot doesn't match file. | Clarify intended behavior when both map_snapshot and map_path exist.",
+     "line 2301-2315 | low | Spectral enrichment: broad except catches all exceptions and sets spectral_note to failed. This could hide programming errors. | Consider logging the exception fully or re-raising non-IO errors.",
+     "line 2344-2350 | high | Docref source: broad except catches all exceptions and marks source as error. The comment says 'Reported, not swallowed' but the exception details are only stored in the source dict and notes; no propagation or logging is visible. If the exception is critical, it may be missed. | Verify that the exception is also logged to a proper logging system.",
+     "line 2370-2376 | medium | Inventory source: similar pattern to map source for absent file. The code checks if project_config is not None and inventory is None and inv_path does not exist. If inventory snapshot is provided but file exists, it may be ignored. | Clarify intended behavior when both inventory snapshot and file exist."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "20 of 25",
+     "purpose": "Initialize map, docref, and inventory sources with error handling and spectral enrichment.",
+     "symbols": [
+      {
+       "name": "(map source block)",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Loads map state from snapshot or file, optionally enriches with spectral analysis, and adds candidates if trusted."
+      },
+      {
+       "name": "(docref source block)",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Scans docrefs from tree, adds candidates, and reports resolving/broken/skipped counts."
+      },
+      {
+       "name": "(inventory source block)",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Checks inventory source mode and file existence; if absent and no snapshot, marks as absent."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises out of build_queue: the contract is 'never raises on a bad or missing source', and an optional enrichment is the last thing that should be allowed to take the queue down.",
+       "where": "line 2301-2302 (comment before try block)",
+       "verdict": "uncheckable",
+       "why": "The claim refers to 'build_queue' and a contract not present in this chunk. The code catches all exceptions, so within this chunk it does not raise, but the broader contract cannot be verified."
+      },
+      {
+       "text": "Never raises (docrefs.scan promises that); a failure here must cost the queue this one source, never the whole queue.",
+       "where": "line 2341-2343 (comment before docref block)",
+       "verdict": "uncheckable",
+       "why": "The claim references 'docrefs.scan' which is not defined in this chunk. The code catches all exceptions, so it does not raise, but the promise of docrefs.scan cannot be verified."
+      },
+      {
+       "text": "Reported, not swallowed: a source that failed is a different fact from a source that found nothing, and a queue that hides the difference is the shape this repo keeps finding in stale artifacts.",
+       "where": "line 2368-2370 (comment after except block)",
+       "verdict": "kept",
+       "why": "The exception details are stored in the sources['docref'] dict under 'error' and appended to notes. The failure is explicitly recorded, not hidden."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Map source: when map_snapshot is provided and map_path exists, the code loads map_state from snapshot and ignores the file. This could lead to inconsistency if the snapshot is stale.",
+       "where": "line 2296-2298",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Spectral enrichment catches all exceptions, which may hide programming errors. The comment justifies it as 'enrichment must not block', but there is no logging of the full exception.",
+       "where": "line 2314-2315",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Docref source catches all exceptions and stores error info, but the exception is not propagated or logged beyond the sources dict and notes. If the exception is critical (e.g., import error), it might be missed.",
+       "where": "line 2368-2375",
+       "severity": "high",
+       "confidence": "possible"
+      },
+      {
+       "what": "Inventory source: similar pattern to map for absent file handling. If inventory snapshot is provided but file exists, the file is ignored.",
+       "where": "line 2374-2376",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2083546c3216439995c879f76e4e4ec66212c81dd3296d23cc6a23a8daf130ee",
+    "objective_chars": 6501,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [20/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 20,
+  "total": 25,
+  "first_line": 2281
+ }
+}

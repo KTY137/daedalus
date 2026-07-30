@@ -1,0 +1,251 @@
+{
+ "task_id": "scan__daedalus_providers_ollama.py__c2of5__946db82",
+ "key": "scan__daedalus_providers_ollama.py__c2of5__946db82-6eda7464b5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of ollama.py: defines _WRITE_TOOL, keep_alive_value(), warm_model(), warm_model_async(), OllamaProvider class with caps, egress_lane, _refuse_if_remote, __init__, available, rollback, _resolve, _dispatch, _decision_schema, _schema_rescue.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "warm_model | low | urllib.request.urlopen used without timeout in try block; timeout_s parameter exists but may be ignored if not passed correctly. | Check that timeout_s is always passed and respected.",
+     "_refuse_if_remote | high | The guard relies on self.egress_lane which uses lane_for_host; if that function misclassifies, remote hosts could be treated as trusted. | Audit lane_for_host implementation.",
+     "_dispatch write_file | medium | path_write_blocked guard uses rel (resolved path) but policy may not be correctly passed. | Check policy parameter handling.",
+     "_dispatch write_file | medium | self._written is appended even if write fails? Actually appended after successful write, but risk of partial writes. | Ensure atomic writes.",
+     "rollback | low | rollback does not handle symlinks; _resolve checks traversal but rollback may fail on symlinks. | Test with symlinks."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/ollama.py",
+     "chunk": "2 of 5",
+     "purpose": "Define Ollama provider with warm-up functions, provider class, filesystem tools, and agentic loop helpers.",
+     "symbols": [
+      {
+       "name": "_WRITE_TOOL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict defining write_file tool for Ollama's function calling."
+      },
+      {
+       "name": "keep_alive_value",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns OLLAMA_KEEP_ALIVE env var or DEFAULT_KEEP_ALIVE."
+      },
+      {
+       "name": "warm_model",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Pins model in VRAM via Ollama's /api/generate. Returns bool, never raises."
+      },
+      {
+       "name": "warm_model_async",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Fire-and-forget warm_model on a daemon thread."
+      },
+      {
+       "name": "OllamaProvider",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Provider subclass for Ollama with local/trusted capabilities."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Ollama's /v1/chat/completions shim SILENTLY DROPS an unknown keep_alive field \u2014 measured, the TTL stayed at the 5-minute default.",
+       "where": "warm_model docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk tests or references /v1/chat/completions behavior."
+      },
+      {
+       "text": "Sending it here is the only thing that actually moves the expiry (verified: expires_at jumped to 30.0 minutes).",
+       "where": "warm_model docstring",
+       "verdict": "uncheckable",
+       "why": "No verification code or measurement in this chunk."
+      },
+      {
+       "text": "An empty prompt makes this a pure load/refresh (done_reason: 'load'), so it costs nothing once the model is already resident.",
+       "where": "warm_model docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk checks done_reason or handles empty prompt differently."
+      },
+      {
+       "text": "Local-only, no spend, no egress.",
+       "where": "warm_model docstring",
+       "verdict": "broken",
+       "why": "warm_model makes an HTTP POST request to the Ollama host, which could be remote (host configurable via OLLAMA_HOST), thus network egress is possible."
+      },
+      {
+       "text": "Returns True if the pin was accepted; never raises.",
+       "where": "warm_model docstring",
+       "verdict": "kept",
+       "why": "Code catches all exceptions and returns False, never raises."
+      },
+      {
+       "text": "Placed in the PROVIDER, not only in the callers, because the callers are where this went wrong the first time.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "No reference to callers or previous issues in this chunk."
+      },
+      {
+       "text": "Closing only the slice door left three others open, which is what an independent review found.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "uncheckable",
+       "why": "No independent review or other doors mentioned in this chunk."
+      },
+      {
+       "text": "A guard here covers every one of them, including any caller written later.",
+       "where": "_refuse_if_remote docstring",
+       "verdict": "kept",
+       "why": "_refuse_if_remote returns error dict for non-trusted egress lanes, thus guarding all callers."
+      },
+      {
+       "text": "Undo every write this instance made: restore originals, delete new files, remove dirs we created.",
+       "where": "rollback docstring",
+       "verdict": "kept",
+       "why": "Code iterates _backups to restore or delete, and removes empty created dirs."
+      },
+      {
+       "text": "Any path that can't be reverted is recorded in rollback_failures (the escalation is then 'dirty').",
+       "where": "rollback docstring",
+       "verdict": "kept",
+       "why": "Exceptions during rollback append path to rollback_failures list."
+      },
+      {
+       "text": "Return (absolute target, repo-relative posix path). Raises if the resolved target escapes repo_root (traversal / symlink / absolute).",
+       "where": "_resolve docstring",
+       "verdict": "kept",
+       "why": "Code resolves root and target, checks if root is not in target.parents, raises ValueError if so."
+      },
+      {
+       "text": "The guard the RESOLVED path",
+       "where": "_dispatch write_file comment",
+       "verdict": "kept",
+       "why": "path_write_blocked is called with rel, which is the resolved path from _resolve."
+      },
+      {
+       "text": "ground truth, survives a later exception",
+       "where": "_dispatch write_file comment",
+       "verdict": "kept",
+       "why": "self._written.append(rel) is done before returning, so even if later code raises, the write is recorded."
+      },
+      {
+       "text": "The tool decision, as a shape the sampler can be forced into.",
+       "where": "_decision_schema docstring",
+       "verdict": "uncheckable",
+       "why": "No sampler or forcing mechanism in this chunk."
+      },
+      {
+       "text": "finish is in the enum and is not optional: Ollama has no tool_choice, so a constrained turn ALWAYS produces an object.",
+       "where": "_decision_schema docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of tool_choice or constrained turn behavior in this chunk."
+      },
+      {
+       "text": "Without an explicit way to say 'nothing further', a model that is genuinely done would be compelled to invent one more call -- trading a turn that wrote nothing for a turn that writes something wrong, which is worse.",
+       "where": "_decision_schema docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of model behavior or turn handling in this chunk."
+      },
+      {
+       "text": "Returns a RescueOutcome, NOT a bare list.",
+       "where": "_schema_rescue docstring",
+       "verdict": "uncheckable",
+       "why": "RescueOutcome type not defined in this chunk; function returns early, incomplete."
+      },
+      {
+       "text": "It used to return [] for every outcome, which made three different worlds indistinguishable to the caller",
+       "where": "_schema_rescue docstring",
+       "verdict": "uncheckable",
+       "why": "No historical code or caller logic in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "warm_model uses urllib.request.urlopen without explicit timeout on the request object; timeout_s is passed to urlopen as a parameter, which is correct.",
+       "where": "warm_model lines ~306-316",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "warm_model constructs body with num_ctx from num_ctx_value() but that function is not defined in this chunk.",
+       "where": "warm_model line 307",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_refuse_if_remote returns a dict with keys 'ok', 'refused', 'host', 'error', 'report'. The 'report' key contains a dict with 'files_changed' and 'summary', which matches the expected report format.",
+       "where": "_refuse_if_remote lines ~354-362",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "rollback sorts created_dirs by length descending to remove deepest first; however, it only removes dirs that are empty after restoration.",
+       "where": "rollback lines ~387-393",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_dispatch for write_file uses path_write_blocked with rel (resolved relative path) but policy parameter is not defined in this chunk.",
+       "where": "_dispatch line ~430",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_dispatch for write_file appends to self._written after successful write, providing ground truth for reporting.",
+       "where": "_dispatch line ~440",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_schema_rescue docstring mentions three different worlds but the function is incomplete (ends mid-sentence).",
+       "where": "_schema_rescue docstring line ~470",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b9976c86cffeb730e0cc0cdf6ff78a9f9de3216cbd9a55b42644b466a00e3350",
+    "objective_chars": 13225,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/ollama.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/providers/ollama.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

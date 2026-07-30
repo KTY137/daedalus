@@ -1,0 +1,78 @@
+{
+ "task_id": "3-three-public-concepts__adversary__a47d84ee736f",
+ "key": "3-three-public-concepts__adversary__a47d84ee736f-7f2298f516",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 3.2 is unfalsifiable: 'turns intent into typed missions and explains evidence' names no interface, so any module claiming to be Ikarus formally complies regardless of behavior.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "3.2 | critical | 'turns intent into typed missions and explains evidence' is an aspiration, not a checkable rule. An agent could implement Ikarus with a stub that parrots back the input and claim compliance, defeating the intent of a Jarvis-like assistant. | Define a minimal interface contract (e.g., mission output type, evidence schema) that any Ikarus module must satisfy; static type checking or conformance test would settle it.",
+     "3.3 | high | 'controlled code-generation and evolution workload' is vague. Ariadne could be implemented as a script that generates code by concatenating strings, formally running on the kernel, but with no safety controls. | Specify 'controlled' means what? (e.g., all generated code passes a static policy check, or is reviewed by a human). Without that, any code generation on kernel is Ariadne.",
+     "3.1 | medium | 'durable Mission / Policy / Execution / Evidence kernel' is ambiguous. An engineer could include a simple key-value store and call it 'kernel', satisfying the letter but not the spirit of a durable execution environment. | Define minimal capabilities (e.g., event sourcing, policy evaluation engine) that constitute the kernel.",
+     "3.4 | low | 'Existing components may survive as internal modules' is permissive but creates risk: an internal module could re-export the same functionality as a public concept, creating a parallel source of truth without violating the letter. | Add a rule that internal modules must not expose APIs that duplicate public concept interfaces, or require explicit architecture board approval."
+    ],
+    "todos": [
+     "Define a minimal interface contract for Ikarus (claim 3.2) so that 'turns intent into typed missions' is falsifiable.",
+     "Define 'controlled' for Ariadne (claim 3.3) \u2014 e.g., all generated code must pass a policy check before execution.",
+     "Define minimal capabilities required for the kernel (claim 3.1) to avoid degenerate implementations.",
+     "Add an anti-duplication rule for internal modules (claim 3.4) to prevent covert parallel truths."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "3.1",
+       "claim": "Daedalus is the durable Mission / Policy / Execution / Evidence kernel.",
+       "verdict": "unclear",
+       "why": "The claim asserts durability and a set of roles (Mission, Policy, Execution, Evidence) but provides no measurable criteria for what constitutes the kernel. An engineer could formally comply by creating a minimal component that stores strings labeled 'Mission', 'Policy', etc., without any of the intended semantic guarantees (e.g., transactional execution, policy evaluation). The intent is to have a robust foundation, but the rule as written does not prevent a degenerate implementation."
+      },
+      {
+       "id": "3.2",
+       "claim": "Ikarus is the persistent Jarvis-like assistant and orchestration surface that turns intent into typed missions and explains evidence.",
+       "verdict": "unfalsifiable",
+       "why": "The claim uses aspirational language ('Jarvis-like', 'turns intent into typed missions', 'explains evidence') without specifying any checkable interface or behavior. An agent could produce a module that accepts natural language and returns a fixed string labeled 'mission', and call it Ikarus. There is no mechanical test to distinguish a genuine intelligent orchestration surface from a mock. The rule cannot detect a violation because violation is undefined."
+      },
+      {
+       "id": "3.3",
+       "claim": "Ariadne is the controlled code-generation and evolution workload running on the kernel.",
+       "verdict": "weak",
+       "why": "'Controlled' is ambiguous. An engineer could implement Ariadne as a script that generates code by concatenating user input and writes it to a file that the kernel then executes, formally 'running on the kernel'. Without a definition of what 'controlled' means (e.g., all generated code must pass a static analysis policy, or must be reviewed by a human), the rule is easy to comply with formally while defeating the intent of safe code evolution."
+      },
+      {
+       "id": "3.4",
+       "claim": "Existing components may survive as internal modules. Do not create another mythological product, another control plane, or a parallel source of truth.",
+       "verdict": "weak",
+       "why": "The rule permits existing components as internal modules but prohibits creating 'another mythological product, another control plane, or a parallel source of truth'. A careless engineer could rename an existing component to an internal module and then gradually re-expose its functionality through a new public interface that is not one of the three named concepts, thereby creating a de facto parallel control plane without violating the letter of the rule. The rule lacks a mechanism to detect whether an internal module is acting as a hidden public concept."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f37e86707b133e3d46175bf5764122c2359721fe7bced08e4061633f70bb55a6",
+    "objective_chars": 1461,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "3-three-public-concepts",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

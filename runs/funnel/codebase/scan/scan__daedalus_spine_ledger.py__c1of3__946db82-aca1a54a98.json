@@ -1,0 +1,331 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c1of3__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c1of3__946db82-aca1a54a98",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 3: constants, records (Intent, IntentEvent), schema, and docstring claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SCHEMA_VERSION | low | Schema version is hardcoded but no migration logic is present in this chunk; if migration is missing, old databases may not be upgraded. Check _migrate_columns function in later chunk.",
+     "DEFAULT_DB_PATH | low | Default path is relative to ROOT; if ROOT is not correct at runtime, database may be created in unexpected location. Verify ROOT resolves correctly.",
+     "_uri_path | low | Windows path escaping may be incomplete if other special characters (e.g., % itself) are not encoded. Check if % is escaped.",
+     "to_statement | medium | Claims to use stored payload_sha, not recomputed; if payload_sha is ever wrong, the statement will contain an incorrect digest. Ensure payload_sha is always computed correctly on insert.",
+     "SCHEMA | medium | Schema creates tables and indexes but no foreign key enforcement is shown; foreign_keys=ON is set in connection? Not in this chunk. Check connection pragma.",
+     "trace_id nullable | low | Docstring says NULL is honest for no trace; but partial index excludes NULL, so untraced rows are not indexed. That is intentional but may affect query performance."
+    ],
+    "todos": [
+     "Verify that _migrate_columns function exists in later chunk to handle v1 to v2 migration.",
+     "Check that foreign_keys pragma is set when connection is opened.",
+     "Confirm that _uri_path escapes percent signs and other reserved characters properly.",
+     "Ensure that payload_sha is computed consistently with canonical_sha before insert."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "1 of 3",
+     "purpose": "Define constants, records, schema, and document the ledger's design philosophy.",
+     "symbols": [
+      {
+       "name": "SpineError",
+       "kind": "class",
+       "effects": [],
+       "note": "Base exception for ledger errors."
+      },
+      {
+       "name": "UnknownIntent",
+       "kind": "class",
+       "effects": [],
+       "note": "Raised when no intent with given id exists."
+      },
+      {
+       "name": "IntentAlreadyResolved",
+       "kind": "class",
+       "effects": [],
+       "note": "Raised on attempt to resolve an already terminal intent."
+      },
+      {
+       "name": "_now_iso",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns current UTC ISO timestamp."
+      },
+      {
+       "name": "_uri_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts a Path to a SQLite URI-safe path string."
+      },
+      {
+       "name": "default_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns database path, overridable via DAEDALUS_SPINE_DB env var."
+      },
+      {
+       "name": "Intent",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one intent with derived state."
+      },
+      {
+       "name": "Intent.is_open",
+       "kind": "property",
+       "effects": [],
+       "note": "True if state is INTENDED."
+      },
+      {
+       "name": "Intent.to_statement",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns an ITE-6 statement dict for this intent."
+      },
+      {
+       "name": "IntentEvent",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a state transition event."
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Current schema version (2)."
+      },
+      {
+       "name": "STATE_INTENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'INTENDED'."
+      },
+      {
+       "name": "STATE_COMPLETED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'COMPLETED'."
+      },
+      {
+       "name": "STATE_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'FAILED'."
+      },
+      {
+       "name": "TERMINAL_STATES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of terminal states."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved path to project root (two directories up from this file)."
+      },
+      {
+       "name": "DEFAULT_DB_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default path for the SQLite database."
+      },
+      {
+       "name": "DEFAULT_BUSY_TIMEOUT_MS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Busy timeout in milliseconds (30000)."
+      },
+      {
+       "name": "_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of SQL statements for schema creation."
+      }
+     ],
+     "claims": [
+      {
+       "text": "record_intent writes an INTENDED row and COMMITS IT BEFORE the caller performs the external effect.",
+       "where": "docstring (INTENT BEFORE EFFECT)",
+       "verdict": "uncheckable",
+       "why": "record_intent function is not present in this chunk."
+      },
+      {
+       "text": "the ledger can never be BEHIND reality: every effect that happened has a row.",
+       "where": "docstring (INTENT BEFORE EFFECT)",
+       "verdict": "uncheckable",
+       "why": "Depends on record_intent implementation and commit ordering, not in this chunk."
+      },
+      {
+       "text": "The ledger CAN be ahead of reality: a crash after the effect lands and before mark_completed commits leaves an INTENDED row whose effect already happened.",
+       "where": "docstring (CLOSING THE CRASH WINDOW)",
+       "verdict": "uncheckable",
+       "why": "mark_completed not present; correctness depends on its implementation."
+      },
+      {
+       "text": "resolve_by_effect is the ledger half of that handshake -- given a key found in the world, which intent claimed it.",
+       "where": "docstring (CLOSING THE CRASH WINDOW)",
+       "verdict": "uncheckable",
+       "why": "resolve_by_effect function not present in this chunk."
+      },
+      {
+       "text": "intents rows are written once and never UPDATEd",
+       "where": "docstring (APPEND-ONLY IN SPIRIT)",
+       "verdict": "kept",
+       "why": "Schema shows CREATE TABLE without any UPDATE statements; events table is used for transitions."
+      },
+      {
+       "text": "Every state transition APPENDS a row to intent_events; the current state is derived from the latest event",
+       "where": "docstring (APPEND-ONLY IN SPIRIT)",
+       "verdict": "kept",
+       "why": "Schema includes intent_events table with state column; no UPDATE on intents."
+      },
+      {
+       "text": "mark_completed / mark_failed on an already-terminal intent raise IntentAlreadyResolved.",
+       "where": "docstring (DOUBLE RESOLUTION IS REJECTED)",
+       "verdict": "uncheckable",
+       "why": "mark_completed and mark_failed functions not present in this chunk."
+      },
+      {
+       "text": "The check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced.",
+       "where": "docstring (DOUBLE RESOLUTION IS REJECTED)",
+       "verdict": "uncheckable",
+       "why": "Transaction handling not visible in this chunk."
+      },
+      {
+       "text": "journal_mode=WAL (readers never block the writer, and a committed row survives process death without a clean close)",
+       "where": "docstring (DURABILITY SETTINGS)",
+       "verdict": "uncheckable",
+       "why": "No connection pragma setting code in this chunk."
+      },
+      {
+       "text": "synchronous=NORMAL (WAL's documented safe pairing: durable across process crash, which is the failure this module exists for; a power cut can lose the last commits)",
+       "where": "docstring (DURABILITY SETTINGS)",
+       "verdict": "uncheckable",
+       "why": "No connection pragma setting code in this chunk."
+      },
+      {
+       "text": "busy_timeout (every write is BEGIN IMMEDIATE, which DOES honour the busy handler, so a second writer waits instead of erroring)",
+       "where": "docstring (DURABILITY SETTINGS)",
+       "verdict": "uncheckable",
+       "why": "No connection pragma or busy timeout setting code in this chunk."
+      },
+      {
+       "text": "foreign_keys=ON (an event can never reference a vanished intent).",
+       "where": "docstring (DURABILITY SETTINGS)",
+       "verdict": "uncheckable",
+       "why": "No connection pragma setting code in this chunk."
+      },
+      {
+       "text": "canonical_json/canonical_sha MOVED to envelope.py and are imported back here. The definition is unchanged and both names are still re-exported from this module (and from daedalus.spine), so every existing import path resolves.",
+       "where": "comment at import",
+       "verdict": "uncheckable",
+       "why": "Cannot verify that envelope.py defines these names or that re-export works without seeing envelope.py or daedalus.spine __init__.py."
+      },
+      {
+       "text": "v2 added the nullable intents.trace_id column. The bump is recorded in spine_meta but nothing GATES on it: a v1 database is migrated in place and a v1 row (trace_id NULL) stays readable forever, which is the whole backward compatibility contract. See _migrate_columns.",
+       "where": "comment near SCHEMA_VERSION",
+       "verdict": "uncheckable",
+       "why": "_migrate_columns function not present; schema shows trace_id as nullable, but migration logic not in this chunk."
+      },
+      {
+       "text": "open_intents scans for the ABSENCE of a terminal event; index the states that can end a life so that probe stays a lookup.",
+       "where": "comment in _SCHEMA",
+       "verdict": "kept",
+       "why": "Partial index idx_intent_events_terminal is defined with WHERE state IN ('COMPLETED','FAILED'), enabling efficient lookup for absence of terminal events."
+      },
+      {
+       "text": "The subject digest is the STORED payload_sha, not a recomputation: re-hashing here would silently repair the one disagreement worth surfacing -- a stored digest that no longer matches its stored payload.",
+       "where": "docstring of Intent.to_statement",
+       "verdict": "kept",
+       "why": "to_statement uses self.payload_sha directly, not recomputed."
+      },
+      {
+       "text": "DAEDALUS_SPINE_DB overrides it (tests and isolated worktrees point this away from the real runs/ directory).",
+       "where": "docstring of default_db_path",
+       "verdict": "kept",
+       "why": "Function checks os.environ.get('DAEDALUS_SPINE_DB') and uses it if set."
+      },
+      {
+       "text": "PROCESS-GLOBAL by design -- the counterpart, and deliberately NOT the same question, is daedalus.spine.picker.resolve_spine_db_path, which is repo-confined and ignores this env var so that picking for a foreign repository can never be redirected by inherited environment.",
+       "where": "docstring of default_db_path",
+       "verdict": "uncheckable",
+       "why": "Cannot verify behavior of resolve_spine_db_path without seeing that function."
+      },
+      {
+       "text": "trace_id is NULLABLE and always will be.",
+       "where": "comment in schema",
+       "verdict": "kept",
+       "why": "Schema defines trace_id TEXT without NOT NULL constraint."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Docstring claims about record_intent, mark_completed, mark_failed, resolve_by_effect, and durability settings are uncheckable because those functions are not in this chunk.",
+       "where": "docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "SCHEMA_VERSION is 2 but no migration logic is present; relies on _migrate_columns in later chunk.",
+       "where": "comment near SCHEMA_VERSION",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "default_db_path uses Path(env) if env is non-empty; if DAEDALUS_SPINE_DB is set to an invalid path, errors may occur later.",
+       "where": "default_db_path",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_uri_path escapes backslash, ?, # but not percent sign; if path contains '%', it may be misinterpreted.",
+       "where": "_uri_path",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Intent.to_statement uses stored payload_sha; if payload_sha is ever incorrect, the statement will be invalid. No validation is present in this chunk.",
+       "where": "Intent.to_statement",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "Schema includes foreign key constraint on intent_events.intent_id but no explicit foreign_keys=ON pragma is set in this chunk.",
+       "where": "_SCHEMA",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ee3cd175134db88ba15b18902774a5d58c899deb206eb224ad260824b12de654",
+    "objective_chars": 12535,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

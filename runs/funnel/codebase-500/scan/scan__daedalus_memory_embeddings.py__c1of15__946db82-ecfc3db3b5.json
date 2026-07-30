@@ -1,0 +1,252 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c1of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c1of15__946db82-ecfc3db3b5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of embeddings.py: module docstring describing identity anchoring, drift detection, and limits; constants and utility functions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "IDENTITY_DRIFT_TOLERANCE | medium | Tolerance set to 1e-4; may be too tight or too loose depending on backend nondeterminism. | Verify against actual Ollama and other provider reproducibility.",
+     "MOVABLE_TAG_PROVIDERS | medium | Only 'ollama' is listed; other providers with movable tags (e.g., OpenAI deployment aliases) are not covered. | Confirm whether other providers need to be added.",
+     "_utc_now | low | Uses datetime.now(timezone.utc).isoformat() which includes microsecond precision; may cause unexpected key granularity. | Check if microsecond precision is intended.",
+     "_canonical_json | medium | Uses sort_keys=True but no separators specified; default separators add trailing spaces. | Verify if JSON output is intended to be compact (no extra spaces)."
+    ],
+    "todos": [
+     "Review IDENTITY_DRIFT_TOLERANCE value against empirical data.",
+     "Confirm list of MOVABLE_TAG_PROVIDERS is complete.",
+     "Check that _canonical_json output is canonical enough for hashing (no trailing spaces)."
+    ],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "1 of 15",
+     "purpose": "Module docstring and constants for versioned embedding projections.",
+     "symbols": [
+      {
+       "name": "EMBED_MODEL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default embedding model from environment variable OLLAMA_EMBED_MODEL, fallback 'nomic-embed-text'."
+      },
+      {
+       "name": "EVENT_PROJECTOR_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'agent-event-v1' identifying projector version."
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Integer 2 for database schema version."
+      },
+      {
+       "name": "IDENTITY_DRIFT_TOLERANCE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Float 1e-4 maximum cosine distance for identity anchor drift."
+      },
+      {
+       "name": "MOVABLE_TAG_PROVIDERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of provider names with movable model tags, currently {'ollama'}."
+      },
+      {
+       "name": "_utc_now",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns current UTC timestamp as ISO 8601 string."
+      },
+      {
+       "name": "_canonical_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns JSON string with sorted keys and ensure_ascii=False (function body truncated)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for search_report is present in this chunk."
+      },
+      {
+       "text": "_resolved_spec refuses a caller-supplied spec whose provider, model, dimension, normalization, projector version, or model revision disagrees with the request actually issued.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for _resolved_spec is present in this chunk."
+      },
+      {
+       "text": "Vectors are validated on ingest (_validate_batch), on read (_coerce_vector(..., dimension=...)) and again at scoring time (_cosine).",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for _validate_batch, _coerce_vector, or _cosine is present in this chunk."
+      },
+      {
+       "text": "Each index also carries an identity anchor: one stored projection whose text is re-embedded the first time a process touches that index.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for identity anchor mechanism is present in this chunk."
+      },
+      {
+       "text": "record_journal_watermark refuses to move a watermark backwards, and refuses a changed content hash at an unchanged position.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for record_journal_watermark is present in this chunk."
+      },
+      {
+       "text": "The service endpoint is not part of the spec identity. host is a call argument, not an EmbeddingSpec field, so two different Ollama hosts serving the same tag produce the same index_id.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No definition of EmbeddingSpec is present in this chunk."
+      },
+      {
+       "text": "An index written before the anchor existed (or written by a process that only inserted duplicates) adopts an existing projection as its anchor on first touch.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for adoption mechanism is present in this chunk."
+      },
+      {
+       "text": "Anchoring is cosine-based, so it is scale-invariant.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for anchoring or cosine is present in this chunk."
+      },
+      {
+       "text": "model_revision is caller-asserted and unverified. Nothing here resolves an Ollama digest.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for model_revision handling is present in this chunk."
+      },
+      {
+       "text": "The index can only report freshness against a journal position the caller supplies via JournalPosition.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for freshness reporting is present in this chunk."
+      },
+      {
+       "text": "Opening a schema-v1 database performs a schema migration, but not a vector migration: the old agent_events table is renamed to legacy_agent_events_v1 and left untouched.",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code for schema migration is present in this chunk."
+      },
+      {
+       "text": "IDENTITY_DRIFT_TOLERANCE = 1e-4",
+       "where": "line 42",
+       "verdict": "kept",
+       "why": "Constant defined as 1e-4 at line 42."
+      },
+      {
+       "text": "MOVABLE_TAG_PROVIDERS = frozenset({'ollama'})",
+       "where": "line 49",
+       "verdict": "kept",
+       "why": "Constant defined as frozenset({'ollama'}) at line 49."
+      },
+      {
+       "text": "EMBED_MODEL = os.environ.get('OLLAMA_EMBED_MODEL', 'nomic-embed-text')",
+       "where": "line 33",
+       "verdict": "kept",
+       "why": "Constant defined at line 33."
+      },
+      {
+       "text": "EVENT_PROJECTOR_VERSION = 'agent-event-v1'",
+       "where": "line 34",
+       "verdict": "kept",
+       "why": "Constant defined at line 34."
+      },
+      {
+       "text": "SCHEMA_VERSION = 2",
+       "where": "line 35",
+       "verdict": "kept",
+       "why": "Constant defined at line 35."
+      },
+      {
+       "text": "_utc_now returns datetime.now(timezone.utc).isoformat()",
+       "where": "line 52-53",
+       "verdict": "kept",
+       "why": "Function _utc_now returns that expression."
+      },
+      {
+       "text": "_canonical_json returns json.dumps(value, ensure_ascii=False, sort_keys=True, ...)",
+       "where": "line 55-58",
+       "verdict": "uncheckable",
+       "why": "Function body is truncated; cannot confirm full signature or return."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring is extensive but many claims refer to functions/classes not in this chunk.",
+       "where": "lines 1-31",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Constants defined with default values; environment variable OLLAMA_EMBED_MODEL may not be set.",
+       "where": "line 33",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_canonical_json function is incomplete in this chunk; missing closing parenthesis and body.",
+       "where": "line 58",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "No imports from the same package are used in this chunk; all imports are standard library or from daedalus subpackages.",
+       "where": "lines 60-72",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "28e159aba1040cd15e651a0a5a73804c29d86256d5a660aa0013edd4bc4e8617",
+    "objective_chars": 6436,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [1/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 1,
+  "total": 15,
+  "first_line": 1
+ }
+}

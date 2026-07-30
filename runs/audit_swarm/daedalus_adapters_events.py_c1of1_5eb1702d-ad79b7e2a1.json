@@ -1,0 +1,108 @@
+{
+ "task_id": "daedalus/adapters/events.py#c1of1#5eb1702d",
+ "key": "daedalus_adapters_events.py_c1of1_5eb1702d-ad79b7e2a1",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "DeepSeek call failed: Invalid control character at: line 12 column 3881 (char 4994)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Retry or fall back to Claude."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "134aaa8537695ffa313e00bc7ba63babe02064691941accee722c3202497b044",
+    "objective_chars": 6621,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 3 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Lossless envelope exchanged between a runtime shell and downstream sinks\" | TransportRecord | KEPT | the dataclass stores all fields and to_dict/from_dict preserve them",
+     "CLAIM | \"Embeddings are derived from this record; they never replace its original payload or provenance\" | TransportRecord | KEPT | embedding_text returns a string based on original fields without modifying payload or metadata",
+     "CLAIM | \"Wrap one typed event without discarding its provider-neutral payload\" | event_to_transport_record | KEPT | the function converts an AgentEvent to TransportRecord preserving payload via asdict",
+     "D1 | metadata parameter in event_to_transport_record | defined as optional parameter but only used in dict() call; no other read in this unit | WRONG CONCLUSION: a caller might expect metadata to be processed or validated"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "134aaa8537695ffa313e00bc7ba63babe02064691941accee722c3202497b044",
+    "objective_chars": 6621,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 1 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Lossless envelope exchanged between a runtime shell and downstream sinks. Embeddings are derived from this record; they never replace its original payload or provenance.\" | TransportRecord | UNCHECKABLE | Need to see code that derives embeddings and verify it does not replace payload/provenance.",
+     "CLAIM | \"Wrap one typed event without discarding its provider-neutral payload.\" | event_to_transport_record | KEPT | All event fields are captured in payload via asdict(event).",
+     "CLAIM | \"Stable text projection used by an optional embedding index.\" | embedding_text | BROKEN | Uses f-string without sorting fields; if runtime/direction/event_type order changes, projection is not stable. Line: 'return (...)'.strip()'",
+     "D1 | event_to_transport_record parameter metadata | defined but not read in this unit; only used in the call to TransportRecord constructor which passes dict(metadata or {})."
+    ],
+    "todos": [
+     "In embedding_text, sort the fields or use a deterministic order to guarantee stability."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "134aaa8537695ffa313e00bc7ba63babe02064691941accee722c3202497b044",
+    "objective_chars": 6621,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/adapters/events.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 4173
+ }
+}

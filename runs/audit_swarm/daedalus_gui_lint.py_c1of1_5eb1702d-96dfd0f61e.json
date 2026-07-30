@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/gui/lint.py#c1of1#5eb1702d",
+ "key": "daedalus_gui_lint.py_c1of1_5eb1702d-96dfd0f61e",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 7 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"No pixels are inspected; every number here is derived from geometry and computed style\" | docstring | KEPT | The code uses only bounding boxes, text metrics, computed styles (e.g., font, color, radius) from the capture; no pixel-level analysis.",
+     "CLAIM | \"every metric returns its count AND the elements behind it\" | docstring | KEPT | Metric dataclass has 'offenders' field; to_dict includes offenders[:12]; all metric constructions pass a list of offending elements.",
+     "CLAIM | \"Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED\" | docstring | UNCHECKABLE | No threshold comparison code exists in this unit; would need to see the threshold management module.",
+     "CLAIM | \"the page body must never scroll sideways\" | line 78 | KEPT | horizontal_overflow is max(0, scrollWidth - clientWidth), which penalizes any positive overflow.",
+     "CLAIM | \"interactive targets should reach 44x44\" | line 87 | KEPT | Small targets are those with either width or height < 44.",
+     "CLAIM | \"grotesk defaults that mark a generated page\" | line 93 | KEPT | banned_faces counts distinct families (set of fonts) that appear; logic matches prose.",
+     "CLAIM | \"a broken page is not a design question\" | line 97 | KEPT | console_errors metric counts errors from capture; no special handling.",
+     "CLAIM | \"when everything is a bordered box, nothing is elevated\" | line 106 | KEPT | framed_panels counts elements with borderSides >= 1, width >= 56, height >= 24.",
+     "CLAIM | \"more than two or three corner radii reads as unconsidered\" | line 110 | KEPT | distinct_radii metric counts distinct rounded radius values > 0.5px; no threshold applied.",
+     "CLAIM | \"if everything is flagged, nothing is flagged\" | line 130 | KEPT | status_pills_visible counts pills matching criteria; no threshold.",
+     "D1 | analyse | 'compare' function parameter 'reports' | unused inside compare | WRONG CONCLUSION: a caller believes the function uses the reports parameter, but it is never accessed."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b2bf2612f4ea69cc103648d044dbfa701486206c8d65763c91580f2b42ace663",
+    "objective_chars": 13806,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 8 kept, 5 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"No pixels are inspected; every number here is derived from geometry and computed style\" | module docstring | BROKEN | `_lum` reads raw RGB values from `fg` and `bgEff`, which are pixel colours, not geometry or computed style",
+     "CLAIM | \"Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED. Right now the corpus is n=4\" | module docstring | UNCHECKABLE | would need to see how thresholds are stored and whether any are currently ASSUMED or MEASURED",
+     "CLAIM | \"the page body must never scroll sideways\" | `analyse` line with `horizontal_overflow` | KEPT | code correctly computes overflow and records it as a metric",
+     "CLAIM | \"WCAG AA: 4.5:1 body, 3.0:1 large\" | `analyse` contrast_failures | KEPT | code uses 3.0 for large text and 4.5 otherwise",
+     "CLAIM | \"interactive targets should reach 44x44\" | `analyse` small_targets | KEPT | code checks width and height < 44",
+     "CLAIM | \"grotesk defaults that mark a generated page\" | `analyse` banned_faces | BROKEN | metric counts distinct font families (`len({b[\"font\"] for b in banned})`), not total occurrences; prose implies counting elements or pages",
+     "CLAIM | \"a broken page is not a design question\" | `analyse` console_errors | KEPT | code counts console errors",
+     "CLAIM | \"raw density of what is on screen at once\" | `analyse` visible_elements | KEPT | code uses `cap[\"elementsKept\"]`",
+     "CLAIM | \"when everything is a bordered box, nothing is elevated\" | `analyse` framed_panels | KEPT | code counts panels",
+     "CLAIM | \"more than two or three corner radii reads as unconsidered\" | `analyse` distinct_radii | KEPT | code counts distinct radii",
+     "CLAIM | \"frames inside frames inside frames\" | `analyse` panel_nesting_depth | KEPT | code computes nesting depth",
+     "CLAIM | \"shouted micro-labels used as decoration rather than hierarchy\" | `analyse` allcaps_text_share | BROKEN | code computes share of all-caps text across all elements, but prose implies it's about micro-labels used as decoration; also the denominator `total_text` includes all elements, but `caps_len` only counts elements with `transform==\"uppercase\"` or `text.isupper()`, missing elements that are all-caps but not uppercase transform",
+     "CLAIM | \"if everything is flagged, nothing is flagged\" | `analyse` status_pills_visible | KEPT | code counts pills",
+     "CLAIM | \"an N-equal-tile metric row is the most recognisable trope in the category\" | `analyse` largest_equal_tile_row | BROKEN | code groups by rounded y/10, then compares sizes; but the grouping uses `round(e[\"y\"] / 10)` which creates bins of height ~10, not rows of elements that share the same baseline; also the algorithm picks the first element in the group as reference and counts matches, but misses rows where elements are not all in the same bin due to rounding",
+     "D1 | `contrast_ratio` function | parameter `fg` and `bg` are used, so no unused parameters | D: none",
+     "D2 | `analyse` line `for p in argv:` | `except` not present | D: none",
+     "D3 | check that runs after side effect it guards | not found | D: none",
+     "D4 | branch condition cannot be true | not found | D: none"
+    ],
+    "todos": [
+     "Either remove the claim that no pixels are inspected, or add a note that colour values are used for contrast calculations",
+     "Change banned_faces metric to count elements or occurrences instead of distinct families, or update prose to say 'distinct families'",
+     "Clarify that allcaps_text_share counts all-caps text across all elements, and fix denominator to exclude non-text-bearing elements if needed",
+     "Fix largest_equal_tile_row grouping to use actual row alignment (e.g., y coordinate with tolerance) and consider all possible reference elements"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b2bf2612f4ea69cc103648d044dbfa701486206c8d65763c91580f2b42ace663",
+    "objective_chars": 13806,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"every metric returns its count AND the elements behind it\" | Metric.to_dict | BROKEN | offenders list is truncated to 12 in to_dict, so not all elements behind the metric are returned",
+     "CLAIM | \"Two or three corner radii reads as unconsidered\" | distinct_radii metric | BROKEN | comment says 'more than two or three' but metric only counts distinct values, not checking if > 2 or 3",
+     "D: none"
+    ],
+    "todos": [
+     "Remove the [:12] slice in Metric.to_dict to return all offenders, or update the docstring to say 'up to 12 offenders'.",
+     "Either add a threshold check (e.g., if len(radii) > 2) or update the comment to match the metric's actual behavior."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b2bf2612f4ea69cc103648d044dbfa701486206c8d65763c91580f2b42ace663",
+    "objective_chars": 13806,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/gui/lint.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 11365
+ }
+}

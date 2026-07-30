@@ -1,0 +1,203 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c5of5__946db82",
+ "key": "scan__daedalus_structcore_index.py__c5of5__946db82-a682a1fd48",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of 5: cached_index and score_modules with single-flight lock and churn scoring.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "cached_index | medium | _build_lock uses key based on resolved root and scope; if key collision occurs between different scopes, builds may be serialized incorrectly. | Audit _build_lock implementation for key uniqueness.",
+     "cached_index | low | _INDEX_CACHE.pop(key, None) on refresh may remove a newly built entry from another thread if key matches exactly. | Verify that refresh and concurrent builds do not interfere.",
+     "score_modules | low | Division by zero if loc is 0; but modules with loc=0 are unlikely. | Ensure loc is always positive or handle zero gracefully."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "5 of 5",
+     "purpose": "Implements cached_index with single-flight pattern and score_modules for churn-aware complexity ranking.",
+     "symbols": [
+      {
+       "name": "cached_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Process-wide index cache with single-flight lock; returns dict."
+      },
+      {
+       "name": "_hotspots",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns top-N slice of score_modules result."
+      },
+      {
+       "name": "score_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes complexity-churn score for each module, returns sorted list."
+      }
+     ],
+     "claims": [
+      {
+       "text": "build_index is expensive on big repos; the first caller warms it and everyone (the web endpoints, the Ikarus chat brain) reuses it.",
+       "where": "cached_index docstring",
+       "verdict": "uncheckable",
+       "why": "build_index is not defined in this chunk; caching behavior is present but cannot verify cost or reuse by other components."
+      },
+      {
+       "text": "SINGLE-FLIGHT (load-bearing): the cache is only populated *after* a build finishes, so without a per-root lock every concurrent caller saw a cold cache and started its OWN full scan.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "The code uses _build_lock(key) to serialize builds and checks cache under lock, preventing duplicate builds."
+      },
+      {
+       "text": "The web server is a ThreadingHTTPServer, so switching panels mid-index spawned a second 6.8k-file scan instead of reusing the first -- each holding a complete index and its own tree-sitter parsers, which exhausted memory and took the page down.",
+       "where": "cached_index docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to external server implementation and specific incident not present in this chunk."
+      },
+      {
+       "text": "Concurrent callers now block on the in-flight build and share its result.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "The _build_lock context manager ensures only one build per key; subsequent callers wait and then return the cached result."
+      },
+      {
+       "text": "The scope fingerprint is PART OF THE KEY: the cached index is a function of the center and the ignore rules as well as the root, so changing either must not hand back the index built under the old scope.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "key = _scope_key(resolved, scope, docs_on, types_on, wiki_on) includes scope derived from center and ignore."
+      },
+      {
+       "text": "An unscoped repo keeps its bare path key, so nothing changes for repos that never configure this.",
+       "where": "cached_index docstring",
+       "verdict": "uncheckable",
+       "why": "project_scope is not defined here; cannot verify that unscoped repos return a bare path key."
+      },
+      {
+       "text": "documents is resolved ONCE, here, and the same resolved boolean is used for both the key and the build.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "docs_on = documents_enabled(documents) is called once and passed to both key and build_index."
+      },
+      {
+       "text": "Reading the env var independently in build_index would let the two disagree if it changed between the two reads, and the cache would then be keyed for one answer while holding the other.",
+       "where": "cached_index docstring",
+       "verdict": "uncheckable",
+       "why": "build_index is not in this chunk; cannot verify that it reads env var independently."
+      },
+      {
+       "text": "types is resolved here for the same reason and with the same hazard: a key built from one reading of the env var and a build from another would cache a type-bearing index under the key for a type-free one.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "types_on = types_enabled(types) is called once and passed to key and build_index."
+      },
+      {
+       "text": "wiki follows the identical discipline, and for the identical hazard: resolved ONCE here so the key and the build cannot disagree.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "wiki_on = wiki_enabled(wiki) and docs_on is computed once and used in key and build_index."
+      },
+      {
+       "text": "It also depends on docs_on, so that conjunction is computed here too rather than being re-derived inside build_index where the key can no longer see it -- a key that said '+wiki' over a wiki-free index is exactly the silent-mismatch bug the documents flag already had to close.",
+       "where": "cached_index docstring",
+       "verdict": "kept",
+       "why": "wiki_on is computed using docs_on here, and both are passed to key and build_index."
+      },
+      {
+       "text": "Top-top slice of the full churn x complexity ranking.",
+       "where": "_hotspots docstring",
+       "verdict": "kept",
+       "why": "The function returns score_modules(modules, churn)[:top], which is a slice of the full ranking."
+      },
+      {
+       "text": "Base score = long fns * 3 + guard_count + loc/50 (+ cc_max if present).",
+       "where": "score_modules docstring",
+       "verdict": "kept",
+       "why": "base = len(m.get('long_functions', [])) * 3 + m.get('guard_count', 0) + m['loc'] / 50; then base += m.get('cc_max', 0)."
+      },
+      {
+       "text": "Final score = base * (1 + churn/max_churn). If churn is empty/None the factor is exactly 1.0 -> behaves identically to the pre-churn ranking (no regression); a churn field is added to every row regardless.",
+       "where": "score_modules docstring",
+       "verdict": "kept",
+       "why": "score = base * (1 + churn_norm) where churn_norm = file_churn/max_churn if max_churn>0 else 0.0; churn field is added to each row."
+      },
+      {
+       "text": "Returned whole rather than pre-trimmed so the code map can heat-shade every node from the same scoring pass that produces the hotspot list.",
+       "where": "score_modules docstring",
+       "verdict": "kept",
+       "why": "The function returns the full scored list without trimming; _hotspots trims externally."
+      }
+     ],
+     "observations": [
+      {
+       "what": "cached_index uses a single-flight pattern with _build_lock to prevent concurrent builds for the same key.",
+       "where": "cached_index function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "score_modules computes a churn-weighted complexity score and returns all modules sorted by score.",
+       "where": "score_modules function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The key includes resolved root, scope, and flags (docs_on, types_on, wiki_on); refresh pops the key from cache before rebuild.",
+       "where": "cached_index function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "score_modules assumes m['loc'] exists and is numeric; missing loc would cause KeyError.",
+       "where": "score_modules line 'm['loc']'",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring for cached_index contains detailed narrative about past bugs and design rationale, but some claims reference code not present in this chunk (e.g., build_index, project_scope).",
+       "where": "cached_index docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "73bda235438e94f55fc682e76d3f48d768eda0fa6be2c47ecf791ae0115f8c3b",
+    "objective_chars": 5646,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [5/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

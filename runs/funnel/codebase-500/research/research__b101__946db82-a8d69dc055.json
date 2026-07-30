@@ -1,0 +1,133 @@
+{
+ "task_id": "research__b101__946db82",
+ "key": "research__b101__946db82-a8d69dc055",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Each module assumes it owns a boundary (minting, stamping, drift, totals) but no module verifies the data it consumes was produced by the expected mechanism, creating a chain of unvalidated handoffs.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Unvalidated handoffs between modules could cause silent data corruption or missed failures.",
+     "Missing default values for configuration constants may lead to inconsistent behavior.",
+     "Assumptions about data sources (e.g., 'wrote' key, digest, totals) are not enforced."
+    ],
+    "todos": [
+     "Verify that offload.py actually provides the 'wrote' key as claimed.",
+     "Add validation in mint_task_from_landed_edit to ensure disk_changed matches expected format.",
+     "Ensure DEFAULT_MINT_STORE_PATH is defined and consistent across modules.",
+     "Check that canonical_sha and canonical_json are defined and used consistently.",
+     "Validate that totals, hotspots, and graph in report.py are computed correctly from idx.",
+     "Add cross-module contracts or type checks for shared data structures."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unvalidated-handoff-mint",
+       "claim": "mint_task_from_landed_edit assumes the 'wrote' key in the report dict contains disk_changed from offload.py, but no validation confirms the structure or origin of that data. If offload.py changes its output format, mint silently produces wrong tasks.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "daedalus/offload.py"
+       ],
+       "mechanism": "mint_task_from_landed_edit reads report['wrote'] and passes it to _mint_from_diffs. If offload.py changes the key name or structure, mint gets an empty or malformed list, potentially returning None or minting nothing.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that mint_task_from_landed_edit validates the 'wrote' key (e.g., checks it's a list of strings) or that offload.py's contract is enforced by a shared type.",
+       "evidence": [
+        "daedalus/eval/mint.py:mint_task_from_landed_edit docstring claims report['wrote'] IS disk_changed from offload.py:194-197"
+       ]
+      },
+      {
+       "id": "unvalidated-handoff-digest",
+       "claim": "subject_for in envelope.py assumes the caller provides either a precomputed sha256 digest or a payload to hash, but no validation ensures the digest matches the payload. If the caller passes a wrong digest, the subject is inconsistent.",
+       "spans": [
+        "daedalus/spine/envelope.py",
+        "daedalus/spine/ledger.py"
+       ],
+       "mechanism": "subject_for accepts sha256 or payload. If both are provided, it uses sha256 without verifying it matches payload. The spine ledger stores payload_sha; if the digest is wrong, the ledger entry is inconsistent.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that subject_for validates the digest (e.g., recomputes and compares if both are given) or that callers never provide both.",
+       "evidence": [
+        "daedalus/spine/envelope.py:subject_for docstring says 'Pass sha256 when the digest ALREADY EXISTS' and 'Pass payload only when no digest has been computed'"
+       ]
+      },
+      {
+       "id": "missing-default-config",
+       "claim": "mint.py and switches.py both reference constants (DEFAULT_MINT_STORE_PATH, DEFAULT_NUM_CTX) that are not defined in the scanned chunks, risking NameError or reliance on undefined defaults.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "daedalus/mapping/switches.py"
+       ],
+       "mechanism": "load_minted_tasks uses DEFAULT_MINT_STORE_PATH (not in chunk); switches.py comment references DEFAULT_NUM_CTX (not in chunk). If these constants are missing, the code fails at runtime.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Evidence that both constants are defined in other parts of the same modules (e.g., earlier lines not in chunks) or imported from a common config module.",
+       "evidence": [
+        "daedalus/eval/mint.py:load_minted_tasks uses DEFAULT_MINT_STORE_PATH not defined in chunk",
+        "daedalus/mapping/switches.py:line 1081 comment references DEFAULT_NUM_CTX"
+       ]
+      },
+      {
+       "id": "unvalidated-totals",
+       "claim": "report.py constructs a 'totals' dictionary from local variables (units, renamed, near, windows, fenced) that are not defined in the chunk, assuming they are computed earlier. If those variables are missing, the report silently omits totals or raises NameError.",
+       "spans": [
+        "daedalus/structcore/report.py",
+        "daedalus/structcore/index.py"
+       ],
+       "mechanism": "report.py computes totals from undefined variables, likely from an earlier step. If index.py changes its output format, totals may be empty or wrong.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that the variables are defined in the same module (e.g., in chunk 1) or that report.py validates their presence.",
+       "evidence": [
+        "daedalus/structcore/report.py:lines 130-136 use units, renamed, near, windows, fenced not defined in chunk"
+       ]
+      },
+      {
+       "id": "unvalidated-handoff-stamp",
+       "claim": "stamp in envelope.py uses TRACE_KEY constant not defined in the chunk, assuming it is imported. If the import is missing, stamp fails at runtime.",
+       "spans": [
+        "daedalus/spine/envelope.py",
+        "daedalus/spine/scope.py"
+       ],
+       "mechanism": "stamp checks out.get(TRACE_KEY) and sets out[TRACE_KEY] = trace_id. TRACE_KEY must be imported; if missing, NameError.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Evidence that TRACE_KEY is defined in the same file (e.g., earlier in chunk 4 or elsewhere) or imported at the top of the module.",
+       "evidence": [
+        "daedalus/spine/envelope.py:stamp uses TRACE_KEY not defined in chunk"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "72c76505d5d6b64b5cb8cc1f8900f04705cd3d2270b8f4a6e8daf5b5dd863bed",
+    "objective_chars": 20017,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 101 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 101,
+  "inputs": 4
+ }
+}

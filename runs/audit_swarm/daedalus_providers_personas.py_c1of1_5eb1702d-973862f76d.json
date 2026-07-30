@@ -1,0 +1,124 @@
+{
+ "task_id": "daedalus/providers/personas.py#c1of1#5eb1702d",
+ "key": "daedalus_providers_personas.py_c1of1_5eb1702d-973862f76d",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Each Claude specialist keeps its name on the trusted Claude lane, but gets a named *shadow* when the same role runs on a cheaper backend\" | module docstring | UNCHECKABLE | would need to see the personas.json file to verify the mapping of names",
+     "CLAIM | \"a Chinese name on DeepSeek (external) and a Mexican/Italian name on local Ollama\" | module docstring | UNCHECKABLE | would need to see the personas.json file to verify",
+     "CLAIM | \"Purely cosmetic identity so reports and the architecture map read consistently\" | module docstring | KEPT | no code contradicts this claim",
+     "CLAIM | \"Return the shadow persona's call-name for (provider, role)\" | persona_for docstring | KEPT | implementation returns name from by_role or default",
+     "CLAIM | \"_registry()\" cached with maxsize=1 | _registry() | KEPT | @lru_cache(maxsize=1) is present",
+     "CLAIM | \"All named workers on a lane: the per-role shadows plus any extra pool\" | roster docstring | KEPT | returns by_role values plus pool, deduplicated",
+     "CLAIM | \"list(dict.fromkeys(names))\" preserves order | roster line 38 | KEPT | dict.fromkeys preserves insertion order in Python 3.7+",
+     "D1 | provider | parameter in culture() | parameter defined but not read inside function; used only in _registry().get(provider) which is a read of the parameter, so it is read. No D1 hit.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "415c555d56e2f8c3609d8b56863973c5ac17dbe89d347a4ac0cad35da9640465",
+    "objective_chars": 3745,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 2 kept, 2 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Each Claude specialist keeps its name on the trusted Claude lane, but gets a named *shadow* when the same role runs on a cheaper backend\" | module docstring | BROKEN | no code in this unit implements any mapping from Claude lane to shadow; the functions only look up provider keys, not lane logic",
+     "CLAIM | \"Purely cosmetic identity so reports and the architecture map read consistently\" | module docstring | KEPT | the code returns strings used for display, no side effects",
+     "CLAIM | \"Return the shadow persona's call-name for (provider, role)\" | persona_for docstring | BROKEN | when provider not found, returns the provider string itself via prov.get(\"default\", provider), not a shadow persona; contradicts \"shadow persona's call-name\"",
+     "CLAIM | \"All named workers on a lane: the per-role shadows plus any extra pool\" | roster docstring | KEPT | roster returns exactly the union of by_role values and pool list, deduplicated",
+     "D1 | pool | parameter of roster? no; check module-level: none | no D1 hit",
+     "D2 | none | no except clauses in unit",
+     "D3 | none | no comment about guard ordering",
+     "D4 | none | no impossible branches"
+    ],
+    "todos": [
+     "Update module docstring to remove claim about Claude lane vs shadow mapping, or implement that mapping",
+     "Revise persona_for docstring to say it falls back to provider name when no shadow is configured, or change fallback to return something else"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "415c555d56e2f8c3609d8b56863973c5ac17dbe89d347a4ac0cad35da9640465",
+    "objective_chars": 3745,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 0 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Each Claude specialist keeps its name on the trusted Claude lane, but gets a named *shadow* when the same role runs on a cheaper backend\" | module docstring | UNCHECKABLE | requires knowledge of external configuration or runtime behavior beyond this unit",
+     "CLAIM | \"Purely cosmetic identity so reports and the architecture map read consistently\" | module docstring | KEPT | the code returns strings used for display",
+     "CLAIM | \"Return the shadow persona's call-name for (provider, role)\" | persona_for | KEPT | code returns a string from registry based on provider and agent_name",
+     "CLAIM | \"All named workers on a lane: the per-role shadows plus any extra pool\" | roster | KEPT | code combines by_role values and pool, deduplicates",
+     "CLAIM | \"Purely cosmetic identity\" | module docstring | KEPT | no side effects, only string lookups"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "415c555d56e2f8c3609d8b56863973c5ac17dbe89d347a4ac0cad35da9640465",
+    "objective_chars": 3745,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/providers/personas.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1294
+ }
+}

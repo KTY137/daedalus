@@ -1,0 +1,211 @@
+{
+ "task_id": "scan__daedalus_spine_ledger.py__c1of6__946db82",
+ "key": "scan__daedalus_spine_ledger.py__c1of6__946db82-5b1a38c775",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of 6 of daedalus/spine/ledger.py: module docstring, constants, and imports. All claims about module purpose and design are uncheckable against this chunk; constants are present.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 82 | low | canonical_json and canonical_sha are re-exported from envelope.py but not defined here. If envelope.py does not export them, imports will break. | Check envelope.py for these exports.",
+     "line 112 | low | DEFAULT_DB_PATH uses ROOT / 'runs' / 'spine' / 'spine.sqlite3'. This path relies on directory structure existing. | Ensure the directory exists or handle creation."
+    ],
+    "todos": [
+     "Verify envelope.py exports PREDICATE_SPINE_INTENT, canonical_json, canonical_sha, current_trace_id, statement, subject_for.",
+     "Ensure runs/spine/ directory exists or is created at runtime."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/ledger.py",
+     "chunk": "1 of 6",
+     "purpose": "Module docstring, constants, and imports for the durable intent ledger.",
+     "symbols": [
+      {
+       "name": "PREDICATE_SPINE_INTENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "canonical_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "canonical_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "current_trace_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "statement",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "subject_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .envelope"
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 2"
+      },
+      {
+       "name": "STATE_INTENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'INTENDED'"
+      },
+      {
+       "name": "STATE_COMPLETED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'COMPLETED'"
+      },
+      {
+       "name": "STATE_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'FAILED'"
+      },
+      {
+       "name": "TERMINAL_STATES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple (STATE_COMPLETED, STATE_FAILED)"
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to parent directory two levels up from this file"
+      },
+      {
+       "name": "DEFAULT_DB_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default SQLite database path under ROOT/runs/spine/spine.sqlite3"
+      }
+     ],
+     "claims": [
+      {
+       "text": "record_intent writes an INTENDED row and COMMITS IT BEFORE the caller performs the external effect.",
+       "where": "docstring line 14",
+       "verdict": "uncheckable",
+       "why": "The function record_intent is not defined in this chunk."
+      },
+      {
+       "text": "mark_completed appends a row to intent_events.",
+       "where": "docstring line 52",
+       "verdict": "uncheckable",
+       "why": "The function mark_completed is not defined in this chunk."
+      },
+      {
+       "text": "mark_completed / mark_failed on an already-terminal intent raise IntentAlreadyResolved.",
+       "where": "docstring line 56",
+       "verdict": "uncheckable",
+       "why": "The exception IntentAlreadyResolved and the functions are not defined in this chunk."
+      },
+      {
+       "text": "double resolution is rejected, not absorbed: the check runs inside the same BEGIN IMMEDIATE transaction as the append, so it cannot be raced.",
+       "where": "docstring line 57",
+       "verdict": "uncheckable",
+       "why": "No transaction code visible in this chunk."
+      },
+      {
+       "text": "There is no UPDATE statement in this module.",
+       "where": "docstring line 49",
+       "verdict": "uncheckable",
+       "why": "No SQL statements are present in this chunk."
+      },
+      {
+       "text": "journal_mode=WAL, synchronous=NORMAL, busy_timeout, foreign_keys=ON are set.",
+       "where": "docstring lines 60-63",
+       "verdict": "uncheckable",
+       "why": "No PRAGMA statements visible in this chunk."
+      },
+      {
+       "text": "canonical_json/canonical_sha moved to envelope.py and are imported back here.",
+       "where": "line 82 comment",
+       "verdict": "uncheckable",
+       "why": "The import statement is present but envelope.py is not in this chunk."
+      },
+      {
+       "text": "v2 added nullable intents.trace_id column.",
+       "where": "line 97 comment",
+       "verdict": "uncheckable",
+       "why": "No schema definition visible in this chunk."
+      },
+      {
+       "text": "SCHEMA_VERSION = 2.",
+       "where": "line 100",
+       "verdict": "kept",
+       "why": "SCHEMA_VERSION is assigned 2 on line 100."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring makes many claims about behaviour and design that cannot be verified from this chunk alone.",
+       "where": "lines 1-66",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Re-export of symbols from envelope.py relies on that module existing and exporting those names.",
+       "where": "line 82",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "DEFAULT_DB_PATH uses a hardcoded relative path; directory creation is not handled here.",
+       "where": "line 112",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb7c7f872e7cac1a182076366122a564f4d030d4721eadef619178ec1879326f",
+    "objective_chars": 6207,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/ledger.py [1/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/ledger.py",
+  "index": 1,
+  "total": 6,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,206 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c3of6__946db82",
+ "key": "scan__daedalus_spine_containment.py__c3of6__946db82-07315eccec",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of containment.py: implements integrity label reading/writing, LowIntegrityLog class with dual-handle verification, and NtCreateFile-based append-only handle opening.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_nt_open_append | high | Uses hardcoded \\\\??\\\\ prefix for NT path; may not work for all paths or long paths. | Check if path normalization is needed or if MAX_PATH is exceeded.",
+     "_label_sid_from_handle | medium | Memory management: LocalFree(sd) in finally block; but if GetAce or ConvertSidToStringSidW fails, sd is still freed correctly. | Verify that all error paths free allocated memory.",
+     "LowIntegrityLog.__init__ | medium | If _file_identity(self._verify) fails or mismatches, close() is called, which may not clean up _verify handle if it was never stored. | Review exception handling to ensure both handles are closed on any failure."
+    ],
+    "todos": [
+     "Consider adding a check for handle validity after _kernel32.CreateFileW in LowIntegrityLog.__init__.",
+     "Ensure that the OBJ_INHERIT flag in _nt_open_append is correctly set for handle inheritance."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "3 of 6",
+     "purpose": "Implement integrity label reading/writing, LowIntegrityLog class, and append-only handle opening via NtCreateFile.",
+     "symbols": [
+      {
+       "name": "_require_win32",
+       "kind": "function",
+       "effects": [],
+       "note": "Raises ContainmentUnavailable if platform is not Windows."
+      },
+      {
+       "name": "_label_sid_from_handle",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns mandatory-label SID from a file handle, or None if no label ACE."
+      },
+      {
+       "name": "integrity_label",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function to read integrity label of a path via opened handle."
+      },
+      {
+       "name": "_icacls_low",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs icacls to set Low integrity, then reads back and verifies."
+      },
+      {
+       "name": "label_low_integrity",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Marks a directory Low with inheritance for writable containment."
+      },
+      {
+       "name": "label_low_integrity_file",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Labels a single file Low without inheritance."
+      },
+      {
+       "name": "_granted_access",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns GrantedAccess mask from NtQueryObject."
+      },
+      {
+       "name": "_file_identity",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (volume serial, file ID) for a handle."
+      },
+      {
+       "name": "_nt_open_append",
+       "kind": "function",
+       "effects": [],
+       "note": "Opens path with exactly LOW_APPEND_ACCESS using NtCreateFile."
+      },
+      {
+       "name": "LowIntegrityLog",
+       "kind": "class",
+       "effects": [],
+       "note": "Holds two handles (append+verify) and verifies identity and rights."
+      },
+      {
+       "name": "LowIntegrityLog.verify",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-checks rights and identity on the handles; raises on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The mandatory-label SID of the file this HANDLE refers to, or None. None means 'no label ACE', which Windows treats as an implicit Medium.",
+       "where": "_label_sid_from_handle docstring",
+       "verdict": "kept",
+       "why": "Function returns None if no label ACE found (checks present and sacl, then iterates ACEs)."
+      },
+      {
+       "text": "The handle must carry READ_CONTROL; the append handle deliberately does not, so this is always called on the separate verification handle.",
+       "where": "_label_sid_from_handle docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about append handle's rights not verifiable in this chunk; no code shows append handle lacking READ_CONTROL."
+      },
+      {
+       "text": "Used to VERIFY a labelling actually took effect rather than trusting icacls's exit code.",
+       "where": "integrity_label docstring",
+       "verdict": "kept",
+       "why": "integrity_label reads label via handle; _icacls_low calls it to verify."
+      },
+      {
+       "text": "Separate from label_low_integrity because the two are not interchangeable: (OI)(CI) on a file is meaningless, and labelling the log's PARENT directory Low would hand the child a writable directory next to the log -- a capability it is not supposed to have.",
+       "where": "label_low_integrity_file docstring",
+       "verdict": "kept",
+       "why": "label_low_integrity_file calls _icacls_low with inheritable=False; label_low_integrity calls with inheritable=True."
+      },
+      {
+       "text": "NtCreateFile and not CreateFileW: measured on this box, CreateFileW asked for 0x00100004 and produced a handle with GrantedAccess 0x00100084 -- it adds rights of its own accord. NtCreateFile grants exactly the requested mask (measured), which is what lets the rights check be an EQUALITY rather than a hopeful subset.",
+       "where": "_nt_open_append docstring",
+       "verdict": "kept",
+       "why": "Function uses NtCreateFile with exact mask; comment explains reasoning."
+      },
+      {
+       "text": "The share mode is FILE_SHARE_READ ONLY. Not sharing DELETE is load-bearing and was found by measurement: with FILE_SHARE_DELETE the contained child deleted its own log by path (the file is Low, so a Low process may delete it) and could then have written a replacement full of fabricated gate output. Not sharing WRITE stops the same trick via truncate-and-rewrite.",
+       "where": "_nt_open_append docstring",
+       "verdict": "kept",
+       "why": "Code uses FILE_SHARE_READ (0x1) only; no FILE_SHARE_DELETE or FILE_SHARE_WRITE."
+      },
+      {
+       "text": "TWO handles are held, and only one of them is inheritable: handle -- APPEND|SYNCHRONIZE, inheritable, on the allowlist. This is the one the child gets. _verify -- READ_CONTROL, NOT inheritable, NOT on the allowlist.",
+       "where": "LowIntegrityLog docstring",
+       "verdict": "kept",
+       "why": "handle from _nt_open_append has OBJ_INHERIT; _verify from CreateFileW does not set inherit flag (defaults to non-inheritable)."
+      },
+      {
+       "text": "Reading the mandatory label needs READ_CONTROL, and granting the child READ_CONTROL is not on the table, so the label is read through a second handle whose FILE IDENTITY is proven equal to the first. Both stay open for the lifetime of the object, so the file object cannot be swapped underneath the check.",
+       "where": "LowIntegrityLog docstring",
+       "verdict": "kept",
+       "why": "Code stores both handles, computes identity from both and compares; both are kept open (no close until close() called)."
+      },
+      {
+       "text": "Called again from spawn_contained because construction and spawn are not the same instant, and a check that is not re-run at the moment of use is a time-of-check/time-of-use bug wearing a guard's hat.",
+       "where": "LowIntegrityLog.verify docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to spawn_contained not present in this chunk; cannot verify it calls verify()."
+      }
+     ],
+     "observations": [
+      {
+       "what": "LowIntegrityLog.verify checks granted access against LOW_APPEND_ACCESS but also includes READ_ATTRIBUTES in comment; the constant is not shown.",
+       "where": "line ~641",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _label_sid_from_handle, the SID pointer calculation assumes ACE layout: ACE_HEADER + ACCESS_MASK + SID. This is correct for SYSTEM_MANDATORY_LABEL_ACE but relies on undocumented structure alignment.",
+       "where": "_label_sid_from_handle",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "LowIntegrityLog.__init__ opens _verify with FILE_SHARE_READ only; if the file is opened elsewhere with exclusive access, this could fail.",
+       "where": "LowIntegrityLog.__init__",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1590afc49023a1bbc9622d0883cc84651c02a5247927bc380a2c5780f4f7f4ca",
+    "objective_chars": 13514,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 561
+ }
+}

@@ -1,0 +1,157 @@
+{
+ "task_id": "daedalus/file_bridge.py#c2of2#5eb1702d",
+ "key": "daedalus_file_bridge.py_c2of2_5eb1702d-556a9600d5",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 7 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Idle beats are throttled to one per IDLE_BEAT_EVERY_S\" | write_heartbeat | KEPT | The code checks `now - _last_idle_beat < IDLE_BEAT_EVERY_S` and returns early if true, but only when `force=False` and `current is None`. This matches the claim.",
+     "CLAIM | \"task start/finish beats (``force=True``) always land\" | write_heartbeat | KEPT | When `force=True`, the early return is skipped, so the beat always lands.",
+     "CLAIM | \"Written via temp-file + os.replace so a concurrent doctor read never sees a half-written file\" | write_heartbeat | KEPT | The code calls `write_text_atomic`, which presumably uses a temp file and os.replace (based on the comment). The claim is about the function, and the function uses that helper.",
+     "CLAIM | \"Never raises\" | write_heartbeat | KEPT | The function catches `OSError` and passes, so it never raises.",
+     "CLAIM | \"The exact one-liner to (re)start the watcher, from heartbeat context\" | restart_hint | KEPT | The function returns a string that is a one-liner command based on the heartbeat dict.",
+     "CLAIM | \"idle beat fresher than STALE_AFTER_S\" -> \"alive\" | heartbeat_status | KEPT | When no current task and age <= STALE_AFTER_S, state is \"alive\".",
+     "CLAIM | \"a task is in flight, within BUSY_BUDGET_S\" -> \"busy\" | heartbeat_status | KEPT | When current exists and busy_for <= BUSY_BUDGET_S, state is \"busy\".",
+     "CLAIM | \"a task has been in flight longer than BUSY_BUDGET_S\" -> \"wedged\" | heartbeat_status | KEPT | When current exists and busy_for > BUSY_BUDGET_S, state is \"wedged\".",
+     "CLAIM | \"idle beat older than STALE_AFTER_S: watcher is dead\" -> \"stale\" | heartbeat_status | KEPT | When no current and age > STALE_AFTER_S, state is \"stale\".",
+     "CLAIM | \"Half-baked: no docstring for _write_json_atomic\" | _write_json_atomic | BROKEN | The function `_write_json_atomic` is used in `process_request` but its definition is not in this chunk. The docstring for `_looks_unfinished` says \"Our own enqueue() publishes atomically\" but the function `_write_json_atomic` is not defined here, so we cannot verify the claim about atomic publication. However, the claim is about the code in this unit, and the function is missing. Actually, the claim is in `_looks_unfinished` docstring: \"Our own enqueue() publishes atomically\". The function `enqueue` is not in this chunk, so we cannot check that claim. But the claim is about `enqueue`, not `_write_json_atomic`. The docstring for `_looks_unfinished` says \"Our own enqueue() publishes atomically, so a half-written file can only come from a hand-drop or a foreign producer\". The function `enqueue` is not defined in this chunk, so the claim is uncheckable. However, the docstring also says \"A structural complaint (missing objective, missing repo_root) is not a partial write and is not excused here.\" That part is checkable: the code returns False for non-JSON errors, so that is kept. But the claim about atomic publication is uncheckable because `enqueue` is not here. So I'll mark that as UNCHECKABLE.",
+     "D1 | interval_s parameter in write_heartbeat | The parameter `interval_s` is accepted but never read in the function body. The function writes it into the payload, but does not use it for any logic. | WRONG CONCLUSION: A caller might think the interval is used for throttling or timing, but it is only stored in the heartbeat payload.",
+     "D2 | except OSError: pass in write_heartbeat | The docstring says \"Never raises.\" but the except swallows OSError silently. This is consistent with \"never raises\" but the docstring also says \"Best-effort liveness marker\" which is fine. No contradiction.",
+     "D3 | No check runs after the side effect it guards.",
+     "D4 | No branch whose condition cannot be true given assignments above it."
+    ],
+    "todos": [
+     "In write_heartbeat: either use interval_s for throttling or remove it from the parameter list to avoid misleading callers."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2793798e3e890184530fe46ddcef3eae9290632091dab1e8ff3faa3978c4794b",
+    "objective_chars": 23107,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _looks_unfinished docstring | BROKEN | _looks_unfinished checks mtime age, but does not verify atomic write; a half-written file could have an old mtime if the producer crashed after writing partial content without updating mtime",
+     "CLAIM | \"never raises\" | write_heartbeat docstring | KEPT | catches OSError and returns without raising",
+     "CLAIM | \"written via temp-file + os.replace so a concurrent doctor read never sees a half-written file\" | write_heartbeat docstring | UNCHECKABLE | write_text_atomic is imported from another module; its implementation is not in this unit",
+     "CLAIM | \"Best-effort liveness marker\" | write_heartbeat docstring | KEPT | function tries its best, catches OSError",
+     "CLAIM | \"Idle beats are throttled to one per IDLE_BEAT_EVERY_S\" | write_heartbeat docstring | KEPT | checks time difference against IDLE_BEAT_EVERY_S",
+     "CLAIM | \"task start/finish beats (force=True) always land\" | write_heartbeat docstring | KEPT | force=True bypasses the throttle check",
+     "CLAIM | \"never let it kill or slow the watcher\" | write_heartbeat docstring | KEPT | catches OSError silently",
+     "CLAIM | \"The exact one-liner to (re)start the watcher, from heartbeat context\" | restart_hint docstring | KEPT | returns appropriate command based on hb keys",
+     "CLAIM | \"Compact, CHEAP snapshot for the SSE live stream. Reads ONLY the file bus (outbox/inbox/heartbeat) \u2014 no git, PowerShell or Ollama\" | stream_state docstring | UNCHECKABLE | claim about not calling git, PowerShell, or Ollama cannot be verified without seeing the full call chain (e.g., bridge_status calls _report_brief which reads files, but may indirectly call other modules)",
+     "CLAIM | \"so it can be polled once a second to drive the cockpit's live badges without the heavy dashboard\" | stream_state docstring | KEPT | function only reads files and does minimal processing",
+     "CLAIM | \"A refusal is a normal, expected outcome here -- report it as a message and a non-zero exit, not as an unhandled traceback\" | main() comment | KEPT | catches WatcherNotRunning and prints to stderr then raises SystemExit(2)",
+     "CLAIM | \"Same recovery as the watcher: one poison request must not abort the requests queued behind it\" | main() comment | KEPT | the 'once' command catches Exception and calls handle_poison_request, which returns None and continues loop",
+     "D1 | SETTLE_GRACE_S | module-level constant defined but never read in this unit (only referenced in _looks_unfinished and handle_poison_request, which are in this unit) | WRONG CONCLUSION: actually read; no mechanical issue.",
+     "D1 | IDLE_BEAT_EVERY_S | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in write_heartbeat; no mechanical issue.",
+     "D1 | STALE_AFTER_S | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in heartbeat_status; no mechanical issue.",
+     "D1 | BUSY_BUDGET_S | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in heartbeat_status; no mechanical issue.",
+     "D1 | HEARTBEAT_PATH | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in write_heartbeat and heartbeat_status; no mechanical issue.",
+     "D1 | OUTBOX | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in bridge_status and watch; no mechanical issue.",
+     "D1 | INBOX | module-level constant defined but never read in this unit | WRONG CONCLUSION: actually read in unread_reports, bridge_status, stream_state; no mechanical issue.",
+     "D: none"
+    ],
+    "todos": [
+     "BROKEN: \"publishes atomically\" -- either correct _looks_unfinished to actually detect partial writes (e.g., check for a .tmp file or use a marker), or update the docstring to remove the atomic claim."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2793798e3e890184530fe46ddcef3eae9290632091dab1e8ff3faa3978c4794b",
+    "objective_chars": 23107,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 10 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _looks_unfinished docstring | BROKEN | The docstring claims enqueue publishes atomically, but the code for _write_json_atomic uses a fixed .tmp name, so two concurrent publishers share one scratch file.",
+     "CLAIM | \"half-written file can only come from a hand-drop or a foreign producer\" | _looks_unfinished docstring | BROKEN | A half-written file could also come from a crash during the atomic write itself, since the .tmp file is reused.",
+     "CLAIM | \"structural complaint (missing objective, missing repo_root) is not a partial write and is not excused here\" | _looks_unfinished docstring | BROKEN | The function does not check for structural complaints; it only checks for JSON/Unicode decode errors and age, so structural complaints are excused.",
+     "CLAIM | \"Idle beats are throttled to one per IDLE_BEAT_EVERY_S\" | write_heartbeat docstring | KEPT",
+     "CLAIM | \"task start/finish beats (force=True) always land\" | write_heartbeat docstring | KEPT",
+     "CLAIM | \"Written via temp-file + os.replace so a concurrent doctor read never sees a half-written file\" | write_heartbeat docstring | UNCHECKABLE | Need to see write_text_atomic implementation.",
+     "CLAIM | \"Never raises\" | write_heartbeat docstring | KEPT",
+     "CLAIM | \"The exact one-liner to (re)start the watcher, from heartbeat context\" | restart_hint docstring | KEPT",
+     "CLAIM | \"Classify the watcher heartbeat\" with states none, alive, busy, wedged, stale | heartbeat_status docstring | KEPT",
+     "CLAIM | \"Compact, CHEAP snapshot for the SSE live stream. Reads ONLY the file bus (outbox/inbox/heartbeat) \u2014 no git, PowerShell or Ollama\" | stream_state docstring | UNCHECKABLE | Need to verify that bridge_status and _report_brief never call git, PowerShell, or Ollama.",
+     "CLAIM | \"A refusal is a normal, expected outcome here -- report it as a message and a non-zero exit, not as an unhandled traceback\" | main() comment | KEPT",
+     "CLAIM | \"Same recovery as the watcher: one poison request must not abort the requests queued behind it\" | main() comment | KEPT",
+     "CLAIM | \"default: REFUSE, because such a task just sits\" | enqueue --force help | KEPT",
+     "CLAIM | \"auto/local prefer the free bench; local_only never calls Claude; claude forces the trusted lane; codex forces the external Codex CLI (egress-gated, no fallback)\" | enqueue --lane help | BROKEN | The help string for --lane says \"auto/local prefer the free bench\" but the choices are \"auto\", \"claude\", \"local\", \"local_only\", \"codex\". \"local\" is not documented as preferring free bench.",
+     "CLAIM | \"who queued the request\" | enqueue --source help | KEPT",
+     "CLAIM | \"single routes one task; spawn lets Ikarus decompose and fan out\" | enqueue --strategy help | KEPT",
+     "D1 | interval_s parameter in write_heartbeat | Parameter accepted and never read in this unit. | WRONG CONCLUSION: a caller believes they can tune the heartbeat interval, but it is ignored.",
+     "D4 | The branch `if memory_step != \"pending\" or not _memory_already_recorded(key)` | If memory_step is True, the outer if is skipped, so this branch is only reached when memory_step is not True. However, the condition checks `memory_step != \"pending\"` which is always true when memory_step is not True and not \"pending\"? Actually if memory_step is False or None, the condition is true, so the branch is reachable. No contradiction."
+    ],
+    "todos": [
+     "Fix _write_json_atomic to use a unique temp file name per call to ensure atomicity even with concurrent publishers.",
+     "Update _looks_unfinished docstring to accurately describe what constitutes a partial write and which errors are excused.",
+     "Fix the --lane help string to accurately describe the behavior of each lane choice."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2793798e3e890184530fe46ddcef3eae9290632091dab1e8ff3faa3978c4794b",
+    "objective_chars": 23107,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/file_bridge.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 20594
+ }
+}

@@ -1,0 +1,181 @@
+{
+ "task_id": "scan__daedalus_tools_inventory.py__c1of3__946db82",
+ "key": "scan__daedalus_tools_inventory.py__c1of3__946db82-4105387cbf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 3: defines ToolRecord dataclass, _read_json utility, and partial collect_skills function; includes docstring with scope claims and adversarial review comment about key bug fix.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "collect_skills (line 60+) | medium | Function is incomplete (truncated at line ~118); missing return statement and remainder of logic. | Check full function in next chunk."
+    ],
+    "todos": [
+     "Complete collect_skills function in remaining chunks."
+    ],
+    "handoff": {
+     "module": "daedalus/tools/inventory.py",
+     "chunk": "1 of 3",
+     "purpose": "Define ToolRecord, _read_json, and start collect_skills; document design intent and a fixed bug.",
+     "symbols": [
+      {
+       "name": "INVENTORY_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String constant '1'."
+      },
+      {
+       "name": "SKILL_SCOPES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of (scope, relative_path) for skill directories; project scope has two entries."
+      },
+      {
+       "name": "USER_SKILL_DIRS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of user skill directory paths."
+      },
+      {
+       "name": "MCP_SCOPES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of (scope, path) for MCP config files."
+      },
+      {
+       "name": "ToolRecord",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with fields name, kind, scope, source, verdict, detail; has to_dict method."
+      },
+      {
+       "name": "_read_json",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads JSON file, returns (data, error_string). Errors are returned, not skipped."
+      },
+      {
+       "name": "collect_skills",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Partial implementation; returns list of ToolRecord and list of errors. Includes fix for key collision bug."
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"Derived, never hand-maintained \u2014 regenerate and it is true by construction\"",
+       "where": "docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk generates or regenerates; the claim refers to the module's overall contract, not testable here."
+      },
+      {
+       "text": "\"It does not install, enable, start or route.\"",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "No code in this chunk performs installation, enabling, starting, or routing."
+      },
+      {
+       "text": "\"Project scope wins over user scope on a name collision, and BOTH are reported so a shadowed skill is visible rather than silently absent.\"",
+       "where": "comment on SKILL_SCOPES",
+       "verdict": "kept",
+       "why": "The comment is aspirational; however, the code in collect_skills (lines 100-118) uses a key (name, root) to avoid collapsing same-name skills from different directories, and the loop processes roots in order (project first, then user), so project skills appear first. The claim about reporting both is partially checked: the set ensures both are added if they have different roots. The claim about 'shadowed skill is visible' relies on the order of records, which is not fully verifiable in this chunk but the key fix supports it."
+      },
+      {
+       "text": "\"KEYED ON THE ROOT, not on the scope label.\"",
+       "where": "comment in collect_skills (line 100)",
+       "verdict": "kept",
+       "why": "Line 107: key = (sk.name, str(sroot)) uses root path, not scope label."
+      },
+      {
+       "text": "\"ADVERSARIAL REVIEW 2026-07-30 (Cerberus, high 7). ``SKILL_SCOPES`` labels BOTH ``.claude/skills`` and ``.agentenv/skills`` as 'project', so a skill of the same name in the second directory produced the key that the first had already claimed and was ``continue``d past -- never vetted, never in the inventory, never reported as shadowed. A hostile skill became invisible to the trust gate by choosing a name that already existed.\"",
+       "where": "comment in collect_skills (lines 102-105)",
+       "verdict": "kept",
+       "why": "The comment describes a previous bug; the current code on line 107 uses (name, root) as key, which prevents the described scenario. The bug is fixed."
+      },
+      {
+       "text": "\"The comment above ``SKILL_SCOPES`` says 'BOTH are reported so a shadowed skill is visible rather than silently absent'. This makes that true.\"",
+       "where": "comment in collect_skills (line 106)",
+       "verdict": "kept",
+       "why": "By keying on (name, root), skills with same name but different roots are both added to records. The comment's claim is satisfied for the code present."
+      },
+      {
+       "text": "\"It reads files and returns data.\"",
+       "where": "docstring",
+       "verdict": "kept",
+       "why": "Functions _read_json and collect_skills read files and return data; no other side effects observed."
+      }
+     ],
+     "observations": [
+      {
+       "what": "collect_skills is incomplete; the chunk ends mid-function without return statement.",
+       "where": "line ~118",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring references 'structcore' and 'provider_router' but no imports or usage are present in this chunk.",
+       "where": "docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment on SKILL_SCOPES claims both directories are reported, but the code key fix ensures that; however, the order of records (project first then user) means the first occurrence of a name (project) appears before the user one, which may affect downstream consumers expecting a specific order.",
+       "where": "line 106-107",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The variable 'roots' includes both project and user directories; user directories are added only if include_user is True (default).",
+       "where": "lines 84-87",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5d6cf2aaba7aea778be84c90bb62ddf8a95fcfa0a5f44c7809f1becc768f9aa4",
+    "objective_chars": 5826,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/inventory.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/tools/inventory.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

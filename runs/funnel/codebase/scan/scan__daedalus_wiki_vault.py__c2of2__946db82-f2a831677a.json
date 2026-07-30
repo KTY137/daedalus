@@ -1,0 +1,118 @@
+{
+ "task_id": "scan__daedalus_wiki_vault.py__c2of2__946db82",
+ "key": "scan__daedalus_wiki_vault.py__c2of2__946db82-f2a831677a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of wiki/vault.py: functions discover_vaults and page_tree, constant PROJECT_VAULT_DIR. Claims in docstrings and comments checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/wiki/vault.py",
+     "chunk": "2 of 2",
+     "purpose": "Contains discover_vaults, page_tree, and constant PROJECT_VAULT_DIR.",
+     "symbols": [
+      {
+       "name": "PROJECT_VAULT_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'docs/wiki' indicating where a project vault lives."
+      },
+      {
+       "name": "discover_vaults",
+       "kind": "function",
+       "effects": [
+        "filesystem_read",
+        "repository_mutation"
+       ],
+       "note": "Returns list of Vault objects from repo_root and optional global_root."
+      },
+      {
+       "name": "page_tree",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns nested dict tree from list of page objects, sorted by name."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Where a project vault lives. One place, so a page's address is stable.",
+       "where": "line 296",
+       "verdict": "uncheckable",
+       "why": "The comment asserts stability but the chunk does not define 'page's address' or prove uniqueness."
+      },
+      {
+       "text": "The vaults visible from a project, project first.",
+       "where": "discover_vaults docstring",
+       "verdict": "kept",
+       "why": "The function adds project vault first (if exists), then global vault; order matches 'project first'."
+      },
+      {
+       "text": "The global vault is OPT-IN via an explicit argument rather than a default home-directory path: it lives outside the repo, and everything outside the repo root breaks assumptions the index, the write-confinement rules and the egress lane all make. Until those are answered it must be a deliberate act.",
+       "where": "discover_vaults docstring",
+       "verdict": "kept",
+       "why": "The function only adds global vault if global_root argument is provided and non-None; no default path is used."
+      },
+      {
+       "text": "Nested tree from page paths. Deterministic: every level sorted by name.",
+       "where": "page_tree docstring",
+       "verdict": "kept",
+       "why": "The function sorts pages by rel, and norm function sorts directory keys by name; tree is deterministic."
+      }
+     ],
+     "observations": [
+      {
+       "what": "PROJECT_VAULT_DIR is a constant string but not used inside this chunk (used externally).",
+       "where": "line 295",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "discover_vaults uses repo_root.resolve().name for project vault name; might be misleading if repo_root is not canonical.",
+       "where": "line 310",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "page_tree sorts pages by p.rel, but the sorting key lambda is redundant (sorted already does lexicographic).",
+       "where": "line 322",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d226640b08ee536959b28e59ee93791643d78f578b6d08fbad4033badcc11df",
+    "objective_chars": 2683,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/vault.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/vault.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

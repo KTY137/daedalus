@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b021__946db82",
+ "key": "review__b021__946db82-58d7722af1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All 9 hypotheses refuted: each rests on incomplete chunks, misread code, or missing context that resolves the claimed issue.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "undefined-symbols-across-modules",
+       "verdict": "refuted",
+       "strongest_counterargument": "All cited symbols are imported from other modules (e.g., event_to_transport_record from .events, AttemptResult from .attempt, JournalPosition from .journal, offload_runner and run_attempt from daedalus.spine.attempt, constants CLEAR etc. from daedalus.tools.vet) or defined earlier in the same file outside the chunk. The chunks shown are incomplete; the missing definitions exist in the full source.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Verify that each symbol is imported or defined in the full file (e.g., grep for 'from .events import event_to_transport_record' in subprocess_adapter.py).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "scheduler_missing_arg",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source says 'symbol line NOT PRESENT IN FILE', meaning the hypothesis's evidence (line 369) does not exist in the provided chunk. The chunk is from a different part of the file; args is likely defined earlier via argparse or a similar mechanism, as is standard in CLI scripts.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open the full scheduler.py and check for the definition of 'args' (e.g., 'args = parser.parse_args()') before line 369.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "clone-sort-fragility",
+       "verdict": "refuted",
+       "strongest_counterargument": "The sort key is (-count * loc, -count). If loc is 0, the product is 0, but the secondary key (-count) ensures deterministic ordering for clusters with same count. Since loc is derived from source lines of code (end_line - line + 1), it is always positive for any non-empty code unit. Zero loc would imply a zero-length unit, which is unlikely and would be a separate issue.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the definition of loc in CodeUnit: it is computed as end_line - line + 1, which is >=1 for any valid unit. Confirm no unit can have loc=0.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "determinism-breach",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis provides no evidence that build_forest_hierarchy or carry_temporal_scores are non-deterministic. The docstring claim of determinism is a design intent; actual determinism depends on those functions, which are not shown. Without proof of non-determinism, the claim is unsupported. The graph_brief reference is irrelevant as it is a separate function.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Run semantic_super_sample twice on the same input and compare outputs (e.g., sha256 of the result). If identical, determinism holds.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "output-encoding-claim-broken",
+       "verdict": "refuted",
+       "strongest_counterargument": "The docstring claim 'Output is ASCII-only for a raw Windows console' is a design goal, not a guarantee enforced by the code. The code uses print() directly, which may produce Unicode on non-Windows consoles. However, the hypothesis's evidence that _print_ascii is unused is false: the cited source shows _print_ascii is defined but not called in the chunk, but it could be called elsewhere in the file (e.g., in other functions not in the chunk). The claim of 'certain' is too strong.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Search the full __main__.py for calls to _print_ascii. If it is never called, the docstring is misleading but not a runtime bug.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "allowlist-source-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims READ_ONLY_REPO_VERBS is 'not defined in any scanned module', but the cited source shows it is imported from daedalus.spine.attempt on line 118. The fact that the scanner did not see spine/attempt.py does not mean the constant is missing; it is defined in that module. The import will succeed at runtime if the module exists.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/spine/attempt.py and verify that READ_ONLY_REPO_VERBS is defined (e.g., as a set of git verbs).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "inconsistent-ast-handling",
+       "verdict": "refuted",
+       "strongest_counterargument": "The getattr(ast, 'TypeAlias', None) pattern is a common way to handle optional AST nodes across Python versions; on Python <3.12 it returns None, and isinstance(child, None) is False, so those nodes are skipped. This is intentional: PEP 695 type aliases are only available on 3.12+. The NewType handling: if NewType is called with <2 args, it would raise a runtime error, but that is a caller bug, not a silent failure. In graph_delta.py, the comment 'Qualify by line' is aspirational; the code does not actually qualify by line (it uses node.name only), but this is a documentation bug, not a functional issue. The hypothesis overstates the severity.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Check Python version requirements (e.g., setup.cfg) to see if 3.12+ is required. If so, ast.TypeAlias exists. For graph_delta, run on a file with two same-named methods and see if they are merged (likely a minor issue).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "slice-stub-dependency",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _reverse_edges is NOT a stub: it checks for 'import_edges_reverse' in the index dict, and if missing, falls back to building the reverse map from 'import_edges'. The function is complete and handles both cases. The hypothesis incorrectly calls it a stub.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Read the full _reverse_edges function (lines 116-135) to see it is fully implemented.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "gate-undefined-vars",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source is the first 40 lines of picker.py (the docstring), which does not contain the evidence dict or gate_argv. The hypothesis references variables from chunk 11/25, but the provided chunk is the beginning of the file. window_lines and counted_per_doc are likely defined in earlier chunks (e.g., as local variables in the function that builds the candidate). Without seeing the full function, the claim is unsubstantiated.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open the full picker.py file and search for definitions of 'window_lines' and 'counted_per_doc' to confirm they are defined before use.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8ffa75e8b68b51eb1fe9c88d1b768fa053fe7ef8162fa3a7d589bae91028b1e8",
+    "objective_chars": 49290,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 21 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 21,
+  "inputs": 9
+ }
+}

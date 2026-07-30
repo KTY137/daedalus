@@ -1,0 +1,219 @@
+{
+ "task_id": "scan__daedalus_structcore_clones.py__c3of3__946db82",
+ "key": "scan__daedalus_structcore_clones.py__c3of3__946db82-a19e630519",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of clones.py: implements near_clusters advisory Type-3 detection, safety-path heuristic, and _safety annotation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "near_clusters | medium | Abstracting identifiers to ID can cause false near-clusters for low-entropy code; guards (exclude anonymous, min_shared_rare, max_cluster) are bounds not correctness. | Verify that the guards are sufficient to avoid excessive false positives in practice, e.g., with React/JSX codebases.",
+     "memo.put_abstract_fp | low | Assumption that 'whichever pass runs first pays' may lead to redundant re-abstraction if near_clusters runs before renamed_clusters but both need the fingerprint. | Confirm that renamed_clusters uses memo.get_abstract_fp to avoid re-tokenizing.",
+     "near_clusters | low | The docstring claims abstract fingerprint is 'free' here, but it still tokenizes twice per unit (once for bag, once for afp) as noted in comment. | Consider refactoring to avoid double tokenization.",
+     "near_clusters | low | The comment says 'output is unchanged by construction' but double tokenization could differ if _abstract_tokens has side effects or uses random state. | Verify _abstract_tokens is pure and deterministic.",
+     "near_clusters | low | The threshold float comparison uses >=, but floating-point may cause edge cases. | Ensure threshold comparison is robust (e.g., use math.isclose or tolerance).",
+     "near_clusters | low | The docstring claims clusters are 'Never auto-collapsed' but _safety returns 'judgment-gated \u2014 do NOT auto-collapse' only when safety paths are found; otherwise safety is None. | Clarify if 'Never auto-collapsed' means all near clusters are never auto-collapsed or only those with safety annotation.",
+     "_is_safety_path | medium | The import inside try/except may silently fail if sensitivity module is unavailable, causing paths to be missed. | Ensure GENERIC_HIGH_RISK_PATHS is always importable or handle failure explicitly."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/clones.py",
+     "chunk": "3 of 3",
+     "purpose": "Implements near_clusters advisory Type-3 clone detection, safety-path heuristic, and safety annotation.",
+     "symbols": [
+      {
+       "name": "near_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Advisory Type-3 near-miss clusters using SourcererCC overlap on abstracted token bags; union-find grouping with guards; returns list of cluster dicts."
+      },
+      {
+       "name": "_HEURISTIC",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex matching safety-related path components (e.g., devices, drivers, firmware, kernel, safety, bias, interlock, relay, actuator)."
+      },
+      {
+       "name": "_is_safety_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if path matches safety heuristic or is in GENERIC_HIGH_RISK_PATHS (imported from sensitivity module)."
+      },
+      {
+       "name": "_safety",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with safety annotation if any path in list is safety-related, else {'safety': None}."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Advisory Type-3 (near-miss) clusters: units whose abstracted token bags overlap >= threshold but are NOT identical (exact/renamed cover those).",
+       "where": "near_clusters docstring",
+       "verdict": "kept",
+       "why": "Code filters out identical abstract fingerprints (afps[i] == afps[j]) and uses overlap >= threshold."
+      },
+      {
+       "text": "Overlap is the SourcererCC multiset measure |A\u2229B| / |min(A,B)| on the abstracted bags.",
+       "where": "near_clusters docstring",
+       "verdict": "uncheckable",
+       "why": "The _overlap function is not defined in this chunk, so the claim cannot be verified against this code."
+      },
+      {
+       "text": "Union-find groups transitively similar units; each cluster carries similarity (mean pair overlap) + similarity_max.",
+       "where": "near_clusters docstring",
+       "verdict": "kept",
+       "why": "Code uses union-find (parent, size, find, union) and computes similarity as mean of overlaps, similarity_max as max."
+      },
+      {
+       "text": "Never auto-collapsed (safety-annotated) \u2014 a heuristic, advisory only.",
+       "where": "near_clusters docstring",
+       "verdict": "kept",
+       "why": "Clusters include safety annotation from _safety; comment in _safety says 'do NOT auto-collapse'."
+      },
+      {
+       "text": "abstracting every identifier to ID makes low-entropy code (React/JSX callbacks, thin API wrappers) look near-identical, and transitive union-find then chains such a family into one giant blob.",
+       "where": "near_clusters docstring (PRECISION NOTE)",
+       "verdict": "kept",
+       "why": "Code includes guards to mitigate this: excludes anonymous lambdas, requires min_shared_rare non-ubiquitous tokens, caps cluster size at max_cluster."
+      },
+      {
+       "text": "Three guards keep the signal actionable without changing the metric: (1) inline lambdas (<anonymous>) are excluded; (2) a pair must share >= min_shared_rare NON-ubiquitous tokens (incidental single-token matches don't chain); (3) a cluster stops growing past max_cluster members.",
+       "where": "near_clusters docstring (PRECISION NOTE)",
+       "verdict": "kept",
+       "why": "Code: (1) filters u.name != _ANON; (2) checks len(rare[i] & rare[j]) < min_shared_rare; (3) union caps size[ra] + size[rb] > max_cluster."
+      },
+      {
+       "text": "All three are bounds, not correctness \u2014 a Rust port must mirror them to reproduce the output.",
+       "where": "near_clusters docstring (PRECISION NOTE)",
+       "verdict": "kept",
+       "why": "The guards are implemented as bounds (filters and caps) that affect output; mirroring them is necessary for reproducibility."
+      },
+      {
+       "text": "Abstract ONCE and derive both. token_bag() and abstract_fingerprint() each call _abstract_tokens() internally, so calling both here tokenized the same source twice per unit -- the single largest piece of redundant work in the clone passes.",
+       "where": "near_clusters function body comment",
+       "verdict": "kept",
+       "why": "Code calls _abstract_tokens once to get tokens, then creates bag and afp from that single call; comment explains that previously both functions would re-abstract."
+      },
+      {
+       "text": "Output is unchanged by construction: the bag is the same Counter and the fingerprint comes from the same helper.",
+       "where": "near_clusters function body comment",
+       "verdict": "kept",
+       "why": "Both bag and afp are derived from the same tokens list; no side effects."
+      },
+      {
+       "text": "We tokenized for the bag anyway, so the abstract fingerprint was free here -- donate it so renamed_clusters need not re-abstract the same source. Whichever pass runs first pays; the other rides along.",
+       "where": "near_clusters function body comment",
+       "verdict": "uncheckable",
+       "why": "The claim about renamed_clusters re-using the fingerprint via memo.put_abstract_fp cannot be verified because renamed_clusters is not in this chunk."
+      },
+      {
+       "text": "Rare tokens = those not saturating the corpus (drop ID/NUM/STR/common ops).",
+       "where": "near_clusters function body comment",
+       "verdict": "kept",
+       "why": "Code computes document frequency df, then rare = {t for t in bag if df[t] <= ubiq_cut}, where ubiq_cut = max(3, int(0.4 * n))."
+      },
+      {
+       "text": "cap runaway growth",
+       "where": "near_clusters union function comment",
+       "verdict": "kept",
+       "why": "union function returns early if size[ra] + size[rb] > max_cluster."
+      },
+      {
+       "text": "identical (exact or renamed) -> covered elsewhere",
+       "where": "near_clusters loop comment",
+       "verdict": "uncheckable",
+       "why": "The claim that identical clusters are covered elsewhere (e.g., by exact_clusters or renamed_clusters) cannot be verified from this chunk."
+      },
+      {
+       "text": "only incidental overlap -> not a real near-clone",
+       "where": "near_clusters loop comment",
+       "verdict": "kept",
+       "why": "Code skips pairs with len(rare[i] & rare[j]) < min_shared_rare."
+      },
+      {
+       "text": "component held only cap-skipped edges",
+       "where": "near_clusters loop comment",
+       "verdict": "kept",
+       "why": "Code checks if not overlaps and continues, meaning only edges that were capped (union skipped) resulted in no overlaps."
+      },
+      {
+       "text": "judgment-gated \u2014 do NOT auto-collapse",
+       "where": "_safety function return value comment",
+       "verdict": "kept",
+       "why": "The safety string in the returned dict includes this exact phrase."
+      }
+     ],
+     "observations": [
+      {
+       "what": "near_clusters uses _abstract_tokens once per unit to derive both bag and afp, avoiding double tokenization as noted in comment.",
+       "where": "near_clusters lines ~585-600",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The union-find union function caps cluster growth at max_cluster by returning early if combined size exceeds limit.",
+       "where": "near_clusters union function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The rare token set is computed per unit after filtering out ubiquitous tokens using document frequency with a floor of 3.",
+       "where": "near_clusters lines ~608-610",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _is_safety_path function imports GENERIC_HIGH_RISK_PATHS inside a try/except, which may silently ignore import errors.",
+       "where": "_is_safety_path lines ~645-652",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _safety function returns {'safety': None} if no safety paths found, but the docstring of near_clusters says 'Never auto-collapsed (safety-annotated)'. This could be misinterpreted as all near clusters are safety-annotated.",
+       "where": "_safety return and near_clusters docstring",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The near_clusters function filters out units with name == _ANON (anonymous), which is a guard against low-entropy inline lambdas.",
+       "where": "near_clusters line ~575",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e1933ab0a0a42790ffdefab9ecacd4cb90bd01da36a4b07e876ec1b5f718ef6e",
+    "objective_chars": 6674,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/clones.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/clones.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

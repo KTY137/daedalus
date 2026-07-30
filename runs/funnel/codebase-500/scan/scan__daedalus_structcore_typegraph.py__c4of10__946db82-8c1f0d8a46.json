@@ -1,0 +1,240 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c4of10__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c4of10__946db82-8c1f0d8a46",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of typegraph.py: defines _Outcome, TypeGraph.to_index_blocks(), and _Resolver class with __init__ and _dotted/_view methods.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_Resolver._view | medium | Uses 'importer' as key, but 'importer' is a file path? The method expects a string but the docstring says 'dotted module name' for return keys; naming may be inconsistent. | Check if all callers pass file paths (rel) and if the return keys are indeed dotted module names.",
+     "_Resolver.__init__ | low | The '_imports' field sorts and deduplicates targets but the original order may be meaningful. | Confirm that sorting does not break any downstream dependency ordering.",
+     "TypeGraph.to_index_blocks | low | The method returns a dict with keys 'types', 'type_nodes', 'type_edges'; the docstring mentions 'excluded_from' list but does not explain why 'type_nodes' and 'type_edges' are separate. | Verify that consumers expect this exact structure.",
+     "_Resolver._view | high | The method adds an alias for dotted names ending with '.__init__' by stripping the suffix; this may cause collisions with a real 'pkg.py' file. The comment acknowledges this but the code does not handle it. | Check if the project forbids having both 'pkg.py' and 'pkg/__init__.py'.",
+     "_Resolver._dotted | medium | Falls back to '_py_dotted(rel)' on exception; '_py_dotted' is not defined in this chunk. | Ensure '_py_dotted' is defined elsewhere and behaves as expected."
+    ],
+    "todos": [
+     "Verify that all callers of _Resolver._view pass a valid 'importer' (file path) and that the return keys are dotted module names.",
+     "Confirm that the sorting of import targets in __init__ does not break any ordering assumptions.",
+     "Check if the project allows both 'pkg.py' and 'pkg/__init__.py' and whether the collision handling in _view is sufficient.",
+     "Ensure '_py_dotted' function is defined and imported in this module."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "4 of 10",
+     "purpose": "Define _Outcome, TypeGraph.to_index_blocks(), and _Resolver class with initialization and helper methods.",
+     "symbols": [
+      {
+       "name": "_Outcome",
+       "kind": "class",
+       "effects": [],
+       "note": "NamedTuple with fields kind, target, candidates."
+      },
+      {
+       "name": "TypeGraph",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass with nodes, edges, coverage, counts fields. to_index_blocks method returns dict with types, type_nodes, type_edges."
+      },
+      {
+       "name": "TypeGraph.to_index_blocks",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns dict with keys 'types', 'type_nodes', 'type_edges'. The 'types' dict includes enabled, parse_version, graph_version, counts, coverage, excluded_from list."
+      },
+      {
+       "name": "_Resolver",
+       "kind": "class",
+       "effects": [],
+       "note": "Two-pass resolver for annotation names to type node ids. Initialized with tbf, facts_by_rel, imports_by_file, naming."
+      },
+      {
+       "name": "_Resolver._dotted",
+       "kind": "method",
+       "effects": [],
+       "note": "Converts rel to dotted name using self._naming.name, falls back to _py_dotted."
+      },
+      {
+       "name": "_Resolver._view",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns mapping of dotted module name to rel for imports of a given importer. Caches result in self._views."
+      },
+      {
+       "name": "_Outcome.kind",
+       "kind": "constant",
+       "effects": [],
+       "note": "NamedTuple field."
+      },
+      {
+       "name": "_Outcome.target",
+       "kind": "constant",
+       "effects": [],
+       "note": "NamedTuple field, default ''."
+      },
+      {
+       "name": "_Outcome.candidates",
+       "kind": "constant",
+       "effects": [],
+       "note": "NamedTuple field, default ()."
+      },
+      {
+       "name": "TypeGraph.nodes",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field, default ()."
+      },
+      {
+       "name": "TypeGraph.edges",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field, default None."
+      },
+      {
+       "name": "TypeGraph.coverage",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field, default None."
+      },
+      {
+       "name": "TypeGraph.counts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Field, default None."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``nodes`` is sorted by id.",
+       "where": "TypeGraph docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk only defines the field with default empty tuple; no sorting logic is shown."
+      },
+      {
+       "text": "``edges`` maps every relation name in ``RELATIONS`` (always present, possibly empty) to a tuple of ``{\"source\", \"target\", \"attributes\"}`` rows sorted by ``(source, target, canonical attributes)``.",
+       "where": "TypeGraph docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines edges as a Mapping but no code showing the mapping or sorting is present."
+      },
+      {
+       "text": "Nothing here is a file node, nothing here is a ``CodeUnit``, and nothing here belongs in ``modules``.",
+       "where": "TypeGraph docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define file nodes, CodeUnit, or modules; cannot verify."
+      },
+      {
+       "text": "The three gated ``extra`` keys, ready to splice into the index dict.",
+       "where": "to_index_blocks docstring",
+       "verdict": "kept",
+       "why": "The method returns a dict with keys 'types', 'type_nodes', 'type_edges' which are the three extra keys."
+      },
+      {
+       "text": "Stage 3 publishes these verbatim under a ``types_on`` gate.",
+       "where": "to_index_blocks docstring",
+       "verdict": "uncheckable",
+       "why": "No reference to 'types_on' gate in this chunk; cannot verify."
+      },
+      {
+       "text": "The ``excluded_from`` list is spelled out for the same reason the documents block spells out its own: a consumer who sees a type layer in the index and zero type nodes in ``hotspots`` must be able to read WHY here instead of inferring a clean bill of health.",
+       "where": "to_index_blocks docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk includes the excluded_from list but does not show the documents block or consumer behavior."
+      },
+      {
+       "text": "Annotation-name -> type node id, or a refusal with a reason.",
+       "where": "_Resolver docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk defines the class but does not show the resolution logic (no method that returns an _Outcome)."
+      },
+      {
+       "text": "Constructed AFTER every declaration in the repo is registered, so it is two-pass by construction and a forward reference is not a special case.",
+       "where": "_Resolver docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the construction context or the two-pass mechanism."
+      },
+      {
+       "text": "This is the \"reuse the import edges, do not recompute them\" step.",
+       "where": "_Resolver._view docstring",
+       "verdict": "kept",
+       "why": "The method uses self._imports which is built from imports_by_file, reusing import edges."
+      },
+      {
+       "text": "The candidate set is the file's own import targets (plus itself), so a resolved type edge always sits on top of an import edge that ``index.py`` already published; a module this file does not import cannot supply a type to it even if the dotted name would match.",
+       "where": "_Resolver._view docstring",
+       "verdict": "kept",
+       "why": "The method filters rels to those in {importer, *self._imports.get(importer, ())} and then checks if rel is in self._facts."
+      },
+      {
+       "text": "``pkg/__init__.py`` is named ``pkg.__init__`` by the naming table, but ``from pkg import Thing`` spells the package ``pkg``. Both spellings name the same file, so accepting both is not a guess -- and if a real ``pkg.py`` also exists, the two candidates collide and the name is refused below rather than tie-broken.",
+       "where": "_Resolver._view docstring",
+       "verdict": "kept",
+       "why": "The code adds an alias by stripping '.__init__' suffix, and the view construction only keeps dotted names with exactly one candidate rel (len(set(rels))==1), so collisions cause exclusion."
+      }
+     ],
+     "observations": [
+      {
+       "what": "TypeGraph.to_index_blocks returns a dict with keys 'types', 'type_nodes', 'type_edges'. The 'types' dict includes 'excluded_from' list. No sorting of nodes or edges is visible in this chunk.",
+       "where": "line 377-400",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Resolver._view uses 'importer' as a key for self._views and self._imports; the docstring says 'dotted module name' for return keys but the method expects a string (likely a file path).",
+       "where": "line 427-450",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_Resolver._view adds an alias for dotted names ending with '.__init__' by stripping the suffix; this may cause collisions with a real 'pkg.py' file. The comment acknowledges this but the code does not handle it.",
+       "where": "line 440-442",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Resolver._dotted falls back to '_py_dotted(rel)' on exception; '_py_dotted' is not defined in this chunk.",
+       "where": "line 415-418",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Resolver.__init__ sorts import targets in '_imports' field; original order may be lost.",
+       "where": "line 409-411",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "33217e6726b95d87662f6793c35e393e559492fec58e97d5f7dc846148f36a2b",
+    "objective_chars": 5848,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [4/10]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 4,
+  "total": 10,
+  "first_line": 361
+ }
+}

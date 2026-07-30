@@ -1,0 +1,136 @@
+{
+ "task_id": "research__b053__946db82",
+ "key": "research__b053__946db82-09651fb738",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals unverifiable process tree killing, mutable env dicts, missing forbidden arg validation, and untracked artifact paths as common unenforced guarantees.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Process tree killing may not be robust across all platforms (ManagedProcess.cancel() not verified).",
+     "Mutable environment dict returned by council_env could be mutated by callers, breaking isolation.",
+     "FORBIDDEN_ARG_FRAGMENTS defined but never enforced in run_managed or CouncilProfile.",
+     "Artifact persistence (attempt.py) relies on caller-chosen paths that may bypass security checks.",
+     "Drift detection references constants and modules not present in the scanned chunks, risking incomplete implementation."
+    ],
+    "todos": [
+     "Verify ManagedProcess.cancel() implementation for tree kill.",
+     "Enforce immutability of council_env return value or document mutation responsibility.",
+     "Add validation of FORBIDDEN_ARG_FRAGMENTS in run_managed or CouncilProfile.",
+     "Review _persist_to_store implementation for path safety and security fences.",
+     "Confirm drift.py constants (UNREACHED_CLASSES, etc.) are defined elsewhere and consistent."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unverified-tree-kill",
+       "claim": "Multiple modules claim to kill subprocess trees on timeout, but the actual mechanism (ManagedProcess.cancel()) is not visible in any scanned chunk, creating a systematic blind spot.",
+       "spans": [
+        "vendors.py",
+        "attempt.py"
+       ],
+       "mechanism": "vendors.py's run_managed relies on ManagedProcess.cancel() for tree kill on timeout; attempt.py's _run_gates catches exceptions but does not show how subprocesses are managed. Neither chunk reveals the tree-kill implementation.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If a scanned chunk includes the code for ManagedProcess.cancel() or demonstrates tree killing via process groups/jobs, this hypothesis is refuted.",
+       "evidence": [
+        "vendors.py:run_managed docstring claims tree kill on timeout via ManagedProcess.cancel()",
+        "vendors.py:run_managed observation: 'run_managed uses ManagedProcess and relies on its cancel() for tree kill; not verifiable in this chunk'",
+        "attempt.py:_run_gates catches Exception but no subprocess management shown"
+       ]
+      },
+      {
+       "id": "mutable-env-isolation",
+       "claim": "council_env returns a mutable dict that callers could modify, breaking the claimed 'never set, never mutated' guarantee for subprocess environments.",
+       "spans": [
+        "vendors.py"
+       ],
+       "mechanism": "council_env creates a copy of os.environ, removes OLLAMA_HOST, and returns a plain dict. No immutability wrapper is applied; callers can modify it before passing to subprocess.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If council_env returns an immutable mapping (e.g., types.MappingProxyType) or if all callers are verified to never mutate the result, this hypothesis is refuted.",
+       "evidence": [
+        "vendors.py:council_env returns a mutable dict; docstring claims 'never set, never mutated'",
+        "vendors.py:council_env observation: 'council_env returns a mutable dict; docstring claims it is never mutated but no immutability enforced'"
+       ]
+      },
+      {
+       "id": "unused-forbidden-args",
+       "claim": "FORBIDDEN_ARG_FRAGMENTS is defined but never enforced in run_managed or CouncilProfile, leaving a gap in security validation of council subprocess arguments.",
+       "spans": [
+        "vendors.py"
+       ],
+       "mechanism": "FORBIDDEN_ARG_FRAGMENTS is a tuple of strings; no code in the scanned chunk checks council argv against it. The docstring claims it is forbidden, but no validation exists.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If a scanned chunk shows FORBIDDEN_ARG_FRAGMENTS being used in a validation check (e.g., in run_managed or CouncilProfile), this hypothesis is refuted.",
+       "evidence": [
+        "vendors.py:FORBIDDEN_ARG_FRAGMENTS defined but not used in this chunk",
+        "vendors.py:observation: 'FORBIDDEN_ARG_FRAGMENTS is defined but not used in this chunk; no validation in run_managed or CouncilProfile'"
+       ]
+      },
+      {
+       "id": "drift-constants-unchecked",
+       "claim": "drift.py's documentation references constants (UNREACHED_CLASSES, TEST_ONLY, MIN_DOC_DESC_CHARS, GENERATED_DOCS) that are not defined in any scanned chunk, risking incomplete or inconsistent drift detection.",
+       "spans": [
+        "drift.py"
+       ],
+       "mechanism": "drift.py's docstring describes logic relying on these constants, but the scanned chunk contains only documentation. If these constants are defined elsewhere but inconsistent, drift detection will be flawed.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If a scanned chunk from another module defines these constants and they are consistent with drift.py's expectations, this hypothesis is refuted.",
+       "evidence": [
+        "drift.py:docstring references :data:UNREACHED_CLASSES, :data:TEST_ONLY, :data:MIN_DOC_DESC_CHARS, :data:GENERATED_DOCS",
+        "drift.py:observation: 'The documentation makes multiple references to constants ... that are not present in this chunk'"
+       ]
+      },
+      {
+       "id": "artifact-path-security",
+       "claim": "attempt.py's _persist_to_store accepts a caller-chosen path without visible security checks, potentially allowing writes to sensitive locations despite module-level claims of safety.",
+       "spans": [
+        "attempt.py"
+       ],
+       "mechanism": "_persist_to_store's docstring warns about 'caller-chosen path' and claims a fence runs before store creation, but no implementation or fence code is visible in the scanned chunk.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the full _persist_to_store implementation is visible in another chunk and includes path validation (e.g., checking against allowed prefixes), this hypothesis is refuted.",
+       "evidence": [
+        "attempt.py:_persist_to_store docstring: 'THE ONE PLACE THIS MODULE WRITES A CALLER-CHOSEN PATH'",
+        "attempt.py:_persist_to_store docstring: 'The fence still runs BEFORE the store can create a directory.'",
+        "attempt.py:_persist_to_store observation: 'Docstring of _persist_to_store contains extensive claims about past security issues and current safeguards; many are uncheckable'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fad94ad77488c65ad73ca00f922d9f5d39bf29155d66c7727cac2f0e36925d0f",
+    "objective_chars": 19767,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 53 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 53,
+  "inputs": 4
+ }
+}

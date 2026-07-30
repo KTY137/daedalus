@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/mapping/switches.py#c2of2#5eb1702d",
+ "key": "daedalus_mapping_switches.py_c2of2_5eb1702d-153adcbfc5",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 1 broken, 0 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"DARK requires unanimity on the default (every site reads it as off) plus at least one site with no fallback\" | _reconcile | BROKEN | L7: checks any(s.dark for s in real) but dark does not require 'no fallback'; a site can have a default and still be dark if it's a registry site",
+     "CLAIM | \"A variable that is off at one site and defaulted at another is MIXED, never dark\" | _reconcile | KEPT | states check ensures dark is False if states != {\"OFF\"}",
+     "CLAIM | \"sites.append(EnvSite(...))\" for registry-declared env keys | _registry_env_keys | KEPT | code matches description",
+     "CLAIM | \"the lane reports unconfigured until it is set\" | _registry_env_keys | KEPT | gates string says that",
+     "CLAIM | \"_param_switches returns [] for private functions\" | _param_switches | KEPT | returns [] if name starts with '_'",
+     "CLAIM | \"_param_switches returns [] for nested helpers\" | _param_switches | KEPT | returns [] if ancestor is FunctionDef",
+     "CLAIM | \"_flatten skips keys starting with underscore\" | _flatten | KEPT | checks str(key).startswith(\"_\")",
+     "CLAIM | \"_documented_names returns env-shaped names in docs\" | _documented_names | KEPT | uses _DOC_ENV_FORMS and filters",
+     "CLAIM | \"_augment_documented counts a bare doc mention as documentation\" | _augment_documented | KEPT | adds mentioned names for read names",
+     "CLAIM | \"_drift uses strict token-subsequence pairs\" | _drift | KEPT | uses _is_subsequence and checks first token equality",
+     "D1 | retry_s | parameter defined in _write_json_atomic (not in this chunk) but not read | WRONG CONCLUSION: not applicable (not in unit)",
+     "D2 | _config_switches: except (json.JSONDecodeError, ValueError): continue | the comment says refuse, fail-closed, or must not; but code swallows | WRONG CONCLUSION: a caller might believe parsing errors are reported",
+     "D3 | _augment_documented: docstring says 'Count a bare doc mention as documentation for names the code truly reads' but the check runs after documented is already computed, no side effect ordering issue | WRONG CONCLUSION: none",
+     "D4 | _drift: for doc_name in sorted(doc_names): for read_name in sorted(read): if doc_name == read_name: continue; then a, b = _tokens(doc_name), _tokens(read_name); if len(a) == len(b): continue; short, long = (a, b) if len(a) < len(b) else (b, a); if short[0] != long[0] or not _is_subsequence(short, long): continue; if doc_name in read and read_name in doc_names: continue; This condition cannot be true because doc_name is from doc_names and read_name is from read; doc_name in read and read_name in doc_names is possible if both sets overlap, but the condition is correct | WRONG CONCLUSION: none"
+    ],
+    "todos": [
+     "Fix _reconcile dark condition: change 'any(s.dark for s in real)' to also require at least one site with no fallback (i.e., default_literal is None and default == '<required>' or similar)"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e89ad7b73f6e0334491002781b84e1a5a266d6b1681c0f1e168b6f521e5482ca",
+    "objective_chars": 19278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 15 kept, 3 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"_flatten: `_comment` keys are prose, not switches\" | _flatten | KEPT | code skips keys starting with underscore",
+     "CLAIM | \"_config_switches: `sources` includes projects/*.json\" | _config_switches | KEPT | code adds projects/*.json",
+     "CLAIM | \"_config_switches: `sources` includes *settings*.json and config.json from root\" | _config_switches | KEPT | code adds those files",
+     "CLAIM | \"_config_switches: filters out non-dict payloads\" | _config_switches | KEPT | code checks isinstance(payload, dict)",
+     "CLAIM | \"_config_switches: flattens nested dicts\" | _config_switches | KEPT | calls _flatten",
+     "CLAIM | \"_config_switches: gate is True for bool or off values\" | _config_switches | KEPT | code sets gate = isinstance(value, bool) or off",
+     "CLAIM | \"_config_switches: sorts output by (source, key)\" | _config_switches | KEPT | code sorts by (c.source, c.key)",
+     "CLAIM | \"_documented_names: returns dict of name -> path:line\" | _documented_names | KEPT | code returns found",
+     "CLAIM | \"_documented_names: only includes names with underscore and matching _ENV_TOKEN\" | _documented_names | KEPT | code checks '_' in name and _ENV_TOKEN.fullmatch",
+     "CLAIM | \"_mentioned_names: returns every env-shaped token\" | _mentioned_names | KEPT | code uses _ENV_TOKEN.finditer",
+     "CLAIM | \"_augment_documented: counts bare doc mentions for names the code reads\" | _augment_documented | KEPT | code adds mentioned sites to documented if name not already documented",
+     "CLAIM | \"_is_subsequence: returns True if short is subsequence of long\" | _is_subsequence | KEPT | code uses iterator membership check",
+     "CLAIM | \"_drift: generates documented_never_read for doc names not in read\" | _drift | KEPT | code iterates doc_names - read",
+     "CLAIM | \"_drift: generates read_never_documented for read names not in doc_names\" | _drift | KEPT | code iterates read - doc_names",
+     "CLAIM | \"_drift: near-miss pairs require different lengths and subsequence with same first token\" | _drift | KEPT | code checks len(a)!=len(b), short[0]==long[0], _is_subsequence",
+     "CLAIM | \"_reconcile: DARK requires unanimity on state OFF plus at least one dark site\" | _reconcile | BROKEN | line: dark=states=={'OFF'} and any(s.dark for s in real) \u2014 dark is True even if all sites are registry (via='registry') and dark=False, because real filters out registry sites; but comment says 'at least one site with no fallback' which is not checked",
+     "CLAIM | \"_reconcile: MIXED state when states > 1\" | _reconcile | KEPT | code sets state='MIXED' when len(states) != 1",
+     "CLAIM | \"analyse: drops documented names that are const_names and not in by_name\" | analyse | BROKEN | line: documented.pop(name, None) \u2014 pop returns the value, but the loop iterates over sorted(const_names - set(by_name)), and then documented.pop(name, None) removes the key; however, the docstring says 'dropped before drift is computed', but the variable `documented` is mutated after `_augment_documented` is called, so the drop happens after augmentation, not before. The order is: _augment_documented(documented, mentioned, set(by_name)) then the loop. So augmentation may have already used the name, and then it's popped, which could cause inconsistency. But the claim is 'drops documented names that are const_names and not in by_name' \u2014 the code does drop them, so the claim is KEPT? Actually, the claim says 'dropped before drift is computed', but the drop happens after augmentation but before drift. The code does drop them, but the order relative to augmentation is wrong. The claim is about dropping, which is done. But the docstring says 'dropped before drift is computed' and that is true because drift is computed after the loop. So the claim is kept. However, the order of augmentation and dropping is reversed compared to what a reader might expect, but the claim only says 'dropped before drift is computed', which is true. So KEPT. But I need to re-evaluate: the docstring says 'Names the code defines as module constants and never reads from the environment are dropped before drift is computed.' The code does: _augment_documented(...) then loop to drop. So dropping happens after augmentation, but still before drift. So claim is KEPT. No broken here."
+    ],
+    "todos": [
+     "In _reconcile, change dark condition to also require that at least one real site has no fallback (i.e., site.default_literal is None and site.default != 'None'? Actually check for site.via != 'registry' and site.default == '<required>' or similar). Or adjust comment to match code."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e89ad7b73f6e0334491002781b84e1a5a266d6b1681c0f1e168b6f521e5482ca",
+    "objective_chars": 19278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 7 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"DARK requires unanimity on the default (every site reads it as off) plus at least one site with no fallback\" | _reconcile | BROKEN | dark=states=={\"OFF\"} and any(s.dark for s in real) does not require any site with no fallback (i.e., default_literal is None); it only checks any(s.dark), which is set in site creation but not equivalent to \"no fallback\".",
+     "D: none"
+    ],
+    "todos": [
+     "In _reconcile, change the dark condition to: states == {\"OFF\"} and any(s.default_literal is None for s in real)"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e89ad7b73f6e0334491002781b84e1a5a266d6b1681c0f1e168b6f521e5482ca",
+    "objective_chars": 19278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/mapping/switches.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 16760
+ }
+}

@@ -1,0 +1,325 @@
+{
+ "task_id": "scan__daedalus_structcore_dss.py__c1of4__946db82",
+ "key": "scan__daedalus_structcore_dss.py__c1of4__946db82-760e1669f2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of 4 of daedalus/structcore/dss.py: module docstring, constants, helper functions, dataclasses, and build_forest_hierarchy/restrict_scores.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/dss.py",
+     "chunk": "1 of 4",
+     "purpose": "Define DSS module: constants, helpers, hierarchy dataclasses, hierarchy builder, and score restrictor.",
+     "symbols": [
+      {
+       "name": "DSS_SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'daedalus-dss/0'"
+      },
+      {
+       "name": "HIERARCHY_SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'daedalus-dss-hierarchy/0'"
+      },
+      {
+       "name": "RECEIPT_SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'daedalus-dss-receipt/0'"
+      },
+      {
+       "name": "REPOSITORY_NODE_ID",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'repo:.'"
+      },
+      {
+       "name": "FILE_NODE_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of kinds considered files: 'source_file', 'file', 'document'"
+      },
+      {
+       "name": "_canonical_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes value to sorted-key JSON bytes"
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "SHA-256 hex digest of canonical JSON"
+      },
+      {
+       "name": "_finite_non_negative",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates finite non-negative float"
+      },
+      {
+       "name": "_score_rows",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts scores dict to sorted tuple of (node_id, score) with score>0"
+      },
+      {
+       "name": "_score_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts iterable of (node_id, score) to dict"
+      },
+      {
+       "name": "_normalise_max",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes scores by dividing by max"
+      },
+      {
+       "name": "_canonical_file_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns safe relative POSIX path from forest node ID"
+      },
+      {
+       "name": "HierarchyNode",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a node in the DSS hierarchy"
+      },
+      {
+       "name": "HierarchyNode.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of node"
+      },
+      {
+       "name": "ForestHierarchy",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing the full hierarchy"
+      },
+      {
+       "name": "ForestHierarchy.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict representation of hierarchy"
+      },
+      {
+       "name": "ForestHierarchy.content_sha256",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning SHA-256 digest of to_dict"
+      },
+      {
+       "name": "ForestHierarchy.root",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning root node"
+      },
+      {
+       "name": "ForestHierarchy.node_map",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict mapping node id to node"
+      },
+      {
+       "name": "ForestHierarchy.file_node_map",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict mapping forest_node_id to node for file nodes"
+      },
+      {
+       "name": "ForestHierarchy.children_map",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict mapping parent id to sorted tuple of children"
+      },
+      {
+       "name": "build_forest_hierarchy",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds ForestHierarchy from KnowledgeForest"
+      },
+      {
+       "name": "restrict_scores",
+       "kind": "function",
+       "effects": [],
+       "note": "Restricts file scores to ancestors by summation"
+      },
+      {
+       "name": "Prolongation",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for coarse-to-fine traversal data; only file_scores shown, rest truncated"
+      }
+     ],
+     "claims": [
+      {
+       "text": "DSS borrows the coarse-to-fine idea from multigrid and temporal reconstruction, not any graphics implementation.",
+       "where": "module docstring, line 2",
+       "verdict": "uncheckable",
+       "why": "No code references multigrid or temporal reconstruction; claim is conceptual."
+      },
+      {
+       "text": "Version zero deliberately contains no learned interpolation, hidden-state transport, differentiable program space, or diffeomorphic claim",
+       "where": "module docstring, lines 3-4",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements or mentions those features; claim is about absence."
+      },
+      {
+       "text": "source files form leaves in a deterministic repository/directory hierarchy",
+       "where": "module docstring, line 5",
+       "verdict": "kept",
+       "why": "build_forest_hierarchy creates hierarchy with file nodes as leaves; FILE_NODE_KINDS defines source files."
+      },
+      {
+       "text": "seed relevance is restricted upwards and prolonged through a bounded number of high-scoring branches",
+       "where": "module docstring, line 6",
+       "verdict": "partially kept",
+       "why": "restrict_scores restricts scores upwards (to ancestors). Prolongation is defined but its bounded traversal is not implemented in this chunk."
+      },
+      {
+       "text": "each evidence relation diffuses in its own channel",
+       "where": "module docstring, line 7",
+       "verdict": "uncheckable",
+       "why": "No evidence relation or diffusion code in this chunk."
+      },
+      {
+       "text": "previous scores may be carried by exact IDs or explicit rename evidence",
+       "where": "module docstring, line 8",
+       "verdict": "uncheckable",
+       "why": "No score carry or rename evidence code in this chunk."
+      },
+      {
+       "text": "the fused ranking is packed into a token budget",
+       "where": "module docstring, line 9",
+       "verdict": "uncheckable",
+       "why": "No packing or token budget code in this chunk."
+      },
+      {
+       "text": "every input and decision is represented by a content-addressed receipt.",
+       "where": "module docstring, line 10",
+       "verdict": "uncheckable",
+       "why": "No receipt code in this chunk."
+      },
+      {
+       "text": "The module is dependency-free and read-only.",
+       "where": "module docstring, line 12",
+       "verdict": "kept",
+       "why": "Imports only from standard library and .forest module; no writes or side effects observed."
+      },
+      {
+       "text": "It selects context; it never changes source code and never treats a relevance score as a fitness signal.",
+       "where": "module docstring, line 12",
+       "verdict": "kept",
+       "why": "No mutation of source code; scores are used for selection only."
+      },
+      {
+       "text": "document is here because the defect this feature exists to fix is a SELECTION defect: a task specified entirely in a 3592-line markdown architecture document got a context plan of three TypeScript files, because the specification was not a node the selector could see. A document that is indexed but unselectable fixes nothing.",
+       "where": "comment before FILE_NODE_KINDS, lines 32-37",
+       "verdict": "uncheckable",
+       "why": "Historical motivation; no code verifies this."
+      },
+      {
+       "text": "type and field are DELIBERATELY ABSENT, and adding them is not a completion of this set, it is a defect.",
+       "where": "comment before FILE_NODE_KINDS, line 39",
+       "verdict": "kept",
+       "why": "FILE_NODE_KINDS does not include 'type' or 'field'."
+      },
+      {
+       "text": "A document has bytes on disk; a type node is a derived assertion about a region of a file that is already a node.",
+       "where": "comment before FILE_NODE_KINDS, lines 40-41",
+       "verdict": "uncheckable",
+       "why": "Claim about forest node semantics; not verifiable in this chunk."
+      },
+      {
+       "text": "Admit it here and it becomes a hierarchy leaf, a legal seed and a budget candidate -- at which point _estimated_tokens falls through to its loc * 8 fallback and invents a token cost for something no reader can read, while the file that actually holds the declaration may be dropped for lack of budget.",
+       "where": "comment before FILE_NODE_KINDS, lines 41-44",
+       "verdict": "uncheckable",
+       "why": "Refers to _estimated_tokens and budget logic not present in this chunk."
+      },
+      {
+       "text": "Type evidence RE-SCORES file nodes; it is never itself the thing shipped to a model. forest.py's module docstring carries the full argument, including the measured 2-hop blow-up that keeps these relations out of diffusion as well (see _relation_adjacencies).",
+       "where": "comment before FILE_NODE_KINDS, lines 44-46",
+       "verdict": "uncheckable",
+       "why": "Refers to code in forest.py not present in this chunk."
+      },
+      {
+       "text": "Input keys are authoritative Forest node IDs. Output keys are hierarchy IDs. Unknown source IDs are rejected so a typo cannot silently alter the branch selection.",
+       "where": "docstring of restrict_scores, lines 177-180",
+       "verdict": "kept",
+       "why": "restrict_scores uses files dict from file_node_map(); raises KeyError for unknown IDs."
+      }
+     ],
+     "observations": [
+      {
+       "what": "build_forest_hierarchy raises ValueError if two forest node IDs map to same canonical path.",
+       "where": "build_forest_hierarchy, lines 153-156",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "restrict_scores raises KeyError for unknown forest file IDs.",
+       "where": "restrict_scores, line 191",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Prolongation dataclass is defined but incomplete in this chunk; only file_scores field visible.",
+       "where": "Prolongation, line 204",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "FILE_NODE_KINDS includes 'source_file', 'file', and 'document'; excludes 'type' and 'field' as documented.",
+       "where": "FILE_NODE_KINDS, line 48",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Module imports from .forest (KnowledgeForest) but that dependency is not in this chunk; module is not fully dependency-free.",
+       "where": "import line 23",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5b82b42fb991e0aae5ab62e5396e562c37116092cdc6a416975ce2478c4c2d7a",
+    "objective_chars": 10442,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/dss.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/dss.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

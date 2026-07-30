@@ -1,0 +1,115 @@
+{
+ "task_id": "scan__daedalus_kairos_orchestrate.py__c1of1__946db82",
+ "key": "scan__daedalus_kairos_orchestrate.py__c1of1__946db82-1083457e2b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/kairos/orchestrate.py (chunk 1/1): 3 public symbols, 0 docstrings, 3 checkable claims in comments, all kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/orchestrate.py",
+     "chunk": "1 of 1",
+     "purpose": "Task preparation and CLI entry point for orchestrating user tasks with Codex/Claude collaboration.",
+     "symbols": [
+      {
+       "name": "_infer_paths",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private function; infers file paths from text by checking existence relative to repo_root."
+      },
+      {
+       "name": "prepare_task",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Main task preparation: resolves repo root, loads project, infers paths, routes task, collects status, appends memory event, optionally enqueues Claude request."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry point with argparse; calls prepare_task and prints JSON result."
+      }
+     ],
+     "claims": [
+      {
+       "text": "how the watcher may execute the queued task",
+       "where": "line 97 (help for --lane)",
+       "verdict": "uncheckable",
+       "why": "The help string describes the purpose of the lane parameter, but the behavior of the watcher is not defined in this file."
+      },
+      {
+       "text": "single routes one task; spawn lets Ikarus decompose and fan out",
+       "where": "line 104 (help for --strategy)",
+       "verdict": "uncheckable",
+       "why": "The help string describes the behavior of 'spawn' strategy involving Ikarus, but Ikarus is not referenced elsewhere in this chunk."
+      },
+      {
+       "text": "who is preparing this task",
+       "where": "line 101 (help for --source)",
+       "verdict": "kept",
+       "why": "The help string accurately describes the --source argument's purpose; the argument is used in prepare_task as 'source' parameter."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _infer_paths filters tokens containing '/' or '\\' or a dot in the filename, then checks existence.",
+       "where": "lines 19-31",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "prepare_task calls append_event with a MemoryEvent of kind 'user_task' and stores the returned record.",
+       "where": "lines 39-52",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Claude enqueue is conditional on ask_claude flag; the queued_path is the string representation of the enqueue result.",
+       "where": "lines 54-65",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e618062785655e5fa0e48d9943c7333fbbcf4b8b23cdb22e0deb4c000d6c7a69",
+    "objective_chars": 4492,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/orchestrate.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/orchestrate.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

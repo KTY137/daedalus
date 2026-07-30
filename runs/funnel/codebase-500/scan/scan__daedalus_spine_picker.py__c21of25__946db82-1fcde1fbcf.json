@@ -1,0 +1,130 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c21of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c21of25__946db82-1fcde1fbcf",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 21/25 of daedalus/spine/picker.py: handles inventory source, eval_baseline, eval_gate, and hotspot source modes with candidate collection and notes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "eval_gate handling | medium | 'include_eval' variable usage: when eval_gate_mode is 'enabled' but include_eval is False, the gate is disabled with a reason. This may be intended but could surprise users if they expect eval to run. | Check if include_eval is always set appropriately.",
+     "hotspot handling | medium | 'include_hotspots' variable usage: similar pattern to eval_gate, may be inconsistent if include_hotspots is not set. | Verify that include_hotspots is always defined.",
+     "inventory freshness | low | 'enforce_inventory_freshness' variable: if False, stale inventory is used; comment says 'FAIL CLOSED' but actually fails open in that case. | Confirm intended behavior."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "21 of 25",
+     "purpose": "Process inventory, eval_baseline, eval_gate, and hotspot source modes, collecting candidates and notes.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "FAIL CLOSED. Letting a snapshot of a different tree drive these bands means working from a repo that no longer exists.",
+       "where": "comment at line ~2426",
+       "verdict": "broken",
+       "why": "The code actually fails open: if enforce_inventory_freshness is False, candidates are added even when inventory is stale. The comment says FAIL CLOSED but the logic does the opposite."
+      },
+      {
+       "text": "Regenerate INVENTORY_REL_PATH, or pass --stale-inventory to rank it anyway.",
+       "where": "comment at line ~2430",
+       "verdict": "uncheckable",
+       "why": "INVENTORY_REL_PATH is not defined in this chunk; --stale-inventory is not referenced in code."
+      },
+      {
+       "text": "disabled by repo-local picker_sources.eval_baseline",
+       "where": "sources['eval_baseline']['reason'] at line ~2456",
+       "verdict": "kept",
+       "why": "When baseline_mode is 'disabled', the reason string matches exactly."
+      },
+      {
+       "text": "picker_sources.eval_baseline must be enabled or disabled",
+       "where": "sources['eval_baseline']['error'] at line ~2461",
+       "verdict": "kept",
+       "why": "When baseline_mode is 'invalid', the error string matches."
+      },
+      {
+       "text": "disabled by repo-local picker_sources.eval_gate",
+       "where": "sources['eval_gate']['reason'] at line ~2482",
+       "verdict": "kept",
+       "why": "When eval_gate_mode is 'disabled', reason matches."
+      },
+      {
+       "text": "picker_sources.eval_gate must be enabled or disabled",
+       "where": "sources['eval_gate']['error'] at line ~2488",
+       "verdict": "kept",
+       "why": "When eval_gate_mode is 'invalid', error matches."
+      },
+      {
+       "text": "opt-in (--eval); a full Tier-1 replay",
+       "where": "sources['eval_gate']['reason'] at line ~2510",
+       "verdict": "uncheckable",
+       "why": "The claim about --eval and Tier-1 replay is not verifiable from this chunk."
+      },
+      {
+       "text": "disabled by repo-local picker_sources.hotspots",
+       "where": "sources['hotspots']['reason'] at line ~2517",
+       "verdict": "kept",
+       "why": "When hotspot_mode is 'disabled', reason matches."
+      },
+      {
+       "text": "picker_sources.hotspots must be enabled or disabled",
+       "where": "sources['hotspots']['error'] at line ~2523",
+       "verdict": "kept",
+       "why": "When hotspot_mode is 'invalid', error matches."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Comment claims 'FAIL CLOSED' but code allows stale inventory when enforce_inventory_freshness is False.",
+       "where": "lines ~2426-2430",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "INVENTORY_REL_PATH referenced in comment but not defined in this chunk.",
+       "where": "line ~2430",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Logic for eval_gate and hotspots uses include_eval and include_hotspots variables; their source is not in this chunk.",
+       "where": "lines ~2490-2508 and ~2526-2540",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0cf04b2942de542a103f0479b72289f144eeb8ec2cf1fce2555d2d184fc334fa",
+    "objective_chars": 5679,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [21/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 21,
+  "total": 25,
+  "first_line": 2401
+ }
+}

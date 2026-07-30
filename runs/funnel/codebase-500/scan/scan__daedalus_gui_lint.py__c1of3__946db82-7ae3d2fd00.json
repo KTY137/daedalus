@@ -1,0 +1,171 @@
+{
+ "task_id": "scan__daedalus_gui_lint.py__c1of3__946db82",
+ "key": "scan__daedalus_gui_lint.py__c1of3__946db82-7ae3d2fd00",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of 3 of lint.py: module docstring, utility functions, Metric dataclass, and start of analyse() function. 5 public symbols, 1 constant, 3 functions, 1 dataclass. 7 claims checked, 4 kept, 3 uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "BANNED_FACES | low | Hardcoded list of banned faces may become outdated; no mechanism for updates visible in this chunk. | Check if there is a configuration file or update mechanism elsewhere."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/gui/lint.py",
+     "chunk": "1 of 3",
+     "purpose": "Compute accessibility and quality metrics from DOM/CSSOM capture data.",
+     "symbols": [
+      {
+       "name": "BANNED_FACES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of font family names considered as generated defaults."
+      },
+      {
+       "name": "_looks_like_identifier",
+       "kind": "function",
+       "effects": [],
+       "note": "Heuristic to detect if text is a leaked internal identifier (non-empty, <60 chars, contains underscore, no spaces unless starts with JSON)."
+      },
+      {
+       "name": "_lum",
+       "kind": "function",
+       "effects": [],
+       "note": "Compute relative luminance of an RGB color using sRGB coefficients."
+      },
+      {
+       "name": "contrast_ratio",
+       "kind": "function",
+       "effects": [],
+       "note": "Compute WCAG contrast ratio between two RGB colors."
+      },
+      {
+       "name": "Metric",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding a single measurement with key, value, unit, tier, note, and offenders list."
+      },
+      {
+       "name": "_sel",
+       "kind": "function",
+       "effects": [],
+       "note": "Generate a CSS-like selector string from element dict (tag.class@x,y)."
+      },
+      {
+       "name": "_is_panel",
+       "kind": "function",
+       "effects": [],
+       "note": "Check if element is a 'panel' (bordered, min 56x24)."
+      },
+      {
+       "name": "_contains",
+       "kind": "function",
+       "effects": [],
+       "note": "Check if rect a strictly contains rect b."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Main entry point; processes capture dict and returns dict with metrics."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Reads a capture from ``probe.js`` and computes metrics over the DOM/CSSOM.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No reference to probe.js or capture format beyond 'cap' dict; claim refers to external file not present."
+      },
+      {
+       "text": "No pixels are inspected; every number here is derived from geometry and computed style.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Code uses element geometry (x,y,w,h, fontSize, fontWeight, fg, bgEff) and computed style; no pixel manipulation."
+      },
+      {
+       "text": "Tier A metrics (contrast, overflow, target size, banned faces) measure things that are true or false.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Chunk shows only contrast and overflow; target size and banned faces are not implemented in this chunk."
+      },
+      {
+       "text": "Tier B metrics are PROXIES for a judgement no rule can make.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No Tier B metrics are defined in this chunk; claim refers to functionality not present."
+      },
+      {
+       "text": "Every metric returns its count AND the elements behind it, so a disagreement is inspectable instead of arguable.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Metric dataclass has 'offenders' list; analyse() appends element info to contrast_failures and small_targets."
+      },
+      {
+       "text": "Thresholds are stamped ASSUMED until the corpus is large enough to earn MEASURED.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "No thresholds are defined in this chunk; claim is consistent with absence."
+      },
+      {
+       "text": "stdlib only, by design: the capture needs a browser, the rules must not.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Imports only from stdlib (json, math, collections, dataclasses, pathlib)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring claims to compute metrics over DOM/CSSOM, but only geometry and computed style are used; no CSSOM access visible.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "analyse() is incomplete in this chunk; it defines only horizontal_overflow, contrast_failures, and small_targets. Missing Tier A (banned faces) and all Tier B metrics.",
+       "where": "line ~end of chunk",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "BANNED_FACES list hardcoded; no mechanism for updates or configuration visible.",
+       "where": "line BANNED_FACES",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8f22d5862675c1dea5b60fa55fa3c5841f9f2cbb0695572be3c52ef9c7223898",
+    "objective_chars": 5057,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/gui/lint.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/gui/lint.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

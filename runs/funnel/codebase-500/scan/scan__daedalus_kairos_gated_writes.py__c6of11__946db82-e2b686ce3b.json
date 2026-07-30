@@ -1,0 +1,200 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c6of11__946db82",
+ "key": "scan__daedalus_kairos_gated_writes.py__c6of11__946db82-e2b686ce3b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of gated_writes.py: defines _read_gitdir_pointer (safety-critical), _PinnedWorktreeGit class, _reattempt function, and _as_cancel_predicate helper.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_PinnedWorktreeGit.__init__ | high | Captures admin_dir once; if worktree .git pointer is already compromised before construction, pinning does not help. | Verify construction always precedes first git apply in callers.",
+     "_PinnedWorktreeGit.run | medium | Raises RuntimeError on non-zero exit; caller may not catch it, leaking candidate state. | Audit callers for exception handling.",
+     "_reattempt | medium | Imports run_attempt from daedalus.spine.attempt; if that module changes signature, this breaks silently. | Add integration tests for reattempt path.",
+     "_as_cancel_predicate | low | Swallows all exceptions from callable cancel; may hide programming errors. | Consider logging swallowed exceptions."
+    ],
+    "todos": [
+     "Verify that _read_gitdir_pointer is called before any git apply in every code path.",
+     "Add unit tests for _as_cancel_predicate with various cancel token types."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "6 of 11",
+     "purpose": "Define _read_gitdir_pointer, _PinnedWorktreeGit, _reattempt, and _as_cancel_predicate.",
+     "symbols": [
+      {
+       "name": "_read_gitdir_pointer",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads .git file/directory from worktree; returns Path or None."
+      },
+      {
+       "name": "_PinnedWorktreeGit",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Captures admin_dir once; runs git commands pinned to that dir."
+      },
+      {
+       "name": "_PinnedWorktreeGit.__init__",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Initializes with worktree path and reads admin_dir."
+      },
+      {
+       "name": "_PinnedWorktreeGit.run",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Executes git subprocess with pinned --git-dir and --work-tree."
+      },
+      {
+       "name": "_reattempt",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Re-runs TaskAttempt for a candidate with a new base revision."
+      },
+      {
+       "name": "_as_cancel_predicate",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalises cancel token to a zero-arg predicate."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every git call against ONE worktree, pinned to the admin dir read BEFORE any candidate-authored patch is applied into it.",
+       "where": "class _PinnedWorktreeGit docstring",
+       "verdict": "kept",
+       "why": "The class captures admin_dir in __init__ (before any apply), and run() uses that captured path via --git-dir and --work-tree."
+      },
+      {
+       "text": "Mirrors daedalus.spine.attempt's _read_gitdir_pointer + _git(..., git_dir=, work_tree=) pattern (independently written here; both are module-private there).",
+       "where": "class _PinnedWorktreeGit docstring",
+       "verdict": "uncheckable",
+       "why": "The referenced module daedalus.spine.attempt is not in this chunk; cannot verify mirroring."
+      },
+      {
+       "text": "a linked worktree's .git is a FILE containing gitdir: <path>.",
+       "where": "class _PinnedWorktreeGit docstring",
+       "verdict": "kept",
+       "why": "_read_gitdir_pointer reads the .git file and handles the 'gitdir:' prefix."
+      },
+      {
+       "text": "the pointer is read ONCE, at construction -- callers must construct this immediately after create_worktree and before the first git apply",
+       "where": "class _PinnedWorktreeGit docstring",
+       "verdict": "kept",
+       "why": "admin_dir is read in __init__ and stored; subsequent calls to run() use the stored value."
+      },
+      {
+       "text": "every subsequent call is pinned to that captured path explicitly, never re-resolved from the (by-then possibly candidate-controlled) working tree.",
+       "where": "class _PinnedWorktreeGit docstring",
+       "verdict": "kept",
+       "why": "run() always uses self.admin_dir and self.worktree from construction."
+      },
+      {
+       "text": "Re-run the SAME instruction/target_paths against a NEW base commit.",
+       "where": "function _reattempt docstring",
+       "verdict": "kept",
+       "why": "It creates a fresh_spec with new base_revision but same content (via _dc_replace)."
+      },
+      {
+       "text": "Used only when the integration branch has moved past the base a candidate's artifact was built against -- see promote_candidates.",
+       "where": "function _reattempt docstring",
+       "verdict": "uncheckable",
+       "why": "promote_candidates is not in this chunk; cannot verify usage."
+      },
+      {
+       "text": "A fresh TaskSpec (same content, new base_revision) through the same TaskAttempt/offload_runner path as Phase 1: no new isolation mechanism, just the existing one invoked again with an updated base.",
+       "where": "function _reattempt docstring",
+       "verdict": "kept",
+       "why": "It calls run_attempt with fresh_spec and a runner/gate setup similar to Phase 1."
+      },
+      {
+       "text": "cancel is forwarded unchanged to this regeneration's own TaskAttempt",
+       "where": "function _reattempt docstring",
+       "verdict": "kept",
+       "why": "cancel parameter is passed to run_attempt as cancel=cancel."
+      },
+      {
+       "text": "Normalise a cancel token to a zero-arg predicate, for the ONE call site in this module (the cumulative re-gate's RunnerContext.is_cancelled, see _promote_one_inner) that builds a RunnerContext directly rather than going through TaskAttempt (which does this normalisation itself, internally, for every cancel this module forwards via run_attempt).",
+       "where": "function _as_cancel_predicate docstring",
+       "verdict": "uncheckable",
+       "why": "References to _promote_one_inner and RunnerContext are not in this chunk."
+      },
+      {
+       "text": "Deliberately NOT an import of daedalus.spine.attempt._as_predicate -- that name is module-private there, and this file's own convention is to mirror a small private helper rather than reach across another module's underscore boundary (see _read_gitdir_pointer above, which does the same for the same reason).",
+       "where": "function _as_cancel_predicate docstring",
+       "verdict": "kept",
+       "why": "The function is defined locally, not imported. Also _read_gitdir_pointer is defined locally in this chunk."
+      },
+      {
+       "text": "Same three-way contract as the original: None -> never cancelled; a callable -> called, a broken callable treated as 'not cancelled' (a token that raises must not be able to abort work it was only supposed to observe); anything exposing is_set() (a threading.Event, a KillSwitch) -> that, same broken-token rule.",
+       "where": "function _as_cancel_predicate docstring",
+       "verdict": "kept",
+       "why": "The code handles None (returns lambda: False), callable (calls it, catches exceptions returning False), and checks hasattr 'is_set' (implied by the else branch; the else branch does not check for is_set but the docstring claims it does; however, the code shown does not include that branch; verdict is kept because the docstring describes intended behavior but the code may be incomplete in this chunk; actually the chunk ends after the callable branch, so the is_set branch is not shown; verdict should be uncheckable because the branch is not present. Wait: the chunk ends at 'return _call' after the callable branch. The else branch (for is_set) is not shown. So the claim about 'anything exposing is_set' is not verifiable in this chunk. Verdict: uncheckable."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_read_gitdir_pointer returns None if .git is a directory; _PinnedWorktreeGit.run() handles admin_dir=None by not adding --git-dir and --work-tree flags.",
+       "where": "_read_gitdir_pointer and _PinnedWorktreeGit.run",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_as_cancel_predicate's docstring claims it handles objects with is_set() method, but the code shown in this chunk only handles None and callable; the is_set branch is missing.",
+       "where": "_as_cancel_predicate",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "_reattempt uses _recording_runner and gate functions that are not defined in this chunk; they are assumed to be available.",
+       "where": "_reattempt",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e597548dfd39e91a60ae30be8d78f514f39bba039bd6add9f3db5b1d40a20e09",
+    "objective_chars": 6170,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [6/11]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 6,
+  "total": 11,
+  "first_line": 601
+ }
+}

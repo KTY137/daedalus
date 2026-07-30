@@ -1,0 +1,131 @@
+{
+ "task_id": "scan__daedalus_structcore_cycles.py__c1of2__946db82",
+ "key": "scan__daedalus_structcore_cycles.py__c1of2__946db82-cf26457e83",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 2 of cycles.py: defines SCC algorithm and module docstring with audit findings. Public symbols: strongly_connected_components. Claims about cycle detection gap, stdlib-only, iterative, deterministic, and ordering are checked; some are uncheckable due to missing code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1 module docstring | medium | Claims about structcore's lack of cycle detection and audit findings are uncheckable; no evidence in this chunk. | Provide the rest of the file or related source files.",
+     "line 1 module docstring | low | Claim 'Deliberately stdlib-only and iterative' is partially checkable: no imports beyond stdlib and iterative algorithm, but full verification needs entire file. | Review entire file for any non-stdlib imports or recursion.",
+     "line 28 docstring of strongly_connected_components | low | Claim 'Ordering is total and content-derived: by descending size, then lexicographically' is uncheckable because the sorting of components is not in this chunk (likely in caller or later code). | Provide the rest of the function or the sorting logic."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/cycles.py",
+     "chunk": "1 of 2",
+     "purpose": "Define strongly_connected_components function and document the motivation for cycle detection.",
+     "symbols": [
+      {
+       "name": "strongly_connected_components",
+       "kind": "function",
+       "effects": [],
+       "note": "Iterative Tarjan's algorithm returning tuple of sorted components."
+      }
+     ],
+     "claims": [
+      {
+       "text": "structcore had **no cycle detection at all**.",
+       "where": "module docstring, line 3",
+       "verdict": "uncheckable",
+       "why": "No code from structcore is provided to verify this claim."
+      },
+      {
+       "text": "``topology.spectral_partition`` builds ``nx.Graph()`` and labels itself 'undirected projection of directed import edges'. It discards DIRECTION, which is the only thing a cycle is made of.",
+       "where": "module docstring, line 8-9",
+       "verdict": "uncheckable",
+       "why": "No code for topology.spectral_partition is present in this chunk."
+      },
+      {
+       "text": "``graph.py``'s ``seen = {rel}`` -- a cycle *guard*, so a walk terminates. Not a detector.",
+       "where": "module docstring, line 10",
+       "verdict": "uncheckable",
+       "why": "No code for graph.py is present."
+      },
+      {
+       "text": "Deliberately stdlib-only and iterative",
+       "where": "module docstring, line 16",
+       "verdict": "uncheckable",
+       "why": "Only imports are from typing and __future__; no non-stdlib imports yet, but the rest of the file could introduce them. Iterative algorithm is confirmed for this function but not for others."
+      },
+      {
+       "text": "deterministic, because these outputs get committed to receipts and diffed between runs. Set iteration order is not a basis for a receipt.",
+       "where": "module docstring, line 20-21",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk shows output ordering or receipts; the function uses sorted() which is deterministic."
+      },
+      {
+       "text": "Every SCC of the directed graph, largest first, each sorted.",
+       "where": "strongly_connected_components docstring, line 28",
+       "verdict": "uncheckable",
+       "why": "The function returns tuple of tuples, but sorting by size and lexicographic order is not implemented in this chunk; likely done later or in caller."
+      },
+      {
+       "text": "Nodes are every key plus every target, so a module that is only ever imported still appears -- a leaf is a component of one, and omitting it would make the component count depend on which side of an edge a module happens to sit.",
+       "where": "strongly_connected_components docstring, line 30-33",
+       "verdict": "kept",
+       "why": "The code collects nodes from both keys and their targets (lines 45-52), ensuring all nodes appear."
+      },
+      {
+       "text": "Ordering is total and content-derived: by descending size, then lexicographically by the component's own members.",
+       "where": "strongly_connected_components docstring, line 35-36",
+       "verdict": "uncheckable",
+       "why": "The function returns a tuple but does not sort components in this chunk; sorting must happen elsewhere."
+      },
+      {
+       "text": "Tarjan's algorithm, iterative.",
+       "where": "strongly_connected_components docstring, line 29",
+       "verdict": "kept",
+       "why": "The implementation uses an explicit stack (work list) and avoids recursion."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring contains detailed audit findings about structcore's lack of cycle detection, but no supporting code is present in this chunk.",
+       "where": "lines 1-23",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function strongly_connected_components is partially implemented; it collects nodes and performs iterative Tarjan but the component sorting (descending size, lexicographic) is not visible.",
+       "where": "lines 28-93",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "79837a04709066be206084a4ffc8079eb63cd608e7ac2eed034ad2df772ab306",
+    "objective_chars": 5353,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/cycles.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/cycles.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

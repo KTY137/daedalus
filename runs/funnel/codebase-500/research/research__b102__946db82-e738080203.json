@@ -1,0 +1,132 @@
+{
+ "task_id": "research__b102__946db82",
+ "key": "research__b102__946db82-e738080203",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals that three reports rely on external functions not present in any scanned chunk, creating a chain of unverifiable contracts. The persistence layer assumes in-place mutation, the switch inventory cannot verify its own claims, and the slice module depends on unimplemented or external components. This suggests a systemic gap in contract enforcement across module boundaries.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Persistence contract relies on in-place mutation (confirm_task) that is not verified; if confirm_task returns a new dict instead of mutating, the confirmation is lost silently.",
+     "Switch inventory module makes broad claims about enumerating env vars, entry points, and config keys, but the scanned chunk only defines constants and a dataclass, leaving the core analysis unimplemented or in other chunks.",
+     "Slice module's _reverse_edges is a stub; the callers map is assumed to be precomputed by build_index, but that contract is not enforced or visible.",
+     "Token counting fallback (chars/4) may produce systematically flattering reduction ratios, as documented, but callers may not surface the exact_flag properly."
+    ],
+    "todos": [
+     "Verify that confirm_task mutates the task dict in-place; if not, refactor confirm_minted_task to use the return value.",
+     "Ensure that the switch inventory module's core analysis functions are present in other chunks and actually implement the docstring claims.",
+     "Complete _reverse_edges implementation or enforce that build_index provides the required precomputed data.",
+     "Surface whole_repo_tokens_exact flag in all callers to avoid misleading reduction ratios."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "in-place-mutation-assumption",
+       "claim": "The persistence layer (mint.py) assumes that confirm_task mutates the task dict in-place, but this contract is not enforced across modules; if confirm_task returns a new dict, the mutation is lost.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "external: confirm_task"
+       ],
+       "mechanism": "confirm_minted_task loads tasks list, finds task by id, calls confirm_task(task) assuming it modifies task in-place, then saves the entire list. If confirm_task returns a new dict instead, the original list is unchanged and the confirmation is not persisted.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Observation that confirm_task's signature returns None or that its implementation mutates the passed dict in-place (e.g., by setting a 'confirmed' field).",
+       "evidence": [
+        "daedalus/eval/mint.py:confirm_minted_task line 749"
+       ]
+      },
+      {
+       "id": "unimplemented-switch-analysis",
+       "claim": "The switch inventory module (switches.py) claims to enumerate env vars, entry points, config keys, and doc analysis, but the scanned chunk only contains constants and a dataclass; the core analysis functions are missing, making the module's stated purpose unverifiable.",
+       "spans": [
+        "daedalus/mapping/switches.py"
+       ],
+       "mechanism": "The module docstring describes a comprehensive analysis (env var reads, entry points, config keys, doc coverage) but the scanned chunk (1/10) only defines token sets and EnvSite. The actual scanning logic must reside in later chunks not scanned.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Presence of scanning functions like scan_env_vars, analyze_entry_points, etc. in other chunks of switches.py.",
+       "evidence": [
+        "daedalus/mapping/switches.py:module docstring",
+        "daedalus/mapping/switches.py:EnvSite class"
+       ]
+      },
+      {
+       "id": "slice-stub-dependency",
+       "claim": "The slice module (slice.py) depends on a precomputed callers map from build_index, but _reverse_edges is a stub; the contract that build_index provides import_edges_reverse is not enforced.",
+       "spans": [
+        "daedalus/structcore/slice.py",
+        "external: build_index"
+       ],
+       "mechanism": "_reverse_edges is intended to return callers map, but its body is incomplete. The module docstring states that build_index ships this precomputed as import_edges_reverse. If build_index does not provide this field, the slice will fail or produce incorrect results.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Observation that _reverse_edges is completed in a later chunk or that build_index always provides import_edges_reverse.",
+       "evidence": [
+        "daedalus/structcore/slice.py:_reverse_edges stub"
+       ]
+      },
+      {
+       "id": "token-ratio-misleading",
+       "claim": "The token reduction ratio in semantic_slice may be systematically flattering when tiktoken is absent because the denominator uses chars/4 (under-counts source code) while the numerator uses the same heuristic or a different tokenizer, leading to an overstated reduction.",
+       "spans": [
+        "daedalus/structcore/slice.py",
+        "daedalus/tokens (not scanned)"
+       ],
+       "mechanism": "_whole_repo_tokens uses total_chars // 4 as fallback when index lacks total_tokens. estimate_tokens uses count_tokens which may also fall back to chars/4. If numerator and denominator use different tokenization methods, the ratio is inconsistent. The docstring warns this but callers may not surface the exact_flag.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that count_tokens always uses tiktoken when installed, and that total_tokens is always present in the index, or that the exact_flag is always surfaced and acted upon.",
+       "evidence": [
+        "daedalus/structcore/slice.py:_whole_repo_tokens",
+        "daedalus/structcore/slice.py:estimate_tokens"
+       ]
+      },
+      {
+       "id": "document-skeleton-contract",
+       "claim": "The slice module's _skeleton delegates to markdown.document_skeleton with an invariant that the result is never larger than the raw document, but this invariant is not enforced and the module cannot verify it.",
+       "spans": [
+        "daedalus/structcore/slice.py",
+        "daedalus/markdown (not scanned)"
+       ],
+       "mechanism": "_skeleton calls markdown_mod.document_skeleton for documents, claiming the result is never larger than the raw document. If document_skeleton violates this (e.g., by adding headers), the slice may be larger than expected.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Observation that document_skeleton's implementation ensures non-increasing size, or that _skeleton checks the invariant.",
+       "evidence": [
+        "daedalus/structcore/slice.py:_skeleton"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8b1e1530c707a2ad5f585ede2e3dd058a36ee5426c819f8428d1637beea5c68a",
+    "objective_chars": 22965,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 102 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 102,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,221 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c4of5__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c4of5__946db82-8210c68538",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of typegraph.py: pass 2 resolution, edge emission, structural matching, hub capping, and coverage reporting.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "emit function | medium | The comment says 'An Enum member is a VALUE, not a typed field: parse.py forces its annotation to \"\" precisely so no member->type edge can be fabricated for it, and ``emit`` will count it as missing.' This claim is uncheckable because the chunk does not include the parse.py logic; we cannot verify that annotation is forced to \"\" for Enum members.",
+     "structural matching | medium | The comment says 'structural (Protocol) matching: a FLAGGED heuristic'. The heuristic uses `_member_names` and checks `wanted <= members[node_id]`. The correctness depends on `_member_names` implementation outside this chunk; uncheckable.",
+     "hub capping | medium | The comment says 'hub cap (I6): measured, applied, and published'. The code suppresses edges for targets exceeding `hub_cap` but the variable `hub_cap` is not defined in this chunk; uncheckable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "4 of 5",
+     "purpose": "Second pass: resolve annotations, emit edges for all relations, perform structural protocol matching, apply hub cap, and compute coverage statistics.",
+     "symbols": [
+      {
+       "name": "record",
+       "kind": "function",
+       "effects": [],
+       "note": "Records outcome kind and samples unresolved/ambiguous annotations."
+      },
+      {
+       "name": "emit",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves one annotation slot, updates site_counts, and appends edges to the edges dict if resolved."
+      },
+      {
+       "name": "edges",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping relation names to lists of edge dicts."
+      },
+      {
+       "name": "site_counts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary tracking site-level counts (total, annotated, missing, etc.)."
+      },
+      {
+       "name": "cov",
+       "kind": "constant",
+       "effects": [],
+       "note": "Coverage dictionary for parameters, returns, fields, bases, and functions."
+      },
+      {
+       "name": "unresolved_sample",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of unresolved annotation samples."
+      },
+      {
+       "name": "ambiguous_sample",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of ambiguous annotation samples."
+      },
+      {
+       "name": "counters",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary counting outcomes (RESOLVED, UNRESOLVED, AMBIGUOUS, etc.)."
+      },
+      {
+       "name": "resolver",
+       "kind": "constant",
+       "effects": [],
+       "note": "_Resolver instance used to resolve annotations."
+      },
+      {
+       "name": "structural_matches",
+       "kind": "constant",
+       "effects": [],
+       "note": "Count of structural inheritance matches found."
+      },
+      {
+       "name": "overmatched",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of protocol nodes that exceeded STRUCTURAL_MAX_MATCHES."
+      },
+      {
+       "name": "fan_in",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping target node IDs to sets of reference strings for hub detection."
+      },
+      {
+       "name": "hubs",
+       "kind": "constant",
+       "effects": [],
+       "note": "Sorted list of hub target IDs exceeding hub_cap."
+      },
+      {
+       "name": "hub_set",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of hub target IDs for fast lookup."
+      },
+      {
+       "name": "suppressed",
+       "kind": "constant",
+       "effects": [],
+       "note": "Count of edges suppressed by hub cap."
+      },
+      {
+       "name": "lang_report",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary indicating language support (only Python supported)."
+      },
+      {
+       "name": "coverage",
+       "kind": "constant",
+       "effects": [],
+       "note": "Aggregated coverage dictionary with all counts, samples, and hub info."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``class C(Base, metaclass=M)`` -- parse.py keeps keyword arguments in ``bases`` as written. A metaclass is not a base and must not become an ``inherits`` edge.",
+       "where": "line 841 (comment within loop)",
+       "verdict": "kept",
+       "why": "The code explicitly checks `if \"=\" in base.split(\"[\", 1)[0]: continue`, which skips bases containing '=' (like metaclass=M). This matches the claim."
+      },
+      {
+       "text": "An Enum member is a VALUE, not a typed field: parse.py forces its annotation to \"\" precisely so no member->type edge can be fabricated for it, and ``emit`` will count it as missing.",
+       "where": "line 841 (comment near field_type emit)",
+       "verdict": "uncheckable",
+       "why": "The claim about parse.py forcing annotation to \"\" for Enum members cannot be verified because the chunk does not include parse.py. The code does emit a site with `raw=decl.annotation`, but we cannot check if that annotation is forced to \"\" for Enum members."
+      },
+      {
+       "text": "structural (Protocol) matching: a FLAGGED heuristic",
+       "where": "line 841 (comment before structural matching block)",
+       "verdict": "kept",
+       "why": "The code implements a heuristic: it collects member names via `_member_names`, computes `wanted` for protocols, and finds nodes with superset of those members. The comment accurately describes the approach."
+      },
+      {
+       "text": "Told us nothing: the whole match set is dropped rather than truncated, because the first N of an arbitrary set is a guess.",
+       "where": "line 841 (comment inside structural matching)",
+       "verdict": "kept",
+       "why": "When `len(matches) > STRUCTURAL_MAX_MATCHES`, the code does not add any matches for that protocol (no `for node_id in matches` iteration). The match set is entirely dropped, as claimed."
+      },
+      {
+       "text": "hub cap (I6): measured, applied, and published",
+       "where": "line 841 (comment before hub cap code)",
+       "verdict": "uncheckable",
+       "why": "The code measures fan_in, identifies hubs, suppresses edges, and includes hub info in coverage. However, the variable `hub_cap` is not defined in this chunk; its value and the condition `if hub_cap` cannot be verified. The claim is partially checkable but depends on external definition."
+      },
+      {
+       "text": "NEVER a numeric 0: the tree-sitter path has no class/field vocabulary, so \"we did not look\" must not read as \"we looked and found none\". Stufe 1 is Python only.",
+       "where": "line 841 (comment in lang_report construction)",
+       "verdict": "kept",
+       "why": "For non-Python languages, the code sets `lang_report[lang] = \"not_supported\"` (a string), not a numeric 0. The comment correctly explains the rationale."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The `emit` function updates `site_counts` but does not update `cov` counts; `cov` is updated separately in the loops that call `emit`. This is consistent with the structure.",
+       "where": "lines 841 (emit function and loops)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The structural matching uses `_member_names` function which is not defined in this chunk; its behavior is uncheckable.",
+       "where": "line 841 (structural matching block)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The hub capping logic relies on `hub_cap` and `_CAPPED_RELATIONS` which are not defined in this chunk; their values and correctness cannot be verified.",
+       "where": "line 841 (hub cap block)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The `coverage` dictionary includes `edges_before_hub_cap` which is computed before hub capping, but the variable `raw_by_relation` is defined and used correctly.",
+       "where": "line 841 (coverage construction)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2200ddf286b18716023cd02f6e17b69a19540efe44625fade4d4d82d23fd0d7e",
+    "objective_chars": 13069,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

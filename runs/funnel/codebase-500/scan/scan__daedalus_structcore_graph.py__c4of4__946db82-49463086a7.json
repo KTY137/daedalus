@@ -1,0 +1,132 @@
+{
+ "task_id": "scan__daedalus_structcore_graph.py__c4of4__946db82",
+ "key": "scan__daedalus_structcore_graph.py__c4of4__946db82-49463086a7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of 4 of daedalus/structcore/graph.py: contains function docstring and implementation for reachability calculation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 361 | medium | Docstring claims fenced modules are excluded, but code uses fenced_fragment to define fenced set; fenced_fragment not defined in chunk. | Verify fenced_fragment implementation in same module or imported file.",
+     "line 375 | medium | Docstring claims multi-source BFS over forward edges from fenced set; code uses reverse logic (forward edges from fenced, but comment says 'reverse graph' earlier). | Clarify direction of edges in idx['import_edges'] and ensure consistency.",
+     "line 386 | low | Sorting frontier and nodes may impact performance; docstring mentions O(V*E) concern but sorting adds O(V log V). | Confirm performance requirements.",
+     "line 396 | low | Comment about guardrail failing toward disable is not enforced in code; behavior depends on caller. | Check how fraction=0.0 is handled by guardrail logic."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/graph.py",
+     "chunk": "4 of 4",
+     "purpose": "Implement reachability calculation for fenced modules.",
+     "symbols": [
+      {
+       "name": "fenced_fragment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Referenced but not defined in this chunk; used to determine if a node is fenced."
+      },
+      {
+       "name": "candidates",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Set of nodes not in fenced set."
+      },
+      {
+       "name": "escalated",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "List of candidate nodes reachable from fenced set."
+      }
+     ],
+     "claims": [
+      {
+       "text": "DENOMINATOR CHOICE (deliberate): already-fenced modules are excluded.",
+       "where": "line 361-374",
+       "verdict": "kept",
+       "why": "Code computes candidates = nodes - fenced, excluding fenced nodes from denominator."
+      },
+      {
+       "text": "Computed as ONE multi-source BFS over the forward edges from the fenced set",
+       "where": "line 375-378",
+       "verdict": "kept",
+       "why": "Code initializes frontier = sorted(fenced) and performs BFS using forward edges from fwd dictionary."
+      },
+      {
+       "text": "a module reaches a fenced node in the reverse graph exactly when it is reachable from a fenced node in the forward graph",
+       "where": "line 376",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define 'reverse graph' or verify equivalence; BFS uses forward edges from fenced nodes, which finds nodes reachable from fenced, not nodes that reach fenced."
+      },
+      {
+       "text": "not V separate BFS runs -- the router calls this on every task and O(V*E) on a 7k-file repo is not something a fence may cost.",
+       "where": "line 377-378",
+       "verdict": "uncheckable",
+       "why": "Performance claim about router calls and repo size cannot be verified from this chunk alone."
+      },
+      {
+       "text": "No non-fenced candidates -> 0.0, which keeps the guard ON. A guardrail that fails toward 'disable the fence' is the wrong failure.",
+       "where": "line 396-398",
+       "verdict": "kept",
+       "why": "Code returns fraction=0.0 when candidates list is empty."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Docstring describes multi-source BFS over forward edges from fenced set; code implements BFS using fwd dictionary.",
+       "where": "lines 361-390",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Function fenced_fragment is referenced but not defined in this chunk; its behavior is critical to correctness.",
+       "where": "line 383",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The BFS uses sorted() on frontier and nodes; sorting may have performance implications.",
+       "where": "lines 385, 389, 394",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "08c5421ec204eecf7f538dfc7348b4ab88de97f3466079aff8f1e04142cec465",
+    "objective_chars": 2236,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/graph.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/graph.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 361
+ }
+}

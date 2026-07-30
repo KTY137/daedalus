@@ -1,0 +1,275 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c7of8__946db82",
+ "key": "scan__daedalus_eval_harness.py__c7of8__946db82-c17f4ff0c3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 7 of 8: tier2 loop, baseline snapshot/write functions. Symbols: resolve_task_repo, cached_index, _whole_repo_text, count_tokens, semantic_slice, _ask, _score, load_baseline, snapshot_baseline, write_baseline. Claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "snapshot_baseline | medium | Calls run_tier1 which is not in this chunk; error handling for run_tier1 failures not visible. | Check if run_tier1 exceptions are caught or propagate.",
+     "write_baseline | medium | Writes file but no exception handling for write failures. | Add try/except or confirm caller handles errors.",
+     "DEFAULT_BASELINE_PATH | low | Uses os.path.dirname(os.path.abspath(__file__)) which resolves at import time; if module is moved, path may be stale. | Verify baseline.json location after file moves."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "7 of 8",
+     "purpose": "Tier2 evaluation loop and baseline management (load, snapshot, write).",
+     "symbols": [
+      {
+       "name": "cap_tokens",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Set to 5000 but not used; cap_chars = cap_tokens * 4 is used."
+      },
+      {
+       "name": "idx_cache",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "dict used to cache indices per repo."
+      },
+      {
+       "name": "whole_cache",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "dict caching whole repo text and truncation flag."
+      },
+      {
+       "name": "whole_true_tokens_cache",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "dict caching true token count of whole repo."
+      },
+      {
+       "name": "per_task",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "list of per-task result dicts."
+      },
+      {
+       "name": "errored",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "list of errored task rows."
+      },
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Called to resolve repo from task; not defined in chunk."
+      },
+      {
+       "name": "cached_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Called to get cached index for repo; not defined in chunk."
+      },
+      {
+       "name": "_whole_repo_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Called to get whole repo text; not defined in chunk."
+      },
+      {
+       "name": "count_tokens",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Called to count tokens; not defined in chunk."
+      },
+      {
+       "name": "semantic_slice",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Called to slice repo based on target; not defined in chunk."
+      },
+      {
+       "name": "_ask",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Sends question to provider; not defined in chunk."
+      },
+      {
+       "name": "_score",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scores answer against answer_contains; not defined in chunk."
+      },
+      {
+       "name": "_task_error_row",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates error row for errored tasks; not defined in chunk."
+      },
+      {
+       "name": "DEFAULT_BASELINE_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to baseline.json, derived from __file__."
+      },
+      {
+       "name": "load_baseline",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads baseline.json, returns empty baseline if not exists."
+      },
+      {
+       "name": "snapshot_baseline",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds baseline dict from current tasks state."
+      },
+      {
+       "name": "write_baseline",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes baseline to disk; returns path written."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Same per-task resolution guard as Tier 1/arms: a bad repo label or an unindexed target must not take down an opt-in, potentially long-running LLM run over the rest of the task set.",
+       "where": "line 725",
+       "verdict": "uncheckable",
+       "why": "The comment describes intent; the code catches ValueError and OSError, but the guard's presence and adequacy cannot be fully verified without seeing Tier 1 implementation and the definitions of resolve_task_repo, cached_index, _whole_repo_text."
+      },
+      {
+       "text": "Read baseline.json, or an empty baseline if it does not exist yet (a fresh repo checkout before the first ``--update-baseline`` run).",
+       "where": "load_baseline docstring",
+       "verdict": "kept",
+       "why": "The function checks os.path.exists(p) and returns {'schema': 1, 'tasks': {}} if not exists; otherwise reads and returns json.load."
+      },
+      {
+       "text": "Pure: build the baseline structure for the CURRENT recall of ``tasks`` (default TASKS). Does not touch disk -- see ``write_baseline``.",
+       "where": "snapshot_baseline docstring",
+       "verdict": "kept",
+       "why": "The function only builds a dict and returns it; no file I/O is performed in this chunk."
+      },
+      {
+       "text": "Every task is snapshotted (including quarantine ones) so quarantine promotion is still comparable later; only PRIMARY tasks are ever gated (see ``run_gate``).",
+       "where": "snapshot_baseline docstring",
+       "verdict": "uncheckable",
+       "why": "The code snapshots all tasks that have no error and not focus_withheld; it does not distinguish quarantine vs primary. The claim about gating via run_gate is not in this chunk."
+      },
+      {
+       "text": "ERRORED tasks (``run_tier1``) have no recall to snapshot and are skipped here -- they simply get no baseline entry, which makes them a \"new task\" (not silently a pass) the next time ``run_gate`` sees them resolve successfully.",
+       "where": "snapshot_baseline docstring",
+       "verdict": "kept",
+       "why": "The code filters out tasks with 'error' key (via `if 'error' not in t`)."
+      },
+      {
+       "text": "FOCUS-WITHHELD tasks (the secret floor fail-closed on the task's own focus file) are skipped for the same reason: there is no ``recall`` key to snapshot, and re-baselining a fence-refused task would silently launder \"never measured\" into \"passing\".",
+       "where": "snapshot_baseline docstring",
+       "verdict": "kept",
+       "why": "The code filters out tasks with `t.get('focus_withheld')`."
+      },
+      {
+       "text": "EXPLICIT-ONLY baseline write. Never call this from an automatic code path -- a baseline that updates itself is not a ratchet, it is a no-op. Only the '--update-baseline' CLI flag (a human decision) should reach this.",
+       "where": "write_baseline docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes intended usage policy; the code itself does not enforce any guard against automatic calls."
+      },
+      {
+       "text": "Returns the path written. Deterministic formatting (sorted keys) so the diff is meaningful in review.",
+       "where": "write_baseline docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk ends before the write operation; json.dump with sort_keys is not shown, but it is a typical implementation. Cannot verify from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Variable cap_tokens set to 5000 but not used; only cap_chars = cap_tokens * 4 is used.",
+       "where": "line 721",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "snapshot_baseline calls run_tier1 which is not defined in this chunk; error handling for run_tier1 failures is not visible.",
+       "where": "snapshot_baseline",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "write_baseline writes to disk but has no exception handling for write failures.",
+       "where": "write_baseline",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "DEFAULT_BASELINE_PATH uses os.path.abspath(__file__) which may become stale if module is moved after import.",
+       "where": "line 717",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aaea7f543ba283ee274550c021ce0988dfb708a5a48b313b582ab2d5c08ef684",
+    "objective_chars": 5964,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [7/8]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 7,
+  "total": 8,
+  "first_line": 721
+ }
+}

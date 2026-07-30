@@ -1,0 +1,182 @@
+{
+ "task_id": "13-kill-criteria__falsifier__a47d84ee736f",
+ "key": "13-kill-criteria__falsifier__a47d84ee736f-dd61488aae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most kill criteria are falsifiable but some are vague or lack specific thresholds, and the leakage list mixes checkable and uncheckable items; overall the section is actionable but needs tighter definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "13.1 | medium | 'does not beat code-only or BM25 retrieval' lacks a significance threshold and baseline reproducibility; any observed difference might be dismissed as noise | Run 10 seeds with identical compute budgets, define a minimum effect size (e.g., 5% improvement) and a statistical test (e.g., paired bootstrap) to declare a kill.",
+     "13.2 | medium | 'perform equivalently' lacks a definition of equivalence; any difference could be argued as non-equivalent | Pre-specify an equivalence margin (e.g., within \u00b12% of each other on the primary metric) and test with a two-one-sided test (TOST) at \u03b1=0.05.",
+     "13.4 | medium | 'no marginal contribution in ablation' lacks a threshold for 'no marginal contribution'; a trivial contribution could be argued as non-zero | Define a minimum marginal gain (e.g., <1% absolute improvement) below which the plane is considered non-contributing.",
+     "13.6 | medium | 'does not beat random or evaluator-only choice' lacks a significance criterion; random baselines can vary | Pre-register a fixed random seed or distribution, define a minimum improvement (e.g., 5%) and use a statistical test with multiple trials.",
+     "13.7 | medium | 'disappears after temporal and knowledge-leakage scrubbing' is vague because 'disappears' is not quantified and scrubbing procedures are not specified | Explicitly define the scrubbing protocol (e.g., remove all post-cutoff data, hold out last 20% of timeline) and set a threshold (e.g., gain drops below 1%).",
+     "13.8 | medium | 'extra context tokens explain the whole gain' is ambiguous: what counts as 'explain the whole gain'? | Conduct an ablation where context tokens are replaced with random tokens of equal length; if performance remains the same, the gain is explained by context tokens.",
+     "13.9 | medium | 'worsens the quality/cost frontier' lacks a metric for 'frontier'; cost and quality are multi-objective | Define a composite cost-quality metric (e.g., quality per unit cost) and a threshold (e.g., >10% worse) for a kill.",
+     "13.10 | medium | 'cannot be maintained at usable cost' is subjective; 'usable cost' is undefined | Define a maximum acceptable cost per snapshot (e.g., <1% of total compute budget) and a latency target.",
+     "13.11 | medium | 'cannot achieve useful precision after verification cost' is vague; 'useful precision' and 'verification cost' are not quantified | Define a minimum precision (e.g., >90%) and a maximum cost (e.g., <10% of query budget) that must both be met.",
+     "13.12 | medium | 'benefits disappear on held-out repositories, under equal context budgets, or in cross-project transfer' lacks a definition of 'disappear' and specific thresholds | Define a minimum effect size (e.g., 5% improvement) and require that at least two of three conditions show no significant gain.",
+     "13.13 | low | 'seal the evaluator from the candidate' is a good practice but not a claim that can be falsified; it is a methodological instruction | Ensure the instruction is followed; it is not a kill criterion.",
+     "13.14 | low | 'use identical problem definitions and compute/token budgets' is a methodological requirement, not a falsifiable claim | Verify compliance; not a kill criterion.",
+     "13.15 | low | 'cover multiple task classes' is a recommendation; not falsifiable | Define what constitutes 'multiple' (e.g., at least 3 distinct task types).",
+     "13.16 | low | 'run at least 5\u201310 seeds when stochastic variance matters' is a guideline; not a falsifiable claim | Ensure the guideline is followed; not a kill criterion.",
+     "13.17 | low | 'Report algorithm quality, sample efficiency, repository evolution, and product reliability separately' is a reporting requirement; not falsifiable | Ensure the report includes these metrics.",
+     "13.18 | low | 'Reject results when code, prompts, memory, model, search policy, and evaluator changed together' is a methodological rule; not a falsifiable claim | Verify that changes are isolated; not a kill criterion.",
+     "13.19 | medium | 'Prevent leakage from gold patches, private tests, post-cutoff issue/commit text, post-task graph edges, previous solutions in adaptive memory, base/candidate snapshot mixing, evaluator paths or outputs, and model-generated hypotheses re-entering the Knowledge plane as facts' is a list of leakage sources; some are checkable (e.g., gold patches) but others like 'model-generated hypotheses re-entering the Knowledge plane as facts' are vague and hard to verify | For each source, specify a concrete detection method (e.g., hash comparison for gold patches) and define 're-entering' as a measurable event."
+    ],
+    "todos": [
+     "Define quantitative thresholds for each kill criterion (e.g., minimum effect size, equivalence margin).",
+     "Specify the scrubbing protocol for temporal and knowledge leakage.",
+     "Define 'usable cost' and 'useful precision' with concrete numbers.",
+     "Clarify what 'explain the whole gain' means operationally.",
+     "Convert methodological instructions (non-falsifiable) into separate compliance checks, not kill criteria."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "13.1",
+       "claim": "Stop or redesign when the full representation does not beat code-only or BM25 retrieval.",
+       "verdict": "weak",
+       "why": "Falsifiable in principle, but lacks a significance threshold and baseline reproducibility. Without a pre-specified minimum effect size and statistical test, any observed difference could be dismissed as noise."
+      },
+      {
+       "id": "13.2",
+       "claim": "Stop or redesign when degree-preserving randomized cross-plane edges perform equivalently.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'equivalently' is defined (e.g., within a margin). Without an equivalence margin and a statistical test (e.g., TOST), the claim is ambiguous."
+      },
+      {
+       "id": "13.3",
+       "claim": "Stop or redesign when four independent indices perform equivalently to cross-plane fusion.",
+       "verdict": "weak",
+       "why": "Same issue as 13.2; 'perform equivalently' needs a quantitative definition."
+      },
+      {
+       "id": "13.4",
+       "claim": "Stop or redesign when a plane has no marginal contribution in ablation.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'no marginal contribution' is defined as below a threshold (e.g., <1% improvement). Without a threshold, the claim is vague."
+      },
+      {
+       "id": "13.5",
+       "claim": "Stop or redesign when graph movement does not predict or cause behavioral improvement.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'predict or cause' is operationalized (e.g., correlation coefficient, causal intervention). The claim mixes prediction and causation, which require different experimental designs."
+      },
+      {
+       "id": "13.6",
+       "claim": "Stop or redesign when graph-conditioned prioritization does not beat random or evaluator-only choice.",
+       "verdict": "weak",
+       "why": "Falsifiable but needs a significance criterion and a fixed baseline (e.g., random seed). Without them, the comparison is ambiguous."
+      },
+      {
+       "id": "13.7",
+       "claim": "Stop or redesign when the gain disappears after temporal and knowledge-leakage scrubbing.",
+       "verdict": "weak",
+       "why": "Falsifiable if the scrubbing procedure is specified and 'disappears' is quantified (e.g., gain <1%). Without these, the claim is not testable."
+      },
+      {
+       "id": "13.8",
+       "claim": "Stop or redesign when extra context tokens explain the whole gain.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'explain the whole gain' means that adding random tokens of equal length yields the same improvement. But the phrasing is ambiguous."
+      },
+      {
+       "id": "13.9",
+       "claim": "Stop or redesign when graph construction/query cost worsens the quality/cost frontier.",
+       "verdict": "weak",
+       "why": "Falsifiable if the frontier is defined (e.g., Pareto frontier) and 'worsens' is quantified (e.g., >10% degradation in quality per unit cost). Without a metric, it's subjective."
+      },
+      {
+       "id": "13.10",
+       "claim": "Stop or redesign when revision-atomic snapshots cannot be maintained at usable cost.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'usable cost' is defined (e.g., <1% of total compute budget). Without a definition, it's subjective."
+      },
+      {
+       "id": "13.11",
+       "claim": "Stop or redesign when embedding proposals cannot achieve useful precision after verification cost.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'useful precision' and 'verification cost' are quantified (e.g., precision >90% at cost <10% of query budget). Without numbers, it's vague."
+      },
+      {
+       "id": "13.12",
+       "claim": "Stop or redesign when benefits disappear on held-out repositories, under equal context budgets, or in cross-project transfer.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'disappear' is quantified (e.g., gain <5%) and the conditions are specified. The claim lists three conditions, but it's unclear whether all must fail or just one."
+      },
+      {
+       "id": "13.13",
+       "claim": "For every comparative campaign, seal the evaluator from the candidate.",
+       "verdict": "sound",
+       "why": "This is a methodological instruction, not a kill criterion. It is falsifiable in the sense that one can check if it was followed."
+      },
+      {
+       "id": "13.14",
+       "claim": "Use identical problem definitions and compute/token budgets.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check if budgets and problem definitions match."
+      },
+      {
+       "id": "13.15",
+       "claim": "Cover multiple task classes.",
+       "verdict": "weak",
+       "why": "Falsifiable if 'multiple' is defined (e.g., at least 3). Otherwise, it's vague."
+      },
+      {
+       "id": "13.16",
+       "claim": "Run at least 5\u201310 seeds when stochastic variance matters.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check if the number of seeds is in the range."
+      },
+      {
+       "id": "13.17",
+       "claim": "Report algorithm quality, sample efficiency, repository evolution, and product reliability separately.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check if the report includes these metrics."
+      },
+      {
+       "id": "13.18",
+       "claim": "Reject results when code, prompts, memory, model, search policy, and evaluator changed together.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check if changes were made simultaneously."
+      },
+      {
+       "id": "13.19",
+       "claim": "Prevent leakage from gold patches, private tests, post-cutoff issue/commit text, post-task graph edges, previous solutions in adaptive memory, base/candidate snapshot mixing, evaluator paths or outputs, and model-generated hypotheses re-entering the Knowledge plane as facts.",
+       "verdict": "weak",
+       "why": "Partially falsifiable: some items (gold patches, private tests) are checkable with known methods. Others, like 'model-generated hypotheses re-entering the Knowledge plane as facts', are vague and lack a detection mechanism."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0afd664bb9668250caff0c6eef647974083bd0f1339c40d905648fd58e613b3f",
+    "objective_chars": 2848,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "13-kill-criteria",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

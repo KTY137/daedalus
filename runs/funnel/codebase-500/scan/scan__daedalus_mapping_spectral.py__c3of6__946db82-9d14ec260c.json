@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_mapping_spectral.py__c3of6__946db82",
+ "key": "scan__daedalus_mapping_spectral.py__c3of6__946db82-9d14ec260c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 6: Fiedler vector sign pinning, cut edges, algebraic connectivity, agreement, and modularity_report function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "agreement calculation | medium | Uses partition dict from outer scope; if partition is None, agreement dict is empty; but the function signature doesn't include partition parameter. | Check that partition is passed correctly; if not, agreement will be empty."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/spectral.py",
+     "chunk": "3 of 6",
+     "purpose": "Fiedler vector sign pinning, cut edges, algebraic connectivity, boundary agreement, and modularity_report function.",
+     "symbols": [
+      {
+       "name": "modularity_report",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes Newman modularity Q for declared partition and compares to random partitions with same block sizes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The sign of an eigenvector is arbitrary. Pin it so two runs over an unchanged tree produce the same dict -- provenance requires it.",
+       "where": "comment before sign pinning code",
+       "verdict": "kept",
+       "why": "The code checks sum of values and sign of first ordered value, then multiplies by -1 if condition holds, pinning the sign."
+      },
+      {
+       "text": "A disconnected graph's algebraic connectivity is exactly 0 -- that is the true global answer, and the component value is a DIFFERENT number about a DIFFERENT graph. Both are labelled so neither can be quoted as the other.",
+       "where": "comment in return dict",
+       "verdict": "kept",
+       "why": "Return dict has two keys: 'algebraic_connectivity_global' (0.0 if not connected else lambda2) and 'algebraic_connectivity_scope' (lambda2 always)."
+      },
+      {
+       "text": "declared is Newman modularity Q of the on-disk package partition.",
+       "where": "docstring of modularity_report",
+       "verdict": "kept",
+       "why": "Code computes declared = float(nx.community.modularity(graph, blocks)) using blocks from _communities(partition, graph)."
+      },
+      {
+       "text": "random_mean is Q of partitions with the SAME block sizes and shuffled membership -- the null hypothesis, measured rather than assumed.",
+       "where": "docstring of modularity_report",
+       "verdict": "kept",
+       "why": "Code shuffles nodes and creates random_blocks with same sizes, computes modularity, and averages samples."
+      },
+      {
+       "text": "lift is declared - random_mean.",
+       "where": "docstring of modularity_report",
+       "verdict": "kept",
+       "why": "Return dict includes 'lift': round(declared - random_mean, 6)."
+      },
+      {
+       "text": "Q >= 0.3 with clear lift -- the package layout is real structure.",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "The docstring gives interpretation advice, not a checkable claim in code. The code does not enforce or test this."
+      },
+      {
+       "text": "Q ~ 0.1-0.3 -- weak.",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "Interpretation advice, not a code claim."
+      },
+      {
+       "text": "lift <= 0 -- the declared layout is NO BETTER than shuffling the files.",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "Interpretation advice."
+      },
+      {
+       "text": "Q < 0 -- worse than random: blocks are internally sparser than chance.",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "Interpretation advice."
+      },
+      {
+       "text": "Q is not comparable across different graphs -- only across snapshots of THIS graph.",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "Interpretation advice."
+      },
+      {
+       "text": "If graph.number_of_edges() == 0, return _unavailable('a graph with no edges has undefined modularity').",
+       "where": "docstring of modularity_report",
+       "verdict": "kept",
+       "why": "Code checks graph.number_of_edges() == 0 and returns _unavailable with that message."
+      },
+      {
+       "text": "If len(blocks) < 2, return _unavailable('modularity needs at least 2 non-empty blocks').",
+       "where": "docstring of modularity_report",
+       "verdict": "kept",
+       "why": "Code checks len(blocks) < 2 and returns _unavailable with that message."
+      },
+      {
+       "text": "If not HAVE_MATH, return _unavailable(MATH_EXTRA_HINT).",
+       "where": "docstring of modularity_report",
+       "verdict": "uncheckable",
+       "why": "The check is present (if not HAVE_MATH), but the constant MATH_EXTRA_HINT is not defined in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The variable 'partition' used in agreement calculation is not a parameter of the enclosing function; it must come from outer scope or closure.",
+       "where": "agreement dict construction",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment 'Stated verbatim so a reader never has to recall the scale.' refers to 'reads_as' values, which are indeed hardcoded strings.",
+       "where": "agreement dict",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The modularity_report function uses _communities and _unavailable which are not defined in this chunk.",
+       "where": "modularity_report",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant MATH_EXTRA_HINT is referenced but not defined in this chunk.",
+       "where": "modularity_report",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb261086308d297ff151de3833d8fbf5070e4c5d2c0b750ed6b8a2e2fba5e01b",
+    "objective_chars": 5967,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/spectral.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/spectral.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 241
+ }
+}

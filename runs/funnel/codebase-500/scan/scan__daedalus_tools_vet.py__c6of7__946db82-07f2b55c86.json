@@ -1,0 +1,198 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c6of7__946db82",
+ "key": "scan__daedalus_tools_vet.py__c6of7__946db82-07f2b55c86",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of vet.py: skill scanning loop, MCP server vetting, and summarise stub. Claims about deferred .pyc handling, remote fetchers, unpinned versions, egress lanes, and env injection are checked against present code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "deferred loop | medium | Deferred .pyc files are skipped if source was scanned; else added to skipped with message about expected source. Works as described.",
+     "mcp.remote_fetch | medium | When command or first arg is in _REMOTE_FETCHERS, a finding is added. The comment says 'fetches code at start-up' \u2013 correct for npx/uvx etc. Verdict: kept.",
+     "mcp.unpinned | medium | If any token matches _UNPINNED regex, a finding is added. Comment says 'unpinned version or a bare URL'. Regex matches @latest or http(s)://. Verdict: kept.",
+     "mcp.egress | medium | Hosts extracted from URLs in command/args are checked via lane_for_host (outside chunk). Finding severity depends on lane. Comment says 'reaches {h}, which sensitivity.lane_for_host calls {lane}'. Verdict: uncheckable because lane_for_host not defined here.",
+     "mcp.env_injected | low | If env dict is non-empty, a finding is added. Comment says 'environment values are handed to the server process'. Verdict: kept.",
+     "summarise stub | low | Function body incomplete (just `vs = list(verdicts)`). Docstring says 'Counts by outcome, plus the blocking subjects. Sorted; no I/O.' That claim is uncheckable because the function is incomplete.",
+     "vet_mcp_server docstring | medium | Docstring says 'Nothing is started or contacted.' That claim is kept \u2013 no external calls in this chunk.",
+     "vet_mcp_server docstring | medium | Docstring says 'An MCP server is a command line, so what can be judged statically is the command line...' That claim is kept \u2013 the function only inspects command/args.",
+     "skill scanning notes | low | Note about bundles_code: 'this repo never executes them, but they were scanned as text'. The code scans script_paths as text; execution claim is uncheckable (outside chunk)."
+    ],
+    "todos": [
+     "Complete summarise function body.",
+     "Define lane_for_host or import it."
+    ],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "6 of 7",
+     "purpose": "Skill scanning loop, MCP server vetting function, and summarise stub.",
+     "symbols": [
+      {
+       "name": "vet_mcp_server",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Static inspection of MCP server entry; no I/O or execution."
+      },
+      {
+       "name": "summarise",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Incomplete; only initialises list from verdicts."
+      },
+      {
+       "name": "_UNPINNED",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex matching @latest or http(s)://."
+      },
+      {
+       "name": "_URL_IN_ARG",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to extract host from URLs."
+      },
+      {
+       "name": "_REMOTE_FETCHERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of known remote fetcher commands."
+      }
+     ],
+     "claims": [
+      {
+       "text": "deferred .pyc files: if source was scanned, note; else skipped with message about expected source",
+       "where": "lines 601-615",
+       "verdict": "kept",
+       "why": "Code checks if source in scanned_sources, adds note; else appends to skipped with message."
+      },
+      {
+       "text": "skill.bundles_code: 'this repo never executes them, but they were scanned as text'",
+       "where": "line 617-618",
+       "verdict": "uncheckable",
+       "why": "The code scans script_paths as text, but the claim about execution is outside this chunk."
+      },
+      {
+       "text": "apply_allowances: uses skill.name and identity=getattr(skill, 'body_sha256', '')",
+       "where": "line 620",
+       "verdict": "uncheckable",
+       "why": "apply_allowances is not defined in this chunk."
+      },
+      {
+       "text": "vet_mcp_server docstring: 'Nothing is started or contacted.'",
+       "where": "line 633",
+       "verdict": "kept",
+       "why": "Function only inspects spec dict; no network or process calls."
+      },
+      {
+       "text": "mcp.remote_fetch finding: 'launched through ... which fetches code at start-up'",
+       "where": "lines 660-664",
+       "verdict": "kept",
+       "why": "Code adds note and finding when command or first arg is in _REMOTE_FETCHERS."
+      },
+      {
+       "text": "mcp.unpinned finding: 'unpinned version or a bare URL'",
+       "where": "lines 666-670",
+       "verdict": "kept",
+       "why": "Code checks _UNPINNED regex on each token and adds finding if match."
+      },
+      {
+       "text": "mcp.egress finding: 'reaches {h}, which sensitivity.lane_for_host calls {lane}'",
+       "where": "lines 673-679",
+       "verdict": "uncheckable",
+       "why": "lane_for_host is not defined in this chunk."
+      },
+      {
+       "text": "mcp.env_injected finding: 'environment values are handed to the server process'",
+       "where": "lines 681-686",
+       "verdict": "kept",
+       "why": "Code adds finding if env dict is non-empty."
+      },
+      {
+       "text": "summarise docstring: 'Counts by outcome, plus the blocking subjects. Sorted; no I/O.'",
+       "where": "line 696",
+       "verdict": "uncheckable",
+       "why": "Function body is incomplete; cannot verify behaviour."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Deferred .pyc handling works as described.",
+       "where": "lines 601-615",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "MCP remote_fetch detection triggers on command or first arg being a known fetcher.",
+       "where": "lines 660-664",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "MCP unpinned detection uses regex that matches @latest or http(s)://.",
+       "where": "lines 666-670",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "MCP egress detection relies on lane_for_host, which is not defined in this chunk.",
+       "where": "lines 673-679",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "MCP env_injected finding added for any non-empty env dict.",
+       "where": "lines 681-686",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "summarise function is incomplete; only initialises list.",
+       "where": "line 696-697",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "def3a0204c6ef4e223abdd10f141b71f7d1b7e5e0d420e625e4aaeb3d19c3941",
+    "objective_chars": 5835,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 601
+ }
+}

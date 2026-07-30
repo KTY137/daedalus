@@ -1,0 +1,150 @@
+{
+ "task_id": "WHOLE-DOCUMENT__adversary__a47d84ee736f",
+ "key": "WHOLE-DOCUMENT__adversary__a47d84ee736f-46bde90a9e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 5 defines the Forest as 'immutable' and 'compiled intermediate representation of one project revision' but section 8 step 7 builds a 'candidate Forest' from a candidate source tree, implying mutability and multiple Forests per revision, creating a contradiction about what the Forest is and how it is versioned.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "5 vs 8 | critical | The Forest is defined as 'immutable' and 'compiled intermediate representation of one project revision' in section 5, but section 8 step 7 says 'Build a candidate Forest and revision-aware delta' from a candidate source tree. This implies that the Forest is built per candidate, not per project revision, and that there can be multiple Forests for the same revision. The term 'immutable' is violated, and the relationship between 'the Forest' and 'candidate Forest' is undefined. | Attempt to build two candidate Forests for the same project revision and check if the system can distinguish them; also check whether the canonical Forest is replaced or coexists."
+    ],
+    "todos": [
+     "Clarify whether 'the Forest' is a single immutable object per project revision or a family of candidate Forests. If the latter, remove 'immutable' and define the versioning scheme."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0",
+       "claim": "This master plan is the sole semantic authority for Daedalus architecture, product order, and research direction.",
+       "verdict": "weak",
+       "why": "The claim is clear but conflicts with section 0's authority table which gives `.agentenv/` files a 'mechanical veto policy' that can restrict or deny capabilities. If the plan cannot grant a capability, but the policy can deny it, then the policy can effectively override the plan's intent. The 'sole semantic authority' is thus limited by mechanical veto, making the claim weaker than stated."
+      },
+      {
+       "id": "0 (authority model)",
+       "claim": "The authority model defines classes of artifacts and their roles.",
+       "verdict": "unclear",
+       "why": "The table lists artifact classes and what they 'may do', but does not define how conflicts between authorities are resolved beyond a vague statement that 'the stricter mechanical policy wins' for effects. The phrase 'for product meaning and sequencing, only this plan is authoritative' is contradicted by the possibility that a mechanical policy could block a plan-defined sequencing by denying capabilities. The resolution mechanism is ambiguous."
+      },
+      {
+       "id": "1",
+       "claim": "Hard invariants require an approved amendment before they change; research priors are deliberately falsifiable.",
+       "verdict": "sound",
+       "why": "The distinction is clear and the amendment protocol in section 15 supports it. However, the claim that 'no model prompt or local hook is a security boundary' weakens the enforceability of invariants because it admits that the plan's guards are not comprehensive."
+      },
+      {
+       "id": "2",
+       "claim": "North star: build a trustworthy system that can understand, formulate, experiment, learn, and promote verified improvements.",
+       "verdict": "weak",
+       "why": "The statement is aspirational and not falsifiable. It includes 'outperform AlphaEvolve' as a target but then in section 10 Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available.' This creates a contradiction: the north star sets a target that later sections say cannot be measured fairly."
+      },
+      {
+       "id": "3",
+       "claim": "Only three top-level product/research concepts are public: Daedalus, Ikarus, Ariadne.",
+       "verdict": "sound",
+       "why": "The prohibition is clear. However, note that 'existing components may survive as internal modules' leaves ambiguity about what constitutes a 'new mythological subsystem' (section 12 forbids that). The line between internal module and new subsystem is not defined."
+      },
+      {
+       "id": "4",
+       "claim": "Ten constitutional invariants apply to every production-capable path.",
+       "verdict": "weak",
+       "why": "Invariant 5 says 'Promotion requires ... explicit owner approval' but no authentication mechanism is defined for 'owner approval'. An agent could formally comply by recording approval from any process that can write the approval field. Invariant 10 forbids silent constitution change but the amendment protocol allows changes with owner approval; however, 'owner' is not defined in the document, creating an authority gap."
+      },
+      {
+       "id": "5",
+       "claim": "The central research prior is a revision-bound four-plane Project Twin.",
+       "verdict": "weak",
+       "why": "The Forest is defined as 'immutable' and 'compiled intermediate representation of one project revision', but section 8 step 7 builds a 'candidate Forest' from a candidate source tree. This implies multiple Forests per revision, contradicting the 'one project revision' claim. Also, the Forest is said to be 'not a scheduler, chat memory, archive, or oracle', but section 8 step 2 says 'Build the base Forest for an exact source revision' as part of a campaign, implying it is used per campaign, not per revision."
+      },
+      {
+       "id": "6",
+       "claim": "Embeddings may consume Node Cards with a minimum contract; latent layer is a hypothesis machine; canonical formula is 4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion.",
+       "verdict": "weak",
+       "why": "The formula in section 6 says 'Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary.' This conflicts with section 5's claim that the Forest is the immutable IR. If the Forest is the teacher, it must be mutable to teach? Or is the Forest a fixed reference? The relationship between Forest and latent atlas is not defined operationally."
+      },
+      {
+       "id": "7",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat; coordination is artifact-first.",
+       "verdict": "sound",
+       "why": "The description is consistent and clear. However, note that section 12 forbids 'chat transcripts as orchestration state', which aligns with this section's claim that 'Chat is an interface, not the workflow database.' No cross-section conflict found."
+      },
+      {
+       "id": "8",
+       "claim": "Every campaign follows a controlled 11-step loop.",
+       "verdict": "weak",
+       "why": "Step 2 says 'Build the base Forest for an exact source revision.' Step 7 says 'Build a candidate Forest and revision-aware delta.' This implies that the Forest is built per campaign, not per revision, and that there is a base Forest and a candidate Forest. This conflicts with section 5's definition of the Forest as 'the immutable, compiled intermediate representation of one project revision.' Also, step 10 says 'never auto-promote' which is consistent with invariant 5, but step 11 says 'Promote only through the sealed owner-controlled path' which again lacks authentication definition."
+      },
+      {
+       "id": "9",
+       "claim": "Code generation and evolution framework: each operator declares specific properties.",
+       "verdict": "sound",
+       "why": "The requirements are clear and consistent with the rest of the plan. No cross-section conflict found."
+      },
+      {
+       "id": "10",
+       "claim": "Delivery gates: work advances in order; later-gate experiments may be prototyped only under conditions.",
+       "verdict": "weak",
+       "why": "Gate 0 exit criteria require 'a fault-injection matrix demonstrates fail-closed protected effects and fail-open read-only inspection.' But the plan does not define what 'fail-closed' and 'fail-open' mean in this context. Also, Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available' which contradicts the north star's target to 'outperform AlphaEvolve' (section 2). The gates do not address how to handle this fundamental measurement issue."
+      },
+      {
+       "id": "11",
+       "claim": "Current priority: until Gate 0 exits, default answer is to wire through canonical kernel or keep as disposable experiment.",
+       "verdict": "sound",
+       "why": "Clear and consistent with the gate ordering. No cross-section conflict."
+      },
+      {
+       "id": "12",
+       "claim": "Forbidden default directions: list of prohibited architectural choices.",
+       "verdict": "weak",
+       "why": "The list includes 'chat transcripts as orchestration state' and 'shared mutable memory for product personalization and research adaptation.' However, section 7 describes Ikarus as having 'product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) as separate, versioned, provenance-bearing stores.' This seems to allow exactly the kind of memory that section 12 forbids as 'shared mutable memory.' The distinction between 'shared mutable memory' and 'separate, versioned, provenance-bearing stores' is not clearly defined, leading to potential conflict."
+      },
+      {
+       "id": "13",
+       "claim": "Kill criteria: stop or redesign the four-plane/latent track when replicated experiments show any of the listed conditions.",
+       "verdict": "sound",
+       "why": "The criteria are specific and falsifiable. However, note that the plan does not specify who decides when a kill criterion is met, or what process follows. Section 13 says 'Archive the evidence, stop the affected track, and submit an amendment replacing the failed prior.' But the amendment protocol in section 15 requires 'explicit repository-owner approval', which introduces a human gate that could delay or prevent a kill decision. No cross-section conflict found."
+      },
+      {
+       "id": "14",
+       "claim": "Alignment protocol for every change: before editing, read plan, classify work, name gate and invariant/prior touched; before handoff, run verification and report.",
+       "verdict": "sound",
+       "why": "The protocol is clear. However, the requirement to 'run `python tools/iron_plan_guard.py verify`' assumes the tool exists and is correct, which is not verified by the plan itself. No cross-section conflict."
+      },
+      {
+       "id": "15",
+       "claim": "Amendment protocol: ordinary tasks must not edit the plan; amendments require proposal, owner approval, session token, revision increment, record append, atomic update, and verification.",
+       "verdict": "weak",
+       "why": "The protocol relies on 'explicit repository-owner approval' but does not define who the repository owner is or how approval is authenticated. Furthermore, the environment token 'only unlocks the protected files for that process. It does not waive owner approval.' This implies that the token is a capability that can be used without owner approval if obtained, but the protocol says it does not waive approval. The enforcement mechanism is unclear: if the token is required to edit the plan, and the token is set by an environment variable, then an attacker with access to the environment could bypass owner approval. The plan does not specify how the token is securely issued and bound to an approved amendment session."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "20cce7d6dfd3f127b245d05f7958ec8d416488b6b7c38630ffcb3fff50075255",
+    "objective_chars": 18548,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "WHOLE-DOCUMENT",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,176 @@
+{
+ "task_id": "scan__daedalus_structcore_artifacts.py__c3of6__946db82",
+ "key": "scan__daedalus_structcore_artifacts.py__c3of6__946db82-d7f1b0b375",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of artifacts.py: defines _candidates, ArtifactEdge, ResolveReport, resolve_literals, and Column. Claims about LaTeX resolution, URL detection, and sorting are checkable; claims about external references and artifact_node_id are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_literals | medium | Uses case-insensitive fallback via lower dict; may cause false positives if two files differ only in case; settle by reviewing whether case-insensitive matching is intended.",
+     "resolve_literals | low | Sorts edges by (relation, source, target, line) but ambiguous candidates are not sorted; settle by confirming sorting consistency."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/artifacts.py",
+     "chunk": "3 of 6",
+     "purpose": "Defines candidate generation for LaTeX literals, edge and report dataclasses, and the resolve_literals function.",
+     "symbols": [
+      {
+       "name": "_TEX_INPUT_SUFFIXES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of suffixes for LaTeX \\input candidates."
+      },
+      {
+       "name": "_TEX_FIGURE_SUFFIXES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of suffixes for LaTeX figure candidates."
+      },
+      {
+       "name": "_candidates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates list of candidate paths from a literal and relative path."
+      },
+      {
+       "name": "ArtifactEdge",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing an edge from source to target artifact."
+      },
+      {
+       "name": "ResolveReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass collecting edges, unresolved, ambiguous, and external entries."
+      },
+      {
+       "name": "_URL",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to detect URLs and mailto/doi schemes."
+      },
+      {
+       "name": "resolve_literals",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Main resolution function: binds literals to known files, producing a ResolveReport."
+      },
+      {
+       "name": "Column",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for a column schema, defined at end of chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "LaTeX omits the extension on \\input and \\includegraphics. Trying candidates is resolution, not guessing, PROVIDED that more than one hit is reported as ambiguous rather than silently taking the first.",
+       "where": "lines 241-243",
+       "verdict": "kept",
+       "why": "The comment describes the strategy; _candidates generates suffixes, and resolve_literals reports multiple hits as ambiguous (len(uniq)>1)."
+      },
+      {
+       "text": "A literal that names nothing in it is COUNTED, never bound to a near-match \u2014 and one that names several is counted as ambiguous, because picking the first would be a stably reproduced fabrication.",
+       "where": "lines 280-282",
+       "verdict": "kept",
+       "why": "resolve_literals adds to unresolved when hits empty, and adds to ambiguous when len(uniq)>1; no fuzzy matching is used."
+      },
+      {
+       "text": "An off-tree URL has no second node, so it is an attribute of the referring file, never an edge. Same rule as markdown.py.",
+       "where": "lines 298-300",
+       "verdict": "kept",
+       "why": "Code matches _URL and adds to rep.external instead of creating an edge."
+      },
+      {
+       "text": "Deterministic; every list sorted at the end.",
+       "where": "line 278",
+       "verdict": "kept",
+       "why": "All lists in rep are sorted after processing: edges by (relation, source, target, line), unresolved, ambiguous, external by (from, line, raw)."
+      },
+      {
+       "text": "artifact_family(target) and artifact_node_id(target) are used.",
+       "where": "lines 313-316",
+       "verdict": "uncheckable",
+       "why": "These functions are not defined in this chunk; their behavior cannot be verified."
+      },
+      {
+       "text": "Same rule as markdown.py.",
+       "where": "line 300",
+       "verdict": "uncheckable",
+       "why": "The referenced file markdown.py is not provided."
+      }
+     ],
+     "observations": [
+      {
+       "what": "resolve_literals performs case-insensitive fallback via lower dict, but only on candidates not found in exact known set; this may cause unexpected matches.",
+       "where": "lines 307-309",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _candidates function prepends the parent directory of from_rel to raw, but only if base is not '.' or ''; this may miss cases where base is empty string.",
+       "where": "lines 250-252",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "ArtifactEdge.to_dict sorts attributes by key, but ResolveReport does not sort attributes in edges; this may cause non-deterministic dict ordering in edges.",
+       "where": "lines 269-271",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0f15bd9d0544b6b41671553c85980c1e07edc6bb508d6233bcf5f76156c79fc4",
+    "objective_chars": 5534,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/artifacts.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/artifacts.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 241
+ }
+}

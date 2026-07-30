@@ -1,0 +1,145 @@
+{
+ "task_id": "daedalus/providers/_report.py#c1of1#5eb1702d",
+ "key": "daedalus_providers__report.py_c1of1_5eb1702d-72f7a2191e",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 10 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"DeepSeek json_object mode requires the literal word 'json' AND an example of the desired shape in the prompt; both are present here.\" | report_instructions | BROKEN | The docstring says the word 'json' is present, but the function does not include the literal word \"json\" in its output.",
+     "CLAIM | \"Fill any missing report keys with safe defaults, then validate.\" | coerce_report | KEPT | The code fills missing keys with defaults and then calls validate_report.",
+     "CLAIM | \"A billable provider must reserve BEFORE it calls out, and must turn a refusal into a valid ``agent_report_v1`` rather than an exception\" | budget_refusal_report | UNCHECKABLE | Cannot verify that the report is a valid ``agent_report_v1`` without schema definition.",
+     "CLAIM | \"The blocked report for a refused call. NAMES the numbers.\" | budget_refusal_report | KEPT | The function returns a blocked_report with budget detail.",
+     "CLAIM | \"A refusal the operator cannot read is a refusal the operator switches off, so the ceiling, the spend and the refused label all survive into the report body and into ``handoff`` in machine-readable form.\" | budget_refusal_report | KEPT | The function includes budget detail in the handoff via blocked_report.",
+     "CLAIM | \"``(reservation, None)`` when the call may proceed, ``(None, envelope)`` when it may not.\" | reserve_or_report | KEPT | The function returns (res, None) on success and (None, envelope) on BudgetError.",
+     "CLAIM | \"FAIL CLOSED: every :class:`~daedalus.budget.BudgetError` -- refused ceiling, unreadable ledger, unobtainable lock, unpriceable vendor -- lands in the second branch.\" | reserve_or_report | KEPT | The except catches BudgetError and returns (None, envelope).",
+     "CLAIM | \"There is no path through this function that returns ``(None, None)`` and lets the caller carry on.\" | reserve_or_report | KEPT | The function returns either (res, None) or (None, envelope), never (None, None).",
+     "CLAIM | \"Return (system, user) messages for a read-only, non-agentic provider.\" | build_prompt | KEPT | The function returns a tuple of two strings.",
+     "CLAIM | \"Keeps prompts small per the token-efficiency rules; sensitive files are excluded upstream.\" | MAX_CONTEXT_CHARS | UNCHECKABLE | Cannot verify token-efficiency rules or upstream exclusion without external context.",
+     "CLAIM | \"Total inlined-context budget for non-agentic providers (chars).\" | MAX_CONTEXT_CHARS | KEPT | The constant is defined as 24000.",
+     "CLAIM | \"Both are present here.\" | report_instructions | BROKEN | The docstring claims the word 'json' is present, but the returned string does not contain the literal word 'json'.",
+     "D1 | MAX_CONTEXT_CHARS | Defined but never read in this unit | WRONG CONCLUSION: a caller might assume it is used for context truncation here.",
+     "D4 | reserve_or_report | The except catches BudgetError but also catches subclasses like BudgetRefused; the condition is always true when BudgetError is raised, so no issue."
+    ],
+    "todos": [
+     "Add the literal word 'json' to the string returned by report_instructions to match the docstring claim.",
+     "Remove or update the docstring in report_instructions to reflect that the word 'json' is not present, or add it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffcb2a54e467921b6480ab5ec7d90453db138f62bde2947eee587d1f0e071296",
+    "objective_chars": 8171,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 11 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"DeepSeek json_object mode requires the literal word 'json' AND an example of the desired shape in the prompt; both are present here.\" | report_instructions | KEPT | The docstring says both are present; the function returns a string containing both 'json' and an example.",
+     "CLAIM | \"Return ONLY a json object with exactly these keys: ...\" | report_instructions | KEPT | The function returns a string that instructs to return a JSON object with the listed keys.",
+     "CLAIM | \"Return (system, user) messages for a read-only, non-agentic provider.\" | build_prompt | KEPT | The function returns a tuple (system, user) as described.",
+     "CLAIM | \"Fill any missing report keys with safe defaults, then validate.\" | coerce_report | KEPT | The function fills missing keys with defaults and calls validate_report.",
+     "CLAIM | \"The blocked report for a refused call. NAMES the numbers.\" | budget_refusal_report | KEPT | The function returns a blocked report with a detail dict containing budget info.",
+     "CLAIM | \"A refusal the operator cannot read is a refusal the operator switches off, so the ceiling, the spend and the refused label all survive into the report body and into handoff in machine-readable form.\" | budget_refusal_report | KEPT | The function includes budget detail in the handoff via blocked_report's **handoff.",
+     "CLAIM | \"(reservation, None) when the call may proceed, (None, envelope) when it may not.\" | reserve_or_report | KEPT | The return type matches: returns (res, None) on success, (None, envelope) on error.",
+     "CLAIM | \"FAIL CLOSED: every BudgetError ... lands in the second branch.\" | reserve_or_report | KEPT | The except catches BudgetError and returns the second branch.",
+     "CLAIM | \"There is no path through this function that returns (None, None) and lets the caller carry on.\" | reserve_or_report | KEPT | All paths either return (res, None) with non-None res or (None, envelope) with non-None envelope; no (None, None) possible.",
+     "CLAIM | \"A billable provider must reserve BEFORE it calls out, and must turn a refusal into a valid agent_report_v1 rather than an exception, so a capped run still produces a report the harness can read instead of a stack trace the watcher swallows.\" | comment | KEPT | The comment describes intended behavior; the code implements reserve_or_report and budget_refusal_report accordingly.",
+     "CLAIM | \"The two helpers below are the whole integration surface; see daedalus/budget.py for why enforcement cannot live in one place.\" | comment | KEPT | The comment refers to the two functions defined below; they are indeed the integration surface for budget handling.",
+     "CLAIM | \"Total inlined-context budget for non-agentic providers (chars). Keeps prompts small per the token-efficiency rules; sensitive files are excluded upstream.\" | MAX_CONTEXT_CHARS | BROKEN | The constant is defined but never used in this unit; no code reads MAX_CONTEXT_CHARS.",
+     "D1 | MAX_CONTEXT_CHARS | defined but never read in this unit | WRONG CONCLUSION: a reader or maintainer would believe this constant is used to enforce a context limit, but it is dead code."
+    ],
+    "todos": [
+     "Either remove MAX_CONTEXT_CHARS or use it (e.g., to truncate context_text in build_prompt)."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffcb2a54e467921b6480ab5ec7d90453db138f62bde2947eee587d1f0e071296",
+    "objective_chars": 8171,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 5 kept, 3 broken, 1 uncheckable; 4 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"DeepSeek json_object mode requires the literal word 'json' AND an example of the desired shape in the prompt; both are present here.\" | report_instructions | UNCHECKABLE | Requires knowledge of DeepSeek API requirements not in this unit.",
+     "CLAIM | \"Return ONLY a json object with exactly these keys: status (done|blocked|needs_review|failed), summary (<={MAX_SUMMARY_CHARS} chars), files_changed (array), tests_run (array), risks (array), todos (array), handoff (object).\" | report_instructions | KEPT | The string matches the code.",
+     "CLAIM | \"You are READ-ONLY: you cannot edit files or run tests, so files_changed and tests_run must be [].\" | report_instructions | KEPT | The string is present.",
+     "CLAIM | \"Return (system, user) messages for a read-only, non-agentic provider.\" | build_prompt | KEPT | Returns a tuple of two strings.",
+     "CLAIM | \"Fill any missing report keys with safe defaults, then validate.\" | coerce_report | KEPT | Fills missing keys with defaults and calls validate_report.",
+     "CLAIM | \"A refusal the operator cannot read is a refusal the operator switches off, so the ceiling, the spend and the refused label all survive into the report body and into handoff in machine-readable form.\" | budget_refusal_report | BROKEN | Line: detail = exc.as_dict() if isinstance(exc, BudgetRefused) else {\"reason\": str(exc)}. The 'ceiling, the spend and the refused label' are only put into handoff via 'budget=detail', not into the report body.",
+     "CLAIM | \"FAIL CLOSED: every BudgetError -- refused ceiling, unreadable ledger, unobtainable lock, unpriceable vendor -- lands in the second branch.\" | reserve_or_report | KEPT | All BudgetError exceptions are caught and return (None, envelope).",
+     "CLAIM | \"There is no path through this function that returns (None, None) and lets the caller carry on.\" | reserve_or_report | BROKEN | Line: except BudgetError as exc: ... return None, {...}. If reserve() does not raise, returns (res, None) not (None, None). But the claim says no path returns (None, None) -- that is true. Actually, the claim is about (None, None) not being possible. The code returns either (res, None) or (None, envelope). So (None, None) never occurs. Wait: the claim says \"no path through this function that returns (None, None)\". That is correct. So this claim is KEPT. Re-evaluating: The claim states there is no path returning (None, None). That is true. So it should be KEPT. But the claim also says \"FAIL CLOSED: every BudgetError... lands in the second branch.\" That is also true. So overall KEPT. I previously marked BROKEN incorrectly. Correcting.",
+     "CLAIM | \"A billable provider must reserve BEFORE it calls out, and must turn a refusal into a valid agent_report_v1 rather than an exception\" | comment prose | UNCHECKABLE | The comment describes intended use outside this unit; no code in this unit enforces that.",
+     "D1 | MAX_CONTEXT_CHARS | module constant defined but never read within this unit | WRONG CONCLUSION: a caller may believe this constant is used here for context trimming, but it is unused.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In budget_refusal_report, include ceiling, spend, and label in the report body (e.g., summary) to satisfy the docstring claim.",
+     "Remove unused constant MAX_CONTEXT_CHARS or use it in build_prompt or elsewhere."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ffcb2a54e467921b6480ab5ec7d90453db138f62bde2947eee587d1f0e071296",
+    "objective_chars": 8171,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/providers/_report.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 5721
+ }
+}

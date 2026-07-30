@@ -1,0 +1,141 @@
+{
+ "task_id": "research__b046__946db82",
+ "key": "research__b046__946db82-e13026f5ea",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: 1) Inventory docstring omits annotation_overreach failure mode found in code. 2) Evaluation harness promises c_beats_a but may not implement it. 3) Multiple modules assume external functions exist without verifying contracts. 4) Inventory and tools modules both claim derived/never-manual but no mechanism prevents manual edits. 5) Ollama window rewrite bypasses newline translation while harness assumes platform convention.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Inventory gate may miss annotation_overreach failures due to docstring omission.",
+     "Evaluation metrics may be incomplete if c_beats_a is not implemented.",
+     "Cross-module dependencies on undefined symbols may cause runtime errors.",
+     "Manual inventory edits could go undetected, breaking trust.",
+     "Newline inconsistency between windowed and full-file rewrites could corrupt line-based diffs."
+    ],
+    "todos": [
+     "Verify c_beats_a implementation in eval_task_arms.",
+     "Reconcile inventory docstring with actual failure modes.",
+     "Add contract tests for external function dependencies.",
+     "Implement digest verification for inventory derived fields.",
+     "Align newline handling across rewrite paths."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "inventory-failure-modes",
+       "claim": "Inventory gate check() docstring claims four failure modes but code implements five, including annotation_overreach. This discrepancy could lead to missing critical validation.",
+       "spans": [
+        "daedalus/mapping/inventory.py",
+        "daedalus/tools/inventory.py"
+       ],
+       "mechanism": "check() in mapping/inventory.py validates inventory; docstring lists four failure modes but code includes annotation_overreach. tools/inventory.py build() produces inventory but no cross-check ensures failure modes are consistent.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If check() is never called or annotation_overreach is not a real failure path, the discrepancy is harmless.",
+       "evidence": [
+        "daedalus/mapping/inventory.py:line 844-848",
+        "daedalus/mapping/inventory.py:annotation_overreach in code"
+       ]
+      },
+      {
+       "id": "missing-c-beats-a",
+       "claim": "Evaluation harness docstring for eval_task_arms mentions c_beats_a field but it is not present in the returned dict in the scanned chunk, suggesting it may not be implemented.",
+       "spans": [
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "eval_task_arms returns dict with recall_A, recall_B, recall_C, etc. Docstring promises c_beats_a (C >= A tie-inclusive). If missing, the evaluation report omits a key metric.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If c_beats_a is computed and added to the returned dict later in the file (outside the scanned chunk), the claim is false.",
+       "evidence": [
+        "daedalus/eval/harness.py:eval_task_arms docstring",
+        "daedalus/eval/harness.py:eval_task_arms return dict"
+       ]
+      },
+      {
+       "id": "unresolved-external-deps",
+       "claim": "Multiple modules reference functions and constants not defined within the scanned chunks, creating implicit contracts that may be broken without detection.",
+       "spans": [
+        "daedalus/eval/harness.py",
+        "daedalus/providers/ollama.py",
+        "daedalus/structcore/artifacts.py",
+        "daedalus/tools/inventory.py"
+       ],
+       "mechanism": "harness.py uses _is_focus_withheld, _focus_withheld_row; ollama.py uses run_checks, _CHECK_POLICY, _full_file_content; artifacts.py uses artifact_node_id, artifact_family; tools/inventory.py uses vet_mod.summarise. These are assumed to exist elsewhere.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If all referenced symbols are defined in other chunks of the same files or in imported modules and are correctly typed, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/harness.py:focus-withheld references",
+        "daedalus/providers/ollama.py:run_checks reference",
+        "daedalus/structcore/artifacts.py:artifact_node_id reference",
+        "daedalus/tools/inventory.py:vet_mod.summarise reference"
+       ]
+      },
+      {
+       "id": "manual-inventory-edits",
+       "claim": "Inventory modules claim derived/never-hand-maintained but no mechanism prevents manual edits to the inventory file, which could go undetected if digest check is not enforced.",
+       "spans": [
+        "daedalus/mapping/inventory.py",
+        "daedalus/tools/inventory.py"
+       ],
+       "mechanism": "tools/inventory.py build() generates inventory; mapping/inventory.py check() validates it. check() includes digest mismatch detection but relies on the stored digest covering derived fields. If digest is manually updated or bypassed, manual edits become invisible.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the digest in the inventory file is always computed from derived fields and cannot be manually set (e.g., read-only), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/inventory.py:digest mismatch check",
+        "daedalus/tools/inventory.py:derived claim"
+       ]
+      },
+      {
+       "id": "newline-inconsistency",
+       "claim": "Ollama window rewrite uses write_bytes (bypassing newline translation) while full-file rewrite uses write_text (with translation), causing inconsistent line endings that could break line-based diffs or window splicing.",
+       "spans": [
+        "daedalus/providers/ollama.py",
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "Ollama _run_rewrite writes windowed files with write_bytes (no newline conversion) and full rewrites with write_text (converts to platform newline). The harness assumes consistent line endings for evaluation (e.g., BM25 tokenization, recall measurement).",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If the platform never has mixed newlines (e.g., always LF) or if write_text is configured to not convert, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/providers/ollama.py:window write with write_bytes",
+        "daedalus/providers/ollama.py:full rewrite with write_text"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8014b9a30e11bd9bbe6d4afb7a5d80d81560932b1eef41e958f0db53269f0d61",
+    "objective_chars": 31227,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 46 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 46,
+  "inputs": 5
+ }
+}

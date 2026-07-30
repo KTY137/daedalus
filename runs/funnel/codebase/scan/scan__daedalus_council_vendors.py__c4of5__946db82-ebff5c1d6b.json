@@ -1,0 +1,268 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c4of5__946db82",
+ "key": "scan__daedalus_council_vendors.py__c4of5__946db82-ebff5c1d6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of 5 of vendors.py: AntigravityAdapter, OllamaAdapter, VendorAvailability dataclass, available_vendors function. Claims checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "AntigravityAdapter._dispatch | medium | Returns 'not_authenticated' without probing; relies on operator assertion. | Add a test with signed_in=False to confirm immediate return.",
+     "OllamaAdapter.__init__ | medium | local property computed from lane_for_host; could disagree with lane if host is loopback but lane is 'untrusted'. | Verify lane_for_host logic consistency.",
+     "available_vendors | medium | agy availability depends on agy_signed_in flag; no probe for actual auth. | Confirm that operator must set flag correctly."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "4 of 5",
+     "purpose": "Define AntigravityAdapter, OllamaAdapter, VendorAvailability, and available_vendors.",
+     "symbols": [
+      {
+       "name": "AntigravityAdapter._auth_failure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns 'not_authenticated' if returncode not 0/None and stderr/stdout look unauthenticated."
+      },
+      {
+       "name": "AntigravityAdapter",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Adapter for Google/Antigravity agy over SSH. Disabled by default (signed_in=False)."
+      },
+      {
+       "name": "AntigravityAdapter.vendor",
+       "kind": "constant",
+       "effects": [],
+       "note": "vendor = 'google'"
+      },
+      {
+       "name": "AntigravityAdapter.local",
+       "kind": "constant",
+       "effects": [],
+       "note": "local = False"
+      },
+      {
+       "name": "AntigravityAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializer with ssh_target, effort, signed_in, ssh_command, runner."
+      },
+      {
+       "name": "AntigravityAdapter.argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds SSH command line to run agy -p - with effort and model."
+      },
+      {
+       "name": "AntigravityAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Dispatches prompt via SSH; returns status dict with error handling."
+      },
+      {
+       "name": "OllamaAdapter",
+       "kind": "class",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Adapter for local/bench Ollama over /api/chat. Over-budget prompts refused."
+      },
+      {
+       "name": "OllamaAdapter.vendor",
+       "kind": "constant",
+       "effects": [],
+       "note": "vendor = 'local'"
+      },
+      {
+       "name": "OllamaAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializer with host, output_reserve, chat callable."
+      },
+      {
+       "name": "OllamaAdapter.independence_class",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns ('local', model_family(self.model)). Not keyed on host."
+      },
+      {
+       "name": "OllamaAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Checks token budget, calls native_chat, handles errors."
+      },
+      {
+       "name": "VendorAvailability",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for cheap probe result. No model invoked."
+      },
+      {
+       "name": "available_vendors",
+       "kind": "function",
+       "effects": [],
+       "note": "Probes availability via which() and http_probe(); returns tuple of VendorAvailability."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The prompt goes on STDIN (``agy -p -``) and NEVER on a command line.",
+       "where": "AntigravityAdapter docstring, line 846",
+       "verdict": "kept",
+       "why": "argv() builds command with '-p', '-'; prompt passed via stdin_text in _dispatch."
+      },
+      {
+       "text": "``ssh`` with a trailing command does not take an argv: it concatenates its arguments and hands the string to the REMOTE login shell, which re-parses it.",
+       "where": "AntigravityAdapter docstring, line 847",
+       "verdict": "kept",
+       "why": "argv() returns list of strings; subprocess.run() uses list, but SSH on remote side concatenates. The code passes arguments as list to subprocess, which is correct for local argv, but remote shell will re-parse. Claim is accurate about SSH behavior."
+      },
+      {
+       "text": "The prompt here is a diff written by a candidate model, so an ordinary patch containing backticks or ``$(...)`` -- a shell script, a test log, a Python f-string -- would execute on the bench as Administrator, with no adversarial model required.",
+       "where": "AntigravityAdapter docstring, line 848",
+       "verdict": "uncheckable",
+       "why": "The docstring describes a security risk; code does not implement any sanitization. Claim is about external behavior, not verifiable from code alone."
+      },
+      {
+       "text": "Local ``subprocess`` argv quoting cannot help: the escaping that matters belongs to a shell we cannot see.",
+       "where": "AntigravityAdapter docstring, line 849",
+       "verdict": "kept",
+       "why": "argv() uses a list, which subprocess passes correctly to local exec, but SSH concatenates; remote shell re-parses. The code does not add any quoting."
+      },
+      {
+       "text": "``agy`` has not completed its one-time interactive sign-in on this machine, so this adapter is DISABLED BY DEFAULT: it reports ``unavailable`` / ``not_authenticated`` immediately rather than hanging on an auth prompt.",
+       "where": "AntigravityAdapter docstring, line 851",
+       "verdict": "kept",
+       "why": "__init__ sets signed_in=False by default; _dispatch returns unavailable with reason not_authenticated when signed_in is False."
+      },
+      {
+       "text": "An operator asserts sign-in with ``signed_in=True``; nothing here probes it, because probing means invoking a model.",
+       "where": "AntigravityAdapter docstring, line 852",
+       "verdict": "kept",
+       "why": "signed_in is a boolean flag; _dispatch does not probe auth, only checks the flag."
+      },
+      {
+       "text": "The host is passed EXPLICITLY per call.  ``OLLAMA_HOST`` is never read for routing and never written",
+       "where": "OllamaAdapter docstring, line 902",
+       "verdict": "uncheckable",
+       "why": "Code does not reference OLLAMA_HOST; host parameter is used. Claim about never reading OLLAMA_HOST cannot be verified from this chunk."
+      },
+      {
+       "text": "``local`` is ``sensitivity.lane_for_host(host) == \"trusted\"`` -- numeric loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.",
+       "where": "OllamaAdapter docstring, line 903",
+       "verdict": "kept",
+       "why": "__init__ sets self.local = lane_for_host(self.host) == 'trusted'. This matches the claim."
+      },
+      {
+       "text": "Over-budget prompts are REFUSED LOUDLY.  Ollama HEAD-truncates an over-long prompt -- it eats the system prompt first -- so a silently truncated council turn is a reviewer that never saw the question it is answering.",
+       "where": "OllamaAdapter docstring, line 905",
+       "verdict": "kept",
+       "why": "_dispatch checks tokens > window and returns error with over_context_budget reason before calling chat."
+      },
+      {
+       "text": "The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented.",
+       "where": "OllamaAdapter docstring, line 906",
+       "verdict": "uncheckable",
+       "why": "effective_input_window is imported; its implementation is not in this chunk."
+      },
+      {
+       "text": "Deliberately NOT keyed on host: local 7b and bench 7b are the same weights, so they must collide as one class.",
+       "where": "OllamaAdapter.independence_class docstring, line 920",
+       "verdict": "kept",
+       "why": "independence_class returns ('local', model_family(self.model)); host is not included."
+      },
+      {
+       "text": "ONE predicate, shared with the egress gate it feeds. Not a local copy: ``local`` and ``lane`` must never be able to disagree about the same host, and they did (``[::1]`` was local-but-untrusted).",
+       "where": "OllamaAdapter.__init__ docstring, line 915",
+       "verdict": "kept",
+       "why": "self.local is computed from lane_for_host; lane is set to 'trusted' by default. The comment references a past bug; code now uses shared predicate."
+      },
+      {
+       "text": "Cheap probe result.  No model is invoked to produce this.",
+       "where": "VendorAvailability docstring, line 947",
+       "verdict": "kept",
+       "why": "Dataclass fields are static; available_vendors uses which() and http_probe() only."
+      },
+      {
+       "text": "Which vendors could be seated, established by CHEAP PROBES ONLY. Does the binary exist; does the Ollama host answer ``/api/version``.  No model is invoked, no prompt is sent, nothing is billed.  ``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.",
+       "where": "available_vendors docstring, line 955",
+       "verdict": "kept",
+       "why": "Function calls which() and http_probe(); for agy, uses agy_signed_in flag. No model calls."
+      },
+      {
+       "text": "Both callables are injectable so a test can establish availability with no CLI on PATH and no network.",
+       "where": "available_vendors docstring, line 957",
+       "verdict": "kept",
+       "why": "which and http_probe are parameters with defaults; tests can inject mocks."
+      }
+     ],
+     "observations": [
+      {
+       "what": "AntigravityAdapter._auth_failure checks returncode and _looks_unauthenticated; but _dispatch also checks _looks_unauthenticated on blob. There is duplicate logic.",
+       "where": "AntigravityAdapter._auth_failure and _dispatch",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "OllamaAdapter._dispatch uses effective_input_window() and count_tokens() without explicit import visible; they are presumably imported at module top.",
+       "where": "OllamaAdapter._dispatch",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "available_vendors constructs VendorAvailability for agy with endpoint f'ssh:{BENCH_SSH_TARGET.split('@')[-1]}'; but BENCH_SSH_TARGET is not defined in this chunk.",
+       "where": "available_vendors, line 986",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "available_vendors uses COUNCIL_PROFILES dict but it is not defined in this chunk; likely imported.",
+       "where": "available_vendors, lines 973, 979",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "254f90ba78cd2dedad84633c86a24011b19e19e383e2d5036d24a2db09fabb87",
+    "objective_chars": 12112,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

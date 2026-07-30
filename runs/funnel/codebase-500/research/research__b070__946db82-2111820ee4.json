@@ -1,0 +1,87 @@
+{
+ "task_id": "research__b070__946db82",
+ "key": "research__b070__946db82-2111820ee4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two patterns: (1) the correctness gate's assumption that 'verified' receipt exists is not guaranteed by any other module, and (2) the cancellation ladder's fail-closed guarantee depends on job object creation that is not implemented in the provided chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Correctness gate may fail on tasks from inventory because inventory does not produce 'verified' receipts.",
+     "Cancellation fail-closed guarantee is unimplemented; process may be spawned without killable container.",
+     "Inventory docstring claims about gate mode and refresh are unverifiable from provided code.",
+     "Index build claims about byte-identical output with docs off cannot be verified, risking subtle cache inconsistencies."
+    ],
+    "todos": [
+     "Verify that correctness_gate's caller provides a 'verified' receipt or handle missing case.",
+     "Implement job object creation and assignment in cancel.py to honor fail-closed contract.",
+     "Add tests for cancellation ladder stages.",
+     "Ensure inventory's render_text handles missing keys gracefully."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unverified-receipt",
+       "claim": "The correctness gate assumes a 'verified' receipt is always provided, but no other module guarantees this; inventory, for instance, does not produce such receipts.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/mapping/inventory.py"
+       ],
+       "mechanism": "correctness_gate checks receipt.get('verified') and returns verdict(False) if missing. Inventory's main() outputs a doc dict via json.dumps, which contains no 'verified' field. If that doc is later used as a receipt, the gate will reject it.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If inventory's output is never used as a receipt for correctness_gate, or if there is an explicit transformation that adds 'verified' before reaching the gate.",
+       "evidence": [
+        "daedalus/eval/correctness.py: receipt.get('verified') check",
+        "daedalus/mapping/inventory.py: main() outputs doc dict without 'verified'"
+       ]
+      },
+      {
+       "id": "cancel-fail-closed-unimplemented",
+       "claim": "The cancellation module claims a fail-closed guarantee (CancellationUnavailable raised if job object cannot be created), but the provided chunk contains no code to create or assign a job object; the guarantee is unimplemented.",
+       "spans": [
+        "daedalus/spine/cancel.py"
+       ],
+       "mechanism": "Module docstring states that if job cannot be created, spawn fails closed. However, the chunk only defines constants and structures; the actual process creation and job assignment logic (which would raise CancellationUnavailable) is absent. Thus any process spawned via this module would not have the containment, violating the contract.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If the remaining chunks of cancel.py implement the job object creation and assignment, and the fail-closed logic is present there.",
+       "evidence": [
+        "daedalus/spine/cancel.py: docstring lines 20-22 describing fail-closed",
+        "daedalus/spine/cancel.py: constants defined but no usage in chunk"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bb886db06e94afea61c17a7951325d3cd5b3a02f2ba96cd11d1adbb15fe4c923",
+    "objective_chars": 21541,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 70 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 70,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,169 @@
+{
+ "task_id": "daedalus/council/bus.py#c1of2#5eb1702d",
+ "key": "daedalus_council_bus.py_c1of2_5eb1702d-c52a001b30",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 15 kept, 3 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Fail-loud, human-diffable, tamper-evident: every line carries the SHA of the line before it, so a flipped byte or a deleted INTERIOR line breaks the chain and :func:`verify_chain` NAMES the offending 1-indexed line.\" | verify_chain | UNCHECKABLE | verify_chain is not defined in this unit, so its behavior cannot be verified.",
+     "CLAIM | \"TAIL truncation (any prefix of a valid chain is itself a valid chain) is caught only against the head/count ANCHOR persisted beside the transcript and re-checked on every verify.\" | anchor_path, _write_anchor | KEPT | Anchor file is written and its count/head fields can be compared to detect truncation.",
+     "CLAIM | \"Any store path under ``<repo>/memory/`` is refused loudly by :func:`_resolve_store`.\" | _resolve_store | KEPT | Raises ValueError if resolved path is under _FORBIDDEN_STORE_DIR.",
+     "CLAIM | \"Two SHAs per line, mirroring ``memstore``/``dctx`` (one place, one answer to 'is this field in the hash?'): ... body_sha -- sha256 over json.dumps(canonical_body, sort_keys=True, separators=(\",\",\":\"), ensure_ascii=True) ... entry_sha -- sha256(prev + '\\0' + body_sha + '\\0' + ts)\" | _body_sha, _entry_sha | KEPT | Implementation matches the described algorithm.",
+     "CLAIM | \"Genesis prev is None and folds in as '' (unambiguous: a real prev is always a 64-hex digest).\" | _entry_sha | KEPT | _entry_sha uses (prev or '') which yields '' for None.",
+     "CLAIM | \"a turn's id is entry_sha[:16], not body_sha[:16]\" | _chain_records | KEPT | id is assigned as entry_sha[:16].",
+     "CLAIM | \"there is NO dedupe. A council transcript is a log of EVENTS: two participants may legitimately emit byte-identical bodies, and deduping the second away would erase a voice from the record.\" | append_round | KEPT | No deduplication logic exists; duplicate actors are explicitly rejected, not deduped.",
+     "CLAIM | \"Dispatch may be concurrent; CHAINING MUST NOT BE.\" | _WRITE_LOCK | KEPT | _chain_records uses a threading.Lock.",
+     "CLAIM | \"append_round takes a whole round's turns in ANY completion order, sorts them by the vendor-namespaced actor id, assigns seq at chain time, and stamps ONE chain timestamp for the round.\" | append_round | KEPT | Sorts by actor (and tiebreakers), seq assigned in _chain_records, ts is single.",
+     "CLAIM | \"The same fixture responses delivered in reversed completion order therefore produce a byte-identical chain head\" | append_round | KEPT | Sorting ensures deterministic order.",
+     "CLAIM | \"Real per-turn wall-clock lives in meta.latency_ms / meta.started_ts, which are body content, not chain position.\" | _normalize_turn | KEPT | meta fields are preserved as body content.",
+     "CLAIM | \"PATH channel: every evidence path, INDIVIDUALLY.\" | _scan_paths | KEPT | Iterates over each path individually.",
+     "CLAIM | \"CONTENT channel: the turn content, every ref, and every metadata string, each scanned on its own -- never over the assembled turn.\" | _scan_texts | KEPT | Scans each string independently.",
+     "CLAIM | \"This runs on OUTBOUND turns and, critically, on INBOUND vendor responses BEFORE they are chained\" | _scan_turn, append_round | KEPT | _scan_turn is called in append_round before chaining.",
+     "CLAIM | \"A hit REFUSES the turn -- no redact-and-send, no redact-and-store. In its place a status='refused' receipt is chained naming ONLY the rule label (a fixed string, never matched text)\" | append_round, _refusal_receipt | KEPT | On hit, creates refusal receipt with rule as reason.",
+     "CLAIM | \"The receipt is re-scanned before it is written; if the identity fields themselves carry the secret the receipt degrades to an anonymous one\" | append_round | BROKEN | Line 370-371: The receipt is re-scanned, but if it still hits, _refusal_receipt is called with anonymous=True, but the receipt is NOT re-scanned after that; the anonymous receipt is used directly without a second scan. The prose says \"re-scanned before it is written\" implying a second scan, but only one scan happens for the anonymous version.",
+     "CLAIM | \"withheld (paths an egress lane declined to send) is scanned with the CONTENT channel only, never the path channel.\" | _scan_turn | KEPT | Withheld is added to texts list, not scanned via _scan_paths.",
+     "CLAIM | \"EVERY REQUESTED PARTICIPANT PRODUCES EXACTLY ONE CHAINED TURN PER ROUND -- content, refused, unavailable with a machine reason, or budget_exhausted. Silence is never an absence\" | append_round | KEPT | The code requires exactly one turn per actor per round and raises error on duplicates; missing participants are not handled here but the docstring describes intended behavior.",
+     "D1 | append_round parameter store_path | BROKEN | The parameter store_path is accepted but never read in this unit; it is passed to _resolve_store which returns a Path, but the returned value is used. However, the parameter itself is not read directly. WRONG CONCLUSION: A caller might think store_path is used directly.",
+     "D2 | _ends_without_newline | BROKEN | The function checks if the file ends without a newline, but there is no except clause that swallows and continues; this is a false positive. No D2 hit.",
+     "D3 | None | No check runs after the side effect it guards.",
+     "D4 | None | No branch whose condition cannot be true given assignments above it."
+    ],
+    "todos": [
+     "In append_round, after calling _refusal_receipt with anonymous=True, re-scan the anonymous receipt to ensure it does not trip the floor; if it does, handle gracefully (e.g., use a fully redacted receipt).",
+     "None"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c250bcda749abc7c0b9350783e2bc95fa189e49105c54827787f442af27fa72d",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 13 kept, 3 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Fail-loud, human-diffable, tamper-evident: every line carries the SHA of the line before it\" | module docstring | KEPT | The code computes prev and entry_sha per line.",
+     "CLAIM | \"TAIL truncation (any prefix of a valid chain is itself a valid chain) is caught only against the head/count ANCHOR persisted beside the transcript and re-checked on every verify\" | module docstring | UNCHECKABLE | Need to see verify_chain to confirm anchor re-check.",
+     "CLAIM | \"Any store path under <repo>/memory/ is refused loudly by _resolve_store\" | module docstring | KEPT | _resolve_store raises ValueError if resolved path is under _FORBIDDEN_STORE_DIR.",
+     "CLAIM | \"body_sha -- sha256 over json.dumps(canonical_body, sort_keys=True, separators=(\",\",\":\"), ensure_ascii=True)\" | module docstring | KEPT | canonical_body_json matches this.",
+     "CLAIM | \"canonical_body is the record MINUS the four position/identity fields ts, prev, entry_sha, id (and body_sha itself)\" | module docstring | KEPT | canonical_body excludes _NON_BODY_FIELDS which includes all five.",
+     "CLAIM | \"entry_sha -- sha256(prev + \"\\0\" + body_sha + \"\\0\" + ts)\" | module docstring | KEPT | _entry_sha implements this.",
+     "CLAIM | \"Genesis prev is None and folds in as \"\" (unambiguous: a real prev is always a 64-hex digest)\" | module docstring | KEPT | _entry_sha uses (prev or '').",
+     "CLAIM | \"a turn's id is entry_sha[:16], not body_sha[:16]\" | module docstring | KEPT | _chain_records sets rec['id'] = entry_sha[:16].",
+     "CLAIM | \"there is NO dedupe\" | module docstring | KEPT | No deduplication logic present.",
+     "CLAIM | \"append_round takes a whole round's turns in ANY completion order, sorts them by the vendor-namespaced actor id, assigns seq at chain time, and stamps ONE chain timestamp for the round\" | module docstring | KEPT | append_round sorts by actor and uses one ts.",
+     "CLAIM | \"PATH channel: every evidence path, INDIVIDUALLY\" | module docstring | KEPT | _scan_paths iterates over paths individually.",
+     "CLAIM | \"CONTENT channel: the turn content, every ref, and every metadata string, each scanned on its own\" | module docstring | KEPT | _scan_texts scans each string individually.",
+     "CLAIM | \"This runs on OUTBOUND turns and, critically, on INBOUND vendor responses BEFORE they are chained\" | module docstring | UNCHECKABLE | Need to see where _scan_turn is called on inbound responses.",
+     "CLAIM | \"A hit REFUSES the turn -- no redact-and-send, no redact-and-store. In its place a status='refused' receipt is chained naming ONLY the rule label\" | module docstring | KEPT | append_round creates receipt with status='refused' and reason=rule.",
+     "CLAIM | \"The receipt is re-scanned before it is written; if the identity fields themselves carry the secret the receipt degrades to an anonymous one\" | module docstring | KEPT | append_round rescans receipt and degrades if needed.",
+     "CLAIM | \"withheld (paths an egress lane declined to send) is scanned with the CONTENT channel only, never the path channel\" | module docstring | BROKEN | _scan_turn includes withheld in _scan_texts (content channel), but also includes evidence paths in _scan_paths; however, the claim says withheld is content only, which is correct: withheld is added to texts, not to paths. Actually, evidence paths are scanned via _scan_paths, but withheld is only in texts. The claim is about withheld, so it's kept. However, the claim also says \"never the path channel\" and _scan_turn does not call _scan_paths on withheld. So it's kept.",
+     "CLAIM | \"Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice\" | module docstring | BROKEN | append_round checks for duplicates after normalization but before sorting; however, it allows duplicates if the actor is 'council.redacted.redacted' (anonymized). The claim says \"exactly one turn per actor per round is allowed\" and then says \"a duplicate is a caller bug\". But the code explicitly allows multiple anonymized actors to have the same actor string. This contradicts the claim that duplicates are not allowed. The claim is broken because the code permits duplicates for anonymized actors.",
+     "CLAIM | \"a missing participant must be recorded as an unavailable turn rather than skipped\" | module docstring | BROKEN | The code does not enforce that every requested participant appears; it only checks for duplicates. There is no mechanism to ensure missing participants are recorded as unavailable. The claim says \"must be recorded as an unavailable turn rather than skipped\", but the code does not require this.",
+     "D: none"
+    ],
+    "todos": [
+     "Update the claim about duplicates to note that anonymized actors (council.redacted.redacted) are allowed to appear multiple times, or change the code to reject all duplicates.",
+     "Add validation that every requested participant produces a turn, or remove the claim about missing participants being recorded."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c250bcda749abc7c0b9350783e2bc95fa189e49105c54827787f442af27fa72d",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 11 kept, 4 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _chain_records | BROKEN | writes lines then anchor; a crash after lines but before anchor leaves inconsistent state",
+     "CLAIM | \"A torn (newline-less) tail is separated with a leading newline\" | _chain_records | KEPT | code checks _ends_without_newline and prepends newline",
+     "CLAIM | \"TAIL truncation (any prefix of a valid chain is itself a valid chain) is caught only against the head/count ANCHOR persisted beside the transcript and re-checked on every verify.\" | verify_chain | UNCHECKABLE | verify_chain not in this chunk",
+     "CLAIM | \"Any store path under <repo>/memory/ is refused loudly by :func:`_resolve_store`.\" | _resolve_store | KEPT | raises ValueError if resolved relative to forbidden dir",
+     "CLAIM | \"body_sha -- sha256 over json.dumps(canonical_body, sort_keys=True, separators=(\",\",\":\"), ensure_ascii=True)\" | canonical_body_json | KEPT | matches exactly",
+     "CLAIM | \"entry_sha -- sha256(prev + \\\"\\\\0\\\" + body_sha + \\\"\\\\0\\\" + ts)\" | _entry_sha | KEPT | matches exactly",
+     "CLAIM | \"A turn's id is entry_sha[:16], not body_sha[:16]\" | _chain_records | KEPT | assigns rec[\"id\"] = entry_sha[:16]",
+     "CLAIM | \"there is NO dedupe\" | _chain_records | KEPT | no deduplication logic present",
+     "CLAIM | \"append_round takes a whole round's turns in ANY completion order, sorts them by the vendor-namespaced actor id\" | append_round | KEPT | sorts by actor, role, status, canonical_body_json",
+     "CLAIM | \"stamps ONE chain timestamp for the round\" | _chain_records | KEPT | uses single ts for all records in batch",
+     "CLAIM | \"secret floor... runs on OUTBOUND turns and, critically, on INBOUND vendor responses BEFORE they are chained\" | _scan_turn | KEPT | called before _chain_records in append_round",
+     "CLAIM | \"A hit REFUSES the turn -- no redact-and-send, no redact-and-store. In its place a status='refused' receipt is chained\" | append_round | KEPT | creates receipt with status refused",
+     "CLAIM | \"The receipt is re-scanned before it is written; if the identity fields themselves carry the secret the receipt degrades to an anonymous one\" | append_round | KEPT | rescans and degrades if needed",
+     "CLAIM | \"withheld (paths an egress lane declined to send) is scanned with the CONTENT channel only, never the path channel.\" | _scan_turn | BROKEN | _scan_turn calls _scan_paths on evidence paths, but then adds evidence paths to texts for _scan_texts, which scans them via content channel, but also calls _scan_paths separately; the docstring claim says withheld is content only, but evidence paths are also scanned via path channel, which contradicts 'never the path channel' for evidence paths? Actually the claim is about withheld, which is only in texts, so KEPT. But evidence paths are scanned via both channels, which may be a design choice, not a broken claim.",
+     "CLAIM | \"EVERY REQUESTED PARTICIPANT PRODUCES EXACTLY ONE CHAINED TURN PER ROUND -- content, refused, unavailable, or budget_exhausted.\" | append_round | BROKEN | duplicate check allows only one per actor, but does not enforce that every requested participant appears; missing participants are not recorded",
+     "CLAIM | \"A key outside this set is REFUSED loudly, never dropped\" | _reject_unknown | KEPT | raises ValueError for extra keys",
+     "D1 | _APPEND_CACHE | defined but only written inside _chain_state; never read outside that function? Actually it is read/written only in _chain_state, so it is read there. No D1.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | _ends_without_newline | checks if file ends without newline; if file size is 0, returns False, which is correct. No D4."
+    ],
+    "todos": [
+     "Fix atomicity: write anchor before lines, or use a temporary file and rename",
+     "Fix duplicate check: after sorting, check for consecutive same actor (excluding redacted) to allow multiple redacted",
+     "Clarify or change docstring: 'neither content, nor content, nor evidence paths' in refusal receipt description does not match code that retains meta transport/latency_ms",
+     "Consider whether evidence paths should be scanned by path channel only (as per docstring) or also by content channel; currently both"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c250bcda749abc7c0b9350783e2bc95fa189e49105c54827787f442af27fa72d",
+    "objective_chars": 30523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/bus.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28010
+ }
+}

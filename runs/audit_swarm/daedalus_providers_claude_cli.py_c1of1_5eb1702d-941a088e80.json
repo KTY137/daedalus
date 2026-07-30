@@ -1,0 +1,114 @@
+{
+ "task_id": "daedalus/providers/claude_cli.py#c1of1#5eb1702d",
+ "key": "daedalus_providers_claude_cli.py_c1of1_5eb1702d-941a088e80",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 4 kept, 0 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Primary lane: the agentic, write-capable, trusted Claude CLI.\" | class docstring | KEPT | caps sets can_write=True, trusted_with_ip=True, agentic=True and Provider is described as primary lane.",
+     "CLAIM | \"unused: Claude is agentic + trusted\" | comment on policy | KEPT | policy parameter is not read in the method body.",
+     "CLAIM | \"model or agent.get(\\\"model_tier\\\", \\\"sonnet\\\")\" | line 25 | KEPT | The code reads model from parameter or falls back to agent dict, defaulting to sonnet.",
+     "CLAIM | \"return provider name, agent, report\" | lines 28-31 | KEPT | The returned dict contains exactly those three keys."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "057db2e9b03d36f7bd0233201ae0385e0f471b6c3f1bedea287635fcfd4c66b9",
+    "objective_chars": 3649,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 3 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Primary lane: the agentic, write-capable, trusted Claude CLI.\" | docstring | KEPT | caps.setting can_write=True, agentic=True, trusted_with_ip=True supports the claim.",
+     "CLAIM | \"unused: Claude is agentic + trusted\" | comment on policy param | UNCHECKABLE | Need to see ask_claude signature to confirm policy is not forwarded.",
+     "D1 | policy | parameter defined but never read in this unit | WRONG CONCLUSION: A caller may expect policy to influence behavior.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "057db2e9b03d36f7bd0233201ae0385e0f471b6c3f1bedea287635fcfd4c66b9",
+    "objective_chars": 3649,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 2 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Primary lane: the agentic, write-capable, trusted Claude CLI.\" | docstring | BROKEN | caps.trusted_with_ip=True but no code in this unit enforces IP trust; the claim is about the provider, not just caps",
+     "CLAIM | \"can_write=True\" | caps.can_write | UNCHECKABLE | no code in this unit checks can_write or restricts write operations; needs caller to verify",
+     "CLAIM | \"local=False\" | caps.local | KEPT | caps.local is False and no local-only logic exists",
+     "CLAIM | \"trusted_with_ip=True\" | caps.trusted_with_ip | BROKEN | line 18: policy parameter is unused with comment \"unused: Claude is agentic + trusted\", but IP trust is not enforced or checked; the comment contradicts the claim by saying policy is unused because Claude is trusted, yet no code ensures trust",
+     "CLAIM | \"agentic=True\" | caps.agentic | KEPT | caps.agentic is True and no code contradicts agentic behavior",
+     "D1 | policy | parameter defined at line 18, read nowhere in this unit; comment says \"unused\" but caller may expect it to be used"
+    ],
+    "todos": [
+     "Remove unused policy parameter or use it to enforce IP trust; update docstring to reflect actual capabilities",
+     "Either implement IP trust enforcement or set trusted_with_ip=False and update docstring"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "057db2e9b03d36f7bd0233201ae0385e0f471b6c3f1bedea287635fcfd4c66b9",
+    "objective_chars": 3649,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/providers/claude_cli.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1196
+ }
+}

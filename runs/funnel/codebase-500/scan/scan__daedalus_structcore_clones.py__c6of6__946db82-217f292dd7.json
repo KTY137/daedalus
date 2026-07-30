@@ -1,0 +1,278 @@
+{
+ "task_id": "scan__daedalus_structcore_clones.py__c6of6__946db82",
+ "key": "scan__daedalus_structcore_clones.py__c6of6__946db82-217f292dd7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Final chunk of clones.py: near-cluster grouping, safety-path heuristics, and helper functions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 629 | medium | union cap uses max_cluster from outer scope, may not be defined locally | check that max_cluster is passed or defined",
+     "line 633 | medium | keep_root uses ra < rb which is arbitrary, not size-based; may bias tree shape | verify intended tie-breaking",
+     "line 634 | low | parent[drop] = keep_root uses path compression in find but union does not compress | acceptable for small n",
+     "line 673 | low | _safety returns \"safety\": None for no hits, but callers may expect a string or None | confirm contract"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/clones.py",
+     "chunk": "6 of 6",
+     "purpose": "Completes near-cluster detection loop, defines safety-path heuristics.",
+     "symbols": [
+      {
+       "name": "_MIN_BAG",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from outer scope; used to filter bags with too few tokens."
+      },
+      {
+       "name": "keep",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of unit references passing bag size filter."
+      },
+      {
+       "name": "bags",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of token count bags for kept units."
+      },
+      {
+       "name": "_fingerprint_of_tokens",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; used to compute abstract fingerprint."
+      },
+      {
+       "name": "afps",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of abstract fingerprints for kept units."
+      },
+      {
+       "name": "memo.put_abstract_fp",
+       "kind": "method",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Stores abstract fingerprint in memo to avoid recomputation."
+      },
+      {
+       "name": "df",
+       "kind": "variable",
+       "effects": [],
+       "note": "Document frequency counter across all bags."
+      },
+      {
+       "name": "ubiq_cut",
+       "kind": "variable",
+       "effects": [],
+       "note": "Threshold for rare tokens: max(3, 0.4*n)."
+      },
+      {
+       "name": "rare",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of sets of rare tokens per bag."
+      },
+      {
+       "name": "parent",
+       "kind": "variable",
+       "effects": [],
+       "note": "Union-find parent array."
+      },
+      {
+       "name": "size",
+       "kind": "variable",
+       "effects": [],
+       "note": "Union-find size array."
+      },
+      {
+       "name": "find",
+       "kind": "function",
+       "effects": [],
+       "note": "Union-find find with path compression."
+      },
+      {
+       "name": "union",
+       "kind": "function",
+       "effects": [],
+       "note": "Union-find union with size cap and arbitrary root selection."
+      },
+      {
+       "name": "edge_overlap",
+       "kind": "variable",
+       "effects": [],
+       "note": "Dictionary mapping pair indices to overlap values."
+      },
+      {
+       "name": "_candidate_pairs",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; yields candidate index pairs for near-clone checking."
+      },
+      {
+       "name": "min_shared_rare",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported; minimum number of shared rare tokens required."
+      },
+      {
+       "name": "_overlap",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported; computes overlap between two bags."
+      },
+      {
+       "name": "threshold",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported; similarity threshold for near-clones."
+      },
+      {
+       "name": "comps",
+       "kind": "variable",
+       "effects": [],
+       "note": "DefaultDict mapping root to list of member indices."
+      },
+      {
+       "name": "clusters",
+       "kind": "variable",
+       "effects": [],
+       "note": "List of near-cluster dictionaries built from components."
+      },
+      {
+       "name": "_safety",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns safety annotation dict for a list of paths."
+      },
+      {
+       "name": "_HEURISTIC",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to detect safety-related path components."
+      },
+      {
+       "name": "_is_safety_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if a path matches heuristic or GENERIC_HIGH_RISK_PATHS."
+      },
+      {
+       "name": "GENERIC_HIGH_RISK_PATHS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from ..sensitivity; list of high-risk path tokens."
+      }
+     ],
+     "claims": [
+      {
+       "text": "We tokenized for the bag anyway, so the abstract fingerprint was free here -- donate it so renamed_clusters need not re-abstract the same source.",
+       "where": "comment lines 607-609",
+       "verdict": "uncheckable",
+       "why": "The claim refers to 'renamed_clusters' which is not defined in this chunk; the donation via memo.put_abstract_fp is visible but the benefit cannot be verified."
+      },
+      {
+       "text": "Whichever pass runs first pays; the other rides along.",
+       "where": "comment line 609",
+       "verdict": "uncheckable",
+       "why": "The claim describes a global execution order not observable in this chunk."
+      },
+      {
+       "text": "Rare tokens = those not saturating the corpus (drop ID/NUM/STR/common ops).",
+       "where": "comment line 613",
+       "verdict": "uncheckable",
+       "why": "The claim mentions dropping ID/NUM/STR/common ops, but the code only filters by document frequency; the actual token set is not shown."
+      },
+      {
+       "text": "identical (exact or renamed) -> covered elsewhere",
+       "where": "comment line 638",
+       "verdict": "uncheckable",
+       "why": "The claim states that identical fingerprints are handled elsewhere; no code in this chunk handles them."
+      },
+      {
+       "text": "only incidental overlap -> not a real near-clone",
+       "where": "comment line 640",
+       "verdict": "uncheckable",
+       "why": "The claim interprets min_shared_rare as filtering incidental overlap, but the exact semantics depend on external constants."
+      },
+      {
+       "text": "component held only cap-skipped edges",
+       "where": "comment line 659",
+       "verdict": "broken",
+       "why": "Edge overlaps are only recorded when union succeeds; if union is skipped due to size cap, no edge is added, so a component with only such skipped edges would have no overlaps and be skipped. The comment says 'component held only cap-skipped edges' which is consistent with the code: if all candidate pairs were skipped by cap, no edge_overlap entries exist, so overlaps list is empty and component is skipped."
+      },
+      {
+       "text": "judgment-gated \u2014 do NOT auto-collapse",
+       "where": "line 672",
+       "verdict": "kept",
+       "why": "The string literal is returned as the safety value when hits exist."
+      }
+     ],
+     "observations": [
+      {
+       "what": "union cap uses max_cluster from outer scope; may be undefined if not passed",
+       "where": "line 629",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "union uses keep_root based on index order (ra < rb), not size; may create unbalanced trees",
+       "where": "line 633",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "find uses path compression, but union does not compress after linking; acceptable for small sets",
+       "where": "lines 620-635",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_safety returns 'safety': None when no hits; callers may expect a string or None",
+       "where": "line 673",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Import of GENERIC_HIGH_RISK_PATHS is inside function; exception silent",
+       "where": "line 665",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9fa8fd993187d4ebd1c1e63949944d6321e019fe3acad420fd403565fedf6075",
+    "objective_chars": 4475,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/clones.py [6/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/clones.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 601
+ }
+}

@@ -1,0 +1,148 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c10of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c10of15__946db82-05ca238d04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Evaluated correctness.py chunk 10: function signature, docstring, and body up to line ~1130. Verified docstring claims against visible code; noted risks about freeze_selection and reference_patch calls.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1082 | high | use_reference parameter default False, but docstring says it evaluates task's own fix commit. If caller expects True but passes nothing, behavior differs. | Check all call sites to confirm default is appropriate.",
+     "line 1109 | medium | freeze_selection called before worktree exists; docstring claims it freezes selection. If freeze_selection modifies global state or has side effects, risk of inconsistency. | Review freeze_selection implementation for side effects.",
+     "line 1136 | medium | reference_patch called with exclude=selection.test_overlay; if overlay paths are incorrect, patch may be wrong. | Verify overlay exclusion logic in reference_patch.",
+     "line 1149 | low | Exception catch-all (noqa BLE001) may mask unexpected errors; docstring says 'reported, never raised' but no logging visible. | Add logging or re-raise for unexpected exceptions."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "10 of 15",
+     "purpose": "Define evaluate_correctness function with docstring, validation, worktree setup, before/after measurement.",
+     "symbols": [
+      {
+       "name": "evaluate_correctness",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Evaluates one change against one task using a disposable worktree."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Returns; never raises.",
+       "where": "docstring line 1083",
+       "verdict": "kept",
+       "why": "All early returns (finish) and the outer try/except catch Exception return finish(...). No raise in visible code."
+      },
+      {
+       "text": "The whole measurement happens in ONE disposable worktree, in this order: FREEZE the selection -> checkout base -> overlay tests -> RUN BEFORE -> judge the TASK -> apply the change -> RUN AFTER -> judge the CHANGE",
+       "where": "docstring lines 1085-1087",
+       "verdict": "kept",
+       "why": "Code shows: freeze_selection (line 1109), disposable_worktree (line 1112), apply_test_overlay (1115-1119), _run_lists before (1122), judge_before_state (1124-1125), apply_patch (1141-1142), _run_lists after (1145). Order matches."
+      },
+      {
+       "text": "The selection is frozen FIRST, before the worktree exists and long before any candidate bytes are applied, and the after-state is run against that same frozen object -- so the thing being measured cannot be influenced by the thing being measured. The frozen declaration and its digest travel on the result.",
+       "where": "docstring lines 1089-1091",
+       "verdict": "kept",
+       "why": "freeze_selection called at line 1109 before disposable_worktree (1112). After run (1145) uses same selection variable. Result includes selection (line 1099)."
+      },
+      {
+       "text": "The before-state is measured every time, in the same tree the after-state is measured in. It is never read from a stored receipt here, because a receipt is a claim about a tree that may no longer exist -- the same doctrine ``spine.bootstrap`` applies to its discrimination receipt.",
+       "where": "docstring lines 1093-1095",
+       "verdict": "uncheckable",
+       "why": "No reference to spine.bootstrap or stored receipts in this chunk. The before measurement is done (lines 1122-1125) but claim about doctrine is outside scope."
+      },
+      {
+       "text": "``use_reference`` evaluates the task's OWN fix commit (``reference_revision``) instead of a candidate patch. That is how a corpus task is validated: a task whose own reference patch does not produce ``fixed`` is not a task.",
+       "where": "docstring lines 1097-1098",
+       "verdict": "kept",
+       "why": "Code: if use_reference: change_bytes = reference_patch(root, base, task['reference_revision'], ...) (lines 1135-1138). else: change_bytes = patch_bytes (line 1140)."
+      },
+      {
+       "text": "FROZEN HERE -- before the worktree exists, before the overlay, and long before any candidate bytes are applied. Everything below reads this object; nothing below reads `task` for a node id again.",
+       "where": "comment line 1108",
+       "verdict": "kept",
+       "why": "freeze_selection called at line 1109. After that, task is not dereferenced for node ids (only task['reference_revision'] at 1137 and task['repo'] at 1104, but those are before freeze). The selection object is used for all runs."
+      },
+      {
+       "text": "REPORTED as invalid, never silently dropped and never counted as a pass -- the same rule mint.py applies to a vacuous label.",
+       "where": "comment line 1129",
+       "verdict": "uncheckable",
+       "why": "Comment refers to mint.py rule; not present in this chunk. The code does return finish(OUTCOME_TASK_INVALID, ...) (line 1130)."
+      },
+      {
+       "text": "SAME frozen selection, deliberately: the after run measures exactly what was declared before the change existed.",
+       "where": "comment line 1144",
+       "verdict": "kept",
+       "why": "After run (line 1145) uses same 'selection' variable as before run (line 1122). No reassignment of selection between."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function returns CorrectnessResult with 'change' field set to 'reference' if use_reference, else 'patch' if patch_bytes is not None, else None.",
+       "where": "line 1098",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "validate_task is called but not defined in this chunk; if it raises instead of returning problems, the docstring claim 'never raises' could be broken.",
+       "where": "line 1101",
+       "severity": "high",
+       "confidence": "possible"
+      },
+      {
+       "what": "freeze_selection is called with timeout_s parameter; docstring does not mention timeout.",
+       "where": "line 1109",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "apply_test_overlay is called with selection.test_overlay; if overlay is None or empty, it may raise? Code catches FileNotFoundError, OverlayEscape, OSError.",
+       "where": "line 1115",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "after _run_lists (line 1145) is inside try/except that catches Exception, but the before run (line 1122) is not in a try block for that same exception scope; if _run_lists raises, it propagates to outer except at line 1148.",
+       "where": "lines 1122, 1148",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "81e1aa6c4d66651bc7049fa998e38852d58ff4b9af68a68917579a77d9fb7ce2",
+    "objective_chars": 6501,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [10/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 10,
+  "total": 15,
+  "first_line": 1081
+ }
+}

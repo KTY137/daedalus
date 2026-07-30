@@ -1,0 +1,178 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c4of15__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c4of15__946db82-174808f755",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 4 of 15 of correctness.py; checked docstring claims, public symbols, and observations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 361-363 | medium | Docstring claims parse_pytest_output reduces several outcomes for one node to the worst of them; code does implement worst-wins ranking via _STATUS_RANK, but claim is uncheckable for the reporting behavior described. | Check that parse_pytest_output is called with output containing multiple lines for the same node and verify worst outcome is selected.",
+     "line 377-379 | medium | Docstring claims _STATUS_RANK prevents averaging; code shows ranking but claim about 'hiding a fatal blind spot' is interpretative and not directly checkable. | Verify that the ranking logic indeed prevents a single red case from being averaged away by green ones in practice.",
+     "line 396-398 | medium | Docstring claims missing nodes outrank everything because the node does not exist; code sets STATUS_MISSING last, so it overwrites previous statuses, consistent with claim. | Confirm that STATUS_MISSING is indeed the highest priority in downstream consumers.",
+     "line 446-448 | medium | Docstring claims output goes to a file OUTSIDE the worktree to avoid pipe deadlock; code does not show file output in this chunk. | Check the implementation of _spawn_pytest in later chunks to verify file output.",
+     "line 449-450 | medium | Claim that 'a quietly weaker containment that nobody can see is worse than a named one' is a design principle, not checkable in code. | N/A"
+    ],
+    "todos": [
+     "Verify that _spawn_pytest writes output to a file outside the worktree as claimed.",
+     "Check that the containment field is properly set in all code paths."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "4 of 15",
+     "purpose": "Defines _same_node, _STATUS_RANK, parse_pytest_output, PytestRun, and _spawn_pytest (partial).",
+     "symbols": [
+      {
+       "name": "_same_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Determines if a reported node matches a requested node, using _norm_node and string matching."
+      },
+      {
+       "name": "_STATUS_RANK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dictionary mapping status strings to integer ranks for worst-wins ordering."
+      },
+      {
+       "name": "parse_pytest_output",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses pytest output text and returns a dict of statuses for requested nodes."
+      },
+      {
+       "name": "PytestRun",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing one pytest invocation with raw output and metadata."
+      },
+      {
+       "name": "PytestRun.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a dictionary representation of the PytestRun instance, with sorted statuses and truncated output."
+      },
+      {
+       "name": "_spawn_pytest",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs pytest with optional ManagedProcess containment; partial implementation shown."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Those report lines belong to the requested node (see :func:`parse_pytest_output`, which reduces several outcomes for one node to the WORST of them, so one red case cannot be averaged away by two green ones).",
+       "where": "line 361-363",
+       "verdict": "uncheckable",
+       "why": "The claim refers to parse_pytest_output's behavior; the code for parse_pytest_output is present and does implement worst-wins ranking via _STATUS_RANK, but the claim about 'report lines belonging to the requested node' refers to preceding context not in this chunk."
+      },
+      {
+       "text": "A node the output says nothing about is ``not_run`` -- not a pass, not a fail.",
+       "where": "line 386-387",
+       "verdict": "kept",
+       "why": "parse_pytest_output initializes statuses dict with STATUS_NOT_RUN for all requested nodes, and only changes status if a line matches."
+      },
+      {
+       "text": "An explicit ``not found`` (``missing``) is final and outranks everything, because the node does not exist; otherwise several report lines for one node reduce to the WORST outcome seen (see ``_STATUS_RANK``); a node with no line of its own inherits ``collect_error`` if its FILE failed to collect.",
+       "where": "line 386-390",
+       "verdict": "kept",
+       "why": "Code sets missing nodes to STATUS_MISSING last, overwriting previous statuses. Worst-wins ranking via _STATUS_RANK is applied in the loop. Nodes with no line but whose file is in file_errors get STATUS_COLLECT_ERROR."
+      },
+      {
+       "text": "Preferred path is :class:`daedalus.spine.cancel.ManagedProcess`, i.e. a Windows Job Object with KILL_ON_JOB_CLOSE, so a hung or forking test tree dies with the run -- the same containment the repo's own pytest gate uses.",
+       "where": "line 446-448",
+       "verdict": "uncheckable",
+       "why": "The code chunk does not show the implementation of _spawn_pytest; it only shows the docstring. The actual use of ManagedProcess is not visible."
+      },
+      {
+       "text": "If that backend is unavailable the run still happens through ``subprocess.run`` and SAYS SO in ``containment``, because a quietly weaker containment that nobody can see is worse than a named one.",
+       "where": "line 448-450",
+       "verdict": "uncheckable",
+       "why": "The code chunk does not show the implementation; the claim about setting containment field cannot be verified."
+      },
+      {
+       "text": "Output goes to a file OUTSIDE the worktree: a pipe deadlocks on a chatty run while the parent is polling instead of reading (measured in",
+       "where": "line 451-452",
+       "verdict": "uncheckable",
+       "why": "The code chunk ends before showing the file output logic; the claim cannot be checked."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for parse_pytest_output claims it reduces several outcomes to the worst; the code does implement worst-wins via _STATUS_RANK.",
+       "where": "line 386-390",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The missing nodes are processed last and overwrite previous statuses, ensuring finality as claimed.",
+       "where": "line 428-431",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The to_dict method sorts statuses by key, which may not preserve insertion order but is deterministic.",
+       "where": "line 443",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _spawn_pytest docstring mentions ManagedProcess and subprocess.run fallback, but the implementation is not in this chunk.",
+       "where": "line 446-452",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The containment field in PytestRun is documented but not set in this chunk.",
+       "where": "line 438, 447",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aacaac288105aef7a85ee0d1e9ff2604fce1ae91d705bdbd9e5510ccda77b50b",
+    "objective_chars": 5411,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [4/15]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 4,
+  "total": 15,
+  "first_line": 361
+ }
+}

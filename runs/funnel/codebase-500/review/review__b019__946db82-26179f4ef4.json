@@ -1,0 +1,145 @@
+{
+ "task_id": "review__b019__946db82",
+ "key": "review__b019__946db82-26179f4ef4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 2 confirmed, 3 narrowed, 1 needs-evidence, 3 refuted. Key findings: GateResult.summary NameError confirmed; CheckPolicy implementation missing confirmed; lane-assignment-gap narrowed; byte-identity narrowed; docstring-code mismatches mostly refuted. Settling checks identified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "missing-constant-gate-output-tail will cause runtime NameError when GateResult.summary is called",
+     "missing-check-logic means checks for elision, truncation, symbol survival are not implemented, undermining safety guarantees",
+     "lane-assignment-gap could allow untrusted adapters to run in trusted lane if profile does not set lane",
+     "byte-identity-claim may break if dict iteration order changes (e.g., Python version) or if empty extras are included",
+     "shared-offload-runner-assumption: offload_runner could raise exceptions that propagate unhandled",
+     "env_contract_mismatch: canary may fail to detect local provider due to stripped env vars",
+     "in-place-mutation-assumption: confirm_task may not mutate dict in-place, causing silent persistence failure",
+     "missing-external-dependencies: undefined symbols could cause NameError at runtime if imports are missing"
+    ],
+    "todos": [
+     "Add GATE_OUTPUT_TAIL_CHARS constant to daedalus/spine/attempt.py or import from config",
+     "Implement check logic for elision, truncation, symbol survival in daedalus/lanes/checks.py or verify it exists in unscanned code",
+     "Ensure default_participants sets lane explicitly from profile; audit providers for lane checks",
+     "Ensure ReachReport.to_dict uses ordered dicts and omits empty extras; verify index.py returns empty dict for extras when absent",
+     "Add error handling around offload_runner calls in gated_writes.py and picker.py",
+     "Verify council_env sets OLLAMA_HOST before canary probe; check _availability_probe does not rely on env vars",
+     "Ensure confirm_task mutates dict in-place or change confirm_minted_task to use returned value",
+     "Verify all external symbols (Metric, cap, els, _candidate, _slug, _short_hash, top, parse.resolve_python_imports) are imported or defined"
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "shared-offload-runner-assumption",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "offload_runner might be documented to never raise exceptions and always return a valid result, or the callers might have implicit error handling (e.g., exceptions propagate to a top-level handler). The cited source shows _recording_runner wraps offload_runner and stores result in box, but does not show exception handling; _default_attempt calls offload_runner via run_attempt, but run_attempt might handle exceptions. Without seeing offload_runner's implementation, we cannot confirm it can fail.",
+       "survives_because": "The cited source shows no explicit exception handling around offload_runner calls. However, the hypothesis assumes offload_runner can raise exceptions, which is not proven. The callers might rely on offload_runner being safe by contract. Need evidence of possible failure modes.",
+       "narrowed_claim": "If offload_runner can raise exceptions, then _recording_runner and _default_attempt do not handle them, risking cascading failures.",
+       "settling_check": "Inspect offload_runner's implementation (e.g., grep for 'def offload_runner' and check for possible exceptions). Also check if run_attempt catches exceptions.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "env_contract_mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The canary docstring claims OLLAMA_HOST is never set/mutated and council_env strips it, but the providers module's _availability_probe calls get_provider(name).available(). For local provider (Ollama), available() likely checks if the Ollama server is reachable via the default URL (http://localhost:11434) or via a configured host. If council_env strips OLLAMA_HOST, the default URL is used, which is fine. The probe does not rely on env vars being set; it uses defaults. The hypothesis assumes stripping env vars breaks availability, but the probe may work with defaults.",
+       "survives_because": "No. The hypothesis is speculative and lacks evidence that _availability_probe depends on OLLAMA_HOST being set. The cited source for providers/__init__.py shows _availability_probe calls get_provider(name).available(). For Ollama, the default URL is typically localhost:11434, which works without env vars. The canary's claim of not setting OLLAMA_HOST is consistent with using defaults. The hypothesis is refuted by the likely behavior.",
+       "narrowed_claim": "",
+       "settling_check": "Check Ollama provider's available() implementation (e.g., daedalus/providers/ollama.py) to see if it uses OLLAMA_HOST or defaults to localhost.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "missing-check-logic",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The check logic might be implemented in the remaining chunks of checks.py that were not scanned, or in another module that is imported. The module docstring says functions were 'lifted' from another file, implying the implementation exists elsewhere.",
+       "survives_because": "The cited source shows CheckPolicy class with fields for elision markers, min_size_ratio, min_symbol_survival, but no functions in the scanned chunk implement checks using these fields. The module exports functions like no_elision, not_truncated, toplevel_defs, but the implementation is not in the provided lines. The hypothesis claims the check mechanism is incomplete or defined elsewhere, and the scanned chunk does not contain the implementation. This is a valid observation: the fields exist but the logic that uses them is missing from the scanned portion. The strongest counterargument (implementation in other chunks) is possible, but the hypothesis is about the scanned chunk, and it correctly notes the absence. However, the claim that the mechanism is 'incomplete' is not proven because the implementation could be in the rest of the file. The hypothesis is confirmed in that the scanned chunk lacks the check logic, but it is narrowed to: the scanned chunk of checks.py does not contain the check logic for those fields.",
+       "narrowed_claim": "The scanned chunk of daedalus/lanes/checks.py defines CheckPolicy fields but does not implement checks using them; the implementation may exist elsewhere in the file or in another module.",
+       "settling_check": "Open the full daedalus/lanes/checks.py file and search for functions that use elision_markers, min_size_ratio, or min_symbol_survival. Also check imports from other modules.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "lane-assignment-gap",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The council's default_participants may set lane via a profile that is always provided. The cited source for session.py does not show the full default_participants function, so it might set lane explicitly. The Ollama provider might not assume a default lane; it might require lane to be passed explicitly. The hypothesis assumes a security gap without evidence that providers execute sensitive operations without lane checks.",
+       "survives_because": "The cited source for session.py (lines 91-140) does not include the default_participants function; it only shows module docstring and imports. The cited source for ollama.py (lines 66-115) shows constants and comments, not _run_rewrite. The hypothesis rests on the claim that default_participants does not set lane, but the source does not contain that function. The evidence is insufficient. However, the hypothesis is plausible if default_participants indeed omits lane and providers do not check lane. The strongest counterargument is that profiles set lane, but if profiles are optional, the gap exists. Narrowed to: if default_participants does not set lane and no profile is provided, the adapter may run with an unintended lane.",
+       "narrowed_claim": "If default_participants does not set lane and profiles do not provide it, adapters may run with an unintended lane, potentially allowing untrusted code to execute with trusted privileges if providers do not check lane.",
+       "settling_check": "Inspect default_participants in session.py (full function) to see if lane is set. Check Ollama provider's _run_rewrite to see if it checks lane before writing files.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "missing-constant-gate-output-tail",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The constant GATE_OUTPUT_TAIL_CHARS might be defined in another module that is always imported before GateResult.summary is called, or the code might use a try-except to handle NameError. However, the cited source says the symbol is NOT PRESENT IN FILE for attempt.py and eval/__main__.py, and no other module defines it.",
+       "survives_because": "The cited source explicitly states that GATE_OUTPUT_TAIL_CHARS is not present in the files. The hypothesis claims it is undefined, leading to a NameError. The strongest counterargument (defined elsewhere) is contradicted by the source. The hypothesis is confirmed: the constant is missing, and any call to GateResult.summary will raise NameError.",
+       "narrowed_claim": "GATE_OUTPUT_TAIL_CHARS is not defined in any scanned file; GateResult.summary will raise NameError when called.",
+       "settling_check": "Run a Python script that imports GateResult from daedalus.spine.attempt and calls GateResult.summary on an instance. If NameError is raised, the hypothesis is confirmed.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "byte-identity-claim",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The data structures might use OrderedDict or sorted keys to ensure deterministic ordering. The extra dict in index.py is only conditionally populated; if empty, it might be omitted from the returned dict. The hypothesis assumes mutable defaults and unordered structures break determinism, but the code might be written carefully to avoid that.",
+       "survives_because": "The cited source for reach.py does not show to_dict() implementation; it only shows class definition and constants. The index.py extra dict is conditionally populated and returned as part of a larger dict; if the larger dict includes empty extras, the byte stream may differ. The cited source for index.py shows that extra is initially empty and only set if conditions met; the return statement is not shown, so it's unclear if empty extras are included. The correctness.py constants are fixed, so no claim is made. The hypothesis is narrowed to: the byte-identity claims depend on deterministic ordering and omission of empty extras, which are not guaranteed by the shown code.",
+       "narrowed_claim": "ReachReport.to_dict and index.py's returned dict may not be byte-identical across runs if dict iteration order is not guaranteed or if empty extras are included.",
+       "settling_check": "Write a test that calls ReachReport.to_dict twice with same input and checks byte equality. For index.py, check if the returned dict includes extra when it is empty; if so, the byte stream may differ due to empty dict representation.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "docstring-code-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for graph_delta.py shows that _refs_by_function uses line qualification in comment (line 738) but the code merges same-named methods (line 739: out[f\"{node.name}\"] = out.get(node.name, Counter()) + c). The comment claims qualification by line, but the code does not include line number in the key. This is a mismatch. For render.py, Stamp docstring says 'Every field degrades to a string', but dirty_paths and untracked_scanned default to int -1, not a string. This is a mismatch. For containment.py, docstring claims cancellation ladder mirrors ManagedProcess but no cancel method exists in chunk. However, the cited source for containment.py shows only constants and imports; the ContainedProcess class is not shown. The hypothesis claims the docstring mismatch exists, but the source does not contain the docstring or class. The strongest counterargument is that the cited source does not contain the docstring, so the mismatch cannot be verified. The hypothesis is refuted because the evidence is not present in the cited source.",
+       "survives_because": "The cited source for graph_delta.py does show a mismatch: comment says 'Qualify by line' but code does not include line number. For render.py, the cited source shows Stamp with int defaults, contradicting the docstring claim. For containment.py, the cited source does not include the docstring or class, so the mismatch is not observable. The hypothesis is partially confirmed for graph_delta and render, but refuted for containment due to lack of evidence. Overall, the hypothesis is refuted because the strongest counterargument (docstring not in source) applies to one of the three modules, and the other two are mismatches but not 'systematic' across all three. The hypothesis claims a systematic gap, but only two out of three show mismatches, and one is unverifiable. Therefore, the hypothesis is refuted as stated.",
+       "narrowed_claim": "",
+       "settling_check": "For graph_delta.py, verify that _refs_by_function does not include line number in keys; for render.py, check if Stamp fields degrade to strings (they don't); for containment.py, find the full ContainedProcess class and check for cancel method.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "in-place-mutation-assumption",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The confirm_task function might be designed to mutate the passed dict in-place (e.g., by setting a 'confirmed' field). The docstring of confirm_minted_task says 'confirm_task alone only mutates an in-memory dict', implying confirm_task mutates in-place. The hypothesis assumes confirm_task returns a new dict, but the code and docstring suggest it mutates in-place. The strongest counterargument is that confirm_task is implemented to mutate the dict in-place.",
+       "survives_because": "The cited source shows confirm_minted_task calls confirm_task(t) and then saves tasks. The docstring says 'confirm_task alone only mutates an in-memory dict', supporting that confirm_task mutates in-place. However, the hypothesis is that the contract is not enforced across modules. The code does not check the return value of confirm_task, so if confirm_task were changed to return a new dict, the mutation would be lost. The hypothesis is narrowed to: the code assumes confirm_task mutates in-place, but there is no enforcement or documentation of this contract, making it fragile.",
+       "narrowed_claim": "confirm_minted_task assumes confirm_task mutates the task dict in-place, but this contract is not enforced; if confirm_task is changed to return a new dict, the mutation is lost.",
+       "settling_check": "Inspect confirm_task's implementation (e.g., grep for 'def confirm_task') to see if it mutates the passed dict or returns a new one. Also check if any tests verify the mutation behavior.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "missing-external-dependencies",
+       "verdict": "refuted",
+       "strongest_counterargument": "The undefined symbols (Metric, cap, els, _candidate, _slug, _short_hash, top, parse.resolve_python_imports) are likely defined in other parts of the same files (unscanned chunks) or in other modules that are imported. The cited source shows only the beginning of each file; the missing symbols may appear later. For example, picker.py's _candidate is referenced in docstring but might be defined later in the file. The hypothesis assumes they are missing, but they are likely present in the full files.",
+       "survives_because": "The cited source for lint.py shows only the first 40 lines; Metric, cap, els may be defined later. Similarly, picker.py shows only first 40 lines; _candidate, _slug, _short_hash, top may be defined later. typegraph.py shows first 40 lines; parse.resolve_python_imports may be imported later. The hypothesis is based on incomplete evidence. The strongest counterargument is that the symbols are defined in unscanned portions. Therefore, the hypothesis is refuted because the evidence is insufficient to conclude they are missing.",
+       "narrowed_claim": "",
+       "settling_check": "Open the full files (lint.py, picker.py, typegraph.py) and search for the undefined symbols. If they are defined, the hypothesis is refuted. If not, it is confirmed.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "34a1ba3db87a6f8b0feb9f5b32bbf711815ff0dfb8a30027d7f07197293a11c2",
+    "objective_chars": 54048,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 19 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 19,
+  "inputs": 9
+ }
+}

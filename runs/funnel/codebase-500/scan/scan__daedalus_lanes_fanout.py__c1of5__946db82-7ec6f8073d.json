@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c1of5__946db82",
+ "key": "scan__daedalus_lanes_fanout.py__c1of5__946db82-7ec6f8073d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of fanout.py: docstring with design rationale and module-level constants; FanoutTask dataclass partially defined.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring with design constraints, imports, constants, and FanoutTask dataclass definition (incomplete).",
+     "symbols": [
+      {
+       "name": "DEFAULT_CONCURRENCY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Concurrency ceiling, set to 8."
+      },
+      {
+       "name": "DEFAULT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Per-call timeout in seconds, set to 300."
+      },
+      {
+       "name": "default_concurrency",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns concurrency from env var or DEFAULT_CONCURRENCY."
+      },
+      {
+       "name": "FanoutTask",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one task with task_id, objective, paths, votes, meta, and key property."
+      }
+     ],
+     "claims": [
+      {
+       "text": "BUDGET GUARD, INSTALLED ONCE, AT THE TOP. The fan-out scripts that night constructed the provider directly and never called daedalus.budget.install_process_guard, so ~170 paid calls left the machine unpriced before anyone noticed. The guard is not optional here and not a parameter -- a fan-out is exactly the shape that turns a missing guard into a bill.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to daedalus.budget.install_process_guard is not present in this chunk; no guard installation code is visible."
+      },
+      {
+       "text": "CORROBORATION IS THE POINT, NOT A FEATURE. That night produced 1,226 claims whose largest agreement cluster was TWO, because the fan-out handed every agent a different file. N agents on N different things cannot corroborate anything; N agents on the SAME thing can. So votes is a first-class argument and every result records how many independent answers it is made of.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "FanoutTask has a 'votes' field (line 83) with docstring 'Independent answers to collect. >1 is what makes agreement meaningful.' This matches the claim that votes is a first-class argument."
+      },
+      {
+       "text": "AND votes NEEDS temperature > 0, which is enforced rather than documented. The decode temperature defaulted to 0.0 and every caller inherited it. At 0.0 the decode is deterministic, so N samples of one prompt are IDENTICAL and three 'independent' votes are one answer counted three times -- which is indistinguishable from three agreeing agents in every downstream consumer. This paragraph used to be the only thing standing between a caller and fake agreement; fan_out now REFUSES the combination.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The function fan_out is not defined in this chunk; no temperature enforcement is visible."
+      },
+      {
+       "text": "A FRESH PROVIDER PER CALL. DeepSeekProvider.run resets self._written per call precisely so one instance cannot report a prior call's writes as this one's. Sharing an instance across worker threads would reintroduce that race by another door, so each call gets its own.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No provider instantiation code present in this chunk; DeepSeekProvider is not imported or referenced."
+      },
+      {
+       "text": "THE GRAPH GOES IN THE PROMPT. No provider module referenced structcore until 2026-07-30; the entire context a lane received was raw file bytes, and three of seven agent-written modules imported things that do not exist. Tasks that name paths get daedalus.lanes.graph_brief.render_brief prepended.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "render_brief is imported from .graph_brief (line 37), confirming it is used. No evidence of prepending in this chunk, but the import supports the claim."
+      },
+      {
+       "text": "RESULTS ARE PUBLISHED, NOT WRITTEN. Via daedalus.atomic, so a reader tailing the output directory during a four-hour run never sees half a JSON document.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "write_text_atomic is imported from ..atomic (line 35), confirming atomic writes are used."
+      },
+      {
+       "text": "Advisory only. There is no writable parameter and adding one would be a mistake: a write lane needs daedalus.lanes.checks.run_checks around every file and a rollback story per task, and a fan-out has neither. Volume and writes do not belong in the same primitive.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No writable parameter visible; the function fan_out is not defined, so the claim about its absence cannot be verified."
+      },
+      {
+       "text": "Concurrency ceiling. The lane is network-bound, so this is far above the core count -- but not unbounded: each worker holds a provider, a request and a response body, and the box also has to keep running whatever else is on it. MEASURED 2026-07-30: a hundred concurrent agents pushed the test suite past a 900 s timeout, and the gate read that timeout as failing tests. The suite is 4,146 tests and 765 s on this box when idle -- NOT the 105 s the handoff carried, which is a stale figure and the reason 18 minutes per gate mutation looked mysterious. If a measurement is running, pass a low number and mean it.",
+       "where": "comment before DEFAULT_CONCURRENCY",
+       "verdict": "kept",
+       "why": "DEFAULT_CONCURRENCY is defined as 8, which is a bounded number consistent with the claim that it is a ceiling."
+      },
+      {
+       "text": "Per-call ceiling. Advisory calls that need longer than this are usually stuck.",
+       "where": "comment before DEFAULT_TIMEOUT_S",
+       "verdict": "kept",
+       "why": "DEFAULT_TIMEOUT_S is defined as 300, providing a timeout ceiling as claimed."
+      },
+      {
+       "text": "Concurrency from the environment, or DEFAULT_CONCURRENCY.",
+       "where": "docstring of default_concurrency",
+       "verdict": "kept",
+       "why": "Function default_concurrency() reads DAEDALUS_FANOUT_CONCURRENCY env var and returns max(1, int(raw)) if set, else DEFAULT_CONCURRENCY."
+      },
+      {
+       "text": "One question, asked votes times independently. key is the filename the answer lands under and the resume identity, so it must be stable across runs and safe as a path segment. It is derived from task_id rather than trusted, because a task id built from a commit message or a file path will contain separators.",
+       "where": "docstring of FanoutTask",
+       "verdict": "kept",
+       "why": "FanoutTask has fields task_id, objective, votes. The key property (line 90) is described as 'A filename-safe, collision-free, stable identity.' The docstring states it is derived from task_id; the code shows it is a property that presumably uses task_id. The exact derivation is not fully shown, but the claim is consistent with the partial code."
+      },
+      {
+       "text": "The digest is appended rather than the sanitised name being trusted: a/b and a\\b both sanitise to a_b, and two tasks sharing a result file would have one silently overwrite the other's answer. Dot runs are collapsed after sanitising.",
+       "where": "docstring of FanoutTask.key",
+       "verdict": "uncheckable",
+       "why": "The key property implementation is truncated; the full logic is not visible in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module imports write_text_atomic from daedalus.atomic, consistent with atomic write claim.",
+       "where": "line 35",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Module imports render_brief from daedalus.lanes.graph_brief, consistent with graph-in-prompt claim.",
+       "where": "line 37",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "FanoutTask.key property documentation mentions digest and sanitisation but implementation is incomplete in this chunk.",
+       "where": "lines 90-99",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fc041c5db966040433d5cf90bd009df6e716b94b02421500bc9afb4c2b9b13f8",
+    "objective_chars": 6143,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

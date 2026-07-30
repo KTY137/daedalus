@@ -1,0 +1,170 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c3of7__946db82",
+ "key": "scan__daedalus_eval_graph_delta.py__c3of7__946db82-acccdcc041",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3/7 of graph_delta.py: defines _module_literals, _literal_keys, _structure_by_function, _structure_keys, _units_and_refs, _type_edge_keys. Public symbols enumerated; docstring claims about orthogonal layers, conservative direction, and type-edge degradation are checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_structure_by_function | medium | The docstring claims the layer is 'orthogonal by construction' to references and literals, but the code only excludes ast.Name, ast.Constant, ast.Load, ast.Store, ast.Del. Other AST nodes that carry names (e.g., ast.Attribute, ast.Call func) are included, so orthogonality is not guaranteed. | Verify by testing a rename that also changes node type (e.g., a->self.a).",
+     "_structure_by_function | medium | The docstring says 'inverts a condition' changes the shape layer. Inversion of an if condition (e.g., if a: vs if not a:) changes ast.UnaryOp inside the test, which is not excluded. So the layer does detect it, consistent with claim. But claim says 'neither references nor literals can see change' \u2013 that is uncheckable here. | Check _module_literals and _literal_keys in other chunks.",
+     "_type_edge_keys | medium | Docstring says 'Degrades to an empty set for a language with no type vocabulary \u2014 which is reported, never silently treated as nothing changed.' But the code returns set() on AttributeError or SyntaxError, with no reporting. So 'reported' is broken. | Add logging or exception handling that records the degradation.",
+     "_units_and_refs | low | Docstring says 'Whole-repo resolution is deliberately not used: ... measuring one file is the conservative direction.' This is a design claim; cannot verify from this chunk alone. | Check if any caller later combines multiple files.",
+     "_module_literals | low | Docstring mentions 'adversarial guard' for depth > 24; that guard is in _structure_by_function, not here. | Ensure consistency or correct docstring.",
+     "lines 270-274 | low | The docstring of _structure_by_function describes two mutations: early return and condition inversion. The code does not contain logic to detect those; it only records node types. Claim is about what the layer can detect, not about code here. Uncheckable. | Verify by testing those mutations."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/graph_delta.py",
+     "chunk": "3 of 7",
+     "purpose": "Define helper functions for extracting literal, structure, reference, and type-edge keys from a module's source text.",
+     "symbols": [
+      {
+       "name": "_module_literals",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts module-level constant literals as comparable keys; uses ast.walk on Assign/AnnAssign stmts."
+      },
+      {
+       "name": "_literal_keys",
+       "kind": "function",
+       "effects": [],
+       "note": "Combines module-level and function-scoped literals into a single set of keys."
+      },
+      {
+       "name": "_structure_by_function",
+       "kind": "function",
+       "effects": [],
+       "note": "Records node types and nesting depth per function, excluding Name/Constant/Load/Store/Del nodes."
+      },
+      {
+       "name": "_structure_keys",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts structure_by_function output to a set of keys."
+      },
+      {
+       "name": "_units_and_refs",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts units and identifier references from a module; uses spec_for, parse_mod.extract_units, graph_mod.identifiers."
+      },
+      {
+       "name": "_type_edge_keys",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts type-layer edges using parse_mod.python_type_facts; returns empty set on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The two mutations that neither references nor literals can see change only the shape of the code: one inserts an early ``return``, the other inverts a condition.",
+       "where": "_structure_by_function docstring",
+       "verdict": "uncheckable",
+       "why": "The claim is about what references and literals can/cannot see; those functions are not in this chunk."
+      },
+      {
+       "text": "So this layer records node TYPES and their nesting depth, deliberately discarding every name and every value. That makes it orthogonal to the other two by construction rather than by hope",
+       "where": "_structure_by_function docstring",
+       "verdict": "broken",
+       "why": "The code discards ast.Name, ast.Constant, ast.Load, ast.Store, ast.Del, but not all nodes that carry names (e.g., ast.Attribute, ast.Call func). So orthogonality is not guaranteed."
+      },
+      {
+       "text": "Names and constants are the OTHER layers' business. Recording only the node class is what keeps the three signals independent.",
+       "where": "comment at line 270",
+       "verdict": "broken",
+       "why": "The code excludes only ast.Name, ast.Constant, ast.Load, ast.Store, ast.Del. Other node classes that contain name information (e.g., ast.Attribute) are recorded, undermining independence."
+      },
+      {
+       "text": "Whole-repo resolution is deliberately not used: the question is whether the graph MOVES, and a single file answers that far more cheaply than two index builds. A cross-file consequence would only ADD movement, so measuring one file is the conservative direction.",
+       "where": "_units_and_refs docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk verifies that only one file is used; the claim is about design rationale."
+      },
+      {
+       "text": "Degrades to an empty set for a language with no type vocabulary \u2014 which is reported, never silently treated as \"nothing changed\".",
+       "where": "_type_edge_keys docstring",
+       "verdict": "broken",
+       "why": "The code returns an empty set on AttributeError or SyntaxError without any reporting (e.g., logging). So it is silently treated as nothing changed."
+      },
+      {
+       "text": "malformed/adversarial guard",
+       "where": "comment at line 271",
+       "verdict": "kept",
+       "why": "The code checks `if depth > 24: return`, preventing deep recursion."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_structure_by_function excludes ast.Name, ast.Constant, ast.Load, ast.Store, ast.Del, but not ast.Attribute, ast.Subscript, etc. which also carry name information.",
+       "where": "lines 268-274",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_type_edge_keys returns empty set on AttributeError or SyntaxError without any logging or reporting.",
+       "where": "lines 309-313",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_module_literals uses repr on constant values, truncating to 79 chars (with ellipsis). This could cause collisions if two different constants have same truncated repr.",
+       "where": "line 250",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_structure_by_function skips docstring if first statement is a string expression. But it only checks if the first body element is an Expr with a Constant string. Multi-line docstrings or non-constant docstrings (e.g., f-strings) are not skipped.",
+       "where": "lines 264-268",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_structure_by_function adds the statement itself at depth 0, then walks children at depth 1. This double-counts the statement's own type at depth 0 and again if it appears as a child? No, because walk does not include the parent node. It's correct.",
+       "where": "lines 276-278",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_structure_keys uses Counter from _structure_by_function, but _structure_by_function returns dict of Counters per function, and _structure_keys iterates over items and then over range(n). This is correct.",
+       "where": "lines 282-288",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b0f8d9c2885d4bd3d5b8ae420bc702c3e9dd5a911b70ccc37ae9717410ab768b",
+    "objective_chars": 5265,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [3/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 3,
+  "total": 7,
+  "first_line": 241
+ }
+}

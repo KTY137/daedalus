@@ -1,0 +1,47 @@
+{
+ "task_id": "review__b038__946db82",
+ "key": "review__b038__946db82-4dcf01e946",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "blocked",
+    "summary": "Refused: task contains sensitive/proprietary content that must not leave the machine. content matches sensitive marker /\\bapi[_-]?key\\b\\s*[=:]/",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [
+     "Route this task to Claude or local Ollama."
+    ],
+    "handoff": {
+     "offending": []
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3c8547729ca2d76d2459d5bc9567a9981e399943683822992449d991051d2e43",
+    "objective_chars": 59262,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 38 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 38,
+  "inputs": 9
+ }
+}

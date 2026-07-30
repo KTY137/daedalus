@@ -1,0 +1,130 @@
+{
+ "task_id": "daedalus/structcore/__main__.py#c1of1#5eb1702d",
+ "key": "daedalus_structcore___main__.py_c1of1_5eb1702d-a1eb0f1c66",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Works stdlib-only; installs of ``tree-sitter-language-pack`` and ``lizard`` sharpen it (shown in the backend line).\" | print_summary | BROKEN | The backend line checks idx[\"backend\"][\"tree_sitter\"] and idx[\"backend\"][\"lizard\"] but does not show that sharpening occurs; it only reports on/off status.",
+     "CLAIM | \"prints ... structural summary\" | print_summary | KEPT | The function prints the summary as described.",
+     "CLAIM | \"--center ... Everything outside it is shell: still resolvable as an import target, but withheld from metrics.\" | main | KEPT | The argument is defined and passed to build_index; the docstring describes the behavior.",
+     "CLAIM | \"--documents ... Off by default\" | main | KEPT | The default is None, and the docstring says off by default.",
+     "CLAIM | \"--types ... Additive -- no existing key moves\" | main | KEPT | The argument is defined; the docstring describes additive behavior."
+    ],
+    "todos": [
+     "Update the module docstring to accurately describe what the backend line shows (on/off status, not sharpening)."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9c7f205e03f74be8125b1b4262e8cc6d2402683f54fcdb0dd01ac544cbe459a4",
+    "objective_chars": 10020,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 8 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Works stdlib-only\" | module docstring | KEPT | uses only argparse, json, pathlib; imports from .index which is part of the same package but is stdlib-only as stated",
+     "CLAIM | \"installs of tree-sitter-language-pack and lizard sharpen it (shown in the backend line)\" | module docstring | KEPT | backend line prints 'tree-sitter=on' or 'OFF' and 'lizard=on' or 'off' based on idx['backend']",
+     "CLAIM | \"repo-relative source root that IS the project (repeatable). Everything outside it is shell: still resolvable as an import target, but withheld from metrics.\" | --center help | KEPT | the code passes center to build_index and later prints ignored count with center info, consistent with the description",
+     "CLAIM | \"extra ignore pattern (repeatable). Composes on top of .daedalusignore. '@tests' expands to the test-file preset.\" | --ignore help | KEPT | the code passes ignore to build_index; the expansion of @tests is handled inside build_index (not in this unit), but the claim is about the argument's behavior which is implemented by build_index",
+     "CLAIM | \"also index markdown DOCUMENTS as nodes (headings as the hierarchy, sections as units, intra-repo links as their own relation layer). Off by default: it grows total_tokens, which is the distill ratio's denominator. Env: DAEDALUS_INDEX_DOCUMENTS=1.\" | --documents help | KEPT | the code passes documents to build_index and conditionally prints document section; the env var logic is inside build_index",
+     "CLAIM | \"also publish the type/data-structure layer (types, type_nodes, type_edges). Additive -- no existing key moves -- but it adds forest nodes and relation layers, so it is off by default. Env: DAEDALUS_INDEX_TYPES=1.\" | --types help | KEPT | the code passes types to build_index and conditionally prints type section; the env var logic is inside build_index",
+     "CLAIM | \"write full index to this JSON path\" | --json help | KEPT | the code writes idx to the given path with json.dumps",
+     "CLAIM | \"repo root to index\" | --repo help | KEPT | the code passes args.repo to build_index as the repo root"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9c7f205e03f74be8125b1b4262e8cc6d2402683f54fcdb0dd01ac544cbe459a4",
+    "objective_chars": 10020,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 8 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Works stdlib-only; installs of ``tree-sitter-language-pack`` and ``lizard`` sharpen it (shown in the backend line).\" | module docstring | BROKEN | The backend line prints 'tree-sitter=on' or 'OFF' and 'lizard=on' or 'off' but never indicates that those packages are installed; the logic only checks boolean flags in idx['backend'], not actual availability.",
+     "CLAIM | \"Prints a derived, multi-language structural summary for distillation targeting.\" | module docstring | KEPT | The function print_summary prints structural summary including languages, hotspots, clones, etc.",
+     "CLAIM | \"build_index is called with args.repo, max_files, center, ignore, documents, types\" | docstring implied by main() | KEPT | main() passes these arguments to build_index.",
+     "CLAIM | \"--json writes full index to that JSON path\" | docstring of --json | KEPT | Code writes idx to file if args.json is set.",
+     "CLAIM | \"--center: repo-relative source root that IS the project (repeatable). Everything outside it is shell: still resolvable as an import target, but withheld from metrics.\" | docstring of --center | UNCHECKABLE | The behavior of 'withheld from metrics' depends on build_index implementation not shown.",
+     "CLAIM | \"--ignore: extra ignore pattern (repeatable). Composes on top of .daedalusignore. '@tests' expands to the test-file preset.\" | docstring of --ignore | UNCHECKABLE | The expansion of '@tests' is not implemented in this unit; it would be in build_index.",
+     "CLAIM | \"--documents: also index markdown DOCUMENTS as nodes... Off by default.\" | docstring of --documents | KEPT | The default is None, and code only prints documents section if idx['documents']['enabled'] is truthy.",
+     "CLAIM | \"--types: also publish the type/data-structure layer... Off by default.\" | docstring of --types | KEPT | Default is None, and code only prints types section if idx['types']['enabled'] is truthy.",
+     "CLAIM | \"--json\" writes full index to this JSON path\" | docstring of --json | KEPT | Path(args.json).write_text(json.dumps(idx, indent=1)) writes the index.",
+     "CLAIM | \"prints summary even when --json is used\" | implied by main() | KEPT | print_summary(idx) is called unconditionally after writing JSON.",
+     "CLAIM | \"return 0\" | main() return | KEPT | main() returns 0.",
+     "D1 | center parameter | The parameter center is passed to build_index but never read in this unit after that. | WRONG CONCLUSION: A caller might think the unit itself uses center for something, but it only passes it through.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Update module docstring to remove claim about showing installation status in backend line, or modify print_summary to actually check for package installation.",
+     "Add a comment or remove the parameter center if it is not needed in this unit, or document that it is only forwarded."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9c7f205e03f74be8125b1b4262e8cc6d2402683f54fcdb0dd01ac544cbe459a4",
+    "objective_chars": 10020,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/__main__.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 7568
+ }
+}

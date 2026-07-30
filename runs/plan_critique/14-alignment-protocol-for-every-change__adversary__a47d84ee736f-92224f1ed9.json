@@ -1,0 +1,78 @@
+{
+ "task_id": "14-alignment-protocol-for-every-change__adversary__a47d84ee736f",
+ "key": "14-alignment-protocol-for-every-change__adversary__a47d84ee736f-92224f1ed9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All four claims are procedurally correct but lack integrity checks; a bad actor can formally comply while defeating intent by manipulating the plan digest, misclassifying work, or fabricating evidence.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "14.1 | high | 'Read this plan and verify its digest' but no mechanism to obtain or verify the correct digest; an attacker can present a tampered plan with a matching digest. | Show that the digest is computed from the plan content and that the agent has access to the correct reference digest (e.g., from a trusted source).",
+     "14.2 | medium | 'Classify the work as ALIGNED, EXPERIMENT, or AMENDMENT' with no enforcement or audit; a careless engineer can misclassify and bypass safeguards. | Show that the classification is independently verified (e.g., by iron_plan_guard).",
+     "14.3 | medium | 'Name the active gate and the invariant/prior touched' but no check that the named gate or invariant exists; an agent can claim a non-existent gate. | Show that iron_plan_guard verify checks the gate name against a known list.",
+     "14.4 | medium | 'Prefer deletion, consolidation, or wiring over a new subsystem' is an unenforceable preference; a bad actor can always choose a new subsystem and claim it was necessary. | Show a concrete case where the preference is violated but the guard passes."
+    ],
+    "todos": [
+     "Add a step to iron_plan_guard verify that checks the plan digest against a trusted source (e.g., a signed hash).",
+     "Add a step to iron_plan_guard verify that validates the classification (e.g., by checking that the change is indeed ALIGNED, EXPERIMENT, or AMENDMENT according to defined criteria).",
+     "Add a step to iron_plan_guard verify that validates the named gate and invariant/prior against a registry.",
+     "Make the preference in claim 14.4 a checkable rule (e.g., by requiring a justification when a new subsystem is introduced)."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "14.1",
+       "claim": "Before editing, read the plan and verify its digest.",
+       "verdict": "weak",
+       "why": "The claim requires verification of the plan's digest, but it does not specify how to obtain the correct reference digest. A bad actor can modify the plan and recompute a matching digest, or present a fake digest, and claim compliance. The intent is to ensure the agent is working from the authoritative plan, but without a trusted source for the digest, the rule is easily bypassed."
+      },
+      {
+       "id": "14.2",
+       "claim": "Before editing, classify the work as ALIGNED, EXPERIMENT, or AMENDMENT.",
+       "verdict": "weak",
+       "why": "The classification is a manual step with no enforcement. A careless engineer or bad actor can misclassify the work (e.g., label a major change as ALIGNED) to avoid additional scrutiny. The intent is to route work to appropriate processes, but without an independent check, the classification is meaningless."
+      },
+      {
+       "id": "14.3",
+       "claim": "Before editing, name the active gate and the invariant/prior touched.",
+       "verdict": "weak",
+       "why": "The claim requires naming a gate and invariant/prior, but there is no validation that these exist or are correct. A bad actor can name a non-existent gate or an irrelevant invariant, and the rule is formally satisfied. The intent is to establish traceability, but without a registry or check, the traceability is illusory."
+      },
+      {
+       "id": "14.4",
+       "claim": "Prefer deletion, consolidation, or wiring over a new subsystem.",
+       "verdict": "weak",
+       "why": "This is a stated preference, not a checkable rule. A bad actor can always choose to add a new subsystem and claim it was necessary, and there is no mechanism to challenge that. The intent is to control complexity, but the rule as written is unenforceable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c5a5be21836f66725673871170e158359c028fa39464d8fc641d160d4be39354",
+    "objective_chars": 1477,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "14-alignment-protocol-for-every-change",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

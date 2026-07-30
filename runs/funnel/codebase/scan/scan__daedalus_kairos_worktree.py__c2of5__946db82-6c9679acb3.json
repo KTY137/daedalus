@@ -1,0 +1,314 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c2of5__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c2of5__946db82-6c9679acb3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 5 of worktree.py, covering helper functions and the detailed _remove_tree_no_follow with its invariant documentation. No code errors found, but several claims about external callers and tests are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_remove_tree_no_follow | medium | The function's docstring claims that mutation testing shows the suite does NOT go red if the is_dir branch is deleted, but that claim is uncheckable without the test suite. | Review the mutation test results or run the test suite with that branch removed.",
+     "_remove_tree_no_follow | low | The docstring mentions '2026-07-28' as a date for a fix, which is in the future, suggesting a possible error in the code. | Verify the intended date or correct the annotation."
+    ],
+    "todos": [
+     "Verify the date '2026-07-28' in _remove_tree_no_follow docstring.",
+     "Confirm mutation test coverage for the is_dir branch in _remove_tree_no_follow.",
+     "Consider hoisting _chain_between out of the per-child loop to optimize depth scaling."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "2 of 5",
+     "purpose": "Define helper functions for file removal and the core recursive deletion function _remove_tree_no_follow with extensive invariant documentation.",
+     "symbols": [
+      {
+       "name": "_clear_readonly",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Drops the read-only bit on a path, best effort."
+      },
+      {
+       "name": "_unlink_reparse_point",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Removes a reparse point (symlink or junction) without touching its target."
+      },
+      {
+       "name": "_force_unlink",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Unlinks a file, clearing read-only if necessary."
+      },
+      {
+       "name": "_force_rmdir",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Removes a directory, clearing read-only if necessary."
+      },
+      {
+       "name": "_chain_between",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a list of path components from root to target, raises ValueError if root not ancestor."
+      },
+      {
+       "name": "_remove_tree_no_follow",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Recursively deletes a directory tree without following reparse points, with verification at each step."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Drop the read-only bit git sets on loose objects, best effort.",
+       "where": "_clear_readonly docstring",
+       "verdict": "kept",
+       "why": "The function calls os.chmod to set S_IWRITE and S_IREAD, catching OSError."
+      },
+      {
+       "text": "Remove the LINK itself. Never touches what it points at.",
+       "where": "_unlink_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function uses os.rmdir or os.unlink to remove the link itself."
+      },
+      {
+       "text": "A directory symlink / junction is removed with ``rmdir``, a file symlink with ``unlink``; which one applies differs by platform and link kind, so both are tried.",
+       "where": "_unlink_reparse_point docstring",
+       "verdict": "kept",
+       "why": "The function tries os.rmdir first, then os.unlink."
+      },
+      {
+       "text": "``[root, ..., target]``: every component ``target`` is reached THROUGH.",
+       "where": "_chain_between docstring",
+       "verdict": "kept",
+       "why": "The function builds a chain from target up to root and reverses it, so it includes all components from root to target."
+      },
+      {
+       "text": "Walked upward by comparison KEY rather than with ``relative_to``, which is case-sensitive and would raise on Windows for a differently-cased spelling.",
+       "where": "_chain_between docstring",
+       "verdict": "uncheckable",
+       "why": "The function uses _key(current) comparison, but _key is not defined in this chunk; its behavior regarding case sensitivity is uncheckable."
+      },
+      {
+       "text": "Raises ``ValueError`` if ``root`` is not on ``target``'s path.",
+       "where": "_chain_between docstring",
+       "verdict": "kept",
+       "why": "The function raises ValueError if parent == current (i.e., reached root without matching)."
+      },
+      {
+       "text": "Recursively delete ``root`` without ever traversing a reparse point.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The function checks for reparse points before acting and uses _unlink_reparse_point for them."
+      },
+      {
+       "text": "EVERY path handed to a syscall that RESOLVES it -- ``os.scandir``, ``os.rmdir``, ``os.unlink``, ``os.chmod`` -- is re-classified with a FRESH ``lstat`` IMMEDIATELY beforehand, together with every component above it, up to and including ``guarded_ancestors``. There are exactly three such sites (the scan, the per-child unlink, the rmdir drain) and all three verify.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows the scan and per-child unlink verification sites, but the rmdir drain is not in this chunk."
+      },
+      {
+       "text": "No path in this function is acted on twice on the strength of one check.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code shows verification before each action (pop, per-child, and presumably drain)."
+      },
+      {
+       "text": "That re-check is the entire fix, and its absence was a live repository-deletion bug -- twice, in the same function, for the same reason.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The bug history is not verifiable from this code chunk alone."
+      },
+      {
+       "text": "Three shapes of the same defect, all measured on this box with a live process in the tree swapping an already-classified directory for a junction, three trials each: ...",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The measurement results are not verifiable from this code."
+      },
+      {
+       "text": "``shutil.rmtree`` is safe against a junction that is already in place and unsafe against one that appears mid walk; this function is safe against both.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Comparison with shutil.rmtree behavior is not verifiable from this code."
+      },
+      {
+       "text": "The few microseconds between each fresh ``lstat`` and the ONE syscall that follows it. Closing even that needs handle-relative traversal (``openat``/``O_NOFOLLOW``), which CPython does not expose on Windows",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The availability of openat/O_NOFOLLOW on Windows is not verifiable from this code."
+      },
+      {
+       "text": "It is \"one verification, one syscall\", repeated N times -- not \"two adjacent syscalls\"",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code verifies before each syscall (e.g., _verify_reachable before os.unlink)."
+      },
+      {
+       "text": "The EXCEPTIONS TO \"ONE VERIFICATION, ONE SYSCALL\", NAMED PRECISELY: ... * :func:`_force_unlink` / :func:`_force_rmdir` on ``PermissionError``: ``unlink`` -> ``chmod`` -> ``UNLINK AGAIN`` ... * :func:`_unlink_reparse_point`: ``rmdir`` -> ``unlink`` -> ``chmod`` -> ``unlink``",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code for _force_unlink, _force_rmdir, and _unlink_reparse_point matches the described sequences."
+      },
+      {
+       "text": "Re-verifying inside the retry was CONSIDERED AND NOT DONE this round: ``_verify_reachable`` is a closure over the walk's ``root`` and ``guarded_ancestors``, so threading it into these four module-level helpers is a signature change to the primitives, and a guard added without a test that can kill it is exactly what this file has been punished for. It is follow-up #2 behind the hoisting below.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The module-level helpers do not call _verify_reachable, confirming the decision."
+      },
+      {
+       "text": "THE COST SCALES WITH DEPTH",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Performance measurements are not verifiable from this code."
+      },
+      {
+       "text": "At depth 2-3, verifying before every syscall roughly doubles the walk. Median of 3, this box, alternating runs on freshly built identical trees: ...",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Performance measurements are not verifiable from this code."
+      },
+      {
+       "text": "Against DEPTH, 400 files at the leaf, median of 3, baseline = this same walker with the verification stubbed out entirely, so the only difference measured is the verification: ...",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Performance measurements are not verifiable from this code."
+      },
+      {
+       "text": "The cost is NOT dominated by the ``lstat`` calls (roughly 5k of them in the 1280-file case, tens of milliseconds) but by rebuilding the lexical chain in Python for every child, which is O(depth) per child",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code calls _chain_between for each child, which is O(depth)."
+      },
+      {
+       "text": "the available optimisation, named rather than taken: the chain is PURE TEXT, so hoisting ``_chain_between`` out of the per-child loop would recover most of it WITHOUT weakening the invariant",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code currently calls _chain_between per child; hoisting is not implemented."
+      },
+      {
+       "text": "Raises ``OSError`` on failure and :class:`WorktreeRemovalRace` if a reparse point appears above ANY step -- the scan, the unlinks, or the drain. A partial delete is reported, never swallowed. That sentence was false as written until 2026-07-28: the drain had no verification, so a partial delete THROUGH a swapped ancestor was neither detected nor reported, and ``cleanup_worktree`` returned normally on top of it.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The drain verification is not in this chunk, and the date is ambiguous."
+      },
+      {
+       "text": "A reparse point strictly above ``target`` redirects it wholesale, and unlinking that ancestor would delete a link the manager does not own, so this refuses instead of repairing.",
+       "where": "_verify_reachable nested docstring",
+       "verdict": "kept",
+       "why": "The function raises WorktreeRemovalRace if a reparse point is found in the ancestors."
+      },
+      {
+       "text": "Does it exist at all? That is the only question answered here. Whether a path is a reparse point, a file, or a directory is decided in exactly ONE place -- when it is POPPED, immediately before it is opened -- and the root is not special-cased.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code calls os.lstat(root) only to check existence, and classification happens in the pop loop."
+      },
+      {
+       "text": "An earlier version classified the root here as well as in the loop; mutation testing showed the extra branch could be deleted without any test noticing, because the pop-time check already covers it.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Mutation test results are not verifiable from this code."
+      },
+      {
+       "text": "RE-CHECK 1 OF 3 (the others are in the entry loop and the drain, and each one is separately load-bearing -- see the mutation notes).",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code shows verification at pop (line: _verify_reachable(current)) and per child (line: _verify_reachable(child)). The drain is not in this chunk."
+      },
+      {
+       "text": "What this one specifically stops, measured: a swap of an ancestor AFTER `current` was queued, which sends the not-a-directory branch below into an os.unlink outside the tree.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The measurement is not verifiable from this code."
+      },
+      {
+       "text": "RE-VERIFIED PER CHILD, not once per directory. `entries` can be thousands long, and `current` can be renamed aside and a junction renamed into its place between any two iterations -- a rename does not require the directory to be empty, so that swap is available to a live candidate at every moment of this loop.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "kept",
+       "why": "The code calls _verify_reachable(child) for each child inside the for loop."
+      },
+      {
+       "text": "A FRESH lstat, deliberately not entry.stat(): on Windows the DirEntry's stat is served from this scandir's cache (measured), so asking the DirEntry would re-introduce the stale read.",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "The behavior of DirEntry.stat on Windows is not verifiable from this code."
+      },
+      {
+       "text": "HONEST NOTE ON THIS BRANCH: mutation testing shows the suite does NOT go red if it is deleted, and that is not an oversight in the tests -- it is redundant on this platform, measured both ways. A junction is reported as a directory by is_dir(follow_symlinks=False), so it would be queued and then unlinked by the pop-time check; a directory symlink is NOT, so it would fall to _force_unlink, and os.unlink removes a Windows directory symlink without following it (measured: link gone, target intact).",
+       "where": "_remove_tree_no_follow docstring",
+       "verdict": "uncheckable",
+       "why": "Mutation test results and platform-specific behavior measurements are not verifiable from this code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for _remove_tree_no_follow contains an extensive performance analysis and historical bug description, but the actual code for the drain verification is not in this chunk.",
+       "where": "_remove_tree_no_follow docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The date '2026-07-28' appears in the docstring, which is in the future relative to the current date, possibly a typo or placeholder.",
+       "where": "_remove_tree_no_follow docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _chain_between uses _key for comparison, but _key is not defined in this chunk, making its behavior unverifiable.",
+       "where": "_chain_between",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module-level helpers (_force_unlink, _force_rmdir, _unlink_reparse_point) do not verify the path again before retrying, as noted in the docstring.",
+       "where": "_remove_tree_no_follow docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5b4ab6485b67660123a933fb1fefc8d45a0a1a3c55adfb76d5c89cc6b4f6e8ea",
+    "objective_chars": 14726,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [2/5]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 2,
+  "total": 5,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,104 @@
+{
+ "task_id": "15-amendment-protocol__falsifier__a47d84ee736f",
+ "key": "15-amendment-protocol__falsifier__a47d84ee736f-10cf8758a6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Claim 15.2 is unfalsifiable because 'explicit repository-owner approval' has no defined authentication or evidence mechanism, so no observation can disprove compliance.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "15.2 | critical | Claim 'obtain explicit repository-owner approval' is unfalsifiable: no definition of how approval is given, recorded, or verified, so any claim of compliance cannot be tested. | Define what constitutes 'explicit approval' (e.g., signed commit, cryptographic signature, or specific workflow) and require that evidence be retained in the amendment record."
+    ],
+    "todos": [
+     "Define a concrete mechanism for 'explicit repository-owner approval' (e.g., a signed attestation or a specific branch protection rule) and require that evidence (e.g., reference to a signed approval) be included in the amendment record.",
+     "Specify how the 'owner' identity is authenticated and how approval is verified by the process.",
+     "Add a requirement that the approval evidence be independently verifiable (e.g., via a trusted public key or identity provider)."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "15.1",
+       "claim": "Ordinary tasks must not edit the plan, amendment chain, active instructions, or guards.",
+       "verdict": "sound",
+       "why": "The claim is falsifiable: one can attempt an ordinary task that edits any of these items and observe whether it is allowed or prevented. The cheapest experiment is to run an ordinary task that tries to modify the plan and check if it fails. A kill would be the task succeeding."
+      },
+      {
+       "id": "15.2",
+       "claim": "Obtain explicit repository-owner approval.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'explicit repository-owner approval' is not defined. There is no specification of what constitutes 'explicit' (e.g., a signed message, a merge request approval, a cryptographic signature), nor how the 'owner' is authenticated. Without such definitions, no observation can disprove that approval was obtained. To make it falsifiable, one must define a concrete approval mechanism and require that evidence be recorded."
+      },
+      {
+       "id": "15.3",
+       "claim": "Start the amendment session with `DAEDALUS_IRON_PLAN_AMENDMENT=<current full plan sha256>`.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check whether the environment variable is set to the correct SHA-256 hash of the current plan before the session begins. Experiment: start an amendment without setting the variable or with a wrong hash; the process should fail. A kill would be the session proceeding without the correct variable."
+      },
+      {
+       "id": "15.4",
+       "claim": "Increment the plan revision monotonically.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check the revision number before and after the amendment; it must increase by at least one. Experiment: attempt an amendment that does not increment or decreases the revision; the process should reject it. A kill would be the process accepting a non-monotonic increment."
+      },
+      {
+       "id": "15.5",
+       "claim": "Append exactly one accepted record to `docs/IKARUS_ARIADNE_MASTER_PLAN.amendments.jsonl`. It records base/result SHA-256, previous-record hash, approval reference, scope, and evidence.",
+       "verdict": "weak",
+       "why": "Partially falsifiable: one can check that exactly one record is appended and that the required fields are present. However, 'approval reference' and 'evidence' are underspecified\u2014what counts as a valid reference or evidence? This vagueness makes full falsifiability questionable. A narrower claim specifying the format and validation of each field would be stronger."
+      },
+      {
+       "id": "15.6",
+       "claim": "Update the plan, ledger, derived controls, and tests atomically.",
+       "verdict": "weak",
+       "why": "The claim is falsifiable in principle: one can check whether all updates occur together or not. However, 'atomically' is ambiguous\u2014does it mean a single transaction, a single commit, or something else? Without a precise definition of atomicity (e.g., all changes in one Git commit), the claim is hard to test. Experiment: attempt an amendment that updates only some items; if the process accepts it, that would kill the claim. But what constitutes 'atomic' must be defined."
+      },
+      {
+       "id": "15.7",
+       "claim": "Run policy verification and the relevant fault-injection suite.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can observe whether policy verification and fault-injection tests are executed after the amendment. Experiment: perform an amendment and skip these steps; if the process completes without error, the claim is killed. A kill is the absence of these steps being enforced."
+      },
+      {
+       "id": "15.8",
+       "claim": "The environment token only unlocks the protected files for that process. It does not waive owner approval, the amendment record, review, or evidence.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can test whether using the token allows bypassing any of the listed requirements. Experiment: attempt an amendment with the token but without owner approval; if it succeeds, the claim is killed. A kill is the process proceeding without the required steps."
+      },
+      {
+       "id": "15.9",
+       "claim": "Rollback is a new amendment, never a history rewrite.",
+       "verdict": "sound",
+       "why": "Falsifiable: one can check whether a rollback operation modifies past history (e.g., rewrites Git history) or creates a new amendment. Experiment: perform a rollback and inspect the Git history; if any previous commits are altered or deleted, the claim is killed. A kill is the observation of history rewriting."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f211ec823366f430817b881a86b1b1a304b1b5081616aee030a53a0446b5eae1",
+    "objective_chars": 1984,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "15-amendment-protocol",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

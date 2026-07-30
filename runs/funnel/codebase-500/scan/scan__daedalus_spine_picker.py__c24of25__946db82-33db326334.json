@@ -1,0 +1,146 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c24of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c24of25__946db82-33db326334",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "chunk 24 of 25: defines safe_text, _default_attempt, _build_parser, main; no public symbols; claims about CLI behavior and dry-run are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_default_attempt | medium | calls offload_runner and run_attempt from daedalus.spine.attempt, which are not in this chunk; any exception from those will propagate and cause CLI exit 1, but that is intended per docstring.",
+     "_default_attempt | low | resolve_spine_db_path may return error; RuntimeError raised; caller must handle or let it crash."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "24 of 25",
+     "purpose": "define safe_text, _default_attempt, _build_parser, and main entry point",
+     "symbols": [
+      {
+       "name": "safe_text",
+       "kind": "function",
+       "effects": [],
+       "note": "encodes text with backslashreplace fallback; defined previously in chunk, not visible here"
+      },
+      {
+       "name": "_default_attempt",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "calls offload_runner which may spawn a process; calls run_attempt which may execute tasks"
+      },
+      {
+       "name": "_build_parser",
+       "kind": "function",
+       "effects": [],
+       "note": "builds argparse.ArgumentParser for daedalus improve"
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "entry point for daedalus improve; parses args, builds queue, returns exit code"
+      }
+     ],
+     "claims": [
+      {
+       "text": "exception here would turn a clean result into CLI exit 1.  Preserve the exact text when representable and escape only unsupported code points.",
+       "where": "docstring above safe_text (line 2761-2763)",
+       "verdict": "uncheckable",
+       "why": "safe_text is not defined in this chunk, only its docstring; the code shown is just the function body, not the docstring. The claim about CLI exit 1 is about code not shown."
+      },
+      {
+       "text": "Run one real :class:`daedalus.spine.attempt.TaskAttempt`. Split out as the single injection seam so ``--dry-run`` can be tested by passing an ``attempt_fn`` that raises: proving the flag does not attempt anything requires a way to observe an attempt that never happens.",
+       "where": "docstring of _default_attempt (line 2777-2782)",
+       "verdict": "uncheckable",
+       "why": "The claim about dry-run testing refers to behavior of main and the attempt_fn parameter, which are not fully shown in this chunk. The code for _default_attempt is present but the claim about injection seam is about external usage."
+      },
+      {
+       "text": "Default behaviour with no flags is the DRY RUN. An operator who types ``daedalus improve`` to see what it does must not thereby start a model run in a worktree -- the destructive-by-default reading of an ambiguous command is the one that has to be wrong.",
+       "where": "docstring of main (line 2845-2849)",
+       "verdict": "uncheckable",
+       "why": "The claim about default behavior (dry run) is about the logic of main, but the code shown only builds the queue and does not show the decision to run dry. The claim is not verifiable from this chunk alone."
+      },
+      {
+       "text": "``daedalus improve``. Returns a process exit code; applies nothing.",
+       "where": "docstring of main (line 2845)",
+       "verdict": "uncheckable",
+       "why": "The code shown does not return an exit code; it only builds queue. The claim about exit code is not checkable from this chunk."
+      },
+      {
+       "text": "There is no --apply flag and there will not be one here. Promotion is a human act. Exit codes for --once: 0 = a gated candidate patch is waiting for you, 2 = the attempt ran and changed nothing, 3 = a source could not be consulted, so 'no candidate' is NOT evidence that there is no work, 1 = anything else (gate failed, runner failed, no candidate).",
+       "where": "epilog of _build_parser (line 2804-2810)",
+       "verdict": "uncheckable",
+       "why": "The claim about exit codes refers to behavior of main, which is not fully implemented in this chunk. The epilog describes intended exit codes, but the code shown does not implement them."
+      }
+     ],
+     "observations": [
+      {
+       "what": "safe_text function is defined but its docstring mentions exception handling; the function body uses backslashreplace encoding.",
+       "where": "lines 2761-2768",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_default_attempt imports from daedalus.spine.attempt and calls offload_runner and run_attempt; these are not defined in this chunk.",
+       "where": "lines 2784-2797",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_build_parser defines many arguments but does not include --limit default value; DEFAULT_LIMIT is used but not defined in this chunk.",
+       "where": "line 2816",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main builds a queue using build_queue, but build_queue is not defined in this chunk.",
+       "where": "lines 2852-2855",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main does not yet show the logic for handling --dry-run or --once; it stops after building queue.",
+       "where": "line 2855",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2ab8269be1ccd648827ed1189d3636e99f07a7ee4b418f25215921726bc81ef4",
+    "objective_chars": 6650,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [24/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 24,
+  "total": 25,
+  "first_line": 2761
+ }
+}

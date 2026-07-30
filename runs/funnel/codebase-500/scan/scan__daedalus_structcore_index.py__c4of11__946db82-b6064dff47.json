@@ -1,0 +1,215 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c4of11__946db82",
+ "key": "scan__daedalus_structcore_index.py__c4of11__946db82-b6064dff47",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of 11 of daedalus/structcore/index.py: contains _Index.__init__, _build, name, tables_for, describe; module-level constants and helper functions for parallel scanning; claims in docstrings and comments are checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_PARALLEL_MIN_FILES comment | medium | Claims break-even measured on 8-core box but no test or verification in this chunk. | Add a test that confirms the break-even threshold or document the measurement methodology."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "4 of 11",
+     "purpose": "Defines _Index class (init, _build, name, tables_for, describe) and module-level constants/functions for parallel file analysis.",
+     "symbols": [
+      {
+       "name": "_Index.__init__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Initializes _rels, _owner, _name, _ambiguous, _views. Sorts rels, computes owner via scope.center_of, builds name via _py_dotted. Eagerly builds views for all centers plus None."
+      },
+      {
+       "name": "_Index._build",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds _View for a given key. Groups rels by dotted name, disambiguates, populates _ambiguous for unresolved names, computes canon aliases."
+      },
+      {
+       "name": "_Index.name",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dotted module name for a given rel."
+      },
+      {
+       "name": "_Index.tables_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns _View for the owner of a given rel."
+      },
+      {
+       "name": "_Index.describe",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns ambiguity report dict with 'ambiguous_count', 'ambiguous_sample', 'truncated'."
+      },
+      {
+       "name": "_PARALLEL_MIN_FILES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Minimum file count to use parallel pool; set to 100 based on measured break-even."
+      },
+      {
+       "name": "_CHUNK_SIZE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Chunk size for parallel processing; set to 40."
+      },
+      {
+       "name": "_worker_count",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns number of workers: from env DAEDALUS_SCAN_WORKERS if set, else min(8, cpu_count or 1)."
+      },
+      {
+       "name": "_parallel_min",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns override from env DAEDALUS_SCAN_MIN_PARALLEL if set, else _PARALLEL_MIN_FILES."
+      },
+      {
+       "name": "_per_file_pass",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Analyzes records, returns list in input order. Uses cache and process pool. Signature shown; body incomplete in chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Ownership decides naming; ``center_of`` returns None when no center is declared, so an unconfigured repo takes the repo-root path everywhere by construction rather than by luck. Longest-prefix wins there.",
+       "where": "line 362-365",
+       "verdict": "uncheckable",
+       "why": "The behavior of scope.center_of and longest-prefix logic are not defined in this chunk."
+      },
+      {
+       "text": "Building views lazily on first use would make ``ambiguous`` depend on which files happened to be visited, so the reported ambiguity set -- and therefore the index -- would vary with walk order. There are at most len(center)+1 views.",
+       "where": "line 371-374",
+       "verdict": "kept",
+       "why": "Code eagerly builds views for [None, *sorted(scope.center)]; comment explains why lazy would be problematic."
+      },
+      {
+       "text": "already sorted -> candidate lists are sorted",
+       "where": "line 381",
+       "verdict": "kept",
+       "why": "self._rels is sorted in __init__, so iteration preserves order."
+      },
+      {
+       "text": "The NAME-level edge stays true and is kept in ``known``: the importer really does depend on that module. Only the FILE-level binding is withheld, because which file it is is exactly what we cannot honestly say.",
+       "where": "line 392-395",
+       "verdict": "kept",
+       "why": "When disambiguation returns None, the name is added to _ambiguous but not to rel_by_dotted; known set includes the name via by_name keys."
+      },
+      {
+       "text": "Ambiguity report. Never silent: a name we refused to bind is a dependency the map is NOT showing, and an unreported one is indistinguishable from a file that genuinely has no dependents.",
+       "where": "line 415-417",
+       "verdict": "uncheckable",
+       "why": "The comment describes external behavior not verifiable from this chunk alone."
+      },
+      {
+       "text": "Windows SPAWNS workers (no fork), so each one re-imports tree-sitter, lizard and the whole package before doing any useful work.",
+       "where": "line 428-430",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references Windows or fork behavior."
+      },
+      {
+       "text": "Measured break-even on this 8-core box (cache off, so only the pool varies): 72 files -> 1.01x   141 -> 1.14x   467 -> 1.49x   6799 -> 2.75x i.e. it is already neutral around 70 files, so 100 is a safe floor that still captures the mid-size repos.",
+       "where": "line 431-434",
+       "verdict": "uncheckable",
+       "why": "The measurement claim is not backed by code in this chunk; _PARALLEL_MIN_FILES is set to 100."
+      },
+      {
+       "text": "Overridable so tests can force the parallel path on a small fixture -- otherwise the pool would only ever be exercised on huge repos.",
+       "where": "line 443-444",
+       "verdict": "kept",
+       "why": "_parallel_min function reads env DAEDALUS_SCAN_MIN_PARALLEL to override _PARALLEL_MIN_FILES."
+      },
+      {
+       "text": "Analyze every record, returning results in EXACTLY the input order.",
+       "where": "line 447-448",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete; the claim about order preservation cannot be verified from this chunk."
+      },
+      {
+       "text": "ORDER IS LOAD-BEARING and is the whole reason results are index-tagged: ``all_units`` is consumed positionally by the clone passes, so cluster membership and ordering depend on it. Pool completion order is arbitrary, so every result carries its original index and is written back into a preallocated slot -- never appended in completion order.",
+       "where": "line 452-456",
+       "verdict": "uncheckable",
+       "why": "The implementation of index tagging and preallocated slots is not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Eager view building in __init__ ensures deterministic ambiguity set; comment explains rationale.",
+       "where": "lines 371-376",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about break-even measurements is not verifiable from code; no test or reference to measurement setup.",
+       "where": "lines 431-434",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_per_file_pass function is incomplete; its docstring makes strong claims about order preservation and index-tagging that cannot be checked.",
+       "where": "lines 447-456",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "04c8ae2b010fc28072b29523074161d5bb7125458e214146e730ed594a16e991",
+    "objective_chars": 5883,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [4/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 4,
+  "total": 11,
+  "first_line": 361
+ }
+}

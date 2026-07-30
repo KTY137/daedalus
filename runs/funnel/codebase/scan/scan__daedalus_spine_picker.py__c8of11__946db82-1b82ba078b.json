@@ -1,0 +1,140 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c8of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c8of11__946db82-1b82ba078b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Enumerated 3 public functions, 4 checkable claims: 1 kept, 3 uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "attempt_history | medium | The function silently catches all exceptions and returns an empty history with an error string. This may hide serious issues like schema mismatches or corruption. | Review exception handling: ensure logging or explicit error propagation for non-transient failures.",
+     "apply_attempt_memory | medium | The function uses Mapping type hints but accesses 'by_definition' and 'by_instruction' keys that may not exist in history entries. | Confirm that history entries always contain these keys or add fallback logic.",
+     "apply_attempt_memory | medium | The function assumes 'last_outcome' value is a string or None, but outcome_policy may expect specific formats. | Verify outcome_policy handles all possible values.",
+     "rank | medium | The function accesses 'memory_outcome_severity' from evidence, but this key is only set by apply_attempt_memory. If rank is called without prior memory application, the key may be missing. | Ensure rank is only called after apply_attempt_memory or provide default value."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "8 of 11",
+     "purpose": "Implements attempt_history, apply_attempt_memory, rank, and build_queue functions for queue building with attempt memory.",
+     "symbols": [
+      {
+       "name": "attempt_history",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads ledger to retrieve attempt history for given task IDs. Returns (dict, error). Never raises."
+      },
+      {
+       "name": "apply_attempt_memory",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Sinks candidates already attempted based on history. Returns (candidates, notes). Penalizes by outcome policy."
+      },
+      {
+       "name": "rank",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Deterministic ranking of candidates by score, severity, attempts, source order, task_id."
+      },
+      {
+       "name": "build_queue",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds ranked queue from sources. Never raises on bad/missing source files. Only signature shown."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Opens the ledger READ-ONLY. The normal constructor creates the parent directory, sets journal_mode=WAL (a file write) and runs migrations inside BEGIN IMMEDIATE, so opening a ledger to look at it MUTATES it -- unacceptable in --dry-run, whose entire contract is that it changes nothing. SQLite enforces that here; this function does not merely promise it.",
+       "where": "attempt_history docstring",
+       "verdict": "uncheckable",
+       "why": "The code shows ledger = SpineLedger(path, read_only=True) but the implementation of SpineLedger and its read_only parameter are not in this chunk."
+      },
+      {
+       "text": "Returns (history, error) and NEVER raises: a missing ledger (a fresh checkout has attempted nothing) is an empty history, not a failure.",
+       "where": "attempt_history docstring",
+       "verdict": "kept",
+       "why": "The function catches all exceptions and returns ({}, error) or ({}, None) for missing file. No raise statements."
+      },
+      {
+       "text": "A PENALTY, not a filter. Dropping attempted work would let one transient runner failure delete a real task from the queue forever, and would let the queue silently empty -- both worse than showing the work with its history attached. The operator (and --once) still sees every candidate; what changes is the order, and every moved candidate carries the evidence that moved it.",
+       "where": "apply_attempt_memory docstring",
+       "verdict": "uncheckable",
+       "why": "The function returns all candidates (none are dropped) and adds evidence keys, but the claim about operator visibility and --once cannot be verified from this code alone."
+      },
+      {
+       "text": "HOW FAR it sinks is OUTCOME_POLICY's decision, not a constant: the outcome is applied as a CEILING on the measured offset, so the score itself distinguishes 'a patch is waiting for you' from 'the gates said no' from 'the worktree would not build'. Before this, all three sank identically and the difference survived only in the reason text.",
+       "where": "apply_attempt_memory docstring",
+       "verdict": "uncheckable",
+       "why": "The function calls outcome_policy and uses policy.ceiling(same), but the implementation of outcome_policy and its ceiling method are not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "attempt_history uses a try-except that catches all exceptions, returning an error string. This may hide critical failures.",
+       "where": "attempt_history, line ~1995",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "apply_attempt_memory accesses 'by_definition' and 'by_instruction' keys from history entries without checking existence; if a history entry lacks these keys, it may cause KeyError or unexpected behavior.",
+       "where": "apply_attempt_memory, line ~2032-2035",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "rank accesses 'memory_outcome_severity' from evidence; this key is only set by apply_attempt_memory. If rank is called without prior memory application, the key may be missing.",
+       "where": "rank, line ~2137",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "build_queue function signature is incomplete; only the docstring and signature are shown, no implementation.",
+       "where": "build_queue, line ~2155",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "356455800b8e8019a56dd86c3c8199e1f4fbb58974adc19bc537d1d0f3ab63f2",
+    "objective_chars": 14248,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [8/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 8,
+  "total": 11,
+  "first_line": 1961
+ }
+}

@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b023__946db82",
+ "key": "review__b023__946db82-a4f1477d28",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 1 narrowed, 8 refuted. All refuted due to missing evidence, existing guards, or unreachable code paths.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "inconsistent-gate-composition",
+       "verdict": "refuted",
+       "strongest_counterargument": "The subprocess adapter's approve/reject stubs are never invoked because the gated_writes pipeline uses a different adapter (the relay gate) that does not call approve/reject. The wiki module's read-only claim is about its own API, not about gated_writes which is a separate pipeline. The gate composition order is intentional and documented.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'approve\\|reject' daedalus/kairos/gated_writes.py daedalus/adapters/subprocess_adapter.py; verify no call path from gated_writes to subprocess_adapter's approve/reject.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-max-literals",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source does not show line 220 or any reference to MAX_LITERALS_PER_FILE. The hypothesis is based on evidence not present in the repository.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'MAX_LITERALS_PER_FILE' daedalus/structcore/artifacts.py",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "redundant-tokenization",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for clones.py shows only the module docstring and imports, not the near_clusters function. checks.py's not_substituted function is not shown to do tokenization. The hypothesis lacks evidence that both modules actually tokenize the same files redundantly.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/structcore/clones.py and daedalus/lanes/checks.py; search for tokenization calls and check for caching.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "static-file-path-assumption",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows that daedalus.council.vendors is imported at the top of session.py; if the import fails, it would fail at module load time, not silently. Similarly, personas.py uses a path relative to __file__ which is standard practice in packaged applications; the file is expected to be present in the package. The hypothesis's observation about 'observations' is not present in the file.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Check if personas.json exists alongside personas.py; verify that daedalus.council.vendors module exists and is importable.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "env-extra-patterns-undefined",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows effective_rules calls env_extra_patterns() at line 312. However, the hypothesis's evidence about 'observation' is not present in the file. The function env_extra_patterns may be defined elsewhere in the same module or imported; the chunk does not show the top of the file where imports would be.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'def env_extra_patterns' daedalus/structcore/ignore.py; check imports at top of file.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "external-dependency-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows scope.describe at line 998, tokens.tokenizer_name at line 1053, and graph.SymbolResolver at line 1057. However, these may be imported at the top of index.py (not shown in the chunk) or via relative imports from sibling modules. The chunk starts at line 988, missing the import section.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/structcore/index.py and check imports at the top; verify that scope, tokens, and graph modules are imported and have the expected attributes.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "untracked-ambiguity",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The -1 sentinel is a common pattern for 'not probed' and the docref_gate and harness may never use untracked=-1 for decision-making, or they may check other fields to disambiguate.",
+       "survives_because": "But the hypothesis correctly identifies that -1 is used for multiple conditions (error, not probed) and no consumer is shown to distinguish them. The cited source shows _untracked returns -1 for several error cases and git_stamp assigns -1 when probe_dirty is False. Without evidence of disambiguation, the ambiguity is a real risk.",
+       "narrowed_claim": "The -1 sentinel value for untracked count in mapping/render.py is ambiguous between 'not probed' and 'error', and this ambiguity may propagate to consumers that use git_stamp without checking other fields.",
+       "settling_check": "grep -r 'untracked' daedalus/spine/docref_gate.py daedalus/eval/harness.py; check if any consumer uses untracked value for logic decisions without also checking probe_dirty or other fields.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "document-skeleton-contract",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _skeleton delegates to markdown_mod.document_skeleton for documents, and the docstring claims the invariant 'the result is never larger than the raw document'. This is a documented contract; if violated, it would be a bug in document_skeleton, not in _skeleton. The hypothesis provides no evidence that document_skeleton actually violates the invariant.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Inspect daedalus/markdown (if available) to verify document_skeleton implementation ensures non-increasing size.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "undefined-symbols-typegraph",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the module docstring and first 40 lines of typegraph.py, not the _resolve method. The hypothesis's evidence about _resolve calling _star_imports, _star_candidates, and returning _Outcome is not present in the provided source. The symbols may be defined in other parts of the file not shown.",
+       "survives_because": "",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/structcore/typegraph.py and search for _star_imports, _star_candidates, _Outcome definitions.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4965eda52f6b9aadc625b0b4950f04b9c357ab7f54aa6a8f59cbf4747229c564",
+    "objective_chars": 48455,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 23 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 23,
+  "inputs": 9
+ }
+}

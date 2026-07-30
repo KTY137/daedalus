@@ -1,0 +1,115 @@
+{
+ "task_id": "scan__daedalus_structcore_tokens.py__c1of1__946db82",
+ "key": "scan__daedalus_structcore_tokens.py__c1of1__946db82-f2158150ce",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed tokens.py chunk 1/1: two public symbols (count_tokens, tokenizer_name), all docstring claims checkable and kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/tokens.py",
+     "chunk": "1 of 1",
+     "purpose": "Token counting for distill benchmark using tiktoken or heuristic.",
+     "symbols": [
+      {
+       "name": "_encoder",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private cached function; returns tiktoken encoder or None."
+      },
+      {
+       "name": "count_tokens",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public function; returns token count using encoder or heuristic."
+      },
+      {
+       "name": "tokenizer_name",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public function; returns string name of tokenizer in use."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Uses ``tiktoken`` (optional dep) for a real BPE count when installed; otherwise a ``chars/4`` heuristic.",
+       "where": "docstring lines 3-5",
+       "verdict": "kept",
+       "why": "Code tries import tiktoken; if fails returns None; count_tokens uses encoder if not None else len(text)//4."
+      },
+      {
+       "text": "Degrades cleanly: the reduction *ratio* is meaningful either way, and becomes tokenizer-exact when tiktoken is present.",
+       "where": "docstring lines 5-7",
+       "verdict": "kept",
+       "why": "Both paths return integer counts; ratio meaningful. When tiktoken present, uses exact encoding."
+      },
+      {
+       "text": "This is what makes the \"92.8% smaller\" claim rigorous rather than a hand-wave.",
+       "where": "docstring lines 7-8",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk references a '92.8% smaller' claim or any specific benchmark result."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _encoder is private but used by both public functions; caching with maxsize=1.",
+       "where": "line 10",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "count_tokens catches Exception from enc.encode and falls through to heuristic; robust.",
+       "where": "lines 23-25",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "tokenizer_name returns 'tiktoken/cl100k_base' even if tiktoken import succeeded but get_encoding fails; _encoder returns None only on exception, so name reflects actual availability.",
+       "where": "line 29",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "df434b7b06a7a310ba819402ca6d0dbc940104721473c02d9c394df93cdb3cdf",
+    "objective_chars": 1368,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/tokens.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/tokens.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

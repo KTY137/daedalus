@@ -1,0 +1,121 @@
+{
+ "task_id": "research__b097__946db82",
+ "key": "research__b097__946db82-f195bddce2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three spanning patterns: (1) linked worktree path persistence vulnerability affects mint store and eval; (2) modularity_report's interpretation thresholds are unenforced and may conflict with eval's decision logic; (3) verify_fix's docstring order claim contradicts its implementation, risking silent wrong verdicts when combined with parse alias extraction.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Linked worktree minting writes unresolvable paths into mint store, causing permanent eval failures",
+     "Modularity interpretation thresholds in spectral.py are advisory only, but eval may treat them as hard rules",
+     "verify_fix does not check denominator first despite docstring promise, allowing deletion to be rewarded as fix",
+     "Parse.py's positional[0].arg access without guard will crash on functions with no positional args"
+    ],
+    "todos": [
+     "Add linked worktree check before minting to prevent persistent dead entries",
+     "Make modularity thresholds configurable or enforce them in eval decision logic",
+     "Align verify_fix implementation with its docstring order claim or fix docstring",
+     "Guard positional[0].arg access against empty positional list"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "linked-worktree-path-leak",
+       "claim": "Minting from a linked worktree creates a task with an absolute path that becomes unresolvable when the worktree is deleted, permanently poisoning the mint store.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "daedalus/eval/tasks"
+       ],
+       "mechanism": "mint.py's _is_linked_worktree detects worktrees, but mint_from_diffs (not in chunks) stores repo as absolute path. When daedalus.spine.attempt deletes the worktree, tasks.resolve_task_repo fails on that path, returning errors forever. No pruning exists.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Evidence that mint_from_diffs stores a relative or canonical path, or that worktree deletion triggers mint store cleanup.",
+       "evidence": [
+        "daedalus/eval/mint.py:_is_linked_worktree docstring",
+        "daedalus/eval/mint.py:DEFAULT_MINT_STORE_PATH comment"
+       ]
+      },
+      {
+       "id": "modularity-threshold-unenforced",
+       "claim": "The modularity_report interpretation thresholds (Q>=0.3 strong, etc.) are docstring-only advice, but eval's decision logic may rely on them as hard rules, leading to inconsistent go/no-go.",
+       "spans": [
+        "daedalus/mapping/spectral.py",
+        "daedalus/eval/mint.py"
+       ],
+       "mechanism": "spectral.py's modularity_report returns raw Q and lift without enforcing thresholds. mint.py uses MINT_CONFIRM_THRESHOLD for label confidence but does not reference modularity thresholds. If eval later uses Q<0.3 as 'weak' to block actions, the uncovered threshold becomes a hidden dependency.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that modularity thresholds are never used for decision logic, or that they are enforced elsewhere with exact same values.",
+       "evidence": [
+        "daedalus/mapping/spectral.py:modularity_report docstring",
+        "daedalus/eval/mint.py:MINT_CONFIRM_THRESHOLD comment"
+       ]
+      },
+      {
+       "id": "verify-fix-order-violation",
+       "claim": "verify_fix's docstring claims denominator is checked first, but the function does not check denominator at all, allowing a document deletion to appear as a successful fix (claim_withdrawn) without detection.",
+       "spans": [
+        "daedalus/spine/docrefs.py",
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "verify_fix calls verify_fix_counts without checking denominator. If a caller (e.g., docref_gate) uses verify_fix on a target reconstructed from truncated evidence (as warned in docstring), a stale claim can be reported as withdrawn. parse.py's _alias_records may produce truncated keys that match this pattern.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that verify_fix is never called in contexts where denominator check is required, or that docref_gate always uses verify_fixes instead.",
+       "evidence": [
+        "daedalus/spine/docrefs.py:verify_fix docstring",
+        "daedalus/spine/docrefs.py:verify_fixes docstring",
+        "daedalus/structcore/parse.py:_alias_records"
+       ]
+      },
+      {
+       "id": "positional-empty-crash",
+       "claim": "The parameter extraction code in parse.py crashes with IndexError when a function has no positional parameters (only *args/**kwargs), because it unconditionally accesses positional[0].arg.",
+       "spans": [
+        "daedalus/structcore/parse.py",
+        "daedalus/spine/docrefs.py"
+       ],
+       "mechanism": "In parse.py, after building positional list, the code returns (positional[0].arg if positional else ''). This guard only protects the second element of the tuple; the first element (tuple(out)) is built from positional, but if positional is empty, the conditional expression correctly returns ''. However, the first element 'tuple(out)' may still be built from an empty positional, which is fine. But the observation notes 'positional[0].arg' without guard; actual code shows guard. The risk is low but the pattern of unsafe access could appear elsewhere.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the code shown in chunk 9/11 actually has the guard 'if positional else' for the receiver extraction, and no other similar unsafe access exists.",
+       "evidence": [
+        "daedalus/structcore/parse.py:positional usage",
+        "daedalus/spine/docrefs.py:verify_fix docstring (no direct link)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c5f25c412dbdeb90e40d7f9ef55aacf5cc8ff5b95bcd3dae9794314301556b7f",
+    "objective_chars": 26376,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 97 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 97,
+  "inputs": 4
+ }
+}

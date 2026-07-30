@@ -1,0 +1,155 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c6of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c6of8__946db82-8e73ddb698",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of daedalus/council/publish.py: definitions of _gh_argv, _classify_failure, _first_url, and load_for_publish with extensive docstrings and comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_classify_failure | medium | Claim about 404 for private repos is uncheckable; depends on gh behavior not in code. | Add a test or comment referencing actual gh test output.",
+     "load_for_publish | medium | Claim about reconstructing only bus-recorded data is uncheckable; depends on bus.load_transcript and other imports. | Provide that function or a sample transcript.",
+     "load_for_publish | medium | Claim about quorum derivation from roster/turn records is uncheckable; depends on _text, _field, _as_list not defined here. | Ensure those helpers exist and are correct."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "6 of 8",
+     "purpose": "Define helper functions _gh_argv, _classify_failure, _first_url, and load_for_publish with docstrings explaining design decisions.",
+     "symbols": [
+      {
+       "name": "_gh_argv",
+       "kind": "function",
+       "effects": [],
+       "note": "Prepends --repo if repo argument is provided."
+      },
+      {
+       "name": "_classify_failure",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps failed gh invocation to (status, detail). Checks order: auth before not-found."
+      },
+      {
+       "name": "_first_url",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts first http/https URL from text."
+      },
+      {
+       "name": "STATUS_NO_TRANSCRIPT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'no_transcript'."
+      },
+      {
+       "name": "load_for_publish",
+       "kind": "function",
+       "effects": [],
+       "note": "Reconstructs (verdict, turns) from stored bus transcript. Reads bus.load_transcript and processes roster/turn records."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as pr_not_found would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.",
+       "where": "_classify_failure docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about GitHub behavior (404 vs 403) is not verifiable from this code; it relies on external knowledge."
+      },
+      {
+       "text": "Order matters.",
+       "where": "_classify_failure docstring",
+       "verdict": "kept",
+       "why": "The code checks auth patterns before not-found patterns, confirming the stated order."
+      },
+      {
+       "text": "The council package stores no outcome and no convergence field -- by construction, because it promotes nothing -- so none is invented here, and render_markdown prints '(not recorded)' for them.",
+       "where": "load_for_publish docstring",
+       "verdict": "uncheckable",
+       "why": "The code for load_for_publish does not show render_markdown or the council package internals; the claim cannot be verified here."
+      },
+      {
+       "text": "Inventing a plausible outcome to make the comment read better would manufacture exactly the authority the whole package refuses to claim.",
+       "where": "load_for_publish docstring",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk invents outcomes; the claim is about what the function does NOT do, which is uncheckable without seeing the full implementation."
+      },
+      {
+       "text": "Quorum comes from the roster records' participants: a vendor is ANSWERED only if it actually produced a turn, not if it was merely seated. That is the distinction the degraded-quorum banner is built on, so deriving it from the seat list would silently upgrade every short council to a full one.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept for the part visible",
+       "why": "The code in the visible part of load_for_publish iterates over turns and only counts turns with status 'spoke' as answered, and only counts roster participants as requested. This matches the claim. The claim about 'degraded-quorum banner' is uncheckable (not in chunk)."
+      },
+      {
+       "text": "This was written the obvious way first -- any turn with a vendor on it -- and it was WRONG, caught against a real transcript (runs/council/council-20260728T121214Z-a5241ac5.jsonl): that council has four turn records but two of them are placeholders, google not_authenticated and openai not_on_path, and the bus itself records responded: 2, degraded: true. The naive version rendered 'Quorum: 4 of 4 (full roster)' over a council where half the vendors never ran -- silently upgrading a degraded council to a full one, which is the single most misleading thing this renderer could say, since independence is the only thing a multi-vendor council buys.",
+       "where": "Comment inside load_for_publish",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a specific real transcript and behavior not present in this code chunk. The code does check for status 'spoke', which is consistent with the described fix, but the anecdote cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_classify_failure checks auth patterns before not-found patterns, as documented.",
+       "where": "_classify_failure",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_for_publish uses imports from .bus and uses _text, _field, _as_list which are not defined in this chunk.",
+       "where": "load_for_publish",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_for_publish only counts turns with status 'spoke' as answered, matching the docstring's emphasis on not counting placeholders.",
+       "where": "load_for_publish",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant STATUS_NO_TRANSCRIPT is defined but not used in this chunk; may be used elsewhere.",
+       "where": "STATUS_NO_TRANSCRIPT",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about a real transcript (runs/council/...) references a path that may not exist; it is an anecdote, not code.",
+       "where": "Comment inside load_for_publish",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d262eb34fec8178c9bdd31745cc759cd10baf5e624a62044174ab9ae1ba28ec",
+    "objective_chars": 6780,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [6/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 6,
+  "total": 8,
+  "first_line": 601
+ }
+}

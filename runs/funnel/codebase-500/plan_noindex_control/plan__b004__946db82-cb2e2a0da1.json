@@ -1,0 +1,145 @@
+{
+ "task_id": "plan__b004__946db82",
+ "key": "plan__b004__946db82-cb2e2a0da1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 items: fix derive_task_from_commit (critical), add import-error unit test, check render_brief callers, test CloneMemo cross-call safety. Unmeasured-vectors contract deferred.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "derive_task_from_commit returns None; any caller using its return value will crash or silently misbehave.",
+     "render_brief callers may not handle empty string; need to audit all call sites.",
+     "CloneMemo test may be hard to write if id reuse is rare; may need gc.collect() and object creation.",
+     "Unmeasured-vectors contract: no test found yet; deferring but risk remains."
+    ],
+    "todos": [
+     "Fix derive_task_from_commit to populate f2p/p2p and return the dict. Add unit test.",
+     "Add unit test for _catches_import_error with bare except and except Exception.",
+     "Audit all callers of render_brief for empty string handling.",
+     "Add test for CloneMemo across separate build_index calls with different unit lists.",
+     "Search for tests referencing UNMEASURED; if none, add a test or enforce via schema."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix derive_task_from_commit to populate f2p/p2p and return a dict",
+       "gate": "1",
+       "why_now": "Function currently returns None, breaking any caller that expects a derivation dict. This is critical and blocks the vertical slice.",
+       "steps": [
+        {
+         "do": "Add code to populate f2p and p2p lists from the commit data, then return a dict with keys 'overlay', 'f2p', 'p2p'.",
+         "file": "daedalus/eval/correctness.py",
+         "verified_by": "python -c \"from daedalus.eval.correctness import derive_task_from_commit; result = derive_task_from_commit('.', 'HEAD'); assert result is not None and 'overlay' in result and 'f2p' in result and 'p2p' in result\""
+        },
+        {
+         "do": "Add a unit test that calls derive_task_from_commit on a known repo and checks the returned dict structure.",
+         "file": "tests/test_correctness.py",
+         "verified_by": "python -m pytest tests/test_correctness.py -k 'derive'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is in daedalus/eval/correctness.py. If the file does not exist, need to locate it."
+      },
+      {
+       "rank": 2,
+       "title": "Add unit test for _catches_import_error with bare except and except Exception",
+       "gate": "1",
+       "why_now": "Confirmed gap: imports inside bare except are misclassified. This affects dependency analysis quality.",
+       "steps": [
+        {
+         "do": "Add a test that passes a try/except Exception block containing an import to _split_imports and asserts it is not marked as suppressed.",
+         "file": "tests/test_reach.py",
+         "verified_by": "python -m pytest tests/test_reach.py -k 'import_error_handling'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The test file tests/test_reach.py exists. If not, need to create it or locate the correct test file."
+      },
+      {
+       "rank": 3,
+       "title": "Audit all callers of render_brief for empty string handling",
+       "gate": "1",
+       "why_now": "render_brief returns '' on error; if any caller does not check for empty string, silent data loss occurs.",
+       "steps": [
+        {
+         "do": "Search codebase for all calls to render_brief. For each caller, verify it checks for '' before using the result.",
+         "file": "UNKNOWN",
+         "verified_by": "Manual audit: grep -r 'render_brief' . and inspect each call site."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Need to locate all callers of render_brief. The function may be in daedalus/llm/ollama.py or similar."
+      },
+      {
+       "rank": 4,
+       "title": "Add test for CloneMemo cross-call cache safety",
+       "gate": "1",
+       "why_now": "CloneMemo may produce incorrect cache hits if same id reused across separate build_index calls with different unit lists.",
+       "steps": [
+        {
+         "do": "Write a test that creates two CodeUnit objects with same id (via gc), calls build_index separately, and verifies no cache mix.",
+         "file": "tests/test_clone_memo.py",
+         "verified_by": "python -m pytest tests/test_clone_memo.py -k 'cross_call'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "CloneMemo is in daedalus/tools/clone_memo.py or similar. Need to locate the module."
+      },
+      {
+       "rank": 5,
+       "title": "Search for tests referencing UNMEASURED and enforce if missing",
+       "gate": "2",
+       "why_now": "Low risk: documentation may become outdated. Deferred until gate 2 as it is low severity.",
+       "steps": [
+        {
+         "do": "Search codebase for any test that checks UNMEASURED contents. If none found, add a test or schema enforcement.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -r 'UNMEASURED' tests/; if no matches, write a test."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "UNMEASURED is likely a constant defined somewhere; need to locate its definition and any tests."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/eval/correctness.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d16a47a35fdec6894f5911c12cecb8bdcd273cf9f67d352fd65aaa27c912d83",
+    "objective_chars": 6021,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 4 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 4,
+  "inputs": 5
+ }
+}

@@ -1,0 +1,135 @@
+{
+ "task_id": "daedalus/metrics.py#c1of1#5eb1702d",
+ "key": "daedalus_metrics.py_c1of1_5eb1702d-799b084cf7",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 1 broken, 0 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Append-only JSONL, ignored by Git (lives under memory/)\" | LOG | KEPT | LOG is under memory/ and is appended to via 'a' mode.",
+     "CLAIM | \"Serializes the append below so parallel dispatch can't interleave two rows into one corrupt line\" | _WRITE_LOCK | KEPT | Lock is acquired before opening file for append.",
+     "CLAIM | \"eligible = the task *could* have been offloaded (a delegable, low/mid-risk task)\" | record parameter | KEPT | Parameter is documented and used in summary filter.",
+     "CLAIM | \"action in {offloaded, escalate_to_claude, escalated_after_verify_fail, would_offload}\" | record docstring | BROKEN | escalated_after_verify_fail is not in the set; action values are not validated.",
+     "CLAIM | \"note[:200]\" | record | KEPT | Slice on note limits length to 200.",
+     "CLAIM | \"_load() returns [] if LOG not exists\" | _load | KEPT | Early return of [] when not exists.",
+     "CLAIM | \"summary() returns total, offloadable, offloaded, fell_back_to_claude, fallback_rate, alarm\" | summary | KEPT | Dictionary keys match.",
+     "CLAIM | \"fell_back = ... action starts with 'escalate'\" | summary | KEPT | Uses startswith('escalate').",
+     "CLAIM | \"alarm: n >= 5 and rate > ALARM_FALLBACK_RATE\" | summary | KEPT | Condition matches.",
+     "CLAIM | \"if args.json: print json\" | main | KEPT | Prints JSON when --json flag is set.",
+     "D1 | _WRITE_LOCK | defined but never read outside record function; it's a module constant used only inside record | WRONG CONCLUSION: a caller might think they can use the lock externally.",
+     "D2 | none | no except that swallows and continues contrary to prose.",
+     "D3 | none | no check-after-side-effect.",
+     "D4 | main | the branch `elif s['fallback_rate'] > ALARM_FALLBACK_RATE` is unreachable because the `if s['alarm']` branch already catches that condition | WRONG CONCLUSION: a reader might think there are two distinct alarm paths."
+    ],
+    "todos": [
+     "Remove 'escalated_after_verify_fail' from the docstring set or add it as a valid action.",
+     "Remove the unreachable elif branch in main() or adjust logic."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b22ff819ff337edf4bd3cc2370ad6155e1eeae1535069ad90550e533a4377f5c",
+    "objective_chars": 6092,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 4 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Append-only JSONL, ignored by Git (lives under memory/)\" | LOG | KEPT | LOG is under memory/ and gitignored (assumed from docstring).",
+     "CLAIM | \"Serializes the append below so parallel dispatch can't interleave two rows into one corrupt line (Windows append is not guaranteed atomic)\" | _WRITE_LOCK | KEPT | Lock ensures atomic write of each line.",
+     "CLAIM | \"`action` in {offloaded, escalate_to_claude, escalated_after_verify_fail, would_offload}\" | record | BROKEN | No validation enforces this set; any string is accepted.",
+     "CLAIM | \"`eligible` = the task *could* have been offloaded (a delegable, low/mid-risk task)\" | record | KEPT | Parameter exists and is used in summary.",
+     "CLAIM | \"Log one routing outcome\" | record | KEPT | Function appends a JSON line to the log file.",
+     "CLAIM | \"surface the fallback rate\" | summary | KEPT | summary() computes and returns fallback_rate.",
+     "CLAIM | \"If offloadable work keeps falling back to Claude, you get told\" | summary | UNCHECKABLE | Requires checking if alarm triggers in main() or elsewhere; not verifiable from this unit alone.",
+     "D1 | main | args is parsed but never read after parse_args; also owner, risk, note parameters in record are accepted but not used in any logic within this unit. | WRONG CONCLUSION: a caller believes these parameters affect behavior, but they are only stored in the log record."
+    ],
+    "todos": [
+     "Add validation in record() to ensure action is one of the allowed values.",
+     "Either remove unused parameters or add logic that uses them."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b22ff819ff337edf4bd3cc2370ad6155e1eeae1535069ad90550e533a4377f5c",
+    "objective_chars": 6092,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 claims: 3 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Append-only JSONL, ignored by Git (lives under memory/)\" | LOG | KEPT | LOG is under memory/ and .gitignore presumably ignores it (not in this unit).",
+     "CLAIM | \"Serializes the append below so parallel dispatch can't interleave two rows into one corrupt line\" | _WRITE_LOCK | KEPT | The lock ensures serialized appends.",
+     "CLAIM | \"`eligible` = the task *could* have been offloaded (a delegable, low/mid-risk task)\" | record | KEPT | Parameter 'eligible' with default True and docstring matches.",
+     "CLAIM | \"`action` in {offloaded, escalate_to_claude, escalated_after_verify_fail, would_offload}\" | record | BROKEN | Line 33: the docstring says action must be one of those values, but no validation enforces it; any string is accepted.",
+     "D1 | record | parameter 'owner' | WRONG CONCLUSION: a caller might expect 'owner' to be used, but it is only stored in the row dict; no effect.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Add validation in record() to check action is one of the allowed values, or update the docstring to remove the restriction."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b22ff819ff337edf4bd3cc2370ad6155e1eeae1535069ad90550e533a4377f5c",
+    "objective_chars": 6092,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/metrics.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 3652
+ }
+}

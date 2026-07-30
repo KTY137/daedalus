@@ -1,0 +1,77 @@
+{
+ "task_id": "2-north-star__falsifier__a47d84ee736f",
+ "key": "2-north-star__falsifier__a47d84ee736f-fc0c53eced",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Most claims are unfalsifiable as written; only claim 2.2 is falsifiable with a budget-equal evaluation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "2.1 | high | 'trustworthy system' is undefined; no operational criteria for trustworthiness given, so claim cannot be falsified. | Define measurable trustworthiness criteria (e.g., no security vulnerabilities, correct behavior on a test suite).",
+     "2.3 | high | 'outperform AlphaEvolve and other relevant systems' is ambiguous: which systems? metrics? budget-equal defined? Without specifics, claim is unfalsifiable. | Specify the exact systems, metrics, and budget constraints; then run a controlled comparison.",
+     "2.4 | medium | 'That is a target, never an assumed fact' is a statement of intent, not a falsifiable claim. | No experiment needed; it is a meta-statement.",
+     "2.5 | high | 'system must publish failures, ablations, costs, and negative results alongside wins' is a requirement but not a falsifiable claim about system behavior; it's a policy. | Check if the system's output includes such reports; if not, policy violated."
+    ],
+    "todos": [
+     "Define 'trustworthy' with concrete, testable criteria.",
+     "Specify 'outperform' with exact baselines, metrics, and budget constraints.",
+     "Convert policy requirements into testable acceptance criteria."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "2.1",
+       "claim": "Build a trustworthy system that can understand a software project across code, types, data, and knowledge; formulate useful changes; run controlled experiments; learn from evidence; and promote only verified improvements.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'trustworthy' is undefined and no measurable criteria are provided. The list of capabilities (understand, formulate, run, learn, promote) lacks operational definitions. There is no experiment that could conclusively disprove this claim because it does not specify what counts as success or failure."
+      },
+      {
+       "id": "2.2",
+       "claim": "The research ambition is to outperform AlphaEvolve and other relevant systems on openly specified, budget-equal evaluations.",
+       "verdict": "weak",
+       "why": "This claim is falsifiable in principle if 'outperform', 'relevant systems', and 'budget-equal evaluations' are precisely defined. As written, it is ambiguous: which systems, which metrics, what budget constraints? Without these specifics, the claim is weak but not completely unfalsifiable. A concrete experiment: define a benchmark, set a budget (e.g., compute time), run both systems, and compare results. If the system does not exceed AlphaEvolve's performance on the chosen metric, the claim is falsified."
+      },
+      {
+       "id": "2.3",
+       "claim": "That is a target, never an assumed fact.",
+       "verdict": "unfalsifiable",
+       "why": "This is a meta-statement about the status of the ambition, not a factual claim about the system or its performance. It cannot be tested by any experiment; it is a declaration of intent."
+      },
+      {
+       "id": "2.4",
+       "claim": "The system must publish failures, ablations, costs, and negative results alongside wins.",
+       "verdict": "unfalsifiable",
+       "why": "This is a requirement or policy, not a claim about the system's behavior that can be falsified by an experiment. It could be checked by inspecting outputs, but it is not a scientific claim. To make it falsifiable, rephrase as: 'The system's output includes a report containing failures, ablations, costs, and negative results for every experiment.' Then one can check if such a report exists."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7170875501a9eb345654dd79654716436c3b12185fce5768eab35f8736a58768",
+    "objective_chars": 1508,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "2-north-star",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

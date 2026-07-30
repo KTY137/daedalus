@@ -1,0 +1,200 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c3of3__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c3of3__946db82-57409c4bd4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of 3 of docrefs.py: resolve_reference, _rel_key, scan, check_denominator, verify_fix_counts, verify_fix, verify_fixes. Claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "verify_fix docstring | low | Claim about 'claim_withdrawn' verdict for a target from before.broken: absence means sentence went. This is uncheckable because target origin not in chunk. | Check caller code to confirm target is always from before.broken.",
+     "verify_fix docstring | low | Claim that 'daedalus.spine.docref_gate' establishes text gone from document. Uncheckable. | Verify docref_gate module code.",
+     "resolve_reference docstring | low | Claim about absent-module case: 'daedalus.nemesis', 'daedalus.cerberus', 'daedalus.root' examples. Uncheckable. | Verify the tree and actual references.",
+     "scan docstring | low | Claim that overrides allow computing before-report without moving files. Uncheckable. | Verify caller usage."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "3 of 3",
+     "purpose": "Complete resolve_reference, define _rel_key, scan, check_denominator, verify_fix_counts, verify_fix, verify_fixes.",
+     "symbols": [
+      {
+       "name": "resolve_reference",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a reference against the module tree. Returns Reference with state resolving/broken/skipped."
+      },
+      {
+       "name": "_rel_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalises a repo-relative path as Reference records it."
+      },
+      {
+       "name": "scan",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Measures the whole prose corpus against the tree. Returns DocRefReport."
+      },
+      {
+       "name": "check_denominator",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks denominator: resolving_after < resolving_before returns evidence_destroyed FixVerdict, else None."
+      },
+      {
+       "name": "verify_fix_counts",
+       "kind": "function",
+       "effects": [],
+       "note": "Verifies fix using before count and after report."
+      },
+      {
+       "name": "verify_fix",
+       "kind": "function",
+       "effects": [],
+       "note": "Verifies fix using before and after reports."
+      },
+      {
+       "name": "verify_fixes",
+       "kind": "function",
+       "effects": [],
+       "note": "Judges a whole document's findings under one denominator check."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The denominator half, on its own. ``None`` means the denominator HELD.",
+       "where": "check_denominator docstring",
+       "verdict": "kept",
+       "why": "Function returns None when resolving_after >= resolving_before."
+      },
+      {
+       "text": "Every path that judges a prose fix goes through here first, because :func:`verify_fix_counts` calls it on its first line and there is no other way in.",
+       "where": "check_denominator docstring",
+       "verdict": "kept",
+       "why": "verify_fix_counts calls check_denominator on its first line."
+      },
+      {
+       "text": "It takes counts, not reports, because the count is all the rule needs.",
+       "where": "check_denominator docstring",
+       "verdict": "uncheckable",
+       "why": "Chunk does not contain caller code; function indeed takes counts."
+      },
+      {
+       "text": "ORDER IS THE SAFETY PROPERTY. The denominator is checked FIRST.",
+       "where": "verify_fix docstring",
+       "verdict": "kept",
+       "why": "verify_fix calls verify_fix_counts which calls check_denominator first."
+      },
+      {
+       "text": "Taking the document out withdraws the claim AND lowers ``resolving`` in one move, so a check that asked \"is the claim gone?\" first would call that a success and reward exactly the behaviour the island metric already taught this repo to expect.",
+       "where": "verify_fix docstring",
+       "verdict": "kept",
+       "why": "Logic: if claim removed, resolving count drops. Denominator check catches that."
+      },
+      {
+       "text": "Both honest remedies pass: naming the symbol that exists now (``fixed``) and withdrawing the stale claim (``claim_withdrawn``). Neither lowers the count of references that resolve.",
+       "where": "verify_fix docstring",
+       "verdict": "kept",
+       "why": "verify_fix_counts returns fixed or claim_withdrawn; both require denominator not destroyed."
+      },
+      {
+       "text": "``claim_withdrawn`` is the verdict for a key found in neither list, and that reading is only sound when the target was taken from ``before.broken``: then absence really does mean the sentence went.",
+       "where": "verify_fix docstring",
+       "verdict": "uncheckable",
+       "why": "Chunk does not verify target origin; function assumes caller correctness."
+      },
+      {
+       "text": "A caller that reconstructs a target from somewhere else -- a command line, a serialised and TRUNCATED copy in a queue's evidence -- can produce a key that never matched anything, and will be told the claim was honourably withdrawn. Such a caller must establish independently that the claim was there to withdraw; :mod:`daedalus.spine.docref_gate` does it by requiring the text to be gone from the document.",
+       "where": "verify_fix docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to external module daedalus.spine.docref_gate not in chunk."
+      },
+      {
+       "text": "The denominator is a property of the corpus, not of any one reference, so it is asked once and asked FIRST: if the evidence was destroyed, that is the only verdict returned and no per-reference verdict is manufactured to sit beside it looking reassuring.",
+       "where": "verify_fixes docstring",
+       "verdict": "kept",
+       "why": "Function first calls check_denominator; if destroyed returns only that verdict."
+      },
+      {
+       "text": "NO EMPTY GREEN. An empty ``targets`` returns ``False``. Verifying nothing is not the same as verifying something and finding it sound, and a gate that passed on zero targets would turn \"we lost the findings\" into a green tick -- which is the exact shape of failure the rest of this harness exists to refuse.",
+       "where": "verify_fixes docstring",
+       "verdict": "kept",
+       "why": "Returns (bool(verdicts) and all(v.ok for v in verdicts), verdicts). Empty targets gives verdicts=(), bool(()) is False."
+      },
+      {
+       "text": "The MODULE tree is read from ``repo_root`` on both sides. That is deliberate: the denominator compares two prose snapshots against ONE tree, so a difference in ``resolving`` is attributable to the prose edit and to nothing else. It is not a general time machine and must not be used as one.",
+       "where": "scan docstring",
+       "verdict": "uncheckable",
+       "why": "Chunk does not show how scan is called; function reads from root each call."
+      },
+      {
+       "text": "An override may ADD a document the snapshot on disk no longer has -- the deletion case, which is the one the denominator exists to catch.",
+       "where": "scan docstring and code comment",
+       "verdict": "kept",
+       "why": "Code adds overrides not in seen to planned."
+      },
+      {
+       "text": "absent in this snapshot: not scanned, not an error",
+       "where": "scan code comment",
+       "verdict": "kept",
+       "why": "Code: if text is None: continue."
+      }
+     ],
+     "observations": [
+      {
+       "what": "resolve_reference uses classes dict from cache; if head not in classes or modules, returns broken. If head in classes but chain length >=2 and member not in classes[head], returns broken. Otherwise resolving.",
+       "where": "resolve_reference function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "scan function handles overrides: if text is None, file is skipped (not scanned, not error).",
+       "where": "scan function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "verify_fixes returns False for empty targets, preventing false positive.",
+       "where": "verify_fixes function",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "95dcff13df50ea4c8a058edc75fb370047911b4f0baea60a834e4cfd426b8214",
+    "objective_chars": 12019,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

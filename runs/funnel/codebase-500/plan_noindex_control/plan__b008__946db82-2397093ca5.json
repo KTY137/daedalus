@@ -1,0 +1,141 @@
+{
+ "task_id": "plan__b008__946db82",
+ "key": "plan__b008__946db82-2397093ca5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 5 findings; 1 confirmed, 4 narrowed. Ordered work: fix budget-tracking gap (high), verify dominance-dilution (high), verify exclusion-gap (medium), verify missing-default-config (medium), evaluate duplicate-identity-evasion (low).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing paid_calls in fanout.py may require updating callers that rely on absence of key.",
+     "Inspecting code_modules may reveal filter logic that refutes the dominance-dilution claim.",
+     "checks.py may already have correct early-return logic, making exclusion-gap a non-issue.",
+     "DEFAULT_NUM_CTX may be defined elsewhere, making missing-default-config a non-issue.",
+     "Duplicate-identity-evasion may be by design and not a bug."
+    ],
+    "todos": [
+     "Fix fan_out() to include 'paid_calls' in successful return.",
+     "Inspect daedalus/structcore/markdown.py's code_modules function.",
+     "Inspect checks.py functions for file extension checks; test with C file.",
+     "Search for DEFAULT_NUM_CTX in daedalus/mapping/switches.py.",
+     "Check if actor.id includes configuration hash."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix fan_out() to include 'paid_calls' in successful return",
+       "gate": "1",
+       "why_now": "Confirmed bug: successful return of fan_out() omits 'paid_calls' key present in refusal return, risking KeyError in callers. High severity.",
+       "steps": [
+        {
+         "do": "Edit daedalus/lanes/fanout.py to add 'paid_calls' key to the dictionary returned on success (around line 460).",
+         "file": "daedalus/lanes/fanout.py",
+         "verified_by": "Run `grep -rn 'paid_calls' daedalus/lanes/fanout.py` and verify both return paths include 'paid_calls'."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The fix is a simple addition; no callers break if they already handle optional key."
+      },
+      {
+       "rank": 2,
+       "title": "Verify code_modules filtering in daedalus/structcore/markdown.py",
+       "gate": "1",
+       "why_now": "If code_modules does not filter out documents, dominance fraction denominator is inflated, affecting all metrics. High severity.",
+       "steps": [
+        {
+         "do": "Inspect daedalus/structcore/markdown.py's code_modules function to see if it filters out non-code files.",
+         "file": "daedalus/structcore/markdown.py",
+         "verified_by": "Read the function body; if filtering exists, note it; if not, report the gap."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function is defined in the file; if not, search for it."
+      },
+      {
+       "rank": 3,
+       "title": "Inspect checks.py for incomplete early-return logic on non-Python files",
+       "gate": "1",
+       "why_now": "If checks.py applies Python-specific checks to C/C++ files, it may cause false errors or silent failures. Medium severity.",
+       "steps": [
+        {
+         "do": "Inspect checks.py functions parses, not_truncated, no_elision, not_substituted for file extension checks and early returns.",
+         "file": "daedalus/structcore/checks.py",
+         "verified_by": "Run a test with a C file to see if any check is applied incorrectly."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The file path is daedalus/structcore/checks.py (inferred from context; if not, adjust)."
+      },
+      {
+       "rank": 4,
+       "title": "Confirm DEFAULT_NUM_CTX definition in daedalus/mapping/switches.py",
+       "gate": "1",
+       "why_now": "If DEFAULT_NUM_CTX is missing, it would cause NameError at runtime. Medium severity.",
+       "steps": [
+        {
+         "do": "Search for 'DEFAULT_NUM_CTX' in daedalus/mapping/switches.py.",
+         "file": "daedalus/mapping/switches.py",
+         "verified_by": "If found, note the line; if not, report missing constant."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The constant may be defined elsewhere or imported; if not found, further investigation needed."
+      },
+      {
+       "rank": 5,
+       "title": "Evaluate duplicate-identity-evasion: check if actor.id includes configuration hash",
+       "gate": "2",
+       "why_now": "Low severity, but if hash collision can produce duplicate IDs for identical configs, it could cause undetected duplicates.",
+       "steps": [
+        {
+         "do": "Check if actor.id includes a hash of the full configuration.",
+         "file": "UNKNOWN",
+         "verified_by": "Inspect actor creation code to see how id is generated."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The actor creation code is not provided; need to locate it."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/lanes/fanout.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b766de04522fb89f666c75b305757ceafe3aa538da279eb3f4f4612ed3bf851e",
+    "objective_chars": 11817,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 8 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 8,
+  "inputs": 5
+ }
+}

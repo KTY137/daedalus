@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b007__946db82",
+ "key": "review__b007__946db82-97338ee553",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; all refuted based on missing or misinterpreted evidence, or plausible alternative explanations.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "stale-snapshot-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source lines 2296-2298 and 2374-2376 are not present in the provided snippet; the hypothesis relies on observations not visible in the evidence. Additionally, verify_index_identity's check is for model drift, not snapshot freshness, so the claimed inconsistency is not a design bug but a different concern.",
+       "survives_because": "The evidence does not support the observation; the cited lines are outside the provided source.",
+       "narrowed_claim": "",
+       "settling_check": "Open daedalus/spine/picker.py around the claimed lines to verify the actual logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-cross-module-contracts",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the module's export list and constants; map_state_trustworthy is exported but its implementation is not in the snippet. The hypothesis infers missing definitions from incomplete evidence; the function may be fully implemented elsewhere in the file or imported correctly.",
+       "survives_because": "The evidence is incomplete; the hypothesis makes assumptions about code not shown.",
+       "narrowed_claim": "",
+       "settling_check": "Search for _repo_state_freshness definition in daedalus/spine/picker.py and verify the import of daedalus.mapping.drift.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "git-command-injection-risk",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis correctly notes that subprocess.run with a list prevents shell injection. The claim about argument injection via spaces is not a vulnerability because git itself parses arguments; spaces in a single argument would be passed as a single token to git, not split. The risk is negligible.",
+       "survives_because": "The mechanism described does not constitute a real injection; git handles arguments safely.",
+       "narrowed_claim": "",
+       "settling_check": "Review callers of _run_git to confirm they pass trusted arguments.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "silent-eviction-vs-truncation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _forced_report is called but its implementation is not fully shown; the continuation chunk may include a truncation note. Additionally, the eviction is in the provider layer, not in graph_brief, so the guarantee may apply only to the brief itself, not to provider internals.",
+       "survives_because": "The evidence is incomplete; the hypothesis assumes the absence of a truncation note without seeing the full function.",
+       "narrowed_claim": "",
+       "settling_check": "Read the full _forced_report implementation in ollama.py to see if it adds a truncation note.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "remote-shell-injection",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source does not contain the AntigravityAdapter class or its methods; the hypothesis references symbols not present in the file. The evidence is missing, so the claim is unsupported.",
+       "survives_because": "The evidence does not exist in the provided source.",
+       "narrowed_claim": "",
+       "settling_check": "Search for AntigravityAdapter in daedalus/council/vendors.py to confirm its actual implementation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-receipt",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis assumes inventory's output is used as a receipt for correctness_gate, but there is no evidence of such a data flow. The gate's check is likely designed for specific receipt formats from other sources, not for inventory output.",
+       "survives_because": "No evidence links inventory output to correctness_gate; the assumption is speculative.",
+       "narrowed_claim": "",
+       "settling_check": "Trace the data flow from inventory.main() to correctness_gate to see if any transformation adds the 'verified' field.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "implicit-medium-assumption",
+       "verdict": "refuted",
+       "strongest_counterargument": "The functions are in different modules and serve different purposes; there is no evidence that any caller conflates their return values. The hypothesis invents a scenario without evidence.",
+       "survives_because": "No evidence of conflation exists; the functions are unrelated.",
+       "narrowed_claim": "",
+       "settling_check": "Search for callers that use both _label_sid_from_handle and _type_edge_keys to see if any conflation occurs.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "scope-contract-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis assumes that analyze_chunk receives out-of-scope files, but mint.py's _mint_from_diffs filters files before passing them. The caller of perfile.py likely enforces scope filtering, so analyze_chunk may not need to check scope itself.",
+       "survives_because": "The filtering is done upstream; perfile.py does not need to re-check scope.",
+       "narrowed_claim": "",
+       "settling_check": "Verify that the caller of analyze_chunk (likely in structcore/index.py) filters files by scope before calling.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "trace-id-string-none",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source does not show record_intent's implementation; the hypothesis assumes current_trace_id() can return None, but without evidence this is speculative. Additionally, if current_trace_id() can return None, the code may handle it explicitly elsewhere.",
+       "survives_because": "The evidence is incomplete; the hypothesis makes assumptions about code not shown.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect record_intent in ledger.py to see how it handles trace_id from current_trace_id().",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78a4fbd2923c47b8855b1f94ff269f6af3247dbb2008d009c33e8c15de0c0880",
+    "objective_chars": 54853,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 7 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 7,
+  "inputs": 9
+ }
+}

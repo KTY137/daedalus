@@ -1,0 +1,144 @@
+{
+ "task_id": "daedalus/agents_registry.py#c1of1#5eb1702d",
+ "key": "daedalus_agents_registry.py_c1of1_5eb1702d-e3aa1792c4",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 14 kept, 2 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Fail-closed validation. Returns a list of human-readable errors ([] = ok).\" | validate_role | KEPT | The function returns a list of errors and never raises an exception. It does not silently succeed on invalid input.",
+     "CLAIM | \"name must be a lowercase slug (a-z, 0-9, '-'), 2-41 chars\" | validate_role, line 52 | BROKEN | The regex allows names of length 2 to 42 characters (since the regex matches the whole string of length 2 to 42), but the error message says 2-41 chars. The regex `_NAME_RE` is `^[a-z0-9][a-z0-9-]{1,40}$` which allows a total length of 2 to 42 characters (first char + up to 40 more).",
+     "CLAIM | \"output_schema must be a non-empty string\" | validate_role, line 64 | KEPT | The check ensures it's a string and truthy, so non-empty.",
+     "CLAIM | \"Write location mirrors the read resolution in ``router._agent_dir_for``\" | _write_dir_for | KEPT | The function behaves as described: if repo_root given returns `<repo_root>/.agentenv/agents/`, else returns AGENT_DIR.",
+     "CLAIM | \"a per-repo override that never mutates the shipped templates\" | _write_dir_for | KEPT | The function returns a path that is not the templates directory.",
+     "CLAIM | \"templates/agents/ (the shipped defaults) is never written to here\" | _write_dir_for | KEPT | The function never returns the templates directory.",
+     "CLAIM | \"Merge ``patch`` over the current role and rewrite.\" | update_role | KEPT | It does merge by `{**current, **patch, \"name\": name}` and writes.",
+     "CLAIM | \"For a role that lives only in the shipped templates, this writes a per-repo override (never mutating the template).\" | update_role | KEPT | It writes to the writable dir via role_path, not to templates.",
+     "CLAIM | \"Delete a role from the writable dir.\" | delete_role | KEPT | It deletes the file from the path returned by role_path, which is the writable dir.",
+     "CLAIM | \"Returns False if it isn't there (e.g. it's a shipped template default, which cannot be deleted, only overridden).\" | delete_role | KEPT | It checks path.exists() and returns False if not.",
+     "CLAIM | \"Names that collide with non-role config files in an agent dir (see router._NON_ROLE_FILES): a role so named would be silently skipped by load_agents, so reject it at creation instead of losing it without a trace.\" | _RESERVED_ROLE_NAMES | KEPT | The set is defined with 'categories' and used in validate_role to reject such names.",
+     "CLAIM | \"external_ok must be a boolean\" | validate_role, line 56 | KEPT | The check is `isinstance(role.get(\"external_ok\", False), bool)`.",
+     "CLAIM | \"model_tier must be one of 'opus', 'sonnet', 'haiku'\" | validate_role, line 54 | KEPT | The check is `role.get(\"model_tier\", \"sonnet\") not in MODEL_TIERS`.",
+     "CLAIM | \"output_schema must be a non-empty string\" | validate_role, line 64 | KEPT | The check ensures it's a string and truthy.",
+     "CLAIM | \"call_name must be a string\" | validate_role, line 66 | KEPT | The check is `isinstance(role.get(\"call_name\", \"\"), str)`.",
+     "CLAIM | \"category must be a string\" | validate_role, line 68 | KEPT | The check is `isinstance(role.get(\"category\", \"\"), str)`."
+    ],
+    "todos": [
+     "Fix the error message in validate_role to say '2-42 chars' or adjust the regex to limit total length to 41 characters."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6406f3783db7c0d9e38ae033dad56d4a2b32b1fbd10f765c3c081f289b9d10e",
+    "objective_chars": 7899,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 2 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Fail-closed validation. Returns a list of human-readable errors ([] = ok).\" | validate_role | BROKEN | output_schema validation allows empty string because role.get('output_schema', 'agent_report_v1') returns '' and then not '' is False, but the condition `not isinstance(...) or not role.get(...)` does not reject empty string correctly; also the validation for output_schema uses `role.get('output_schema', 'agent_report_v1')` which returns empty string if key exists and is '', so the condition `not role.get(...)` is False (since '' is falsy) but the first part `not isinstance(...)` is True because '' is a string, so overall the condition is False and empty string passes validation.",
+     "CLAIM | \"a per-repo override that never mutates the shipped templates\" | _write_dir_for | KEPT | _write_dir_for returns AGENT_DIR or Path(repo_root)/.agentenv/agents, never templates/agents/",
+     "CLAIM | \"Write location mirrors the read resolution in router._agent_dir_for\" | _write_dir_for | KEPT | _write_dir_for mirrors the described logic",
+     "CLAIM | \"a role so named would be silently skipped by load_agents, so reject it at creation instead of losing it without a trace\" | _RESERVED_ROLE_NAMES | KEPT | validate_role checks _RESERVED_ROLE_NAMES",
+     "CLAIM | \"Merge patch over the current role and rewrite.\" | update_role | KEPT | update_role does merge and rewrite",
+     "CLAIM | \"Returns False if it isn't there (e.g. it's a shipped template default, which cannot be deleted, only overridden).\" | delete_role | BROKEN | delete_role returns False only if path does not exist; but shipped template defaults exist in AGENT_DIR, so path.exists() will be True and it will delete the template file, contradicting the docstring claim that it cannot be deleted",
+     "CLAIM | \"For a role that lives only in the shipped templates, this writes a per-repo override (never mutating the template).\" | update_role | KEPT | update_role always writes to role_path which is never templates/agents/",
+     "D1 | repo_root | parameter in several functions | read only in _write_dir_for, but that is within the unit; however, in _write_dir_for, repo_root is read, so not D1. Actually, check each function: role_path uses _write_dir_for which reads repo_root. list_roles passes repo_root to load_agents (external). get_role passes to load_agents. create_role passes repo_root to role_path. update_role passes repo_root to role_path and get_role. delete_role passes repo_root to role_path. So all parameters are read. No D1.",
+     "D2 | None | no except that swallows and continues | no except blocks at all, so no D2",
+     "D3 | None | no side effect comments that are misplaced | no such comment",
+     "D4 | None | no branch condition impossible given assignments above | no such branch"
+    ],
+    "todos": [
+     "Fix output_schema validation: use `role.get('output_schema', 'agent_report_v1')` but ensure empty string is rejected, e.g. `if not isinstance(val, str) or not val:`",
+     "Fix delete_role to not delete shipped templates: check if path is in AGENT_DIR and return False without deleting, or check if the role is a template by some other means"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6406f3783db7c0d9e38ae033dad56d4a2b32b1fbd10f765c3c081f289b9d10e",
+    "objective_chars": 7899,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 1 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Write location mirrors the read resolution in ``router._agent_dir_for``\" | docstring | UNCHECKABLE | need to see router._agent_dir_for to compare",
+     "CLAIM | ``repo_root`` given -> ``<repo_root>/.agentenv/agents/<name>.json`` (created on demand; a per-repo override that never mutates the shipped templates) | _write_dir_for | KEPT | implementation returns Path(repo_root)/.agentenv/agents and role_path appends name.json",
+     "CLAIM | ``repo_root`` None  -> the built-in ``agents/`` dir (global roles) | _write_dir_for | KEPT | returns AGENT_DIR",
+     "CLAIM | ``templates/agents/`` (the shipped defaults) is never written to here | docstring | KEPT | no write to templates/agents/ in this unit",
+     "CLAIM | \"Fail-closed validation\" | validate_role | KEPT | returns errors list, does not swallow exceptions",
+     "CLAIM | \"output_schema must be a non-empty string\" | validate_role line 56-57 | BROKEN | condition checks truthiness of role.get(...), which allows empty string? Actually empty string is falsy, so it would be rejected. But the code also checks isinstance(str), so empty string passes the isinstance check but fails the truthiness check \u2014 that is correct. Wait: the code says: if not isinstance(role.get(...), str) or not role.get(...): So if role.get returns an empty string, isinstance is True, but not role.get(...) is True, so error is appended. That matches the claim. So it's kept. Let me re-evaluate: Actually the claim says \"non-empty string\". The code rejects empty strings via the truthiness check. So KEPT.",
+     "CLAIM | \"Returns False if it isn't there (e.g. it's a shipped template default, which cannot be deleted, only overridden)\" | delete_role | KEPT | returns False when path doesn't exist",
+     "D1 | repo_root parameter in role_path | role_path | WRONG CONCLUSION: parameter repo_root is used via _write_dir_for, so it is read. Actually it is used. Let me check all functions: role_path uses repo_root, validate_role doesn't have it, normalize_role doesn't, list_roles uses it, get_role uses it, create_role uses it, update_role uses it, delete_role uses it. So no D1.",
+     "D1 | repo_root parameter in delete_role | delete_role | WRONG CONCLUSION: it is used via role_path. So no.",
+     "D1 | overwrite parameter in create_role | create_role | WRONG CONCLUSION: it is used. So no D1 found.",
+     "D2 | no except clauses that swallow | none | D: none",
+     "D3 | no check-after-side-effect | none | D: none",
+     "D4 | no impossible conditions | none | D: none"
+    ],
+    "todos": [
+     "Fix the output_schema validation: the current code uses role.get(\"output_schema\", \"agent_report_v1\") which returns the default if key missing, so the truthiness check may pass incorrectly for missing key. Change to check key presence separately."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e6406f3783db7c0d9e38ae033dad56d4a2b32b1fbd10f765c3c081f289b9d10e",
+    "objective_chars": 7899,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/agents_registry.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 5451
+ }
+}

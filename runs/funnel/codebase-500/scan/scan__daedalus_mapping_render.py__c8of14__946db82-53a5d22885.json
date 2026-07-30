@@ -1,0 +1,150 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c8of14__946db82",
+ "key": "scan__daedalus_mapping_render.py__c8of14__946db82-53a5d22885",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 8 of render.py; contains helper functions for HTML rendering of map counts, legends, entry table, module table and an absent-section fallback.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "absent_section | medium | The 'why' message references hand-written maps and no scanner derivation; this is a design assumption that may confuse users if the system changes. | Check that the message is still accurate for the current workflow.",
+     "_counts_bar | low | The hardcoded order of cells and the comment about 'island + orphan + unknown + shim' being exactly 'gate_unreached' is an assumption that could break if counts dict changes. | Verify that gate_unreached always equals sum of those four categories.",
+     "_entry_table | low | Uses 'ENTRY_KINDS' imported from reach module; if that list changes, the table may miss or misorder kinds. | Ensure ENTRY_KINDS is kept in sync with the data.",
+     "_module_table | low | Hardcoded order tuple and open_attr logic depend on specific class names; if CLASSES changes, the fallback ordering may produce unexpected results. | Keep the order tuple aligned with CLASSES."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "8 of 14",
+     "purpose": "Helper functions for generating HTML for absent sections, counts bar, legends, entry table, and module table.",
+     "symbols": [
+      {
+       "name": "absent_section",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns HTML for a missing section with a reason why it's absent."
+      },
+      {
+       "name": "_counts_bar",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates HTML divs for a counts bar showing various module counts."
+      },
+      {
+       "name": "_legend",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates HTML for the status legend using STATUS_VOCAB."
+      },
+      {
+       "name": "_class_legend",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates HTML for the class legend using CLASSES, CLASS_STATUS, and CLASS_MEANING."
+      },
+      {
+       "name": "_entry_table",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates HTML table of entry points grouped by kind."
+      },
+      {
+       "name": "_module_table",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates HTML table of modules grouped by classification."
+      }
+     ],
+     "claims": [
+      {
+       "text": "no section carrying <code>{{#{esc(key)}}}</code> in {esc(narrative.path)}",
+       "where": "absent_section function, else branch",
+       "verdict": "kept",
+       "why": "The code constructs this exact string in the else branch."
+      },
+      {
+       "text": "This half of the map is hand-written on purpose: no scanner derives it, so nothing was generated in its place.",
+       "where": "absent_section function",
+       "verdict": "kept",
+       "why": "The string appears verbatim in the returned HTML."
+      },
+      {
+       "text": "island + orphan + unknown + shim, and the tiles beside it add up to exactly this.",
+       "where": "_counts_bar comment",
+       "verdict": "uncheckable",
+       "why": "The comment claims that gate_unreached equals sum of those four categories, but the code only outputs gate_unreached as a single number; the sum is not computed or verified in this chunk."
+      },
+      {
+       "text": "The alarms open by default; \"reachable\" and \"test\" are the long tail and stay folded",
+       "where": "_module_table comment",
+       "verdict": "kept",
+       "why": "The code sets open_attr for classes in ('island','orphan','unknown','shim') and not for others, matching the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "absent_section returns HTML with a hardcoded message about hand-written maps; the function is used when a narrative section is missing.",
+       "where": "absent_section function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_counts_bar builds a list of cells with hardcoded status classes and labels; the order is fixed and includes 'gate_unreached' as a summary.",
+       "where": "_counts_bar function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_legend and _class_legend both use external constants (STATUS_VOCAB, CLASSES, CLASS_STATUS, CLASS_MEANING) that are not defined in this chunk.",
+       "where": "_legend and _class_legend functions",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_entry_table imports ENTRY_KINDS from .reach; the table groups entries by kind and shows name, module, function, and targets.",
+       "where": "_entry_table function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_module_table imports CLASSES from .reach; it orders classes with a hardcoded tuple and opens details for certain classes by default.",
+       "where": "_module_table function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "63450b6b87056995550cbe3c4e339e2fd55d8b5251cdbe9c3ba8d74718d67e60",
+    "objective_chars": 6029,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [8/14]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 8,
+  "total": 14,
+  "first_line": 841
+ }
+}

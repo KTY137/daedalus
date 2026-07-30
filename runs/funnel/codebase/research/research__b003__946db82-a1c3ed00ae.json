@@ -1,0 +1,133 @@
+{
+ "task_id": "research__b003__946db82",
+ "key": "research__b003__946db82-a1c3ed00ae",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals unverified containment guarantees, missing boundary enforcement for transport records, and untested mutation operators that could produce invalid code, all of which share a pattern of assumptions that escape their owning modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Containment claims in spine/attempt.py depend on functions not verified in the scanned chunks (open_low_append_log, label_low_integrity, ManagedProcess job object); if those are missing or misconfigured, candidate code may run without isolation.",
+     "TransportRecord.from_dict in events.py lacks validation, allowing malformed records to propagate; combined with the lossless envelope claim, downstream sinks may receive incomplete data.",
+     "Mutation operators in eval/mutate.py (CHANGE_CONSTANT, DROP_ARGUMENT) may produce syntactically invalid Python, which could cause silent failures during evaluation if the parse step is not robust.",
+     "The global vault opt-in in vault.py is not enforced by any caller; if a caller passes a global_root without the required containment, it breaks index and egress assumptions.",
+     "Cycle detection in cycles.py uses import_edges from an external index; if that index lacks function-body imports, cycle_report will be incomplete, contradicting the claim that it includes them."
+    ],
+    "todos": [
+     "Verify that containment functions (open_low_append_log, label_low_integrity, ManagedProcess) exist and enforce the documented guarantees; add tests.",
+     "Add input validation to TransportRecord.from_dict to prevent KeyError on missing fields; consider using a schema.",
+     "Audit mutation operators for syntactic validity; add a parse check before including mutants in the corpus.",
+     "Enforce that global vault usage requires explicit opt-in and that callers respect containment boundaries; add assertions or documentation.",
+     "Ensure that the index passed to cycle_report includes function-body imports; add a test that verifies a known function-body import is detected."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unverified_containment",
+       "claim": "Containment guarantees in spine/attempt.py (low integrity worktree, low temp dir, append-only log) depend on functions from daedalus.spine.containment that are not verified in the scanned chunks; if those functions are absent or misconfigured, candidate code may run without isolation, undermining the entire gate mechanism.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/adapters/events.py",
+        "daedalus/wiki/vault.py"
+       ],
+       "mechanism": "command_gate calls _contained_gate_child which calls containment.label_low_integrity, containment.open_low_append_log, and containment.spawn_contained. If any of these are stubs or misimplemented, the child process may not be isolated. Similarly, the global vault opt-in in vault.py is not enforced by any caller, so a caller could pass a global_root without the required containment, breaking index and egress assumptions.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Code review of daedalus.spine.containment shows that label_low_integrity, open_low_append_log, and spawn_contained correctly enforce low integrity, append-only logging, and process isolation via job objects. Additionally, all callers of discover_vaults are checked and none pass global_root without containment.",
+       "evidence": [
+        "daedalus/spine/attempt.py:_contained_gate_child calls containment.label_low_integrity, containment.open_low_append_log, containment.spawn_contained",
+        "daedalus/spine/attempt.py:command_gate docstring claims containment but references functions not in scanned chunks",
+        "daedalus/wiki/vault.py:discover_vaults docstring warns about global vault breaking assumptions but provides no enforcement"
+       ]
+      },
+      {
+       "id": "unvalidated_transport",
+       "claim": "TransportRecord.from_dict in events.py does not validate required fields, and the lossless envelope claim depends on all fields being present; missing keys cause KeyError at runtime, potentially corrupting downstream processing. This is compounded by the fact that event_to_transport_record falls back to json.dumps for unknown event types, which may produce a payload that from_dict cannot reconstruct.",
+       "spans": [
+        "daedalus/adapters/events.py",
+        "daedalus/spine/attempt.py",
+        "daedalus/eval/mutate.py"
+       ],
+       "mechanism": "TransportRecord.from_dict does not check for required keys; if a dict lacks a key, accessing it raises KeyError. event_to_transport_record handles known events explicitly but uses json.dumps(payload) for unknown types, which may produce a dict that later fails from_dict. This could affect gate output logs (spine/attempt.py writes TransportRecords) and evaluation results (mutants are evaluated and results may be serialized as TransportRecords).",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "All callers of TransportRecord.from_dict ensure that the dict contains all required keys before calling, or the code catches KeyError and handles it gracefully. Additionally, event_to_transport_record is never called with unknown event types in practice.",
+       "evidence": [
+        "daedalus/adapters/events.py:TransportRecord.from_dict observation about missing key validation",
+        "daedalus/adapters/events.py:event_to_transport_record fallback for unknown events",
+        "daedalus/spine/attempt.py:gate output likely uses TransportRecord",
+        "daedalus/eval/mutate.py:mutants produce results that may be serialized"
+       ]
+      },
+      {
+       "id": "invalid_mutants",
+       "claim": "Mutation operators in eval/mutate.py (CHANGE_CONSTANT appending '_x' to non-numeric constants, DROP_ARGUMENT always popping last argument) can produce syntactically invalid Python code, which may cause silent failures during evaluation if the parse step is not robust. This undermines the claim that mutants are 'parseable' and could lead to misleading evaluation scores.",
+       "spans": [
+        "daedalus/eval/mutate.py",
+        "daedalus/adapters/events.py",
+        "daedalus/structcore/cycles.py"
+       ],
+       "mechanism": "CHANGE_CONSTANT transforms a constant like True into True_x, which is not a valid Python literal. DROP_ARGUMENT removes the last argument regardless of function signature, potentially creating calls with too few arguments. These invalid mutants may be included in the corpus if the parse check is insufficient. The evaluation pipeline (which may use cycles.py for graph analysis) could then encounter parse errors.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "The generate function's trivially_equivalent check or the parse step catches all invalid mutants before they enter the corpus. Additionally, CHANGE_CONSTANT and DROP_ARGUMENT are not used in practice or are overridden by other filters.",
+       "evidence": [
+        "daedalus/eval/mutate.py:CHANGE_CONSTANT appends '_x' to non-numeric constants",
+        "daedalus/eval/mutate.py:DROP_ARGUMENT always pops last argument",
+        "daedalus/eval/mutate.py:generate claims to produce parseable mutants",
+        "daedalus/structcore/cycles.py:cycle_report depends on import_edges which may include mutated code"
+       ]
+      },
+      {
+       "id": "incomplete_cycle_detection",
+       "claim": "cycle_report in cycles.py relies on index['import_edges'] to include function-body imports, but the claim that 'parse._import_records walks every node with ast.walk and records no scope' is unverified. If the index does not include function-body imports, cycle detection will miss cycles that only exist at runtime, contradicting the claim that this is why cycle detection is worth computing.",
+       "spans": [
+        "daedalus/structcore/cycles.py",
+        "daedalus/eval/mutate.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "cycle_report reads index['import_edges'] and assumes it contains all imports including those inside function bodies. If the index builder (parse._import_records) does not walk function bodies, then cycle_report will only detect top-level cycles. Mutation analysis (mutate.py) may introduce new edges that are not captured, and gate evaluations (attempt.py) may rely on cycle information.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Inspection of parse._import_records confirms that it uses ast.walk (which recurses into all nodes including function bodies) and that the index is built with this data. Additionally, tests show that a known function-body import is detected by cycle_report.",
+       "evidence": [
+        "daedalus/structcore/cycles.py:cycle_report docstring claims function-body imports are included",
+        "daedalus/structcore/cycles.py:cycle_report reads index['import_edges']",
+        "daedalus/eval/mutate.py:mutations may alter imports",
+        "daedalus/spine/attempt.py:gate may evaluate code with new imports"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "796bf0a1d62ee53152b9f02f18d6c76e2df7c2897bf4c83487a6b5bd58b696f0",
+    "objective_chars": 36589,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 3 (6 inputs)",
+  "rev": "946db82",
+  "bucket": 3,
+  "inputs": 6
+ }
+}

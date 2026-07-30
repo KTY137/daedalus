@@ -1,0 +1,123 @@
+{
+ "task_id": "scan__daedalus_memory_projection_worker.py__c4of9__946db82",
+ "key": "scan__daedalus_memory_projection_worker.py__c4of9__946db82-abceb0b208",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of projection_worker.py: resolve_spec function and WorkerReport dataclass. Claims about spec resolution logic are verified. WorkerReport fields and behind_bytes property are documented.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_spec | low | The function has multiple return points; dimension=None with multiple siblings raises SpecConflictError, but dimension=None with no siblings returns a default spec. This branching is intentional but could be a source of bugs if the caller does not handle the exception. | Trace all callers to ensure they handle SpecConflictError appropriately."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/projection_worker.py",
+     "chunk": "4 of 9",
+     "purpose": "Defines resolve_spec for picking an embedding index spec without backend calls, and WorkerReport dataclass for reporting worker execution results.",
+     "symbols": [
+      {
+       "name": "resolve_spec",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns an EmbeddingSpec based on stored specs and parameters. Resolves dimension conflicts or defaults."
+      },
+      {
+       "name": "WorkerReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with fields for worker execution report, including status, positions, counts, and warnings."
+      },
+      {
+       "name": "behind_bytes",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns the difference between live_position and watermark_position, clamped to zero."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pick the index to write to without asking the backend anything.",
+       "where": "resolve_spec docstring",
+       "verdict": "kept",
+       "why": "The function uses only its parameters and the stored list; no external calls."
+      },
+      {
+       "text": "dimension=None means 'adopt whatever this database already uses for this identity', which is what keeps a repeat run free of backend calls.",
+       "where": "resolve_spec docstring",
+       "verdict": "kept",
+       "why": "When dimension is None and siblings exist, it returns the single sibling's spec. If no siblings, it uses DEFAULT_DIMENSION (a constant not defined here but referenced)."
+      },
+      {
+       "text": "An explicitly declared dimension that disagrees with a stored index is a refusal, not a second index: silently forking the coordinate system is the failure this whole module exists to avoid.",
+       "where": "resolve_spec docstring",
+       "verdict": "kept",
+       "why": "When dimension is not None and there are conflicting siblings, the function raises SpecConflictError."
+      },
+      {
+       "text": "Everything a reader needs to tell 'did nothing' from 'could not'.",
+       "where": "WorkerReport docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes the purpose of the class, but whether it fulfills that depends on how it's used elsewhere. The fields present support that purpose."
+      }
+     ],
+     "observations": [
+      {
+       "what": "resolve_spec uses DEFAULT_DIMENSION but it is not defined in this chunk; it is likely imported from elsewhere.",
+       "where": "line ~393",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "SpecConflictError is referenced but not defined in this chunk; it is likely imported or defined elsewhere.",
+       "where": "lines ~398, 408",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "WorkerReport has many fields with defaults; the behind_bytes property is simple but relies on live_position and watermark_position being set correctly.",
+       "where": "WorkerReport class",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "00b2bbad83586281dac12b4c0e83bb1a6ee9db22cb79f61945d7dbf29ce22510",
+    "objective_chars": 4503,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/projection_worker.py [4/9]",
+  "rev": "946db82",
+  "module": "daedalus/memory/projection_worker.py",
+  "index": 4,
+  "total": 9,
+  "first_line": 361
+ }
+}

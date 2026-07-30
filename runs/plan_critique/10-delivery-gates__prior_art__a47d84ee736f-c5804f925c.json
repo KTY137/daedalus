@@ -1,0 +1,144 @@
+{
+ "task_id": "10-delivery-gates__prior_art__a47d84ee736f",
+ "key": "10-delivery-gates__prior_art__a47d84ee736f-c5804f925c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Gate 1's propagation claim is unoriginal (proven by any data pipeline); Gate 5's 'beats AlphaEvolve' rule is unenforceable without defining comparable artifact scores.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "10.1 | medium | Gate 0's 'centralized start/guard path for every effectful runtime entrypoint' is a known pattern (e.g., Kubernetes admission webhooks) but the document does not specify how it ensures fail-closed behavior; prior art shows central guards can be bypassed if not enforced at the kernel level. | Review whether the guard path is implemented as a kernel hook or a middleware; test with a crafted entrypoint that bypasses the guard.",
+     "10.2 | low | Gate 0's 'real adapter fixtures' for various entrypoints is standard practice in integration testing; not novel but acceptable. | Check that the fixtures cover all failure modes listed in the fault-injection matrix.",
+     "10.3 | medium | Gate 1's propagation of 'Event.voltage -> bias_voltage' is a simple data transformation; prior art includes any ETL pipeline (e.g., Apache NiFi, 2020). The claim of proving a 'vertical mission' is trivial unless the document defines specific constraints not stated. | Implement the propagation in any scripting language and verify it meets the unspecified 'vertical mission' criteria.",
+     "10.4 | high | Gate 5's rule for 'Beats AlphaEvolve' is unenforceable: 'directly comparable public artifact scores under budget-equal measurements' is vague and AlphaEvolve's artifacts are not publicly available (as the section admits). The claim is contradictory. | Attempt to find a public artifact score from AlphaEvolve; if none exist, the rule cannot be satisfied.",
+     "10.5 | medium | Gate 2's 'do not scale before the full graph beats simpler representations' is a sound engineering principle but is a truism; prior art includes many papers on graph vs. non-graph representations (e.g., Scarselli et al., 2009). | Define measurable criteria for 'beats' and 'simpler representations' to make the gate falsifiable."
+    ],
+    "todos": [
+     "Define 'comparable public artifact scores' and provide a mechanism to obtain them for AlphaEvolve, or remove the 'Beats AlphaEvolve' claim.",
+     "Specify what constitutes a 'vertical mission' in Gate 1 to avoid trivial implementations.",
+     "Clarify how the 'centralized start/guard path' is enforced at the kernel level to prevent bypasses."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "10.1",
+       "claim": "Gate 0 requires a centralized start/guard path for every effectful runtime entrypoint.",
+       "verdict": "sound",
+       "why": "This is a standard security pattern (e.g., reference monitor) and is implementable. Prior art: Anderson, 'Computer Security Technology Planning Study', 1972; modern examples include Kubernetes admission controllers. The claim is not novel but is sound."
+      },
+      {
+       "id": "10.2",
+       "claim": "Gate 0 requires real adapter fixtures for start, stream, tool events, structured output, timeout, cancellation, workspace isolation, and cost.",
+       "verdict": "sound",
+       "why": "Adapter fixtures are standard in testing; no novelty is claimed. Prior art: any test-driven development practice. The claim is achievable."
+      },
+      {
+       "id": "10.3",
+       "claim": "Gate 1 requires proving a vertical mission: propagate Event.voltage -> bias_voltage across Python, Markdown, and CSV.",
+       "verdict": "weak",
+       "why": "The propagation is trivial (e.g., pandas DataFrame assignment). Prior art: any data pipeline tool (e.g., Apache NiFi, 2020) can do this. The claim is weak because it does not define what 'prove' means beyond implementation; without additional constraints, it is not a meaningful gate."
+      },
+      {
+       "id": "10.4",
+       "claim": "Gate 1 requires that Ikarus produces one MissionContract; the four planes produce two typed WorkItems; attempts run in isolation; restart/replay works; tests, schema checks, and link checks produce an EvidencePacket. No auto-merge.",
+       "verdict": "sound",
+       "why": "These are concrete, testable requirements. Prior art: similar workflow systems (e.g., Apache Airflow, 2015) support isolation and replay. The claim is sound, though not novel."
+      },
+      {
+       "id": "10.5",
+       "claim": "Gate 2 requires adding function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators, and four-plane ablations.",
+       "verdict": "sound",
+       "why": "These are specific features; feasibility depends on implementation. Prior art: knowledge graph systems (e.g., Google Knowledge Graph, 2012) and revision control (e.g., Git, 2005). The claim is sound as a requirement."
+      },
+      {
+       "id": "10.6",
+       "claim": "Gate 2 states: do not scale before the full graph beats simpler representations.",
+       "verdict": "weak",
+       "why": "This is a heuristic but lacks a definition of 'beats' and 'simpler representations'. Prior art: many papers compare graph vs. non-graph representations (e.g., Scarselli et al., 'The Graph Neural Network Model', IEEE TNN, 2009). Without metrics, the claim is unfalsifiable."
+      },
+      {
+       "id": "10.7",
+       "claim": "Gate 3 requires freezing public tasks, evaluator versions, budgets, model/hardware reporting, seed policy, and statistical reporting.",
+       "verdict": "sound",
+       "why": "Standard practice in reproducible research (e.g., 'Reproducibility Checklist', NeurIPS, 2020). The claim is sound."
+      },
+      {
+       "id": "10.8",
+       "claim": "Gate 3 lists required baselines: Random Search, Best-of-N, a single-LLM loop, simple local mutation, BM25, embeddings, code-only graph, four separate indices, evaluator-only selection, archive/MAP-Elites, and a transparent AlphaEvolve-like proxy.",
+       "verdict": "sound",
+       "why": "These are established baselines in optimization and search. Prior art: Random Search (Bergstra & Bengio, 2012), MAP-Elites (Mouret & Clune, 2015), BM25 (Robertson & Zaragoza, 2009). The claim is sound."
+      },
+      {
+       "id": "10.9",
+       "claim": "Gate 3 requires measuring success rate, best-so-far AUC, wall time, tokens, compute, variance, diversity, regressions, and human intervention.",
+       "verdict": "sound",
+       "why": "Standard metrics in optimization and machine learning. The claim is sound."
+      },
+      {
+       "id": "10.10",
+       "claim": "Gate 4 requires testing Graph-conditioned Representation Search first, using verified Project Twin structure to select and compress context or operators, then compare against budget-equal retrieval and evaluator-only baselines.",
+       "verdict": "sound",
+       "why": "This is a specific research hypothesis; prior art includes graph-based retrieval (e.g., Kipf & Welling, 'Semi-Supervised Classification with Graph Convolutional Networks', ICLR, 2017). The claim is sound as a hypothesis."
+      },
+      {
+       "id": "10.11",
+       "claim": "Gate 4 requires freezing generator, model, token budget, and evaluator; controls include edge rewiring, relation-label permutation, cross-plane bridges off, stale snapshots, and an oracle graph.",
+       "verdict": "sound",
+       "why": "Standard experimental controls in ablation studies. Prior art: controlled experiments in machine learning. The claim is sound."
+      },
+      {
+       "id": "10.12",
+       "claim": "Gate 4 states: One hypothesis, one pre-registered protocol, complete ablations.",
+       "verdict": "sound",
+       "why": "Best practice for scientific rigor (e.g., preregistration in psychology, 2010s). The claim is sound."
+      },
+      {
+       "id": "10.13",
+       "claim": "Gate 5 requires releasing reproducible task definitions, evaluator code/version, receipts, cost/latency tables, ablations, failures, and a claim bounded by observed evidence.",
+       "verdict": "sound",
+       "why": "Standard for reproducible research (e.g., ACM Artifact Review and Badging, 2016). The claim is sound."
+      },
+      {
+       "id": "10.14",
+       "claim": "Gate 5 states: AlphaEvolve is closed, so a broad framework comparison is not scientifically available.",
+       "verdict": "sound",
+       "why": "True: if AlphaEvolve is closed-source, direct comparison is impossible. Prior art: many closed-source systems preclude scientific comparison. The claim is sound."
+      },
+      {
+       "id": "10.15",
+       "claim": "Gate 5 states: 'Beats AlphaEvolve' is permitted only for directly comparable public artifact scores under budget-equal measurements; otherwise state the narrower proxy/task result.",
+       "verdict": "wrong",
+       "why": "The claim is contradictory: it acknowledges AlphaEvolve is closed (so public artifact scores may not exist) yet requires such scores for the claim. Prior art: closed-source systems like AlphaEvolve (DeepMind, 2024) do not publish artifact scores. The rule is unenforceable."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c7e2f7b70cf04e9f356d8453c39b563d728bc6879dfbe7472d11819d9f98c831",
+    "objective_chars": 4104,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "10-delivery-gates",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

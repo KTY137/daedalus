@@ -1,0 +1,184 @@
+{
+ "task_id": "scan__daedalus_providers_codex_cli.py__c1of3__946db82",
+ "key": "scan__daedalus_providers_codex_cli.py__c1of3__946db82-c31383cfda",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 3 of codex_cli.py: module docstring, constants, REPORT_SCHEMA, build_prompt function, and start of CodexCLIProvider class. Claims about codex CLI flags, policy, and behaviour are documented but uncheckable against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "build_prompt | medium | Policy-denied path fragments are hardcoded to 20 max; may truncate policy. | Check if 20 is sufficient in all usage scenarios.",
+     "REPORT_SCHEMA | medium | handoff object limited to a single notes string; free-form handoff content is lost. | Confirm that notes string is sufficient for all handoff data."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/codex_cli.py",
+     "chunk": "1 of 3",
+     "purpose": "Module docstring, constants, REPORT_SCHEMA, build_prompt function, and class start.",
+     "symbols": [
+      {
+       "name": "CodexCLIProvider",
+       "kind": "class",
+       "effects": [],
+       "note": "Class declaration only; body not in this chunk."
+      },
+      {
+       "name": "REPORT_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "JSON schema for codex --output-schema; handoff limited to notes string."
+      },
+      {
+       "name": "build_prompt",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds prompt string for codex agent; uses STATIC_PROMPT_PREFIX, trim_paths, MAX_SUMMARY_CHARS."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved path two directories up from this file."
+      },
+      {
+       "name": "RUN_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "ROOT / 'runs'."
+      }
+     ],
+     "claims": [
+      {
+       "text": "codex exec runs the Codex agent non-interactively against a target repo: it reads the repo itself and edits files IN PLACE",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Chunk does not contain code that spawns codex exec or verifies in-place editing."
+      },
+      {
+       "text": "this provider adds no parallel verification mechanism",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No verification code in this chunk."
+      },
+      {
+       "text": "Codex is an EXTERNAL API -- bytes leave the machine to OpenAI",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No network or egress code in this chunk."
+      },
+      {
+       "text": "every task is gated through the same per-project egress policy as DeepSeek (:func:daedalus.sensitivity.classify_data, fail-closed default-deny) BEFORE the CLI is ever spawned",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No call to classify_data or egress gating in this chunk."
+      },
+      {
+       "text": "A denied path never reaches codex.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No denial logic in this chunk."
+      },
+      {
+       "text": "codex is agentic, so once dispatched it can read repo files beyond the declared paths",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No codex execution or path restriction code in this chunk."
+      },
+      {
+       "text": "Flags used (grounded in codex exec --help, codex-cli 0.144.1): --cd <DIR>, --sandbox workspace-write, --skip-git-repo-check, --output-schema <FILE>, --output-last-message <FILE>, --color never, --model <MODEL>",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No codex CLI invocation or flag usage in this chunk."
+      },
+      {
+       "text": "codex exec is the documented non-interactive mode; it never prompts for approval, so no approval flag is needed",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No codex execution code in this chunk."
+      },
+      {
+       "text": "Auth comes from codex login (run by the operator); this provider never triggers a login flow.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No authentication code in this chunk."
+      },
+      {
+       "text": "OpenAI structured-output strict mode (which backs codex --output-schema) rejects any object without additionalProperties: false and with non-required properties (400 invalid_json_schema, live-fired 2026-07-11 task C2). A free-form object is therefore not expressible; carry free-form handoff content in a single notes string instead.",
+       "where": "comment in REPORT_SCHEMA",
+       "verdict": "uncheckable",
+       "why": "No codex --output-schema validation or API call in this chunk."
+      },
+      {
+       "text": "handoff object limited to a single notes string",
+       "where": "REPORT_SCHEMA",
+       "verdict": "kept",
+       "why": "REPORT_SCHEMA defines handoff as an object with only 'notes' property, additionalProperties false."
+      },
+      {
+       "text": "REPORT_SCHEMA required keys are sorted(REPORT_KEYS)",
+       "where": "REPORT_SCHEMA definition",
+       "verdict": "kept",
+       "why": "The 'required' field is set to sorted(REPORT_KEYS) as shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "REPORT_SCHEMA handoff is limited to a single notes string; free-form handoff content is lost.",
+       "where": "REPORT_SCHEMA",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_prompt uses STATIC_PROMPT_PREFIX and MAX_SUMMARY_CHARS from token_policy; those are not defined in this chunk.",
+       "where": "build_prompt function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "build_prompt references agent.get('call_name') and agent.get('name') but does not validate their presence.",
+       "where": "build_prompt function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Policy-denied path fragments are hardcoded to 20 max; may truncate policy.",
+       "where": "build_prompt function",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5e1b65929816e055bdf1d5aa3cf3760be30dd1c0394f891cbb6c5cb8bc948152",
+    "objective_chars": 5740,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/codex_cli.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/providers/codex_cli.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

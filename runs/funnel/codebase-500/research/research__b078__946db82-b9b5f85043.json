@@ -1,0 +1,122 @@
+{
+ "task_id": "research__b078__946db82",
+ "key": "research__b078__946db82-b9b5f85043",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two key patterns: (1) The 'immutable Selection' claim in correctness.py is contradicted by the absence of a guarantee that the Selection is actually used by the egress or evaluation subsystems, and (2) the markdown.py module's claim that it never reads files is reliant on the egress gate, but the gate's enforcement is not visible in any report, creating a trust boundary with no verifiable guarantee.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The Selection dataclass is claimed to be immutable and its digest covers all fields, but there is no evidence that the digest is actually checked or enforced by downstream consumers (e.g., egress or evaluation). This means a stale or tampered selection could go undetected.",
+     "markdown.py claims it never reads files because callers pass text that has been cleared by the egress gate. However, no report shows that the egress gate actually performs such clearing or that the gate's output is verifiable. This creates a dependency on an unverified trust boundary.",
+     "The _check_selection function in correctness.py is incomplete in the provided chunk, so its validation logic is unknown. If it is meant to enforce the invariants of Selection, its absence could lead to unchecked assumptions.",
+     "The hand-parsed TOML in reach.py may miss edge cases, potentially causing console scripts to be misidentified, which could affect reachability analysis and lead to incorrect classification of modules."
+    ],
+    "todos": [
+     "Verify that the egress gate (not provided) actually enforces file access control before passing text to markdown.py.",
+     "Check if any downstream code (e.g., evaluation harness) verifies the Selection.digest against a trusted source before using the selection.",
+     "Complete the _check_selection function in correctness.py and ensure it validates the invariants claimed in Selection's docstring.",
+     "Consider using a proper TOML parser for pyproject.toml in reach.py to avoid parsing errors."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "selection-digest-unchecked",
+       "claim": "The Selection.digest is claimed to cover all fields, but no downstream code in the provided reports actually verifies the digest against a trusted reference before using the selection, making the immutability guarantee unenforced.",
+       "spans": [
+        "daedalus/eval/correctness.py",
+        "daedalus/eval/selection_consumer (hypothetical)"
+       ],
+       "mechanism": "Selection is constructed by freeze_selection and its digest is computed. However, if a consumer (e.g., evaluation runner) does not compare the digest to a known-good value (e.g., from the task definition), then a modified selection (e.g., different node ids or timeout) could be used without detection. The digest is only a fingerprint, not a signature; without external verification, it provides no security.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If any code in the provided reports (or a future chunk) shows that the digest is compared to a trusted source (e.g., signed task manifest) before use, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/correctness.py:Selection.digest property (docstring claims coverage, but no verification in chunk)",
+        "daedalus/eval/correctness.py:freeze_selection (builds Selection but no evidence of downstream verification)"
+       ]
+      },
+      {
+       "id": "egress-gate-not-verified",
+       "claim": "markdown.py claims it never reads files because the egress gate clears all text before passing it, but no report shows that the egress gate actually performs such clearance or that its output is verifiable, creating a trust boundary with no enforcement evidence.",
+       "spans": [
+        "daedalus/structcore/markdown.py",
+        "daedalus/spine/containment.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "markdown.py's docstring states it does not read files; callers pass text that has been cleared by the egress gate. However, the egress gate (possibly in containment.py or elsewhere) is not shown to actually perform file access control or to provide a verifiable guarantee (e.g., a signed attestation that the text came from an allowed path). Without such evidence, the claim is an unenforced assumption. Additionally, correctness.py's apply_patch writes to the filesystem, which could bypass the egress gate entirely.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If any report shows that the egress gate (e.g., in containment.py or a separate module) actually verifies file access permissions before allowing text to be passed to markdown.py, and that this verification is enforced at runtime, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/markdown.py: docstring line 74-75 ('It does not run over anything the egress gate has not cleared. This module never reads a file; callers pass text they have already gated.')",
+        "daedalus/spine/containment.py: _spawn_low_integrity_process (creates low-integrity processes but no file access control shown)",
+        "daedalus/eval/correctness.py: apply_patch (writes to filesystem via git apply, potentially bypassing egress gate)"
+       ]
+      },
+      {
+       "id": "weak-edges-unprocessed",
+       "claim": "The 'weak_edges' list in reach.py is constructed but not processed in the provided chunk; if it is never used to influence module classification, the intended 'why is this module here' functionality is missing, potentially leaving unreached modules misclassified.",
+       "spans": [
+        "daedalus/mapping/reach.py",
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "In reach.py, the analyse function builds edges and weak_edges, but the chunk shows no code that uses weak_edges (e.g., to mark modules as 'unknown' instead of 'island'). If weak_edges is never consumed, then modules that are only weakly reachable (e.g., via console scripts) may be incorrectly classified as unreachable. This could affect markdown.py's file set resolution, which relies on the full set of reachable modules.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If a later chunk of reach.py shows that weak_edges is actually processed (e.g., added to the reachability set or used to adjust module status), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/reach.py: analyse function (edges and weak_edges built, but no usage shown)",
+        "daedalus/mapping/reach.py: comment 'Resolved exactly like real ones, then kept OUT of edges' (indicates weak_edges are not added to edges, but no alternative processing shown)"
+       ]
+      },
+      {
+       "id": "hand-parsed-toml-misses-edges",
+       "claim": "The hand-parsed TOML in reach.py may miss valid console script entries (e.g., due to comments, multi-line values), causing incomplete edge information for the reachability analysis, which could lead to modules being incorrectly classified as unreachable.",
+       "spans": [
+        "daedalus/mapping/reach.py",
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "_console_scripts uses regex to parse pyproject.toml. If the TOML contains inline comments after a script assignment, or multi-line strings, the regex may fail to capture the script. This would omit edges from console scripts to their target modules, potentially causing those modules to be classified as unreachable. This could affect markdown.py's file set resolution if it relies on the reachability analysis.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If testing shows that the regex correctly handles all valid TOML formats (including comments and multi-line values) found in actual pyproject.toml files, or if the code is replaced with a proper TOML parser, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/reach.py: _console_scripts function (uses regex, no TOML library)",
+        "daedalus/mapping/reach.py: observation 'hand-parsed TOML may miss edge cases'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4d48146223eb5d7eada9ce26a36862650d5827774e7458f4cfccad008805f7a1",
+    "objective_chars": 23305,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 78 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 78,
+  "inputs": 4
+ }
+}

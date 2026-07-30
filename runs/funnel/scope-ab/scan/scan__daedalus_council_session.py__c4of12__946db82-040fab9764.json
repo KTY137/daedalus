@@ -1,0 +1,182 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c4of12__946db82",
+ "key": "scan__daedalus_council_session.py__c4of12__946db82-040fab9764",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of session.py defines Claim, TurnRef, ParticipantRecord, CouncilRecord dataclasses with frozen=True and __post_init__ validation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CouncilRecord.__post_init__ | high | __post_init__ references END_REASONS but it is not defined in this chunk. If END_REASONS is not imported or defined elsewhere, runtime NameError will occur. | Check that END_REASONS is defined in the same module or imported.",
+     "CouncilRecord | medium | __post_init__ checks self.advisory is True, but advisory is a field with default True; if a caller passes advisory=False the ValueError is raised, which may be intentional. No risk unless unintended.",
+     "CouncilRecord | low | Field 'ended' defaults to 'rounds_complete' but validation references END_REASONS. If END_REASONS does not include that string, __post_init__ will raise ValueError. | Verify END_REASONS includes 'rounds_complete'."
+    ],
+    "todos": [
+     "Verify that END_REASONS is defined and imported in this module.",
+     "Check that all fields used in __post_init__ are properly initialized before __post_init__ runs (frozen=True means __init__ is generated; __post_init__ runs after)."
+    ],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "4 of 12",
+     "purpose": "Defines core dataclasses: Claim, TurnRef, ParticipantRecord, CouncilRecord with validation and a derived property.",
+     "symbols": [
+      {
+       "name": "Claim",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for one assertion by one participant. Fields: author, vendor, model, round, role, text, cites, checkable, check, verbatim, parsed. Docstring says checkable is true only when author supplied a concrete deterministic check."
+      },
+      {
+       "name": "TurnRef",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for one chained turn. Fields: turn_id, round, actor, vendor, model, role, status, reason, content, blind, self_review, duplicate_class, lane, withheld, latency_s."
+      },
+      {
+       "name": "ParticipantRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for roster accounting. Fields: actor, vendor, model, independence_class, lane, outcome, reason, withheld, rounds_spoken, operator_trusted."
+      },
+      {
+       "name": "CouncilRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for council output. Fields include council_id, question, evidence_label, evidence_digest, evidence_refs, rounds_requested, rounds_run, participants, turns, claims, requested, seated, responded, unavailable, distinct_classes, duplicate_classes, degraded, anomalies, floor_rule, ended, store_path, chain_head, chain_intact, chain_failures, tokens_charged, token_ceiling, wall_clock_s, advisory (always True). Has __post_init__ validation and property checkable_claims."
+      },
+      {
+       "name": "CouncilRecord.checkable_claims",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning tuple of claims where c.checkable is True. Docstring: 'The queue the gate can actually run.'"
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"checkable is true only when the author supplied a concrete deterministic check -- a command, a test, a specific line assertion.\"",
+       "where": "Claim class docstring",
+       "verdict": "uncheckable",
+       "why": "The logic that sets checkable is not in this chunk; we only see the field default is False. The claim about when it is set to True cannot be verified here."
+      },
+      {
+       "text": "\"That is the council's entire product: a queue of checks for the gate to run.\"",
+       "where": "Claim class docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to the gate and the product; not present in this chunk."
+      },
+      {
+       "text": "\"A claim without one is still recorded verbatim, and still counts for nothing on its own.\"",
+       "where": "Claim class docstring",
+       "verdict": "uncheckable",
+       "why": "The behavior of how claims are used is not in this chunk."
+      },
+      {
+       "text": "\"One chained turn, with the id it landed under and its content verbatim.\"",
+       "where": "TurnRef class docstring",
+       "verdict": "kept",
+       "why": "TurnRef has turn_id and content fields to hold that information."
+      },
+      {
+       "text": "\"Roster accounting for one requested participant.\"",
+       "where": "ParticipantRecord class docstring",
+       "verdict": "kept",
+       "why": "The class fields provide accounting (outcome, rounds_spoken, etc.)."
+      },
+      {
+       "text": "\"The council's output. ADVISORY. It promotes nothing.\"",
+       "where": "CouncilRecord class docstring",
+       "verdict": "kept",
+       "why": "The class has advisory=True by default and __post_init__ enforces it cannot be False."
+      },
+      {
+       "text": "\"There is deliberately no majority, no score, no consensus and no approve/reject field, and none may be added: a caller must not be able to destructure a decision out of this object.\"",
+       "where": "CouncilRecord class docstring",
+       "verdict": "kept",
+       "why": "The fields listed in the class do not include majority, score, consensus, approve, or reject. The advisory field is always True."
+      },
+      {
+       "text": "\"What is here instead is every claim with its author and its evidence, the checkable subset, and honest roster accounting.\"",
+       "where": "CouncilRecord class docstring",
+       "verdict": "kept",
+       "why": "Class has claims (tuple of Claim), checkable_claims property, and participants (tuple of ParticipantRecord)."
+      },
+      {
+       "text": "\"Always True and enforced. This object is evidence, not a decision.\"",
+       "where": "CouncilRecord field 'advisory' docstring",
+       "verdict": "kept",
+       "why": "Field default is True and __post_init__ raises ValueError if advisory is not True."
+      },
+      {
+       "text": "\"The queue the gate can actually run.\"",
+       "where": "CouncilRecord.checkable_claims docstring",
+       "verdict": "kept",
+       "why": "The property returns only claims where checkable is True, which matches 'queue the gate can run'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "END_REASONS is referenced in __post_init__ but not defined or imported in this chunk. It must be defined elsewhere in the file or imported.",
+       "where": "CouncilRecord.__post_init__ line 2",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "DEFAULT_TOKEN_CEILING is used as default for token_ceiling but is not defined in this chunk. It must be defined elsewhere.",
+       "where": "CouncilRecord field token_ceiling",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring for Claim says 'checkable is true only when the author supplied a concrete deterministic check'. The code does not enforce this; it only has a default False. The logic that sets checkable is not here.",
+       "where": "Claim class",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "CouncilRecord has many fields; the __post_init__ only validates advisory and ended. Other fields (e.g., chain_head, chain_intact) are not validated.",
+       "where": "CouncilRecord.__post_init__",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring for TurnRef says 'One chained turn, with the id it landed under and its content verbatim.' The class has turn_id and content fields, but no indication of how chaining works. This is uncheckable.",
+       "where": "TurnRef class docstring",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "162960c9369d82c1272a947cf9cc489f27acd1255596af554aff52b85d4d6bb6",
+    "objective_chars": 5523,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [4/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 4,
+  "total": 12,
+  "first_line": 361
+ }
+}

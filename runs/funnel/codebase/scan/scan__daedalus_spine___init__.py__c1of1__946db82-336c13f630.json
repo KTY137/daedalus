@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_spine___init__.py__c1of1__946db82",
+ "key": "scan__daedalus_spine___init__.py__c1of1__946db82-336c13f630",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Exported symbols from daedalus.spine. No claims in docstring about this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Re-export public API from .ledger submodule",
+     "symbols": [
+      {
+       "name": "DEFAULT_BUSY_TIMEOUT_MS",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "DEFAULT_DB_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "STATE_COMPLETED",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "STATE_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "STATE_INTENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "TERMINAL_STATES",
+       "kind": "constant",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "Intent",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "IntentAlreadyResolved",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "IntentEvent",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "SpineError",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "SpineLedger",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "UnknownIntent",
+       "kind": "class",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "canonical_json",
+       "kind": "function",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "canonical_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      },
+      {
+       "name": "default_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "re-exported from .ledger"
+      }
+     ],
+     "claims": [
+      {
+       "text": "intent is recorded and COMMITTED before the external effect, so a crash can never leave an effect the system has no record of intending.",
+       "where": "module docstring (lines 2-4)",
+       "verdict": "uncheckable",
+       "why": "This claim describes behaviour of the ledger module, which is not present in this chunk."
+      },
+      {
+       "text": "See :mod:`daedalus.spine.ledger` for the crash-window contract (closed by effect identification, not by the key alone).",
+       "where": "module docstring (lines 4-5)",
+       "verdict": "uncheckable",
+       "why": "Refers to another module not provided in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "All symbols are re-exported from .ledger; no new definitions.",
+       "where": "entire file",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3068f67001b24fdcb363a19a4eba1cb0464bb475349522d175bc8dfd3b4919f8",
+    "objective_chars": 1476,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/__init__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/spine/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

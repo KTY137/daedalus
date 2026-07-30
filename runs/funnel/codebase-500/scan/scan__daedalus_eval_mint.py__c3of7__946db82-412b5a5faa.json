@@ -1,0 +1,196 @@
+{
+ "task_id": "scan__daedalus_eval_mint.py__c3of7__946db82",
+ "key": "scan__daedalus_eval_mint.py__c3of7__946db82-412b5a5faa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 7: contains private helpers for worktree detection, blob reading, SHA resolution, diff magnitude, and symbol diffing; defines MUST_INCLUDE_CAP constant.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 241-274 | medium | Docstring for _is_linked_worktree makes extensive claims about git internals (file vs directory, submodule layout, structural inspection) that cannot be verified from this chunk alone; only the function signature and partial implementation are present. | Review full implementation of _is_linked_worktree to confirm claims.",
+     "line 325-330 | low | MUST_INCLUDE_CAP set to 25 with rationale about task label set size and store-bloat; relies on assumptions about usage in _mint_from_diffs which is not in this chunk. | Verify in _mint_from_diffs that the cap is applied as described.",
+     "line 332-340 | medium | Docstring for _diff_magnitude claims it counts +/- lines from unified diff with n=0 and excludes +++/--- lines; the implementation matches but the claim that 'a pure add or remove counts its whole body; an in-place edit counts only the lines that moved' is uncheckable without knowing how before_srcs/after_srcs are constructed. | Review how before_srcs and after_srcs are built in calling code.",
+     "line 342-361 | medium | Docstring for _diffed_symbols claims it handles duplicate names via sorted source lists, falls back to empty for unsupported extensions, and that magnitude is only used for cap-ranking. The implementation shows the spec check and extraction calls but the actual diff logic is cut off. | Review the rest of _diffed_symbols to confirm duplicate handling and that magnitude is not used for boolean change detection."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/mint.py",
+     "chunk": "3 of 7",
+     "purpose": "Contains private helper functions for worktree detection, git blob reading, SHA resolution, diff magnitude calculation, and symbol-level diffing; defines MUST_INCLUDE_CAP constant.",
+     "symbols": [
+      {
+       "name": "_is_linked_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Determines if a repo root is a linked worktree by inspecting .git file pointer and checking for commondir and gitdir files in the admin directory."
+      },
+      {
+       "name": "_show",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns blob contents of a file at a given ref using git show, or None if not found."
+      },
+      {
+       "name": "_read_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns current on-disk contents of a file, or None if it doesn't exist."
+      },
+      {
+       "name": "_resolve_sha",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Resolves a git ref to its SHA hash using rev-parse, returns stripped output or None."
+      },
+      {
+       "name": "_short_hash",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates a 12-character hex hash from SHA256 of string representations of parts."
+      },
+      {
+       "name": "MUST_INCLUDE_CAP",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Ceiling on must_include labels to prevent excessive labels from large commits."
+      },
+      {
+       "name": "_diff_magnitude",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns count of added/removed lines in unified diff between before and after source blocks, used for ranking labels."
+      },
+      {
+       "name": "_diffed_symbols",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict of symbol name to diff magnitude for symbols whose source changed; handles duplicate names and unsupported file types."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Detection is the git on-disk contract, not a path heuristic: ``git worktree add`` writes ``.git`` as a FILE holding a ``gitdir:`` pointer, whereas a primary checkout has ``.git`` as a DIRECTORY. A bare repo and a plain non-repo directory both read as \"not a linked worktree\" and are left to the existing git-failure paths, which already degrade to \"nothing minted\".",
+       "where": "docstring of _is_linked_worktree",
+       "verdict": "uncheckable",
+       "why": "The implementation shown only checks for .git being a file and starting with 'gitdir:', but does not show handling of bare repo or non-repo directories (those would raise OSError or fail the file check). The claim about primary checkout having .git as directory is not testable from this snippet."
+      },
+      {
+       "text": "The pointer alone is NOT enough, and this was measured rather than assumed: a SUBMODULE also has ``.git`` as a ``gitdir:`` file, and a submodule checkout is perfectly permanent -- refusing to mint from one would be a false refusal, and a docstring saying \"linked worktree\" while the code also caught submodules would be a claim its control did not implement.",
+       "where": "docstring of _is_linked_worktree",
+       "verdict": "uncheckable",
+       "why": "The implementation does not include any check that would distinguish submodules from linked worktrees; the claim says the code intentionally does not catch submodules, but the implementation shown does not have any logic to exclude them. The claim is about what the code does NOT do, which cannot be verified from the snippet."
+      },
+      {
+       "text": "Nor is the pointer's PATH enough: matching a ``worktrees`` path component would fire on any ordinary repository that happens to live under a directory someone named ``worktrees``. So the admin directory the pointer resolves to is inspected STRUCTURALLY, which is what actually distinguishes them (measured on real git artifacts, not inferred from documentation): ... ``commondir`` and ``gitdir`` together appear only in the linked-worktree admin layout. Requiring BOTH means an unreadable or unexpected target fails toward \"not ephemeral\", i.e. toward minting -- which is the correct direction for a false negative here, because the alternative is refusing to mint from ordinary repositories.",
+       "where": "docstring of _is_linked_worktree",
+       "verdict": "kept",
+       "why": "The implementation checks for the existence of both (admin / 'commondir').is_file() and (admin / 'gitdir').is_file(), which matches the claim about structural inspection requiring both files."
+      },
+      {
+       "text": "Blob contents of ``rel`` at ``ref``, or ``None`` if it didn't exist there (distinct from an empty-but-present file, which is a real \"\").",
+       "where": "docstring of _show",
+       "verdict": "uncheckable",
+       "why": "The implementation calls _git and returns out.strip() if out else None. The claim about distinguishing non-existence from empty file depends on how _git handles the case; _git is not defined in this chunk."
+      },
+      {
+       "text": "Current on-disk contents of ``rel``, or ``None`` if it's gone (deleted by the edit being minted).",
+       "where": "docstring of _read_worktree",
+       "verdict": "kept",
+       "why": "The implementation reads the file and returns its text, catching OSError (including FileNotFoundError) and returning None, matching the claim."
+      },
+      {
+       "text": "Deterministic size proxy for one symbol, used only to rank which labels survive ``MUST_INCLUDE_CAP`` -- NOT a precision diff. Counts the +/- lines in a unified diff between the joined before/after source blocks (``before_srcs``/``after_srcs`` are lists because a name can repeat across sibling classes/closures -- see ``_diffed_symbols``). A pure add or remove counts its whole body; an in-place edit counts only the lines that moved.",
+       "where": "docstring of _diff_magnitude",
+       "verdict": "uncheckable",
+       "why": "The implementation joins the lists and computes a unified diff with n=0, then counts lines starting with '+' or '-' except '+++'/'---'. The claim about pure add/remove vs in-place edit depends on the content of before_srcs and after_srcs (e.g., empty list for pure add), which is not shown or defined here."
+      },
+      {
+       "text": "Map of {symbol name -> diff magnitude} for symbols whose extracted source differs, plus pure adds/removes. Matched by NAME against a (name -> sorted source list) map rather than a single name->source dict, so duplicate names (same-named methods on sibling classes, nested closures) don't silently clobber each other and under-report a real change. A file with no language spec (unsupported extension) contributes nothing -- there is no unit-level ground truth to diff, only whole-file text, and this module deliberately doesn't fall back to that (a whole-file \"changed\" label would be far too coarse to be an honest must_include). The magnitude is only ever used for cap-ranking in ``_mint_from_diffs``; it plays no part in WHETHER a symbol counts as changed (that's the ``!=`` comparison below).",
+       "where": "docstring of _diffed_symbols",
+       "verdict": "uncheckable",
+       "why": "The implementation shown only checks spec_for, extracts units, and assigns to before_units/after_units. The actual comparison and handling of duplicate names, the '!=' comparison, and the construction of the returned dict are not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for _is_linked_worktree is extremely detailed about git internals and design decisions, but the implementation shown is only a partial fragment (lines 241-274 are docstring, actual function starts earlier). The claims about submodules and bare repos cannot be verified from this snippet.",
+       "where": "lines 241-274",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_show and _resolve_sha both call _git, which is not defined in this chunk. Their behavior depends on that helper.",
+       "where": "_show, _resolve_sha",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "MUST_INCLUDE_CAP is defined as 25 with a detailed rationale in a comment. The actual enforcement via ranking/drop rule is in _mint_from_diffs, not present here.",
+       "where": "MUST_INCLUDE_CAP definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_diff_magnitude uses difflib.unified_diff with n=0, which produces minimal diffs. The counting logic matches the docstring's description of counting +/- lines excluding headers.",
+       "where": "_diff_magnitude",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_diffed_symbols is truncated; it only shows the beginning of the function (spec check and extraction). The actual diff logic and return value are missing.",
+       "where": "_diffed_symbols",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4c894bb592e4d26b94be908762fb8f3f375a6a58befd38e50423e48bf513b8dc",
+    "objective_chars": 6194,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/mint.py [3/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/mint.py",
+  "index": 3,
+  "total": 7,
+  "first_line": 241
+ }
+}

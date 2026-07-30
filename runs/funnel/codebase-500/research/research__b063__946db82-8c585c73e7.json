@@ -1,0 +1,106 @@
+{
+ "task_id": "research__b063__946db82",
+ "key": "research__b063__946db82-8c585c73e7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Three cross-file patterns: (1) degraded git probes silently produce undercounts that propagate into ceilings without detection; (2) docstring claims about 'no primary worktree writes' vs 'incomplete in this chunk' create unenforceable guarantees; (3) import resolution's shallowest-match heuristic may disagree with symbol extraction's scope definition.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Ceiling undercount due to git probe failure degrades to rename-blind single-file alias, counted as failure but the ceiling value is still published as authoritative.",
+     "TaskAttempt's claim that run() never writes the primary worktree is structurally unenforceable without a full implementation review; offload_runner's repo_root pinning to WORKTREE is untested.",
+     "Import resolution's shallowest-match heuristic may skip deeper files that _symbol_defs would consider in-scope, leading to mismatched symbol coverage."
+    ],
+    "todos": [
+     "Verify that _parents_of returning None vs empty list is consistently handled in temporal_ceiling and partner_counts.",
+     "Confirm that _AliasResolver.failures are surfaced in the ceiling render and not just counted.",
+     "Ensure that offload_runner's repo_root pinning is enforced by a test that attempts to pass a different repo_root.",
+     "Check that _symbol_defs and _match_file use the same notion of 'in-scope' directories."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "degraded-git-probe-undercount",
+       "claim": "Degraded git probes in ceiling.py (_parents_of returning None, _AliasResolver returning {rel}) produce undercounts that propagate into the ceiling without detection, while the docstring claims failures are 'counted' and 'degraded instrument' is distinguished from 'authoritative-looking zero' \u2014 but no consumer checks the failure count before using the ceiling value.",
+       "spans": [
+        "daedalus/eval/ceiling.py",
+        "daedalus/mapping/inventory.py"
+       ],
+       "mechanism": "_parents_of returns None on any error (subprocess timeout, non-zero return). _AliasResolver.aliases returns {rel} on failure, incrementing self.failures. _partner_counts uses these aliases to count co-changes; if aliases are degraded, counts are lower. _classify uses def_count (which depends on partner counts) to classify missed symbols. The ceiling is computed from these classifications. The docstring claims failures are counted and surfaced, but inventory.py's digest_ok and _strip_human do not consider probe failure counts. A consumer ranking work from inventory may use a ceiling value that is silently understated.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Evidence that temporal_ceiling or its render function includes the failure count in the ceiling value or rejects degraded probes, OR that inventory.py's digest includes probe health metrics.",
+       "evidence": [
+        "daedalus/eval/ceiling.py:_parents_of",
+        "daedalus/eval/ceiling.py:_AliasResolver.aliases",
+        "daedalus/eval/ceiling.py:_partner_counts",
+        "daedalus/eval/ceiling.py:_classify"
+       ]
+      },
+      {
+       "id": "unenforceable-no-write-claim",
+       "claim": "TaskAttempt's docstring claim that 'run() NEVER applies its result' and 'no code path writes the primary working tree' is structurally unenforceable without a full implementation review, and the offload_runner's claim that repo_root is pinned to WORKTREE is untested.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/mapping/inventory.py"
+       ],
+       "mechanism": "TaskAttempt class docstring asserts no primary worktree writes, but the class is incomplete in this chunk. offload_runner docstring claims repo_root is pinned to WORKTREE, but the offload function is not in this chunk and the pinning is not enforced by the code shown. inventory.py's digest_ok assumes derived fields are stable, but if an attempt writes to the primary worktree, the digest would become stale without detection.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that TaskAttempt.run() is implemented and verified to never write to the primary worktree, and that offload_runner's repo_root pinning is enforced by a test or invariant.",
+       "evidence": [
+        "daedalus/spine/attempt.py:TaskAttempt",
+        "daedalus/spine/attempt.py:offload_runner",
+        "daedalus/mapping/inventory.py:digest_ok"
+       ]
+      },
+      {
+       "id": "shallowest-vs-scope-mismatch",
+       "claim": "Import resolution's shallowest-match heuristic in _match_file may disagree with _symbol_defs' scope definition, leading to symbol coverage mismatches that affect the ceiling.",
+       "spans": [
+        "daedalus/structcore/imports.py",
+        "daedalus/eval/ceiling.py"
+       ],
+       "mechanism": "_match_file prefers the shallowest path by string length, but _symbol_defs defines scoped rels based on extract_units and spec_for (not defined in this chunk). If a symbol is defined in a deeper file that is shadowed by a shallow file with the same basename, _match_file will resolve to the shallow file, while _symbol_defs may include the deeper file. The ceiling uses _symbol_defs to determine defining files, but import resolution uses _match_file to resolve imports. This mismatch could cause the ceiling to consider symbols that import resolution cannot reach, or vice versa.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that _symbol_defs and _match_file use the same notion of 'in-scope' directories, or that the ceiling only considers symbols that import resolution can actually resolve.",
+       "evidence": [
+        "daedalus/structcore/imports.py:_match_file",
+        "daedalus/eval/ceiling.py:_symbol_defs"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5d983834b47b2937d22b7f51b41225845c90a430f0f73a5b720f360eff648296",
+    "objective_chars": 20655,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 63 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 63,
+  "inputs": 4
+ }
+}

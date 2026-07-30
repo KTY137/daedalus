@@ -1,0 +1,189 @@
+{
+ "task_id": "scan__daedalus_spine_attempt.py__c6of14__946db82",
+ "key": "scan__daedalus_spine_attempt.py__c6of14__946db82-ada4165e0c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 defines dataclasses GateResult, PatchArtifact, AttemptResult, and a partial Attempt dataclass. Claims about containment, diff encoding, and ledger trimming are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "GateResult.containment | medium | Field containment is typed as ContainmentAttestation but default is None; code elsewhere may assume it's non-None. | Add a check that all gate results from the runner have containment set.",
+     "PatchArtifact.diff | low | The docstring warns that decode round-trip can corrupt non-UTF-8 diffs; this property uses 'replace' which may mask errors. | Verify that callers never use .diff for persistence.",
+     "AttemptResult.state | medium | Field state is a string with no documented enum; consumers may rely on specific values not defined here. | Define allowed state constants or document expected values."
+    ],
+    "todos": [
+     "Add a sentinel or default for GateResult.containment to avoid None ambiguity.",
+     "Consider making AttemptResult.state an Enum or Literal type.",
+     "Verify that GATE_OUTPUT_TAIL_CHARS is defined in the module."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/attempt.py",
+     "chunk": "6 of 14",
+     "purpose": "Define dataclasses for gate results, patch artifacts, and attempt outcomes.",
+     "symbols": [
+      {
+       "name": "Attempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Partial dataclass (fields only, no methods yet)."
+      },
+      {
+       "name": "GateResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for gate verdict with raw output."
+      },
+      {
+       "name": "GateResult.output_sha256",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning SHA-256 hex digest of output."
+      },
+      {
+       "name": "GateResult.summary",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a dict trimmed to GATE_OUTPUT_TAIL_CHARS."
+      },
+      {
+       "name": "PatchArtifact",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for a candidate change as inert data."
+      },
+      {
+       "name": "PatchArtifact.diff",
+       "kind": "function",
+       "effects": [],
+       "note": "Property decoding diff_bytes to string with replace."
+      },
+      {
+       "name": "PatchArtifact.is_empty",
+       "kind": "function",
+       "effects": [],
+       "note": "Property checks if diff_bytes is empty."
+      },
+      {
+       "name": "PatchArtifact.byte_length",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returns length of diff_bytes."
+      },
+      {
+       "name": "PatchArtifact.summary",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a dict of key fields."
+      },
+      {
+       "name": "AttemptResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for the complete exception-free outcome of one attempt."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A gate verdict with its raw output kept, not summarised.",
+       "where": "GateResult docstring",
+       "verdict": "kept",
+       "why": "The class stores output, returncode, duration, etc., and provides a summary() method that trims output, but the raw output is kept in the 'output' field."
+      },
+      {
+       "text": "EFFECTIVE containment, not the request -- see :class:`daedalus.spine.containment.ContainmentAttestation`. A verdict on candidate code is only worth as much as the boundary it ran behind, so the boundary that ACTUALLY held travels with the verdict into the ledger. ``None`` only for a gate result some other code path constructed.",
+       "where": "GateResult.containment field comment",
+       "verdict": "uncheckable",
+       "why": "The comment references ContainmentAttestation from another module; its semantics cannot be verified from this chunk."
+      },
+      {
+       "text": "The trimmed view written to the ledger (see GATE_OUTPUT_TAIL_CHARS).",
+       "where": "GateResult.summary docstring",
+       "verdict": "uncheckable",
+       "why": "GATE_OUTPUT_TAIL_CHARS is not defined in this chunk; its existence and value are unknown."
+      },
+      {
+       "text": "A candidate change as inert data. Nothing here applies itself.",
+       "where": "PatchArtifact docstring",
+       "verdict": "kept",
+       "why": "The class only holds data fields and provides properties; it has no method to apply the patch."
+      },
+      {
+       "text": "``diff_bytes`` is authoritative and ``diff_sha256`` is taken over it; a human promoting the patch should write those bytes, not the decoded ``diff``, because a decode round-trip can corrupt a diff containing bytes that are not valid UTF-8.",
+       "where": "PatchArtifact docstring",
+       "verdict": "kept",
+       "why": "The class stores diff_bytes and diff_sha256; the diff property decodes with 'replace', which can change bytes, confirming the warning."
+      },
+      {
+       "text": "Convenience view for humans and logs; not the digested form.",
+       "where": "PatchArtifact.diff docstring",
+       "verdict": "kept",
+       "why": "The property decodes to string and is not used for persistence; the docstring accurately describes it."
+      },
+      {
+       "text": "The complete, exception-free outcome of one attempt.",
+       "where": "AttemptResult docstring",
+       "verdict": "kept",
+       "why": "The class contains fields for state, timestamps, artifact, gates, errors; it represents the outcome of an attempt without exceptions being raised."
+      }
+     ],
+     "observations": [
+      {
+       "what": "GateResult.containment has type ContainmentAttestation but defaults to None; the comment says None only for other code paths, but no validation ensures it's set.",
+       "where": "GateResult.containment",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "PatchArtifact.diff property uses 'replace' error handling, which may silently corrupt non-UTF-8 data; the docstring warns but does not prevent misuse.",
+       "where": "PatchArtifact.diff",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "AttemptResult.state is a plain string with no documented set of values; callers may rely on specific strings not defined here.",
+       "where": "AttemptResult.state",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "GateResult.summary uses GATE_OUTPUT_TAIL_CHARS which is not defined in this chunk; may cause NameError at runtime.",
+       "where": "GateResult.summary",
+       "severity": "high",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "66f05869e6faa50e72036d64ad1cb4007f95e7d36523f8ff31dd93f35ff021c4",
+    "objective_chars": 4295,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/attempt.py [6/14]",
+  "rev": "946db82",
+  "module": "daedalus/spine/attempt.py",
+  "index": 6,
+  "total": 14,
+  "first_line": 601
+ }
+}

@@ -1,0 +1,149 @@
+{
+ "task_id": "scan__daedalus_structcore_clones.py__c5of6__946db82",
+ "key": "scan__daedalus_structcore_clones.py__c5of6__946db82-5d9b9cc6aa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 6 of clones.py: implements near_clusters() and helpers (_overlap, _candidate_pairs), with comments explaining design decisions and precision notes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "near_clusters | medium | The comment states that token_bag() and abstract_fingerprint() each call _abstract_tokens() internally, causing redundant work. This is a performance issue but not a correctness bug. To settle: verify whether _abstract_tokens is called twice per unit or if caching is possible.",
+     "TYPE3_EXCLUDED_LANGUAGES | medium | The comment explains that C/C++ are excluded because _GENERIC_KEYWORDS lacks C types, causing false positives. If C/C++ are added in the future, false positives may appear. To settle: check if _GENERIC_KEYWORDS covers C type system.",
+     "_candidate_pairs | low | The function uses a pair_cap to limit pairs, but the return returns early if pair_cap reached, potentially missing some pairs. This is by design. To settle: confirm that early return is acceptable for large corpora."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/clones.py",
+     "chunk": "5 of 6",
+     "purpose": "Implements near-miss cluster detection (Type-3) using token overlap, with candidate generation and helper functions.",
+     "symbols": [
+      {
+       "name": "_overlap",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes multiset overlap between two Counters as |A\u2229B| / |min(A,B)|."
+      },
+      {
+       "name": "_MIN_BAG",
+       "kind": "constant",
+       "effects": [],
+       "note": "Threshold for minimum abstract tokens to consider a unit for near-miss."
+      },
+      {
+       "name": "_ANON",
+       "kind": "constant",
+       "effects": [],
+       "note": "Name used for anonymous units (inline lambdas/arrows), excluded from near-miss."
+      },
+      {
+       "name": "TYPE3_EXCLUDED_LANGUAGES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of languages excluded from Type-3 pass: {'c', 'cpp'}. Comment explains rationale."
+      },
+      {
+       "name": "_candidate_pairs",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates candidate pairs for comparison using rare tokens, with caps for large corpora."
+      },
+      {
+       "name": "near_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Advisory Type-3 near-miss cluster detection using token bag overlap and union-find."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This recomputed the exact fingerprint that unit_clusters had ALREADY computed for the same unit -- one full normalize per unit, wasted.",
+       "where": "line 482-483",
+       "verdict": "kept",
+       "why": "The code calls memo.exact_fp(u) inside the loop, and the comment indicates that exact_fp was already called during unit_clusters computation. This is a performance note about redundant work."
+      },
+      {
+       "text": "Multiset overlap = |A intersect B| / |smaller bag|. 1.0 means the smaller bag is fully contained in the larger; the SourcererCC similarity measure.",
+       "where": "lines 498-500",
+       "verdict": "kept",
+       "why": "The _overlap function computes inter = sum((a & b).values()) and denom = min(sum(a.values()), sum(b.values())), returning inter/denom, matching the claim."
+      },
+      {
+       "text": "C/C++ were excluded by ACCIDENT until _ts_name learned to read `declarator`: every C unit was named \"<anonymous>\" and the _ANON filter below dropped it. Naming them removes the accident, so the exclusion has to become deliberate or it silently becomes an admission. It is not safe yet: _GENERIC_KEYWORDS has no C type system (int/char/unsigned/sizeof/typedef/struct/volatile/template/...), so C's abstracted alphabet collapses to ~16-22 symbols and unrelated functions score 0.72-0.90 pairwise -- above the 0.8 threshold. Admitting C requires extending _GENERIC_KEYWORDS plus a green false-positive suite; until then, fabricating clusters is the worse error, so C/C++ stay out and index.py REPORTS the exclusion rather than returning a silent zero.",
+       "where": "TYPE3_EXCLUDED_LANGUAGES comment (lines 510-522)",
+       "verdict": "uncheckable",
+       "why": "The claim references _ts_name, _GENERIC_KEYWORDS, and index.py, none of which are present in this chunk. The exclusion itself is defined as {'c', 'cpp'}, which is visible, but the reasoning about false positives and index.py reporting cannot be verified here."
+      },
+      {
+       "text": "Bounded candidate generation over RARE (non-ubiquitous) tokens. Small corpora: all pairs. Large corpora: a SourcererCC-style inverted index token->units, so only units sharing a rare token are ever compared \u2014 the O(n^2) blow-up is never paid.",
+       "where": "lines 525-529",
+       "verdict": "kept",
+       "why": "The function _candidate_pairs checks if n <= 60, returns all pairs; otherwise builds an inverted index and only compares units sharing a rare token."
+      },
+      {
+       "text": "Overlap is the SourcererCC multiset measure |A\u2229B| / |min(A,B)| on the abstracted bags. Union-find groups transitively similar units; each cluster carries ``similarity`` (mean pair overlap) + ``similarity_max``. Never auto-collapsed (safety-annotated) \u2014 a heuristic, advisory only.",
+       "where": "lines 553-557",
+       "verdict": "uncheckable",
+       "why": "The claim mentions union-find, similarity, similarity_max, and safety annotations, but the code chunk only shows the function signature and initial filtering (pool, bags, afps, keep). The actual clustering logic is not present in this chunk."
+      },
+      {
+       "text": "PRECISION NOTE (honest, load-bearing for the Rust port): abstracting every identifier to ``ID`` makes low-entropy code (React/JSX callbacks, thin API wrappers) look near-identical, and transitive union-find then chains such a family into one giant blob. Three guards keep the signal actionable without changing the metric: (1) inline lambdas (``<anonymous>``) are excluded; (2) a pair must share >= ``min_shared_rare`` NON-ubiquitous tokens (incidental single-token matches don't chain); (3) a cluster stops growing past ``max_cluster`` members. All three are bounds, not correctness \u2014 a Rust port must mirror them to reproduce the output.",
+       "where": "lines 558-565",
+       "verdict": "uncheckable",
+       "why": "The claim describes guards (min_shared_rare, max_cluster) and the exclusion of anonymous lambdas. The code shows _ANON exclusion and the function parameters include min_shared_rare and max_cluster, but the actual use of these parameters is not in this chunk. The claim about Rust port is external."
+      },
+      {
+       "text": "Abstract ONCE and derive both. token_bag() and abstract_fingerprint() each call _abstract_tokens() internally, so calling both here tokenized the same source twice per unit -- the single largest piece of redundant work in the clone passes. Output is unchanged by construction: the bag is the same Counter and the fingerprint comes from the same helper.",
+       "where": "lines 571-575",
+       "verdict": "kept",
+       "why": "The code calls _abstract_tokens(u.source, spec) and then uses the tokens to create a Counter. The comment notes that token_bag() and abstract_fingerprint() would each call _abstract_tokens again, causing redundancy. This is a performance observation, and the code in this chunk does call _abstract_tokens once."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The variable 'tokens' is computed but never used in the visible part of near_clusters; it is assigned to 'bag' as a Counter, but 'tokens' itself is not used after that.",
+       "where": "near_clusters, line 575",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment in near_clusters about redundant calls to _abstract_tokens is accurate for the described scenario, but the code in this chunk only calls _abstract_tokens once per unit.",
+       "where": "near_clusters, lines 571-575",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0675742ca91a7459dfe86ae6512f8dc191b13e57851a616cec1d1f256dde57f4",
+    "objective_chars": 6679,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/clones.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/clones.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 481
+ }
+}

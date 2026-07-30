@@ -1,0 +1,101 @@
+{
+ "task_id": "research__b026__946db82",
+ "key": "research__b026__946db82-ab900fc55d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three hypotheses: 1) path resolution inconsistency between worktree.py and cache_root (symlink vs lexical), 2) budget error handling gap between _report.py and canary.py (BudgetError vs exit_code), 3) cache key design flaw in cache.py (missing language parameter contradicts docstring).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypothesis A: path resolution inconsistency could cause worktree containment failures or cache misplacement if symlinks are used.",
+     "Hypothesis B: budget failure not reflected in exit_code could mask budget issues in canary liveness.",
+     "Hypothesis C: cache key missing language parameter could cause false cache hits across languages, leading to stale analysis data."
+    ],
+    "todos": [
+     "Verify if worktree._worktree_root_for resolves symlinks or uses lexical path; compare with cache_root behavior.",
+     "Check if exit_code in canary.py accounts for budget errors or only liveness regressions.",
+     "Investigate file_key implementation to confirm language omission and assess impact.",
+     "Review _report.py reserve function to ensure all budget errors inherit from BudgetError."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "path-resolution-inconsistency",
+       "claim": "Path resolution differs between worktree and cache modules: worktree._worktree_root_for uses str(repo_path) directly without resolving symlinks, while cache.cache_root returns a Path from env var without normalization. This creates inconsistent behavior when symlinks are involved.",
+       "spans": [
+        "daedalus/kairos/worktree.py",
+        "daedalus/structcore/cache.py"
+       ],
+       "mechanism": "worktree._worktree_root_for accepts repo_path and uses str(repo_path) in digest, not resolving symlinks. cache.cache_root checks DAEDALUS_CACHE_DIR env var and returns Path(value) without resolving or normalizing. Both assume paths are canonical but neither ensures it, potentially leading to different interpretations of the same logical location.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If both modules are shown to use os.path.realpath or equivalent before using the path, or if the system guarantees no symlinks in these paths.",
+       "evidence": [
+        "daedalus/kairos/worktree.py:_worktree_root_for (observation: uses str(repo_path) directly without resolving symlinks)",
+        "daedalus/structcore/cache.py:cache_root (observation: returns Path from env var without normalization)"
+       ]
+      },
+      {
+       "id": "budget-error-unaccounted",
+       "claim": "Budget errors captured by reserve_with_fallback are not reflected in canary exit_code, which only checks liveness regressions. This means a budget failure could cause a canary lane to be unavailable without triggering a non-zero exit code, masking service degradation.",
+       "spans": [
+        "daedalus/providers/_report.py",
+        "daedalus/council/canary.py"
+       ],
+       "mechanism": "reserve_with_fallback catches BudgetError and returns a refusal envelope, but canary.exit_code only returns 1 if self.regressions('liveness') else 0. There is no connection between budget refusal and liveness regression, so a lane that is unavailable due to budget constraints would not cause exit_code to be non-zero.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If canary.exit_code or its regressions method checks budget refusal status, or if budget errors are guaranteed to also trigger a liveness regression.",
+       "evidence": [
+        "daedalus/providers/_report.py:reserve_with_fallback (catches BudgetError and returns refusal envelope)",
+        "daedalus/council/canary.py:exit_code (only checks regressions('liveness'))"
+       ]
+      },
+      {
+       "id": "cache-key-language-omission",
+       "claim": "The cache key in cache.py omits the language parameter despite the module docstring claiming it includes 'language'. This could cause cache collisions between files of different languages with the same relative path and content.",
+       "spans": [
+        "daedalus/structcore/cache.py"
+       ],
+       "mechanism": "The module docstring states: 'the key is a hash of the file's CONTENT (plus its path, language and ANALYSIS_VERSION)'. However, file_key function only includes rel, spec_name, text, ANALYSIS_VERSION, _parser_version(), tokenizer_name(). No language parameter is passed or included. If two different languages share the same relative path and content, they would produce identical cache keys.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If file_key is shown to include a language parameter in its implementation (e.g., from a later chunk), or if the analysis system guarantees unique paths across languages.",
+       "evidence": [
+        "daedalus/structcore/cache.py:file_key (observation: does not include language parameter; docstring claim is broken)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "44cfac8ffa7c5ecd50b1612a428c8dd49f705031966aa92ddd2c226a6123696d",
+    "objective_chars": 27213,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 26 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 26,
+  "inputs": 4
+ }
+}

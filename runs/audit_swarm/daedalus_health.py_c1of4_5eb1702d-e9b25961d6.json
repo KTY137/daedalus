@@ -1,0 +1,152 @@
+{
+ "task_id": "daedalus/health.py#c1of4#5eb1702d",
+ "key": "daedalus_health.py_c1of4_5eb1702d-e9b25961d6",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 6 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"NOTHING HERE WRITES. The spine ledger is opened ``read_only=True`` (its normal constructor mkdirs, sets WAL and migrates -- merely opening it writes).\" | _p_ledger: ledger = SpineLedger(path, read_only=True) | BROKEN | The docstring says \"NOTHING HERE WRITES\" but acknowledges that opening the ledger normally writes; however the code opens it read_only=True, which should avoid writes, but the claim is absolute and the exception handling uses a finally block that is cut off, so we cannot see if the ledger is closed properly, but more critically the docstring admits the normal constructor writes, yet the code uses read_only=True to avoid that. The claim \"NOTHING HERE WRITES\" is contradicted by the docstring's own admission that opening the ledger writes; the code tries to avoid it but the claim is absolute and the docstring itself says the opposite.",
+     "CLAIM | \"The vector index is inspected with sqlite ``mode=ro`` and its existence is tested BEFORE any store object is built, because EventVectorStore creates the file it is pointed at.\" | (not in this chunk) | UNCHECKABLE | This claim refers to code not present in this chunk; would need to see the vector index probe to verify.",
+     "CLAIM | \"The room is read only if room.md already exists, because ``transcript()`` creates it.\" | (not in this chunk) | UNCHECKABLE | This claim refers to code not present in this chunk; would need to see the room probe to verify.",
+     "CLAIM | ``unknown`` is the load-bearing one. A check that cannot run is the single way every collapsed surface in this repo has lied: it went quiet and the quiet read as coverage. There is deliberately NO ``skipped`` in the vocabulary -- :func:`_coerce` rejects any word outside :data:`STATES`, so a future probe cannot invent a sixth state that renders as a pass. | _coerce: elif value.state not in STATES | KEPT | The code rejects states outside STATES.",
+     "CLAIM | :class:`Fact` refuses to be constructed as INHERITED without a source and an age, so a file read cannot be smuggled in wearing a measurement's clothes. | Fact.__post_init__: if self.provenance == INHERITED: if not self.source: raise ...; if self.age_s is None: raise ... | KEPT | The post_init raises errors for missing source or age.",
+     "CLAIM | (4) it claimed WORKING with no MEASURED fact -> unknown | _coerce: elif value.state == WORKING and not any(f.provenance == MEASURED for f in value.facts): rep = unknown(...) | KEPT | The coercion enforces this rule.",
+     "CLAIM | ``unknown`` and ``present`` both land on 2 rather than 0 because both mean the same thing to an operator: this run did not establish that the thing works. Collapsing them into 0 is the whole defect. | verdict: if any(r.state in NOT_PROVEN for r in reports): return EXIT_UNPROVEN (2) | KEPT | The verdict function returns 2 for NOT_PROVEN states.",
+     "CLAIM | ``working`` is the only lowercase-quiet one, everything else is visually louder, so a screen of ``present`` cannot be skimmed as a screen of green. | MARKS: WORKING: \"  works \", PRESENT: \"PRESENT?\", etc. | KEPT | The marks are as described.",
+     "CLAIM | a probe that reads a file and says working is doing the exact thing the map did when it described a tree thirty commits away. The only way to say working is to hand back something this run measured. | _coerce (4) | KEPT | Already covered above.",
+     "D1 | BENCH_SSH_TIMEOUT_S | defined but not read in this chunk | WRONG CONCLUSION: a caller would think this timeout is used, but it is not referenced in any function in this chunk.",
+     "D2 | None | no exception swallowed without re-raise | KEPT | All exceptions are either re-raised (KeyboardInterrupt) or passed to _coerce which handles them.",
+     "D3 | None | no guard-after-side-effect pattern found | KEPT | The code checks file existence before opening (e.g., path.exists() before constructing ledger).",
+     "D4 | None | no impossible condition found | KEPT | All conditions appear reachable."
+    ],
+    "todos": [
+     "Align the docstring claim \"NOTHING HERE WRITES\" with the admitted fact that opening the spine ledger normally writes. Either change the claim to \"NOTHING HERE WRITES EXCEPT THE SPINE LEDGER OPEN\" or remove the admission from the docstring.",
+     "Add a reference to BENCH_SSH_TIMEOUT_S in a function that uses it, or remove the constant."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d38b2f3ef2bc2abbd376ac06e736928d1c2252fc6f4a4ab29df42fe56b83a9c4",
+    "objective_chars": 30518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 5 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"NOTHING HERE SPENDS MONEY\" | docstring lines 53-54 | UNCHECKABLE | would need to see all probe implementations to verify no vendor CLI or paid API is invoked",
+     "CLAIM | \"NOTHING HERE WRITES\" | docstring lines 56-63 | KEPT | spine ledger opened read_only=True, vector index inspected with sqlite mode=ro and existence tested before store object built, room read only if room.md exists",
+     "CLAIM | \"The constructor is the guard. An INHERITED fact without a source and an age ... cannot be built\" | Fact.__doc__ | KEPT | __post_init__ raises ProvenanceError if provenance==INHERITED and source is falsy or age_s is None",
+     "CLAIM | \"ASSUMED without naming where the assumption is written\" | Fact.__doc__ | KEPT | __post_init__ raises ProvenanceError if provenance==ASSUMED and not self.source",
+     "CLAIM | \"A probe that reads a file and says working is doing the exact thing the map did\" | _coerce docstring | KEPT | _coerce returns unknown if state==WORKING and no fact has provenance==MEASURED",
+     "CLAIM | \"``unknown`` and ``present`` both land on 2 rather than 0\" | verdict docstring | KEPT | verdict returns EXIT_UNPROVEN (2) if any report state in NOT_PROVEN (which includes PRESENT and UNKNOWN)",
+     "D4 | _p_ledger | branch `if not Path(path).exists()` is always True because the preceding `if not Path(path).exists()` returned absent, so the else branch is dead code | WRONG CONCLUSION: the code after the if-absent block will never execute because the function returns early"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d38b2f3ef2bc2abbd376ac06e736928d1c2252fc6f4a4ab29df42fe56b83a9c4",
+    "objective_chars": 30518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "25 claims: 20 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The spine ledger is opened ``read_only=True`` (its normal constructor mkdirs, sets WAL and migrates -- merely opening it writes)\" | docstring | BROKEN | The docstring claims opening a normal ledger writes, but the code uses SpineLedger(path, read_only=True) which is a non-standard constructor that may not write; the claim about the 'normal constructor' writing is true but irrelevant because the code never uses it. The docstring implies a risk that is avoided by the code, but the claim as stated is misleading.",
+     "CLAIM | \"The vector index is inspected with sqlite ``mode=ro`` and its existence is tested BEFORE any store object is built, because EventVectorStore creates the file it is pointed at.\" | docstring | UNCHECKABLE | No vector index code appears in this chunk. Need to see the EventVectorStore implementation to verify the existence test order.",
+     "CLAIM | \"The room is read only if room.md already exists, because ``transcript()`` creates it.\" | docstring | UNCHECKABLE | No room.md or transcript() code appears in this chunk. Need to see the transcript function.",
+     "CLAIM | \"Assumed| ``assumed`` | KEPT | The assumed() function creates a Fact with ASSUMED provenance and requires a source, matching the docstring.",
+     "CLAIM | \"ProvenanceError\" | class ProvenanceError(ValueError) | KEPT | The class is defined as a subclass of ValueError.",
+     "CLAIM | \"An INHERITED fact without a source and an age is exactly how \"the map says the tree looks like this\" became \"the tree looks like this\" -- so it cannot be built.\" | Fact.__post_init__ | KEPT | __post_init__ raises ProvenanceError if provenance is INHERITED and source is empty or age_s is None.",
+     "CLAIM | \"Assumed without naming where the assumption is written\" | Fact.__post_init__ | KEPT | __post_init__ raises ProvenanceError if provenance is ASSUMED and source is empty.",
+     "CLAIM | ``_coerce`` rejects any word outside :data:`STATES` | _coerce | KEPT | _coerce checks value.state not in STATES and returns unknown.",
+     "CLAIM | ``unknown`` is the load-bearing one. A check that cannot run is the single way every collapsed surface in this repo has lied: it went quiet and the quiet read as coverage. There is deliberately NO ``skipped`` in the vocabulary -- :func:`_coerce` rejects any word outside :data:`STATES`, so a future probe cannot invent a sixth state that renders as a pass.\" | _coerce | KEPT | _coerce returns unknown for unrecognized states, and there is no 'skipped' in STATES.",
+     "CLAIM | \"Four separate ways a probe can fail to answer\" | _coerce docstring | KEPT | The docstring lists four cases and the code handles all four.",
+     "CLAIM | \"(4) is the one that matters most. \"working\" in this vocabulary means EXERCISED JUST NOW; a probe that reads a file and says working is doing the exact thing the map did when it described a tree thirty commits away. The only way to say working is to hand back something this run measured.\" | _coerce | KEPT | _coerce checks if state is WORKING and no fact has provenance MEASURED, then returns unknown.",
+     "CLAIM | \"``unknown`` and ``present`` both land on 2 rather than 0 because both mean the same thing to an operator: this run did not establish that the thing works.\" | verdict | KEPT | verdict returns EXIT_UNPROVEN (2) if any report state is in NOT_PROVEN (PRESENT, UNKNOWN, ABSENT).",
+     "CLAIM | \"0 only when EVERY probe was exercised and held.\" | verdict | BROKEN | verdict returns EXIT_OK (0) when no report is DEGRADED or ABSENT+required and no report is in NOT_PROVEN. But a probe could be UNKNOWN and still return 0 if required is False? Actually UNKNOWN is in NOT_PROVEN, so it would return 2. However, a probe that is present (PRESENT) but not required would still cause EXIT_UNPROVEN. The docstring says 'EVERY probe was exercised and held' but PRESENT means not exercised. So if a probe returns PRESENT (which is not exercised), the verdict is not 0. That matches. However, the claim says 'exercised' which implies all probes ran; but a probe that returns PRESENT did run (it's a valid state), it's just not exercised. The docstring is ambiguous. Let's check: the code returns EXIT_OK only if no state is in NOT_PROVEN. PRESENT is in NOT_PROVEN, so it would not return 0. So the claim is kept? Actually the claim says 'EVERY probe was exercised and held' \u2013 but PRESENT means the probe ran but didn't exercise the subsystem. The docstring might be interpreted as 'every probe returned working' but that's not what it says. I'll keep it as kept because the code does return 0 only when no probe is in NOT_PROVEN, which includes PRESENT. But the phrase 'exercised' might be misleading. I'll mark it as KEPT.",
+     "CLAIM | \"How each state prints. Deliberately NOT symmetric-looking: `working` is the only lowercase-quiet one, everything else is visually louder, so a screen of `present` cannot be skimmed as a screen of green.\" | MARKS | KEPT | MARKS dict has different strings for each state, working is '  works ' while present is 'PRESENT?' etc.",
+     "CLAIM | \"A probe skipped for cost reports `present`, never `working`\" | Ctx.deep docstring | KEPT | The docstring says a probe skipped for cost reports present. This is a promise about future probes, not checkable in this unit. But the code defines Ctx.deep and the docstring is about the design. Since no probe code is shown that skips based on deep, it's uncheckable. However, the claim is about the design intent, not an implementation detail. I'll mark it as UNCHECKABLE because we need to see the probe implementations.",
+     "CLAIM | \"the glance stays a glance\" | Ctx.deep docstring | UNCHECKABLE | Need to see how deep is used in probes.",
+     "CLAIM | \"Not a second tools/system_check.py. That harness clones the tree and RUNS the product end to end; it answers \"does the pipeline execute\". This reads the LIVE artefacts in the tree you are standing in and exercises only cheap read paths; it answers \"what is the state of this machine right now, and which parts of that answer did anything actually check\". They overlap nowhere: system_check never looks at your real outbox, and this never runs an attempt.\" | docstring | UNCHECKABLE | Need to see system_check.py to verify the distinction.",
+     "CLAIM | \"Nothing here spends money. No probe invokes a vendor CLI or a paid API. The only network calls are ``/api/tags`` and one embedding of a fixed literal string against Ollama hosts -- free, and carrying no repository content.\" | docstring | UNCHECKABLE | Need to see all probe implementations to verify no other network calls.",
+     "CLAIM | \"Nothing here writes. The spine ledger is opened ``read_only=True`` (its normal constructor mkdirs, sets WAL and migrates -- merely opening it writes).\" | _p_ledger | KEPT | The code opens SpineLedger with read_only=True, avoiding writes. The claim about the normal constructor is a warning but the code uses the safe path.",
+     "CLAIM | \"The vector index is inspected with sqlite ``mode=ro`` and its existence is tested BEFORE any store object is built, because EventVectorStore creates the file it is pointed at.\" | docstring | UNCHECKABLE | No vector index code in this chunk.",
+     "CLAIM | \"The room is read only if room.md already exists, because ``transcript()`` creates it.\" | docstring | UNCHECKABLE | No room.md code in this chunk.",
+     "CLAIM | \"FIVE STATES. Only ONE of them is good news.\" | docstring | KEPT | The states are defined and only WORKING is positive.",
+     "CLAIM | \"``unknown`` is the load-bearing one.\" | docstring | KEPT | _coerce treats unknown as a failure state.",
+     "CLAIM | \"There is deliberately NO ``skipped`` in the vocabulary\" | STATES | KEPT | STATES does not include 'skipped'.",
+     "CLAIM | \"Assumed without naming where the assumption is written\" | Fact.__post_init__ | KEPT | __post_init__ raises if ASSUMED and no source.",
+     "D1 | Ctx.embed_timeout_s | parameter defined but not read in this chunk | WRONG CONCLUSION: a caller might set embed_timeout_s expecting it to be used, but it is never read in the code shown.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Clarify docstring: the spine ledger claim about normal constructor writing is misleading because the code uses read_only=True.",
+     "Add usage of embed_timeout_s in the embedding probe (not shown in this chunk) or remove the parameter."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d38b2f3ef2bc2abbd376ac06e736928d1c2252fc6f4a4ab29df42fe56b83a9c4",
+    "objective_chars": 30518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/health.py",
+  "chunk": 1,
+  "chunks": 4,
+  "bytes": 28010
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "task_id": "1-what-iron-means__contradiction__a47d84ee736f",
+ "key": "1-what-iron-means__contradiction__a47d84ee736f-d213eda5de",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 1 makes unfalsifiable claims about 'negative evidence' retention and contains a redundant statement about security boundaries, but no internal contradictions are found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "1.5 | medium | 'Negative evidence must be retained' is unfalsifiable because the document provides no definition of 'negative evidence' or retention criteria | Ask: what is the operational definition of negative evidence and how would an auditor verify its retention?",
+     "1.6 | low | 'No model prompt or local hook is a security boundary' is redundant with the later list of uncovered scenarios | Remove the redundant sentence or merge it with the list"
+    ],
+    "todos": [
+     "Define 'negative evidence' and specify retention criteria (e.g., format, duration, access) to make claim 1.5 falsifiable.",
+     "Remove or merge the redundant claim 1.6 into the list of uncovered scenarios in claim 1.7."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "1.1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "sound",
+       "why": "This is a high-level statement of intent. No internal contradiction found."
+      },
+      {
+       "id": "1.2",
+       "claim": "Never violate hard invariants. Deviate from research priors only inside an isolated, measured experiment.",
+       "verdict": "sound",
+       "why": "This is a rule stated as a quote. No internal contradiction found."
+      },
+      {
+       "id": "1.3",
+       "claim": "Hard invariants require an approved amendment before they change.",
+       "verdict": "sound",
+       "why": "Clear rule. No internal contradiction found."
+      },
+      {
+       "id": "1.4",
+       "claim": "Research priors are deliberately falsifiable. A prior may be challenged without an amendment when the challenge is read-only or an isolated experiment with a frozen specification, bounded capabilities, explicit budget, independent evaluation, and no production promotion.",
+       "verdict": "sound",
+       "why": "Defines conditions for challenging priors. No internal contradiction found."
+      },
+      {
+       "id": "1.5",
+       "claim": "Negative evidence must be retained.",
+       "verdict": "unfalsifiable",
+       "why": "The document does not define 'negative evidence' or specify retention criteria, making the claim impossible to verify."
+      },
+      {
+       "id": "1.6",
+       "claim": "No model prompt or local hook is a security boundary.",
+       "verdict": "weak",
+       "why": "This claim is redundant with the following list (claim 1.7) which enumerates scenarios not covered. It could be removed without loss."
+      },
+      {
+       "id": "1.7",
+       "claim": "Until Gate 0 closes, the guards in this repository prevent ordinary accidental drift and make deliberate changes explicit; they do not claim to cover every external client, --no-verify, direct filesystem writer, or contained candidate repository.",
+       "verdict": "sound",
+       "why": "Clear statement of scope and limitations. No internal contradiction found."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "475f39cd3a5e767afea1ce2176ca9f32dd62bcfe09798e9d672bd0e67a1e1176",
+    "objective_chars": 1848,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "1-what-iron-means",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

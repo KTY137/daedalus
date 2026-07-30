@@ -1,0 +1,125 @@
+{
+ "task_id": "plan__b016__946db82",
+ "key": "plan__b016__946db82-301150e1a9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings survive review; high-severity item requires inspecting slice.py for missing 'included' list; medium items need bootstrap.py and containment.py checks; low item is theoretical. Plan orders by severity then cost.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The 'included' list in slice.py may be missing, causing incorrect slice output when include_focus=False.",
+     "Catching BaseException in bootstrap.py may suppress SystemExit/KeyboardInterrupt if not re-raised.",
+     "LowIntegrityLog.__init__ may not verify integrity label, leaving a gap in file-level attestation.",
+     "The fallback in _pick is theoretical and low risk."
+    ],
+    "todos": [
+     "Open daedalus/structcore/slice.py and search for 'included' to verify list is updated.",
+     "Examine handler body in daedalus/spine/bootstrap.py lines 172-173 for exception handling.",
+     "Inspect LowIntegrityLog.__init__ in daedalus/spine/containment.py for integrity read-back.",
+     "Verify _spectrum never returns empty list for graphs with n>=3 and edges>0 (low priority)."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify slice.py updates 'included' list when include_focus=False",
+       "gate": "1",
+       "why_now": "Without this, the slice function may produce incorrect output (missing files in 'included' list), breaking the semantic slice contract and downstream tasks.",
+       "steps": [
+        {
+         "do": "Open daedalus/structcore/slice.py and search for 'included' variable. Check if it is updated when include_focus is False. If missing, add code to append focus_inc to included list when include_focus=False.",
+         "file": "daedalus/structcore/slice.py",
+         "verified_by": "Write a test that calls semantic_slice with include_focus=False and asserts 'included' list contains the expected files (including focus_inc). Run `pytest tests/test_structcore_slice.py -x -v`."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The 'included' list is expected to be built in the slice function; if it already exists, this step becomes a no-op."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect bootstrap.py except BaseException handler body",
+       "gate": "1",
+       "why_now": "Catching BaseException without re-raising can suppress SystemExit/KeyboardInterrupt, causing shutdown delays or improper cleanup.",
+       "steps": [
+        {
+         "do": "Open daedalus/spine/bootstrap.py and examine lines 172-173 (or the handler body after the except clause). If it does not re-raise SystemExit/KeyboardInterrupt, add a check to re-raise those exceptions.",
+         "file": "daedalus/spine/bootstrap.py",
+         "verified_by": "Write a test that mocks the refresh_sources function to raise KeyboardInterrupt and asserts it is not caught silently. Run `pytest tests/test_bootstrap_receipt.py -x -v`."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The handler body is in the same file; if it already re-raises, this step is a no-op."
+      },
+      {
+       "rank": 3,
+       "title": "Verify LowIntegrityLog.__init__ reads back integrity label",
+       "gate": "1",
+       "why_now": "If the read-back is missing, the integrity label is not verified at file level, weakening the attestation chain.",
+       "steps": [
+        {
+         "do": "Open daedalus/spine/containment.py and inspect LowIntegrityLog.__init__ to see if it reads back the integrity label from the file and compares it to LOW_INTEGRITY_SID. If missing, add the read-back logic.",
+         "file": "daedalus/spine/containment.py",
+         "verified_by": "Write a test that creates a LowIntegrityLog, writes a label, and verifies that reading back matches. Run `pytest tests/test_containment.py -x -v`."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The LowIntegrityLog class is defined in containment.py; if it already verifies, this step is a no-op."
+      },
+      {
+       "rank": 4,
+       "title": "Verify _spectrum never returns empty list for valid graphs",
+       "gate": "1",
+       "why_now": "Low severity, but confirming eliminates a theoretical fallback path and improves code clarity.",
+       "steps": [
+        {
+         "do": "Open daedalus/mapping/spectral.py and examine _spectrum function. Add a guard or comment that it never returns empty list for n>=3 and edges>0. Optionally add a unit test.",
+         "file": "daedalus/mapping/spectral.py",
+         "verified_by": "Write a test that calls _spectrum on a 3-node graph with 1 edge and asserts non-empty result. Run `pytest tests/test_mapping_spectral.py -x -v`."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The _spectrum function is in daedalus/mapping/spectral.py; if it already has a guard, this step becomes a documentation update."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/structcore/slice.py",
+      "daedalus/spine/bootstrap.py",
+      "daedalus/spine/containment.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5522edf4af25f1ea4712a4ba568575656819c5fd2cf8b1c2243f5f06b59cfd8c",
+    "objective_chars": 18431,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 16 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 16,
+  "inputs": 4
+ }
+}

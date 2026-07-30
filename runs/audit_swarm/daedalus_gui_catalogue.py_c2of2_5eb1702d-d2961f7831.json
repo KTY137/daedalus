@@ -1,0 +1,181 @@
+{
+ "task_id": "daedalus/gui_catalogue.py#c2of2#5eb1702d",
+ "key": "daedalus_gui_catalogue.py_c2of2_5eb1702d-d2961f7831",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 15 kept, 1 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A duplicate name is a rejection too\" | load_catalogue | KEPT | Code checks seen dict and appends to rejected on duplicate.",
+     "CLAIM | \"two entries under one name means a caller resolving that name gets whichever loaded first, which is a coin flip wearing a lookup's clothes\" | load_catalogue | KEPT | First occurrence is kept in entries; duplicate is rejected, so later entries with same name are not added.",
+     "CLAIM | \"A file that will not parse, and an entry that will not validate, become RejectedEntry rows\" | load_catalogue | KEPT | Exceptions from json.loads and parse_entry are caught and appended to rejected.",
+     "CLAIM | \"They are NEVER returned as entries and are never searchable\" | load_catalogue | KEPT | Only entries list is returned; rejected is separate.",
+     "CLAIM | \"A collision would silently merge two entries into one document\" | _lexical | KEPT | While loop appends \"/~\" to key until unique, avoiding collision.",
+     "CLAIM | \"Nothing here re-implements or re-tunes the ranking\" | _lexical | KEPT | Calls lexical_seed_scores directly.",
+     "CLAIM | \"Optional semantic half, on the repo's one embedding index\" | _latent | KEPT | Uses EventVectorStore from .memory.",
+     "CLAIM | \"a corrupt, absent or drifted index must not take down the search the caller asked for, but it must be NAMED in the result\" | _latent | KEPT | Catches Exception and returns LatentSeedResult with \"error\" status; also checks path existence and returns \"not_configured\".",
+     "CLAIM | \"Imported lazily: the lexical path must stay usable on a box with no vector database\" | _latent | KEPT | Imports inside function.",
+     "CLAIM | \"THE ONLY path from a catalogue to a prompt, so the notice cannot be skipped by a caller who forgot\" | render_for_prompt | KEPT | Function always adds PROMPT_DATA_NOTICE and instruction text.",
+     "CLAIM | \"1. session-authored instruction text first (the header and the notice), so the untrusted bytes never occupy an instruction position\" | render_for_prompt | KEPT | header and PROMPT_DATA_NOTICE added before entries.",
+     "CLAIM | \"2. PROMPT_DATA_NOTICE -- imported from council/vendors.py, the repo's one such notice -- next\" | render_for_prompt | KEPT | PROMPT_DATA_NOTICE is added after header.",
+     "CLAIM | \"3. only then untrusted bytes, each inside a fence labelled with the entry's origin and licence\" | render_for_prompt | KEPT | Fence lines are added per entry.",
+     "CLAIM | \"As council/vendors.py says in place: the mitigation is not a better delimiter. It is that an injection attempt becomes a FINDING, and that nothing reachable from here can act.\" | render_for_prompt | KEPT | Docstring quotes the rationale.",
+     "CLAIM | \"Quarantined entries are unreachable here by construction: this function only ever sees catalogue.entries, and load_catalogue never puts an entry that failed validation into that tuple.\" | search | KEPT | search uses catalogue.entries directly.",
+     "D1 | embedding_host | search | Parameter embedding_host is defined in signature but never read in the function body (only used in call to _latent as host parameter, but embedding_host is passed as keyword argument host to _latent, not read directly). Actually it is read: `host=embedding_host or DEFAULT_HOST`. So it is read. No D1 hits.",
+     "D2 | no except swallows and continues contrary to prose | None | KEPT | All except blocks either return or continue appropriately.",
+     "D3 | no check runs after the side effect it guards | None | KEPT | No such pattern observed.",
+     "D4 | no branch whose condition cannot be true | None | KEPT | Conditions appear valid."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e13529835fd0ddc4276f578fc48bf7a4adf71735ff7a34699861a07bb51bafff",
+    "objective_chars": 18560,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 14 kept, 2 broken, 2 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A duplicate name is a rejection too: two entries under one name means a caller resolving that name gets whichever loaded first, which is a coin flip wearing a lookup's clothes.\" | load_catalogue | BROKEN | The code rejects duplicates (adds to rejected) and does not add the second entry, so no coin flip.",
+     "CLAIM | \"A file that will not parse, and an entry that will not validate, become RejectedEntry rows. They are NEVER returned as entries and are never searchable.\" | load_catalogue | KEPT | File parse failure and validation errors are caught and added to rejected list; entries list only contains valid entries.",
+     "CLAIM | \"A collision would silently merge two entries into one document.\" | _lexical | BROKEN | The while loop appends \"/~\" to avoid collision, so no silent merge.",
+     "CLAIM | \"Quarantined entries are unreachable here by construction: this function only ever sees catalogue.entries, and load_catalogue never puts an entry that failed validation into that tuple.\" | search | KEPT | search operates on catalogue.entries, which only contains validated entries.",
+     "CLAIM | \"Lexical BM25 always; latent embeddings only when use_latent is True, and fused by context_plan.fuse_seed_scores. No ranking arithmetic lives in this module.\" | search | KEPT | Lexical is always called; latent only if use_latent; fuse_seed_scores is imported.",
+     "CLAIM | \"THE ONLY path from a catalogue to a prompt, so the notice cannot be skipped by a caller who forgot.\" | render_for_prompt | KEPT | Function is defined as the only path; no alternative provided.",
+     "CLAIM | \"session-authored instruction text first (the header and the notice), so the untrusted bytes never occupy an instruction position\" | render_for_prompt | KEPT | header and PROMPT_DATA_NOTICE are added before entry data.",
+     "CLAIM | \"PROMPT_DATA_NOTICE -- imported from council/vendors.py, the repo's one such notice\" | render_for_prompt | UNCHECKABLE | Cannot verify import source without full code.",
+     "CLAIM | \"As council/vendors.py says in place: the mitigation is not a better delimiter. It is that an injection attempt becomes a FINDING, and that nothing reachable from here can act.\" | render_for_prompt | UNCHECKABLE | Cannot verify external module behavior.",
+     "CLAIM | \"A corrupt, absent or drifted index must not take down the search the caller asked for, but it must be NAMED in the result rather than read as 'found nothing'.\" | _latent | KEPT | Exceptions are caught and return LatentSeedResult with error status.",
+     "CLAIM | \"Imported lazily: the lexical path must stay usable on a box with no vector database and no embedder, and importing the store eagerly would make an optional half a hard requirement of the module.\" | _latent | KEPT | Imports are inside the function.",
+     "CLAIM | \"Clamped, not computed: the store did the scoring. Clamping only keeps a float error at the boundary from leaving [0, 1].\" | _latent | KEPT | score = max(0.0, min(1.0, float(raw_score)))",
+     "CLAIM | \"Same discipline as the latent seed mapper: a hit counts only when it names a catalogue entry EXPLICITLY. No fuzzy mapping back.\" | _latent | KEPT | Checks name in by_name dictionary.",
+     "CLAIM | \"Optional semantic half, on the repo's one embedding index.\" | _latent | KEPT | Function is separate and optional.",
+     "D1 | embedding_host | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller believes they can set embedding host, but it's passed to _latent correctly.",
+     "D2 | none | no such pattern found",
+     "D3 | none | no such pattern found",
+     "D4 | none | no such pattern found"
+    ],
+    "todos": [
+     "update docstring to reflect that duplicates are rejected, not silently overwritten",
+     "remove the while loop that adds '/~' to keys, or update comment to match behavior"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e13529835fd0ddc4276f578fc48bf7a4adf71735ff7a34699861a07bb51bafff",
+    "objective_chars": 18560,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 8 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A duplicate name is a rejection too: two entries under one name means a caller resolving that name gets whichever loaded first, which is a coin flip wearing a lookup's clothes.\" | load_catalogue | BROKEN | duplicate detection uses seen dict and rejects second, but first is still added, so first is returned; not a coin flip.",
+     "CLAIM | \"They are NEVER returned as entries and are never searchable.\" | load_catalogue | KEPT | rejected entries are stored separately and not added to entries list.",
+     "CLAIM | \"Quarantined entries are unreachable here by construction: this function only ever sees catalogue.entries, and load_catalogue never puts an entry that failed validation into that tuple.\" | search | KEPT | search uses catalogue.entries which only contains valid entries.",
+     "CLAIM | \"THE ONLY path from a catalogue to a prompt, so the notice cannot be skipped by a caller who forgot.\" | render_for_prompt | KEPT | function is the only path; notice is always added.",
+     "CLAIM | \"1. session-authored instruction text first (the header and the notice), so the untrusted bytes never occupy an instruction position;\" | render_for_prompt | BROKEN | header and notice are added before entries, but entries contain untrusted bytes; they are not in instruction position, but claim says \"instruction text first\" which is true, but entries still follow; no contradiction.",
+     "CLAIM | \"2. PROMPT_DATA_NOTICE -- imported from council/vendors.py, the repo's one such notice -- next;\" | render_for_prompt | KEPT | PROMPT_DATA_NOTICE is added after header.",
+     "CLAIM | \"3. only then untrusted bytes, each inside a fence labelled with the entry's origin and licence.\" | render_for_prompt | KEPT | entries are fenced with origin and licence.",
+     "CLAIM | \"As council/vendors.py says in place: the mitigation is not a better delimiter. It is that an injection attempt becomes a FINDING, and that nothing reachable from here can act.\" | render_for_prompt | UNCHECKABLE | requires council/vendors.py to verify the quoted statement.",
+     "CLAIM | \"Lexical BM25 always; latent embeddings only when use_latent is True, and fused by context_plan.fuse_seed_scores. No ranking arithmetic lives in this module.\" | search | KEPT | lexical always runs; latent conditional; fuse_seed_scores called.",
+     "CLAIM | \"A collision would silently merge two entries into one document.\" | _lexical | BROKEN | comment says collision merges, but code avoids collision by appending '/~' and retrying; no merge occurs.",
+     "CLAIM | \"nothing here re-implements or re-tunes the ranking.\" | _search_key | KEPT | only builds key, ranking is external.",
+     "CLAIM | \"Mirrors context_plan.latent_memory_seed_scores in shape and in failure behaviour: a corrupt, absent or drifted index must not take down the search the caller asked for, but it must be NAMED in the result rather than read as 'found nothing'.\" | _latent | UNCHECKABLE | requires context_plan.latent_memory_seed_scores to compare shape and failure behavior.",
+     "CLAIM | \"same discipline as the latent seed mapper: a hit counts only when it names a catalogue entry EXPLICITLY. No fuzzy mapping back.\" | _latent | KEPT | code checks name in by_name.",
+     "CLAIM | \"Clamped, not computed: the store did the scoring. Clamping only keeps a float error at the boundary from leaving [0, 1].\" | _latent | KEPT | score is clamped with max/min.",
+     "D1 | load_catalogue parameter `path` | parameter not read? Actually read. | WRONG CONCLUSION: parameter is read in line `root = Path(path) if path is not None else ...`; read.",
+     "D1 | search parameter `embedding_host` | parameter read in call to _latent as `host=embedding_host or DEFAULT_HOST`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `embedding_model` | parameter read in call to _latent as `model=embedding_model`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `embedding_backend` | parameter read in call to _latent as `backend=embedding_backend`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `vector_db` | parameter read in call to _latent as `db_path=vector_db`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `backend` | parameter read in line `store = EventVectorStore(resolved_db, backend=backend)`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `host` | parameter read in line `store.search_report(..., host=host, ...)`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `model` | parameter read in line `store.search_report(..., model=resolved_model, ...)`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `db_path` | parameter read in line `resolved_db = VECTOR_DB_PATH if db_path is None else db_path`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `limit` | parameter read in line `limit=max(1, limit)`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `catalogue` | parameter read in line `by_name = {entry.name: entry for entry in catalogue.entries}`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `objective` | parameter read in line `store.search_report(objective, ...)`. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _latent parameter `limit` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | load_catalogue parameter `path` | parameter not read? Actually read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `limit` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `kinds` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `first_party_only` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | search parameter `use_latent` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | render_for_prompt parameter `entries` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | render_for_prompt parameter `header` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _lexical parameter `catalogue` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _lexical parameter `objective` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _lexical parameter `limit` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D1 | _search_key parameter `entry` | parameter read. | WRONG CONCLUSION: parameter is read.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Fix duplicate name claim: change comment to reflect that first entry is kept, second is rejected.",
+     "Fix collision claim: update comment to say collision is avoided by appending '/~' and retrying, not silently merging."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e13529835fd0ddc4276f578fc48bf7a4adf71735ff7a34699861a07bb51bafff",
+    "objective_chars": 18560,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/gui_catalogue.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 16045
+ }
+}

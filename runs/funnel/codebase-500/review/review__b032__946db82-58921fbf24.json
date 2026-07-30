@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b032__946db82",
+ "key": "review__b032__946db82-58921fbf24",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All nine hypotheses refuted: each either contradicted by cited source, lacks evidence, or has plausible alternative explanation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "missing-cross-module-error-handling",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only docstring comments and no actual error handling code; the hypothesis infers a missing mapping from comments, but the actual error handling may exist elsewhere or the comment may be aspirational.",
+       "survives_because": "No evidence of actual error misclassification in the cited source; the hypothesis is based on speculation from comments.",
+       "narrowed_claim": "",
+       "settling_check": "grep for 'embedder_unavailable' and 'EXIT_SOURCE_UNAVAILABLE' in the codebase to see if they are connected.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "broken-provenance-chain",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows chain_from is complete and uses artifact_node_id and artifact_family which are likely defined elsewhere in the module; the hypothesis incorrectly claims they are undefined.",
+       "survives_because": "The cited code shows chain_from is syntactically complete and uses symbols that are presumably defined in the same module (not shown in excerpt).",
+       "narrowed_claim": "",
+       "settling_check": "Check the full artifacts.py file for definitions of artifact_node_id and artifact_family.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "import-check-false-negative",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims the check may miss dynamic imports, but the cited source (checks.py lines 282-290) is not provided; without evidence that the check actually fails on dynamic imports, the claim is speculative.",
+       "survives_because": "No evidence of actual false negatives in the cited source.",
+       "narrowed_claim": "",
+       "settling_check": "Run checks.py on a test file with dynamic imports and verify it reports them.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "adapter-signature-uniformity",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only docstring claims and no adapter implementations; the hypothesis assumes a violation without evidence.",
+       "survives_because": "No evidence of actual signature mismatch in the cited source.",
+       "narrowed_claim": "",
+       "settling_check": "List all adapter classes and verify their ask() signatures match the docstring contract.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "shallowest-vs-scope-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis relies on _symbol_defs and spec_for which are not defined in the cited source; without seeing those functions, the claim of mismatch is unsubstantiated.",
+       "survives_because": "The cited source does not include _symbol_defs or spec_for, so the hypothesis is based on incomplete information.",
+       "narrowed_claim": "",
+       "settling_check": "Examine the full ceiling.py to see how _symbol_defs determines scope and compare with _match_file logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "job-limit-verification-gap",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows _create_job's docstring claims read-back comparison, but the code excerpt does not include the comparison logic; the hypothesis assumes it is missing, but it may be present in a later part of the function.",
+       "survives_because": "The excerpt is incomplete; the comparison logic may exist in lines not shown.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full _create_job function in containment.py to see if the read-back comparison is implemented.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "docrefs-import-contradiction",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows docrefs.py uses ast and does not show any call to resolve_python_imports; the hypothesis speculates without evidence.",
+       "survives_because": "No evidence in the cited source that docrefs.py calls any function from parse.py.",
+       "narrowed_claim": "",
+       "settling_check": "Search docrefs.py for imports from parse.py or calls to resolve_python_imports.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unused-filter-symbols",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only a comment claiming filters are never called, but the code excerpt does not include the generate() function where they might be used; the claim may be outdated or misinterpreted.",
+       "survives_because": "The excerpt is incomplete; the filters may be called in parts of the file not shown.",
+       "narrowed_claim": "",
+       "settling_check": "Search the full mutate.py for calls to SKIP_PATH_PARTS, SKIP_FUNCTIONS, etc.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "hub-cap-matching",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source shows only the docstring of typegraph.py and does not include the hub cap suppression logic or structural matching code; the hypothesis infers a causal link without evidence.",
+       "survives_because": "No evidence in the cited source that hub cap suppression affects structural matching or archive diversity.",
+       "narrowed_claim": "",
+       "settling_check": "Examine the full typegraph.py to see which relations are capped and whether they are used in structural matching.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "526b1ce948cca6cd459e51a79876bc5b0439ab46957e52ed162eb44f1e1c532a",
+    "objective_chars": 53214,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 32 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 32,
+  "inputs": 9
+ }
+}

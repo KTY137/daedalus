@@ -1,0 +1,105 @@
+{
+ "task_id": "research__b095__946db82",
+ "key": "research__b095__946db82-720d4e8c6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals that the advisory regression gate in harness.py relies on a per-task recall comparison that assumes consistent task labeling across runs, but the spectral.py module's graph construction and the docrefs.py resolution logic both process the same package structure without guaranteeing label stability, creating a latent inconsistency in how 'primary' tasks are identified and measured.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The gate's assumption that task labels (e.g., 'primary') remain stable across runs may be violated if the package structure changes or if the resolution logic in docrefs.py interprets labels differently.",
+     "The spectral measurements and the gate both depend on the same underlying package layout, but there is no cross-check that the layout used for spectral analysis matches the one used for gate baselines.",
+     "If the spectral module's graph construction introduces undirected edges that lose direction information, it may affect the interpretation of dependencies that could influence task labeling, creating a hidden coupling."
+    ],
+    "todos": [
+     "Verify that the task tier classification (primary/quarantine) is consistent across the gate, spectral analysis, and docrefs resolution.",
+     "Add a cross-module test that confirms the package layout used by spectral.py matches the one used by the gate's baseline.json.",
+     "Consider adding a consistency check in run_gate that validates the current task labels against the baseline labels before comparing recall."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "label-stability-gap",
+       "claim": "The gate's regression detection assumes that task tier labels (e.g., primary) are stable across runs, but the spectral module and docrefs module both process the same package structure without guaranteeing label stability, creating a latent inconsistency in how 'primary' tasks are identified.",
+       "spans": [
+        "daedalus/eval/harness.py",
+        "daedalus/mapping/spectral.py",
+        "daedalus/spine/docrefs.py"
+       ],
+       "mechanism": "The gate in harness.py compares per-task recall against a baseline, relying on tasks being consistently labeled as 'primary' or 'quarantine'. However, spectral.py constructs a graph from the package layout (via reach.analyse) and docrefs.py resolves symbol references to module paths, both of which depend on the same package structure. If the package structure changes (e.g., a file is moved or renamed), the label assignment could differ between runs, causing the gate to compare tasks that are no longer equivalent. The spectral module's undirected graph projection and docrefs' longest-prefix resolution both introduce implicit assumptions about module identity that may not be coordinated.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If a test demonstrates that task labels are derived from a stable, versioned source (e.g., a fixed configuration file) that is independent of the package layout, and that both spectral.py and docrefs.py use the same source, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/harness.py:run_gate: uses _is_primary_tier and _is_quarantine_tier to classify tasks",
+        "daedalus/mapping/spectral.py:graph_from_reach: adapts reach.analyse output, which depends on package layout",
+        "daedalus/spine/docrefs.py: module resolution uses longest prefix match on module paths",
+        "daedalus/spine/docrefs.py: anchored flag distinguishes real module paths from suffix-resolved ones"
+       ]
+      },
+      {
+       "id": "advisory-gate-autonomy-risk",
+       "claim": "The gate is explicitly advisory and should never block autonomous actions, but the spectral module's measurements could be used by a future autonomous system to make decisions, creating a risk that the gate's advisory nature is bypassed.",
+       "spans": [
+        "daedalus/eval/harness.py",
+        "daedalus/mapping/spectral.py"
+       ],
+       "mechanism": "The gate in harness.py returns 'advisory': True and is designed for local developer use only. However, spectral.py produces 'measurements about a partition we already declared' and explicitly states it does not decide anything. If an autonomous system consumes spectral measurements without also respecting the gate's advisory flag, it could make decisions based on measurements that were not intended for autonomous use. The lack of a coordination mechanism between the two modules (e.g., a shared flag or policy) means that future code could inadvertently wire spectral outputs into a decision pipeline that should have been gated.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the codebase includes a clear architectural boundary (e.g., a dedicated policy module) that ensures all autonomous decisions are filtered through the gate or an equivalent mechanism, and that spectral outputs are never used in decision-making, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/harness.py:run_gate: returns 'advisory': True and docstring states 'must never be wired to block an autonomous action'",
+        "daedalus/mapping/spectral.py: docstring states 'Nothing here returns an exit code, blocks a lane, moves a picker band, or decides anything.'"
+       ]
+      },
+      {
+       "id": "undirected-edge-loses-direction",
+       "claim": "The spectral module intentionally projects directed import edges to undirected ones, but the gate's regression detection may implicitly rely on direction (e.g., which module imports which), creating a mismatch between the graph used for measurement and the graph implied by the gate's task dependencies.",
+       "spans": [
+        "daedalus/mapping/spectral.py",
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "spectral.py constructs an undirected graph from imports (via graph_from_reach), losing direction information. The gate in harness.py tracks per-task recall, which may depend on the direction of imports (e.g., a task's recall could be affected by which modules it imports). If the spectral measurements are used to infer task relationships without accounting for direction, the conclusions may not align with the actual dependency structure that the gate relies on. The gate itself does not use spectral outputs directly, but if future code connects them, the undirected projection could cause incorrect assumptions.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If it can be demonstrated that the gate's task recall is independent of import direction (e.g., all tasks are self-contained and do not depend on import relationships), or that spectral measurements are never used in conjunction with the gate, then this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/spectral.py: docstring states 'Undirected on purpose' and 'A imports B is projected to an undirected edge'",
+        "daedalus/eval/harness.py:run_gate: compares per-task recall, which may be influenced by import dependencies"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a62ce8d69fc46d77a5ea2e8fef1b87cb5c90f698ff8511878209660afda792e1",
+    "objective_chars": 22624,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 95 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 95,
+  "inputs": 4
+ }
+}

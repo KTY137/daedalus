@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c7of9__946db82",
+ "key": "scan__daedalus_mapping_inventory.py__c7of9__946db82-58425b1c6f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 7 of 9 of inventory.py: defines document assembly, digest, I/O functions (inventory_bytes, load, write_inventory, refresh) and doc building logic with claims about unreached counts and stale features.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 769-780 | medium | The doc building includes complex logic for 'unreached' count that depends on islands, shims, unknown sets; any mistake in set operations could produce misleading counts. | Review the set logic and verify against test cases.",
+     "line 801-803 | low | refresh function reads old annotations before overwriting; if the old file has __error__, it is discarded silently, potentially losing data. | Confirm that error handling is intentional and logged."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "7 of 9",
+     "purpose": "Builds the inventory document dictionary, defines I/O helpers (inventory_bytes, load, write_inventory) and the refresh function that regenerates inventory in place.",
+     "symbols": [
+      {
+       "name": "inventory_bytes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Serializes doc to JSON string with indent and newline."
+      },
+      {
+       "name": "load",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads a JSON file from path; returns None if missing, dict with __error__ on parse failure."
+      },
+      {
+       "name": "write_inventory",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes inventory JSON to file, creating parent directories as needed."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_read",
+        "filesystem_write"
+       ],
+       "note": "Regenerates inventory in place, carrying forward human annotations from old document."
+      }
+     ],
+     "claims": [
+      {
+       "text": "\"The count that cannot be lowered by deleting a test.\" (comment about unreached count)",
+       "where": "line 721-722",
+       "verdict": "uncheckable",
+       "why": "The comment describes the intent of the 'unreached' count. The code computes it as len(set(islands) | set(shims) | set(unknown)). Whether this truly 'cannot be lowered by deleting a test' depends on definitions of those sets and external logic not fully present in this chunk."
+      },
+      {
+       "text": "\"The prose summaries the previous schema carried. Derived from the SAME pass as the structured features, so the discrepancy the picker reports when the two disagree cannot occur by construction.\"",
+       "where": "lines 745-747",
+       "verdict": "uncheckable",
+       "why": "The claim references a 'picker' and a previous schema not present in this chunk. The code includes islands, shims, unknown, unreached, stale lists but does not show the derivation of prose summaries or the picker logic."
+      },
+      {
+       "text": "\"unreached is here because the island COUNT is gameable and was demonstrated to be: 'island' means unreachable but imported by a test, so deleting the test moves the module to unknown and the island count goes DOWN while the dead code stays. The union is the number that cannot be improved by deleting a test, and the set diff against the previous run is the honest signal -- not the count.\"",
+       "where": "lines 748-755",
+       "verdict": "uncheckable",
+       "why": "The explanation refers to behaviour of 'island' and 'unknown' definitions and a 'set diff against the previous run' which are not present in this chunk. The code computes unreached as the union of islands, shims, unknown, but the claim about 'the set diff' and 'honest signal' is not verifiable here."
+      },
+      {
+       "text": "\"The old document is read for its annotations BEFORE it is overwritten, and a first run over a schema-1 file harvests them out of the hand-written entries. Refreshing is never a way to quietly drop somebody's stated reason.\"",
+       "where": "lines 803-806",
+       "verdict": "uncheckable",
+       "why": "The claim depends on the harvest() function and its handling of schema-1 files, which are not in this chunk. The code shows old = load(target) and then harvest(old, ...), but the details of harvest are not provided."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The code builds a large dictionary 'doc' with many computed fields including counts, lists, and a digest key.",
+       "where": "lines 721-767",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "inventory_bytes function returns a JSON string with trailing newline.",
+       "where": "line 771",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "load function returns None if file does not exist, or a dict with '__error__' key on parse failure.",
+       "where": "lines 773-778",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "write_inventory creates parent directories and writes the JSON text.",
+       "where": "lines 780-784",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "refresh function loads old document, discards if it has '__error__', and calls harvest with modules and env_names.",
+       "where": "lines 786-804",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The doc includes an 'unmatched_annotations' key computed from sorted keys not in live_keys and not starting with 'stale:'.",
+       "where": "line 723-724",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3bbb54f7155e9bba86b7abe368382916923cd368d63b3b71c0aa2f8bb80a20c7",
+    "objective_chars": 5540,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [7/9]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 7,
+  "total": 9,
+  "first_line": 721
+ }
+}

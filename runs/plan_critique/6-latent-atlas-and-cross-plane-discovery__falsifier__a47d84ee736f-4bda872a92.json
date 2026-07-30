@@ -1,0 +1,113 @@
+{
+ "task_id": "6-latent-atlas-and-cross-plane-discovery__falsifier__a47d84ee736f",
+ "key": "6-latent-atlas-and-cross-plane-discovery__falsifier__a47d84ee736f-4bda872a92",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "All claims are unfalsifiable as written; none specify observable conditions that would count as failure, making the section non-scientific despite claiming to be a 'hypothesis machine'.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "6.1 | high | 'Embeddings may consume schema-light Node Cards' is unfalsifiable: no definition of 'schema-light' or 'may consume' is given, so no observation can disprove it. | Define a concrete threshold for 'schema-light' (e.g., \u22643 required fields) and a test where a Node Card with more fields is rejected.",
+     "6.2 | high | 'A shared embedding space can retrieve possible relations without a single giant ontology' is unfalsifiable: 'possible relations' and 'without a single giant ontology' are not operationalized. | Specify a benchmark dataset and a relation retrieval task; the claim would be falsified if the embedding space fails to retrieve known relations or if the ontology required exceeds a given size.",
+     "6.3 | high | 'it never receives a literally schema-free graph: identity, revision, plane, provenance, and relation-candidate shape are the minimum contract' is unfalsifiable: no definition of 'literally schema-free' or 'minimum contract' is given, and no test for violation is specified. | Define 'schema-free' as a graph with no required fields; claim falsified if a graph missing one of those fields is ever processed without error.",
+     "6.4 | high | 'The latent layer is a hypothesis machine' is unfalsifiable: 'hypothesis machine' is metaphorical and has no operational definition. | Define 'hypothesis machine' as a component that outputs scored candidate relations; claim falsified if it ever outputs non-proposal data or if a candidate cannot be traced to an input.",
+     "6.5 | high | 'It proposes typed cross-plane bindings with score and rationale' is unfalsifiable: no criterion for what counts as a 'typed cross-plane binding' or a valid 'rationale' is provided. | Specify a schema for bindings (e.g., (source_plane, target_plane, type, score, rationale_text)); claim falsified if any proposal lacks these fields.",
+     "6.6 | high | 'A verifier checks source evidence, revision compatibility, type/rule constraints, and task relevance before an edge becomes trusted' is unfalsifiable: 'source evidence', 'revision compatibility', 'type/rule constraints', and 'task relevance' are not defined, and no test for 'trusted' is given. | Define each check as a function returning boolean; claim falsified if an edge becomes trusted without all functions returning true.",
+     "6.7 | high | 'Unverified similarities remain proposals and expire or are retested' is unfalsifiable: 'expire' and 'retested' have no temporal or operational definition. | Define a specific time-to-live (e.g., 30 days) and a retest trigger (e.g., new evidence); claim falsified if a proposal persists beyond TTL without retest.",
+     "6.8 | high | '4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion' is unfalsifiable: '4fold Project-Twin IR' and 'evidence-bound promotion' are not defined. | Define each component with inputs and outputs; claim falsified if the system cannot be decomposed into these three named parts.",
+     "6.9 | high | 'Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary' is unfalsifiable: the metaphors are not operationalized, and 'teacher', 'hypothesis machine', and 'truth boundary' have no concrete referents. | Define each role with a measurable behavior; claim falsified if Forest does not provide training signals, or if the evaluator does not reject false hypotheses."
+    ],
+    "todos": [
+     "Define operational criteria for each component: what inputs, outputs, and failure conditions make a component a 'hypothesis machine'?",
+     "Specify a falsification test for each claim, e.g., 'if a Node Card with more than 3 fields is accepted, claim 6.1 is false'.",
+     "Replace metaphorical language ('teacher', 'truth boundary') with measurable roles and interfaces.",
+     "Add a section on empirical validation: what experiments would demonstrate that the latent atlas works as a hypothesis machine?"
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "6.1",
+       "claim": "Embeddings may consume schema-light Node Cards: stable node identity, revision, plane, source locator, compact content, local neighborhood, and provenance.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'schema-light' is not defined. No threshold or rule distinguishes 'schema-light' from 'schema-heavy'. The verb 'may consume' is permissive and cannot be falsified by any observation. To be falsifiable, one must specify a concrete schema (e.g., Node Cards must have exactly these fields and no others) and a condition under which consumption fails."
+      },
+      {
+       "id": "6.2",
+       "claim": "A shared embedding space can retrieve possible relations without a single giant ontology.",
+       "verdict": "unfalsifiable",
+       "why": "'Possible relations' and 'single giant ontology' are not defined. No metric for retrieval success is given, nor a bound on ontology size. The claim could be made falsifiable by specifying a benchmark (e.g., retrieve all relations from a test set) and a maximum ontology size (e.g., <1000 classes)."
+      },
+      {
+       "id": "6.3",
+       "claim": "It never receives a literally schema-free graph: identity, revision, plane, provenance, and relation-candidate shape are the minimum contract.",
+       "verdict": "unfalsifiable",
+       "why": "'Literally schema-free' is not defined. The 'minimum contract' is asserted but no test is given for when it is violated. To be falsifiable, define 'schema-free' as a graph with no required fields; then the claim is falsified if a graph missing any of the listed fields is ever accepted."
+      },
+      {
+       "id": "6.4",
+       "claim": "The latent layer is a hypothesis machine.",
+       "verdict": "unfalsifiable",
+       "why": "The term 'hypothesis machine' is a metaphor with no operational definition. To be falsifiable, one must define what a hypothesis machine does (e.g., takes inputs, outputs scored proposals) and specify a test that would show it is not one."
+      },
+      {
+       "id": "6.5",
+       "claim": "It proposes typed cross-plane bindings with score and rationale.",
+       "verdict": "unfalsifiable",
+       "why": "No schema for 'typed cross-plane binding' or 'rationale' is provided. Without a definition of what constitutes a valid binding and rationale, no observation can disprove the claim. Falsifiable if a binding format is specified (e.g., {source, target, type, score, rationale}) and a test checks that all proposals conform."
+      },
+      {
+       "id": "6.6",
+       "claim": "A verifier checks source evidence, revision compatibility, type/rule constraints, and task relevance before an edge becomes trusted.",
+       "verdict": "unfalsifiable",
+       "why": "None of the checks (source evidence, revision compatibility, type/rule constraints, task relevance) are defined. 'Trusted' is not defined either. To be falsifiable, each check must be a function with clear inputs and outputs, and a test should show that an edge can become trusted without passing all checks."
+      },
+      {
+       "id": "6.7",
+       "claim": "Unverified similarities remain proposals and expire or are retested.",
+       "verdict": "unfalsifiable",
+       "why": "'Expire' and 'retested' are not defined with any temporal or triggering conditions. To be falsifiable, specify a time-to-live (e.g., 30 days) and a retest condition (e.g., new evidence arrives). Then the claim is falsified if a proposal persists beyond TTL without being removed or retested."
+      },
+      {
+       "id": "6.8",
+       "claim": "4fold Project-Twin IR + latent cross-plane discovery + evidence-bound promotion",
+       "verdict": "unfalsifiable",
+       "why": "'4fold Project-Twin IR' and 'evidence-bound promotion' are not defined. The formula is a slogan. To be falsifiable, each component must be defined with inputs and outputs, and the system must be decomposable into these parts. Otherwise, no observation can falsify it."
+      },
+      {
+       "id": "6.9",
+       "claim": "Forest is the teacher; the latent atlas is the hypothesis machine; the evaluator is the truth boundary.",
+       "verdict": "unfalsifiable",
+       "why": "These are metaphorical assignments with no operational definitions. 'Teacher', 'hypothesis machine', and 'truth boundary' have no concrete referents or measurable behaviors. To be falsifiable, each role must be defined in terms of observable interactions (e.g., the teacher provides labeled examples; the truth boundary rejects false positives)."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "eb2d3097c9c0231c80b7f1410bc4a5e061eebc508fcd9fa976ed1b59868dbcb6",
+    "objective_chars": 1975,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "6-latent-atlas-and-cross-plane-discovery",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

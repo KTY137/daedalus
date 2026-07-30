@@ -1,0 +1,135 @@
+{
+ "task_id": "scan__daedalus_mapping___init__.py__c1of1__946db82",
+ "key": "scan__daedalus_mapping___init__.py__c1of1__946db82-82ecd22a2d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/mapping/__init__.py chunk 1/1. Exports symbols from reach module; docstring makes claims about architecture and reach.analyse that are uncheckable without the referenced code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring | medium | Claims about reach.analyse, structural index, and file paths (docs/adrs/*.md) are uncheckable in this chunk; misalignment with actual code would mislead readers. | Verify that reach.analyse exists and behaves as described, and that docs/adrs/ directory contains relevant files."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Module docstring and public API re-exports for the mapping package.",
+     "symbols": [
+      {
+       "name": "CLASSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "ENTRY_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "EntryPoint",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "ModuleFacts",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "ReachReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .reach; not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "mapping \u2014 the GENERATED half of the architecture artifact.",
+       "where": "line 1",
+       "verdict": "uncheckable",
+       "why": "No evidence of generation or artifact structure in this chunk."
+      },
+      {
+       "text": "MECHANICAL (here): what exists, what reaches it, what is dark, what is an island, and the counts. Derived on every run from the tree itself, so it cannot go stale between the moment it is written and the moment it is read.",
+       "where": "lines 3-7",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements or demonstrates these claims."
+      },
+      {
+       "text": "NARRATIVE (docs/adrs/*.md, the invariants): WHY a thing is the way it is. No scanner derives that, and pretending otherwise is how hand-maintained inventories rot.",
+       "where": "lines 8-10",
+       "verdict": "uncheckable",
+       "why": "Reference to external files not present in this chunk; no code here verifies or contradicts."
+      },
+      {
+       "text": "reach.analyse answers the question the structural index cannot: not \"X imports Y\" but \"can a human or a tool get here at all\".",
+       "where": "lines 11-13",
+       "verdict": "uncheckable",
+       "why": "The function reach.analyse is imported but its implementation is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring makes specific claims about the purpose and behavior of the package and its submodule reach.analyse, but none of those claims can be verified from this file alone.",
+       "where": "lines 1-13",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Public API is entirely re-exported from .reach; nothing is defined in this file.",
+       "where": "lines 15-22",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "373848b19a49c5a3396ebb20f9b2ccd2d89d003068e249a121784a7b3a5f5c71",
+    "objective_chars": 1414,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/__init__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

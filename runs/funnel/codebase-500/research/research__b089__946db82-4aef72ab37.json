@@ -1,0 +1,87 @@
+{
+ "task_id": "research__b089__946db82",
+ "key": "research__b089__946db82-4aef72ab37",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis of 4 scan reports reveals two hypotheses: (1) Error-row shape is relied upon by aggregators but not all modules guarantee it; (2) NARRATIVE_SECTIONS constant is undefined where referenced. Both are testable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypothesis 1: If an eval_task_* variant fails to produce the expected error-row shape, aggregators may crash or silently misaggregate.",
+     "Hypothesis 2: Missing NARRATIVE_SECTIONS constant will cause AttributeError at runtime when Narrative.missing or .extra is called."
+    ],
+    "todos": [
+     "Verify that all eval_task_* and run_* functions use _task_error_row for errors.",
+     "Define NARRATIVE_SECTIONS in daedalus/mapping/render.py or ensure it is imported.",
+     "Check that _group_rows_by_provenance and aggregate_fn are defined in the eval module.",
+     "Confirm that _tree_sitter_units and _import_records are defined in daedalus/structcore/parse.py."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "error-row-shape-contract",
+       "claim": "Multiple modules assume that error rows (dicts with 'error' key and no 'recall'/'compression' keys) are produced consistently by all task evaluation functions, but only eval_task_tier1 is shown to produce them; other eval_task_* functions may not, causing aggregators to fail or misaggregate.",
+       "spans": [
+        "daedalus/eval/harness.py",
+        "daedalus/spine/docref_gate.py"
+       ],
+       "mechanism": "eval_task_tier1 returns _task_error_row on exceptions. The docstring of _task_error_row claims it is used by every eval_task_* and run_* per-task try block, but only eval_task_tier1 is present in the report. Downstream aggregators (e.g., in docref_gate.py) rely on 'error' in row to filter; if a different eval function returns a row without 'error' but with other keys, the aggregator may incorrectly include it.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Finding that all eval_task_* and run_* functions in the codebase do in fact call _task_error_row for error cases.",
+       "evidence": [
+        "daedalus/eval/harness.py:_task_error_row docstring claims universal usage",
+        "daedalus/eval/harness.py:eval_task_tier1 uses _task_error_row",
+        "daedalus/spine/docref_gate.py:verdicts (uses 'error' key implicitly)"
+       ]
+      },
+      {
+       "id": "missing-narrative-sections-constant",
+       "claim": "The constant NARRATIVE_SECTIONS is used in daedalus/mapping/render.py but is not defined in that chunk, nor is its definition visible in any other report. This suggests it may be missing or improperly imported, causing a runtime NameError.",
+       "spans": [
+        "daedalus/mapping/render.py",
+        "daedalus/eval/harness.py"
+       ],
+       "mechanism": "Narrative.missing and .extra properties reference NARRATIVE_SECTIONS. If not defined, accessing these properties will raise NameError. The other reports do not mention this constant, so it is not defined elsewhere in the scanned files.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Finding NARRATIVE_SECTIONS defined in another chunk of daedalus/mapping/render.py or imported from another module.",
+       "evidence": [
+        "daedalus/mapping/render.py:Narrative.missing references NARRATIVE_SECTIONS",
+        "daedalus/mapping/render.py:Narrative.extra references NARRATIVE_SECTIONS"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a7cdac2de711514b0a5bef65087ffa397c17efbb345a1056a5acbfaddac25665",
+    "objective_chars": 27162,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 89 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 89,
+  "inputs": 4
+ }
+}

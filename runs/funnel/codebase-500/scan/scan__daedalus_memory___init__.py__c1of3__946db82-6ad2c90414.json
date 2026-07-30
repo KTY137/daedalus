@@ -1,0 +1,224 @@
+{
+ "task_id": "scan__daedalus_memory___init__.py__c1of3__946db82",
+ "key": "scan__daedalus_memory___init__.py__c1of3__946db82-6ad2c90414",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of 3: package init with MemoryEvent dataclass, append_event, projection_event_from_record, _try_vector_index stubs.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ROOT | medium | Uses parents[2] to find repo root; fragile if file moves. | Verify with unit test.",
+     "MEMORY_DIR / EVENTS_PATH / TODO_PATH / VECTOR_DB_PATH | low | Paths hardcoded relative to ROOT; no validation of existence. | Ensure directories exist at startup.",
+     "append_event | low | DAEDALUS_VECTOR_INDEX env var checked; if set but Ollama not running, _try_vector_index may fail silently. | Confirm error handling inside _try_vector_index.",
+     "projection_event_from_record | medium | Returns AgentEvent but imports from .embeddings; if that module fails, runtime error. | Verify .embeddings module exists and is importable.",
+     "_try_vector_index | low | Docstring says 'never raises' but code not shown; could still raise. | Review implementation for exception handling."
+    ],
+    "todos": [
+     "Implement _try_vector_index to actually index into vector store.",
+     "Ensure projection_worker module is created and functional.",
+     "Add validation for environment variable DAEDALUS_VECTOR_INDEX values."
+    ],
+    "handoff": {
+     "module": "daedalus/memory/__init__.py",
+     "chunk": "1 of 3",
+     "purpose": "Initialize memory package with core data structures and event appending logic.",
+     "symbols": [
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to repository root (two directories up from __file__)."
+      },
+      {
+       "name": "MEMORY_DIR",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to memory directory under ROOT."
+      },
+      {
+       "name": "EVENTS_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to events.local.jsonl file."
+      },
+      {
+       "name": "TODO_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to todos.local.md file."
+      },
+      {
+       "name": "VECTOR_DB_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path to vectors.db file."
+      },
+      {
+       "name": "MemoryEvent",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a memory event with various fields."
+      },
+      {
+       "name": "MemoryEvent.to_record",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts MemoryEvent to a dict with timestamp and other fields."
+      },
+      {
+       "name": "append_event",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "repository_mutation"
+       ],
+       "note": "Appends event to EVENTS_PATH, refreshes todo snapshot, optionally indexes to vector store."
+      },
+      {
+       "name": "projection_event_from_record",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts a record dict to an AgentEvent for embedding, with path evidence in content."
+      },
+      {
+       "name": "_try_vector_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Best-effort forwarding to EventVectorStore; stub in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Operational state must remain in the repository-level memory/ directory; using parents[1] here silently redirected state into daedalus/memory/.",
+       "where": "comment before ROOT",
+       "verdict": "uncheckable",
+       "why": "Refers to historical issue with parents[1]; not verifiable from current code."
+      },
+      {
+       "text": "This is the single definition of 'what a memory event embeds as', shared by the synchronous bridge below and by daedalus.memory.projection_worker.",
+       "where": "projection_event_from_record docstring",
+       "verdict": "uncheckable",
+       "why": "Cannot verify sharing with projection_worker module not in chunk."
+      },
+      {
+       "text": "The index is content-addressed on a hash of exactly these fields, so two writers that derive an event differently would write two rows for one journal line instead of one.",
+       "where": "projection_event_from_record docstring",
+       "verdict": "uncheckable",
+       "why": "No hashing or content-addressing logic visible in this chunk."
+      },
+      {
+       "text": "The context compiler may map a latent memory hit back into the Forest only when such evidence is present; semantic similarity alone must never invent a file.",
+       "where": "projection_event_from_record docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to context compiler and Forest not present in this chunk."
+      },
+      {
+       "text": "This bridge does NOT record a journal watermark -- it sees one record at a time and has no idea where that record sits in the journal file.",
+       "where": "_try_vector_index docstring",
+       "verdict": "kept",
+       "why": "Code shows append_event calls _try_vector_index with a single record, no watermark logic present."
+      },
+      {
+       "text": "Indexes it builds alone therefore report freshness == 'unanchored'.",
+       "where": "_try_vector_index docstring",
+       "verdict": "uncheckable",
+       "why": "No freshness reporting logic visible in this chunk."
+      },
+      {
+       "text": "Run python -m daedalus.memory.projection_worker to anchor them; it costs no embedding calls for entries the bridge already projected.",
+       "where": "_try_vector_index docstring",
+       "verdict": "uncheckable",
+       "why": "projection_worker module not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ROOT uses parents[2] which assumes __file__ is three levels deep in repo; if package structure changes, ROOT will be wrong.",
+       "where": "line 14",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "MEMORY_DIR and related paths are hardcoded; no validation that they exist or are writable.",
+       "where": "lines 15-18",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_event calls refresh_todo_snapshot() but that function is not defined in this chunk; will cause NameError at runtime.",
+       "where": "line 55",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_event conditionally calls _try_vector_index based on env var; function body not shown but docstring says 'never raises'.",
+       "where": "line 58-60",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "projection_event_from_record imports AgentEvent inside function; if .embeddings module missing, runtime error.",
+       "where": "line 82",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "projection_event_from_record constructs event_id from time and kind; if time not unique, IDs may collide.",
+       "where": "line 89",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58924e173f2e18d710d0140aaa092f9d918a958a02ecd28263ea803d007a104d",
+    "objective_chars": 4979,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/__init__.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/memory/__init__.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

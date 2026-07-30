@@ -1,0 +1,140 @@
+{
+ "task_id": "scan__daedalus_structcore_slice.py__c3of3__946db82",
+ "key": "scan__daedalus_structcore_slice.py__c3of3__946db82-69b6e44c42",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of 3 of daedalus/structcore/slice.py: contains assemble logic with budget trimming, and main() CLI entry point.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 561-567 | low | Comment claims byte-identical to old flat join when max_tokens=None, but the code adds 'withheld_lines' and marker=None which may differ from old join; uncheckable without old code.",
+     "line 573-575 | medium | marker uses newline and '# ===== CONTEXT TRIMMED...' which may not be visible in all contexts; could break downstream parsing.",
+     "line 591-598 | low | Comment claims shell_boundary_stops distinguishes between 'stopped at boundary' and 'no neighbors', but this is a design claim not testable from this chunk.",
+     "line 603-609 | medium | Comment about whole_repo_tokens_exact and tokenizer honesty; the logic in main() uses 'heuristic' in tk string which is fragile; uncheckable without index structure."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/slice.py",
+     "chunk": "3 of 3",
+     "purpose": "Assemble slice with optional budget trimming and provide CLI entry point.",
+     "symbols": [
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "CLI entry point; writes slice text and/or JSON to disk via --out and --json."
+      }
+     ],
+     "claims": [
+      {
+       "text": "With max_tokens=None this is byte-identical to the old flat join;",
+       "where": "line 561-562",
+       "verdict": "uncheckable",
+       "why": "The old flat join is not present in this chunk; cannot verify byte-identity."
+      },
+      {
+       "text": "over budget it drops WHOLE neighbour units (never truncates) and appends a visible TRIMMED marker, keeping FOCUS + WITHHELD.",
+       "where": "line 562-564",
+       "verdict": "kept",
+       "why": "Code calls _fit_budget (which presumably drops whole neighbors) and appends marker with 'CONTEXT TRIMMED' message; focus and withheld are kept via _assemble_slice arguments."
+      },
+      {
+       "text": "Edges that pointed OUT of the declared center and were therefore not expanded through. Reported rather than dropped in silence: a slice that stops at the shell boundary and a slice with no neighbors at all look identical from the outside, and only one of them is complete.",
+       "where": "line 591-598",
+       "verdict": "uncheckable",
+       "why": "The variable shell_stops is not defined or assigned in this chunk; its content and behavior cannot be verified."
+      },
+      {
+       "text": "Files that carried secret markers / non-allow-listed egress and were therefore withheld from the slice. sorted(); each entry names the rule that fired. Empty list on a clean slice.",
+       "where": "line 600-602",
+       "verdict": "uncheckable",
+       "why": "The variable 'withheld' is not defined in this chunk; its value and sorting cannot be verified."
+      },
+      {
+       "text": "False => the index predates total_tokens, so the denominator fell back to the chars/4 whole-repo estimate rather than the per-file token sum. True only means 'same tokenizer as the numerator', NOT 'tiktoken-measured' -- when tiktoken is absent both sides are chars/4 and the ratio is consistent but the absolute count is a heuristic. Read whole_repo_tokenizer for the honest label; a degraded tokenizer is reported there, never silent.",
+       "where": "line 603-609",
+       "verdict": "uncheckable",
+       "why": "The value of whole_exact is not computed in this chunk; the index structure and tokenizer logic are external."
+      },
+      {
+       "text": "Honest label: name the actual tokenizer instead of blanket 'measured'. whole_repo_tokens_exact only says the denominator is the per-file token sum (not the legacy chars/4 whole-repo fallback); it does NOT say a real BPE tokenizer was used. tokenizer_name() already distinguishes the two.",
+       "where": "line 627-631",
+       "verdict": "uncheckable",
+       "why": "The tokenizer_name() function and index structure are not present; cannot verify the labeling logic."
+      },
+      {
+       "text": "tiktoken absent: per-file chars/4 sum. Consistent with the numerator, but a heuristic -- do not call it 'measured'.",
+       "where": "line 634-636",
+       "verdict": "uncheckable",
+       "why": "The condition depends on 'heuristic' in tk string; the tokenizer naming convention is not verifiable from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment on lines 561-562 claims byte-identical behavior when max_tokens=None, but the code includes 'withheld_lines' and a marker of None which may differ from a hypothetical old flat join. Cannot verify.",
+       "where": "line 561-562",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The marker string includes a newline and '#' which is intended to be visible in the slice text; this may affect downstream parsing or display.",
+       "where": "line 573-575",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The code uses variables 'shell_stops' and 'withheld' that are not defined in this chunk; they must be defined earlier in the function or imported.",
+       "where": "line 598, 601",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "The main() function writes files via Path.write_text; no error handling for write failures is present.",
+       "where": "line 643-646",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The tokenizer labeling in main() uses string matching on 'heuristic' to decide the label; this is fragile to changes in tokenizer name strings.",
+       "where": "line 634",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bef82e46e631aceb0be38b7663ffdb58ce8e9790354098801cfdcd90b112a26d",
+    "objective_chars": 5299,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/slice.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/slice.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

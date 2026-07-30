@@ -1,0 +1,283 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c3of5__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c3of5__946db82-1f24f60ec5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of reach.py: defines _shim_body, _scan, _branch_payload, _iter_funcs, _collect_funcs, _is_forever, _scan_dynamic, _resolve, _package_parents, _console_scripts, _func_closure, analyse (partial). Claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_scan_dynamic | medium | Non-literal dynamic imports recorded as 'dynamic' with rel:lineno, but no dedup or limit on size; could accumulate large sets. | Check if dynamic set is bounded or deduplicated elsewhere.",
+     "_resolve | low | Uses resolve_python_imports from external module; function not defined in this chunk. | Ensure resolve_python_imports is imported and works as expected.",
+     "analyse | medium | Handles collisions by dropping both dotted entries; may lose valid mappings. | Confirm collision handling policy is intentional and documented.",
+     "analyse | medium | Weak edges section incomplete; weak_reasons and weak_edges defined but logic missing. | Review remaining chunk for weak edge resolution and usage."
+    ],
+    "todos": [
+     "Complete analyse function: weak edge resolution and graph building.",
+     "Verify resolve_python_imports signature and behaviour.",
+     "Ensure _py_dotted is defined and consistent with dotted resolution.",
+     "Check that _iter_py is defined and yields relative paths."
+    ],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "3 of 5",
+     "purpose": "Define import scanning helpers, resolution, entry-point discovery, and start of analyse function.",
+     "symbols": [
+      {
+       "name": "_shim_body",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if a module body is a shim (only imports, assigns, try/if with pass/imports). Returns bool."
+      },
+      {
+       "name": "_scan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses text, splits imports, collects literals, dispatch chains, main guard, and dynamic imports. Returns _Src."
+      },
+      {
+       "name": "_branch_payload",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts import records and names from an if branch body, excluding orelse."
+      },
+      {
+       "name": "_iter_funcs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generator yielding (name, ast node) for all functions and methods recursively."
+      },
+      {
+       "name": "_collect_funcs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Populates src.func_records, func_names, func_loops, func_calls by walking functions."
+      },
+      {
+       "name": "_is_forever",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if a while/for loop is infinite (constant True test)."
+      },
+      {
+       "name": "_DOTTED_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for dotted module names."
+      },
+      {
+       "name": "_scan_dynamic",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Scans for importlib/__import__ calls; records literals as dyn_targets, others as dynamic."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves import records to relative paths, excluding self."
+      },
+      {
+       "name": "_package_parents",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns parent __init__.py paths for a given relative path."
+      },
+      {
+       "name": "_SCRIPTS_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to match [project.scripts] section header."
+      },
+      {
+       "name": "_SECTION_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to match any section header."
+      },
+      {
+       "name": "_SCRIPT_LINE_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to parse script entry lines."
+      },
+      {
+       "name": "_console_scripts",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Parses pyproject.toml for console_scripts entries without tomllib."
+      },
+      {
+       "name": "_func_closure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns transitive callees of a function within the same module."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Main entry: scans repo, resolves imports, builds graph (partial)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``orelse`` is deliberately excluded: for an elif chain the orelse IS the next branch, and folding it in would credit every subcommand with every later subcommand's imports.",
+       "where": "_branch_payload docstring",
+       "verdict": "kept",
+       "why": "The function explicitly operates on node.body only, not orelse, matching the claim."
+      },
+      {
+       "text": "A literal argument is a REAL edge and is treated as one. A non-literal one is a hole in the static picture; it is recorded so the report can say a module is ``unknown`` instead of accusing it of being an island.",
+       "where": "_scan_dynamic docstring",
+       "verdict": "kept",
+       "why": "Code adds literal strings to dyn_targets, non-literals to dynamic set."
+      },
+      {
+       "text": "``__init__.py`` files Python imports as a side effect of importing this module. These edges are real at runtime -- omitting them would report a package's ``__init__`` as an island whenever nothing imports it by name.",
+       "where": "_package_parents docstring",
+       "verdict": "kept",
+       "why": "Function computes parent __init__.py paths from rel, as described."
+      },
+      {
+       "text": "Hand-parsed because ``tomllib`` landed in 3.11 and this package targets 3.10 with zero runtime dependencies.",
+       "where": "_console_scripts docstring",
+       "verdict": "kept",
+       "why": "Code uses regex parsing, not tomllib, consistent with claim."
+      },
+      {
+       "text": "Every function of this module transitively called from ``start``.",
+       "where": "_func_closure docstring",
+       "verdict": "kept",
+       "why": "Function performs BFS over func_calls to collect transitive callees."
+      },
+      {
+       "text": "``index`` is an optional structcore index dict. Any edge it has that this walk does not is REPORTED in ``index_extra_edges`` and is NOT added to the graph: structcore resolves imports without branch context, so unioning its edges back in re-admitted exactly the ``if False:`` and swallowed-``ImportError`` imports this engine refuses on purpose, and printed the target ``reachable``. A disagreement between the two engines is a finding, not a discovery, and a finding may not quietly promote a module.",
+       "where": "analyse docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes behaviour involving index_extra_edges and comparison with structcore; this chunk does not contain that logic (analyse is incomplete)."
+      },
+      {
+       "text": "Resolved exactly like real ones, then kept OUT of ``edges``. They exist only to answer \"why is this module here at all\", so an unreached module somebody clearly intended to load is ``unknown`` rather than an island.",
+       "where": "Comment before weak_reasons",
+       "verdict": "uncheckable",
+       "why": "The comment describes weak edge handling, but the code for resolution and exclusion from edges is not present in this chunk (analyse incomplete)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_shim_body returns False on any non-import/assign/try/if statement; assigns must be simple (single Name target, value is Name/List/Tuple/Attribute). Try/If bodies must consist only of imports/pass.",
+       "where": "_shim_body function lines 561-590",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_scan collects string literals up to 400 chars into src.literals.",
+       "where": "_scan function line 600-603",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_scan_dynamic only checks first argument of call; if call has no args, it records as dynamic (non-literal).",
+       "where": "_scan_dynamic lines 641-649",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_resolve uses resolve_python_imports (undefined in this chunk).",
+       "where": "_resolve function line 656",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "analyse function incomplete; ends after defining weak_edges list.",
+       "where": "analyse function line 693",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_console_scripts returns sorted list; handles missing file and OSError.",
+       "where": "_console_scripts function lines 676-697",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_func_closure uses BFS over func_calls; skips if start not in func_records.",
+       "where": "_func_closure function lines 700-710",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Collisions in dotted names cause both to be removed from rel_by_dotted.",
+       "where": "analyse lines 684-687",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6bc58a70cfdd0b21fa4d4c5cdd45f8bca981f6bbf7621916daae4d3f346e1b76",
+    "objective_chars": 11175,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [3/5]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

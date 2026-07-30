@@ -1,0 +1,140 @@
+{
+ "task_id": "daedalus/doctor.py#c1of1#5eb1702d",
+ "key": "daedalus_doctor.py_c1of1_5eb1702d-a8fba2263a",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Probes are read-only (a localhost HTTP GET + PATH lookups); nothing is started or installed.\" | module docstring | KEPT | All probes are PATH lookups or HTTP GET to /api/tags; no install or side effects.",
+     "CLAIM | \"All probes are cheap and non-interactive: PATH lookup, ``codex --version``, and ``codex login status`` (documented subcommand; exit 0 = logged in).\" | codex_status | KEPT | Code uses shutil.which, subprocess.run with check=False, and checks returncode; no interactive prompts.",
+     "CLAIM | \"Nothing here ever triggers a login flow or a model call.\" | codex_status | KEPT | Subprocesses are non-interactive; no model call.",
+     "CLAIM | \"A FIRING GUARD MUST NOT KILL THE DIAGNOSTIC. The spend ceiling wraps subprocess.run and raises BudgetRefused -- which is neither OSError nor SubprocessError, so it escaped both handlers below and `daedalus doctor` died on a traceback the moment the ceiling was reached.\" | codex_status (comment) | KEPT | The code now catches BudgetRefused before the other exceptions, so the guard does not kill the diagnostic.",
+     "CLAIM | \"`refused` is its OWN state, deliberately not folded into present=False. \"codex is not installed\" and \"I was not allowed to ask\" are different facts, and a doctor that reports the second as the first sends the operator to reinstall a CLI that is sitting right there.\" | codex_status | KEPT | refused is a separate key in the returned dict; present remains True when codex is installed even if refused is set.",
+     "CLAIM | \"Return the list of pulled model tags, or None if the server is down.\" | _ollama_models | KEPT | Returns list of model names on success, returns None on any exception.",
+     "CLAIM | \"PATH-presence only (cheap: check() runs on every bridge dispatch); version/auth details live in codex_status() for the human doctor.\" | check (comment) | KEPT | check() only does shutil.which for codex, no version/auth probes.",
+     "CLAIM | \"WARN when the file-bridge watcher heartbeat is stale/missing -- the watcher dies with the orchestrator session and nothing else notices.\" | _print_watcher_heartbeat | KEPT | Prints [!!] messages for stale/missing states.",
+     "CLAIM | \"NOT an error line. The ceiling doing its job is a healthy system, and the operator needs to read it as \"I did not ask\" rather than as a broken CLI or an unknown auth state.\" | main (comment) | KEPT | The print for refused is not prefixed with error markers; it's a normal info line.",
+     "CLAIM | \"Answers the honest question: is the local bench able to execute, or does everything still fall back to Claude?\" | module docstring | UNCHECKABLE | Would need to see how the return value is used by callers to determine if it truly answers that question.",
+     "D1 | main() | parameter 'r' from check() is used, but no parameters defined; no unused parameters. D1: none.",
+     "D2 | _ollama_models | except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError): return None | KEPT | The code swallows exceptions and returns None, which is consistent with the docstring \"return None if the server is down\".",
+     "D3 | none",
+     "D4 | main() | if r['ollama_up']: ... else: ... - the else branch prints start instructions when Ollama is down; the condition is consistent. No impossible branches."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a117d61b86260cfe62a54ec08a7bafaaa8829aa0d3c2ec8cb1f424b0d779cd0b",
+    "objective_chars": 10046,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 1 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Probes are read-only (a localhost HTTP GET + PATH lookups); nothing is started or installed.\" | codex_status | BROKEN | codex_status runs subprocess for codex --version and codex login status, which are not read-only HTTP GET or PATH lookups.",
+     "CLAIM | \"All probes are cheap and non-interactive: PATH lookup, ``codex --version``, and ``codex login status`` (documented subcommand; exit 0 = logged in).\" | codex_status | KEPT | The code does exactly those probes.",
+     "CLAIM | \"Nothing here ever triggers a login flow or a model call.\" | codex_status | KEPT | The code runs codex login status, which is documented as non-interactive and exit-code based.",
+     "CLAIM | \"A FIRING GUARD MUST NOT KILL THE DIAGNOSTIC. ... `refused` is its OWN state, deliberately not folded into present=False.\" | codex_status | KEPT | The code catches BudgetRefused separately and sets refused, not folding into present=False.",
+     "CLAIM | \"Return the list of pulled model tags, or None if the server is down.\" | _ollama_models | KEPT | Returns list of model tags or None on failure.",
+     "CLAIM | \"WARN when the file-bridge watcher heartbeat is stale/missing\" | _print_watcher_heartbeat | KEPT | Prints warnings for stale/missing heartbeat.",
+     "CLAIM | \"NOT an error line. The ceiling doing its job is a healthy system, and the operator needs to read it as 'I did not ask' rather than as a broken CLI or an unknown auth state.\" | main | KEPT | The code prints the refused message without error indication.",
+     "CLAIM | \"PATH-presence only (cheap: check() runs on every bridge dispatch); version/auth details live in codex_status() for the human doctor.\" | check | KEPT | check() only checks PATH presence for codex_cli.",
+     "CLAIM | \"Answers the honest question: is the local bench able to execute, or does everything still fall back to Claude?\" | module docstring | KEPT | check() returns can_offload_local based on model presence.",
+     "CLAIM | \"Probes are read-only (a localhost HTTP GET + PATH lookups); nothing is started or installed.\" | module docstring | BROKEN | codex_status runs subprocesses that are not read-only HTTP GET or PATH lookups."
+    ],
+    "todos": [
+     "Change module docstring to remove 'read-only' or clarify that codex subprocess probes are also read-only.",
+     "Alternatively, change codex_status to avoid subprocess calls and use only PATH lookups and HTTP probes."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a117d61b86260cfe62a54ec08a7bafaaa8829aa0d3c2ec8cb1f424b0d779cd0b",
+    "objective_chars": 10046,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 9 kept, 1 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Probes are read-only (a localhost HTTP GET + PATH lookups); nothing is started or installed.\" | check | KEPT | The probes are PATH lookups and an HTTP GET to localhost; no installation or starting.",
+     "CLAIM | \"Nothing here ever triggers a login flow or a model call.\" | codex_status | KEPT | The code uses non-interactive subcommands, no model call.",
+     "CLAIM | \"A FIRING GUARD MUST NOT KILL THE DIAGNOSTIC. The spend ceiling wraps subprocess.run and raises BudgetRefused -- which is neither OSError nor SubprocessError, so it escaped both handlers below and `daedalus doctor` died on a traceback the moment the ceiling was reached.\" | codex_status | KEPT | The comment describes a past bug; the current code catches BudgetRefused explicitly.",
+     "CLAIM | \"`refused` is its OWN state, deliberately not folded into present=False. 'codex is not installed' and 'I was not allowed to ask' are different facts\" | codex_status | KEPT | The code returns refused separately from present.",
+     "CLAIM | \"Return the list of pulled model tags, or None if the server is down.\" | _ollama_models | KEPT | The function returns list of models or None on error.",
+     "CLAIM | \"WARN when the file-bridge watcher heartbeat is stale/missing\" | _print_watcher_heartbeat | KEPT | The function prints warnings for stale/missing heartbeats.",
+     "CLAIM | \"NOT an error line. The ceiling doing its job is a healthy system, and the operator needs to read it as 'I did not ask' rather than as a broken CLI or an unknown auth state.\" | main | KEPT | The code prints the refused message without an error prefix.",
+     "CLAIM | \"PATH-presence only (cheap: check() runs on every bridge dispatch); version/auth details live in codex_status() for the human doctor.\" | check | KEPT | check() only does PATH presence; version/auth are in codex_status().",
+     "CLAIM | \"Answers the honest question: is the local bench able to execute, or does everything still fall back to Claude?\" | module docstring | KEPT | The output of main() answers that question.",
+     "CLAIM | \"Probes are read-only (a localhost HTTP GET + PATH lookups); nothing is started or installed.\" | check | KEPT | Already listed.",
+     "D1 | check | parameter 'self' not present | WRONG CONCLUSION: no unused parameters.",
+     "D2 | codex_status | except (OSError, subprocess.SubprocessError): ... except BudgetRefused is caught earlier, so no swallowing of critical errors.",
+     "D3 | none | WRONG CONCLUSION: no guard after side effect.",
+     "D4 | none | WRONG CONCLUSION: no impossible branches."
+    ],
+    "todos": [
+     "None"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a117d61b86260cfe62a54ec08a7bafaaa8829aa0d3c2ec8cb1f424b0d779cd0b",
+    "objective_chars": 10046,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/doctor.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 7607
+ }
+}

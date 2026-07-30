@@ -1,0 +1,141 @@
+{
+ "task_id": "review__b008__946db82",
+ "key": "review__b008__946db82-6af6b475cb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; 2 refuted, 2 narrowed, 5 needs-evidence due to incomplete source chunks. Key findings: missing-fenced-fragment and cancel-fail-closed-unimplemented likely refuted by full file context; gather-exception-inconsistent and document-import-edge narrowed; unresolved-dependencies and empty-graph-fallback need full files to confirm.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypothesis gather-exception-inconsistent: if gather exception is swallowed without error state, queue may contain partial candidates.",
+     "Hypothesis unparsed-claims-assumption: unparsed claims could cause quorum miscount if not handled.",
+     "Hypothesis task-intent-trace-mismatch: trace_id mismatch could misattribute intents."
+    ],
+    "todos": [
+     "Check if evolution.py sets candidates to error state on gather exception.",
+     "Inspect full bus.py for _body_sha and _entry_sha definitions.",
+     "Verify churn.py's is_document usage matches structcore.markdown definition.",
+     "Review session.py's quorum handling of unparsed claims.",
+     "Inspect full graph.py for fenced_fragment definition.",
+     "Check full cancel.py for job object creation logic.",
+     "Verify containment.py imports for platform_supported and _advapi32.",
+     "Inspect full spectral.py for caller handling of empty graph.",
+     "Check trace_id consistency between tasks.py and ledger.py."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "gather-exception-inconsistent",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The evaluate method may set all candidates to a consistent error state before logging the exception, or the picker's source loading may be independent of candidate state.",
+       "survives_because": "The cited source shows the exception is caught and logged without re-raising, but does not show error state propagation to candidates. The picker's 'never raises' contract could be violated if a failed candidate is later processed.",
+       "narrowed_claim": "If a candidate evaluation exception is caught and not re-raised, and candidates are not set to an error state, then the picker may receive incomplete candidate data.",
+       "settling_check": "Inspect evolution.py lines 155-158 to see if candidates are set to an error state after exception; also check if picker's build_queue depends on candidate state.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "missing-hash-functions",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The functions _body_sha and _entry_sha may be defined elsewhere in bus.py or imported from another module not shown in the partial chunk.",
+       "survives_because": "The cited source does not include the full bus.py file; the functions may be defined later in the file or imported from a module that is guaranteed to be present.",
+       "narrowed_claim": "If _body_sha and _entry_sha are not defined or imported in the full bus.py, then verify_chain will fail at runtime.",
+       "settling_check": "Search for 'def _body_sha' and 'def _entry_sha' in the full bus.py file. If not found, check imports.",
+       "severity_after_review": "critical"
+      },
+      {
+       "id": "document-import-edge",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The property 'documents have no import edges' is enforced by the index builder (structcore.index.build_index), and is_document is imported from structcore.markdown and used consistently.",
+       "survives_because": "The cited source shows churn.py imports is_document from markdown and uses it to filter documents. However, there is no explicit shared definition that documents have no import edges; this is an implicit assumption.",
+       "narrowed_claim": "The assumption that documents have no import edges is not explicitly documented or enforced in a shared location, but is currently relied upon by churn.py.",
+       "settling_check": "Check if structcore.index.build_index explicitly sets import_edges to empty for documents, and if that property is documented.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "unparsed-claims-assumption",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The council session's quorum and render may correctly handle unparsed claims by counting them as responded but marking them as unparsed. The schema rescue in ollama.py may prevent unparsed claims from reaching the session.",
+       "survives_because": "The cited source shows _parse_claims returns unparsed Claim objects, but the session's handling of these claims in quorum and render is not fully shown. The ollama.py rescue may not cover all cases.",
+       "narrowed_claim": "If an unparsed claim reaches the council session, quorum counting or rendering may be incorrect because the session assumes all claims are parsed.",
+       "settling_check": "Inspect session.py's quorum property and render method to see how they handle parsed=False claims. Also check if ollama.py's schema rescue can fail.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "missing-fenced-fragment",
+       "verdict": "refuted",
+       "strongest_counterargument": "The function fenced_fragment is likely defined elsewhere in graph.py (not shown in the partial chunk) or imported from another module. The chunk is incomplete.",
+       "survives_because": "The cited source is only a partial excerpt; the full file likely contains the definition. The hypothesis is refuted due to incomplete evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Search for 'def fenced_fragment' in the full graph.py file.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "cancel-fail-closed-unimplemented",
+       "verdict": "refuted",
+       "strongest_counterargument": "The chunk only shows the beginning of cancel.py; the actual process creation and job assignment logic likely appears later in the file.",
+       "survives_because": "The cited source is a partial excerpt (lines 1-40). The full file likely implements the fail-closed guarantee. The hypothesis is refuted due to incomplete evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the full cancel.py file for job object creation and assignment code.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unresolved-dependencies",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The missing symbols may be defined in other chunks of the same files not included in the reports. The reports are partial, so the hypothesis may be unfalsifiable without full files.",
+       "survives_because": "The cited sources are partial excerpts; the full files likely contain the definitions. However, if the symbols are truly missing, runtime errors will occur.",
+       "narrowed_claim": "If the full files do not define platform_supported, _advapi32, spec_for, parse_mod, graph_mod, then runtime NameError will occur.",
+       "settling_check": "Search for 'def platform_supported' in containment.py, 'def spec_for' in graph_delta.py, etc. Check imports.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "empty-graph-fallback",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The function analyse() has early returns for graphs with fewer than 3 nodes or no edges, so _spectrum is never called on an empty graph. The fallback in _pick is only reachable if _spectrum returns an empty list, which would only happen if the graph has nodes but no eigenvalues (theoretical).",
+       "survives_because": "The cited source shows early guards (n<3, no edges) that prevent calling _spectrum on empty graphs. However, _pick's fallback could still be reached if _spectrum returns an empty list for a very small graph (e.g., 2 nodes with edges? Actually normalized Laplacian of a 2-node graph has 2 eigenvalues, so not empty). The fallback is likely never triggered.",
+       "narrowed_claim": "The fallback (1,0,0) in _pick is theoretically reachable only if _spectrum returns an empty list, which does not happen for graphs that pass the early guards.",
+       "settling_check": "Verify that _spectrum never returns an empty list for graphs with n>=3 and edges>0. Check edge case: a graph with 3 nodes and 1 edge (connected) should have 3 eigenvalues.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "task-intent-trace-mismatch",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "Eval tasks may not carry a trace_id field; the TASKS list in tasks.py does not show trace_id in the shape description. The record_intent function may always be called with an explicit trace_id from the task context.",
+       "survives_because": "The cited source for tasks.py shows the task shape does not include trace_id. However, the ledger's record_intent defaults to current_trace_id(), which could differ if the task was created in a different trace context.",
+       "narrowed_claim": "If eval tasks have a trace_id that differs from current_trace_id() at recording time, intents may be misattributed.",
+       "settling_check": "Inspect the full TASKS list in tasks.py to see if trace_id is present. Check all call sites of record_intent to see if trace_id is explicitly passed.",
+       "severity_after_review": "high"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2700d569f27ff843a2569f2736d0947484dee091f3e05adc053e7ce94b31303a",
+    "objective_chars": 59082,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 8 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 8,
+  "inputs": 9
+ }
+}

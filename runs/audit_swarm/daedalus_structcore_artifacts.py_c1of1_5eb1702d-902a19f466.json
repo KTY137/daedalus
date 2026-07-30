@@ -1,0 +1,158 @@
+{
+ "task_id": "daedalus/structcore/artifacts.py#c1of1#5eb1702d",
+ "key": "daedalus_structcore_artifacts.py_c1of1_5eb1702d-902a19f466",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 9 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuse to guess. A literal that does not resolve to a file present in the file set is DROPPED and COUNTED, never bound to a near-match.\" | resolve_literals | KEPT | The code drops unresolvable literals and counts them in unresolved list.",
+     "CLAIM | \"A literal matching more than one candidate is AMBIGUOUS and produces no edge.\" | resolve_literals | KEPT | When len(uniq) > 1, it adds to ambiguous list and does not create an edge.",
+     "CLAIM | \"Metadata only, never the payload. Schema reads are bounded by MAX_SCHEMA_BYTES and stop at the header.\" | read_schema | KEPT | The docstring says caller does I/O and passes at most MAX_SCHEMA_BYTES; the function only processes the blob.",
+     "CLAIM | \"Reading is not executing. No file here is imported, run, or evaluated.\" | artifacts.py | KEPT | The module only parses metadata; no import or execution of files occurs.",
+     "CLAIM | \"Artefacts are not code. Artefact nodes get their own id namespace and never enter modules, import_edges, all_units or the symbol resolver\" | artifact_node_id, is_artifact_node_id | KEPT | artifact_node_id returns a string prefixed with \"artifact:\", and is_artifact_node_id checks for that prefix, ensuring separation.",
+     "CLAIM | \"Not implemented here yet; the hook is SCHEMA_FROM_CODE and it reports not_supported until it exists.\" | SCHEMA_FROM_CODE | KEPT | SCHEMA_FROM_CODE is set to NOT_SUPPORTED.",
+     "CLAIM | \"absent, they report not_supported \u2014 never an empty schema, because 'we could not look' and 'there are no columns' must not render the same.\" | read_schema | KEPT | For unsupported formats, it returns ArtifactSchema with status NOT_SUPPORTED and a detail message; columns are empty but status is not READ.",
+     "CLAIM | \"Not comparable is a first-class answer. If the schema was never read, this returns comparable=False with the reason \u2014 it does not report every declared field as missing\" | compare_schema | KEPT | compare_schema returns comparable=False when schema.known is False, with a reason.",
+     "CLAIM | \"A bounded read can truncate valid JSON, so say which it was.\" | _json_schema | KEPT | The exception detail includes the bounded read warning.",
+     "CLAIM | \"Deterministic; every list sorted at the end.\" | resolve_literals | BROKEN | The function sorts edges, unresolved, ambiguous, and external, but the literals_by_file input is unsorted; the iteration is sorted but the inner loop appends to lists in the order of lit objects which are unsorted within each file, so the final sorted order may not be deterministic relative to input ordering.",
+     "CLAIM | \"Deterministic (sorted frontier), bounded\" | chain_from | UNCHECKABLE | The function sorts frontiers and uses a set for seen, but the order of edges in rep.edges is not guaranteed to be deterministic (though sorted in resolve_literals, the source order may vary). The claim of determinism depends on the input being deterministic, which is not guaranteed by this unit alone.",
+     "D1 | SCHEMA_FROM_CODE | Defined as NOT_SUPPORTED but never read in this unit; it is only assigned. | WRONG CONCLUSION: a caller may reference SCHEMA_FROM_CODE expecting it to be used.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In resolve_literals, after building the initial lists, sort them by a stable key (e.g., (from_rel, lit.line)) before the final sort to ensure determinism regardless of input order.",
+     "Either remove SCHEMA_FROM_CODE if unused, or document its intended usage and ensure it is referenced somewhere in the unit."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "22ab9c403f6488f68ee94d8ac1a28ed3dbbe174180eb4d41da144285eddb6bcb",
+    "objective_chars": 29993,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 14 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuse to guess. A literal that does not resolve to a file present in the file set is DROPPED and COUNTED, never bound to a near-match.\" | resolve_literals | BROKEN | Falls back to case-insensitive match via `lower` dict, which is a near-match.",
+     "CLAIM | \"A literal matching more than one candidate is AMBIGUOUS and produces no edge.\" | resolve_literals | BROKEN | When multiple hits from case-insensitive fallback, they are added to `hits` and may produce an edge if deduplicated to one; if multiple, it is marked ambiguous, but the logic differs from strict exact match.",
+     "CLAIM | \"Schema reads are bounded by MAX_SCHEMA_BYTES and stop at the header.\" | read_schema | BROKEN | The function does not enforce the bound; it relies on the caller to pass at most MAX_SCHEMA_BYTES, but the docstring implies the function enforces it.",
+     "CLAIM | \"Tier 1 schema as DECLARED IN CODE \u2026 Not implemented here yet; the hook is SCHEMA_FROM_CODE and it reports not_supported until it exists.\" | SCHEMA_FROM_CODE | KEPT",
+     "CLAIM | \"Tier 2 schema read FROM THE ARTEFACT. Implemented with stdlib only for CSV, JSON and NPY.\" | read_schema | KEPT",
+     "CLAIM | \"ROOT/HDF5/Parquet need optional readers (uproot, h5py, pyarrow); absent, they report not_supported \u2014 never an empty schema\" | read_schema | KEPT",
+     "CLAIM | \"This layer never ingests data.\" | read_schema docstring | KEPT",
+     "CLAIM | \"No file here is imported, run, or evaluated.\" | module docstring | KEPT",
+     "CLAIM | \"every reader is bounded and failure is reported as unreadable, never as an empty schema\" | read_schema | KEPT",
+     "CLAIM | \"Artefact nodes get their own id namespace and never enter modules, import_edges, all_units or the symbol resolver\" | artifact_node_id, is_artifact_node_id | KEPT",
+     "CLAIM | \"Deterministic; every list sorted at the end.\" | resolve_literals | KEPT",
+     "CLAIM | \"NOT comparable is a first-class answer. If the schema was never read, this returns comparable=False with the reason \u2014 it does not report every declared field as missing\" | compare_schema | KEPT",
+     "CLAIM | \"Answers 'where did this figure come from' \u2014 the question a thesis reviewer asks. Deterministic (sorted frontier), bounded, and it reports the hop that ran out rather than presenting a truncated chain as complete.\" | chain_from | KEPT",
+     "CLAIM | \"An off-tree URL has no second node, so it is an attribute of the referring file, never an edge.\" | resolve_literals | KEPT",
+     "CLAIM | \"Same rule markdown.py applies to document links.\" | resolve_literals | UNCHECKABLE | Would need to see markdown.py to verify.",
+     "CLAIM | \"A bounded read can truncate valid JSON, so say which it was.\" | _json_schema | KEPT",
+     "CLAIM | \"NPY header, parsed with struct \u2014 the format is documented and stable.\" | _npy_schema | KEPT",
+     "CLAIM | \"The caller does the I/O and passes at most MAX_SCHEMA_BYTES; this keeps the module pure and testable, and keeps the read bound in one place.\" | read_schema docstring | KEPT",
+     "CLAIM | \"missing_in_artifact is the one that bites: the code names a field the file does not have. That is the renamed-branch defect, and it survives every test suite that does not read the file.\" | SchemaComparison docstring | KEPT",
+     "D1 | MAX_LITERALS_PER_FILE | module-level constant defined but not read anywhere in this unit.",
+     "D4 | In resolve_literals: the variable `lower` is built from `known` but then `hits` is extended with `ci` (case-insensitive matches) even when `cand in known` is True, adding duplicates; later deduplication with `dict.fromkeys` may still produce multiple hits from case-insensitive fallback, but the condition `len(uniq) > 1` correctly marks ambiguous. However, the case-insensitive fallback itself contradicts the \"refuse to guess\" invariant, so the branch can be reached in a way that violates the prose."
+    ],
+    "todos": [
+     "Remove case-insensitive fallback in resolve_literals to match the 'refuse to guess' invariant.",
+     "In resolve_literals, ensure that only exact matches are considered hits; case-insensitive matching is a form of guessing.",
+     "Make read_schema enforce MAX_SCHEMA_BYTES internally, or update the docstring to clarify that the bound is caller-enforced."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "22ab9c403f6488f68ee94d8ac1a28ed3dbbe174180eb4d41da144285eddb6bcb",
+    "objective_chars": 29993,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 9 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuse to guess. A literal that does not resolve to a file present in the file set is DROPPED and COUNTED, never bound to a near-match.\" | resolve_literals | BROKEN | line: unresolved.append(...) uses `cand.lower()` lookup via `lower` dict, which performs a case-insensitive near-match, contradicting the claim.",
+     "CLAIM | \"Same rule ``markdown.py`` applies to document links.\" | resolve_literals | UNCHECKABLE | requires inspection of markdown.py not provided.",
+     "CLAIM | \"A literal matching more than one candidate is AMBIGUOUS and produces no edge.\" | resolve_literals | KEPT | line: if len(uniq) > 1: ambiguous.append(...); continue",
+     "CLAIM | \"Metadata only, never the payload. A ``.root`` file is gigabytes; its branch list is kilobytes. Schema reads are bounded by ``MAX_SCHEMA_BYTES`` and stop at the header. This layer never ingests data.\" | read_schema | KEPT | line: MAX_SCHEMA_BYTES = 256 * 1024; read_schema takes a bounded blob parameter.",
+     "CLAIM | \"Reading is not executing. No file here is imported, run, or evaluated. But parsing a hostile binary is still an attack surface, so every reader is bounded and failure is reported as ``unreadable``, never as an empty schema.\" | read_schema/_csv_schema/_json_schema/_npy_schema | KEPT | all readers bounded; failures return UNREADABLE status.",
+     "CLAIM | \"Artefacts are not code. Artefact nodes get their own id namespace and never enter ``modules``, ``import_edges``, ``all_units`` or the symbol resolver \u2014 the same carve-out the type layer publishes in ``excluded_from``.\" | artifact_node_id | KEPT | prefix artifact: ensures separate namespace.",
+     "CLAIM | \"Deterministic; every list sorted at the end.\" | resolve_literals | KEPT | sorts edges, unresolved, ambiguous, external at the end.",
+     "CLAIM | \"an off-tree URL has no second node, so it is an attribute of the referring file, never an edge. Same rule as markdown.py.\" | resolve_literals | UNCHECKABLE | requires inspection of markdown.py not provided.",
+     "CLAIM | \"Not comparable is a first-class answer. If the schema was never read, this returns ``comparable=False`` with the reason \u2014 it does not report every declared field as missing, which would turn \"we could not look\" into a wall of false findings.\" | compare_schema | KEPT | line: if not schema.known: return SchemaComparison(..., comparable=False, reason=...)",
+     "CLAIM | \"An empty column list on a NOT_SUPPORTED artefact is not 'no columns' \u2014 it is 'we did not look'.\" | ArtifactSchema.known | KEPT | property returns self.status == READ, not len(self.columns).",
+     "CLAIM | \"Tier-1 hook: schema as declared in code (``TTree::Branch``, ``read_csv(names=)``). Not implemented. Named so its absence is visible rather than assumed away.\" | SCHEMA_FROM_CODE | KEPT | SCHEMA_FROM_CODE = NOT_SUPPORTED",
+     "CLAIM | \"The caller does the I/O and passes at most ``MAX_SCHEMA_BYTES``; this keeps the module pure and testable, and keeps the read bound in one place.\" | read_schema | KEPT | signature: def read_schema(rel: str, blob: bytes, *, truncated: bool = False)",
+     "D1 | SCHEMA_FROM_CODE | defined as NOT_SUPPORTED but never read in this unit | WRONG CONCLUSION: a caller might expect this constant to be used somewhere.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Change the case-insensitive lookup in resolve_literals to an exact match only, or update the docstring to allow case-insensitive matching."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "22ab9c403f6488f68ee94d8ac1a28ed3dbbe174180eb4d41da144285eddb6bcb",
+    "objective_chars": 29993,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/artifacts.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 27540
+ }
+}

@@ -1,0 +1,115 @@
+{
+ "task_id": "research__b008__946db82",
+ "key": "research__b008__946db82-84e28bc364",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file pattern: the 'gate' mechanism is inconsistently composed across modules, with gated_writes assuming a composed gate order and subprocess_adapter lacking approval, while wiki/__init__ claims read-only but gated_writes may be a write path.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "inconsistent-gate-composition",
+       "claim": "The gate composition order assumed by gated_writes (relay gate first, then command gate) may conflict with how gates are actually invoked by the subprocess adapter or other runners, because the subprocess adapter's approve/reject are stubs and the wiki module claims write safety depends on a gate list that gated_writes may bypass.",
+       "spans": [
+        "daedalus/adapters/subprocess_adapter.py",
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/wiki/__init__.py"
+       ],
+       "mechanism": "gated_writes._curated_relay_gate composes relay gate then command gate. The subprocess adapter's approve/reject raise NotImplementedError, so any gate that requires approval will fail silently. The wiki module claims no write path exists, but gated_writes is a write pipeline that could be wired to write to wiki vaults, breaking the read-only guarantee.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the subprocess adapter is never used in a context requiring approve/reject, or that gated_writes never accesses wiki vaults, or that the wiki module's write path is truly absent.",
+       "evidence": [
+        "daedalus/adapters/subprocess_adapter.py:approve (NotImplementedError)",
+        "daedalus/adapters/subprocess_adapter.py:reject (NotImplementedError)",
+        "daedalus/kairos/gated_writes.py:_curated_relay_gate (composition order)",
+        "daedalus/wiki/__init__.py:docstring (read-only claim)"
+       ]
+      },
+      {
+       "id": "unchecked-process-termination",
+       "claim": "The subprocess adapter's process termination (interrupt, _stop_process, terminate) may leave processes in inconsistent states that are not accounted for by other modules (e.g., gated_writes or picker), leading to resource leaks or corrupted state.",
+       "spans": [
+        "daedalus/adapters/subprocess_adapter.py",
+        "daedalus/spine/picker.py"
+       ],
+       "mechanism": "subprocess_adapter.interrupt sends SIGINT without checking responsiveness; _stop_process uses terminate then kill with timeout; terminate cancels stderr_task without awaiting. The picker (spine/picker.py) calls attempt_fn which may use the subprocess adapter, but the picker does not monitor process health after starting. If a process hangs, the picker may return exit codes based on incomplete results.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that the subprocess adapter is never used in scenarios where process hangs are possible, or that the picker has timeout/health monitoring that catches hung processes.",
+       "evidence": [
+        "daedalus/adapters/subprocess_adapter.py:interrupt (SIGINT without check)",
+        "daedalus/adapters/subprocess_adapter.py:_stop_process (terminate then kill)",
+        "daedalus/adapters/subprocess_adapter.py:terminate (cancel without await)",
+        "daedalus/spine/picker.py:main (calls run, no health check)"
+       ]
+      },
+      {
+       "id": "unvalidated-argv-from-gate",
+       "claim": "The gated_writes module trusts that the gate's argv is repo-authored and validated, but the subprocess adapter may execute arbitrary argv from a gate without additional validation, creating an injection risk if the gate source is compromised.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/adapters/subprocess_adapter.py"
+       ],
+       "mechanism": "gated_writes._spec_for extracts gate_argv from gate dict and passes it into TaskSpec. The subprocess adapter (or similar runner) may execute this argv directly. gated_writes claims argv is repo-authored and validated by picker, but the subprocess adapter does not re-validate. If the gate source is compromised (e.g., by a model that bypasses the picker), argv could be malicious.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that the subprocess adapter always validates argv before execution, or that the gate can never be populated by an untrusted source.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py:_spec_for (extracts gate_argv)",
+        "daedalus/adapters/subprocess_adapter.py:approve/reject (stubs, no validation shown)"
+       ]
+      },
+      {
+       "id": "unfalsifiable-wiki-write-safety",
+       "claim": "The wiki module claims read-only by construction, but its safety depends on external modules (gated_writes, picker) never writing to wiki vaults. This dependency is not enforced by the wiki module itself, making the claim unfalsifiable from the provided code.",
+       "spans": [
+        "daedalus/wiki/__init__.py",
+        "daedalus/kairos/gated_writes.py"
+       ],
+       "mechanism": "The wiki module exports read-only functions but does not enforce write prevention at the filesystem level. gated_writes is a write pipeline that could be configured to write to wiki vaults, bypassing the read-only claim. The wiki module's docstring acknowledges this but provides no mechanism to prevent it.",
+       "severity": "medium",
+       "confidence": "unfalsifiable",
+       "refuted_by": "Evidence that the wiki module implements a filesystem-level write lock or that gated_writes explicitly excludes wiki vault paths.",
+       "evidence": [
+        "daedalus/wiki/__init__.py:docstring (read-only claim)",
+        "daedalus/kairos/gated_writes.py:_provider_receipt (extracts wrote field, could be written to wiki)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ae01252d1d134c2d3a1e255c1e5b4218ba116976fd589f77796d68bc0df3497b",
+    "objective_chars": 23609,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 8 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 8,
+  "inputs": 5
+ }
+}

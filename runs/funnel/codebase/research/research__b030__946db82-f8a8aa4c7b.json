@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b030__946db82",
+ "key": "research__b030__946db82-f8a8aa4c7b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two systemic patterns: (1) unchecked state mutation across boundaries, (2) fragile column-dependent queries with silent fallbacks.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Silent state mutation via unguarded setattr in observe/__init__ could corrupt shared objects.",
+     "Broad OperationalError catch in spine/ledger.py masks non-column errors.",
+     "Truncated functions leave critical logic (import resolution, union flattening) invisible to analysis."
+    ],
+    "todos": [
+     "Verify that observe/__init__ does not expose setattr to external callers.",
+     "Narrow spine/ledger.py's OperationalError handler to column-specific exceptions.",
+     "Complete scan of truncated functions to verify cross-module contracts."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unchecked-state-mutation",
+       "claim": "The `observe` package re-exports from `.shape` without any guard, while `structcore/parse.py` assumes its AST nodes are immutable (copy before mutation). If `observe` mutates shared state, it breaks `structcore`'s assumption.",
+       "spans": [
+        "daedalus/observe/__init__.py",
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "`observe/__init__` re-exports `Shape` and `compare_declared` from `.shape`. If `.shape` mutates objects or has side effects, any code that uses `Shape` instances (e.g., `structcore` which deep-copies to avoid mutation) could receive mutated objects, violating the copy-before-mutation contract.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that `.shape` is purely functional and never mutates its arguments, or that `observe` never exposes mutation paths to callers.",
+       "evidence": [
+        "daedalus/observe/__init__.py: re-exports",
+        "daedalus/structcore/parse.py: annotation_text uses copy.deepcopy"
+       ]
+      },
+      {
+       "id": "fragile-sql-fallback",
+       "claim": "Multiple modules rely on column existence checks with silent fallbacks (`spine/ledger.py` catches `OperationalError` for missing columns; `structcore/parse.py` uses `getattr` for `ast.Index` which raises `AttributeError`). This pattern masks real schema mismatches and version drift.",
+       "spans": [
+        "daedalus/spine/ledger.py",
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "`spine/ledger.py` in `intents_for_trace` catches `sqlite3.OperationalError` and returns `[]` if 'no such column' in message. This also catches other `OperationalError` conditions (e.g., disk full). `structcore/parse.py` in `_slice_elements` uses `getattr(node, 'value', node)` which silently falls back to `node` for Python 3.9+ where `ast.Index` is gone, potentially returning a wrong type.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "Evidence that `spine/ledger.py`'s handler checks for specific error codes, or that `structcore/parse.py` explicitly handles `AttributeError`.",
+       "evidence": [
+        "daedalus/spine/ledger.py: intents_for_trace catches OperationalError",
+        "daedalus/structcore/parse.py: _slice_elements uses getattr"
+       ]
+      },
+      {
+       "id": "truncated-module-contracts",
+       "claim": "Several modules have truncated functions (`checks.py: unresolved_first_party_imports`, `parse.py: flatten_union`) whose behavior is assumed by other modules but cannot be verified. This creates invisible contracts that may be broken.",
+       "spans": [
+        "daedalus/lanes/checks.py",
+        "daedalus/structcore/parse.py"
+       ],
+       "mechanism": "`checks.py` claims to statically resolve first-party imports but the function body is missing; `parse.py` claims to flatten unions correctly but the logic is truncated. Other modules (e.g., `vendors.py`, `ledger.py`) may depend on these functions' exact behavior, creating latent bugs.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Complete code for both functions shows they correctly implement the documented behavior and have no side effects.",
+       "evidence": [
+        "daedalus/lanes/checks.py: unresolved_first_party_imports truncated",
+        "daedalus/structcore/parse.py: flatten_union truncated"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "449860610fc59eb0f29d4e0f282db0775b92aa339adf754c5ddde2431428adde",
+    "objective_chars": 30196,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 30 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 30,
+  "inputs": 5
+ }
+}

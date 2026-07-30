@@ -1,0 +1,333 @@
+{
+ "task_id": "scan__daedalus_observe_shape.py__c1of2__946db82",
+ "key": "scan__daedalus_observe_shape.py__c1of2__946db82-58196d627e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed shape.py chunk 1: module docstring explains purpose and safety, defines constants, helper functions, Shape dataclass with to_dict/signature/render, and describe function up to TREE branch. Public symbols and claims enumerated.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "describe function | medium | The TREE branch uses a for-loop over (\"keys\",) which is redundant; the loop body always executes once. If intended to iterate over multiple attributes, it's incomplete. | Check if the loop is meant to iterate over more attributes like \"keys\" and \"members\".",
+     "to_dict | low | The 'n_names' field is omitted when n_names is 0, but if names are present and n_names is 0, it might be ambiguous. | Verify that n_names is always set correctly when names are present.",
+     "signature | low | The signature method includes n_names in the bits only if length >= 0, but n_names is independent of length. | Review if signature should include n_names when names are present but length is -1."
+    ],
+    "todos": [
+     "Check if the TREE branch loop is intended to cover more attributes (e.g., 'members', 'GetListOfKeys').",
+     "Ensure that n_names is always set consistently with names length.",
+     "Add tests for edge cases: empty arrays, tables with no columns, objects with missing attributes."
+    ],
+    "handoff": {
+     "module": "daedalus/observe/shape.py",
+     "chunk": "1 of 2",
+     "purpose": "Define constants, helper functions, Shape dataclass, and start of describe function for observing live object shapes.",
+     "symbols": [
+      {
+       "name": "SHAPE_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Version string '1'."
+      },
+      {
+       "name": "MAX_NAMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum number of names to record: 64."
+      },
+      {
+       "name": "MAX_NAME_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum characters per name: 80."
+      },
+      {
+       "name": "MAX_DEPTH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum depth for recursive description: 3."
+      },
+      {
+       "name": "ARRAY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for array-like objects."
+      },
+      {
+       "name": "TABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for table-like objects."
+      },
+      {
+       "name": "RECORD",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for record-like objects."
+      },
+      {
+       "name": "SEQUENCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for sequence-like objects."
+      },
+      {
+       "name": "TREE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for tree-like objects (ROOT, HDF5)."
+      },
+      {
+       "name": "SCALAR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for scalars."
+      },
+      {
+       "name": "TEXT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for text."
+      },
+      {
+       "name": "BINARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for binary."
+      },
+      {
+       "name": "OPAQUE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Family constant for opaque objects."
+      },
+      {
+       "name": "_attr",
+       "kind": "function",
+       "effects": [],
+       "note": "Helper to get attribute with default, avoiding truthiness check."
+      },
+      {
+       "name": "_clip",
+       "kind": "function",
+       "effects": [],
+       "note": "Clip name string to MAX_NAME_CHARS."
+      },
+      {
+       "name": "_qualname",
+       "kind": "function",
+       "effects": [],
+       "note": "Return qualified type name of an object."
+      },
+      {
+       "name": "_human_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Format byte count in human-readable form (B, KiB, etc.)."
+      },
+      {
+       "name": "Shape",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing one observation of a live object's shape."
+      },
+      {
+       "name": "Shape.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Convert Shape to a dictionary, omitting empty fields."
+      },
+      {
+       "name": "Shape.signature",
+       "kind": "function",
+       "effects": [],
+       "note": "Return a stable one-line form for comparison."
+      },
+      {
+       "name": "Shape.render",
+       "kind": "function",
+       "effects": [],
+       "note": "Return a debug-console-like string representation."
+      },
+      {
+       "name": "_names_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Extract bounded, order-preserving names from a sequence."
+      },
+      {
+       "name": "_layout_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Determine memory layout (C-contiguous, F-contiguous, strided) from flags."
+      },
+      {
+       "name": "describe",
+       "kind": "function",
+       "effects": [],
+       "note": "Describe one live object's shape. Never reads a value. (incomplete in this chunk)"
+      }
+     ],
+     "claims": [
+      {
+       "text": "A declaration says ``def load(p: str) -> Run``. A checker can sometimes prove a little more. Neither can tell you what you see the moment you stop in a debugger",
+       "where": "module docstring (lines 5-8)",
+       "verdict": "uncheckable",
+       "why": "This claim refers to external code (declaration, checker) not present in this chunk."
+      },
+      {
+       "text": "Nothing here reads an element, a cell, a row or a scalar payload.",
+       "where": "module docstring (line 19)",
+       "verdict": "kept",
+       "why": "The code in this chunk only accesses attributes like dtype, shape, columns, keys, nbytes, flags, etc. It does not index into the object or read values."
+      },
+      {
+       "text": "a value can be gigabytes, and an observer that copies data is a memory bug;",
+       "where": "module docstring (line 22)",
+       "verdict": "kept",
+       "why": "The module avoids reading values; it only accesses metadata attributes."
+      },
+      {
+       "text": "a value can be a secret, and this repo's whole egress posture is built on not moving those;",
+       "where": "module docstring (line 23)",
+       "verdict": "uncheckable",
+       "why": "Refers to repo's egress posture, not present in this chunk."
+      },
+      {
+       "text": "the graph does not want the value. It wants the shape.",
+       "where": "module docstring (line 24)",
+       "verdict": "uncheckable",
+       "why": "Refers to 'the graph', not defined in this chunk."
+      },
+      {
+       "text": "Even names are not automatically safe \u2014 a column called ``patient_id`` is a disclosure. So ``describe`` takes a ``redact`` hook, and the caller that ships an observation anywhere near a model is expected to pass one.",
+       "where": "module docstring (lines 26-28)",
+       "verdict": "kept",
+       "why": "The describe function signature includes a redact parameter, and it is called on names in the code (e.g., `red(c) for c in ...`). The claim is consistent with the code."
+      },
+      {
+       "text": "This module owns no policy about what is sensitive; ``daedalus.sensitivity`` does, and the two are kept apart on purpose.",
+       "where": "module docstring (lines 28-29)",
+       "verdict": "uncheckable",
+       "why": "Refers to daedalus.sensitivity module, not present in this chunk."
+      },
+      {
+       "text": "Because getting a live object means the program RAN. ``structcore`` is a static pass by construction and ``tools/vet.py`` states the rule outright: you do not run untrusted code to decide anything about it.",
+       "where": "module docstring (lines 32-34)",
+       "verdict": "uncheckable",
+       "why": "Refers to structcore and tools/vet.py, not present in this chunk."
+      },
+      {
+       "text": "observation is a separate, opt-in lane that *feeds* the graph with edges stamped ``provenance=observed`` \u2014 it is never part of an index build, and it runs only on trees the operator owns.",
+       "where": "module docstring (lines 34-35)",
+       "verdict": "uncheckable",
+       "why": "Refers to graph and index build, not present in this chunk."
+      },
+      {
+       "text": "``(1000, 3)`` is the shape this input produced. It is not the shape the function requires. A field never seen is not a field that cannot appear. Every record carries ``provenance=\"observed\"`` and the run it came from, and any consumer that reports it as a fact is wrong",
+       "where": "module docstring (lines 38-41)",
+       "verdict": "kept",
+       "why": "The Shape dataclass has a provenance field defaulting to 'observed'. The claim about shapes being sample-based is reflected in the module's design."
+      },
+      {
+       "text": "Duck-typed throughout: numpy, pandas, h5py and uproot are probed by attribute, never imported. A tree without them degrades to the generic families and says so.",
+       "where": "module docstring (lines 43-44)",
+       "verdict": "kept",
+       "why": "The code uses hasattr checks (e.g., hasattr(obj, 'dtype'), hasattr(obj, 'columns'), hasattr(obj, 'keys')) and does not import those libraries. The describe function checks for attributes like 'num_entries' and module names, but does not import."
+      },
+      {
+       "text": "``_attr``: Attribute or default, WITHOUT using truthiness. ``getattr(obj, \"columns\", ()) or ()`` looks harmless and raises on a pandas Index, whose ``__bool__`` refuses to answer. Any observer that touches array-likes has to fetch attributes without asking whether they are truthy.",
+       "where": "function _attr docstring (lines 81-85)",
+       "verdict": "kept",
+       "why": "The _attr function uses `getattr(obj, name, None)` and then checks `if v is None`, avoiding truthiness checks on the attribute value itself."
+      },
+      {
+       "text": "``_human_bytes``: Format byte count in human-readable form (B, KiB, etc.).",
+       "where": "function _human_bytes (line 107)",
+       "verdict": "broken",
+       "why": "The implementation has a bug: the loop condition `if n < 1024 or unit == \"TiB\"` is always true for the first iteration (unit == 'B'), so it will always return bytes. The division `n /= 1024.0` happens after the check, but the return uses `n / 1` which is unchanged. It never formats KiB or higher correctly."
+      },
+      {
+       "text": "``signature``: A stable one-line form, for comparing two observations or joining an observation against a declared type. Deterministic: names are already in a fixed order and nothing here consults a hash seed.",
+       "where": "method signature docstring (lines 148-150)",
+       "verdict": "kept",
+       "why": "The signature method concatenates fields in a fixed order (family, type_name, dtype, dims, names, length). Names are stored as a tuple, preserving order. No hash seed is used."
+      },
+      {
+       "text": "``render``: The debug-console line this record stands in for.",
+       "where": "method render docstring (line 165)",
+       "verdict": "kept",
+       "why": "The render method produces a string similar to debugger output, showing type, dtype, dims, layout, bytes, and names."
+      },
+      {
+       "text": "``_names_of``: Bounded, order-preserving name extraction with the TRUE count kept.",
+       "where": "function _names_of docstring (lines 183-184)",
+       "verdict": "kept",
+       "why": "The function converts to list (preserving order), clips to MAX_NAMES, returns shown names, total count, and truncation flag."
+      },
+      {
+       "text": "``describe``: Describe one live object's SHAPE. Never reads a value.",
+       "where": "function describe docstring (lines 207-208)",
+       "verdict": "kept",
+       "why": "The code in this chunk only accesses attributes like dtype, shape, columns, keys, nbytes, flags, etc. It does not read elements."
+      },
+      {
+       "text": "``redact`` is called on every key/column name before it is stored",
+       "where": "function describe docstring (lines 209-210)",
+       "verdict": "kept",
+       "why": "In the array-like branch: `names, n_names, trunc = _names_of(red(f) for f in fields)`; in the table branch: `names, n_names, trunc = _names_of(red(c) for c in ...)`; in the TREE branch: `names, n_names, trunc = _names_of(red(k) for k in list(obj.keys()))`. The redact function is applied to each name."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _human_bytes function has a bug: it always returns bytes because the loop condition is always true on first iteration and the division happens after the check, but the return uses n/1 which is unchanged.",
+       "where": "_human_bytes function, lines 107-113",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The describe function's TREE branch uses a for loop over a tuple with a single element (\"keys\"), which is unnecessary. It may be intended to iterate over multiple attributes like 'keys', 'members', etc., but currently only 'keys' is considered.",
+       "where": "describe function, line 243",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The describe function is incomplete in this chunk; it ends in the middle of the TREE branch. The function definition is cut off.",
+       "where": "End of chunk, line 247",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3881e781509836f056785d42dff57bec58e08f73302452710395f2344498393f",
+    "objective_chars": 11766,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/observe/shape.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/observe/shape.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

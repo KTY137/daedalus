@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/provider_router.py#c2of2#5eb1702d",
+ "key": "daedalus_provider_router.py_c2of2_5eb1702d-8b1358c218",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 4 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"lane_guard is therefore always present and None when the guard did not fire\" | _latent_receipt | KEPT | returns dict with lane_guard: None",
+     "CLAIM | \"external_ok is carried for the reader -- it is the only role property select_provider consults, so it is the mechanism by which a stage-1 re-route moves a lane at all.\" | _lane | UNCHECKABLE | needs to see select_provider implementation to verify it only consults external_ok",
+     "CLAIM | \"A LATENT DECISION MAY NEVER CHANGE THE LANE.\" | _apply_lane_guard | KEPT | overrules if lanes differ",
+     "CLAIM | \"the keyword retry is NOT wrapped -- a genuinely unroutable task, e.g. an empty roster, still raises exactly the error it raised before this was wired.\" | _route_role | KEPT | try block only wraps semantic_route_explained, not _keyword()",
+     "CLAIM | \"Both repo_root and active_agents are threaded into it so the embeddings score the SAME roster this caller would accept -- scoring the global crew and returning a role the caller excluded is a routing bug, not a near miss.\" | route_and_select | KEPT | passes active_agents and repo_root to _route_role",
+     "CLAIM | \"Stage 1 decides external_ok, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes -- which is why _apply_lane_guard forbids exactly that.\" | route_and_select | BROKEN | line 125 (in _apply_lane_guard) compares (provider, mode) not external_ok; the guard forbids lane changes based on provider/mode, not external_ok",
+     "D1 | _route_role | parameter `paths` read but only as `paths or []` in call to _route_role; however `paths` is used inside _route_role via `_semantic_route_explained(objective, paths, ...)` and `route_task(objective, paths, ...)`, so it is read. | WRONG CONCLUSION: no unused parameter found"
+    ],
+    "todos": [
+     "Fix the docstring in route_and_select: either change the claim to say the guard forbids lane changes based on provider/mode, or adjust the guard to also check external_ok and forbid changes in external_ok. The simplest fix: update the docstring to match the implementation: 'Stage 1 decides external_ok, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes -- which is why _apply_lane_guard forbids exactly that by comparing provider and mode.'"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4f0816bc6fefa2777e2af2d3d34a83f54385df814212535e9f3386602a3ceff5",
+    "objective_chars": 12890,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"``lane_guard`` is therefore always present and ``None`` when the guard did not fire\" | _latent_receipt | KEPT | Returns dict with lane_guard: None.",
+     "CLAIM | \"A LATENT DECISION MAY NEVER CHANGE THE LANE.\" | _apply_lane_guard | KEPT | The function overrules if lanes differ.",
+     "CLAIM | \"Never silent: an overrule gets its own ``mechanism`` and records both roles, both lanes and the margin.\" | _apply_lane_guard | KEPT | Returns overruled receipt with mechanism LATENT_OVERRULED and guard dict.",
+     "CLAIM | \"the keyword router is always the floor\" | _route_role | KEPT | On exception, falls back to keyword router.",
+     "CLAIM | \"Every path out of here therefore produces both an agent AND a receipt saying which path it was.\" | _route_role | KEPT | All return paths return both agent and receipt.",
+     "CLAIM | \"the keyword retry is NOT wrapped\" | _route_role | KEPT | The _keyword() call is outside the try-except.",
+     "CLAIM | \"Stage 1 decides ``external_ok``, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes\" | route_and_select | BROKEN | The lane guard overrules such moves; latent re-route cannot change lane. Contradicts docstring of _apply_lane_guard.",
+     "CLAIM | \"Stage 1 decides ``external_ok``, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes -- which is why :func:`_apply_lane_guard` forbids exactly that.\" | route_and_select | KEPT | The claim is internally consistent: it says CAN move, then says guard forbids it. The code matches.",
+     "D1 | latent parameter in _route_role | read nowhere in this unit | WRONG CONCLUSION: a caller may believe the latent parameter is used, but it is only passed to _latent_enabled, which is not shown."
+    ],
+    "todos": [
+     "In route_and_select docstring, remove or rephrase the claim that 'a latent re-route CAN move a task between the trusted-only and external-eligible lanes' because the lane guard forbids it; the docstring already acknowledges the guard but the initial statement is misleading."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4f0816bc6fefa2777e2af2d3d34a83f54385df814212535e9f3386602a3ceff5",
+    "objective_chars": 12890,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 3 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A LATENT DECISION MAY NEVER CHANGE THE LANE.\" | _apply_lane_guard | KEPT | The function returns the latent agent/decision when lanes match, and overrules when they differ, preventing lane change.",
+     "CLAIM | \"The comparison is EMPIRICAL: both roles are run through the real ``select_provider``\" | _apply_lane_guard | KEPT | Both latent_decision and keyword_decision come from select_provider (latent_decision from prior, keyword_decision via select(keyword_agent)).",
+     "CLAIM | \"Never silent: an overrule gets its own ``mechanism`` and records both roles, both lanes and the margin.\" | _apply_lane_guard | KEPT | The overruled dict includes mechanism=LATENT_OVERRULED, latent_agent, latent_lane, keyword_agent, keyword_lane, margin, reason.",
+     "CLAIM | \"A filtered sample that does not announce itself would corrupt the very margin measurement this guard is waiting on.\" | _apply_lane_guard | KEPT | The overruled receipt includes margin and reason, and a warning is logged.",
+     "CLAIM | \"keyword_agent is what the keyword router would have returned on its own, which is what :func:`_apply_lane_guard` needs to compare lanes against.\" | _route_role | KEPT | On non-latent paths, keyword_agent is set to agent (same object). On latent path, keyword_agent is set to _keyword() when mechanism == LATENT, else result.agent (which is from route_task).",
+     "CLAIM | \"On every non-latent path the two are the same object, because the keyword router is what produced the agent there.\" | _route_role | KEPT | When latent disabled or exception, return agent, agent, receipt. When result.mechanism != LATENT, keyword_agent = result.agent (same).",
+     "CLAIM | \"FAIL SOFT, LOUDLY. The latent route reaches a network service, so it has failure modes routing itself must not inherit... None of those may take routing down with them -- the keyword router is always the floor -- but none of them may be silent either... Every path out of here therefore produces both an agent AND a receipt saying which path it was.\" | _route_role | KEPT | On exception, falls back to keyword router and returns a receipt with FALLBACK and error details; on success, returns receipt from result; on disabled, returns receipt with LATENT_DISABLED.",
+     "CLAIM | \"The broad ``except`` is deliberate and is the fail-soft half: an unforeseen exception from the latent module (or anything it imports) must cost this call its embedding, not its ability to route.\" | _route_role | KEPT | The except catches Exception and falls back to keyword router.",
+     "CLAIM | \"Note that the keyword retry is NOT wrapped -- a genuinely unroutable task, e.g. an empty roster, still raises exactly the error it raised before this was wired.\" | _route_role | KEPT | The _keyword() call outside the try-except (in the disabled path and inside except) is not wrapped; if it raises, it propagates.",
+     "CLAIM | \"Stage 1 decides ``external_ok``, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes -- which is why :func:`_apply_lane_guard` forbids exactly that.\" | route_and_select | BROKEN | _apply_lane_guard forbids lane changes, but the claim says latent re-route CAN move a task between lanes, then says _apply_lane_guard forbids it. The claim is contradictory. The intended meaning is that latent re-route *would* be able to move lanes without the guard, but the guard forbids it. However, the prose as written is ambiguous and could be read as a false statement. Judging strictly: 'a latent re-route CAN move a task between the trusted-only and external-eligible lanes' is false because _apply_lane_guard forbids it. So BROKEN.",
+     "CLAIM | \"The embedding may steer within a lane; it may not move one.\" | route_and_select | KEPT | The guard allows steering within same lane, overrules otherwise.",
+     "CLAIM | \"Both ``repo_root`` and ``active_agents`` are threaded into it so the embeddings score the SAME roster this caller would accept -- scoring the global crew and returning a role the caller excluded is a routing bug, not a near miss.\" | route_and_select | KEPT | repo_root and active_agents are passed to _route_role, which passes them to semantic_route_explained.",
+     "CLAIM | \"It ALSO reaches :func:`select_provider`, which is what puts the live mutate path (``offload`` -> here) behind the blast-radius fence rather than leaving the check available but unwired.\" | route_and_select | UNCHECKABLE | The claim depends on code outside this unit (select_provider implementation). Cannot verify without that code.",
+     "D1 | latent | _route_role | parameter 'latent' is read (in _latent_enabled(latent)), but the parameter 'latent' is also used in route_and_select. Actually it is read. Let me re-check: In _route_role, 'latent' is used in _latent_enabled(latent). So it is read. No D1.",
+     "D1 | availability | route_and_select | parameter 'availability' is passed to _select but _select passes it to select_provider. select_provider is external, so it might be read there. But within this unit, availability is not read except being passed. That is not a D1 because it is passed to another function. D1 is defined as 'defined in this unit and read nowhere in this unit'. Here availability is defined as parameter and then passed to select_provider, which is outside this unit, so it is read nowhere in this unit. So D1 on availability.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "CLAIM | \"Stage 1 decides ``external_ok``, so a latent re-route CAN move a task between the trusted-only and external-eligible lanes -- which is why :func:`_apply_lane_guard` forbids exactly that.\" | Reword to clarify that latent re-route *would* move lanes without the guard, but the guard forbids it. For example: 'Stage 1 decides external_ok, so a latent re-route *would* move a task between lanes if not for :func:`_apply_lane_guard`, which forbids exactly that.'"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4f0816bc6fefa2777e2af2d3d34a83f54385df814212535e9f3386602a3ceff5",
+    "objective_chars": 12890,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/provider_router.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 10373
+ }
+}

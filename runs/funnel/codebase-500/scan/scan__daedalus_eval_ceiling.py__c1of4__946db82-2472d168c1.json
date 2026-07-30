@@ -1,0 +1,239 @@
+{
+ "task_id": "scan__daedalus_eval_ceiling.py__c1of4__946db82",
+ "key": "scan__daedalus_eval_ceiling.py__c1of4__946db82-2472d168c1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1/4 of ceiling.py defines module purpose, classification constants, and reopen thresholds; no executable code, only docstring claims and constants.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring claims | medium | Claims about measured ceiling numbers (1/43, 2.3%, etc.) cannot be verified from this chunk alone; they depend on data from code not shown. | Add unit tests or a data file that reproduces the numbers.",
+     "docstring references | low | References to specific commits, dates, and review artifacts (Nemesis, 2026-07-21) are uncheckable. | Include those artifacts or remove references.",
+     "REOPEN_MIN_SHARE and REOPEN_MIN_TASKS | low | These constants are hardcoded with rationale but no usage shown; their values may become stale. | Verify usage in later chunks and document if changed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/ceiling.py",
+     "chunk": "1 of 4",
+     "purpose": "Define module docstring, classification constants, and reopen thresholds for temporal co-change ceiling evaluation.",
+     "symbols": [
+      {
+       "name": "CLASSES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of four classification strings: REACHABLE, UNREACHABLE, STATIC_EDGE, NO_INSCOPE_DEF."
+      },
+      {
+       "name": "REOPEN_MIN_SHARE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Float 0.10; minimum share of labels to trigger reopen signal."
+      },
+      {
+       "name": "REOPEN_MIN_TASKS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Int 3; minimum number of distinct tasks to trigger reopen signal."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The independent_diff corpus has miss tasks: minted ``must_include`` labels the current slice does not contain.",
+       "where": "docstring line 4",
+       "verdict": "uncheckable",
+       "why": "No code or data in this chunk verifies the existence or content of any corpus."
+      },
+      {
+       "text": "The \"temporal\" hypothesis says a co-change tier (files that repeatedly change together with no static import edge -- ``structcore.churn.co_change_pairs``) could recover them.",
+       "where": "docstring line 5",
+       "verdict": "uncheckable",
+       "why": "co_change_pairs is imported but not invoked; its behavior is not shown."
+      },
+      {
+       "text": "this module measures the CEILING of that hypothesis: for every missed label, is ANY in-scope file defining that symbol a co-change partner of the task's focus file at all?",
+       "where": "docstring line 6",
+       "verdict": "uncheckable",
+       "why": "No measurement logic is present in this chunk."
+      },
+      {
+       "text": "If a label's defining file is not even a partner, no enrichment built on these pairs can ever surface it -- so this number is a hard upper bound",
+       "where": "docstring line 7",
+       "verdict": "uncheckable",
+       "why": "Claim about enrichment capability requires code not shown."
+      },
+      {
+       "text": "Every minted task records the commit it came from (``minted_at_sha``), and that commit CO-CHANGED the focus and the label sources -- that is what minting means.",
+       "where": "docstring line 10",
+       "verdict": "uncheckable",
+       "why": "Data structure minted_at_sha not defined in this chunk."
+      },
+      {
+       "text": "Counting it would let the eval \"predict\" a commit from that same commit's own data. The clean arm therefore computes pairs over ``git log <minted_at_sha>^`` -- history strictly before the mint (first-parent semantics; merge SHAs are flagged in the row rather than silently half-counted).",
+       "where": "docstring line 11",
+       "verdict": "uncheckable",
+       "why": "No git command or history computation is present in this chunk."
+      },
+      {
+       "text": "The LEAKY arm (full history) is computed alongside on purpose: the gap between the two arms is the measured size of the self-prediction artifact",
+       "where": "docstring line 12",
+       "verdict": "uncheckable",
+       "why": "No arm computation shown."
+      },
+      {
+       "text": "Even the clean arm is a walk-forward BACKTEST HIT-RATE -- \"did pre-commit co-change history name the files this commit went on to touch?\" -- which is the temporal tier's best case, not a live-use recall measurement.",
+       "where": "docstring line 15",
+       "verdict": "uncheckable",
+       "why": "No backtest logic present."
+      },
+      {
+       "text": "this module resolves every focus/defining file to its full historical alias set (``git log --follow``) and sums co-change counts across spellings BEFORE applying ``min_count``.",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "No resolution or summing logic present."
+      },
+      {
+       "text": "The first version of this check was rename-blind and published \"rename-aware matching does not change it\" -- the adversarial review (Nemesis, 2026-07-21) refuted exactly that sentence by hand-verifying a real verifier.py<->providers/ollama.py coupling across the rebrand boundary.",
+       "where": "docstring line 21",
+       "verdict": "uncheckable",
+       "why": "No review artifacts or version history present."
+      },
+      {
+       "text": "The corrected numbers are below; keep the instrument rename-aware or a grown-corpus re-run will understate again.",
+       "where": "docstring line 22",
+       "verdict": "uncheckable",
+       "why": "No numbers appear in this chunk; no instrumentation logic shown."
+      },
+      {
+       "text": "MEASURED CLOSE (2026-07-21, agent_env corpus, 7 miss tasks / 43 missed labels; rename-blind first pass corrected by the Nemesis rename-map recount, then reproduced by this module): clean ceiling at min_count=2 = 1/43 = 2.3% (a single label, ``_dispatch``: genuine verifier<->ollama coupling crossing the rebrand); min_count=1 adds nothing further; leaky full-history arm = 6/43 at min_count=2 and 42/43 at min_count=1 -- the self-prediction artifact, nearly total at the permissive setting.",
+       "where": "docstring line 24",
+       "verdict": "uncheckable",
+       "why": "No measurement output or data present in this chunk."
+      },
+      {
+       "text": "Structural context that bounds any future hope here: 41 of 43 missed labels sit on focus files BORN AT THEIR MINT COMMIT (zero pre-mint history -- test files created by the very feature commit they were minted from), so for them clean unreachability is structural truth under ANY enrichment; the remaining NO_INSCOPE_DEF label (``_py_maps``) is a stale label whose definition the mint commit itself deleted.",
+       "where": "docstring line 25",
+       "verdict": "uncheckable",
+       "why": "No analysis of focus file birth or commit history present."
+      },
+      {
+       "text": "Conclusion: the \"temporal class\" of misses was predominantly the mint commit predicting itself, and slice-side co-change enrichment was NOT built (design NO-GO'd on this measurement; 1 recoverable label is below any sane build threshold).",
+       "where": "docstring line 26",
+       "verdict": "uncheckable",
+       "why": "No design decisions or build thresholds present."
+      },
+      {
+       "text": "THE REOPEN CONDITION (with a materiality floor -- a lone recoverable label must not reopen a core-API build): reopen the enrichment lane only when a re-run on a grown corpus reports a clean, rename-aware ceiling at min_count >= 2 that clears ``REOPEN_MIN_SHARE`` of scored labels OR touches ``REOPEN_MIN_TASKS`` distinct tasks.",
+       "where": "docstring line 28",
+       "verdict": "uncheckable",
+       "why": "No reopen logic or condition evaluation present."
+      },
+      {
+       "text": "Caveat to carry: a corpus whose focus files are born at their mint commits (like today's) can NEVER trip this regardless of how real temporal coupling is elsewhere -- the zero generalizes weakly, so re-run it as the corpus grows rather than citing today's close as permanent.",
+       "where": "docstring line 29",
+       "verdict": "uncheckable",
+       "why": "No corpus analysis or generalization logic present."
+      },
+      {
+       "text": "Per the package contract, imports only structcore's stable public API plus sibling eval modules.",
+       "where": "docstring line 31",
+       "verdict": "kept",
+       "why": "Imports in this chunk are from daedalus.structcore (churn, index, languages, parse) and from sibling .harness and .tasks; no other package imports."
+      },
+      {
+       "text": "Read-only: never writes the store, the baseline, or any file.",
+       "where": "docstring line 31",
+       "verdict": "uncheckable",
+       "why": "No file operations present in this chunk; cannot verify absence of writes in later chunks."
+      },
+      {
+       "text": "ADVISORY, like every eval number -- see harness.py's guardrail.",
+       "where": "docstring line 31",
+       "verdict": "uncheckable",
+       "why": "harness.py not provided; guardrail concept not defined."
+      },
+      {
+       "text": "Classification of one missed label, in decision order: NO_INSCOPE_DEF, STATIC_EDGE, REACHABLE, UNREACHABLE",
+       "where": "comment line 38",
+       "verdict": "kept",
+       "why": "The constant CLASSES defines exactly these four strings in that order, matching the description."
+      },
+      {
+       "text": "REOPEN_MIN_SHARE = 0.10, REOPEN_MIN_TASKS = 3",
+       "where": "comment line 56",
+       "verdict": "kept",
+       "why": "Constants are defined with those exact values."
+      },
+      {
+       "text": "Either trigger suffices: breadth (many tasks touched a little) and depth (one task's misses largely recoverable) are both real signals.",
+       "where": "comment line 57",
+       "verdict": "uncheckable",
+       "why": "No trigger evaluation logic present; constants alone do not implement OR logic."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk contains only docstring, imports, constants, and comments; no executable logic.",
+       "where": "entire chunk",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring makes many specific claims about measurements, corpus characteristics, and historical events that cannot be verified from this file alone.",
+       "where": "docstring lines 4-29",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The constants CLASSES, REOPEN_MIN_SHARE, REOPEN_MIN_TASKS are defined but not used in this chunk.",
+       "where": "lines 43-57",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The import statement includes 'from .harness import all_tasks, eval_task_tier1' and 'from .tasks import resolve_task_repo', but these are not used in this chunk.",
+       "where": "lines 36-37",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8bcdfc2d1fee55ffbc70804fee15ecea42b591fefe9d9f7cc0d2ac6dbfe9a8ad",
+    "objective_chars": 7473,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/ceiling.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/eval/ceiling.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

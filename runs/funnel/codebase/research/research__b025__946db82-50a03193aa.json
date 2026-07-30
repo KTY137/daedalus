@@ -1,0 +1,115 @@
+{
+ "task_id": "research__b025__946db82",
+ "key": "research__b025__946db82-50a03193aa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: (1) shared assumption about path resolution case-sensitivity across worktree.py and markdown.py; (2) missing drain verification in worktree.py contrasts with claimed invariant; (3) unresolved constants in markdown.py may cause runtime errors.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Path resolution case-sensitivity mismatch between worktree.py and markdown.py could cause inconsistent behavior on case-insensitive filesystems.",
+     "Missing drain verification in worktree.py's _remove_tree_no_follow contradicts its documented invariant, potentially allowing undetected partial deletions.",
+     "Undefined constants in markdown.py (WIKI_RESOLVED) will cause NameError at runtime when resolve_wiki_target is called.",
+     "Reliance on undefined helper functions (_key, _strip_front_matter, _headings, etc.) suggests incomplete implementation or missing imports."
+    ],
+    "todos": [
+     "Verify that _key in worktree.py is case-sensitive and whether markdown.py's path normalization matches.",
+     "Confirm that drain verification exists in worktree.py's _remove_tree_no_follow or add it to match documentation.",
+     "Define missing constants (WIKI_RESOLVED) in markdown.py or import them from the correct module.",
+     "Ensure all referenced helper functions are defined or imported in markdown.py."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "path-case-sensitivity",
+       "claim": "Both worktree.py and markdown.py assume a specific case-sensitivity behavior for path resolution, but they may disagree on case-sensitive vs case-insensitive matching, leading to inconsistent behavior on Windows or other case-insensitive filesystems.",
+       "spans": [
+        "daedalus/kairos/worktree.py",
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "worktree.py's _chain_between uses _key (unknown) for comparison, and the docstring claims it avoids 'relative_to' due to case-sensitivity concerns on Windows. markdown.py's wiki_lookup builds dictionaries with lowercased keys, and _hits does case-insensitive matching via lowercasing. If worktree.py's _key is case-sensitive (e.g., using str), paths that differ only in case would be considered different, while markdown.py would treat them as the same. This could cause a file to be reachable via one module but not the other.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If _key in worktree.py is defined to perform case-insensitive comparison (e.g., using .lower()), or if the codebase runs only on case-sensitive filesystems, then the mismatch is irrelevant.",
+       "evidence": [
+        "daedalus/kairos/worktree.py:_chain_between docstring",
+        "daedalus/structcore/markdown.py:wiki_lookup"
+       ]
+      },
+      {
+       "id": "drain-verification-missing",
+       "claim": "The _remove_tree_no_follow function in worktree.py claims to have three verification sites (scan, per-child, drain), but the drain verification is missing from the provided chunk, contradicting the documented invariant and potentially allowing undetected partial deletions.",
+       "spans": [
+        "daedalus/kairos/worktree.py"
+       ],
+       "mechanism": "The docstring states 'RE-CHECK 1 OF 3 (the others are in the entry loop and the drain, and each one is separately load-bearing)'. However, the code shown only includes verification at pop (scan) and per child. The drain loop (which removes empty directories) is not shown, and if it lacks verification, a race condition could swap an ancestor during drain, causing deletion outside the intended tree without detection.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If the drain verification exists in a later chunk of worktree.py (e.g., in the rmdir drain loop), then the claim is false.",
+       "evidence": [
+        "daedalus/kairos/worktree.py:_remove_tree_no_follow docstring"
+       ]
+      },
+      {
+       "id": "undefined-constants",
+       "claim": "markdown.py references the constant WIKI_RESOLVED which is not defined in the provided chunk, and likely not imported, causing a NameError at runtime when resolve_wiki_target is called.",
+       "spans": [
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "In resolve_wiki_target, the function returns (target, WIKI_RESOLVED) but WIKI_RESOLVED is not among the defined constants (WIKI_UNRESOLVED, WIKI_AMBIGUOUS, WIKI_DEFERRED). This will raise a NameError when the function executes.",
+       "severity": "critical",
+       "confidence": "certain",
+       "refuted_by": "If WIKI_RESOLVED is defined in a different chunk of the same file or imported from another module, then the error does not occur.",
+       "evidence": [
+        "daedalus/structcore/markdown.py:resolve_wiki_target"
+       ]
+      },
+      {
+       "id": "missing-helper-functions",
+       "claim": "Several functions in markdown.py (parse_document, internal_links) rely on helper functions (_strip_front_matter, _headings, _dedup_anchors, _link_occurrences) that are not defined in the provided chunk, indicating incomplete implementation or missing imports.",
+       "spans": [
+        "daedalus/structcore/markdown.py"
+       ],
+       "mechanism": "parse_document calls _strip_front_matter, _headings, _dedup_anchors, and _link_occurrences. If these are not defined or imported, the function will raise a NameError at runtime. Similarly, internal_links is defined only by signature without implementation.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If these helper functions are defined in other chunks of the same file or imported from another module, then the missing definitions are not a problem.",
+       "evidence": [
+        "daedalus/structcore/markdown.py:parse_document",
+        "daedalus/structcore/markdown.py:internal_links"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e823bed76fd077af84aada590d0a09f18662b35ebc15cb56c74caa530f77e798",
+    "objective_chars": 24115,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 25 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 25,
+  "inputs": 5
+ }
+}

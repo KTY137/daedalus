@@ -1,0 +1,135 @@
+{
+ "task_id": "scan__daedalus_memory_projection_worker.py__c3of9__946db82",
+ "key": "scan__daedalus_memory_projection_worker.py__c3of9__946db82-3d7c3faac2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of projection_worker.py: defines _ro_connect, _stored_specs, _stored_source_hashes, _stored_watermark, and a read-only view comment block with checkable claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/projection_worker.py",
+     "chunk": "3 of 9",
+     "purpose": "Define read-only database access functions for projection index.",
+     "symbols": [
+      {
+       "name": "_ro_connect",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a read-only sqlite3 connection or None if db is :memory: or file doesn't exist."
+      },
+      {
+       "name": "_stored_specs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of EmbeddingSpec from embedding_indexes table, or empty list on error."
+      },
+      {
+       "name": "_stored_source_hashes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns set of source_hash strings from event_projections for a given index_id."
+      },
+      {
+       "name": "_stored_watermark",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns JournalPosition from projection_watermarks for given index_id and journal_id, or None."
+      }
+     ],
+     "claims": [
+      {
+       "text": "These read the schema owned by ``embeddings.py`` through a separate read-only connection rather than reaching into ``EventVectorStore._conn``.",
+       "where": "comment block before _ro_connect",
+       "verdict": "uncheckable",
+       "why": "The claim references external module 'embeddings.py' and class 'EventVectorStore._conn' which are not present in this chunk."
+      },
+      {
+       "text": "They exist because there is no public \"has this event already been projected?\" API, and because ``--dry-run`` must be able to answer that question without creating the database.",
+       "where": "comment block before _ro_connect",
+       "verdict": "uncheckable",
+       "why": "The claim references a '--dry-run' flag and an API not present in this chunk."
+      },
+      {
+       "text": "Returns a read-only sqlite3 connection or None if db is :memory: or file doesn't exist.",
+       "where": "_ro_connect docstring (implied by comment block)",
+       "verdict": "kept",
+       "why": "Code returns None for ':memory:' and if path doesn't exist, and opens with mode=ro."
+      },
+      {
+       "text": "Returns list of EmbeddingSpec from embedding_indexes table, or empty list on error.",
+       "where": "_stored_specs docstring (implied by comment block)",
+       "verdict": "kept",
+       "why": "Code returns empty list if conn is None or on sqlite3.Error, and builds list from rows."
+      },
+      {
+       "text": "Returns set of source_hash strings from event_projections for a given index_id.",
+       "where": "_stored_source_hashes docstring (implied by comment block)",
+       "verdict": "kept",
+       "why": "Code selects source_hash and returns set of strings, empty set on error or None conn."
+      },
+      {
+       "text": "Returns JournalPosition from projection_watermarks for given index_id and journal_id, or None.",
+       "where": "_stored_watermark docstring (implied by comment block)",
+       "verdict": "kept",
+       "why": "Code returns None if conn is None or on sqlite3.Error, otherwise fetches row."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _stored_watermark fetches a row but never constructs a JournalPosition object; it returns the raw row (or None). The claim says it returns JournalPosition, but code returns the row as-is.",
+       "where": "_stored_watermark function body",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment block uses triple-backtick fences incorrectly; they are not Python docstrings but plain comments. Functions lack explicit docstrings.",
+       "where": "comment block before _ro_connect",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a63671fc9760ed2f67b953b27ff501d335413bab13fb62d5e9ec9aecde35570e",
+    "objective_chars": 4458,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/projection_worker.py [3/9]",
+  "rev": "946db82",
+  "module": "daedalus/memory/projection_worker.py",
+  "index": 3,
+  "total": 9,
+  "first_line": 241
+ }
+}

@@ -1,0 +1,147 @@
+{
+ "task_id": "plan__b017__946db82",
+ "key": "plan__b017__946db82-8bb11c673c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 surviving findings: high-severity trace_id mismatch and offload_runner exception handling need inspection; medium-severity batch size validation and mutable env isolation need grep/defensive changes. Steps reference only paths from findings.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If offload_runner raises exceptions, cascading failures in _recording_runner and _default_attempt are unhandled.",
+     "If trace_id is absent from task shape, intents may be misattributed across trace contexts.",
+     "No cross-module batch size validation could cause silent timeouts or overflows.",
+     "Mutable dict from council_env could be accidentally mutated, affecting subprocess environments."
+    ],
+    "todos": [
+     "Inspect daedalus/eval/tasks.py for trace_id field in TASKS list.",
+     "Inspect all call sites of record_intent to verify explicit trace_id passing.",
+     "Inspect offload_runner implementation for possible exceptions.",
+     "Check if run_attempt catches exceptions.",
+     "Grep for 'batch' and 'limit' in codebase to confirm absence of cross-module validation.",
+     "Grep for 'council_env' callers to verify none mutate the returned dict."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Inspect trace_id presence in eval tasks and record_intent call sites",
+       "gate": "1",
+       "why_now": "Without confirming trace_id is explicit, intents may be misattributed in eval, corrupting provenance.",
+       "steps": [
+        {
+         "do": "Open daedalus/eval/tasks.py and check if the TASKS list includes a trace_id field in each task shape.",
+         "file": "daedalus/eval/tasks.py",
+         "verified_by": "Manual inspection: grep for 'trace_id' in daedalus/eval/tasks.py"
+        },
+        {
+         "do": "Grep for all calls to record_intent in the codebase and verify each passes trace_id explicitly.",
+         "file": "daedalus/spine/ledger.py",
+         "verified_by": "grep -rn 'record_intent' daedalus/ -- list each call and confirm trace_id argument"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume the TASKS list is defined in daedalus/eval/tasks.py and record_intent is defined in daedalus/spine/ledger.py."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect offload_runner for exception safety and add handling if needed",
+       "gate": "1",
+       "why_now": "If offload_runner can raise, _recording_runner and _default_attempt will crash without recovery.",
+       "steps": [
+        {
+         "do": "Find the definition of offload_runner (likely in daedalus/eval/ or daedalus/kairos/) and inspect its implementation for possible exceptions.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn 'def offload_runner' daedalus/ -- then review the file"
+        },
+        {
+         "do": "Check if run_attempt (likely in daedalus/spine/attempt.py) catches exceptions from offload_runner.",
+         "file": "daedalus/spine/attempt.py",
+         "verified_by": "Manual inspection of daedalus/spine/attempt.py for try/except around offload_runner call"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume offload_runner is defined somewhere in daedalus/eval/ or daedalus/kairos/; exact path unknown."
+      },
+      {
+       "rank": 3,
+       "title": "Add cross-module batch size validation",
+       "gate": "2",
+       "why_now": "Without validation, a large batch from one module can cause timeout/overflow in another without feedback.",
+       "steps": [
+        {
+         "do": "Search for any existing cross-module batch size validation by grepping for 'batch' and 'limit'.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -rn -E 'batch|limit' daedalus/ -- if no cross-module validation found, claim holds"
+        },
+        {
+         "do": "Add a shared batch size limit constant and validate input size before processing in modules that consume batches.",
+         "file": "UNKNOWN",
+         "verified_by": "Write a test that passes a batch exceeding the limit and asserts graceful rejection"
+        }
+       ],
+       "depends_on": "",
+       "effort": "days",
+       "assumption": "We assume batch-consuming modules exist (e.g., projection worker, wiki link processor) but exact files unknown."
+      },
+      {
+       "rank": 4,
+       "title": "Protect council_env return value from mutation",
+       "gate": "1",
+       "why_now": "The docstring guarantee is not enforced; a future caller could mutate the dict and affect subprocess environments.",
+       "steps": [
+        {
+         "do": "Grep for all callers of council_env to verify none mutate the result.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "grep -rn 'council_env' daedalus/ -- then inspect each caller's code for mutations"
+        },
+        {
+         "do": "Change council_env to return a read-only view (e.g., types.MappingProxyType) to enforce the docstring guarantee.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "pytest tests/test_council_session.py -k 'env'"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume council_env is defined in daedalus/council/session.py and tests exist."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/eval/tasks.py",
+      "daedalus/spine/ledger.py",
+      "daedalus/council/session.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e5ee723de14eaed6e9e6bf91318007a5b8d9780c7e8e0ffd42b3c301da99cf52",
+    "objective_chars": 14900,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 17 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 17,
+  "inputs": 4
+ }
+}

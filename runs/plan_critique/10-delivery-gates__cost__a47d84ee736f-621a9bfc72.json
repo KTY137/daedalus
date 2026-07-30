@@ -1,0 +1,217 @@
+{
+ "task_id": "10-delivery-gates__cost__a47d84ee736f",
+ "key": "10-delivery-gates__cost__a47d84ee736f-621a9bfc72",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Gate 0's 'vendor-neutral Agent Contract / Runtime Manifest' and 'centralized start/guard path' impose extreme build and maintenance costs without specifying a cheaper alternative or justification; Gate 1's 'prove one vertical mission' is vague and unbounded, risking infinite cost for minimal gain.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "10.1 | critical | 'Work advances in order' implies sequential gates, freezing later work until earlier gates exit, which can cause massive delays if a gate's exit criteria are too expensive or vague. | Simulate a schedule with realistic gate durations; if any gate takes >6 months, the sequential constraint is too costly.",
+     "10.2 | critical | 'vendor-neutral Agent Contract / Runtime Manifest for capabilities, mission envelopes, tools, egress, workspace, cost, and conformance receipts' requires designing and maintaining a large, abstract schema with no cheaper alternative specified. | Estimate cost to build and maintain this schema vs. using existing standards (e.g., OCI, SPDX) or a minimal bespoke schema; if the difference is >10x, the claim is too expensive.",
+     "10.3 | critical | 'centralized start/guard path for every effectful runtime entrypoint' forces a single bottleneck for all effectful operations, adding latency and coupling, without considering cheaper decentralized guards. | Prototype both centralized and decentralized guard paths; if centralized adds >5% latency to a simple effect, it is too costly.",
+     "10.4 | high | 'enforceable write/egress/spend/secrets/concurrency/kill policies' requires a full policy engine with no cheaper alternative (e.g., OS-level enforcement) considered. | Estimate cost to build a policy engine vs. using existing tools (e.g., seccomp, AppArmor); if the difference is >5x, the claim is too expensive.",
+     "10.5 | high | 'real adapter fixtures for start, stream, tool events, structured output, timeout, cancellation, workspace isolation, and cost' requires building and maintaining many test fixtures without specifying reuse or cheaper simulation. | Count number of fixtures vs. using a single mock adapter; if >20 distinct fixtures, the cost is high.",
+     "10.6 | medium | 'policy coverage tests for Claude, Codex, Ollama, Web/API, MCP/File Bridge, Python entrypoints, and isolated worktrees' requires maintaining tests for many specific systems, which may break with upstream changes. | Estimate maintenance cost per system per year; if any system requires >1 person-week/year, the cost is high.",
+     "10.7 | medium | 'no new feature path or state store outside the canonical contracts' forces all extensions to go through the canonical contracts, which may be too rigid for future needs. | Evaluate if the canonical contracts can be extended without breaking changes; if not, the cost of future changes is high.",
+     "10.8 | medium | 'Exit only when a fault-injection matrix demonstrates fail-closed protected effects and fail-open read-only inspection' requires a comprehensive fault-injection test suite, which is expensive to build and maintain. | Estimate cost to build and run the matrix vs. simpler property-based tests; if the difference is >3x, the claim is too expensive.",
+     "10.9 | medium | 'Prove one vertical mission: propagate Event.voltage -> bias_voltage across Python, Markdown, and CSV' is vague; 'prove' is undefined, risking unbounded effort. | Define 'prove' with a concrete pass/fail criterion; if no such definition exists, the gate may never exit.",
+     "10.10 | high | 'Ikarus produces one MissionContract; the four planes produce two typed WorkItems; attempts run in isolation; restart/replay works; tests, schema checks, and link checks produce an EvidencePacket.' This is a list of deliverables without cost estimates; each could be expensive. | Estimate cost for each deliverable; if any exceeds 1 person-month, the claim is too vague.",
+     "10.11 | low | 'No auto-merge.' This is a simple rule with minimal cost. | None needed.",
+     "10.12 | high | 'Add function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators, and four-plane ablations.' This is a large set of features without prioritization or cost bounds. | Estimate cost for each feature; if total exceeds 6 person-months, the claim is too expensive.",
+     "10.13 | medium | 'Do not scale before the full graph beats simpler representations.' This ties scaling to a vague performance criterion, risking indefinite delay. | Define 'beats' with a clear metric and threshold; if not defined, the gate may never open.",
+     "10.14 | critical | 'Freeze public tasks, evaluator versions, budgets, model/hardware reporting, seed policy, and statistical reporting. Required baselines are Random Search, Best-of-N, a single-LLM loop, simple local mutation, BM25, embeddings, code-only graph, four separate indices, evaluator-only selection, archive/MAP-Elites, and a transparent AlphaEvolve-like proxy. Measure success rate, best-so-far AUC, wall time, tokens, compute, variance, diversity, regressions, and human intervention.' This is a massive fixed set of baselines and metrics, requiring enormous engineering effort to implement and maintain, with no cheaper alternative (e.g., a subset) considered. | Estimate cost to implement all baselines; if >10 person-months, the claim is too expensive.",
+     "10.15 | high | 'Test Graph-conditioned Representation Search first: use verified Project Twin structure to select and compress context or operators, then compare against budget-equal retrieval and evaluator-only baselines. Freeze generator, model, token budget, and evaluator. Controls include edge rewiring, relation-label permutation, cross-plane bridges off, stale snapshots, and an oracle graph. One hypothesis, one pre-registered protocol, complete ablations.' This is a detailed experimental plan but requires building the 'Project Twin' and many controls, which may be costly. | Estimate cost to build Project Twin and run all ablations; if >6 person-months, the claim is too expensive.",
+     "10.16 | medium | 'Release reproducible task definitions, evaluator code/version, receipts, cost/latency tables, ablations, failures, and a claim bounded by observed evidence.' This requires significant documentation and packaging effort but is a one-time cost. | Estimate cost; if >2 person-months, consider automating some parts.",
+     "10.17 | low | 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available.' This is a factual statement with no direct cost. | None needed.",
+     "10.18 | low | 'Beats AlphaEvolve is permitted only for directly comparable public artifact scores under budget-equal measurements; otherwise state the narrower proxy/task result.' This is a rule with minimal cost. | None needed."
+    ],
+    "todos": [
+     "Replace 'vendor-neutral Agent Contract / Runtime Manifest' with a minimal schema or reference an existing standard (e.g., OCI annotations) to reduce build and maintenance cost.",
+     "Replace 'centralized start/guard path' with a decentralized or middleware-based guard pattern to reduce latency and coupling.",
+     "Define 'prove' in Gate 1 with a concrete, minimal pass/fail criterion (e.g., 'output matches expected value for 3 test cases') to bound effort.",
+     "Reduce the baseline list in Gate 3 to a smaller, representative set (e.g., Random Search, Best-of-N, one LLM loop, BM25, embeddings, MAP-Elites) and drop the rest unless data shows necessity.",
+     "Replace 'fault-injection matrix' in Gate 0 with property-based tests for fail-closed/fail-open to reduce test maintenance cost.",
+     "Prioritize the features in Gate 2 and set a maximum cost (e.g., 2 person-months) for each to prevent scope creep.",
+     "Define 'beats simpler representations' in Gate 2 with a specific metric and threshold to avoid indefinite delay.",
+     "Estimate and cap the cost of Gate 4's experimental plan; if over budget, reduce the number of controls.",
+     "Automate the release process in Gate 5 to reduce manual effort."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "10.1",
+       "claim": "Work advances in order; a later-gate experiment may be prototyped only when it does not create a competing kernel and is explicitly labelled experimental.",
+       "verdict": "weak",
+       "why": "The sequential ordering imposes a strict dependency that can delay later work indefinitely if a gate's exit criteria are expensive or vague. The exception for 'experimental' prototypes is vague\u2014'competing kernel' is undefined. Cost: high schedule risk."
+      },
+      {
+       "id": "10.2",
+       "claim": "Deliver: one Event Store plus content-addressed artifact store.",
+       "verdict": "weak",
+       "why": "Building an event store and content-addressed store from scratch is expensive. A cheaper alternative might use existing databases (e.g., PostgreSQL with event sourcing) or object stores (e.g., S3 with content addressing). Cost: high build and maintenance."
+      },
+      {
+       "id": "10.3",
+       "claim": "Deliver: canonical Mission, Attempt, Evidence, Campaign, policy, and receipt schemas.",
+       "verdict": "weak",
+       "why": "Designing and maintaining canonical schemas for many concepts is costly. A cheaper approach could reuse existing standards (e.g., W3C PROV for evidence) or use a minimal schema that evolves. Cost: high design and maintenance."
+      },
+      {
+       "id": "10.4",
+       "claim": "Deliver: one vendor-neutral Agent Contract / Runtime Manifest for capabilities, mission envelopes, tools, egress, workspace, cost, and conformance receipts.",
+       "verdict": "wrong",
+       "why": "This is a large, abstract schema that requires significant effort to design, implement, and maintain. No cheaper alternative is considered. Using existing standards (e.g., OCI image spec, SPDX) or a minimal contract would be cheaper. Cost: extremely high."
+      },
+      {
+       "id": "10.5",
+       "claim": "Deliver: centralized start/guard path for every effectful runtime entrypoint.",
+       "verdict": "wrong",
+       "why": "A centralized guard path creates a single point of failure and latency bottleneck. A decentralized approach (e.g., middleware per entrypoint) would be cheaper and more resilient. Cost: high latency and coupling."
+      },
+      {
+       "id": "10.6",
+       "claim": "Deliver: enforceable write/egress/spend/secrets/concurrency/kill policies.",
+       "verdict": "weak",
+       "why": "Building a full policy engine is expensive. Cheaper alternatives include using OS-level enforcement (seccomp, AppArmor) or existing policy frameworks (e.g., OPA). Cost: high build and maintenance."
+      },
+      {
+       "id": "10.7",
+       "claim": "Deliver: real adapter fixtures for start, stream, tool events, structured output, timeout, cancellation, workspace isolation, and cost.",
+       "verdict": "weak",
+       "why": "Building and maintaining many specific fixtures is costly. A cheaper approach is to use a single mock adapter with configurable behavior, or reuse fixtures across tests. Cost: high maintenance."
+      },
+      {
+       "id": "10.8",
+       "claim": "Deliver: policy coverage tests for Claude, Codex, Ollama, Web/API, MCP/File Bridge, Python entrypoints, and isolated worktrees.",
+       "verdict": "weak",
+       "why": "Maintaining tests for many specific systems is expensive, especially as those systems evolve. A cheaper alternative is to test against a generic adapter interface using contract tests. Cost: high maintenance."
+      },
+      {
+       "id": "10.9",
+       "claim": "Deliver: no new feature path or state store outside the canonical contracts.",
+       "verdict": "weak",
+       "why": "This constraint forces all extensions through the canonical contracts, which may become rigid and costly to change. A cheaper approach is to allow extension points with clear deprecation policies. Cost: potential high future change cost."
+      },
+      {
+       "id": "10.10",
+       "claim": "Exit only when a fault-injection matrix demonstrates fail-closed protected effects and fail-open read-only inspection.",
+       "verdict": "weak",
+       "why": "Building a comprehensive fault-injection matrix is expensive. A cheaper alternative is property-based testing (e.g., using Hypothesis) to verify fail-closed/fail-open properties. Cost: high test maintenance."
+      },
+      {
+       "id": "10.11",
+       "claim": "Prove one vertical mission: propagate Event.voltage -> bias_voltage across Python, Markdown, and CSV.",
+       "verdict": "weak",
+       "why": "'Prove' is undefined, risking unbounded effort. A cheaper approach is to define a concrete, minimal success criterion (e.g., three test cases pass). Cost: potentially infinite."
+      },
+      {
+       "id": "10.12",
+       "claim": "Ikarus produces one MissionContract; the four planes produce two typed WorkItems; attempts run in isolation; restart/replay works; tests, schema checks, and link checks produce an EvidencePacket.",
+       "verdict": "weak",
+       "why": "This is a list of deliverables without cost estimates. Each could be expensive. A cheaper approach is to prioritize and set cost caps. Cost: high if all are implemented without bounds."
+      },
+      {
+       "id": "10.13",
+       "claim": "No auto-merge.",
+       "verdict": "sound",
+       "why": "This rule is simple and cheap to enforce. No cheaper alternative needed."
+      },
+      {
+       "id": "10.14",
+       "claim": "Add function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators, and four-plane ablations.",
+       "verdict": "weak",
+       "why": "This is a large set of features without prioritization or cost bounds. A cheaper approach is to implement them incrementally based on need. Cost: high if done all at once."
+      },
+      {
+       "id": "10.15",
+       "claim": "Do not scale before the full graph beats simpler representations.",
+       "verdict": "weak",
+       "why": "'Beats' is vague, risking indefinite delay. A cheaper approach is to define a specific metric and threshold for scaling. Cost: potentially infinite."
+      },
+      {
+       "id": "10.16",
+       "claim": "Freeze public tasks, evaluator versions, budgets, model/hardware reporting, seed policy, and statistical reporting. Required baselines are Random Search, Best-of-N, a single-LLM loop, simple local mutation, BM25, embeddings, code-only graph, four separate indices, evaluator-only selection, archive/MAP-Elites, and a transparent AlphaEvolve-like proxy.",
+       "verdict": "wrong",
+       "why": "This is a massive fixed set of baselines and metrics, requiring enormous engineering effort. A cheaper alternative is to start with a smaller representative subset (e.g., Random Search, Best-of-N, one LLM loop, BM25, embeddings, MAP-Elites) and add more only if needed. Cost: extremely high."
+      },
+      {
+       "id": "10.17",
+       "claim": "Measure success rate, best-so-far AUC, wall time, tokens, compute, variance, diversity, regressions, and human intervention.",
+       "verdict": "weak",
+       "why": "Collecting all these metrics adds complexity and storage cost. A cheaper approach is to measure only the most informative ones (e.g., success rate, best-so-far AUC, wall time) and compute others on demand. Cost: moderate data collection and analysis."
+      },
+      {
+       "id": "10.18",
+       "claim": "Test Graph-conditioned Representation Search first: use verified Project Twin structure to select and compress context or operators, then compare against budget-equal retrieval and evaluator-only baselines.",
+       "verdict": "weak",
+       "why": "Building the Project Twin and running these comparisons is expensive. A cheaper alternative is to start with a simpler graph representation (e.g., a knowledge graph) and evaluate on a small set of tasks. Cost: high build and experimentation."
+      },
+      {
+       "id": "10.19",
+       "claim": "Freeze generator, model, token budget, and evaluator.",
+       "verdict": "sound",
+       "why": "Freezing these variables reduces experimental variance and is cheap to implement. No cheaper alternative needed."
+      },
+      {
+       "id": "10.20",
+       "claim": "Controls include edge rewiring, relation-label permutation, cross-plane bridges off, stale snapshots, and an oracle graph.",
+       "verdict": "weak",
+       "why": "Implementing many controls is expensive. A cheaper approach is to select a few most informative controls (e.g., edge rewiring and oracle graph) and drop others unless needed. Cost: high."
+      },
+      {
+       "id": "10.21",
+       "claim": "One hypothesis, one pre-registered protocol, complete ablations.",
+       "verdict": "weak",
+       "why": "Requiring complete ablations is costly. A cheaper approach is to do partial ablations and prioritize the most informative ones. Cost: high experimentation time."
+      },
+      {
+       "id": "10.22",
+       "claim": "Release reproducible task definitions, evaluator code/version, receipts, cost/latency tables, ablations, failures, and a claim bounded by observed evidence.",
+       "verdict": "weak",
+       "why": "This requires significant documentation and packaging effort. A cheaper alternative is to automate as much as possible (e.g., using CI/CD to generate reports). Cost: moderate one-time effort."
+      },
+      {
+       "id": "10.23",
+       "claim": "AlphaEvolve is closed, so a broad framework comparison is not scientifically available.",
+       "verdict": "sound",
+       "why": "This is a factual statement with no direct cost."
+      },
+      {
+       "id": "10.24",
+       "claim": "Beats AlphaEvolve is permitted only for directly comparable public artifact scores under budget-equal measurements; otherwise state the narrower proxy/task result.",
+       "verdict": "sound",
+       "why": "This rule is clear and cheap to enforce."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "36c38f5c5e9ae067179efb6cc3f5f59a289148b5093e3fd0eda500b17533bfbb",
+    "objective_chars": 4049,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "10-delivery-gates",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,117 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c22of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c22of25__946db82-161e310e1c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 22 of 25 of daedalus/spine/picker.py. Contains attempt memory handling, render_queue, _evidence_lines, _gate_line, and review_packet. No symbols exported (all private). Claims checked where possible.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "attempt memory source state | medium | The 'enriched_memory_source' logic may produce inconsistent source dict keys (with or without 'state') depending on whether project_config is set or work_queue source exists. This could cause downstream consumers to misparse the source state. Confirm by checking all consumers of the sources dict for expected keys."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "22 of 25",
+     "purpose": "Finalize candidate queue with attempt memory, provide rendering utilities.",
+     "symbols": [
+      {
+       "name": "_evidence_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Private function to format evidence dict into list of strings."
+      },
+      {
+       "name": "render_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function to produce human-readable ranked queue output."
+      },
+      {
+       "name": "_gate_line",
+       "kind": "function",
+       "effects": [],
+       "note": "Private function to format gate result into a single line string."
+      },
+      {
+       "name": "review_packet",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function to produce a review packet for a candidate."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The ``--dry-run`` deliverable",
+       "where": "render_queue docstring",
+       "verdict": "uncheckable",
+       "why": "The claim that render_queue output is the '--dry-run' deliverable cannot be verified from this chunk alone; depends on external callers."
+      },
+      {
+       "text": "Contains the diff and the gate verdict, in full enough form to decide on, and states in three places that nothing was applied.",
+       "where": "review_packet docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring claims the function includes diff, gate verdict, and three statements that nothing was applied. None of these are visible in the chunk; the function body is truncated. Cannot verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The 'enriched_memory_source' variable controls whether the attempt_memory source dict includes a 'state' key. When True, dict has 'state' and 'tasks_remembered'; when False, only 'read' and 'tasks_remembered' are present, omitting 'state'. This inconsistency may confuse consumers.",
+       "where": "lines ~2542-2556",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In the 'else' branch of the attempt memory block (lines ~2558-2562), the source dict includes 'path' with str(db_path) even when db_path is None. This results in 'path': 'None' (string) rather than None. This is likely a bug.",
+       "where": "line 2561",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The render_queue function constructs a human-readable string but does not handle the case where queue.sources values might not be JSON-serializable (though default=str is provided). No issues seen in this chunk.",
+       "where": "render_queue around line 2589",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "review_packet function signature includes parameters diff_limit and gate_tail but the function body is not present in this chunk. Cannot verify usage.",
+       "where": "review_packet signature line 2611",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c204463ae9765c02ec9f98cdbb077bbeeb1a440968a89d52200255bb6b710541",
+    "objective_chars": 5709,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [22/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 22,
+  "total": 25,
+  "first_line": 2521
+ }
+}

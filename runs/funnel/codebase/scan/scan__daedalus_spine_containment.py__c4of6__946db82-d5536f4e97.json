@@ -1,0 +1,323 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c4of6__946db82",
+ "key": "scan__daedalus_spine_containment.py__c4of6__946db82-d5536f4e97",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of daedalus/spine/containment.py: LowIntegrityLog, open_low_append_log, token functions, ContainmentAttestation, ContainedProcess. All claims checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ContainedProcess.__init__ calls self._register() | medium | _register() accesses private _LIVE_LOCK and _LIVE from cancel module; if those names change, registration silently fails (try-except pass) | Add a test that verifies registration succeeds, or make the import/lookup fail loud.",
+     "LowIntegrityLog.__init__: raises ContainmentUnavailable if label != LOW_INTEGRITY_SID | medium | The check is based on _label_sid_from_handle(self._verify) which is not fully visible; if _verify is None or wrong, may raise unhandled exception | Ensure _verify is always set before this line.",
+     "_low_integrity_token: raises ContainmentUnavailable if actual != LOW_INTEGRITY_SID | medium | The token integrity is read back and verified; if the read fails or returns unexpected value, token is closed and exception raised | This is a safety check, but the error message may leak the actual SID; consider sanitizing.",
+     "ContainedProcess._unregister: try-except pass | low | Silently ignores failures to unregister; may leave stale entries in _LIVE set | Log or re-raise in debug mode."
+    ],
+    "todos": [
+     "Verify that _label_sid_from_handle is defined and works correctly.",
+     "Ensure _verify is always a valid handle before use in LowIntegrityLog.__init__.",
+     "Add unit tests for ContainedProcess registration/unregistration.",
+     "Consider making _register and _unregister failures non-silent in debug builds."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "4 of 6",
+     "purpose": "Contains LowIntegrityLog context manager, open_low_append_log, token integrity helpers, ContainmentAttestation dataclass, and ContainedProcess class.",
+     "symbols": [
+      {
+       "name": "handle",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self._handle (int)."
+      },
+      {
+       "name": "path",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self._path (Path)."
+      },
+      {
+       "name": "granted_access",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self._granted (int)."
+      },
+      {
+       "name": "integrity_label",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self._label (str | None)."
+      },
+      {
+       "name": "closed",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self._closed (bool)."
+      },
+      {
+       "name": "close",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Closes handles via kernel32.CloseHandle, catches exceptions."
+      },
+      {
+       "name": "__enter__",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self for context manager."
+      },
+      {
+       "name": "__exit__",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Calls self.close()."
+      },
+      {
+       "name": "open_low_append_log",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Creates and labels a log file, returns LowIntegrityLog."
+      },
+      {
+       "name": "_token_integrity_sid",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads integrity SID from token via Windows API."
+      },
+      {
+       "name": "_low_integrity_token",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates a duplicate token with Low integrity, verifies by reading back."
+      },
+      {
+       "name": "ContainmentAttestation",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass storing effective containment measurements."
+      },
+      {
+       "name": "ContainmentAttestation.low_token_obtained",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if token_integrity_sid equals LOW_INTEGRITY_SID."
+      },
+      {
+       "name": "ContainmentAttestation.worktree_labelled",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if worktree_label equals LOW_INTEGRITY_SID."
+      },
+      {
+       "name": "ContainmentAttestation.summary",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a dict summarizing the attestation."
+      },
+      {
+       "name": "refusal_attestation",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates a ContainmentAttestation for a refused run."
+      },
+      {
+       "name": "ContainedProcess",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Represents a running Low-integrity child process inside a Job Object."
+      },
+      {
+       "name": "ContainedProcess.__init__",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Stores handles, pid, job, attestation; calls _register()."
+      },
+      {
+       "name": "ContainedProcess._register",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Adds self to cancel._LIVE set for kill switch sweep."
+      },
+      {
+       "name": "ContainedProcess._unregister",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Removes self from cancel._LIVE set."
+      },
+      {
+       "name": "ContainedProcess.returncode",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns exit code or None if not available/closed."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The file is created EMPTY by this process (Medium) and then labelled, so a Low child can neither pre-create it nor choose its contents.",
+       "where": "open_low_append_log docstring",
+       "verdict": "kept",
+       "why": "Code creates file with open(target, 'wb') then calls label_low_integrity_file(target)."
+      },
+      {
+       "text": "The label is then read back off the opened handle, so what is verified is the object the child will actually write to and not a path that may since have moved.",
+       "where": "open_low_append_log docstring",
+       "verdict": "uncheckable",
+       "why": "The reading back happens inside LowIntegrityLog.__init__ which is not fully shown; but the docstring claim is about the overall function, and the verification step is in the class constructor that uses _label_sid_from_handle on self._verify."
+      },
+      {
+       "text": "Lowering your own token needs no privilege; raising one does.",
+       "where": "_low_integrity_token docstring",
+       "verdict": "kept",
+       "why": "Comment states this; no contradictory code seen."
+      },
+      {
+       "text": "The level is READ BACK afterwards: an attestation that says 'Low' because SetTokenInformation returned TRUE is a claim, and this module only ships facts.",
+       "where": "_low_integrity_token docstring",
+       "verdict": "kept",
+       "why": "After SetTokenInformation, calls _token_integrity_sid(duplicate) and checks actual != LOW_INTEGRITY_SID."
+      },
+      {
+       "text": "A caller that records ``requested`` and calls it a security property has recorded an intention. The ledger gets this instead, so an attempt whose containment silently did not happen is visible afterwards rather than indistinguishable from one where it did.",
+       "where": "ContainmentAttestation docstring",
+       "verdict": "kept",
+       "why": "The dataclass stores measured values (token_integrity_sid, worktree_label, etc.) and provides low_token_obtained, worktree_labelled properties that compare to LOW_INTEGRITY_SID."
+      },
+      {
+       "text": "Never the constants at the top of this file: those are what was asked for, and this dataclass only carries what was confirmed.",
+       "where": "ContainmentAttestation docstring, job_limits field",
+       "verdict": "uncheckable",
+       "why": "The constants at top of file are not in this chunk; the field job_limits is typed as JobLimits | None, but the actual constants are not visible."
+      },
+      {
+       "text": "Exists so the refusal path records the same shape as the success path; a result whose containment block is simply absent reads as 'not applicable' when it means 'we tried and failed'.",
+       "where": "refusal_attestation docstring",
+       "verdict": "kept",
+       "why": "Function returns ContainmentAttestation with contained=False and reason set."
+      },
+      {
+       "text": "The ladder mirrors ``ManagedProcess`` exactly -- ``graceful`` via CTRL_BREAK to the process group, then ``tree_kill`` via ``TerminateJobObject`` -- because the kill switch's sweep of last resort calls ``.cancel(grace_s=...)`` on whatever it finds and must not care which of the two spawn paths produced it.",
+       "where": "ContainedProcess docstring",
+       "verdict": "uncheckable",
+       "why": "The actual cancel method is not shown in this chunk; only __init__, _register, _unregister, returncode are present."
+      },
+      {
+       "text": "``CreateProcessAsUserW`` hands back the initial THREAD handle, so the suspend/assign/resume sequence needs no toolhelp snapshot and has no window in which the child could spawn outside the job.",
+       "where": "ContainedProcess docstring",
+       "verdict": "uncheckable",
+       "why": "The actual CreateProcessAsUserW call is not shown in this chunk; only __init__ signature is visible."
+      },
+      {
+       "text": "A test pins the coupling, so a rename in ``cancel`` breaks loudly here instead of quietly dropping the sweep.",
+       "where": "_register docstring",
+       "verdict": "uncheckable",
+       "why": "No test code is present in this chunk; the claim refers to an external test."
+      },
+      {
+       "text": "THE BACKSTOP IS NOT OPTIONAL. ``KillSwitch.stop_children`` cancels every live child in this interpreter precisely to catch the one whose driver forgot to thread the cancel token through. A contained gate child that is not in that registry would be the single process the kill switch cannot reach -- the exact regression this reaches into a private for.",
+       "where": "_register docstring",
+       "verdict": "uncheckable",
+       "why": "The KillSwitch class and its stop_children method are not in this chunk; the claim refers to external code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "LowIntegrityLog.close() iterates over hardcoded attribute names '_handle' and '_verify' to close handles; if any other handle is added later, it won't be closed.",
+       "where": "LowIntegrityLog.close()",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "ContainedProcess._register and _unregister use try-except pass, silently swallowing all exceptions. This could hide import errors or locking issues.",
+       "where": "ContainedProcess._register and _unregister",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "LowIntegrityLog.__init__ sets self._label after checking it equals LOW_INTEGRITY_SID, but does not verify that _label_sid_from_handle returns a valid SID string (could be None).",
+       "where": "LowIntegrityLog.__init__",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "open_low_append_log checks if target.exists() and raises ContainmentUnavailable, but does not handle race conditions (TOCTOU) between existence check and file creation.",
+       "where": "open_low_append_log",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f61a3650a3c46b19d67373312a5f9ae7e85e47b92702259508bb072e6949ff92",
+    "objective_chars": 12333,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [4/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

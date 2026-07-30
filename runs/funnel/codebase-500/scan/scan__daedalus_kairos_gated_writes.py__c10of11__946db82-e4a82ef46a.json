@@ -1,0 +1,175 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c10of11__946db82",
+ "key": "scan__daedalus_kairos_gated_writes.py__c10of11__946db82-e4a82ef46a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 10 of 11 of gated_writes.py, lines 1081-1155. Found docstring claims about never writing primary checkout, not calling promote_candidates, and coercing auto_promote. All claims are checkable and kept. Also observed governance blocking and legacy handling logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "held_by_task construction | low | held_by_task uses c.result.task_id but if task_id is None or duplicate, mapping may be incorrect; ensure task_id is always present and unique.",
+     "artifact_lost path | medium | When res.artifact_path is missing, status 'gated_artifact_lost' is set but res.persist_error may also be missing; error message could be unclear.",
+     "type ignore comment | low | 'type: ignore[return-value]' on return results suggests potential typing issue; may mask real errors."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "10 of 11",
+     "purpose": "Implements run_write_wave function: dispatches non-write tasks, gates write candidates, and builds result dicts with governance and promotion status.",
+     "symbols": [
+      {
+       "name": "run_write_wave",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Main function in this chunk. Dispatches tasks, gates write candidates, returns list of result dicts."
+      },
+      {
+       "name": "AUTO_PROMOTE_LEVELS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Referenced but not defined in chunk; assumed to be imported or defined elsewhere."
+      },
+      {
+       "name": "DEFAULT_AVAILABILITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .scheduler; used as fallback for availability."
+      },
+      {
+       "name": "gate_candidates",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "Called to produce list of GatedCandidate objects for write assignments."
+      },
+      {
+       "name": "_governance_verdict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns tuple (promotion_allowed, gov_state, gov_verdict) for the scheduler's project."
+      },
+      {
+       "name": "_artifact_root_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns artifact root path; used in gate_candidates call."
+      },
+      {
+       "name": "promote_candidates",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Referenced in docstring claim that run_write_wave never calls it; not called in this chunk."
+      },
+      {
+       "name": "GatedCandidate",
+       "kind": "class",
+       "effects": [],
+       "note": "Used as type for candidates list; not defined in chunk."
+      },
+      {
+       "name": "_provider_receipt",
+       "kind": "function",
+       "effects": [],
+       "note": "Called to extract provider receipt from result; not defined in chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "NEVER writes the primary checkout",
+       "where": "docstring lines 1082-1083",
+       "verdict": "kept",
+       "why": "No write to primary checkout is performed in this chunk; writes are gated and held."
+      },
+      {
+       "text": "never calls ``promote_candidates``",
+       "where": "docstring line 1083",
+       "verdict": "kept",
+       "why": "No call to promote_candidates appears in this chunk."
+      },
+      {
+       "text": "Legacy ``auto_promote`` values are reported as denied input and coerced to ``\"never\"``",
+       "where": "docstring line 1084",
+       "verdict": "kept",
+       "why": "Lines 1091-1092: if auto_promote not in AUTO_PROMOTE_LEVELS, it is set to 'never'. Additionally, line 1091 stores original in requested_auto_promote, and later (line 1142) adds key 'requested_auto_promote' to result dict if coercion occurred."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function run_write_wave has a docstring that makes three specific claims about its behavior; all are verifiable in this chunk.",
+       "where": "docstring lines 1082-1084",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Governance verdict can block promotion, causing all candidates to be held with a reason string that includes governance state and verdict.",
+       "where": "lines 1115-1119",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "When promotion is allowed, candidates are held with a message referencing 'sealed promotion' and optional legacy note.",
+       "where": "lines 1120-1127",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The held_by_task dictionary is built from candidate results; if task_id is not unique, later entries overwrite earlier ones.",
+       "where": "line 1129",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Result dict includes many fields conditionally; missing keys may cause downstream issues.",
+       "where": "lines 1131-1155",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "If res.artifact_path is missing after a successful gate, status 'gated_artifact_lost' is set with a reason that may include persist_error.",
+       "where": "lines 1152-1155",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d8ef618e4f2044d04aa01dfaef9eca780f2d7437dc409f36aa8d99884f85199d",
+    "objective_chars": 5586,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [10/11]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 10,
+  "total": 11,
+  "first_line": 1081
+ }
+}

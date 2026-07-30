@@ -1,0 +1,392 @@
+{
+ "task_id": "scan__daedalus_providers_ollama.py__c1of5__946db82",
+ "key": "scan__daedalus_providers_ollama.py__c1of5__946db82-2b2a9a7b6e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of ollama.py: imports, constants, docstrings, claim about OLLAMA_KEEP_ALIVE, and definitions of _normalize_rewrite_windows, _strip_code_fence, _window_replacement_lines, _READ_TOOLS.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "DEFAULT_MODEL | medium | Default model qwen2.5-coder:7b chosen based on structured-output reliability, but claim about 0% tool_calls for other models is uncheckable. | Verify with actual Ollama endpoint.",
+     "DEFAULT_KEEP_ALIVE | low | Claim about cold/warm first token times measured on RTX 5080; values not in code. | Measure on target hardware.",
+     "MAX_AGENT_STEPS | low | Claim about agent steps limit; no enforcement code in this chunk. | Check _run_agentic.",
+     "MAX_REWRITE_CHARS | low | Claim about truncation risk above 24k chars; no truncation logic in chunk. | Check _run_rewrite.",
+     "_LOCAL_BRIEF_BUDGET_CHARS | low | Claim about fitting 1-hop symbols; no verification in chunk. | Check graph_brief usage.",
+     "DEFAULT_WINDOW_RADIUS | low | Comment about docref attempts failing; not verifiable in code. | Check _run_rewrite and docref logic.",
+     "WINDOW_ANCHOR_FRAC | low | Claim about rejecting rewritten neighbourhood; logic present but depends on anchors list. | Test with edge cases.",
+     "RESCUE_* constants | low | Claims about meaning of each rescue outcome; uncheckable without _schema_rescue. | Check _schema_rescue.",
+     "_ELISION_MARKERS | low | Claim about markers being NEW; logic checks presence in old slice. | Verify with actual file content.",
+     "_CHECK_POLICY | low | Claim about closing gap with deepseek.py; uncheckable without comparing policies. | Compare with deepseek.py's policy.",
+     "DEFAULT_HOST | low | Comment about IPv6 miss on Windows; not verifiable in code. | Test on Windows.",
+     "DEFAULT_MODEL comment | medium | Claim about 0% tool_calls for several models; uncheckable. | Verify with actual Ollama endpoint."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/ollama.py",
+     "chunk": "1 of 5",
+     "purpose": "Imports, constants, docstrings, and helper functions for Ollama provider.",
+     "symbols": [
+      {
+       "name": "DEFAULT_HOST",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default Ollama server URL."
+      },
+      {
+       "name": "DEFAULT_MODEL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default model for local inference."
+      },
+      {
+       "name": "DEFAULT_KEEP_ALIVE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Duration to keep model resident in VRAM."
+      },
+      {
+       "name": "MAX_AGENT_STEPS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum agent steps."
+      },
+      {
+       "name": "MAX_READ_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum characters to read."
+      },
+      {
+       "name": "MAX_REWRITE_FILES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum files for scoped rewrite."
+      },
+      {
+       "name": "MAX_REWRITE_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum characters for full-file rewrite."
+      },
+      {
+       "name": "_LOCAL_BRIEF_BUDGET_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Budget for structural brief in local lane."
+      },
+      {
+       "name": "DEFAULT_WINDOW_RADIUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default radius for windowed rewrites."
+      },
+      {
+       "name": "MAX_WINDOW_LINES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum lines for a window."
+      },
+      {
+       "name": "MAX_WINDOWS_PER_FILE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum windows per file."
+      },
+      {
+       "name": "WINDOW_ANCHOR_FRAC",
+       "kind": "constant",
+       "effects": [],
+       "note": "Minimum fraction of original non-blank lines to retain."
+      },
+      {
+       "name": "_TOOL_TRUNC_MARKER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Marker for truncated tool output."
+      },
+      {
+       "name": "RESCUE_CALLS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Rescue outcome: model named a tool."
+      },
+      {
+       "name": "RESCUE_FINISHED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Rescue outcome: model said done."
+      },
+      {
+       "name": "RESCUE_UNREACHABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Rescue outcome: transport failed."
+      },
+      {
+       "name": "RESCUE_MALFORMED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Rescue outcome: malformed response."
+      },
+      {
+       "name": "RescueOutcome",
+       "kind": "class",
+       "effects": [],
+       "note": "Named tuple for rescue outcomes."
+      },
+      {
+       "name": "_ELISION_MARKERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of elision markers to detect dropped code."
+      },
+      {
+       "name": "_CHECK_POLICY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Policy for local lane with elision markers."
+      },
+      {
+       "name": "_normalize_rewrite_windows",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalize window hints into sorted, merged, clamped intervals."
+      },
+      {
+       "name": "_strip_code_fence",
+       "kind": "function",
+       "effects": [],
+       "note": "Strip outer markdown code fence if present."
+      },
+      {
+       "name": "_window_replacement_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Validate and render window replacement lines with original line endings."
+      },
+      {
+       "name": "_READ_TOOLS",
+       "kind": "constant",
+       "effects": [],
+       "note": "List of tool definitions for read operations."
+      }
+     ],
+     "claims": [
+      {
+       "text": "How long Ollama keeps the model resident in VRAM after a request. Ollama's default is 5 minutes; past that the next chat turn pays a full reload (measured ~44s cold vs ~1.4s warm first token for qwen2.5-coder:7b on this box). Override with OLLAMA_KEEP_ALIVE (any Ollama duration string, e.g. \"10m\", \"2h\", \"-1\" for forever, \"0\" to disable pinning).",
+       "where": "comment before DEFAULT_KEEP_ALIVE",
+       "verdict": "uncheckable",
+       "why": "The claim references measured values and Ollama's default behavior; no code in this chunk verifies those numbers or the override mechanism."
+      },
+      {
+       "text": "Structural-brief budget for the LOCAL lane. Far smaller than DeepSeek's default (daedalus/lanes/graph_brief.DEFAULT_BUDGET_CHARS, 12k): the local context window is the scarcest resource on this path, and the brief is the first thing shed when a file's own content already fills it. 1-hop symbols plus one import line for a typical file fits well inside this.",
+       "where": "comment before _LOCAL_BRIEF_BUDGET_CHARS",
+       "verdict": "uncheckable",
+       "why": "The claim references DeepSeek's default and fitting behavior; no code in this chunk verifies these statements."
+      },
+      {
+       "text": "MEASURED 2026-07-29, the first live self-improvement runs: three docref attempts against docs/HANDOFF.md (2496 lines / 148_291 bytes) all ended no_change/write_gate_failed. The file never reached the model -- 148 KB is 6x MAX_REWRITE_CHARS, so _run_rewrite skipped it \"too large for full rewrite\" and the write gate correctly saw no diff. Raising the cap does not fix it: the rewrite-only reliability finding was measured on SMALL files, and a 7B model asked to reprint 2500 lines echoes or truncates.",
+       "where": "comment before DEFAULT_WINDOW_RADIUS",
+       "verdict": "uncheckable",
+       "why": "The claim references measurements and behavior of _run_rewrite; no code in this chunk verifies these statements."
+      },
+      {
+       "text": "The candidate already knows WHICH lines are wrong (the docref scan reports them), so it can ask for a WINDOW instead of a reprint: the model sees +-N lines around each broken line, returns only those lines corrected, and the harness splices them back at exact positions. Everything outside a window is byte-identical BY CONSTRUCTION (list-slice assignment on the original lines, original line endings re-attached), not by the model's good behaviour.",
+       "where": "comment before DEFAULT_WINDOW_RADIUS",
+       "verdict": "uncheckable",
+       "why": "The claim describes behavior of windowed rewrite; no code in this chunk implements or verifies the splicing."
+      },
+      {
+       "text": "Matches the picker's own cap on docref `detail` (12 references per document): a file needing more windows than that wants a human, not a 7B.",
+       "where": "comment before MAX_WINDOWS_PER_FILE",
+       "verdict": "uncheckable",
+       "why": "The claim references picker's cap; no code in this chunk verifies this."
+      },
+      {
+       "text": "Share of the original window's non-blank lines that must come back verbatim. One corrected reference in an 81-line window should return ~99% untouched; anything under half means the model rewrote the neighbourhood instead of correcting it, which the line count alone would not catch.",
+       "where": "comment before WINDOW_ANCHOR_FRAC",
+       "verdict": "uncheckable",
+       "why": "The claim describes expected behavior; no code in this chunk verifies the percentage or the example."
+      },
+      {
+       "text": "The model named a tool: `calls` is non-empty and `detail` is the tool name.",
+       "where": "comment for RESCUE_CALLS",
+       "verdict": "uncheckable",
+       "why": "The claim defines RESCUE_CALLS; no code in this chunk uses it."
+      },
+      {
+       "text": "The model looked at the work and said it is done. The ONLY empty outcome that means \"done\"; everything below is a failure wearing the same empty list.",
+       "where": "comment for RESCUE_FINISHED",
+       "verdict": "uncheckable",
+       "why": "The claim defines RESCUE_FINISHED; no code in this chunk uses it."
+      },
+      {
+       "text": "The transport failed -- refused, timed out, HTTP error. Nothing was asked, so nothing was answered, and \"no tool calls\" says nothing about the work.",
+       "where": "comment for RESCUE_UNREACHABLE",
+       "verdict": "uncheckable",
+       "why": "The claim defines RESCUE_UNREACHABLE; no code in this chunk uses it."
+      },
+      {
+       "text": "It answered, but not with the json shape the sampler was constrained to.",
+       "where": "comment for RESCUE_MALFORMED",
+       "verdict": "uncheckable",
+       "why": "The claim defines RESCUE_MALFORMED; no code in this chunk uses it."
+      },
+      {
+       "text": "Elision markers (per docs/RESEARCH_LOCAL_EDITING.md): a rewrite containing one of these almost certainly dropped code instead of returning the whole file. Only rejected when the marker is NEW (absent from the original) to avoid false positives on files that legitimately contain such text.",
+       "where": "comment before _ELISION_MARKERS",
+       "verdict": "uncheckable",
+       "why": "The claim references a document and describes rejection logic; no code in this chunk implements the rejection."
+      },
+      {
+       "text": "This lane's own policy over the shared daedalus.lanes baseline. The marker tuple stays a LOCAL literal on purpose -- see daedalus/lanes/__init__.py: it is a claim about what THIS model emits, and deepseek.py keeps its own tuple so the two lanes stay free to diverge without silently re-tuning each other. Everything else about \"is this a safe write\" (truncation, parses, substitution, unresolved first-party imports) is the shared baseline, wired in below -- closing the gap measured 2026-07-30: the two guards added to deepseek.py that night (substitution, invented imports) never reached this file, so the free local default lane was strictly weaker than the paid external one for the exact two failures measured that night.",
+       "where": "comment before _CHECK_POLICY",
+       "verdict": "uncheckable",
+       "why": "The claim references deepseek.py and shared baseline; no code in this chunk verifies these statements."
+      },
+      {
+       "text": "Normalize ONE file's window hint into sorted, merged, clamped 1-based-inclusive (start, end) pairs.",
+       "where": "docstring of _normalize_rewrite_windows",
+       "verdict": "kept",
+       "why": "The function returns sorted, merged, clamped pairs as documented."
+      },
+      {
+       "text": "Accepted item shapes -- all JSON-native, because the hint travels through a candidate's evidence and a task spec before it reaches this file: * int -> that line, +- radius; * {\"line\": L, \"radius\": R} -> radius optional; * {\"start\": S, \"end\": E}; * a 2-sequence [S, E] -> START AND END. A bare 2-tuple is ambiguous with (line, radius); this file picks one reading and says so rather than guessing per call. Use the mapping form for line+radius.",
+       "where": "docstring of _normalize_rewrite_windows",
+       "verdict": "kept",
+       "why": "The function handles int, dict with 'line' or 'start'/'end', and 2-sequence as described."
+      },
+      {
+       "text": "spec itself is a LIST of those items. A bare 2-sequence at the TOP level is therefore two line numbers, not one (start, end) -- wrap it ([[S, E]]) to mean a range.",
+       "where": "docstring of _normalize_rewrite_windows",
+       "verdict": "kept",
+       "why": "The function treats spec as iterable; a top-level 2-sequence will be treated as a single item (since it is iterable and len==2). The docstring warns about ambiguity."
+      },
+      {
+       "text": "An unusable hint yields [], which degrades to the existing full-file behaviour. This function never invents a window.",
+       "where": "docstring of _normalize_rewrite_windows",
+       "verdict": "kept",
+       "why": "The function returns [] if n_lines<=0 or spec is falsy, and skips invalid items."
+      },
+      {
+       "text": "Drop a markdown fence wrapping the WHOLE payload. Narrow on purpose: the fence must open the first line and close the last, so a fragment that legitimately contains fenced code inside it is left alone.",
+       "where": "docstring of _strip_code_fence",
+       "verdict": "kept",
+       "why": "The function checks only the first line (starts with ```) and last line (stripped equals ```)."
+      },
+      {
+       "text": "Validate a model-returned window and render it with the ORIGINAL line endings. Raises ValueError(reason) on any fail-closed check.",
+       "where": "docstring of _window_replacement_lines",
+       "verdict": "kept",
+       "why": "The function raises ValueError for empty body, mismatched line count, elision markers, and insufficient anchor lines."
+      },
+      {
+       "text": "old_slice is the corresponding slice of splitlines(keepends=True), so the endings are available to re-attach: joining with a bare \"\\n\" would silently convert a CRLF file and turn a two-line fix into a whole-file diff -- the opposite of what a window is for.",
+       "where": "docstring of _window_replacement_lines",
+       "verdict": "uncheckable",
+       "why": "The docstring describes expected usage; no code in this chunk verifies that callers pass splitlines(keepends=True)."
+      },
+      {
+       "text": "Exact line count lets us preserve EACH original terminator, including mixed-EOL fragments and a final unterminated line. at_eof remains in the signature as an explicit caller assertion and for API compatibility.",
+       "where": "docstring of _window_replacement_lines",
+       "verdict": "kept",
+       "why": "The function preserves each original terminator via _ending helper; at_eof parameter is present but unused."
+      },
+      {
+       "text": "A one-line correction necessarily has zero byte-identical line anchors: applying the general 50% rule there would reject every possible edit. Exact line count, identifier removal, the curated gate, and rollback are the structural guards for these surgical windows.",
+       "where": "docstring of _window_replacement_lines",
+       "verdict": "kept",
+       "why": "The anchor check is skipped when len(old_plain) < 3 or anchors is empty."
+      }
+     ],
+     "observations": [
+      {
+       "what": "DEFAULT_HOST comment warns about IPv6 miss on Windows, but no code in chunk addresses this.",
+       "where": "comment after DEFAULT_HOST",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "DEFAULT_MODEL comment claims measured 0% tool_calls for several models on RTX 5080; no verification in chunk.",
+       "where": "comment after DEFAULT_MODEL",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "DEFAULT_KEEP_ALIVE comment claims measured cold/warm first token times; not verifiable in this chunk.",
+       "where": "comment before DEFAULT_KEEP_ALIVE",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Comment about docref attempts failing references measurements not present in code.",
+       "where": "comment before DEFAULT_WINDOW_RADIUS",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "RESCUE_* constants defined but not used in this chunk.",
+       "where": "lines defining RESCUE_CALLS, RESCUE_FINISHED, RESCUE_UNREACHABLE, RESCUE_MALFORMED",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_CHECK_POLICY comment references deepseek.py guards; no code in chunk to compare.",
+       "where": "comment before _CHECK_POLICY",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_normalize_rewrite_windows handles bool as invalid (since bool is int), which is correct but subtle.",
+       "where": "if isinstance(item, bool): continue",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_window_replacement_lines uses at_eof parameter but does not use it in the function body.",
+       "where": "signature and body of _window_replacement_lines",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_READ_TOOLS defined but not used in this chunk.",
+       "where": "end of chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d31c3c97943965189ee16ac222aa4afd5cb6e05048a9738341b6ff0a67cb0f8",
+    "objective_chars": 14884,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/ollama.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/providers/ollama.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

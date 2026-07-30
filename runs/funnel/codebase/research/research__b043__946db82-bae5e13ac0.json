@@ -1,0 +1,123 @@
+{
+ "task_id": "research__b043__946db82",
+ "key": "research__b043__946db82-bae5e13ac0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three systemic patterns: (1) hub_cap and STRUCTURAL_MAX_MATCHES constants are defined in an unseen module, making structural matching and hub suppression unverifiable; (2) multiple modules assume parse.py strips Enum member annotations to empty string, but no report confirms this; (3) the inventory digest mechanism and mutation evaluation both rely on 'human fields' lists that are defined in separate modules with no cross-reference, risking drift. Each hypothesis includes a concrete refutation condition.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "hub_cap and STRUCTURAL_MAX_MATCHES may be undefined or inconsistent across modules, silently disabling or altering hub suppression and structural matching.",
+     "Enum member annotation stripping in parse.py may not match the assumption in typegraph.py, causing false positive/negative edges for enum members.",
+     "The inventory digest and mutation evaluation share a concept of 'human fields' but define them independently, allowing the digest to include fields the evaluation considers human, or vice versa.",
+     "print_summary in structcore/__main__.py directly accesses keys without defaults, risking KeyError if build_index omits them."
+    ],
+    "todos": [
+     "Locate and verify hub_cap and STRUCTURAL_MAX_MATCHES definitions; ensure they are consistent across typegraph.py and any calling code.",
+     "Verify parse.py behavior for Enum members: confirm annotations are forced to empty string.",
+     "Cross-reference human-fields lists in inventory.py and any other module that defines such lists; consider unifying them to prevent drift.",
+     "Add safe defaults or key existence checks in print_summary for 'backend', 'languages', 'fan_in', 'hotspots', 'duplication'."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "hub-cap-undefined",
+       "claim": "The hub_cap and STRUCTURAL_MAX_MATCHES constants used in typegraph.py (chunk 4/5) are not defined in that chunk and are expected to come from an external module. If that module is missing or defines different values, hub suppression and structural matching may be silently disabled or behave incorrectly, affecting the structural index generation in structcore/__main__.py which consumes the coverage output.",
+       "spans": [
+        "daedalus/structcore/typegraph.py [4/5]",
+        "daedalus/structcore/__main__.py [1/1]"
+       ],
+       "mechanism": "typegraph.py uses hub_cap in a conditional (if hub_cap:) and STRUCTURAL_MAX_MATCHES to limit structural matches; __main__.py calls build_index and then print_summary which accesses keys like 'duplication' and 'types' that may depend on these constants. If the constants are undefined, the code may raise NameError or silently skip hub capping and structural matching, producing incomplete or incorrect coverage data.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the missing module defines hub_cap and STRUCTURAL_MAX_MATCHES with appropriate values, and they are imported before use, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py [4/5]: hub_cap used in conditional (line 841)",
+        "daedalus/structcore/typegraph.py [4/5]: STRUCTURAL_MAX_MATCHES used in structural matching (line 841)",
+        "daedalus/structcore/__main__.py [1/1]: print_summary accesses index keys that depend on typegraph output"
+       ]
+      },
+      {
+       "id": "enum-annotation-stripping",
+       "claim": "typegraph.py (chunk 4/5) assumes that parse.py forces Enum member annotations to empty string to prevent fabricated member->type edges. However, no scan report confirms this behavior in parse.py. If parse.py does not strip these annotations, typegraph.py will emit spurious edges for Enum members, inflating the type graph and potentially affecting structural matching and hub detection.",
+       "spans": [
+        "daedalus/structcore/typegraph.py [4/5]",
+        "daedalus/structcore/__main__.py [1/1]"
+       ],
+       "mechanism": "typegraph.py emits a site for each field with raw=decl.annotation. If decl.annotation is not empty for Enum members, emit will attempt to resolve it and may add an inherits or other edge. These extra edges could increase fan_in, alter hub identification, and change coverage statistics, which are later consumed by __main__.py's print_summary.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If a scan of parse.py confirms that Enum member annotations are explicitly set to empty string (or that such annotations are skipped), this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/typegraph.py [4/5]: comment 'parse.py forces its annotation to \"\"' (line 841)",
+        "daedalus/structcore/typegraph.py [4/5]: emit function uses raw=decl.annotation"
+       ]
+      },
+      {
+       "id": "human-fields-drift",
+       "claim": "The inventory module (daedalus/mapping/inventory.py [1/4]) defines human-owned fields (FEATURE_HUMAN_FIELDS, ENV_HUMAN_FIELDS, AREA_HUMAN_FIELDS) for digest computation, while the mutation evaluation module (daedalus/eval/graph_delta.py [2/3]) also distinguishes between 'leaky' (raw text including comments) and 'clean' (AST) arms but does not share the same field definitions. If the mutation evaluation's concept of 'human' fields drifts from the inventory's, the digest-based integrity check may disagree with mutation-based detection, leading to false positives/negatives in change detection.",
+       "spans": [
+        "daedalus/mapping/inventory.py [1/4]",
+        "daedalus/eval/graph_delta.py [2/3]"
+       ],
+       "mechanism": "inventory.py strips specific fields before computing digest, allowing human edits to those fields without triggering a digest mismatch. graph_delta.py's measure() function compares raw source (leaky) and AST (clean) to detect mutations. If a human edit affects fields that inventory considers human but graph_delta considers mechanical (or vice versa), the mutation evaluation may report a change that the digest would have allowed, or miss a change that the digest would flag.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the mutation evaluation module explicitly references the same human-fields constants from inventory.py, or if the definitions are proven to be identical in scope, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/inventory.py [1/4]: FEATURE_HUMAN_FIELDS = ('name', 'kind', 'notes')",
+        "daedalus/mapping/inventory.py [1/4]: ENV_HUMAN_FIELDS = ('purpose',)",
+        "daedalus/mapping/inventory.py [1/4]: AREA_HUMAN_FIELDS = ('title',)",
+        "daedalus/eval/graph_delta.py [2/3]: measure() distinguishes leaky vs clean arms"
+       ]
+      },
+      {
+       "id": "print-summary-keyerror",
+       "claim": "print_summary in structcore/__main__.py directly accesses dictionary keys 'backend', 'languages', 'fan_in', 'hotspots', 'duplication' without using .get() or checking existence. If build_index() returns an index dict missing any of these keys (e.g., due to a configuration or parsing error), print_summary will raise a KeyError, crashing the CLI.",
+       "spans": [
+        "daedalus/structcore/__main__.py [1/1]",
+        "daedalus/structcore/typegraph.py [4/5]"
+       ],
+       "mechanism": "print_summary accesses index['backend'], index['languages'], index['fan_in'], index['hotspots'], index['duplication'] directly. These keys are expected to be populated by build_index, which calls typegraph.py functions. If typegraph.py fails to produce any of these (e.g., due to missing dependencies or errors), the key will be missing and the program crashes.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If build_index always guarantees these keys exist (e.g., by setting defaults), this hypothesis is refuted. Evidence that build_index sets defaults would refute.",
+       "evidence": [
+        "daedalus/structcore/__main__.py [1/1]: print_summary accesses index['backend'], index['languages'], etc. without defaults",
+        "daedalus/structcore/__main__.py [1/1]: observation: 'directly accesses keys ... without defaults, risking KeyError'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "acae264a5804d2f310c0b9d9e22ff2fabcb1dc6d20bd6325ed5e706642b4c91c",
+    "objective_chars": 39477,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 43 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 43,
+  "inputs": 5
+ }
+}

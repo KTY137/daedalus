@@ -1,0 +1,153 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c3of5__946db82",
+ "key": "scan__daedalus_lanes_fanout.py__c3of5__946db82-def9ac0f2c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of fanout.py: defines sent dict with digests, fan_out signature and docstring, guard installation logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "fan_out docstring | medium | Claims 'Never raises for a failing task' but actual exception handling not shown in this chunk; need to see try/except logic in later lines. | Check if fan_out catches all exceptions and returns a result dict instead of raising.",
+     "fan_out docstring | medium | Claims 'resume skips any task whose result file already exists AND parses' but file existence/parsing logic not in this chunk; need to see the resume implementation. | Verify resume logic in later chunk.",
+     "fan_out docstring | medium | Claims 'Transport failures are recorded on the result and the queue continues' but queue/worker logic not in this chunk; need to see how errors are captured. | Check worker loop in later chunk.",
+     "fan_out docstring | medium | Claims 'summary reports failed separately from ok' but summary dict construction not shown; need to see the return dict. | Verify summary dict keys in later chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "3 of 5",
+     "purpose": "Define sent metadata dict, fan_out function signature and docstring, guard installation block.",
+     "symbols": [
+      {
+       "name": "fan_out",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Main entry point for fan-out execution; creates output directory, installs process guard, and returns run summary dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "DIGESTS, NOT BODIES, for the prompt: the objective carries whole file contents, and a recorder that copies them turns a 4 KB result file into a 60 KB one and duplicates the repo across runs/. The digest is what answers the questions that matter -- \"did these three votes see the same prompt\", \"did the prompt change between runs\", \"is this result stale\" -- and those are identity questions, which is exactly what a hash is for.",
+       "where": "comment before 'sent' dict",
+       "verdict": "uncheckable",
+       "why": "The claim about recorder behavior and file size impact refers to code outside this chunk (a 'recorder' not shown)."
+      },
+      {
+       "text": "The system message IS kept whole: it is small, shared, and it was the thing nobody could see.",
+       "where": "comment before 'sent' dict",
+       "verdict": "uncheckable",
+       "why": "No evidence in this chunk that system message is kept whole; the 'sent' dict only stores its hash and length."
+      },
+      {
+       "text": "Never raises for a failing task: a fan-out of 1,200 in which one task dies must produce 1,199 answers and a named failure, not an exception. Transport failures are recorded on the result and the queue continues -- which is also why the summary reports failed separately from ok rather than folding them into a rate.",
+       "where": "fan_out docstring",
+       "verdict": "uncheckable",
+       "why": "The actual error handling and queue logic are not present in this chunk; only the docstring claim exists."
+      },
+      {
+       "text": "resume skips any task whose result file already exists AND parses. A file that exists but does not parse is re-run, because a truncated result is worse than a missing one: it looks like an answer.",
+       "where": "fan_out docstring",
+       "verdict": "uncheckable",
+       "why": "The resume logic is not implemented in this chunk; no code handles file existence or parsing."
+      },
+      {
+       "text": "CORROBORATION THAT CANNOT CORROBORATE IS REFUSED, not warned about. ... asking for votes you cannot get is an error at the door, where it costs nothing, rather than a dataset that has to be thrown away later.",
+       "where": "comment block after resume parameter",
+       "verdict": "kept",
+       "why": "The code immediately following checks if any task has votes>1 and temperature<=0.0, and returns a 'refused' dict if so, refusing to run."
+      },
+      {
+       "text": "At temperature 0.0 the decode is deterministic, so every vote returns the SAME answer and the agreement it produces is an artefact of counting one answer N times.",
+       "where": "comment block after resume parameter",
+       "verdict": "kept",
+       "why": "The check if any(t.votes > 1) and temperature <= 0.0 matches this claim; the refusal message explains the same reasoning."
+      },
+      {
+       "text": "A comment saying '>0 is what makes votes independent' was the only thing standing between a caller and fake agreement. This repo has a rule about that: express a restriction as a CAPABILITY, never as an instruction.",
+       "where": "comment block after resume parameter",
+       "verdict": "uncheckable",
+       "why": "No evidence of the previous comment or the repo rule in this chunk."
+      },
+      {
+       "text": "Fail CLOSED: a fan-out whose spend cannot be capped does not run. The alternative -- proceeding unpriced and mentioning it in a summary nobody reads until the invoice arrives -- is how this went wrong once.",
+       "where": "comment after guard installation try block",
+       "verdict": "kept",
+       "why": "The code catches exceptions from install_process_guard() and returns a dict with state 'refused' and guard_error, preventing execution."
+      },
+      {
+       "text": "SAME SUMMARY SHAPE as a completed run, including paid_calls and results. A refusal that returns a different dict forces every consumer to write two code paths, and the one it will forget is the",
+       "where": "comment after guard error handling",
+       "verdict": "uncheckable",
+       "why": "The refusal dict shown earlier (for temperature) does not include 'paid_calls' or 'results'; the guard error return dict is not fully shown in this chunk (comment cut off)."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The 'sent' dict contains hashes and lengths of objective and system_override, but does not store the full objective or system_override.",
+       "where": "sent dict definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The fan_out function signature includes many parameters with default values, including policy and system_override which are documented as 'wired through' but never called in this chunk.",
+       "where": "fan_out function definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The temperature check (votes>1 and temp<=0.0) returns a dict with state 'refused' and a detailed reason, but does not raise an exception.",
+       "where": "temperature validation block",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The guard installation is wrapped in try/except and on failure returns a dict similar to the temperature refusal but with guard_error string. The comment says 'SAME SUMMARY SHAPE' but the exact keys are not fully visible (comment truncated).",
+       "where": "guard installation and error handling",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The docstring claims 'Never raises for a failing task' but the actual error handling within the fan-out loop is not present in this chunk; only the guard installation and temperature check are shown.",
+       "where": "fan_out docstring",
+       "severity": "high",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "383dffb8a09ad3965e548b3996e3124890aa8f12718dfaac0777215243571910",
+    "objective_chars": 6394,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [3/5]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 241
+ }
+}

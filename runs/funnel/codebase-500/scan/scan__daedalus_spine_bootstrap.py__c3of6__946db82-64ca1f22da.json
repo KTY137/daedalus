@@ -1,0 +1,133 @@
+{
+ "task_id": "scan__daedalus_spine_bootstrap.py__c3of6__946db82",
+ "key": "scan__daedalus_spine_bootstrap.py__c3of6__946db82-64ca1f22da",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of daedalus/spine/bootstrap.py defines gate_parse() and gate_discrimination() with detailed docstring claims about receipt validation, revision clause fix, and count sanity bounds.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 292 | high | Receipt has no integrity protection; any write to runs/spine/ can forge a receipt naming current HEAD. | Code comment explicitly acknowledges this; no fix intended in this chunk.",
+     "line 260 | medium | `pytest_gate_argv` imported from `daedalus.spine.attempt`; if that module is missing, gate_parse will fail at runtime. | Verify existence of that module in the repository.",
+     "line 267 | medium | `gate_discrimination` resolves HEAD via `_head_sha` from `daedalus.spine.picker`; if that import fails, head becomes None and function refuses. | Confirm that `_head_sha` exists and behaves as described."
+    ],
+    "todos": [
+     "Review integration of `pytest_gate_argv` in `daedalus.spine.attempt`.",
+     "Ensure `_head_sha` in `daedalus.spine.picker` is robust and returns None only on failure.",
+     "Document the integrity protection decision for receipts."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/bootstrap.py",
+     "chunk": "3 of 6",
+     "purpose": "Define gate_parse() and gate_discrimination() functions for receipt validation and discrimination.",
+     "symbols": [
+      {
+       "name": "gate_parse",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses a raw gate receipt dictionary, validating argv, gate_paths, and scope. For receipts, checks argv matches production pytest argv."
+      },
+      {
+       "name": "gate_discrimination",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads and validates a discrimination receipt from disk, returning a GateDiscrimination object. Resolves HEAD if not provided, fails on unreachable revision."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A receipt only counts when it is present, parseable, measured against THE CURRENT REVISION, internally consistent, clean on every critical class, and bound to the exact gate being authorised.",
+       "where": "line 275 (docstring of gate_discrimination)",
+       "verdict": "uncheckable",
+       "why": "The chunk implements parsing and revision checking, but references to 'clean on every critical class' and 'bound to the exact gate' are not verifiable in this code alone."
+      },
+      {
+       "text": "The revision clause is the same doctrine the map and inventory sources follow: a measurement of a tree that no longer exists is not a measurement of this one.",
+       "where": "line 279 (docstring of gate_discrimination)",
+       "verdict": "uncheckable",
+       "why": "References to 'map and inventory sources' are outside this chunk."
+      },
+      {
+       "text": "TWO OF THESE SIX WERE PROSE UNTIL AN AUDIT FOUND THEM, and both let a forged promotion through: * The revision clause failed OPEN when HEAD could not be read. ... head is now resolved here when not supplied, and an unresolvable revision REFUSES.",
+       "where": "line 281 (docstring of gate_discrimination)",
+       "verdict": "kept",
+       "why": "Lines 297-307 show that if head is None, it is resolved via _head_sha; if resolution fails (head is falsy), the function returns GateDiscrimination(False, ...) refusing the receipt."
+      },
+      {
+       "text": "* No sanity bound on the counts. ... A rate is now rejected unless 0 <= killed <= planted.",
+       "where": "line 288 (docstring of gate_discrimination)",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk validates kill counts; that logic likely exists elsewhere (e.g., in a function that computes kill rate)."
+      },
+      {
+       "text": "Still NOT defended, and deliberately named rather than quietly left: the receipt has no integrity protection.",
+       "where": "line 291 (docstring of gate_discrimination)",
+       "verdict": "kept",
+       "why": "No cryptographic signature or integrity check is present in this chunk; the code simply reads and parses the receipt file."
+      }
+     ],
+     "observations": [
+      {
+       "what": "gate_parse performs validation of argv, paths, and scope, including checking for NUL bytes and duplicates.",
+       "where": "lines 241-265",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "gate_parse imports pytest_gate_argv from daedalus.spine.attempt when receipt is True, and compares argv against expected_argv.",
+       "where": "lines 256-261",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "gate_discrimination resolves HEAD via _head_sha from daedalus.spine.picker; if head is None after resolution, the function returns False.",
+       "where": "lines 297-307",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function gate_discrimination returns GateDiscrimination(False, ...) for various failure modes (no head, no file, unreadable, not an object, state not 'measured').",
+       "where": "lines 304-323",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3c1984f499a0fd003dd8699ca84f6c65e75f4b8c43ebc120b8c2db856109e426",
+    "objective_chars": 6294,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/bootstrap.py [3/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/bootstrap.py",
+  "index": 3,
+  "total": 6,
+  "first_line": 241
+ }
+}

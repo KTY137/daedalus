@@ -1,0 +1,235 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c7of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c7of11__946db82-58d401986a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 7 of canary.py: Lane dataclass, resolve_exe, _CanaryAdapterMixin, adapter subclasses, _is_local_http, _bind, default_lanes signature.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Lane.adapter | low | adapter field exists but runner never reads it; may become stale if egress logic changes. | Add a comment or test that enforces the invariant.",
+     "_CanaryAdapterMixin.assemble | medium | Override returns prompt verbatim; claim about preamble destroying head position is uncheckable. | Verify that the arrival nonce is indeed at the head of the prompt.",
+     "default_lanes | medium | Function signature is incomplete; the body and return value are not visible. | Review the full implementation.",
+     "_CanaryOllama.argv | low | Returns empty list; no coverage marker but HTTP adapter never uses argv. | Ensure this is consistent with the adapter interface.",
+     "resolve_exe | low | Falls back to name unchanged; spawn may fail with confusing error. | Consider raising a more informative error."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "7 of 11",
+     "purpose": "Defines Lane, resolve_exe, _CanaryAdapterMixin, concrete adapter classes, helpers _is_local_http, _bind, and starts default_lanes.",
+     "symbols": [
+      {
+       "name": "Lane",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with vendor, model, endpoint, ask, local, adapter fields."
+      },
+      {
+       "name": "resolve_exe",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Resolves CLI name to executable path, preferring .exe on Windows."
+      },
+      {
+       "name": "_CanaryAdapterMixin",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Mixin overriding assemble and argv for canary adapters."
+      },
+      {
+       "name": "_CanaryClaude",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Inherits _CanaryAdapterMixin and ClaudeAdapter."
+      },
+      {
+       "name": "_CanaryCodex",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Inherits _CanaryAdapterMixin and CodexAdapter."
+      },
+      {
+       "name": "_CanaryAntigravity",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Inherits _CanaryAdapterMixin and AntigravityAdapter."
+      },
+      {
+       "name": "_CanaryOllama",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Inherits _CanaryAdapterMixin and OllamaAdapter; overrides argv to return []."
+      },
+      {
+       "name": "_LOCAL_HOSTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of localhost IPs."
+      },
+      {
+       "name": "_HTTP_HOST_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to extract host from HTTP URL."
+      },
+      {
+       "name": "_is_local_http",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if endpoint host is localhost."
+      },
+      {
+       "name": "_bind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Binds adapter.ask to a simpler ask callable."
+      },
+      {
+       "name": "default_lanes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Function signature only; body not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Non-zero only when a previously-passing LIVENESS probe now fails.",
+       "where": "exit_code",
+       "verdict": "uncheckable",
+       "why": "The method exit_code is defined in the previous chunk (not visible). This chunk only has the docstring for exit_code, not the method body."
+      },
+      {
+       "text": "Not \"something is red\": a lane that has never passed is not a regression, and an unavailable lane is not a failure at all. A quality regression is printed but does not page anyone -- see the module docstring.",
+       "where": "exit_code docstring",
+       "verdict": "uncheckable",
+       "why": "The module docstring is not in this chunk; the behavior of regressions() and paging is not visible."
+      },
+      {
+       "text": "``ask`` is ``(prompt: str, timeout_s: float) -> VendorReply``. Injecting it is what lets the whole runner be tested with fakes and no network: the tests never construct an adapter, never touch a CLI and never open a socket.",
+       "where": "Lane docstring",
+       "verdict": "kept",
+       "why": "The Lane dataclass has an ask field typed as Callable[..., VendorReply]; the docstring claim about testability is a design statement not contradicted by this chunk."
+      },
+      {
+       "text": "``adapter`` is the seat ``ask`` was bound from, when there was one. It is carried for ONE reason: :func:`live_egress_lanes` has to hand something to :func:`session.live_egress_seats`, and a bare closure is not classifiable. Nothing in the runner reads it -- the canary still calls ``ask`` and only ``ask``, so a fake lane stays a fake lane.",
+       "where": "Lane docstring",
+       "verdict": "uncheckable",
+       "why": "The functions live_egress_lanes and session.live_egress_seats are not defined in this chunk; the claim about runner not reading adapter is not verifiable here."
+      },
+      {
+       "text": "On Windows a node CLI ships as an extensionless shell script beside a ``.exe``/``.cmd`` shim, and only the shim is launchable without a shell. Preferring the native ``.exe`` also skips the ``.cmd`` layer entirely -- the layer that truncated a multi-line argv and started all of this. (The prompt still goes on stdin regardless; the arrival probe is what proves that end to end rather than asserting it.)",
+       "where": "resolve_exe docstring",
+       "verdict": "kept",
+       "why": "The function iterates over candidates with .exe first, matching the stated preference."
+      },
+      {
+       "text": "Returns ``name`` unchanged when nothing is found, so the spawn fails as ``not_on_path`` -> ``unavailable`` instead of guessing.",
+       "where": "resolve_exe docstring",
+       "verdict": "kept",
+       "why": "The function ends with 'return name' if no candidate is found."
+      },
+      {
+       "text": "The council's data-notice preamble is for model-written evidence. A canary prompt is generated in this file and carries none -- and the preamble would sit AHEAD of the arrival nonce, destroying the head position that probe measures. So the probe body goes out verbatim.",
+       "where": "_CanaryAdapterMixin.assemble docstring",
+       "verdict": "uncheckable",
+       "why": "The arrival nonce and probe body are not defined in this chunk; the claim about preamble position cannot be verified."
+      },
+      {
+       "text": "Two overrides every canary adapter needs, and nothing else.",
+       "where": "_CanaryAdapterMixin docstring",
+       "verdict": "kept",
+       "why": "The mixin defines only assemble and argv; no other methods are present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Lane.adapter field is optional and not read by runner according to docstring.",
+       "where": "Lane class definition",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_CanaryAdapterMixin.assemble returns prompt unchanged, bypassing any preamble logic.",
+       "where": "_CanaryAdapterMixin.assemble",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_exe prefers .exe on Windows, consistent with docstring.",
+       "where": "resolve_exe function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "default_lanes signature includes named parameters but body is not in this chunk.",
+       "where": "default_lanes function start",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_CanaryOllama.argv returns empty list, which may differ from other adapters.",
+       "where": "_CanaryOllama.argv",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "749c4154a2706b5b3b289a624a4ad98b8acea604b9468ad83929d8a8525ad0db",
+    "objective_chars": 6104,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [7/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 7,
+  "total": 11,
+  "first_line": 721
+ }
+}

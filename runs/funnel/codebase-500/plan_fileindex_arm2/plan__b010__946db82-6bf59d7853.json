@@ -1,0 +1,130 @@
+{
+ "task_id": "plan__b010__946db82",
+ "key": "plan__b010__946db82-6bf59d7853",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewer confirmed shell spec complete but reach.py ignores non-Python (low severity). Three high-severity findings need evidence: leaky detection mismatch, undefined symbols, unguarded cleanup race. Tasks: 1) Inspect ceiling.py and graph_delta.py for leaky handling; 2) grep for undefined symbols in session.py and graph_brief.py; 3) Inspect eval/__main__.py for cleanup ordering. Gate 0-1 items.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "If ceiling.py excludes leaky layers but graph_delta counts them, detection counts diverge silently.",
+     "If _REASON_MAP etc. are truly undefined, NameError crashes at runtime.",
+     "If eval/__main__.py cleans up before child process exits, temp dirs may be deleted while in use.",
+     "All three high-severity findings are unconfirmed; effort may be wasted if they prove false."
+    ],
+    "todos": [
+     "Inspect ceiling.py for leaky layer handling; compare with graph_delta.detected_leaky definition.",
+     "Run grep for _REASON_MAP, evidence_ref in daedalus/council/session.py and _deep_only_modules, _tail_matches, DEEP_EDGE_MARK in daedalus/lanes/graph_brief.py.",
+     "Inspect eval/__main__.py for wait/join before cleanup after run_gate.",
+     "Document findings and update verdicts."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Inspect ceiling.py for leaky layer handling vs graph_delta",
+       "gate": "0",
+       "why_now": "Determines if detection counts diverge; high severity unconfirmed finding.",
+       "steps": [
+        {
+         "do": "Read ceiling.py to see how it handles leaky layers; compare with graph_delta.detected_leaky definition.",
+         "file": "daedalus/eval/ceiling.py",
+         "verified_by": "Manual code review; document findings."
+        },
+        {
+         "do": "Read graph_delta.py to find detected_leaky property.",
+         "file": "daedalus/eval/graph_delta.py",
+         "verified_by": "Manual code review; document findings."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Files ceiling.py and graph_delta.py exist and contain the relevant code."
+      },
+      {
+       "rank": 2,
+       "title": "Grep for undefined symbols in session.py and graph_brief.py",
+       "gate": "0",
+       "why_now": "Confirms or refutes potential NameError crashes; high severity.",
+       "steps": [
+        {
+         "do": "Run grep -n '_REASON_MAP\\|evidence_ref' daedalus/council/session.py",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Output shows lines where symbols are defined or not found."
+        },
+        {
+         "do": "Run grep -n '_deep_only_modules\\|_tail_matches\\|DEEP_EDGE_MARK' daedalus/lanes/graph_brief.py",
+         "file": "daedalus/lanes/graph_brief.py",
+         "verified_by": "Output shows lines where symbols are defined or not found."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Symbols may be defined in other parts of the same files not shown in the cited source."
+      },
+      {
+       "rank": 3,
+       "title": "Inspect eval/__main__.py for cleanup ordering after run_gate",
+       "gate": "0",
+       "why_now": "Checks for race condition between process termination and cleanup; high severity.",
+       "steps": [
+        {
+         "do": "Read eval/__main__.py to find the main loop and order of operations after run_gate call.",
+         "file": "daedalus/eval/__main__.py",
+         "verified_by": "Manual code review; check for wait/join before cleanup."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The main loop is in eval/__main__.py; the cleanup sequence is visible."
+      },
+      {
+       "rank": 4,
+       "title": "Verify reach.py safely ignores non-Python files",
+       "gate": "1",
+       "why_now": "Low severity confirmed finding; ensure shell scripts are handled gracefully.",
+       "steps": [
+        {
+         "do": "Check reach.py's _scan function for try/except around ast.parse for non-Python files.",
+         "file": "daedalus/mapping/reach.py",
+         "verified_by": "Manual code review; confirm SyntaxError is caught and file skipped."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "reach.py uses ast.parse and catches SyntaxError."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "79e04c11341d6a1435d87cf73c723eb155380229da5204cfe09bd074594e81df",
+    "objective_chars": 19202,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 10 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 10,
+  "inputs": 4
+ }
+}

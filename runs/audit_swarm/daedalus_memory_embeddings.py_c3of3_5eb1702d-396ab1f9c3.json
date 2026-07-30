@@ -1,0 +1,125 @@
+{
+ "task_id": "daedalus/memory/embeddings.py#c3of3#5eb1702d",
+ "key": "daedalus_memory_embeddings.py_c3of3_5eb1702d-396ab1f9c3",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 7 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Compatibility wrapper returning the number of new projections.\" | ingest_transport_records | KEPT | The method calls ingest_transport_records_report and returns .projected, which is documented as the number of new projections.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state.\" | search_report | KEPT | The method returns a SearchReport with status and matches, handling various failure states.",
+     "CLAIM | \"Pass ``journal`` to have the result assert freshness against the authoritative journal.\" | search_report | KEPT | The method calls self.journal_freshness(resolved, journal) and uses the result.",
+     "CLAIM | \"Without it the report is ``freshness == \"unanchored\"``: the index may be arbitrarily far behind and this call cannot tell you.\" | search_report | UNCHECKABLE | Requires checking journal_freshness behavior when journal is None; not defined in this unit.",
+     "CLAIM | \"Compatibility wrapper returning only matches.\" | search | KEPT | The method returns self.search_report(...).matches, discarding status and freshness.",
+     "CLAIM | \"This wrapper discards ``status`` and ``freshness``, so it cannot tell a drifted or stale index from a healthy one.\" | search | KEPT | The method returns only .matches, which is a list of tuples, not including status or freshness.",
+     "CLAIM | \"New code should call :meth:`search_report`.\" | search | KEPT | The docstring recommends search_report, and the implementation delegates to it.",
+     "CLAIM | \"List indexes\" | list_indexes | KEPT | The method returns a list of EmbeddingSpec from the database.",
+     "D1 | batch_size | ingest_transport_records | WRONG CONCLUSION: parameter accepted but never read in this unit; it is passed through to ingest_transport_records_report, but that function is not defined here, so it is read elsewhere."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cc071e960225ac37592ef998c99734f56c43879bbdcd669087ed9d2bcdb21cd2",
+    "objective_chars": 13481,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 2 kept, 1 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Compatibility wrapper returning the number of new projections.\" | ingest_transport_records | KEPT | The method calls ingest_transport_records_report and returns .projected, which is an int.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state.\" | search_report | KEPT | The method returns SearchReport with status and freshness, and handles various failure modes.",
+     "CLAIM | \"Pass ``journal`` to have the result assert freshness against the authoritative journal.  Without it the report is ``freshness == \"unanchored\"``: the index may be arbitrarily far behind and this call cannot tell you.\" | search_report | BROKEN | When journal is None, self.journal_freshness(resolved, None) is called; its behavior is unknown, but the mapping from code to freshness uses freshness_status.code; if journal is None, the code does not guarantee 'unanchored'; the claim is about the report's freshness field, but the code always computes freshness via journal_freshness; the claim cannot be verified without seeing journal_freshness.",
+     "CLAIM | \"Compatibility wrapper returning only matches.\" | search | KEPT | The method returns self.search_report(...).matches, which is a list of tuples.",
+     "CLAIM | \"This wrapper discards ``status`` and ``freshness``, so it cannot tell a drifted or stale index from a healthy one.\" | search | UNCHECKABLE | The method returns only matches, discarding status and freshness; claim is about the wrapper's inability to tell, which is true; but it's a statement of intent, not a checkable claim about code behavior.",
+     "D1 | search_report parameter journal | defined but not read in this unit? Actually it is read: passed to self.journal_freshness. No D1.",
+     "D2 | none | no except that swallows and continues where prose says refuse",
+     "D3 | none | no check after side effect",
+     "D4 | none | no impossible branch"
+    ],
+    "todos": [
+     "Clarify journal_freshness behavior when journal is None, or adjust docstring to match actual behavior."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cc071e960225ac37592ef998c99734f56c43879bbdcd669087ed9d2bcdb21cd2",
+    "objective_chars": 13481,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 7 kept, 0 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Compatibility wrapper returning the number of new projections.\" | ingest_transport_records | KEPT | the method returns .projected from ingest_transport_records_report, which is the count of new projections.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state.\" | search_report | KEPT | the method returns a SearchReport with status and freshness, handling various failures.",
+     "CLAIM | \"Pass ``journal`` to have the result assert freshness against the authoritative journal.  Without it the report is ``freshness == \"unanchored\"``: the index may be arbitrarily far behind and this call cannot tell you.\" | search_report | KEPT | if journal is None, freshness_status.code is \"unanchored\" and freshness becomes \"unanchored\".",
+     "CLAIM | \"This wrapper discards ``status`` and ``freshness``, so it cannot tell a drifted or stale index from a healthy one.  New code should call :meth:`search_report`.\" | search | KEPT | search returns only .matches, discarding status and freshness.",
+     "CLAIM | \"Compatibility wrapper returning only matches.\" | search | KEPT | it returns self.search_report(...).matches.",
+     "CLAIM | \"list_indexes\" | list_indexes | KEPT | returns a list of EmbeddingSpec from the embedding_indexes table.",
+     "CLAIM | \"index_status\" | index_status | KEPT | returns an IndexStatus with all described fields.",
+     "D1 | spec parameter in ingest_transport_records | the spec parameter is accepted but never used in the method body; it is passed as keyword argument to ingest_transport_records_report which may use it, but in this unit it is not read. However, since it's passed through, it's not strictly unused in this unit. But the claim is about a parameter defined in this unit and read nowhere in this unit: spec is defined as a parameter but is not read in the method body; it is only forwarded. This qualifies as D1. | WRONG CONCLUSION: a caller may think spec is used locally, but it is only forwarded."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cc071e960225ac37592ef998c99734f56c43879bbdcd669087ed9d2bcdb21cd2",
+    "objective_chars": 13481,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/memory/embeddings.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 10962
+ }
+}

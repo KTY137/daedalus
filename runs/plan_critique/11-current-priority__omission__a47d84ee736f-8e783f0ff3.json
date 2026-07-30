@@ -1,0 +1,70 @@
+{
+ "task_id": "11-current-priority__omission__a47d84ee736f",
+ "key": "11-current-priority__omission__a47d84ee736f-8e783f0ff3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 11 fails to define 'Gate 0', 'canonical kernel', 'Gate 1 ignition slice', and the authority that decides, leaving implementers to guess all critical terms.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "11.1 | high | 'Gate 0' is undefined; implementers cannot know when this priority ceases to apply. | Add a definition or reference to a gate definition elsewhere.",
+     "11.2 | high | 'canonical kernel' is undefined; implementers cannot know which kernel is canonical or what 'wire through' means. | Define 'canonical kernel' and the wiring mechanism.",
+     "11.3 | high | 'Gate 1 ignition slice' is undefined; implementers cannot know what constitutes the next proof. | Define 'Gate 1 ignition slice' or reference its specification.",
+     "11.4 | medium | 'default answer' implies a decision authority but none is named; implementers must guess who decides. | State who or what process makes the default decision.",
+     "11.5 | medium | 'disposable, isolated experiment' has no criteria for what counts as disposable or isolated; implementers cannot self-assess. | Provide criteria or a review gate for experiment status.",
+     "11.6 | low | 'broader assistant demo' is ambiguous; implementers may misinterpret the scope of forbidden work. | Clarify what constitutes a 'broader assistant demo'."
+    ],
+    "todos": [
+     "Define Gate 0 and Gate 1 explicitly, or reference their definitions.",
+     "Define 'canonical kernel' and the mechanism for wiring through it.",
+     "Define 'Gate 1 ignition slice' or link to its specification.",
+     "Name the authority or process that applies the default answer.",
+     "Provide criteria for 'disposable, isolated experiment' status.",
+     "Clarify the scope of 'broader assistant demo'."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "11.1",
+       "claim": "Until Gate 0 exits, the default answer to new feature work is: wire it through the canonical kernel or keep it as a disposable, isolated experiment.",
+       "verdict": "unclear",
+       "why": "The claim depends on an undefined 'Gate 0' and an undefined 'canonical kernel'. Without these definitions, an implementer cannot know when the rule applies or what 'wire through' means. This is an omission of critical definitions."
+      },
+      {
+       "id": "11.2",
+       "claim": "The next product proof is the Gate 1 ignition slice, not a broader assistant demo.",
+       "verdict": "unclear",
+       "why": "'Gate 1 ignition slice' is undefined, and 'broader assistant demo' is ambiguous. The implementer cannot determine what constitutes the next proof or what work is excluded. Missing definitions for key terms."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3e18315064e36bc2a6df3679c2448e127b55153a83c5780b2486698e326bef67",
+    "objective_chars": 1223,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "11-current-priority",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

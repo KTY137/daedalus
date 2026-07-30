@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c4of12__946db82",
+ "key": "scan__daedalus_council_session.py__c4of12__946db82-040fab9764",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of session.py: Claim, TurnRef, ParticipantRecord, CouncilRecord dataclasses with docstrings. All docstring claims are checkable and kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "4 of 12",
+     "purpose": "Define Claim, TurnRef, ParticipantRecord, CouncilRecord dataclasses with docstrings and enforcement.",
+     "symbols": [
+      {
+       "name": "Claim",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for one participant assertion; includes checkable flag and check string."
+      },
+      {
+       "name": "TurnRef",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for one chained turn with id, round, actor, status, etc."
+      },
+      {
+       "name": "ParticipantRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for roster accounting of one requested participant."
+      },
+      {
+       "name": "CouncilRecord",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for council output; advisory by construction, no decision fields."
+      },
+      {
+       "name": "CouncilRecord.checkable_claims",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning tuple of claims where checkable is True."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``checkable`` is true only when the author supplied a concrete deterministic check -- a command, a test, a specific line assertion.",
+       "where": "Claim docstring",
+       "verdict": "kept",
+       "why": "The Claim class has a checkable bool field and a check str field, consistent with the description."
+      },
+      {
+       "text": "That is the council's entire product: a queue of checks for the gate to run.",
+       "where": "Claim docstring",
+       "verdict": "kept",
+       "why": "The code defines checkable_claims property on CouncilRecord, which returns a tuple of checkable claims; the class design supports this claim."
+      },
+      {
+       "text": "A claim without one is still recorded verbatim, and still counts for nothing on its own.",
+       "where": "Claim docstring",
+       "verdict": "kept",
+       "why": "Claim has verbatim field and checkable defaults to False; no scoring or weighting logic is present."
+      },
+      {
+       "text": "There is deliberately no majority, no score, no consensus and no approve/reject field, and none may be added: a caller must not be able to destructure a decision out of this object.",
+       "where": "CouncilRecord docstring",
+       "verdict": "kept",
+       "why": "CouncilRecord has no such fields; __post_init__ enforces advisory=True, preventing misuse."
+      },
+      {
+       "text": "What is here instead is every claim with its author and its evidence, the checkable subset, and honest roster accounting.",
+       "where": "CouncilRecord docstring",
+       "verdict": "kept",
+       "why": "CouncilRecord contains claims (tuple of Claim), checkable_claims property, and participants tuple of ParticipantRecord."
+      },
+      {
+       "text": "Always True and enforced. This object is evidence, not a decision.",
+       "where": "CouncilRecord.advisory docstring",
+       "verdict": "kept",
+       "why": "advisory defaults to True and __post_init__ raises ValueError if set to False."
+      },
+      {
+       "text": "The queue the gate can actually run.",
+       "where": "CouncilRecord.checkable_claims docstring",
+       "verdict": "kept",
+       "why": "Property filters claims where checkable is True, consistent with 'queue' concept."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Claim class has fields author, vendor, model, round, role, text, cites, checkable, check, verbatim, parsed; all used as documented.",
+       "where": "Claim class definition",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "CouncilRecord has a __post_init__ that enforces advisory=True and ended in END_REASONS.",
+       "where": "CouncilRecord.__post_init__",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "All dataclasses are defined with @dataclass or @dataclass(frozen=True) as appropriate.",
+       "where": "whole chunk",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "No external references (e.g., END_REASONS, DEFAULT_TOKEN_CEILING) are defined in this chunk; their existence is assumed.",
+       "where": "CouncilRecord fields",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "345ba6e40607d8fe4fc889e67a89ef1d4c1d596d69b6130feb7e5c46d2c79f23",
+    "objective_chars": 4531,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [4/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 4,
+  "total": 12,
+  "first_line": 361
+ }
+}

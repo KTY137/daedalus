@@ -1,0 +1,131 @@
+{
+ "task_id": "scan__daedalus_observe_shape.py__c3of4__946db82",
+ "key": "scan__daedalus_observe_shape.py__c3of4__946db82-8375766fb1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 4 of shape.py: continues the describe() function with table, tree, dict, dataclass, sequence, scalar, and opaque branches, then defines ShapeConflict dataclass and its to_dict method.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "lines 241-247 | medium | The code catches generic Exception when extracting dims from shape attribute; any non-integer or failure silently yields empty tuple. This could hide type errors or malformed shapes. | Confirm whether catching specific exceptions (TypeError, ValueError) is sufficient and whether silent fallback is intended.",
+     "lines 249-256 | medium | Similar generic Exception catch when computing dtypes; if dtypes attribute exists but conversion to string fails, dtype string becomes empty. | Check if specific exceptions like TypeError should be caught instead of all.",
+     "lines 257-263 | medium | memory_usage(deep=False) may raise AttributeError if obj is not a DataFrame; the fallback to nbytes might not be equivalent. | Verify that the fallback is appropriate for all table-like objects.",
+     "lines 267-280 | medium | The tree branch uses generic Exception when listing keys; any failure results in empty names. This could mask important errors (e.g., permission denied). | Consider catching specific exceptions like OSError or TypeError.",
+     "lines 283-290 | medium | Dict branch: uses next(iter(obj.values())) without ordering guarantee; if dict is large, this is fine but note that element is taken from first item only. | No action needed, but document that element is from arbitrary first value.",
+     "lines 292-302 | medium | Dataclass and __slots__ branches: does not probe element types or values; only returns field names. This is a design choice but could miss nesting. | No action needed if design intent is to only record field names.",
+     "lines 304-310 | medium | Sequence branch: probes one element via next(iter(obj)); for set/frozenset, order is arbitrary. | Document that element is from arbitrary first element.",
+     "lines 312-316 | medium | String/bytes branch: only records length, no content. | No action needed by design.",
+     "lines 318-320 | medium | Scalar branch: no note, no length. | No action needed.",
+     "lines 322-323 | medium | Opaque branch: returns note that shape could not be characterised. | No action needed.",
+     "line 330 | medium | ShapeConflict docstring claims missing_in_observation is softest signal and undeclared_in_observation is sharpest. This is a design claim, not directly checkable in code. | Check that calling code treats these fields accordingly."
+    ],
+    "todos": [
+     "Review generic Exception catches in dims, dtypes, memory_usage, and tree branches; consider narrowing to specific exceptions.",
+     "Ensure that the dict branch's element probe (first value) is documented as arbitrary.",
+     "Verify that ShapeConflict.agrees property logic matches documented intent: agrees when comparable and no undeclared fields."
+    ],
+    "handoff": {
+     "module": "daedalus/observe/shape.py",
+     "chunk": "3 of 4",
+     "purpose": "Continues describe() function with object type detection and ShapeConflict dataclass definition.",
+     "symbols": [
+      {
+       "name": "ShapeConflict",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for recording shape disagreements between declaration and observation."
+      },
+      {
+       "name": "ShapeConflict.agrees",
+       "kind": "function",
+       "effects": [],
+       "note": "Property that returns True if comparable and no undeclared fields."
+      },
+      {
+       "name": "ShapeConflict.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts the dataclass to a dictionary with lists for tuple fields."
+      }
+     ],
+     "claims": [
+      {
+       "text": "missing_in_observation is the softest signal \u2014 these inputs did not exercise that field.",
+       "where": "line 330, docstring of ShapeConflict",
+       "verdict": "uncheckable",
+       "why": "The claim about the semantics of the field is not checkable from the code in this chunk; it depends on how the field is populated and used elsewhere."
+      },
+      {
+       "text": "undeclared_in_observation is the sharp one: the object carries something the code never declared, so the declaration is incomplete or the payload has undocumented shape.",
+       "where": "line 330, docstring of ShapeConflict",
+       "verdict": "uncheckable",
+       "why": "The claim about the severity of undeclared fields is not checkable from this chunk; it depends on usage in other code."
+      },
+      {
+       "text": "agrees property: returns True if comparable and no undeclared fields.",
+       "where": "line 340, property definition",
+       "verdict": "kept",
+       "why": "The property returns `self.comparable and not self.undeclared_in_observation`, which matches the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Generic Exception catches in dims, dtypes, memory_usage, and tree branches may hide errors.",
+       "where": "lines 241-280",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Dict branch probes first value without guaranteeing order; element is from arbitrary key.",
+       "where": "line 285",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Sequence branch probes one element via next(iter(obj)); for sets/frozensets order is arbitrary.",
+       "where": "line 306",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ShapeConflict docstring makes claims about field semantics that are not verifiable in this chunk.",
+       "where": "lines 330-338",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "39a435b5c53726567eecca2d22fe0eff88ce091cc3df4e3ef941ff1411b34967",
+    "objective_chars": 6077,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/observe/shape.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/observe/shape.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 241
+ }
+}

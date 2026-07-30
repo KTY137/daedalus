@@ -1,0 +1,108 @@
+{
+ "task_id": "14-alignment-protocol-for-every-change__omission__a47d84ee736f",
+ "key": "14-alignment-protocol-for-every-change__omission__a47d84ee736f-779990ee54",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "The protocol omits definitions for digest verification, gate naming, and experiment record storage, forcing implementers to guess.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "14.1 | high | 'verify its digest' requires a digest but does not define what digest or how to verify it; implementers must guess the mechanism. | Check whether any tool or document defines the digest format and verification procedure.",
+     "14.3 | medium | 'Name the active gate and the invariant/prior touched' assumes a known set of gates and invariants; none are defined in this document. | Attempt to list all gates and invariants from this document alone; the attempt will fail.",
+     "14.6 | high | 'Run iron_plan_guard.py verify' references a tool not described in this document; its location, behavior, and success criteria are unspecified. | Search the repository for the tool; if absent, the step is unexecutable.",
+     "14.9 | medium | 'An experiment also records its spec, scope, budget, evaluator, and expiry' does not state where or how these records are stored or who enforces expiry. | Ask: where does the experiment record live? What happens on expiry?"
+    ],
+    "todos": [
+     "Define what 'verify its digest' means: specify digest algorithm, source, and verification procedure.",
+     "Define the set of gates and invariants, or reference where they are defined.",
+     "Specify the location and interface of 'iron_plan_guard.py' or remove the reference.",
+     "Define where experiment records are stored, who maintains them, and what enforcement occurs at expiry."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "14.1",
+       "claim": "Before editing, read this plan and verify its digest.",
+       "verdict": "weak",
+       "why": "The claim assumes a digest exists and a verification method is known, but neither the digest nor the verification procedure is defined in this document. An implementer must guess how to verify the digest."
+      },
+      {
+       "id": "14.2",
+       "claim": "Classify the work as ALIGNED, EXPERIMENT, or AMENDMENT.",
+       "verdict": "unclear",
+       "why": "The classification criteria are not defined; the categories are listed but not distinguished. An implementer needs rules to decide which category applies."
+      },
+      {
+       "id": "14.3",
+       "claim": "Name the active gate and the invariant/prior touched.",
+       "verdict": "weak",
+       "why": "The claim assumes a defined set of gates and invariants, but none are listed or referenced in this document. The implementer must invent the gate and invariant names."
+      },
+      {
+       "id": "14.4",
+       "claim": "Prefer deletion, consolidation, or wiring over a new subsystem.",
+       "verdict": "unclear",
+       "why": "The preference is stated but no criteria are given for when each option is appropriate; the implementer must guess the trade-offs."
+      },
+      {
+       "id": "14.5",
+       "claim": "Before handing off, run python tools/iron_plan_guard.py verify.",
+       "verdict": "weak",
+       "why": "The tool is referenced but not described; its location, inputs, outputs, and pass/fail criteria are absent. The implementer cannot know if the tool exists or how to interpret its results."
+      },
+      {
+       "id": "14.6",
+       "claim": "Report: Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT.",
+       "verdict": "unclear",
+       "why": "The report format is given but the meaning and required content of each field are not explained. The implementer must guess what constitutes a valid report."
+      },
+      {
+       "id": "14.7",
+       "claim": "Report: Iron Gate: 0..5.",
+       "verdict": "unclear",
+       "why": "The gate numbers are listed but their definitions or mapping to states are not provided. The implementer must invent the meaning of each gate number."
+      },
+      {
+       "id": "14.8",
+       "claim": "Report: Evidence: <tests, receipts, or analysis>.",
+       "verdict": "unclear",
+       "why": "The types of evidence are named but no requirements for sufficiency or format are given. The implementer must guess what constitutes acceptable evidence."
+      },
+      {
+       "id": "14.9",
+       "claim": "An experiment also records its spec, scope, budget, evaluator, and expiry.",
+       "verdict": "weak",
+       "why": "The claim mandates recording fields but does not specify where or how these records are stored, who accesses them, or what happens when the expiry is reached. The implementer must invent the storage and enforcement mechanism."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ee7e9bf1777f8ea10b080ddd4fdb0a111315e91d26803dc789a475899542cd7d",
+    "objective_chars": 1536,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "14-alignment-protocol-for-every-change",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

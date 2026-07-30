@@ -1,0 +1,123 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c10of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c10of10__946db82-d92062e130",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 10 of 10 of switches.py, containing the final assembly of SwitchReport from reconciled data structures.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1087 | low | The comment says 'DEFAULT_NUM_CTX=8192 in prose documents a Python constant...' but this chunk does not show any code that defines or uses DEFAULT_NUM_CTX; the claim is uncheckable. | Check if DEFAULT_NUM_CTX is defined elsewhere in the module and if it is actually dropped from documented when not in by_name."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "10 of 10",
+     "purpose": "Final assembly of SwitchReport from reconciled data structures, including drift computation and counts.",
+     "symbols": [
+      {
+       "name": "switches",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of reconciled env switches."
+      },
+      {
+       "name": "config",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Result of _config_switches(root, literals)."
+      },
+      {
+       "name": "drift",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "Result of _drift(documented, mentioned, by_name)."
+      },
+      {
+       "name": "counts",
+       "kind": "variable",
+       "effects": [
+        "none"
+       ],
+       "note": "SwitchCounts namedtuple summarizing counts."
+      },
+      {
+       "name": "SwitchCounts",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Used to construct counts object with fields like env_switches, dark_env, etc."
+      },
+      {
+       "name": "SwitchReport",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Used to construct final return object with schema, root, counts, etc."
+      }
+     ],
+     "claims": [
+      {
+       "text": "`DEFAULT_NUM_CTX=8192` in prose documents a Python constant, not an environment variable. Names the code defines as module constants and never reads from the environment are dropped before drift is computed.",
+       "where": "line 1081",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define or reference DEFAULT_NUM_CTX. The logic of dropping such constants is implied but not shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The comment references DEFAULT_NUM_CTX but the code in this chunk does not define or use it.",
+       "where": "line 1081",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code uses functions _augment_documented, _reconcile, _config_switches, _drift which are not defined in this chunk.",
+       "where": "lines 1087-1094",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1a293d34798840cf6fa1965584e2c67d03426d3055c43a87a17072d7847a9dbf",
+    "objective_chars": 2218,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [10/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 10,
+  "total": 10,
+  "first_line": 1081
+ }
+}

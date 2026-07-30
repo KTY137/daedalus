@@ -1,0 +1,136 @@
+{
+ "task_id": "review__b012__946db82",
+ "key": "review__b012__946db82-18f61a624a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 7 refuted, 2 narrowed. Key refutations: missing code evidence, existing symlink resolution, env restoration bug is harmless in practice.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Overlapping-write-undeclared: the narrow version (undeclared paths not checked) is a real concern if OS-level isolation is absent.",
+     "Env-restoration-edge: empty string restoration may cause subtle trace misattribution if child processes distinguish empty from missing.",
+     "Duplicate-handling-inconsistency: silent ignore vs explicit error may mask bugs during crash recovery."
+    ],
+    "todos": [
+     "Check if worktree allocation uses os.path.realpath (symlink-bypass hypothesis).",
+     "Verify DEFAULT_BENCH_OLLAMA_HOST value and host validation in OllamaLocalAdapter.",
+     "Determine if prior_env can ever be empty string in practice.",
+     "Check if embedding pipeline can reprocess events after crash recovery."
+    ],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "docstring-reality-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis relies on partial code scans (chunk 1/9) and assumes missing code in later chunks. The docstring claims may be fully implemented in other parts of the file not shown. Additionally, the vet.py contradiction may be intentional (different functions separate concerns) or resolvable by reading the full docstrings.",
+       "survives_because": "The cited source only shows first 40 lines of each file; the hypothesis itself acknowledges that later chunks could contain the supporting code. No evidence of actual drift is provided beyond incomplete reading.",
+       "narrowed_claim": "",
+       "settling_check": "Check full projection_worker.py for implementations of crash safety, deduplication, watermarking. Read full _defang and scan_text docstrings in vet.py to see if they are consistent.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "overlapping-write-undeclared",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring explicitly warns that _paths_overlap is not a proof of write isolation and that production concurrency requires separate worktrees. The function is a diagnostic, not a security boundary. The system may enforce write isolation at a higher level (e.g., OS containers) that prevents writing to undeclared paths.",
+       "survives_because": "The narrow claim that _paths_overlap only checks declared paths is factually correct. If OS-level isolation is absent, this could give a false sense of safety. However, the docstring already warns, so the risk is acknowledged.",
+       "narrowed_claim": "_paths_overlap does not check undeclared paths, so if no other isolation exists, concurrent writes may conflict.",
+       "settling_check": "Search for any OS-level isolation (e.g., worktree, container) in the codebase that prevents writing to undeclared paths. If none exists, the narrow claim stands.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "symlink-bypass",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis cites allocate_worktree but the cited source shows the symbol is NOT PRESENT IN FILE. screen_egress does not perform containment checks; it only checks secret patterns. The actual containment may use os.path.realpath in other functions. Also, the attacker would need ability to create symlinks inside the allowed path, which may be restricted.",
+       "survives_because": "The evidence for allocate_worktree is missing. screen_egress does not do path containment. No code shows lexical checks without symlink resolution. The hypothesis is based on assumptions not supported by the cited source.",
+       "narrowed_claim": "",
+       "settling_check": "Find the actual implementation of allocate_worktree and _is_within in worktree.py. Check if they use os.path.realpath. Also check screen_egress for any path containment logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "evidence-fencing-boundary",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims session.py defers to adapter for evidence fencing, but the cited source (session.py lines 84-133) does not mention evidence fencing at all. ollama.py lines 40-89 discuss model selection and rewrite limits, not evidence fencing. The hypothesis may be misinterpreting the code; evidence fencing might be implemented elsewhere or not required.",
+       "survives_because": "The cited sources do not support the claim. No evidence of the alleged contract or missing fencing is presented.",
+       "narrowed_claim": "",
+       "settling_check": "Search for evidence fencing logic in all adapter files (ollama.py, codex.py, etc.). Check session.py for any reference to evidence fencing.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "loopback-guarantee-broken",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source for OllamaLocalAdapter is NOT PRESENT IN FILE. The hypothesis makes claims about DEFAULT_BENCH_OLLAMA_HOST without showing its value. Even if the default is not 127.0.0.1, the adapter may validate the host or the egress gate may not rely on the docstring claim. The hypothesis rests on missing evidence.",
+       "survives_because": "The key evidence (OllamaLocalAdapter code) is missing. Without seeing the actual implementation, the claim cannot be evaluated.",
+       "narrowed_claim": "",
+       "settling_check": "Find the actual OllamaLocalAdapter implementation in vendors.py. Check DEFAULT_BENCH_OLLAMA_HOST value and any host validation. Check the egress gate logic.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "cross-platform-cancellation",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims correctness.py catches KeyboardInterrupt in bare except clauses, but the cited source (lines 1-40) is only the docstring; the actual except clauses are not shown. Even if bare excepts exist, console control events are handled at the OS level, not by Python exception handlers. The cancellation mechanism uses GenerateConsoleCtrlEvent which sends a signal to the process group, independent of Python's exception handling.",
+       "survives_because": "The evidence for bare except clauses is not in the cited source. Console control events bypass Python exception handlers, so the hypothesis is technically flawed.",
+       "narrowed_claim": "",
+       "settling_check": "Examine correctness.py around lines 1681, 1690 for bare except clauses. Test cancellation on Windows with a process that catches KeyboardInterrupt.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "no-overlapping-concern",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims no cross-file contracts, but the cited sources show each module's docstrings describing their purpose; they do not prove absence of overlap. The modules may share data through intermediate files or databases (e.g., graph_delta writing to a file that render.py reads). The hypothesis overreaches from limited evidence.",
+       "survives_because": "The cited sources only show docstrings, not the full code. There could be hidden dependencies. The hypothesis is a claim of absence that cannot be proven from the given evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Search for any shared file paths, database tables, or function calls between these modules. Check if graph_delta output is used by render.py.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "env-restoration-edge",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The env variable restoration sets os.environ[TRACE_ID_ENV] = '' when prior_env is empty string. However, child processes typically check for presence (os.environ.get) and treat empty string as falsy in boolean contexts. The docstring's claim about 'UNSET' may be imprecise but functionally equivalent if all consumers treat empty string as absent. Additionally, prior_env may never be empty string in practice.",
+       "survives_because": "It is possible that prior_env could be empty string and that some consumer distinguishes between empty and missing, leading to trace misattribution. The docstring says 'UNSET' but code sets to empty string, which is a minor inconsistency.",
+       "narrowed_claim": "If prior_env is empty string, the restoration sets it to empty string instead of deleting the key, which could cause a consumer that checks 'if os.environ.get(TRACE_ID_ENV)' to treat it as set, potentially misattributing traces.",
+       "settling_check": "Find all consumers of DAEDALUS_TRACE_ID. Check if any treat empty string differently from missing. Determine if prior_env can ever be empty string (e.g., if env var is set to empty explicitly).",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "duplicate-handling-inconsistency",
+       "verdict": "refuted",
+       "strongest_counterargument": "The embedding pipeline uses INSERT OR IGNORE because duplicates are expected and safe to ignore: the projection is idempotent (content-addressed). The ledger raises IntentAlreadyResolved because resolving an intent twice is a logic error. The behaviors are appropriate for their contexts. The embedding pipeline may never reprocess events due to watermarking; if it does, ignoring duplicates is correct.",
+       "survives_because": "The hypothesis assumes silent data loss, but the embedding's design ensures that ignoring duplicates is correct (same source_hash produces same projection). No evidence of actual data loss is provided.",
+       "narrowed_claim": "",
+       "settling_check": "Verify that projection_sources has UNIQUE(source_hash) constraint and that reprocessing an event produces identical projection. Confirm watermarking prevents unnecessary reprocessing.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c50e11e49cd78153945c2017e6792c191070f4cf82eec004fc24b95b0bd337bc",
+    "objective_chars": 52467,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 12 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 12,
+  "inputs": 9
+ }
+}

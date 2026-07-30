@@ -1,0 +1,129 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c8of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c8of11__946db82-389ec024e7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 8 of canary.py: live_egress_lanes function, LiveCanaryRefused class, _adapters_behind function, grade function definition, and related code. No critical issues found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "grade function | low | Function signature and docstring present but implementation truncated; missing body means grading logic is incomplete in this chunk. | Check next chunk for implementation."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "8 of 11",
+     "purpose": "Contains live_egress_lanes, LiveCanaryRefused, _adapters_behind, and start of grade function.",
+     "symbols": [
+      {
+       "name": "LiveCanaryRefused",
+       "kind": "class",
+       "effects": [],
+       "note": "Subclasses LiveCouncilRefused; used as exception when spending without live=True."
+      },
+      {
+       "name": "_adapters_behind",
+       "kind": "function",
+       "effects": [],
+       "note": "Internal function to extract CouncilAdapter instances from a Lane's ask callable."
+      },
+      {
+       "name": "live_egress_lanes",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function; returns tuple of lane identifiers that could call a vendor."
+      },
+      {
+       "name": "grade",
+       "kind": "function",
+       "effects": [],
+       "note": "Public function; signature present but body truncated in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The Ollama host is passed EXPLICITLY, per call. OLLAMA_HOST is neither read for routing nor written anywhere here, and the local flag is a property of the RESOLVED host rather than of the provider's name: the bench is another machine, so a probe sent there is egress and is labelled as such on every record it produces.",
+       "where": "docstring of the function building live roster (starts at line 841)",
+       "verdict": "uncheckable",
+       "why": "This claim refers to a function that builds the live roster, which is not fully present in this chunk (only the docstring and partial implementation are visible). The claim about OLLAMA_HOST not being read/written here is uncheckable because the function body is incomplete."
+      },
+      {
+       "text": "Subclasses the council's refusal ON PURPOSE. \"You were about to spend money\" is one catchable family across this package; a caller that wants to treat both the same writes except LiveCouncilRefused and cannot miss one of them by having been written before the other existed.",
+       "where": "LiveCanaryRefused docstring",
+       "verdict": "kept",
+       "why": "The class definition shows LiveCanaryRefused(LiveCouncilRefused), confirming the subclass relationship. The claim about catchability is a design statement; the code supports it."
+      },
+      {
+       "text": "Finding NOTHING means ask is a plain caller-supplied callable, and the verdict for that is deliberately the same one session.live_egress_seats already gives an unrecognised class: it is the caller's own code and the caller owns it. That is the single existing rule, applied here rather than re-decided.",
+       "where": "_adapters_behind docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references session.live_egress_seats, which is not defined in this chunk. The logic of _adapters_behind is present, but the behavior when nothing is found is stated but cannot be verified against the referenced function."
+      },
+      {
+       "text": "The classification itself is NOT done here -- it is session.live_egress_seats, imported. This function only resolves a lane back to its adapter(s) and prefixes the lane's identity onto whatever that one classifier says, so the canary and the council can never drift into disagreeing about which seats cost money.",
+       "where": "live_egress_lanes docstring",
+       "verdict": "kept",
+       "why": "The function live_egress_lanes calls live_egress_seats(_adapters_behind(lane)) and prefixes lane identity, consistent with the claim. The import of live_egress_seats is listed in the imports."
+      },
+      {
+       "text": "The checker runs ONLY on status == \"ok\": grading the body of a reply we never received would manufacture a wrong_answer out of an outage, which is the same lie as merging the two statuses.",
+       "where": "grade docstring",
+       "verdict": "uncheckable",
+       "why": "The grade function body is truncated; the claim about behavior cannot be verified against code present in this chunk."
+      },
+      {
+       "text": "VendorReply transport status -> canary status. refused_by_floor folds into error (the transport refused; no model was asked to be wrong).",
+       "where": "comment above _TRANSPORT_MAP",
+       "verdict": "kept",
+       "why": "_TRANSPORT_MAP is defined with the mapping, including 'refused_by_floor': 'error', matching the claim."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function that builds the live roster (starting at line 841) has its docstring and initial implementation but is incomplete in this chunk; the return statement is present but the function definition line is missing from the chunk start.",
+       "where": "Lines 841-? (function definition not fully visible)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "grade function is defined but its body is not present in this chunk; it ends mid-docstring.",
+       "where": "Last line of chunk",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1d8d68baaf70e175836c17778a206ca530103c459cb363903538b72b86cdcfe9",
+    "objective_chars": 7059,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [8/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 8,
+  "total": 11,
+  "first_line": 841
+ }
+}

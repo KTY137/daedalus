@@ -1,0 +1,154 @@
+{
+ "task_id": "daedalus/providers/codex_cli.py#c1of1#5eb1702d",
+ "key": "daedalus_providers_codex_cli.py_c1of1_5eb1702d-653f66c862",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 12 kept, 3 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"it reads the repo itself and edits files IN PLACE, so (like Claude, unlike DeepSeek) it needs no inlined context and no draft-apply step\" | build_prompt | KEPT | The prompt does not include inlined context or draft-apply instructions; codex is expected to read and edit the repo directly.",
+     "CLAIM | \"The offload seam's existing disk-changed verifier semantics apply to its results -- this provider adds no parallel verification mechanism\" | KEPT | No verification code exists in this unit; the claim is about absence, which is consistent.",
+     "CLAIM | \"Codex is an EXTERNAL API -- bytes leave the machine to OpenAI\" | caps.local=False | KEPT | ProviderCapabilities sets local=False, confirming external API.",
+     "CLAIM | \"It is therefore NOT trusted with proprietary IP, and every task is gated through the same per-project egress policy as DeepSeek (:func:daedalus.sensitivity.classify_data, fail-closed default-deny) BEFORE the CLI is ever spawned\" | run method | KEPT | The run method calls classify_data before spawning the CLI and returns blocked_report if sensitive.",
+     "CLAIM | \"A denied path never reaches codex\" | run method | KEPT | The sensitive check returns before any subprocess is run.",
+     "CLAIM | \"Residual risk (documented, not hidden): codex is agentic, so once dispatched it can read repo files beyond the declared paths\" | KEPT | No code restricts codex's file access after dispatch; the claim is accurate.",
+     "CLAIM | \"the gate refuses tasks whose declared paths/objective are sensitive, and the prompt instructs codex to keep out of policy-denied trees, but only the pre-dispatch refusal is a hard guarantee\" | KEPT | The prompt includes policy-denied path fragments, but there is no runtime enforcement after dispatch.",
+     "CLAIM | \"``codex exec`` is the documented non-interactive mode; it never prompts for approval, so no approval flag is needed (``--ask-for-approval`` is only documented for the interactive CLI)\" | KEPT | The command uses \"codex exec\" without any approval flag.",
+     "CLAIM | \"Auth comes from ``codex login`` (run by the operator); this provider never triggers a login flow\" | KEPT | No login-related code exists in this unit.",
+     "CLAIM | \"Egress-gated exactly like DeepSeek (``trusted_with_ip=False``): a task with policy-denied paths/content is refused before any subprocess is spawned\" | CodexCLIProvider docstring | KEPT | The run method implements this gate.",
+     "CLAIM | \"REPORT_SCHEMA ... given to codex via --output-schema\" | run method | KEPT | The schema_path is passed via --output-schema.",
+     "CLAIM | \"OpenAI structured-output strict mode (which backs codex --output-schema) rejects any object without additionalProperties: false and with non-required properties (400 invalid_json_schema, live-fired 2026-07-11 task C2). A free-form object is therefore not expressible; carry free-form handoff content in a single notes string instead\" | REPORT_SCHEMA | KEPT | The handoff property has additionalProperties: false and only a notes string property, complying with strict mode.",
+     "CLAIM | \"stdin MUST be closed: with a prompt arg, `codex exec` still appends piped/inherited stdin as a <stdin> block and blocks until EOF\" | run method | KEPT | The subprocess.run call includes stdin=subprocess.DEVNULL.",
+     "CLAIM | \"codex emits UTF-8 (em-dashes, box-drawing chars); WITHOUT an explicit encoding, text=True decodes with the Windows locale (cp1252) and the capture reader-thread dies on bytes like 0x9d -> corrupted/empty output, watcher thread crash (live-fired 2026-07-12, tasks C2/C3). Force UTF-8 and never let a stray byte kill the reader\" | run method | KEPT | The subprocess.run call includes encoding=\"utf-8\", errors=\"replace\".",
+     "CLAIM | \"npm installs `codex` as a .CMD shim on Windows; subprocess cannot spawn it by bare name (WinError 2), so resolve the real path\" | run method | BROKEN | The code uses `codex = shutil.which(\"codex\") or \"codex\"` but then uses `codex` as the first element of `cmd`. However, `shutil.which` on Windows returns the .CMD shim path, which is still a valid executable for subprocess. The claim says \"resolve the real path\" but the code does not resolve the .CMD shim to the underlying executable; it just uses the path returned by `which`. This is not a contradiction: the claim says \"resolve the real path\" and `shutil.which` does resolve to an executable path. However, the claim implies that the .CMD shim cannot be spawned by bare name, but `shutil.which` returns the full path to the .CMD file, which *can* be spawned. The code does not further resolve the .CMD to the underlying Node.js script. The claim is slightly misleading but not strictly broken because `shutil.which` does provide a path that works. The verdict is UNCHECKABLE because the claim about Windows behavior requires external knowledge of how codex is installed and whether the .CMD shim works with subprocess. I'll mark it as UNCHECKABLE.",
+     "CLAIM | \"the prompt instructs codex to keep out of policy-denied trees, but only the pre-dispatch refusal is a hard guarantee\" | build_prompt | KEPT | The prompt includes \"Policy-denied path fragments (do not open or modify)\" when policy is provided.",
+     "D1 | `timeout_s` parameter | WRONG CONCLUSION: a caller believes they can tune the timeout, but the parameter is never used in this unit; the subprocess.run uses `timeout=timeout_s`? Wait, let's check: the code has `timeout=timeout_s` in the subprocess.run call. Actually, it does use it. So not D1. Let me re-check: the function signature has `timeout_s: int = 1500`, and it is used in `subprocess.run(..., timeout=timeout_s)`. So it is used. D1: none.",
+     "D2 | `except OSError: pass` in two places | WRONG CONCLUSION: the code silently ignores OSError when writing debug files, but the prose says \"never fatal\" which is consistent. However, there is also an `except OSError as exc:` that returns a blocked_report, which is not swallowing. The two `pass` cases are for debug breadcrumbs, and the docstring says \"debug breadcrumb only -- never fatal\", so it's not a contradiction. But the mechanical check D2 is about swallowing and continuing where prose says refuse/fail-closed. The prose does not say refuse for those debug writes, so D2 does not apply. However, there is an `except (ValueError, json.JSONDecodeError):` that returns a blocked_report, which is proper handling. So D2: none.",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Update the claim about resolving the real path on Windows to accurately describe that `shutil.which` returns the .CMD shim path, which is spawnable, or implement actual resolution of the .CMD to the underlying executable if needed."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1ddc9ed0fc81269ae4f40b062decadd65ce9bb16211a137c0f113b7f55889e64",
+    "objective_chars": 14690,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 6 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a denied path never reaches ``codex``\" | lines 122-125 | KEPT | classify_data gates before any subprocess.",
+     "CLAIM | \"the gate refuses tasks whose declared paths/objective are sensitive\" | lines 122-125 | KEPT | sensitive verdict returns blocked_report.",
+     "CLAIM | \"only the pre-dispatch refusal is a hard guarantee\" | lines 122-125 | KEPT | consistent with code.",
+     "CLAIM | \"auth comes from ``codex login`` (run by the operator); this provider never triggers a login flow\" | line 47 | KEPT | no login call in unit.",
+     "CLAIM | \"debug breadcrumb only -- never fatal\" | line 131 | BROKEN | line 130 catches OSError and passes, but if RUN_DIR.mkdir fails, the subsequent write on line 131 may fail; however the pass is intentional, but the comment says 'never fatal' while the write could raise an unhandled exception if the directory creation silently fails and the path is invalid? Actually the OSError is caught for the mkdir, but the write_text on line 131 is inside the try block, so it is also caught. So the claim is KEPT.",
+     "CLAIM | \"stdin MUST be closed ... codex hangs ... live-fired 2026-07-11, task C1\" | line 175 | KEPT | stdin=subprocess.DEVNULL is set.",
+     "CLAIM | \"WITHOUT an explicit encoding, text=True decodes with the Windows locale (cp1252) and the capture reader-thread dies ... live-fired 2026-07-12, tasks C2/C3\" | line 171 | KEPT | encoding='utf-8' is set.",
+     "CLAIM | \"codex emits UTF-8\" | line 171 | UNCHECKABLE | Would need to inspect codex source to verify it emits UTF-8.",
+     "CLAIM | \"the report goes out as blocked despite good disk changes\" | line 107 | UNCHECKABLE | Would need to see the timeout handling to verify that the report is blocked even if disk changes are good; the code returns blocked_report with disk_may_be_dirty=writable, but the claim is about a specific scenario that is not fully testable here.",
+     "CLAIM | \"A free-form object is therefore not expressible; carry free-form handoff content in a single notes string instead\" | lines 83-86 | BROKEN | handoff schema has required: ['notes'] and no other properties, so free-form content is indeed expressible as a string, but the claim says 'not expressible' which is misleading; the code does exactly what the claim says, so it's KEPT.",
+     "CLAIM | \"OpenAI structured-output strict mode ... rejects any object without additionalProperties: false and with non-required properties (400 invalid_json_schema, live-fired 2026-07-11 task C2)\" | lines 77-86 | BROKEN | The schema has additionalProperties: false and required: ['notes'], but it also has non-required properties? Actually all properties are required: ['notes'] is required, but 'handoff' itself is not in required of the top-level? The top-level required is sorted(REPORT_KEYS) which includes 'handoff', so handoff is required. The claim says 'non-required properties' cause rejection, but the handoff schema has no non-required properties. The comment is about the general rule, not about this schema. So the claim is about why the schema is structured this way, and the code matches the claim. Actually the claim says 'rejects any object without additionalProperties: false and with non-required properties'. The schema has additionalProperties: false and all properties are required, so it should be accepted. The claim is stating the reason for the design, not a guarantee. So it's KEPT.",
+     "D1 | build_prompt parameter 'policy' | parameter read only via getattr(policy, 'deny_substrings', ()) | WRONG CONCLUSION: a caller might think policy is used more broadly, but it's only used to extract deny_substrings.",
+     "D2 | none | ",
+     "D3 | none | ",
+     "D4 | none | "
+    ],
+    "todos": [
+     "Clarify the comment about 'non-required properties' to match the actual schema where all properties are required."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1ddc9ed0fc81269ae4f40b062decadd65ce9bb16211a137c0f113b7f55889e64",
+    "objective_chars": 14690,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A denied path never reaches ``codex``.\" | line 143-147 | KEPT | The egress gate checks classify_data before spawning, so denied paths never reach codex.",
+     "CLAIM | \"``codex exec`` never prompts for approval\" | line 27-28 | UNCHECKABLE | Would need to test codex exec behavior externally.",
+     "CLAIM | \"Auth comes from ``codex login`` (run by the operator); this provider never triggers a login flow.\" | line 28-29 | KEPT | Provider does not call codex login.",
+     "CLAIM | \"``--cd <DIR>`` agent working root = the target repo\" | line 18 | KEPT | Line 165 uses --cd repo_root.",
+     "CLAIM | \"``--sandbox workspace-write`` write mode; ``read-only`` for advisory\" | line 19 | KEPT | Line 166-167 conditional on writable.",
+     "CLAIM | \"``--skip-git-repo-check`` target repos are not always git repos\" | line 20 | KEPT | Line 168 includes --skip-git-repo-check.",
+     "CLAIM | \"``--output-schema <FILE>`` JSON Schema for the final response shape\" | line 21 | KEPT | Line 169 uses --output-schema with schema_path.",
+     "CLAIM | \"``--output-last-message <FILE>``the final agent message (our report JSON)\" | line 22 | KEPT | Line 170 uses --output-last-message with message_path.",
+     "CLAIM | \"``--color never`` no ANSI noise in captured output\" | line 23 | KEPT | Line 169 includes --color never.",
+     "CLAIM | \"``--model <MODEL>`` only when explicitly configured\" | line 24 | KEPT | Lines 172-174 conditionally add --model.",
+     "CLAIM | \"stdin MUST be closed: ... blocks until EOF\" | line 190-193 | KEPT | Line 194 uses stdin=subprocess.DEVNULL.",
+     "CLAIM | \"Force UTF-8 and never let a stray byte kill the reader.\" | line 187-189 | KEPT | Line 192-193 uses encoding=\"utf-8\", errors=\"replace\".",
+     "CLAIM | \"A free-form object is therefore not expressible; carry free-form handoff content in a single notes string instead.\" | line 64-67 | BROKEN | Line 66 defines handoff with required notes, but codex could still send other keys; schema enforcement is only via --output-schema, which codex might not enforce strictly.",
+     "CLAIM | \"OpenAI structured-output strict mode ... rejects any object without additionalProperties: false\" | line 58-61 | BROKEN | The schema in REPORT_SCHEMA has additionalProperties: false at top level, but the comment says OpenAI strict mode rejects without it; however the schema is passed to codex, not to OpenAI directly, so the claim is about OpenAI behavior, not this code. Still, the code does include additionalProperties: false, so the claim is KEPT in terms of code, but the comment's reasoning is about OpenAI, not codex. Actually, the claim is about what OpenAI rejects; the code includes additionalProperties: false, so it matches. However, the comment also says \"with non-required properties\" \u2014 the schema has required keys, so it should be fine. I'll mark KEPT.",
+     "D1 | writable parameter | Defined in run() but read only in the conditional for sandbox mode; it is read. Actually writable is used in lines 166-167 and 201, 215. So not D1."
+    ],
+    "todos": [
+     "Remove the claim about handoff expressibility or adjust the code to actually enforce the schema server-side.",
+     "Remove the claim about OpenAI strict mode or clarify that codex may not enforce it."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1ddc9ed0fc81269ae4f40b062decadd65ce9bb16211a137c0f113b7f55889e64",
+    "objective_chars": 14690,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/providers/codex_cli.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 12238
+ }
+}

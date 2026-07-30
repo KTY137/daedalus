@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c10of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c10of11__946db82-75487fae97",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 10 of 11 of canary.py: contains run_canary, _new_run_id, dry_run_plan, load_history, append_history with docstrings and comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "dry_run_plan | medium | Docstring says 'Calls nothing -- no lane.ask is touched' but code does not call lane.ask, uncheckable if lane has other side effects. | Review lane.ask and other methods for side effects.",
+     "dry_run_plan | low | Docstring says 'Prompt sizes are computed by BUILDING a sample body' but sample is 'PLAN0000', not a typical probe body. | Verify that sample body is representative.",
+     "load_history | medium | Docstring says 'Corrupt and foreign-schema lines are dropped silently' but code drops lines with schema mismatch or invalid status, not foreign-schema per se. | Clarify docstring or adjust logic.",
+     "append_history | low | Docstring says 'Parents created; never rewritten' but code uses 'a' mode, which appends; parent creation is correct. | Confirm that file is never rewritten elsewhere."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "10 of 11",
+     "purpose": "Contains run_canary, _new_run_id, dry_run_plan, load_history, append_history functions.",
+     "symbols": [
+      {
+       "name": "run_canary",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Starts threads for each lane, joins with timeout, collects results, returns CanaryRun."
+      },
+      {
+       "name": "_new_run_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates a run ID from timestamp and random hex."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a plan dict with lane/probe info, no external calls."
+      },
+      {
+       "name": "load_history",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads JSONL history file, returns list of valid records."
+      },
+      {
+       "name": "append_history",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends probe result records to JSONL file, creates parent dirs."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Calls nothing -- no ``lane.ask`` is touched.",
+       "where": "dry_run_plan docstring",
+       "verdict": "kept",
+       "why": "Code does not call lane.ask or any external function; only constructs a dict."
+      },
+      {
+       "text": "Prompt sizes are computed by BUILDING a sample body, so the plan reports the real payload rather than a guess about it.",
+       "where": "dry_run_plan docstring",
+       "verdict": "uncheckable",
+       "why": "The sample 'PLAN0000' is used; whether that yields real payload depends on p.build(sample) which is not defined in this chunk."
+      },
+      {
+       "text": "A plan that shows the payload but not the bill is how ``--live`` becomes a surprise. Naming a seat reads only its identity properties, which are pure.",
+       "where": "dry_run_plan docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to live_egress_lanes and seat identity properties not defined in this chunk."
+      },
+      {
+       "text": "Read the JSONL history, SKIPPING anything unreadable.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "Code skips lines that fail json.loads, are not dicts, have wrong schema, or invalid status."
+      },
+      {
+       "text": "A half-written last line (the machine was rebooted mid-append) must not take the health check down -- a canary that crashes on its own log is worse than no canary.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "The try-except catches JSON decode errors from incomplete lines."
+      },
+      {
+       "text": "Corrupt and foreign-schema lines are dropped silently and the rest of the file is still used.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "Corrupt lines cause JSON errors and are skipped; foreign-schema lines (schema != SCHEMA_VERSION) are skipped; valid lines are used."
+      },
+      {
+       "text": "Append one record per probe result. Parents created; never rewritten.",
+       "where": "append_history docstring",
+       "verdict": "kept",
+       "why": "Code creates parent dirs with mkdir(parents=True), opens file in append mode, writes lines, never truncates."
+      }
+     ],
+     "observations": [
+      {
+       "what": "run_canary uses a list comprehension to collect results from plan, but plan is a list of tuples (lane, probe, box); box is a shared dict across threads; potential race condition on box['result'].",
+       "where": "run_canary lines after thread join",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "dry_run_plan uses a sample 'PLAN0000' to compute prompt sizes; this may not represent actual probe bodies.",
+       "where": "dry_run_plan",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "load_history uses 'errors=\"replace\"' when opening file, which could mask encoding issues; but docstring says corrupt lines are skipped.",
+       "where": "load_history",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_history calls to_record on each result; to_record is not defined in this chunk.",
+       "where": "append_history",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "af19c078b44fe125e27f45b11eb1c89f2e1e751784e1f80103afd70b784e16e5",
+    "objective_chars": 6652,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [10/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 10,
+  "total": 11,
+  "first_line": 1081
+ }
+}

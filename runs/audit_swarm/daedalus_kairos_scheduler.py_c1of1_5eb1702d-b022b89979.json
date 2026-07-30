@@ -1,0 +1,162 @@
+{
+ "task_id": "daedalus/kairos/scheduler.py#c1of1#5eb1702d",
+ "key": "daedalus_kairos_scheduler.py_c1of1_5eb1702d-b022b89979",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 2 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | not present in unit | UNCHECKABLE | no such claim found in unit",
+     "CLAIM | \"never talks to the user\" | main() | BROKEN | main() prints to stdout",
+     "CLAIM | \"never decides trust\" | accept() | BROKEN | accept() uses policy which is a trust decision",
+     "CLAIM | \"bounces anything that belongs to the senior crew back to the trusted orchestration layer\" | accept() | KEPT | tasks routing to non-FREE_LANES get bounced with reason",
+     "CLAIM | \"Free means free of CLAUDE tokens\" | FREE_LANES | KEPT | FREE_LANES does not include claude_cli",
+     "CLAIM | \"_paths_overlap is not a proof of write isolation\" | _paths_overlap | KEPT | docstring explicitly states it is not proof",
+     "CLAIM | \"max_parallel_writes default stays low until someone measures\" | KairosScheduler.__post_init__ | KEPT | default is 2, docstring explains caution",
+     "CLAIM | \"repo_root makes the target repo's own roster visible to routing\" | accept() | KEPT | repo_root is passed to route_and_select",
+     "CLAIM | \"dry_run stops at the spawn plan\" | dispatch() | KEPT | when dry_run is True, _bounced_or_planned returns planned status",
+     "CLAIM | \"Sequential by default\" | dispatch() | KEPT | default parallel=False, and sequential path is taken",
+     "CLAIM | \"Writes may go parallel ONLY when each one gets its own worktree\" | dispatch() | KEPT | can_parallel is set false when has_writes is true",
+     "CLAIM | \"Advisory-only tasks are bounced\" in gate_concurrent_writes | gate_concurrent_writes() | KEPT | only write-mode tasks are included in writes list",
+     "CLAIM | \"cancel is forwarded unchanged\" to gate_candidates | gate_concurrent_writes() | KEPT | cancel is passed to gate_candidates",
+     "CLAIM | \"subtasks come from decompose\" | spawn() | KEPT | decompose is called",
+     "CLAIM | \"Creating/editing roles is his job\" (Ikarus) | configure() | KEPT | configure calls reg.create_role or reg.update_role"
+    ],
+    "todos": [
+     "Remove or guard the print statements in main() to match the docstring's 'never talks to the user' claim",
+     "Clarify in docstring that trust decisions are made via policy, or adjust code to not use policy in accept()"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0e52108c0dadb8c6caf81338e70869b59ebc0dc42f8a0f99573114787fa66a9",
+    "objective_chars": 21364,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 12 kept, 3 broken, 4 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"dynamically spawns local workers from a bounded pool (the Mexican/Italian Ollama bench; the Chinese DeepSeek bench stays dormant without a key)\" | _bench | KEPT | _bench cycles over roster('ollama'), and DEFAULT_AVAILABILITY has deepseek=False; dormant without a key is not enforced here but is plausible via gate_concurrent_writes availability.",
+     "CLAIM | \"Kairos never talks to the user\" | main | KEPT | main only prints to stdout, no interactive input.",
+     "CLAIM | \"bounces anything that belongs to the senior crew back to the trusted orchestration layer\" | accept | KEPT | tasks not in FREE_LANES get Assignment with accepted=False and reason 'belongs to the senior crew -> return to Adam'.",
+     "CLAIM | \"Diagnostic overlap among declared write hints.  This is not a proof of write isolation: an agent may touch an undeclared path.\" | _paths_overlap | KEPT | docstring accurately describes the function's limited purpose.",
+     "CLAIM | \"Production write concurrency therefore remains disabled until each task owns a separate Forge workcell/worktree.\" | dispatch | KEPT | dispatch does not enable parallel writes; can_parallel is False when has_writes is True.",
+     "CLAIM | \"max_parallel_writes: int = 2 ... NOT MEASURED on this box for N>1 -- the default stays low until someone measures the real cost and raises it deliberately.\" | KairosScheduler | KEPT | field is defined with comment; gate_concurrent_writes uses it.",
+     "CLAIM | \"Extra pool workers Ikarus can spin up for fan-out beyond the role shadows.\" | __post_init__ | KEPT | _bench is initialized from roster('ollama') in __post_init__.",
+     "CLAIM | \"Only low-risk work that Adam would offload is taken; anything that routes back to Claude is bounced to Adam.\" | accept | KEPT | tasks not in FREE_LANES are bounced with reason 'belongs to the senior crew'.",
+     "CLAIM | \"Dry run: who gets spawned, in how many bounded waves.\" | plan | KEPT | returns summary with waves calculated from max_workers.",
+     "CLAIM | \"Sequential by default (``parallel=False``): each live write is verified by diffing a WHOLE-repo content-hash snapshot around that one run (offload._repo_snapshot), which catches even writes outside --paths -- but two such runs on one repo concurrently would cross-attribute disk_changed.\" | dispatch | KEPT | docstring accurately describes the sequential default and the hazard.",
+     "CLAIM | \"Writes may go parallel ONLY when each one gets its own worktree. ... Separate checkouts remove that by construction rather than by convention\" | dispatch | KEPT | comment explains the hazard and that separate worktrees are needed; can_parallel is False for writes.",
+     "CLAIM | \"dispatch() keeps its existing auto-land contract for a single write (offload() has always auto-landed a sequential one), and does not silently switch write-mode dispatch to the gated-candidate shape\" | dispatch | KEPT | dispatch does not call gate_concurrent_writes; it uses offload directly.",
+     "CLAIM | \"Safe concurrent WRITE dispatch: PHASE 1 only (gating, not landing).\" | gate_concurrent_writes | KEPT | calls gate_candidates and returns list of GatedCandidate; does not promote.",
+     "CLAIM | \"The primary checkout at ``repo_root`` is NEVER touched by this call -- that is ``TaskAttempt``'s own structural guarantee\" | gate_concurrent_writes | UNCHECKABLE | Requires inspection of TaskAttempt implementation to verify the guarantee.",
+     "CLAIM | \"Advisory-only tasks are bounced (this method only accepts write-mode work; use :meth:`plan`/:meth:`accept` for the routing verdict on the rest of a mixed task list, or :meth:`dispatch` to actually run them).\" | gate_concurrent_writes | BROKEN | Line: `writes = [a for a in accepted if a.accepted and a.mode == \"write\"]` then `if not writes: return []`. Advisory tasks are silently dropped, not bounced with a message or status.",
+     "CLAIM | \"``cancel``, when given, is forwarded unchanged to :func:`daedalus.kairos.gated_writes.gate_candidates`\" | gate_concurrent_writes | KEPT | cancel is passed to gate_candidates.",
+     "CLAIM | \"Landing a candidate this returns into ``repo_root`` is a SEPARATE, explicit act\" | gate_concurrent_writes | KEPT | method does not promote; docstring refers to promote_candidates.",
+     "CLAIM | \"One-shot entry: decompose a single objective into subtasks, then plan (dry_run) or dispatch (live) them across the bounded local bench.\" | spawn | KEPT | calls decompose, then plan or dispatch accordingly.",
+     "CLAIM | \"Dynamic agent configurator: mint or reshape an agent-role definition at runtime. Ikarus owns the crew roster, so creating/editing roles is his job -- routing (``router.load_agents``) picks up the change with no restart.\" | configure | UNCHECKABLE | Requires inspecting agents_registry to verify that update_role/create_role cause router.load_agents to pick up changes without restart.",
+     "D1 | `_paths_overlap` parameter `assignments` | function defined but never called in this unit | WRONG CONCLUSION: a caller may believe _paths_overlap is used for write conflict detection, but it is dead code.",
+     "D2 | none | |",
+     "D3 | none | |",
+     "D4 | none | |"
+    ],
+    "todos": [
+     "In gate_concurrent_writes, when writes list is empty, return a list of bounced Assignment objects for advisory tasks instead of an empty list, to match the docstring claim that advisory tasks are bounced.",
+     "Remove or call _paths_overlap to avoid dead code."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0e52108c0dadb8c6caf81338e70869b59ebc0dc42f8a0f99573114787fa66a9",
+    "objective_chars": 21364,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 9 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Kairos never talks to the user\" | __doc__ | BROKEN | main() prints to stdout and reads from argparse, which talks to the user.",
+     "CLAIM | \"bounces anything that belongs to the senior crew back to the trusted orchestration layer\" | __doc__ | KEPT | accept() returns Assignment with accepted=False for non-FREE_LANES.",
+     "CLAIM | \"Diagnostic overlap among declared write hints\" | _paths_overlap | KEPT | Function checks for duplicate paths among write-mode assignments.",
+     "CLAIM | \"Not a proof of write isolation\" | _paths_overlap docstring | KEPT | Docstring explicitly states it is not a proof.",
+     "CLAIM | \"max_parallel_writes: default stays low until someone measures the real cost\" | KairosScheduler docstring | KEPT | Default is 2 and docstring explains rationale.",
+     "CLAIM | \"max_parallel_writes: deliberately conservative and separately configurable\" | KairosScheduler docstring | KEPT | It is a separate field with its own comment.",
+     "CLAIM | \"sequential by default (parallel=False)\" | dispatch docstring | KEPT | Default is parallel=False.",
+     "CLAIM | \"parallel=True currently overlaps advisory-only work\" | dispatch docstring | KEPT | Code sets can_parallel = parallel and not has_writes.",
+     "CLAIM | \"Writable concurrency stays sequential with whole-repository snapshots until Forge gives every attempt its own workcell/worktree\" | dispatch docstring | KEPT | Code runs writes sequentially when has_writes is true.",
+     "CLAIM | \"dispatch() keeps its existing auto-land contract for a single write\" | dispatch docstring | KEPT | dispatch() calls offload() which auto-lands.",
+     "CLAIM | \"gate_concurrent_writes(): Advisory-only tasks are bounced (this method only accepts write-mode work)\" | gate_concurrent_writes docstring | BROKEN | Code filters writes after accept, but accept() may accept advisory tasks; they are silently dropped, not bounced with a message.",
+     "CLAIM | \"gate_concurrent_writes(): The primary checkout at repo_root is NEVER touched by this call\" | gate_concurrent_writes docstring | UNCHECKABLE | Requires checking TaskAttempt implementation.",
+     "CLAIM | \"gate_concurrent_writes(): cancel... forwarded unchanged\" | gate_concurrent_writes docstring | UNCHECKABLE | Requires checking gate_candidates signature.",
+     "CLAIM | \"configure: Ikarus owns the crew roster\" | configure docstring | KEPT | configure modifies agent roles via agents_registry.",
+     "D1 | args.max_workers | main() reads it but it is a local variable, not a defined constant; no defined constant is unused.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Remove main() or mark it as debug-only to make 'never talks to user' true.",
+     "In gate_concurrent_writes, add a bounced entry for advisory tasks instead of silently dropping them."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0e52108c0dadb8c6caf81338e70869b59ebc0dc42f8a0f99573114787fa66a9",
+    "objective_chars": 21364,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/scheduler.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 18915
+ }
+}

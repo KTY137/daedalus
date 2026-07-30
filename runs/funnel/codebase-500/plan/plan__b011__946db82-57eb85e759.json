@@ -1,0 +1,120 @@
+{
+ "task_id": "plan__b011__946db82",
+ "key": "plan__b011__946db82-57eb85e759",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings: one confirmed (snapshot_freshness missing), three narrowed. Need to verify implementation existence and error propagation paths before starting work.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "snapshot_freshness may exist elsewhere; grep needed before concluding unimplemented",
+     "Picker error handling may already be correct; inspection needed",
+     "Docref_gate aggregation scope may not overlap with eval; need to confirm",
+     "Evolution candidate error state may already be handled; need to inspect"
+    ],
+    "todos": [
+     "Run grep -rn 'snapshot_freshness' daedalus/ to confirm absence",
+     "Inspect picker.py for try/except around _load_baseline and _run_eval_gate",
+     "Check if docref_gate results are consumed by harness.py or eval pipeline",
+     "Inspect evolution.py lines 155-158 for candidate error state after exception"
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Verify snapshot_freshness implementation in drift.py",
+       "gate": "0",
+       "why_now": "Confirmed finding: contract may be unimplemented, causing stale snapshots to pass. Must verify before any fix.",
+       "steps": [
+        {
+         "do": "Search for 'snapshot_freshness' in the codebase",
+         "file": "daedalus/mapping/drift.py",
+         "verified_by": "grep -rn 'snapshot_freshness' daedalus/ returns either a definition or empty"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The full drift.py is not available; grep will confirm if function exists elsewhere."
+      },
+      {
+       "rank": 2,
+       "title": "Inspect picker.py error handling for eval gate fallback",
+       "gate": "0",
+       "why_now": "Narrowed: if _load_baseline or _run_eval_gate catch all exceptions and ignore errors, candidates may be selected without proper evaluation.",
+       "steps": [
+        {
+         "do": "Read picker.py around _load_baseline and _run_eval_gate calls to check error handling",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Manual inspection confirms try/except blocks and whether errors propagate or are silently ignored"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The functions exist in picker.py; if not, locate the actual eval gate functions."
+      },
+      {
+       "rank": 3,
+       "title": "Check if docref_gate aggregates are used in eval pipeline",
+       "gate": "0",
+       "why_now": "Narrowed: exclusivity claim may be false if docref_gate results are consumed by harness.py alongside _by_provenance.",
+       "steps": [
+        {
+         "do": "Search for 'docref_gate' in harness.py and related eval modules",
+         "file": "daedalus/eval/harness.py",
+         "verified_by": "grep -rn 'docref_gate' daedalus/eval/ returns hits or empty"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The grep will show if docref_gate is imported or referenced in eval code."
+      },
+      {
+       "rank": 4,
+       "title": "Inspect evolution.py candidate error state after exception",
+       "gate": "0",
+       "why_now": "Narrowed: if evaluate() catches exception but does not set candidates to error state, picker may receive incomplete data.",
+       "steps": [
+        {
+         "do": "Read evolution.py lines 155-158 to see if candidates are set to an error state after exception",
+         "file": "daedalus/kairos/evolution.py",
+         "verified_by": "Manual inspection shows whether candidates list is updated with error state or left unchanged"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Lines 155-158 refer to evaluate_candidates method; adjust if line numbers differ."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ede781d7a6761bf4c2e22af4a97d7014cc8d8198e11095db394142fa9658aac1",
+    "objective_chars": 145616,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 11 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 11,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,184 @@
+{
+ "task_id": "scan__daedalus_structcore_imports.py__c1of3__946db82",
+ "key": "scan__daedalus_structcore_imports.py__c1of3__946db82-39821e37be",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Imports module: extract_imports, tree-sitter and regex fallback, per-language parsing, internal/external resolution groundwork.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "extract_imports docstring | medium | Claims Python returns [] but no check for Python language in code; spec.name == 'python' is checked, but docstring says 'precisely resolved by parse.python_imports' \u2013 that module is outside chunk. | Check if parse.python_imports exists and is called from index.py.",
+     "extract_imports docstring | low | Claims 'kind' distinction is syntactic for languages that mark it, but the code does not show the _parse_import function which assigns kind. | Inspect _parse_import to confirm it uses syntax to determine internal/external.",
+     "_CANDIDATE_LANGS docstring | low | Claims dotted-name languages have no syntactic marker, but Go imports can be quoted strings (stdlib vs external) \u2013 the regex fallback for Go captures quoted strings and parentheses, but kind assignment is not shown. | Check _parse_import for Go handling.",
+     "_JS_EXTS constant | low | Defines extensions for JS/TS resolution, but it's unused in this chunk. | Verify it is used in resolve_internal (outside chunk)."
+    ],
+    "todos": [
+     "Verify _parse_import function in next chunk to confirm kind assignment logic.",
+     "Check resolve_internal function for path resolution using _JS_EXTS.",
+     "Ensure tree-sitter parser caching in parse module works as described."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/imports.py",
+     "chunk": "1 of 3",
+     "purpose": "Define extract_imports and helper functions for non-Python import extraction with tree-sitter and regex fallback.",
+     "symbols": [
+      {
+       "name": "_CANDIDATE_LANGS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of languages where every import is treated as internal candidate."
+      },
+      {
+       "name": "_JS_EXTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of file extensions and index paths for JS/TS resolution."
+      },
+      {
+       "name": "extract_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Main extraction function; returns list of (raw, kind) for non-Python files."
+      },
+      {
+       "name": "_ts_import_nodes",
+       "kind": "function",
+       "effects": [],
+       "note": "Extract import node texts using tree-sitter AST walk."
+      },
+      {
+       "name": "_REGEX_FALLBACK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping language names to regex patterns for import detection."
+      },
+      {
+       "name": "_regex_import_nodes",
+       "kind": "function",
+       "effects": [],
+       "note": "Fallback extraction using regex patterns."
+      },
+      {
+       "name": "_STR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to extract quoted strings from import nodes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Python keeps its precise ``parse.python_imports`` path (relative-import resolution intact); THIS module handles every OTHER language so ``index.py`` can build a dependency graph + fan-in beyond Python.",
+       "where": "docstring (lines 3-5)",
+       "verdict": "uncheckable",
+       "why": "This claim refers to parse.python_imports and index.py, which are not in this chunk."
+      },
+      {
+       "text": "``extract_imports`` \u2014 find the import edges. With tree-sitter installed it walks the grammar's ``import_types`` nodes (precise node boundaries); without it, a per-language regex fallback keeps the edges flowing at lower precision.",
+       "where": "docstring (lines 7-10)",
+       "verdict": "kept",
+       "why": "The function extract_imports checks tree_sitter_available and spec.import_types, calls _ts_import_nodes, and falls back to _regex_import_nodes."
+      },
+      {
+       "text": "Each edge is ``(raw, kind)`` where ``kind`` is 'internal' (a resolution candidate \u2014 a repo-local module) or 'external' (a library / stdlib import).",
+       "where": "docstring (lines 10-11)",
+       "verdict": "uncheckable",
+       "why": "The assignment of 'internal'/'external' is done in _parse_import, which is not in this chunk."
+      },
+      {
+       "text": "``resolve_internal`` \u2014 map an internal ``raw`` to an actual repo file by path/suffix match against the known file set.",
+       "where": "docstring (lines 12-13)",
+       "verdict": "uncheckable",
+       "why": "The function resolve_internal is not defined in this chunk."
+      },
+      {
+       "text": "The ``kind`` distinction is syntactic where a language marks it (C ``\"x\"`` vs ``<x>``, Rust ``crate::``/``self::``/``super::``, JS relative ``./x``, QML quoted dir imports); for the dotted-name languages that give NO syntactic internal/external signal (Java, Kotlin, C#, PHP, Go) every import is treated as an internal *candidate* and the file-set match is the real arbiter.",
+       "where": "docstring (lines 17-20)",
+       "verdict": "uncheckable",
+       "why": "The logic for syntactic distinction and treating dotted-name languages as candidates is in _parse_import and _CANDIDATE_LANGS, but the actual implementation of kind assignment is not in this chunk."
+      },
+      {
+       "text": "Python returns [] \u2014 it is resolved precisely by ``parse.python_imports`` in ``index.py``.",
+       "where": "extract_imports docstring (line 23)",
+       "verdict": "kept",
+       "why": "In the code, if spec is None or spec.name == 'python', extract_imports returns []."
+      },
+      {
+       "text": "Raw source text of every ``import_types`` node (precise boundaries).",
+       "where": "_ts_import_nodes docstring (line 49)",
+       "verdict": "kept",
+       "why": "The function iterates over AST nodes of types in spec.import_types and extracts the source text using byte offsets."
+      },
+      {
+       "text": "Iterative pre-order walk. A recursive one blows Python's recursion limit on deeply nested real-world ASTs (long chained/generated expressions) \u2014 push children reversed so they pop back in source order.",
+       "where": "_ts_import_nodes docstring (lines 57-58) and comment (lines 59-60)",
+       "verdict": "kept",
+       "why": "The code uses a stack with reversed children to avoid recursion."
+      },
+      {
+       "text": "Per-language fallback line patterns (no tree-sitter). Best-effort by design.",
+       "where": "comment before _REGEX_FALLBACK (line 67)",
+       "verdict": "kept",
+       "why": "_REGEX_FALLBACK is defined with regex patterns for each language, and _regex_import_nodes uses it."
+      }
+     ],
+     "observations": [
+      {
+       "what": "extract_imports returns [] for Python, but the docstring claims Python is handled precisely by parse.python_imports. That module is not in this chunk.",
+       "where": "extract_imports docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The constant _JS_EXTS is defined but not used in this chunk. It likely belongs to resolve_internal.",
+       "where": "_JS_EXTS definition (line 24)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The regex for Go imports captures quoted strings and parentheses, but Go imports can also be grouped with parentheses; the regex uses re.S to match multiline, but may not handle all cases (e.g., named imports).",
+       "where": "_REGEX_FALLBACK['go'] (line 81)",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _STR regex is defined but not used in this chunk; it is likely used in _parse_import.",
+       "where": "_STR definition (line 95)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5d595ebd0c1871b85c600afa073057c40fb13bb377902d319583a5f22a76c0db",
+    "objective_chars": 5878,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/imports.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/imports.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

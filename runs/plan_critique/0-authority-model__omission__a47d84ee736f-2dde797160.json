@@ -1,0 +1,142 @@
+{
+ "task_id": "0-authority-model__omission__a47d84ee736f",
+ "key": "0-authority-model__omission__a47d84ee736f-2dde797160",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "The authority model assigns powers without defining how conflicts or gaps are resolved, leaving implementers to guess the resolution of ties, the meaning of 'mechanical veto policy', and the enforcement chain.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "0.1 | high | Table row 1: 'this master plan' is declared sole semantic authority, but no definition of 'semantic authority' is given, and no mechanism for resolving conflicts with other authorities is described. | Ask: what happens when the plan's semantic authority contradicts a mechanical veto? The document says 'stricter mechanical policy wins' for effects, but that does not cover semantic conflicts. Implementers must guess which prevails.",
+     "0.2 | high | Table row 2: '.agentenv/agentenv.json, .agentenv/tool-allowances.json' are given 'mechanical veto policy' authority, but 'mechanical veto policy' is not defined. The table says they 'restrict or deny capabilities' but does not specify what capabilities are, how they are defined, or who can define them. | Ask: provide a precise definition of 'mechanical veto policy' and enumerate the capabilities it can restrict or deny.",
+     "0.3 | medium | Table row 3: 'root instructions, skills, and hooks' are 'derived projection' that 'load the plan, report drift, block ordinary mutation'. The term 'derived projection' is undefined; the mechanism for 'blocking ordinary mutation' is not specified; and the conditions under which blocking occurs are not given. | Ask: define 'derived projection' and specify exactly how and when blocking of 'ordinary mutation' happens.",
+     "0.4 | medium | Table row 4: 'tests, receipts, and experiments' are 'evidence' that 'refute status claims and research priors'. The term 'refute' is used in a strong sense (falsify), but no standard of proof is given, nor is there a process for accepting a refutation. | Ask: what constitutes a valid refutation? How is a refutation adjudicated and what are the consequences?",
+     "0.5 | low | Table row 5: 'ADRs, TODOs, handoffs, inventories' are 'history/backlog' that 'supply evidence and proposals'. The term 'backlog' is used but not defined in relation to the other rule types (e.g., BACKLOG). The chain from a proposal to becoming authoritative work is missing. | Ask: how does a proposal in the backlog become an accepted invariant, gate, prior, or status?",
+     "0.6 | high | Paragraph: 'A capability policy cannot broaden the plan, and the plan cannot grant a capability.' This is a circular dependency: the plan cannot grant capabilities, but capabilities are required to enforce the plan. The source of capabilities is not defined. | Ask: where do capabilities come from if the plan cannot grant them? Is there a bootstrap mechanism?",
+     "0.7 | high | Paragraph: 'For effects, the stricter mechanical policy wins. For product meaning and sequencing, only this plan is authoritative.' The distinction between 'effects' and 'product meaning and sequencing' is not defined, and the criteria for 'stricter' are not given. | Ask: define 'effects' and 'product meaning and sequencing' precisely, and specify how to compare strictness of mechanical policies.",
+     "0.8 | medium | Rule types: 'INVARIANT: cannot change silently' \u2013 no definition of 'silently' (e.g., with or without notification? with or without approval?). No mechanism for detecting or preventing silent changes is described. | Ask: what process ensures invariants cannot change silently? Who is notified?",
+     "0.9 | medium | Rule types: 'GATE: a deterministically testable delivery state' \u2013 no definition of 'deterministically testable' (e.g., must be automated? must be repeatable? must be verifiable by whom?). | Ask: what are the criteria for a gate to be considered deterministically testable?",
+     "0.10 | low | Rule types: 'PRIOR: a falsifiable design hypothesis' \u2013 no definition of what makes a hypothesis 'falsifiable' in this context (e.g., must have a test? must have a time limit?). | Ask: what are the requirements for a prior to be falsifiable?",
+     "0.11 | low | Rule types: 'STATUS: a revision-bound measurement, never timeless truth' \u2013 no definition of 'revision-bound measurement' (e.g., bound to what revision? how is the measurement taken?). | Ask: what exactly is a revision-bound measurement?",
+     "0.12 | low | Rule types: 'BACKLOG: non-authoritative proposed work' \u2013 no definition of how work moves from backlog to authoritative status, or who can propose work. | Ask: what is the process for promoting backlog items to other rule types?"
+    ],
+    "todos": [
+     "Define 'semantic authority' and how conflicts between authorities are resolved.",
+     "Define 'mechanical veto policy' and enumerate the capabilities it governs.",
+     "Define 'derived projection' and specify the mechanism for blocking ordinary mutation.",
+     "Define the standard of proof for refutation and the process for accepting a refutation.",
+     "Define the process for promoting backlog items to invariants, gates, priors, or statuses.",
+     "Resolve the circular dependency between the plan and capabilities: specify how capabilities are initially granted.",
+     "Define 'effects' and 'product meaning and sequencing' and the criteria for 'stricter'.",
+     "Define 'silently' for invariants and specify the change detection mechanism.",
+     "Define criteria for 'deterministically testable' gates.",
+     "Define criteria for falsifiable priors.",
+     "Define 'revision-bound measurement' for statuses.",
+     "Define the process for moving backlog items to authoritative status."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0.1",
+       "claim": "The master plan is the sole semantic authority for goals, invariants, priors, and delivery order.",
+       "verdict": "weak",
+       "why": "The term 'semantic authority' is undefined. The document does not specify how conflicts with other authorities (e.g., mechanical veto) are resolved, nor does it define the scope of 'semantic'. An implementer must guess what semantic authority means and how it prevails."
+      },
+      {
+       "id": "0.2",
+       "claim": ".agentenv/agentenv.json and .agentenv/tool-allowances.json have mechanical veto policy authority to restrict or deny capabilities.",
+       "verdict": "weak",
+       "why": "'Mechanical veto policy' is undefined. The document does not specify what capabilities are, how they are defined, or the exact scope of restriction/denial. An implementer must guess the meaning and limits of this authority."
+      },
+      {
+       "id": "0.3",
+       "claim": "Root instructions, skills, and hooks are derived projections that load the plan, report drift, and block ordinary mutation.",
+       "verdict": "weak",
+       "why": "'Derived projection' is undefined. The mechanism for blocking ordinary mutation is not specified, nor are the conditions under which blocking occurs. An implementer must guess how to implement these behaviors."
+      },
+      {
+       "id": "0.4",
+       "claim": "Tests, receipts, and experiments are evidence that refute status claims and research priors.",
+       "verdict": "weak",
+       "why": "'Refute' implies falsification, but no standard of proof is given. The process for accepting a refutation is missing. An implementer must guess what constitutes a valid refutation."
+      },
+      {
+       "id": "0.5",
+       "claim": "ADRs, TODOs, handoffs, and inventories are history/backlog that supply evidence and proposals.",
+       "verdict": "weak",
+       "why": "'Backlog' is used but not defined in relation to the rule types. The chain from proposal to authoritative work is missing. An implementer must guess how proposals become accepted work."
+      },
+      {
+       "id": "0.6",
+       "claim": "A capability policy cannot broaden the plan, and the plan cannot grant a capability.",
+       "verdict": "weak",
+       "why": "This creates a circular dependency: the plan cannot grant capabilities, but capabilities are required to enforce the plan. The source of initial capabilities is undefined. An implementer must guess how capabilities are bootstrapped."
+      },
+      {
+       "id": "0.7",
+       "claim": "For effects, the stricter mechanical policy wins. For product meaning and sequencing, only the plan is authoritative.",
+       "verdict": "weak",
+       "why": "The distinction between 'effects' and 'product meaning and sequencing' is undefined. The criteria for 'stricter' are not given. An implementer must guess how to compare policies and resolve conflicts."
+      },
+      {
+       "id": "0.8",
+       "claim": "INVARIANT: cannot change silently.",
+       "verdict": "weak",
+       "why": "'Silently' is undefined (e.g., without notification? without approval?). No mechanism for detecting or preventing silent changes is described. An implementer must guess what constitutes a silent change and how to prevent it."
+      },
+      {
+       "id": "0.9",
+       "claim": "GATE: a deterministically testable delivery state.",
+       "verdict": "weak",
+       "why": "'Deterministically testable' is undefined. No criteria are given (e.g., must be automated? must be repeatable? must be verifiable by whom?). An implementer must guess what qualifies as a gate."
+      },
+      {
+       "id": "0.10",
+       "claim": "PRIOR: a falsifiable design hypothesis.",
+       "verdict": "weak",
+       "why": "'Falsifiable' is undefined in this context. No requirements are given (e.g., must have a test? must have a time limit?). An implementer must guess what makes a prior falsifiable."
+      },
+      {
+       "id": "0.11",
+       "claim": "STATUS: a revision-bound measurement, never timeless truth.",
+       "verdict": "weak",
+       "why": "'Revision-bound measurement' is undefined. It is not specified what revision it is bound to or how the measurement is taken. An implementer must guess how to define and update statuses."
+      },
+      {
+       "id": "0.12",
+       "claim": "BACKLOG: non-authoritative proposed work.",
+       "verdict": "weak",
+       "why": "No definition of how work moves from backlog to authoritative status, or who can propose work. An implementer must guess the process for promoting backlog items."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e22b7357fe4211b8c82f16c275641de1488a8e520e9c17e8200dad9cb8f6deb9",
+    "objective_chars": 2049,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "0-authority-model",
+  "lens": "omission",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

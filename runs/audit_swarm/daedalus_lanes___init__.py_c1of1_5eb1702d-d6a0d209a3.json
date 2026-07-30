@@ -1,0 +1,109 @@
+{
+ "task_id": "daedalus/lanes/__init__.py#c1of1#5eb1702d",
+ "key": "daedalus_lanes___init__.py_c1of1_5eb1702d-d6a0d209a3",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"every lane calls :func:`checks.run_checks` instead of writing its own sequence\" | run_checks | UNCHECKABLE | would need to see all lane implementations to verify they call run_checks",
+     "CLAIM | \"a lane may ADD checks but may never skip the baseline\" | BASELINE | UNCHECKABLE | would need to see lane implementations and enforcement mechanism",
+     "CLAIM | \"What deliberately does NOT move here: claims about a specific model\" | __init__.py | KEPT | no model-specific claims in this unit",
+     "CLAIM | \"The elision markers are a statement about what one vendor's model emits when it truncates\" | no_elision | UNCHECKABLE | no_elision is imported, not defined here; would need to see its implementation",
+     "CLAIM | \"Those arrive as policy; the baseline is shared\" | BASELINE_POLICY | UNCHECKABLE | BASELINE_POLICY is imported, not defined here; would need to see its definition",
+     "D1 | BASELINE | imported but not used anywhere in this unit | WRONG CONCLUSION: a future lane or importer might expect BASELINE to be used here"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "350ddae1a6b6fbc04a328a30e648104d8276de825edf46762575164a926e6b05",
+    "objective_chars": 4278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "350ddae1a6b6fbc04a328a30e648104d8276de825edf46762575164a926e6b05",
+    "objective_chars": 4278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 3 kept, 1 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"every lane calls :func:`checks.run_checks` instead of writing its own sequence\" | __init__.py | UNCHECKABLE | requires checking all lane modules outside this unit",
+     "CLAIM | \"a lane may ADD checks but may never skip the baseline\" | __init__.py | UNCHECKABLE | requires checking all lane modules outside this unit",
+     "CLAIM | \"What deliberately does NOT move here: claims about a specific model.\" | __init__.py | KEPT | no model-specific claims appear in this unit",
+     "CLAIM | \"two lanes must stay free to disagree about that without silently re-tuning each other's guard\" | __init__.py | BROKEN | the module re-exports `BASELINE_POLICY` which is a single shared policy, making disagreement impossible without separate policies",
+     "CLAIM | \"Those arrive as policy; the baseline is shared.\" | __init__.py | KEPT | `BASELINE` and `BASELINE_POLICY` are shared re-exports"
+    ],
+    "todos": [
+     "remove `BASELINE_POLICY` from `__all__` and let lanes define their own policy, or update docstring to acknowledge that policy is also shared"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "350ddae1a6b6fbc04a328a30e648104d8276de825edf46762575164a926e6b05",
+    "objective_chars": 4278,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/lanes/__init__.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 1831
+ }
+}

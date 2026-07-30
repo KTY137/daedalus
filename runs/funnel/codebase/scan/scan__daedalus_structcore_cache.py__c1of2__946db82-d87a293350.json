@@ -1,0 +1,359 @@
+{
+ "task_id": "scan__daedalus_structcore_cache.py__c1of2__946db82",
+ "key": "scan__daedalus_structcore_cache.py__c1of2__946db82-d87a293350",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed cache.py chunk 1: sqlite-based per-file analysis cache with content-addressed keys, JSON serialization, and eviction logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "cache_root() | low | Uses environment variables to determine cache directory; fallback to home dir may be unexpected on Windows if LOCALAPPDATA not set. | Test on Windows with missing LOCALAPPDATA and XDG_CACHE_HOME to confirm fallback.",
+     "_evict_old_caches | low | Exception handling silently ignores all errors; could mask permission or filesystem issues. | Review if silent failure is acceptable; consider logging.",
+     "_parser_version | low | Reads parse.py from disk; if file is missing or unreadable, returns empty string, which may cause cache collisions. | Confirm that empty string fallback is safe.",
+     "enabled() | low | Checks environment variable DAEDALUS_NO_CACHE; only recognizes '1', 'true', 'TRUE'; case-sensitive. | Document acceptable values.",
+     "_MAX_CACHE_FILES | low | Hardcoded limit of 20 cache databases; may be too small for many repos. | Consider making configurable."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/cache.py",
+     "chunk": "1 of 2",
+     "purpose": "Define sqlite-based per-file analysis cache with content-addressed keys, serialization, eviction, and FileCache class (incomplete).",
+     "symbols": [
+      {
+       "name": "_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema version 2; rows with mismatched schema are deleted on open."
+      },
+      {
+       "name": "cache_root",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns base directory for on-disk caches, overridable via DAEDALUS_CACHE_DIR."
+      },
+      {
+       "name": "enabled",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns False if DAEDALUS_NO_CACHE is set to '1', 'true', or 'TRUE'."
+      },
+      {
+       "name": "_parser_version",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Returns SHA256 hexdigest of parse.py source; empty on error."
+      },
+      {
+       "name": "file_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Content-addressed key incorporating version, parser version, tokenizer name, path, spec_name, and text."
+      },
+      {
+       "name": "_enc_type",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes TypeDecl to list for JSON serialization."
+      },
+      {
+       "name": "_dec_type",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to TypeDecl."
+      },
+      {
+       "name": "_enc_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes FieldDecl to list."
+      },
+      {
+       "name": "_dec_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to FieldDecl."
+      },
+      {
+       "name": "_enc_param",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes ParamDecl to list."
+      },
+      {
+       "name": "_dec_param",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to ParamDecl."
+      },
+      {
+       "name": "_enc_sig",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes SignatureDecl to list of lists."
+      },
+      {
+       "name": "_dec_sig",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to SignatureDecl."
+      },
+      {
+       "name": "_enc_alias",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes AliasImport to list."
+      },
+      {
+       "name": "_dec_alias",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to AliasImport."
+      },
+      {
+       "name": "_enc_facts",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes PyTypeFacts to nested list."
+      },
+      {
+       "name": "_dec_facts",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes nested list to PyTypeFacts."
+      },
+      {
+       "name": "_encode",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes FileAnalysis to zlib-compressed JSON bytes."
+      },
+      {
+       "name": "_decode",
+       "kind": "function",
+       "effects": [],
+       "note": "Deserializes bytes to FileAnalysis; uses subscript access to fail on missing keys."
+      },
+      {
+       "name": "_evict_old_caches",
+       "kind": "function",
+       "effects": [
+        "filesystem_delete"
+       ],
+       "note": "Deletes oldest cache DBs beyond _MAX_CACHE_FILES, ignoring errors."
+      },
+      {
+       "name": "FileCache",
+       "kind": "class",
+       "effects": [
+        "filesystem_write",
+        "filesystem_read"
+       ],
+       "note": "Per-repo sqlite store; parent-process only. Constructor creates/opens DB and deletes old schema rows."
+      },
+      {
+       "name": "FileCache.__init__",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "filesystem_read"
+       ],
+       "note": "Initializes sqlite connection, creates table, deletes rows with wrong schema, evicts old caches."
+      },
+      {
+       "name": "FileCache.get_many",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns empty dict if conn is None or keys empty; incomplete in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The index cache in ``index.py`` is in-memory, so it dies with the process: every server restart re-pays the full scan.",
+       "where": "docstring line 1-2",
+       "verdict": "uncheckable",
+       "why": "Refers to index.py, not present in this chunk."
+      },
+      {
+       "text": "INVALIDATION: the key is a hash of the file's CONTENT (plus its path, language and ``ANALYSIS_VERSION``) -- deliberately NOT size+mtime.",
+       "where": "docstring line 7-8",
+       "verdict": "kept",
+       "why": "file_key() includes text, rel, spec_name, and ANALYSIS_VERSION; no size/mtime used."
+      },
+      {
+       "text": "We read every file's bytes anyway, so hashing is nearly free, and unlike mtime it cannot go stale: touch-without-edit is a hit, edit-preserving-mtime is a miss.",
+       "where": "docstring line 9-10",
+       "verdict": "uncheckable",
+       "why": "Claim about reading every file's bytes is not verifiable in this chunk."
+      },
+      {
+       "text": "A stale cache silently reporting wrong code health would be worse than a slow scan, so the key is chosen so staleness is not representable.",
+       "where": "docstring line 11-12",
+       "verdict": "kept",
+       "why": "file_key() uses content hash, ensuring any change in content produces a different key."
+      },
+      {
+       "text": "Failure policy: this is an optimization, never a correctness dependency. Any sqlite problem degrades to \"no cache\" and the build proceeds normally.",
+       "where": "docstring line 14-15",
+       "verdict": "kept",
+       "why": "Constructor catches all exceptions and sets self.conn = None; get_many returns empty dict when conn is None."
+      },
+      {
+       "text": "2: rows gained ``type_facts``. Bumped rather than left to the KeyError path in ``_decode``, so a row from the previous generation is DELETEd on open instead of merely failing to decode -- the two failures look the same from the outside but only one of them is stated.",
+       "where": "comment near _SCHEMA",
+       "verdict": "kept",
+       "why": "__init__ executes DELETE FROM files WHERE schema IS NOT ? using _SCHEMA, deleting rows with different schema."
+      },
+      {
+       "text": "``DAEDALUS_CACHE_DIR`` overrides it (tests point this at a temp dir so they never touch the real cache).",
+       "where": "cache_root() docstring",
+       "verdict": "kept",
+       "why": "Function checks DAEDALUS_CACHE_DIR first and returns that path if set."
+      },
+      {
+       "text": "Digest of the extractor's own source, folded into every key.",
+       "where": "_parser_version() docstring",
+       "verdict": "kept",
+       "why": "_parser_version() returns SHA256 of parse.py; file_key() includes _parser_version() output."
+      },
+      {
+       "text": "``ANALYSIS_VERSION`` is hand-maintained, so it only invalidates the cache if someone remembers to bump it. Changing how a unit is NAMED without bumping produces the worst available outcome: ``slice`` re-parses off disk and sees the new names while the index is served from cache with the old ones, so the resolver silently matches nothing and slices quietly degrade -- a silent failure introduced BY a fix. Hashing parse.py makes that unrepresentable. Unreadable source degrades to the manual constant alone (never break the build for an optimization).",
+       "where": "_parser_version() docstring",
+       "verdict": "kept",
+       "why": "_parser_version() catches Exception and returns empty string; file_key() still includes ANALYSIS_VERSION."
+      },
+      {
+       "text": "Content-addressed key. ``rel`` is included because analysis embeds the module path (CodeUnit.module), so the same bytes at two paths are two different results.",
+       "where": "file_key() docstring",
+       "verdict": "kept",
+       "why": "file_key() includes rel and spec_name in the hash."
+      },
+      {
+       "text": "Tokenizer identity. FileAnalysis.n_tokens rides this cache, and its value is whatever tokens.count_tokens' runtime encoder produced -- tiktoken cl100k_base when the optional dep is installed, else the chars/4 fallback. tiktoken is optional and installing/removing it changes no source byte, so without this segment every file is a cache HIT across that change: the cached n_tokens (old tokenizer) sums into total_tokens (the distill denominator) while the slice numerator is recounted under the NEW tokenizer -- a silent mixed-tokenizer ratio that slice.py still stamps whole_repo_tokens_exact=True. Keying on tokenizer identity turns that into a miss (recompute under the current tokenizer) instead.",
+       "where": "file_key() docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to tokens.tokenizer_name() and tokens.count_tokens, not present in this chunk. tokenizer_name() is called but its implementation is elsewhere."
+      },
+      {
+       "text": "JSON, not pickle: the cache file is on disk and pickle would make a tampered cache an arbitrary-code-execution vector.",
+       "where": "comment before serialization",
+       "verdict": "kept",
+       "why": "_encode uses json.dumps, not pickle."
+      },
+      {
+       "text": "Encoded as nested plain LISTS, positionally, in declaration-field order -- exactly the style ``units`` uses for ``CodeUnit``. Written out by hand rather than via ``dataclasses.astuple``/``asdict`` for two reasons: a reflective codec would silently start round-tripping a NEW field the moment one is added to ``parse.py`` (so the cache would carry a field this generation of the decoder does not know how to place), and it would hide the one thing that actually needs care below -- JSON has no tuple, so every ``tuple[str, ...]`` field must be RE-TUPLED on the way in. A list where extraction produced a tuple changes ``repr`` and dataclass equality, which is enough to break the byte-identity assertions the type layer is held to (a cache HIT would not equal a cache MISS).",
+       "where": "comment before type facts encoding",
+       "verdict": "kept",
+       "why": "Encoding functions convert tuples to lists; decoding functions convert lists back to tuples (e.g., _dec_type uses tuple(r[6]), tuple(r[7]))."
+      },
+      {
+       "text": "Every field is read by subscript, never .get(<default>): a row written by an older encoder is missing keys, and a default would let it decode into a plausible-looking analysis carrying a wrong measurement (n_tokens=0 reads as \"this file contributes nothing to the repo's token total\"). KeyError here is caught by get_many and becomes a cache MISS -- recompute, not quietly-wrong. ANALYSIS_VERSION already separates the generations; this is the second lock on the same door.",
+       "where": "_decode() docstring",
+       "verdict": "uncheckable",
+       "why": "Claim about get_many catching KeyError is not verifiable in this chunk; get_many is incomplete and its error handling is not shown."
+      },
+      {
+       "text": "JSON gives lists where extraction gave tuples; every consumer just iterates/unpacks, so this is shape-compatible.",
+       "where": "comment in _decode",
+       "verdict": "kept",
+       "why": "In _decode, py_imports and raw_imports are converted to tuples via list comprehension."
+      },
+      {
+       "text": "Subscript, like every field above: a row from before the type layer has no such key, and a ``.get(PyTypeFacts())`` default would decode it into a plausible analysis claiming the file has NO types -- which is indistinguishable from a file that genuinely has none.",
+       "where": "comment in _decode about type_facts",
+       "verdict": "kept",
+       "why": "_decode uses doc[\"type_facts\"] subscript access; no default provided."
+      },
+      {
+       "text": "Keep only the most recently used cache DBs.",
+       "where": "_evict_old_caches() docstring",
+       "verdict": "kept",
+       "why": "Function sorts by st_mtime and deletes the oldest beyond _MAX_CACHE_FILES."
+      },
+      {
+       "text": "Each DB is named by a hash of the repo root, so a root that disappears leaves an orphan nothing will ever reopen -- and the test suite indexes throwaway temp repos, which would otherwise drop a new orphan in the user's profile on every run. The root is unrecoverable from the hash, so bound the directory by recency instead.",
+       "where": "_evict_old_caches() docstring",
+       "verdict": "kept",
+       "why": "Constructor computes tag from root hash; _evict_old_caches limits total DB files to _MAX_CACHE_FILES."
+      },
+      {
+       "text": "Parent-process only. Workers never touch sqlite -- they return plain data and the parent commits it in one transaction, which keeps the concurrency story trivial (no cross-process DB locking).",
+       "where": "FileCache class docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence of workers or multiprocessing in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "FileCache.__init__ creates table with schema INTEGER and payload BLOB; deletes rows with schema != _SCHEMA.",
+       "where": "FileCache.__init__ lines",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "get_many is incomplete; only returns empty dict for edge cases.",
+       "where": "FileCache.get_many",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "cache_root() falls back to home directory if no env vars set; may create .cache/daedalus/structcore under home.",
+       "where": "cache_root()",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "enabled() only checks DAEDALUS_NO_CACHE; case-sensitive.",
+       "where": "enabled()",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_evict_old_caches uses st_mtime; may not reflect last use if files are touched.",
+       "where": "_evict_old_caches",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_parser_version reads parse.py from disk each call; cached via lru_cache.",
+       "where": "_parser_version",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e7f350f0a2ac3e0bd3ead975ef48307d462d8dbe41f3387993b9c88bee93db0a",
+    "objective_chars": 12252,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/cache.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/cache.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

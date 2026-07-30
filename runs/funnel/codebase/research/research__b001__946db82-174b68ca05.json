@@ -1,0 +1,105 @@
+{
+ "task_id": "research__b001__946db82",
+ "key": "research__b001__946db82-174b68ca05",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file inference identifies three patterns: (1) stale/UNKNOWN mislabel in links.py vs. deferred resolution claims elsewhere; (2) docstring-only API promises (SubprocessAdapter methods) not verified; (3) duplicate git hardening logic in attempt.py vs. offload/mint modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Code links marked stale=False when known_code_paths empty contradicts docstring claim of UNKNOWN, potentially misleading downstream consumers.",
+     "SubprocessAdapter class methods (claude, codex, from_name) advertised in __init__.py docstring but their existence is unverified; if missing, public API is broken.",
+     "Git hardening in attempt.py is a single choke point, but other modules (mint.py, offload.py) may bypass it by calling git directly, undermining security guarantees."
+    ],
+    "todos": [
+     "Verify SubprocessAdapter class methods exist and match docstring signatures.",
+     "Audit all git invocations outside attempt.py to ensure they use _git or equivalent hardening.",
+     "Fix links.py stale flag logic to match docstring: set to UNKNOWN when no known_code_paths supplied."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "stale-unknown-contradiction",
+       "claim": "The wiki LinkIndex marks code links as stale=False when known_code_paths is empty, but the docstring says it should be UNKNOWN. This contradicts the 'REFUSE TO GUESS' principle and may mislead downstream tools into thinking a link is fresh when resolution was never attempted.",
+       "spans": [
+        "daedalus/wiki/links.py",
+        "daedalus/adapters/__init__.py"
+       ],
+       "mechanism": "In build_index (links.py), when known_code_paths is empty, code links are appended with resolved=True and stale=False. The docstring asserts stale should be UNKNOWN. The __init__.py re-exports LinkIndex but does not enforce or document this behavior.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Finding that downstream consumers of stale=False treat it identically to stale=UNKNOWN, or that the docstring is intentionally aspirational and stale=False is the correct default.",
+       "evidence": [
+        "daedalus/wiki/links.py:build_index (lines ~)",
+        "daedalus/wiki/links.py:docstring claim 'stale is only knowable when a file set was supplied; without one it is UNKNOWN'",
+        "daedalus/adapters/__init__.py: re-exports LinkIndex"
+       ]
+      },
+      {
+       "id": "unverified-adapter-api",
+       "claim": "The public API advertised in daedalus/adapters/__init__.py includes class methods (claude, codex, from_name) on SubprocessAdapter that are not defined in any scanned chunk, making the API contract unverifiable and potentially broken.",
+       "spans": [
+        "daedalus/adapters/__init__.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "__init__.py docstring shows usage patterns like SubprocessAdapter.claude(repo_root=...). The actual SubprocessAdapter class is in .subprocess_adapter (not scanned). The attempt.py module provides git hardening but does not expose these methods. If the methods are missing, the advertised API is invalid.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "Inspecting SubprocessAdapter class definition confirms existence of claude, codex, from_name methods matching docstring signatures.",
+       "evidence": [
+        "daedalus/adapters/__init__.py: docstring lines 5-7",
+        "daedalus/adapters/__init__.py: re-exports SubprocessAdapter",
+        "daedalus/spine/attempt.py: provides _git hardening but no adapter methods"
+       ]
+      },
+      {
+       "id": "git-hardening-bypass",
+       "claim": "The git hardening in attempt.py is described as the single choke point, but other modules (mint.py, offload.py) perform git operations without going through attempt._git, potentially bypassing security measures.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/eval/mint.py"
+       ],
+       "mechanism": "attempt.py defines _git as the sole function for git calls, with hardening (--git-dir, --work-tree, env cleaning, executable pinning). mint.py uses _git (via import) for diff-tree and show, but the claim about offload.py (not in scans) suggests it may call git directly. If any git call bypasses _git, hardening is void.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Audit shows all git invocations across the codebase go through attempt._git, or offload.py uses attempt._git as well.",
+       "evidence": [
+        "daedalus/spine/attempt.py: _git function docstring claims 'single choke point'",
+        "daedalus/eval/mint.py: mint_from_commit uses _git",
+        "daedalus/eval/mint.py: docstring references offload.py's git usage"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "35b7b965690d808c7419ee3345a4820c5ac695a86f8d2b02ad4969f0d06a6926",
+    "objective_chars": 50932,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 1 (6 inputs)",
+  "rev": "946db82",
+  "bucket": 1,
+  "inputs": 6
+ }
+}

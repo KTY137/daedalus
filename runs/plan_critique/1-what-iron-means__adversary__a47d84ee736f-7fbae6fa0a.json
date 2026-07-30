@@ -1,0 +1,101 @@
+{
+ "task_id": "1-what-iron-means__adversary__a47d84ee736f",
+ "key": "1-what-iron-means__adversary__a47d84ee736f-7fbae6fa0a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 1 defines 'iron' but leaves all key terms (hard invariant, research prior, experiment, Gate 0) undefined, making every rule unfalsifiable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "1.1 | critical | 'Hard invariants' and 'research priors' are undefined; any change can be relabeled to avoid the amendment requirement. | Demonstrate a change that is called 'challenging a prior' but actually modifies a critical constraint; no test can disprove the labeling.",
+     "1.2 | critical | 'Never violate hard invariants' has no enforcement mechanism; a commit can claim compliance without any check. | Show a commit that changes a supposed invariant but passes review because no invariant list exists.",
+     "1.3 | high | 'Isolated, measured experiment' conditions are not enumerated; an experiment can claim isolation without verification. | Show a candidate that runs an experiment with unlimited budget and no frozen spec, yet claims compliance.",
+     "1.4 | high | 'Negative evidence must be retained' has no retention policy or format; evidence can be stored in an unreadable location and still formally comply. | Show a commit that stores negative evidence in a deleted branch or non-standard location; no rule is violated.",
+     "1.5 | medium | 'No model prompt or local hook is a security boundary' contradicts the claim that guards prevent drift; an attacker can bypass via --no-verify. | Demonstrate a git push with --no-verify that changes a prior; the guards do not fire.",
+     "1.6 | medium | 'Guards... do not claim to cover every external client' admits incomplete coverage but sets no criteria for what is covered; any bypass is acceptable by design. | Show an external tool that modifies files without triggering guards; no rule is violated.",
+     "1.7 | low | 'Until Gate 0 closes' is undefined; the document provides no timeline or condition for Gate 0, so the temporary nature of guard limitations is unenforceable. | Ask when Gate 0 closes; the document gives no answer."
+    ],
+    "todos": [
+     "Define 'hard invariant' and 'research prior' with a concrete list or criteria.",
+     "Specify the conditions that constitute an 'isolated, measured experiment' (frozen spec, budget cap, independent evaluation, etc.) as enforceable checks.",
+     "Define 'Gate 0' with a triggering condition and a mechanism for enforcement.",
+     "Specify a retention policy for negative evidence (e.g., required file path, format, commit requirement).",
+     "Remove or clarify the security boundary claim: if guards are not security boundaries, state what they actually prevent.",
+     "Add a test that verifies no commit can bypass guard checks (e.g., reject --no-verify in CI)."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "1.1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "unclear",
+       "why": "The terms 'silent drift' and 'learning' are not defined. An agent could relabel any change as 'learning' to avoid the drift prohibition, and there is no objective test for drift vs. learning."
+      },
+      {
+       "id": "1.2",
+       "claim": "Never violate hard invariants. Deviate from research priors only inside an isolated, measured experiment.",
+       "verdict": "weak",
+       "why": "'Hard invariants' and 'research priors' are undefined. An engineer could claim a change violates a prior rather than an invariant, or vice versa, with no way to adjudicate. The rule is unenforceable."
+      },
+      {
+       "id": "1.3",
+       "claim": "Hard invariants require an approved amendment before they change.",
+       "verdict": "weak",
+       "why": "No approval process or definition of 'amendment' is given. A commit could be labeled an 'amendment' without any review, formally complying while changing invariants arbitrarily."
+      },
+      {
+       "id": "1.4",
+       "claim": "Research priors are deliberately falsifiable. A prior may be challenged without an amendment when the challenge is read-only or an isolated experiment with a frozen specification, bounded capabilities, explicit budget, independent evaluation, and no production promotion.",
+       "verdict": "weak",
+       "why": "The conditions (frozen spec, bounded budget, etc.) are not defined or machine-checkable. An experiment could claim to meet them without evidence. No mechanical verification exists."
+      },
+      {
+       "id": "1.5",
+       "claim": "Negative evidence must be retained.",
+       "verdict": "unfalsifiable",
+       "why": "No retention policy, format, or location is specified. Evidence could be stored in a private branch or deleted after retention; there is no way to verify compliance."
+      },
+      {
+       "id": "1.6",
+       "claim": "No model prompt or local hook is a security boundary.",
+       "verdict": "sound",
+       "why": "This is a factual statement about the system's design; it is clear and falsifiable (if a prompt or hook were later treated as a security boundary, that would violate the statement)."
+      },
+      {
+       "id": "1.7",
+       "claim": "Until Gate 0 closes, the guards in this repository prevent ordinary accidental drift and make deliberate changes explicit; they do not claim to cover every external client, `--no-verify`, direct filesystem writer, or contained candidate repository.",
+       "verdict": "weak",
+       "why": "'Gate 0' is undefined. The statement admits guards are incomplete but sets no criteria for what they do cover, so any bypass is acceptable. An attacker can use --no-verify and formally comply."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e5a7844fb3c5129e6063cb1cd786e1b149178d1c3c8b8d78a43f14cd6db8befc",
+    "objective_chars": 1784,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "1-what-iron-means",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

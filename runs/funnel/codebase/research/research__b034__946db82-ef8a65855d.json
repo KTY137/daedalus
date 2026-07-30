@@ -1,0 +1,91 @@
+{
+ "task_id": "research__b034__946db82",
+ "key": "research__b034__946db82-ef8a65855d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals two shared patterns: (1) multiple modules compute budget-like truncation independently without a common mechanism, risking inconsistent definitions of 'truncated'; (2) multiple modules assume the index or cache is warm and well-formed, with no shared contract for availability or freshness.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Inconsistent truncation semantics across modules: graph_brief, report.py, and ceiling.py each define 'truncated' differently (based on dropped items, edge counts, or budget), but callers may expect uniform behavior.",
+     "No shared contract for index/cache availability: graph_brief assumes index is present or silently degrades; report.py assumes idx contains expected keys; picker.py assumes work queue file is readable. A caller relying on multiple modules may get inconsistent failure modes.",
+     "Budget-chasing without coordination: ceiling.py's temporal_ceiling uses REOPEN_MIN_* constants that are not defined in the visible code; graph_brief uses DEFAULT_BUDGET_CHARS; report.py uses top_hotspots. These budgets are independently sized and may conflict under resource pressure."
+    ],
+    "todos": [
+     "Define a shared 'truncated' contract across graph_brief, report.py, and ceiling.py so callers get consistent truncation signals.",
+     "Establish a common budget negotiation mechanism or at least document the independent budget policies.",
+     "Create a shared index/cache availability contract (e.g., 'index may be None' or 'index must have keys x,y,z') to unify error handling across graph_brief, report.py, and providers.",
+     "Verify that REOPEN_MIN_* constants used in ceiling.py are defined in the intended module and are consistent with the budget sizing used elsewhere."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "independent-truncation",
+       "claim": "Multiple modules (graph_brief, report.py, ceiling.py) implement their own truncation/budget logic with no shared mechanism, leading to inconsistent definitions of what 'truncated' means across the system.",
+       "spans": [
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/structcore/report.py",
+        "daedalus/eval/ceiling.py"
+       ],
+       "mechanism": "graph_brief tracks dropped items per layer and exposes 'truncated' property; report.py counts edges shown vs eligible vs total and sets 'truncated' flag; ceiling.py uses budget constants (REOPEN_MIN_*) and computes ratios. Each independently decides what counts as truncated, but callers may receive different signals from different modules.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "A single shared truncation mechanism or budget negotiation protocol is found that all three modules use.",
+       "evidence": [
+        "daedalus/lanes/graph_brief.py:GraphBrief.truncated property",
+        "daedalus/structcore/report.py:_graph returns truncated flag based on edges vs eligible",
+        "daedalus/eval/ceiling.py:comment references REOPEN_MIN_* constants not defined in chunk"
+       ]
+      },
+      {
+       "id": "index-availability-assumption",
+       "claim": "Multiple modules assume the index or cache is present and well-formed without a shared contract for availability, leading to inconsistent failure modes when the index is missing or stale.",
+       "spans": [
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/structcore/report.py",
+        "daedalus/providers/_ollama_native.py"
+       ],
+       "mechanism": "graph_brief docstring claims 'Never raises for a missing or unreadable index' but the implementation is incomplete in the visible chunk; report.py uses idx.get() with defaults but assumes certain keys exist (e.g., 'hotspots'); _ollama_native.py assumes environment variables are set correctly. There is no shared contract for what constitutes a valid index or how to signal absence.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "A shared index availability contract (e.g., a common exception type or sentinel value) is used by all modules that depend on the index.",
+       "evidence": [
+        "daedalus/lanes/graph_brief.py:graph_brief docstring claims never raises but implementation not fully visible",
+        "daedalus/structcore/report.py:structure_summary uses idx.get('hotspots', [])[:top_hotspots] assuming sorted order",
+        "daedalus/providers/_ollama_native.py:num_ctx_value assumes env var may be missing but falls back to default"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f85af6beb02599242ee44589b1d7388cab68f40df4e3f906bc3476e68f00a083",
+    "objective_chars": 43538,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 34 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 34,
+  "inputs": 5
+ }
+}

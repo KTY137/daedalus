@@ -1,0 +1,147 @@
+{
+ "task_id": "daedalus/structcore/clones.py#c1of2#5eb1702d",
+ "key": "daedalus_structcore_clones.py_c1of2_5eb1702d-2091007134",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"renamed_clusters ... excludes clusters explained entirely by exact cloning (all members share one exact fingerprint) so this reports *renamed-but-not-identical* only\" | renamed_clusters | BROKEN | The code checks if len({exact_of[id(u)] for u in group}) < 2, which means if there is only ONE distinct exact fingerprint, it's skipped. But if all members share one exact fingerprint, that's exactly the case where len < 2, so it's correctly excluded. However, the prose says \"all members share one exact fingerprint\" but the code skips when there is LESS THAN 2 distinct exact fingerprints, which includes the case of 0 or 1. If there is 0 distinct exact fingerprints, that would mean no units have an exact fingerprint, which is impossible. So the code matches the prose. Actually, I misread: the prose says \"excluded clusters explained entirely by exact cloning (all members share one exact fingerprint)\". The code skips if len < 2, meaning if there is only one distinct exact fingerprint, it's skipped. That's correct. But wait: what if there are multiple exact fingerprints among the group? Then len >=2 and the cluster is included. That matches the prose. So this claim is KEPT. Let me re-evaluate: the claim is that it excludes clusters where all members share one exact fingerprint. The code excludes when len < 2, i.e., when there is exactly one distinct exact fingerprint. So it's KEPT.\n\nBut the prose also says \"We exclude clusters explained entirely by exact cloning (all members share one exact fingerprint) so this reports *renamed-but-not-identical* only\". The code does that. So KEPT.\n\nI'll correct the risks accordingly."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a70c739a96caa9dd677056b1a465e405007e8f02f221576b9d7b6657aba1942f",
+    "objective_chars": 30529,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 10 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Two complementary strategies (both generalize ``codemap.py``)\" | unit_clusters, window_clusters | KEPT | Both functions implement the described strategies.",
+     "CLAIM | \"identical fingerprints across >=2 sites are a clone cluster\" | unit_clusters | KEPT | The code groups by fingerprint and filters for len(group) >= 2.",
+     "CLAIM | \"Catches Type-1/2 exact and renamed-literal clones\" | unit_clusters | KEPT | The exact fingerprint catches Type-1; abstract fingerprint for Type-2 is separate.",
+     "CLAIM | \"Needs units from ``parse.extract_units``\" | unit_clusters | UNCHECKABLE | The function takes a list of CodeUnit; whether it comes from parse.extract_units is not visible.",
+     "CLAIM | \"Slides an N-line window of normalized source across every file and finds identical runs shared by >=2 files\" | window_runs, window_clusters | KEPT | window_runs produces run hashes; window_clusters groups them by files sharing the same hash, requiring >=2.",
+     "CLAIM | \"Catches copy-paste across files in ANY language/text\" | window_runs | KEPT | window_runs uses generic normalization and does not require a parser.",
+     "CLAIM | \"This is ``codemap.analyze_qml`` generalized to every language\" | window_clusters | UNCHECKABLE | Cannot verify equivalence to codemap.analyze_qml without that code.",
+     "CLAIM | \"Every cluster is safety-annotated: if any site lives in a SAFETY-CLASS path it is flagged ``do_not_collapse``\" | _safety | BROKEN | The function _safety is not defined in this unit; its behavior cannot be verified.",
+     "CLAIM | \"String-literal aware, and that is load-bearing rather than a nicety\" | _strip_comments_generic | KEPT | The function correctly handles string literals to avoid false clone detection.",
+     "CLAIM | \"Unterminated literals stop at end-of-line rather than running to EOF\" | _strip_comments_generic | KEPT | The code breaks on newline when inside a string literal.",
+     "CLAIM | \"Every identifier -> ``ID``, number -> ``NUM``, string -> ``STR``, keeping keywords/operators/structure\" | _generic_abstract_tokens | KEPT | The function maps tokens accordingly.",
+     "CLAIM | \"The same abstracted token stream, as a multiset, is the Type-3 (near-miss) signal via SourcererCC-style overlap\" | token_bag, near_clusters | KEPT | token_bag returns a Counter; near_clusters uses overlap on these bags.",
+     "CLAIM | \"A pair must share >= ``min_shared_rare`` NON-ubiquitous tokens\" | near_clusters | BROKEN | The parameter min_shared_rare is defined but never used in the function body.",
+     "CLAIM | \"Returns None on a tokenizer error so the caller can fall back to generic\" | _python_abstract_tokens | KEPT | The function returns None on tokenizer errors.",
+     "CLAIM | \"Abstracted (not raw) so a near-copy with renamed locals still overlaps heavily\" | token_bag | KEPT | token_bag uses _abstract_tokens, which abstracts identifiers.",
+     "CLAIM | \"only the two 12-char fingerprints are cached, never the token lists\" | CloneMemo | KEPT | The memo stores only the fingerprint strings, not token lists.",
+     "D1 | _candidate_pairs parameter pair_cap | BROKEN | The function defines pair_cap but never uses it; it returns early if pairs reaches pair_cap, but the inner loop does not check pair_cap after adding pairs.",
+     "D2 | none | | |",
+     "D3 | none | | |",
+     "D4 | none | | |"
+    ],
+    "todos": [
+     "Define _safety function or remove the claim about safety annotation.",
+     "Use min_shared_rare parameter in near_clusters to filter candidate pairs.",
+     "Use pair_cap parameter in _candidate_pairs to enforce the cap correctly."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a70c739a96caa9dd677056b1a465e405007e8f02f221576b9d7b6657aba1942f",
+    "objective_chars": 30529,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "21 claims: 16 kept, 2 broken, 3 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"identical fingerprints across >=2 sites are a clone cluster. Catches Type-1/2 exact and renamed-literal clones\" | unit_clusters / renamed_clusters | KEPT | unit_clusters uses exact fingerprint; renamed_clusters uses abstract fingerprint and excludes pure exact clusters, covering both.",
+     "CLAIM | \"Every cluster is safety-annotated: if any site lives in a SAFETY-CLASS path it is flagged do_not_collapse\" | _safety | UNCHECKABLE | _safety function not defined in this unit; need its definition to verify.",
+     "CLAIM | \"Python uses the exact tokenize path from codemap\" | normalize_source | KEPT | Calls _normalize_python when spec.name == 'python'.",
+     "CLAIM | \"other languages use a comment-aware lexical strip\" | normalize_source | KEPT | Calls _normalize_generic otherwise.",
+     "CLAIM | \"STRING-LITERAL AWARE, and that is load-bearing\" | _strip_comments_generic | KEPT | The function explicitly handles string literals by copying verbatim and checking for quote characters.",
+     "CLAIM | \"Single left-to-right pass, because the three states are mutually exclusive\" | _strip_comments_generic | KEPT | The while loop processes characters sequentially, handling strings, block comments, line comments, and newlines.",
+     "CLAIM | \"Unterminated literals stop at end-of-line rather than running to EOF\" | _strip_comments_generic | KEPT | In the string handling branch, if c == '\\n' it breaks out of the inner while loop.",
+     "CLAIM | \"Two functions that differ ONLY by renamed variables/constants therefore produce the same abstract fingerprint -> the Type-2 signal\" | abstract_normalize | KEPT | abstract_normalize returns a string of abstracted tokens, erasing identifiers and literals.",
+     "CLAIM | \"The same abstracted token stream, as a multiset, is the Type-3 (near-miss) signal via SourcererCC-style overlap\" | token_bag / near_clusters | KEPT | token_bag returns Counter of abstract tokens; near_clusters uses Counter overlap.",
+     "CLAIM | \"A small, cross-language keyword set kept verbatim in the GENERIC path so the abstraction retains control-flow structure\" | _GENERIC_KEYWORDS | KEPT | _GENERIC_KEYWORDS is defined and used in _generic_abstract_tokens.",
+     "CLAIM | \"The Python path uses the exact ``keyword`` module instead\" | _python_abstract_tokens | KEPT | Uses keyword.iskeyword(tok.string) to decide ID vs keyword.",
+     "CLAIM | \"Returns None on a tokenizer error so the caller can fall back to generic\" | _python_abstract_tokens | KEPT | Returns None in the except block.",
+     "CLAIM | \"Exists so a caller that needs both the token bag and the fingerprint for the same unit can abstract once and derive both\" | _fingerprint_of_tokens | KEPT | The function takes a token list, so caller can reuse tokens.",
+     "CLAIM | \"deriving it in two places would let the near-miss pass and the renamed pass silently disagree about what a Type-2 match is\" | _fingerprint_of_tokens | KEPT | Both abstract_fingerprint and near_clusters call _fingerprint_of_tokens, ensuring single definition.",
+     "CLAIM | \"Abstracted (not raw) so a near-copy with renamed locals still overlaps heavily\" | token_bag | KEPT | Returns Counter of abstract tokens.",
+     "CLAIM | \"Only the two 12-char fingerprints are cached, never the token lists\" | CloneMemo | KEPT | The class caches exact_fp and abstract_fp, not token lists.",
+     "CLAIM | \"an id() key can never be recycled onto a different object while the memo is alive\" | CloneMemo | KEPT | Uses id(u) as key, and memo scope is one call.",
+     "CLAIM | \"Scope one memo to one build_index call and drop it after\" | CloneMemo docstring | UNCHECKABLE | No code in this unit calls build_index; need to verify scope elsewhere.",
+     "CLAIM | \"we exclude clusters explained entirely by exact cloning (all members share one exact fingerprint) so this reports *renamed-but-not-identical* only\" | renamed_clusters | KEPT | Code checks if len({exact_of[id(u)] for u in group}) < 2 to skip pure exact clusters.",
+     "CLAIM | \"This recomputed the exact fingerprint that unit_clusters had ALREADY computed for the same unit -- one full normalize per unit, wasted\" | renamed_clusters | BROKEN | Line 244: 'exact_of[id(u)] = memo.exact_fp(u)' recomputes exact fingerprint; but the docstring says 'wasted' implying it is redundant, yet the code still does it. The claim is that this is a waste, which is true; but the code does not change it. The claim is a comment about the code, not a guarantee. However, the docstring of renamed_clusters says 'This recomputed... wasted' which is an accurate description. So it is KEPT as a description, not a promise. Actually, the claim is that the code wastes computation, which is true. So KEPT.",
+     "CLAIM | \"Abstract ONCE and derive both. token_bag() and abstract_fingerprint() each call _abstract_tokens() internally, so calling both here tokenized the same source twice per unit -- the single largest piece of redundant work in the clone passes. Output is unchanged by construction\" | near_clusters | BROKEN | Lines 329-330: the code calls _abstract_tokens once and derives both bag and fingerprint, but the docstring says 'calling both here tokenized the same source twice' \u2014 the code actually avoids that redundancy, so the docstring is outdated. The docstring describes a problem that the code no longer has. So BROKEN: the docstring says the code tokenizes twice, but it tokenizes once.",
+     "D1 | min_shared_rare | _candidate_pairs | WRONG CONCLUSION: parameter defined but never used in this unit; it is used only in the signature of near_clusters but not passed to _candidate_pairs; _candidate_pairs does not reference it."
+    ],
+    "todos": [
+     "Update near_clusters docstring to reflect that tokenization is done once, not twice.",
+     "Remove min_shared_rare parameter from near_clusters or use it in _candidate_pairs."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a70c739a96caa9dd677056b1a465e405007e8f02f221576b9d7b6657aba1942f",
+    "objective_chars": 30529,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/clones.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28010
+ }
+}

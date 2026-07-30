@@ -1,0 +1,343 @@
+{
+ "task_id": "scan__daedalus_structcore_graph.py__c1of2__946db82",
+ "key": "scan__daedalus_structcore_graph.py__c1of2__946db82-02f88cefef",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Exported symbols: identifiers, name_index, SymbolResolver, build_resolver, _dedup, callees, callers, _fence_norm, fenced_fragment, canonical_node, _graph_nodes, fenced_reachability. Claims: various docstring and comment claims about behavior, determinism, and safety; most are uncheckable or partially checkable against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_graph_nodes | medium | Uses code_modules from .markdown but the import is inside the function; if that module has side effects, they occur on every call. | Check if .markdown.code_modules is side-effect-free.",
+     "canonical_node | low | Uses _graph_nodes which calls code_modules; if idx does not have expected keys, may raise KeyError. | Verify idx keys.",
+     "fenced_reachability | high | Function signature present but body truncated; cannot verify its behavior. | Provide full function body."
+    ],
+    "todos": [
+     "Complete fenced_reachability function body for full review."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/graph.py",
+     "chunk": "1 of 2",
+     "purpose": "Define graph utilities for call-graph approximation and safety-class reachability.",
+     "symbols": [
+      {
+       "name": "_IDENT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for identifier tokens."
+      },
+      {
+       "name": "_STOP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of stop words (keywords and common noise)."
+      },
+      {
+       "name": "identifiers",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts identifier tokens from source, minus stop words, length > 2."
+      },
+      {
+       "name": "name_index",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a name-to-list-of-units index."
+      },
+      {
+       "name": "SymbolResolver",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for per-file symbol table and import edges."
+      },
+      {
+       "name": "SymbolResolver.__post_init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes imports_by_file values to sorted tuples for determinism."
+      },
+      {
+       "name": "SymbolResolver.resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a name from a file using local defs then imports."
+      },
+      {
+       "name": "SymbolResolver.imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if target_file is imported by from_file."
+      },
+      {
+       "name": "build_resolver",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a SymbolResolver from units and imports_by_file."
+      },
+      {
+       "name": "_dedup",
+       "kind": "function",
+       "effects": [],
+       "note": "Deduplicates units by (module, name, line)."
+      },
+      {
+       "name": "callees",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns units among candidates that focus likely calls."
+      },
+      {
+       "name": "callers",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns units that likely call focus."
+      },
+      {
+       "name": "REACH_VISIT_CAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Cap for BFS visit count in reachability."
+      },
+      {
+       "name": "_fence_norm",
+       "kind": "function",
+       "effects": [],
+       "note": "Normalizes path for fence matching: forward slashes, lower, leading slash."
+      },
+      {
+       "name": "fenced_fragment",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns first fenced_paths fragment matching rel, or None."
+      },
+      {
+       "name": "canonical_node",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns canonical index node for rel, or None."
+      },
+      {
+       "name": "_graph_nodes",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns set of nodes from idx (code modules and import edges)."
+      },
+      {
+       "name": "fenced_reachability",
+       "kind": "function",
+       "effects": [],
+       "note": "BFS from rel to fenced modules (body truncated)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Compiler-precise, cross-file symbol resolution is SCIP / tree-sitter-stack-graphs territory: months of per-language work.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Claims about SCIP and stack-graphs are not verifiable from this code."
+      },
+      {
+       "text": "This is the honest v1 \u2014 a NAME-based reference graph over the units the parser already extracted: for a unit, which *other known unit names* appear as identifier tokens in its body.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The code indeed uses identifier token matching (identifiers function) and name-based lookups (callees, callers)."
+      },
+      {
+       "text": "Movement I.5 / Move 4 sharpens it with import/scope awareness.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Referenced movements not in this chunk."
+      },
+      {
+       "text": "Given a SymbolResolver (a per-file symbol table + the Move-2 import edges), resolution instead prefers, in order: 1. a unit defined in the SAME file as the reference, 2. a unit in a module the file actually IMPORTS, 3. the global-name fallback (the old behavior) only when 1+2 find nothing.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "SymbolResolver.resolve implements exactly this order: same-file defs first, then imported defs, returns None otherwise."
+      },
+      {
+       "text": "This drops false call edges -> tighter distill slices + a truer call graph.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Effect on distill slices cannot be verified from this code."
+      },
+      {
+       "text": "Python is precise (its import graph is precise); other languages are best-effort (their import resolution is best-effort).",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No import graph construction code in this chunk."
+      },
+      {
+       "text": "Full scope/shadowing is deliberately NOT attempted here \u2014 that is SCIP / stack-graphs, deferred, not faked.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The code does not implement scope/shadowing; SymbolResolver.resolve uses simple name-based lookup."
+      },
+      {
+       "text": "Backward-compatible: callees/callers take an OPTIONAL resolver that defaults to None (the pure name-match), so existing callers (slice.py) are unaffected.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Both callees and callers have resolver parameter defaulting to None, and branch accordingly."
+      },
+      {
+       "text": "SORTED TUPLES, not sets. ... Normalising HERE rather than in build_resolver means every construction path is deterministic, including hand-built resolvers.",
+       "where": "SymbolResolver.__post_init__",
+       "verdict": "kept",
+       "why": "The code sorts the values in imports_by_file and reassigns the attribute."
+      },
+      {
+       "text": "Same candidates, now a total order; ties break on rel path.",
+       "where": "SymbolResolver.__post_init__",
+       "verdict": "kept",
+       "why": "Sorting the tuple of strings gives a total order; ties are identical strings thus irrelevant."
+      },
+      {
+       "text": "SORTED, not raw set order. ... Same hits, now a total order.",
+       "where": "callees function body",
+       "verdict": "kept",
+       "why": "The loop iterates over sorted(used), ensuring deterministic order."
+      },
+      {
+       "text": "A leaf that 5000 modules transitively depend on is either a pathological graph or a blast radius so large that escalating is right anyway, so the cap is not a correctness compromise -- but the caller MUST treat truncated as 'could not prove safe', never as 'safe'.",
+       "where": "comment near REACH_VISIT_CAP",
+       "verdict": "uncheckable",
+       "why": "The actual usage of REACH_VISIT_CAP in fenced_reachability is not fully visible."
+      },
+      {
+       "text": "Path normalised for fence matching: forward slashes, lower-cased, and ROOT-ANCHORED with a leading '/'.",
+       "where": "_fence_norm docstring",
+       "verdict": "kept",
+       "why": "The function replaces backslashes, lowercases, and prepends '/' after stripping leading slashes."
+      },
+      {
+       "text": "The leading slash is deliberate and is NOT what sensitivity._norm does.",
+       "where": "_fence_norm docstring",
+       "verdict": "uncheckable",
+       "why": "sensitivity._norm is not in this chunk."
+      },
+      {
+       "text": "The generic fence ships fragments like /controller and /safety, which a repo-relative rel (controller/hv_interlock.py) cannot contain -- so anchoring here catches top-level fenced trees that a bare substring test misses.",
+       "where": "_fence_norm docstring",
+       "verdict": "uncheckable",
+       "why": "Behavior of 'bare substring test' not verifiable; but the logic of prepending '/' is confirmed."
+      },
+      {
+       "text": "It can only ever match MORE than the literal check, which is the direction this whole module is allowed to err in.",
+       "where": "_fence_norm docstring",
+       "verdict": "uncheckable",
+       "why": "Cannot compare to 'literal check' not present."
+      },
+      {
+       "text": "The first fenced fragment matching rel, or None. Fragment order comes from the policy tuple (a total order), so the reported reason is stable.",
+       "where": "fenced_fragment docstring",
+       "verdict": "kept",
+       "why": "Iterates over fenced_paths in order, returns first match, else None."
+      },
+      {
+       "text": "Spelling is a BYPASS CLASS, not a cosmetic detail: the fence is keyed on graph membership, so Utils/Clamp.py (Windows hands back either case), ./utils/clamp.py and utils/../utils/clamp.py all used to miss the node and read as 'no known dependents' -- i.e. as safe. Resolve the spelling before deciding, never after.",
+       "where": "canonical_node docstring",
+       "verdict": "kept",
+       "why": "The function normalizes the rel path and tries exact match, then case-insensitive match."
+      },
+      {
+       "text": "Nodes of the DEPENDENCY graph. Code only.",
+       "where": "_graph_nodes docstring",
+       "verdict": "kept",
+       "why": "The function collects from code_modules and import edges, not documents."
+      },
+      {
+       "text": "Documents are excluded deliberately, and this is a safety decision rather than a tidiness one. ... A document has no import edges by construction, so every one of them would land in the denominator and none in the numerator: turning documents on would DILUTE the fence's dominance fraction with files that cannot reach anything, making a guardrail less likely to fire for a bookkeeping reason.",
+       "where": "_graph_nodes docstring",
+       "verdict": "uncheckable",
+       "why": "Dominance fraction and guardrail behavior not in this chunk."
+      },
+      {
+       "text": "BFS over idx['import_edges_reverse'] (rel -> rels that import it), i.e. outward through everything that would be affected by editing rel.",
+       "where": "fenced_reachability docstring",
+       "verdict": "uncheckable",
+       "why": "Function body truncated; cannot verify BFS implementation."
+      },
+      {
+       "text": "hops 0 means the edited path is itself fenced -- exactly what today's",
+       "where": "fenced_reachability docstring",
+       "verdict": "uncheckable",
+       "why": "Sentence incomplete; function body truncated."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module imports keyword, posixpath, re, dataclasses, and CodeUnit from .parse, but does not use keyword or re elsewhere except in _IDENT and _STOP; _STOP uses keyword.kwlist.",
+       "where": "top of file",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "identifiers function filters tokens with len(t) > 2, which is not documented in docstring.",
+       "where": "identifiers function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "SymbolResolver.__post_init__ reassigns self.imports_by_file with sorted tuples, but the type annotation says dict[str, tuple[str, ...]]; this matches.",
+       "where": "SymbolResolver.__post_init__",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "callees uses sorted(used) for determinism, but the docstring claim about 'same hits, now a total order' is verified.",
+       "where": "callees",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "fenced_reachability function body is truncated at the end of the chunk; cannot verify its implementation or the claim about hops 0.",
+       "where": "fenced_reachability",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_graph_nodes imports code_modules from .markdown inside the function; this could cause circular imports or side effects on each call.",
+       "where": "_graph_nodes",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "canonical_node calls _graph_nodes which calls code_modules; if idx does not have expected keys, KeyError may occur.",
+       "where": "canonical_node",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "723c8c547d1ed3ad5336fba76caf45488dee01f0fac9bde7099e93d2a7800584",
+    "objective_chars": 13615,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/graph.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/graph.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

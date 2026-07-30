@@ -1,0 +1,203 @@
+{
+ "task_id": "scan__daedalus_spine_docrefs.py__c2of3__946db82",
+ "key": "scan__daedalus_spine_docrefs.py__c2of3__946db82-59133cce3c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed chunk 2 of docrefs.py: utility functions for reference extraction and resolution, including code block stripping, reference extraction, suffix index building, module file resolution, name collection, and resolve_reference logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_strip_code_blocks | medium | Fence detection relies on first three characters; may incorrectly skip lines if fence token is not exactly three characters. | Check if _FENCE regex ensures token is exactly three characters.",
+     "_suffix_index | medium | Path suffix mapping may be expensive for large repos; no caching beyond the module. | Consider performance impact.",
+     "_collect_names | medium | Star imports and __getattr__ cause dynamic=True; any reference to such module is skipped, potentially missing valid references. | Verify that dynamic modules are correctly identified.",
+     "resolve_reference | medium | Anchored detection for dotted names falls back to suffix index if direct module_file returns None; may incorrectly anchor non-anchored references. | Verify the logic for anchored flag.",
+     "resolve_reference | low | _by_path uses suffixes.get with lstrip('./') but probe may not have leading './'; may miss some suffix matches. | Confirm usage patterns."
+    ],
+    "todos": [
+     "Verify that _FENCE regex matches exactly three characters for fence token.",
+     "Test _suffix_index with a sample repository structure.",
+     "Test _collect_names with various AST nodes including star imports.",
+     "Test resolve_reference with anchored vs non-anchored dotted names.",
+     "Ensure _by_path handles probes without leading './' correctly."
+    ],
+    "handoff": {
+     "module": "daedalus/spine/docrefs.py",
+     "chunk": "2 of 3",
+     "purpose": "Provides functions for extracting code references from prose and resolving them against the repository source tree.",
+     "symbols": [
+      {
+       "name": "_strip_code_blocks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Strips fenced code blocks and indented code lines from text, returns prose lines and count of dropped lines."
+      },
+      {
+       "name": "extract_references",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts candidate code references from prose text using regex patterns; returns unresolved references and dropped line count."
+      },
+      {
+       "name": "_EXCLUDED_DIRS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of directory names excluded from suffix index."
+      },
+      {
+       "name": "_suffix_index",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a mapping from every path suffix to all Python files ending with that suffix, excluding certain directories."
+      },
+      {
+       "name": "_module_file",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a module path (as tuple of parts) to an actual file, optionally using suffix index for partial matches."
+      },
+      {
+       "name": "_collect_names",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Collects top-level names, class members, and detects dynamic namespace from AST body."
+      },
+      {
+       "name": "_parse_cache",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses a Python file into AST, extracts names via _collect_names, caches result."
+      },
+      {
+       "name": "resolve_reference",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a Reference against the repository source tree, determining its state (resolving/skipped) and why."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A suffix resolves ONLY when exactly one module ends with it. Ambiguity is the absent-module case: two files named index.py mean this module cannot tell which one the sentence is about, and guessing would manufacture a finding against a file the author never mentioned.",
+       "where": "_suffix_index docstring",
+       "verdict": "kept",
+       "why": "In _suffix_index, the return dict maps suffix to list of files; in _module_file and _by_path, hits are only used if len(hits)==1, enforcing uniqueness."
+      },
+      {
+       "text": "Measured: 370 of 374 skipped references were relative like this, so a root-anchored resolver was declining to check the overwhelming majority of the corpus and reporting a confident zero.",
+       "where": "_suffix_index docstring",
+       "verdict": "uncheckable",
+       "why": "This claim references measurements not present in this chunk."
+      },
+      {
+       "text": "Walks into module-level if/try bodies, because a conditional or guarded import is a normal way to define a public name and missing it would manufacture a false 'this symbol does not exist'.",
+       "where": "_collect_names docstring",
+       "verdict": "kept",
+       "why": "The function explicitly handles ast.If and ast.Try nodes, recursing into their bodies and also into orelse, finalbody, and handlers."
+      },
+      {
+       "text": "The precondition for judging AT ALL is that the module resolves. A reference whose module is absent is 'skipped' -- see the module docstring on why that is the entire false-positive filter.",
+       "where": "resolve_reference docstring",
+       "verdict": "kept",
+       "why": "If module is None after resolution attempts, the function returns a Reference with state 'skipped' and a why message indicating no module found."
+      },
+      {
+       "text": "A trailing call suffix is how prose names a function; it is not part of the name.",
+       "where": "extract_references function body",
+       "verdict": "kept",
+       "why": "In extract_references, probe = raw[:-2].strip() if raw.endswith('()') else raw, stripping the '()' suffix."
+      },
+      {
+       "text": "ANCHORED only if the dotted prefix is a real module path from the repo root. ... a bare 'vendors' resolved through the suffix index is not -- see the note on _suffix_index and the measured false positives below.",
+       "where": "resolve_reference, dotted path handling",
+       "verdict": "kept",
+       "why": "The variable 'anchored' is set to True only if _module_file(root, parts[:n], None) is not None, meaning the module resolves without suffix index."
+      },
+      {
+       "text": "Measured: the first version of this file called TWO methods missing -- ollama.py::_run_rewrite (line 423) and a test at line 183 -- because it looked only at module scope. Accepting any class member is deliberately LOOSE: it can only turn a finding into a non-finding, which is the direction a checker that dispatches work is allowed to be wrong in.",
+       "where": "resolve_reference, after checking head not in names",
+       "verdict": "uncheckable",
+       "why": "This claim references measurements and specific line numbers not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_strip_code_blocks uses fence token of first three characters; may not match fences with different token lengths.",
+       "where": "_strip_code_blocks, line 283",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_suffix_index builds index from all .py files under root, which may be large; no caching beyond the module.",
+       "where": "_suffix_index function",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_collect_names treats star imports and __getattr__ as dynamic, causing any reference to such module to be skipped.",
+       "where": "_collect_names, handling ImportFrom with *",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_reference uses _by_path with lstrip('./') but probe may not have leading './'; may miss suffix matches.",
+       "where": "resolve_reference, _by_path call",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "resolve_reference for dotted names uses longest module prefix; anchored flag only set if direct _module_file succeeds.",
+       "where": "resolve_reference, dotted path handling",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d4b8a8839d7cf45895cd32e521e551dbac03ec550274eef9ca5c3740c6a9eb87",
+    "objective_chars": 13202,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/docrefs.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/docrefs.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

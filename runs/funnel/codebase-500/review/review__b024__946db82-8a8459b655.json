@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b024__946db82",
+ "key": "review__b024__946db82-8a8459b655",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses; 3 refuted, 3 narrowed, 2 needs-evidence, 1 confirmed. Key: vendor-keys-mismatch refuted (no evidence), set-union-type-risk refuted (both sets), exclusion-gap narrowed to checks.py early-return gaps, aggregation-exclusivity narrowed to docref_gate aggregates, spectral-enrichment-claim narrowed to missing key handling, token-count-mismatch confirmed (documented intentional difference), unverifiable-reach-analysis needs evidence, unguarded-cleanup-race needs evidence, unchecked-process-termination refuted (picker not involved).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "unchecked-process-termination",
+       "verdict": "refuted",
+       "strongest_counterargument": "The picker does not call the subprocess adapter directly; it uses attempt_fn which may use it, but the cited source for the picker (lines 46-95) is only docstrings and imports, no actual call to the subprocess adapter. The claim that the picker 'does not monitor process health' is true but irrelevant because the subprocess adapter's own session loop (lines 290-325) already handles timeouts and process termination. The picker's role is to pick tasks, not to manage subprocess sessions.",
+       "survives_because": "The hypothesis assumes a connection between the subprocess adapter's termination and the picker, but the cited sources show no evidence that the picker uses the subprocess adapter or that process hangs affect picker exit codes. The subprocess adapter's own timeout logic (lines 292-306) prevents indefinite hangs.",
+       "narrowed_claim": "",
+       "settling_check": "grep -r 'subprocess_adapter' daedalus/spine/picker.py || echo 'no reference found'",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "vendor-keys-mismatch",
+       "verdict": "refuted",
+       "strongest_counterargument": "The hypothesis claims council.session.VENDOR_KEYS may not exist, but the cited source for council.session is not provided; the hypothesis only cites canary.py. The docstring in canary.py says 'same set as council.session.VENDOR_KEYS' but without evidence that council.session exists or has that constant, the claim is unsupported. However, the hypothesis itself relies on the absence of evidence, which is weak. More importantly, if council.session does not exist, the code would fail to import, which is a compile-time error, not a runtime mismatch. The hypothesis is refuted because there is no evidence of a mismatch.",
+       "survives_because": "The cited source does not include council/session.py, so there is no evidence to support the claim. The hypothesis is based on absence of evidence, which is insufficient.",
+       "narrowed_claim": "",
+       "settling_check": "Check if daedalus/council/session.py exists and contains VENDOR_KEYS definition.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "exclusion-gap",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The checks.py functions like parses, not_truncated, etc. are designed for Python files and have early returns for non-Python files. The hypothesis claims that C/C++ files may be processed incorrectly, but the code likely checks file extension and returns early. However, the cited source for checks.py only shows imports and docstrings, not the actual function bodies. Without seeing the early return logic, the gap is possible but not confirmed.",
+       "survives_because": "The cited source does not include the function bodies of checks.py, so the hypothesis cannot be fully refuted. The early return logic may be incomplete.",
+       "narrowed_claim": "checks.py may have incomplete early-return logic for non-Python files, leading to incorrect application of checks to C/C++ files.",
+       "settling_check": "Inspect checks.py functions parses, not_truncated, no_elision, not_substituted for file extension checks. Run a test with a C file to see if any check is applied incorrectly.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unverifiable-reach-analysis",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The hypothesis relies on the claim that mapping/__init__.py's docstring says 'Derived on every run' with no code shown, but the cited source shows 'NOT PRESENT IN FILE' for docstring and observations. This means the evidence cited does not exist in the file, so the hypothesis is based on a false premise. However, the underlying concern about session.py relying on mapping's reach analysis is valid if the analysis is not actually performed.",
+       "survives_because": "The cited source does not support the hypothesis's evidence. Without actual code to review, the claim cannot be evaluated. The hypothesis is refuted on the basis of missing evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Read daedalus/mapping/__init__.py to see if it contains any reach analysis code or references to derivation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unguarded-cleanup-race",
+       "verdict": "needs-evidence",
+       "strongest_counterargument": "The cited source for eval/__main__.py (lines 43-92) only shows argument parsing, not the main loop that calls harness.run_gate. The actual call to cleanup may be after process termination. The hypothesis claims no wait before cleanup, but the code is not shown. The _remove_gate_tmpdir comment (lines 783-785) acknowledges the race but states the child's release() runs before cleanup, and the Job Object with KILL_ON_JOB_CLOSE ensures the process tree is dead. The claim that 'eval main does not synchronize' is unsupported by the cited source.",
+       "survives_because": "The cited source does not show the cleanup sequence, so the hypothesis cannot be confirmed or refuted. The existing comments suggest mitigations are in place.",
+       "narrowed_claim": "If eval/__main__.py does not wait for process termination before calling cleanup, there is a race condition.",
+       "settling_check": "Inspect eval/__main__.py to see the order of operations after run_gate: is there a wait or join before cleanup?",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "set-union-type-risk",
+       "verdict": "refuted",
+       "strongest_counterargument": "The cited source (lines 584-590) shows both ignored and doc_ignored are explicitly typed as frozenset[str]. The | operator between two frozensets is fully supported. The hypothesis incorrectly assumes doc_ignored could be a list, but the code defines it as frozenset.",
+       "survives_because": "The cited source directly contradicts the hypothesis: both variables are frozenset, so the union is safe.",
+       "narrowed_claim": "",
+       "settling_check": "grep -n 'doc_ignored' daedalus/structcore/index.py to confirm type annotation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "aggregation-exclusivity",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring of _by_provenance in harness.py is not shown in the cited source (lines 1-40 are only module docstring, not _by_provenance). The claim that _by_provenance is the ONLY aggregation path may refer to Tier 1 and Tier 2 results, not to gates. docref_gate is a gate, not part of the main eval aggregation. The exclusivity claim may be scoped to eval metrics.",
+       "survives_because": "The cited source does not include _by_provenance, so the claim cannot be verified. However, docref_gate computes its own aggregates, which are separate from eval metrics. The exclusivity may be false if docref_gate's results are considered part of the evaluation system.",
+       "narrowed_claim": "If docref_gate's aggregate metrics are used in the evaluation pipeline (e.g., reported alongside eval metrics), then the exclusivity claim is false.",
+       "settling_check": "Check if docref_gate's results are consumed by any module that also uses _by_provenance. grep for 'docref_gate' in harness.py.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "token-count-mismatch",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The docstring in slice.py (lines 213-235) explicitly acknowledges the difference and states it is deliberate: reduction_pct uses index-scoped token counts, while Tier-2 uses as-fed-to-model counts with headers and truncation. The hypothesis claims inconsistency, but the code documents it as intentional.",
+       "survives_because": "The cited source confirms the difference is known and documented, but the hypothesis is still valid because the inconsistency exists. The claim is correct: the denominators differ. The severity may be lower because it's intentional, but the hypothesis stands.",
+       "narrowed_claim": "The token counting methods differ between slice.py and eval/harness.py, leading to different reduction_pct values that are not directly comparable.",
+       "settling_check": "Compare the token counting implementation in slice.py (count_tokens) vs harness.py (_whole_repo_text) to confirm the differences.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "spectral-enrichment-claim",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The cited source for picker.py (lines 1-40) is only the module docstring, not the map_candidates function. The claim about 'rewrite_windows' from window_lines is not visible in the cited source. The docstring says spectral is optional, but without seeing the code, the claim cannot be fully evaluated.",
+       "survives_because": "The cited source does not include the map_candidates function, so the hypothesis cannot be refuted. The missing key issue is plausible if callers don't handle absent spectral keys.",
+       "narrowed_claim": "Callers of map_candidates may assume spectral keys are always present, leading to KeyError when spectral enrichment is omitted.",
+       "settling_check": "Inspect map_candidates implementation and all its callers for handling of missing spectral keys.",
+       "severity_after_review": "medium"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c3ffcef35d4f7d85fc2868a392d97a0ab9472be539c5830946d4f2adb983a021",
+    "objective_chars": 59983,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 24 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 24,
+  "inputs": 9
+ }
+}

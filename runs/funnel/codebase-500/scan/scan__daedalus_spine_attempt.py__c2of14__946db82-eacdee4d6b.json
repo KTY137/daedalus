@@ -1,0 +1,235 @@
+{
+ "task_id": "scan__daedalus_spine_attempt.py__c2of14__946db82",
+ "key": "scan__daedalus_spine_attempt.py__c2of14__946db82-eacdee4d6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 14: imports, constants, helpers, and GitCommandError class.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/attempt.py",
+     "chunk": "2 of 14",
+     "purpose": "Define constants, re-exports, and helper functions for attempt management.",
+     "symbols": [
+      {
+       "name": "PrimaryCheckoutWrite",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from daedalus.primary_tree; same class object."
+      },
+      {
+       "name": "GitCommandError",
+       "kind": "class",
+       "effects": [],
+       "note": "Custom exception for non-zero git command exit."
+      },
+      {
+       "name": "INTENT_KIND",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'attempt.candidate'."
+      },
+      {
+       "name": "STATE_CLEAN",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'clean'."
+      },
+      {
+       "name": "STATE_GATES_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'gates_failed'."
+      },
+      {
+       "name": "STATE_NO_CHANGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'no_change'."
+      },
+      {
+       "name": "STATE_RUNNER_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'runner_failed'."
+      },
+      {
+       "name": "STATE_WORKTREE_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'worktree_failed'."
+      },
+      {
+       "name": "STATE_STORAGE_UNAVAILABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'storage_unavailable'."
+      },
+      {
+       "name": "STATE_CANCELLED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'cancelled'."
+      },
+      {
+       "name": "ATTEMPT_STATES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of all state constants."
+      },
+      {
+       "name": "READ_ONLY_REPO_VERBS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of read-only git verbs."
+      },
+      {
+       "name": "GATE_OUTPUT_TAIL_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 4000."
+      },
+      {
+       "name": "DEFAULT_GATE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Float 900.0."
+      },
+      {
+       "name": "DEFAULT_GIT_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Float 120.0."
+      },
+      {
+       "name": "BRANCH_PREFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'daedalus-attempt'."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path resolved to two levels above the file."
+      },
+      {
+       "name": "_now_iso",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns current UTC time in ISO format."
+      },
+      {
+       "name": "_sha256_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns hex digest of SHA-256 of bytes."
+      },
+      {
+       "name": "_sha256_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns hex digest of SHA-256 of encoded text."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Slugifies text: lower, replace non-alphanumeric with hyphens, truncate, strip."
+      }
+     ],
+     "claims": [
+      {
+       "text": "THE FENCE LIVES IN ONE MODULE, and this file no longer owns a copy of it.",
+       "where": "comment lines 123-124",
+       "verdict": "uncheckable",
+       "why": "No definition or reference to 'FENCE' visible in this chunk; cannot verify."
+      },
+      {
+       "text": "`_identity` and `_overlap_reason` were defined here; `eval/correctness.py` then grew a SECOND answer to the same question that fails OPEN where this one fails closed (see :mod:`daedalus.primary_tree` for the measurement). Importing rather than re-deriving is the whole point -- a caller that needs the comparison must get THIS one.",
+       "where": "comment lines 125-131",
+       "verdict": "uncheckable",
+       "why": "References to symbols and modules not present in this chunk; cannot verify claims about their behavior or origin."
+      },
+      {
+       "text": "The only git verbs this module may aim at the primary checkout. Every one of them reports; none of them writes. Adding a verb here is the single place a reviewer has to look to know whether the no-write property still holds.",
+       "where": "comment lines 148-152",
+       "verdict": "uncheckable",
+       "why": "The verbs are defined, but no usage of them is present in this chunk; cannot verify that they are used only for reporting and not writing."
+      },
+      {
+       "text": "Gate output is retained in full on GateResult. Only the ledger copy is trimmed -- an unbounded pytest log inside a SQLite row would grow the ledger without making any decision better; the digest keeps the trimmed copy honest.",
+       "where": "comment lines 154-158",
+       "verdict": "uncheckable",
+       "why": "GateResult and ledger are not defined in this chunk; cannot verify trimming behavior."
+      },
+      {
+       "text": "Re-exported from :mod:`daedalus.primary_tree`, which now owns it. It is the SAME class object, so every existing ``except PrimaryCheckoutWrite`` and ``pytest.raises(PrimaryCheckoutWrite)`` against this module keeps working.",
+       "where": "docstring for PrimaryCheckoutWrite re-export",
+       "verdict": "uncheckable",
+       "why": "Cannot verify that the re-exported class is the same object without seeing the definition in daedalus.primary_tree."
+      },
+      {
+       "text": "A git command run by this module exited non-zero.",
+       "where": "docstring of GitCommandError",
+       "verdict": "uncheckable",
+       "why": "No usage of GitCommandError in this chunk; cannot verify that it is only raised for non-zero git commands."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Imports include _identity, assert_write_allowed, nearest_existing, _overlap_reason from daedalus.primary_tree.",
+       "where": "lines 132-137",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Constant GATE_OUTPUT_TAIL_CHARS is set to 4000, with comment about trimming ledger copy.",
+       "where": "line 159",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "All helper functions are private (underscore prefix).",
+       "where": "lines 168-180",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fe548c090adf805b0a0dffd8065bd06a5f0178a3bee5ed3a6ce0ab39c65815c4",
+    "objective_chars": 4266,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/attempt.py [2/14]",
+  "rev": "946db82",
+  "module": "daedalus/spine/attempt.py",
+  "index": 2,
+  "total": 14,
+  "first_line": 121
+ }
+}

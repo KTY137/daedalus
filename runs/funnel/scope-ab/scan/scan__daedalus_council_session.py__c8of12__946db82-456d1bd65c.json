@@ -1,0 +1,161 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c8of12__946db82",
+ "key": "scan__daedalus_council_session.py__c8of12__946db82-456d1bd65c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 defines dry_run_plan, _role_for, _is_local_http, default_participants, and VENDOR_KEYS. Claims about pure identity properties, loopback detection, and lane assignment are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "dry_run_plan docstring | high | Claims 'No adapter method that could reach a vendor is touched' but relies on _role_for and _round_body which may indirectly call vendor code. | Check if _role_for or _round_body invoke any adapter methods or vendor calls.",
+     "default_participants docstring | medium | Claims 'Lanes come from the council profiles, NOT from a default argument here' but the code does not show how lanes are assigned. | Verify the CouncilAdapter initialization sets lane from profiles.",
+     "default_participants docstring | medium | Claims 'Ollama host is passed EXPLICITLY and OLLAMA_HOST is neither read for routing nor written' but the code initializes host from DEFAULT_BENCH_OLLAMA_HOST. | Confirm DEFAULT_BENCH_OLLAMA_HOST does not read OLLAMA_HOST."
+    ],
+    "todos": [
+     "Verify that _round_body does not trigger any vendor calls to uphold dry_run_plan's promise.",
+     "Check that CouncilAdapter.__init__ assigns lane from profiles, not from a default.",
+     "Ensure DEFAULT_BENCH_OLLAMA_HOST is a literal constant, not derived from environment."
+    ],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "8 of 12",
+     "purpose": "Defines dry_run_plan, role rotation, localhost check, and default participant builder.",
+     "symbols": [
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a plan dict without calling any vendor adapter methods."
+      },
+      {
+       "name": "_role_for",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns role from pool based on index and round number."
+      },
+      {
+       "name": "VENDOR_KEYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of vendor key strings: anthropic, openai, google, local."
+      },
+      {
+       "name": "_HTTP_HOST_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Compiled regex to extract host from HTTP URL."
+      },
+      {
+       "name": "_LOCAL_HOSTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of loopback host strings."
+      },
+      {
+       "name": "_is_local_http",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if endpoint is a loopback HTTP URL."
+      },
+      {
+       "name": "default_participants",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds default roster of CouncilAdapter instances from vendor keys."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Exactly what :func:`convene` would do, WITHOUT calling anything. No adapter method that could reach a vendor is touched: only the identity properties (actor, independence class, lane), which are pure.",
+       "where": "dry_run_plan docstring",
+       "verdict": "uncheckable",
+       "why": "The claim depends on _round_body and _role_for not calling vendor methods; these are defined elsewhere in the file but not shown in this chunk."
+      },
+      {
+       "text": "True only for a loopback HTTP endpoint. ``localhost``-ish and nothing else. \"Local\" was a property of an environment variable nobody had ever set; here it is a property of the RESOLVED host, checked, not asserted.",
+       "where": "_is_local_http docstring",
+       "verdict": "kept",
+       "why": "The function checks if the host part of the URL is in _LOCAL_HOSTS (127.0.0.1, ::1, localhost). It does not check environment variables."
+      },
+      {
+       "text": "Lanes come from the council profiles, NOT from a default argument here: ``codex`` and ``agy`` are ``untrusted`` (allow-list tier ON) unless the operator opts in per council.",
+       "where": "default_participants docstring",
+       "verdict": "uncheckable",
+       "why": "The code does not show how lanes are assigned; it relies on CouncilAdapter initialization which is not visible in this chunk."
+      },
+      {
+       "text": "The Ollama host is passed EXPLICITLY and ``OLLAMA_HOST`` is neither read for routing nor written -- normalising a remote Ollama into this process would retroactively falsify ``offload.py``'s ``lane=\"trusted\"`` justification from a code path nobody edited.",
+       "where": "default_participants docstring",
+       "verdict": "uncheckable",
+       "why": "The code reads DEFAULT_BENCH_OLLAMA_HOST from vendors module; whether that constant reads OLLAMA_HOST is not visible in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "dry_run_plan returns a plan with 'advisory': True and estimated token counts based on _round_body and evidence text tokens. It does not call any vendor methods, but uses helper functions that may have side effects.",
+       "where": "dry_run_plan function body",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_is_local_http only matches HTTP URLs; other schemes (e.g., https) are not considered. The regex requires 'http' or 'https' at start.",
+       "where": "_is_local_http function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "default_participants imports adapters inside the function to avoid circular imports, but the docstring references offload.py which is not present in this chunk.",
+       "where": "default_participants function",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4e657af0202a296d496b5c246b1a623b0916e799c1255c74f7f8235ccb27a166",
+    "objective_chars": 6139,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [8/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 8,
+  "total": 12,
+  "first_line": 841
+ }
+}

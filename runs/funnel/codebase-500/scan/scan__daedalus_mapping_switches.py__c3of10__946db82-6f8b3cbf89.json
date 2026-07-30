@@ -1,0 +1,205 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c3of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c3of10__946db82-6f8b3cbf89",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 10: internal helpers for AST analysis and environment variable extraction.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "3 of 10",
+     "purpose": "Internal helpers for AST walking, constant extraction, and environment variable detection.",
+     "symbols": [
+      {
+       "name": "_read_text",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads file content with fallback encoding."
+      },
+      {
+       "name": "_tokens",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Splits name by underscore."
+      },
+      {
+       "name": "_first_sentence",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts first sentence from text."
+      },
+      {
+       "name": "_Binding",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for import bindings."
+      },
+      {
+       "name": "_ModuleInfo",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for module analysis info."
+      },
+      {
+       "name": "_module_constants",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts module-level constants."
+      },
+      {
+       "name": "_walk",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Yields node and its ancestors."
+      },
+      {
+       "name": "_enclosing",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Finds nearest enclosing node of given types."
+      },
+      {
+       "name": "_qualname",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds qualified name from parents."
+      },
+      {
+       "name": "_src",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns source code representation."
+      },
+      {
+       "name": "_is_environ",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if node is os.environ or bare environ."
+      },
+      {
+       "name": "_env_read",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Extracts environment variable read info."
+      }
+     ],
+     "claims": [
+      {
+       "text": "One ``from X import NAME`` visible at a point in a module.",
+       "where": "_Binding docstring",
+       "verdict": "uncheckable",
+       "why": "Docstring describes the purpose of _Binding, but no code in this chunk validates that it actually corresponds to such imports."
+      },
+      {
+       "text": "`os.environ` or a bare `environ` imported from os.",
+       "where": "_is_environ docstring",
+       "verdict": "kept",
+       "why": "The function checks for ast.Attribute with attr='environ' and value being Name('os'), or ast.Name with id='environ'."
+      },
+      {
+       "text": "Return (name_expr_source_marker, default_expr, via) for an env read.",
+       "where": "_env_read docstring",
+       "verdict": "uncheckable",
+       "why": "The function signature returns tuple, but the code for the full return is not present in this chunk; the docstring claim cannot be fully verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _read_text has two try blocks; the inner try uses errors='replace' but catches UnicodeDecodeError, while the outer catches both OSError and UnicodeDecodeError. This is redundant because if the outer catches UnicodeDecodeError, it will fall to the inner try, which also catches it (but then re-raises OSError only). The logic is correct but slightly confusing.",
+       "where": "_read_text lines 3-9",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _first_sentence, the stop characters are '. ' and '; ', but the code searches for them with find() and then takes slice up to idx+1. If the text ends with a period without a space, it won't be considered a stop, which might be intentional but could miss sentences ending with period at end of string.",
+       "where": "_first_sentence line 22",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In _module_constants, the function only handles ast.Assign and ast.AnnAssign with a value that is an ast.Constant. It does not handle tuple unpacking or other complex assignments, which is likely intentional for its use case.",
+       "where": "_module_constants",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _walk yields the node and its parents, but the parent tuple is built by appending the current node. This means each node's parent tuple includes itself as the last element, which is unconventional and may cause confusion.",
+       "where": "_walk line 47",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In _qualname, the function builds parts from parents but only includes ClassDef, FunctionDef, AsyncFunctionDef. It does not handle AsyncFunctionDef correctly? Actually it does, but note that it also adds the node itself if it is one of those types. The logic seems correct.",
+       "where": "_qualname",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment before _env_read says 'Load context only: `os.environ[k] = v` sets a variable, it is not a' but the comment is cut off mid-sentence. The code following checks for Subscript with _is_environ, which matches reads, not writes. The comment might be misleading.",
+       "where": "comment line 80",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "da8da5cc0332df591e978db367e4e1d0faf3facd009b7116ca3f485c5545ed00",
+    "objective_chars": 4339,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [3/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 3,
+  "total": 10,
+  "first_line": 241
+ }
+}

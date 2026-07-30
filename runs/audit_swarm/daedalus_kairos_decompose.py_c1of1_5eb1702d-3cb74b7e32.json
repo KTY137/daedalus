@@ -1,0 +1,144 @@
+{
+ "task_id": "daedalus/kairos/decompose.py#c1of1#5eb1702d",
+ "key": "daedalus_kairos_decompose.py_c1of1_5eb1702d-3cb74b7e32",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 9 kept, 3 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Nothing leaves the machine (local server), so this is cheap and private.\" | _ask_model | KEPT | The function only contacts a local Ollama server via localhost; no external network calls.",
+     "CLAIM | \"FALLBACK (deterministic): if the local server is unreachable, the call errors, or the response can't be parsed, split by path\" | decompose | KEPT | _fallback splits by path when _ask_model returns [].",
+     "CLAIM | \"Contract: decompose NEVER raises\" | decompose | KEPT | All exceptions in _ask_model are caught, and decompose has no other raising paths.",
+     "CLAIM | \"ALWAYS returns >=1 subtask\" | decompose | KEPT | _fallback always returns a list with at least one item.",
+     "CLAIM | \"import-safe -- no network I/O happens at import time, only inside the call.\" | module | KEPT | No network calls at module level; server_reachable is called inside _ask_model.",
+     "CLAIM | \"Best-effort dynamic breakdown via the local Ollama server. Returns [] (never raises) when the server is down, the call fails, or parsing fails.\" | _ask_model | KEPT | The function returns [] in all error cases and never raises.",
+     "CLAIM | \"Defensively parse a model response into a list of subtask dicts.\" | _parse_subtasks | KEPT | Handles JSON decode errors, extracts from prose, normalizes items.",
+     "CLAIM | \"Returns [] when nothing usable is found (caller then falls back).\" | _parse_subtasks | KEPT | Returns [] if no valid subtasks can be parsed.",
+     "CLAIM | \"Never raises; always returns at least one subtask.\" | decompose | KEPT | Same as previous; contract holds.",
+     "CLAIM | \"Tries the local model first (dynamic), then falls back to a deterministic per-path split.\" | decompose | KEPT | Calls _ask_model first, then _fallback if empty.",
+     "CLAIM | \"Returns <= max_subtasks subtasks.\" | decompose | BROKEN | Line: `return subtasks[:max_subtasks]` ensures <= max_subtasks, but the docstring says '>=1 subtask' and 'at least one', not '<= max_subtasks'. However, the claim about max_subtasks is not in docstring; the docstring says 'at most max_subtasks'? Actually the docstring says 'max_subtasks' parameter but does not explicitly claim 'returns <= max_subtasks'. The function does slice to max_subtasks, so it is kept. Wait: re-evaluating. The docstring does not claim a max bound; the parameter is documented but no claim about return length. So no broken claim here. Actually, I need to re-check claims. The user prompt says 'max_subtasks' but the docstring does not say 'returns at most max_subtasks'. So no broken claim. I'll remove this entry.",
+     "CLAIM | \"Each subtask is {'objective': str, 'paths': list[str]}\" | decompose | KEPT | _coerce_item ensures that structure.",
+     "D1 | max_subtasks | parameter in _user_prompt and _ask_model and decompose, but not read in _fallback | WRONG CONCLUSION: Caller may think max_subtasks affects fallback, but it is ignored there.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bc58aa9fcfe1b0c3d5bcae0f42aeb6de0824529156d8b339e2f6db9044e39b38",
+    "objective_chars": 8474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 1 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Nothing leaves the machine (local server)\" | _ask_model | UNCHECKABLE | Would need to verify that Ollama truly runs locally and no data is sent externally",
+     "CLAIM | \"if the local server is unreachable, the call errors, or the response can't be parsed, split by path\" | _ask_model | KEPT | _ask_model returns [] on unreachable, error, or parse failure, triggering fallback",
+     "CLAIM | \"one subtask per supplied path (or a single passthrough subtask when there is <=1 path)\" | _fallback | KEPT | _fallback returns one subtask per path if >1, else a single subtask with all paths",
+     "CLAIM | \"NEVER raises\" | decompose | KEPT | decompose catches all exceptions in _ask_model and _fallback does not raise",
+     "CLAIM | \"ALWAYS returns >=1 subtask\" | decompose | KEPT | _fallback always returns at least one subtask (line 117-118)",
+     "CLAIM | \"import-safe -- no network I/O happens at import time, only inside the call\" | module | UNCHECKABLE | Would need to check all imports for side effects; but imports shown are standard library and local modules, likely safe",
+     "CLAIM | \"Returns [] when nothing usable is found (caller then falls back)\" | _parse_subtasks | KEPT | Returns [] at lines 82, 85, 96, 98",
+     "CLAIM | \"Best-effort dynamic breakdown via the local Ollama server. Returns [] (never raises) when the server is down, the call fails, or parsing fails.\" | _ask_model | KEPT | Returns [] on server unreachable, ProviderHTTPError, ValueError, OSError, or Exception",
+     "CLAIM | \"Tries the local model first (dynamic), then falls back to a deterministic per-path split.\" | decompose | KEPT | decompose calls _ask_model first, then _fallback if subtasks empty",
+     "CLAIM | \"Never raises; always returns at least one subtask.\" | decompose | KEPT | Same as above",
+     "CLAIM | \"Each subtask is {\"objective\": str, \"paths\": list[str]}\" | decompose | KEPT | _coerce_item returns dict with those keys; _fallback returns same shape",
+     "CLAIM | \"Normalise one proposed subtask into {\"objective\": str, \"paths\": [str]}\" | _coerce_item | KEPT | Returns dict with those keys or None",
+     "CLAIM | \"Accepts a top-level JSON array, or an object wrapping the array under subtasks/tasks/items, or a single subtask object.\" | _parse_subtasks | KEPT | Lines 76-95 handle these cases",
+     "CLAIM | \"Any junk is dropped.\" | _parse_subtasks | KEPT | Junk items are filtered by _coerce_item returning None"
+    ],
+    "todos": [
+     "CLAIM | 'Nothing leaves the machine (local server)' is uncheckable without verifying network isolation of Ollama"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bc58aa9fcfe1b0c3d5bcae0f42aeb6de0824529156d8b339e2f6db9044e39b38",
+    "objective_chars": 8474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 9 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"decompose NEVER raises\" | decompose | KEPT | all callable code paths catch exceptions or return safely",
+     "CLAIM | \"ALWAYS returns >=1 subtask\" | decompose | KEPT | fallback guarantees at least one subtask",
+     "CLAIM | \"import-safe -- no network I/O happens at import time\" | decompose | KEPT | no top-level network calls or I/O",
+     "CLAIM | \"Nothing leaves the machine (local server), so this is cheap and private\" | _ask_model | UNCHECKABLE | depends on whether Ollama server is truly local; code only connects to OLLAMA_HOST, which defaults to localhost, but user can set it to a remote host. The claim is about privacy, not code correctness.",
+     "CLAIM | \"Best-effort dynamic breakdown via the local Ollama server. Returns [] (never raises) when the server is down, the call fails, or parsing fails.\" | _ask_model | KEPT | all error paths return []",
+     "CLAIM | \"Defensively parse a model response into a list of subtask dicts. Accepts a top-level JSON array, or an object wrapping the array under subtasks/tasks/items, or a single subtask object. Any junk is dropped. Returns [] when nothing usable is found (caller then falls back).\" | _parse_subtasks | KEPT | handles all mentioned shapes and returns [] on failure",
+     "CLAIM | \"Normalise one proposed subtask into {\"objective\": str, \"paths\": [str]}\" | _coerce_item | KEPT | returns dict with those keys or None",
+     "CLAIM | \"Tries the local model first (dynamic), then falls back to a deterministic per-path split.\" | decompose | KEPT | calls _ask_model then _fallback if empty",
+     "CLAIM | \"Never raises; always returns at least one subtask.\" | decompose | KEPT | same as first two claims, consistent",
+     "CLAIM | \"Return ONLY a json object of the form {\"subtasks\": [{\"objective\": \"<what to do>\", \"paths\": [\"<repo-relative path>\"]}]}\" | _SYSTEM | BROKEN | The system prompt says 'Return ONLY a json object of the form ...' but the code also accepts a top-level array, an object with keys 'tasks', 'items', 'steps', and a single subtask object. The prompt is more restrictive than the parser, potentially confusing the model.",
+     "CLAIM | \"Keep each objective short and concrete. Use only the supplied candidate paths; never invent files.\" | _SYSTEM | KEPT | instruction is advisory, not enforceable in code; code does not prevent model from inventing files but prompt instructs not to",
+     "D1 | _user_prompt | parameter `max_subtasks` is used in the function body | no mechanical issue",
+     "D2 | none | no except that swallows and continues where prose says refuse",
+     "D3 | none | no guard-after-side-effect pattern",
+     "D4 | none | no impossible branches"
+    ],
+    "todos": [
+     "Update _SYSTEM prompt to describe all accepted response shapes, or restrict _parse_subtasks to only accept the shape described in _SYSTEM."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bc58aa9fcfe1b0c3d5bcae0f42aeb6de0824529156d8b339e2f6db9044e39b38",
+    "objective_chars": 8474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/decompose.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 6025
+ }
+}

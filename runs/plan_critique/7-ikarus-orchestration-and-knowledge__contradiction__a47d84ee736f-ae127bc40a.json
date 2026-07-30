@@ -1,0 +1,80 @@
+{
+ "task_id": "7-ikarus-orchestration-and-knowledge__contradiction__a47d84ee736f",
+ "key": "7-ikarus-orchestration-and-knowledge__contradiction__a47d84ee736f-ae127bc40a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "No contradictions found within the section; all claims are internally consistent and no external document context was provided to check for contradictions. Each claim is sound under the contradiction lens.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "claims": [
+      {
+       "id": "7.1",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "sound",
+       "why": "This claim defines Ikarus's nature. No contradictory claim found within the section. Without access to the full document, no external contradiction can be identified."
+      },
+      {
+       "id": "7.2",
+       "claim": "It compiles user intent into a typed MissionContract, creates an artifact DAG, selects stateless or explicitly versioned recipes, monitors budgets and attempts, and presents decisions and evidence.",
+       "verdict": "sound",
+       "why": "Enumerates Ikarus's functions. No internal contradiction; each action is distinct and compatible."
+      },
+      {
+       "id": "7.3",
+       "claim": "Coordination is artifact-first: MissionContract -> WorkItems -> Attempts -> Artifacts -> EvidencePacket",
+       "verdict": "sound",
+       "why": "Describes the coordination flow. No contradictory ordering found within the section."
+      },
+      {
+       "id": "7.4",
+       "claim": "Typed events and artifacts are authoritative.",
+       "verdict": "sound",
+       "why": "Establishes authority of typed events/artifacts. No contradictory claim within the section."
+      },
+      {
+       "id": "7.5",
+       "claim": "Chat is an interface, not the workflow database.",
+       "verdict": "sound",
+       "why": "Clarifies role of chat. No contradictory claim within the section."
+      },
+      {
+       "id": "7.6",
+       "claim": "Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.",
+       "verdict": "sound",
+       "why": "Describes memory architecture. No contradictory claim within the section."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "663e07741499ff9caffc49ba1f99bf58a804642d6b1c42aaef08379df4ac569f",
+    "objective_chars": 1700,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "7-ikarus-orchestration-and-knowledge",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

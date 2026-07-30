@@ -1,0 +1,146 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c7of8__946db82",
+ "key": "scan__daedalus_council_publish.py__c7of8__946db82-670bbbae7e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 7 of 8 of publish.py: contains publish_to_pr, read_pr_thread, _parse_comment definitions with docstrings and comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "publish_to_pr | high | Uses screen_egress before runner invocation; if screen_egress raises instead of returning a tuple, the function may crash. | Check screen_egress implementation to confirm it always returns a tuple or None.",
+     "publish_to_pr | medium | The gate runs before dry_run check; dry_run may be blocked by secret floor, which might be unintended. | Confirm design intent: should dry_run bypass the gate?",
+     "read_pr_thread | medium | Uses screen_egress with only pr and repo; but comment body is not screened, potentially leaking sensitive content. | Verify if comment body screening is handled elsewhere or if this is a gap."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "7 of 8",
+     "purpose": "Contains publish_to_pr and read_pr_thread public functions, and _parse_comment helper.",
+     "symbols": [
+      {
+       "name": "publish_to_pr",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress",
+        "repository_mutation"
+       ],
+       "note": "Public function that renders verdict and posts as PR comment via gh subprocess."
+      },
+      {
+       "name": "read_pr_thread",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Public function that reads PR comments via gh subprocess and returns structured turns."
+      },
+      {
+       "name": "_parse_comment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Private helper that converts a gh comment object to PRTurn."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.",
+       "where": "publish_to_pr docstring",
+       "verdict": "uncheckable",
+       "why": "PUBLISH_STATUSES is not defined in this chunk; cannot verify that all paths return a status in that set."
+      },
+      {
+       "text": "``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "Code checks screen_egress first, then returns early with dry_run status and markdown, never calling runner."
+      },
+      {
+       "text": "The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "screen_egress is called before the dry_run check; if it hits, dry_run is not returned."
+      },
+      {
+       "text": "The body goes to gh on STDIN via ``--body-file -``: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "Code constructs argv with '--body-file', '-' and passes body as stdin to runner; no truncation or alternative method is used."
+      },
+      {
+       "text": "Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "READ_STATUSES is not defined in this chunk; cannot verify that all paths return a status in that set."
+      },
+      {
+       "text": "Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.",
+       "where": "read_pr_thread docstring",
+       "verdict": "kept",
+       "why": "Function returns ThreadResult with turns parsed from comments; no bus or hash-chain operation is performed."
+      },
+      {
+       "text": "Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).",
+       "where": "_parse_comment docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is truncated; only the first few lines are visible, showing extraction of author_obj but not the full handling. Cannot confirm tolerance for both shapes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "publish_to_pr calls screen_egress before checking dry_run; if secret floor fires, dry_run is not honored.",
+       "where": "publish_to_pr lines 746-757",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "read_pr_thread calls screen_egress with only pr and repo, not the comment body; body is not screened.",
+       "where": "read_pr_thread line 781",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_parse_comment docstring claims tolerance for two author shapes, but the code shown only extracts author_obj; the rest is cut off.",
+       "where": "_parse_comment lines 805-807",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "14aa5ff895edc87c46b92b3a4b37f643f1c4cab90218b9daca67ee15e9e91f14",
+    "objective_chars": 6651,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [7/8]",
+  "rev": "946db82",
+  "module": "daedalus/council/publish.py",
+  "index": 7,
+  "total": 8,
+  "first_line": 721
+ }
+}

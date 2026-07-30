@@ -1,0 +1,127 @@
+{
+ "task_id": "review__b019__946db82",
+ "key": "review__b019__946db82-26179f4ef4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed 9 hypotheses: 2 confirmed, 2 narrowed, 5 refuted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "process-spawn-race",
+       "verdict": "refuted",
+       "strongest_counterargument": "All process spawns in the cited code are sequential within a single synchronous flow; there is no concurrent spawning because Python's GIL and the absence of threading/async yields ensure sequential execution.",
+       "survives_because": "The hypothesis assumes concurrency where none exists. The code is synchronous and blocking; each spawn completes before the next begins.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect the call graph: confirm that `stream()`, `interrupt()`, `terminate()`, and `_run_gates()` are never called concurrently (no threads, no async tasks).",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "determinism-via-sort-or-seed",
+       "verdict": "narrowed",
+       "strongest_counterargument": "The docstring in bus.py is simply imprecise; the actual sort key may be the intended behavior, and archive.py's determinism is achieved via seeded RNG regardless of sort order.",
+       "survives_because": "The sort key mismatch between bus.py's docstring and implementation is a real documentation bug, but it does not affect reproducibility because the implementation is consistent. The narrowed claim is a documentation inconsistency.",
+       "narrowed_claim": "bus.py's docstring for append_round states 'sorted by actor id' but the implementation sorts by (actor, role, status, canonical_body_json), which is a documentation error but not a functional bug.",
+       "settling_check": "Run `grep -A5 'def append_round' daedalus/council/bus.py` to compare docstring and sort key.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "missing-status-coverage",
+       "verdict": "refuted",
+       "strongest_counterargument": "The _VERDICT mapping is used only for rendering specific known statuses; any unknown status would be handled by a default case or simply not appear because the data source is controlled.",
+       "survives_because": "No evidence of a default handler, but the risk is low because statuses are generated within the same codebase and _VERDICT is likely exhaustive. If a new status is added, the developer would update the mapping.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect all status strings defined in the codebase and verify each has an entry in _VERDICT, or confirm that render_table has a fallback (e.g., str(status)).",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "uncheckable-ikarus-watcher",
+       "verdict": "confirmed",
+       "strongest_counterargument": "The help strings may refer to external systems not part of this codebase, or the strings are aspirational and the actual behavior is defined elsewhere.",
+       "survives_because": "Neither Ikarus nor watcher are defined or referenced in any scanned file; the CLI help promises functionality that does not exist in the codebase, which is a real gap.",
+       "narrowed_claim": "The orchestrate.py CLI help strings reference undefined components 'Ikarus' and 'watcher', which are not implemented or imported anywhere in the scanned reports.",
+       "settling_check": "Search the entire codebase for 'Ikarus' and 'watcher' definitions: `grep -r 'Ikarus' .` and `grep -r 'class.*Watcher' .`.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "closed-vocabulary-enforcement",
+       "verdict": "refuted",
+       "strongest_counterargument": "Other modules that deal with similar values either use their own enums or validate via the same vendors.py imports; inconsistencies are prevented by design.",
+       "survives_because": "No concrete evidence that other modules bypass validation; the hypothesis is speculative. Most modules import from vendors.py and reuse the same constants.",
+       "narrowed_claim": "",
+       "settling_check": "Check imports in projection_worker.py and worktree.py to see if they import STATUSES/LANES from vendors.py.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "eval-reads-fanout-results",
+       "verdict": "refuted",
+       "strongest_counterargument": "all_tasks() reads from a dedicated mint store path, not from the fanout output directory. The docstring is accurate.",
+       "survives_because": "No evidence that all_tasks() scans the fanout directory; the hypothesis assumes a directory overlap without proof.",
+       "narrowed_claim": "",
+       "settling_check": "Trace all_tasks() implementation to confirm its source path is distinct from fanout's output directory.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "tokenizer-label-fragility",
+       "verdict": "confirmed",
+       "strongest_counterargument": "Tokenizer name strings are defined in a single location and are unlikely to change the 'heuristic' substring unexpectedly.",
+       "survives_because": "The fragile string matching is a real maintenance risk; if a tokenizer name is renamed without updating the check, the label becomes wrong.",
+       "narrowed_claim": "The label logic in slice.py relies on substring 'heuristic' in tokenizer name; renaming tokenizers could silently break the label.",
+       "settling_check": "List all tokenizer name strings in drift.py and verify each contains 'heuristic' iff it is heuristic.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "enum-annotation-stripping",
+       "verdict": "refuted",
+       "strongest_counterargument": "The comment in typegraph.py is a design note; parse.py likely does strip annotations for Enum members as assumed, or the code handles empty annotations gracefully.",
+       "survives_because": "No evidence to the contrary; the hypothesis is based on a missing confirmation but the behavior is likely correct.",
+       "narrowed_claim": "",
+       "settling_check": "Inspect parse.py's handling of Enum member annotations: search for 'annotation' and 'Enum' in parse.py.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "stale-cache-undermines-gate",
+       "verdict": "refuted",
+       "strongest_counterargument": "run_tier1 likely does not use the cache module for recall values; the gate computes recall fresh each time by running the analysis.",
+       "survives_because": "No evidence that run_tier1 caches recall values; the hypothesis assumes a cache dependency that may not exist.",
+       "narrowed_claim": "",
+       "settling_check": "Check run_tier1 implementation to see if it calls cache.get_many or cache.set for recall data.",
+       "severity_after_review": "none"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c0fbe1f49105d47c03a77c59559faf68b21242f8e2e3f34d809dfcd59dda68c1",
+    "objective_chars": 10894,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 19 (9 inputs)",
+  "rev": "946db82",
+  "bucket": 19,
+  "inputs": 9
+ }
+}

@@ -1,0 +1,184 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c8of13__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c8of13__946db82-0ffdcc5c41",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 of 13: defines counts property, render method, snapshot constants, and _digest function. Claims about first-run behavior and digest are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_SNAPSHOT_NOTE | medium | The note says 'do not hand-edit anything except acceptances', but the code does not enforce this; a user could edit other fields and the digest would mismatch. | Check if there is validation elsewhere that rejects digests that don't match the mechanical fields.",
+     "render() | low | In the first_run branch, the message says 'recorded' if wrote_snapshot else 'found', but the variable 'verb' is used for labels like 'islands', which may not be appropriate for 'found' vs 'recorded'. The logic uses the same verb for all keys, but the message wording might be misleading. | Review the intended semantics of 'recorded' vs 'found' and whether they should differ per key."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "8 of 13",
+     "purpose": "Defines counts property, render method, snapshot constants, and _digest function.",
+     "symbols": [
+      {
+       "name": "counts",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns a sorted dictionary of counts per kind from self.items."
+      },
+      {
+       "name": "render",
+       "kind": "method",
+       "effects": [],
+       "note": "Generates a formatted string report of drift status, including first-run handling and blocking items."
+      },
+      {
+       "name": "_SNAPSHOT_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant warning against hand-editing snapshot fields except acceptances."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'digest' used as key for digest in snapshot."
+      },
+      {
+       "name": "_MECHANICAL_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of keys considered mechanical (excluded from human edit)."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes a hash over the mechanical half of the snapshot doc, excluding acceptances and note."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A hash over the mechanical half only.",
+       "where": "_digest docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring says it hashes only mechanical fields, but the implementation is truncated; we cannot verify which fields are included."
+      },
+      {
+       "text": "acceptances is excluded because it is the one part a human is SUPPOSED to write; note because it is a constant.",
+       "where": "_digest docstring",
+       "verdict": "uncheckable",
+       "why": "The actual hash computation is not shown; we cannot confirm exclusion."
+      },
+      {
+       "text": "Canonical JSON with sorted keys, so the digest is a function of the values and not of the writer's key order -- two runs over an unchanged tree still produce identical bytes.",
+       "where": "_digest docstring",
+       "verdict": "uncheckable",
+       "why": "The implementation is not present; we cannot verify that canonical JSON with sorted keys is used."
+      },
+      {
+       "text": "repo_state is INSIDE, and that is not an accident. It is the field that ...",
+       "where": "_digest docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring is cut off; we cannot verify the claim about repo_state being included."
+      },
+      {
+       "text": "Nothing is failing: this run only established the baseline.",
+       "where": "render(), line ~874",
+       "verdict": "kept",
+       "why": "In first_run with wrote_snapshot, the code appends this exact message."
+      },
+      {
+       "text": "NOTHING WAS COMPARED. There is no baseline to compare against, and a gate that reports OK against nothing is the exact failure this subsystem exists to prevent.",
+       "where": "render(), line ~879",
+       "verdict": "kept",
+       "why": "In first_run without wrote_snapshot, the code appends this exact message."
+      },
+      {
+       "text": "Record one explicitly: `daedalus map` (writes the page too) or `python -m daedalus.mapping.drift --init`.",
+       "where": "render(), line ~882",
+       "verdict": "uncheckable",
+       "why": "The claim references commands not defined in this chunk; cannot verify they exist or behave as described."
+      },
+      {
+       "text": "To accept temporarily, add to \"acceptances\" in ...",
+       "where": "render(), line ~915",
+       "verdict": "uncheckable",
+       "why": "The claim describes a mechanism (acceptances in snapshot) that is not fully defined in this chunk; cannot verify the exact format or behavior."
+      },
+      {
+       "text": "'since' may not be in the future and 'until' may be at most MAX_HORIZON_DAYS days after 'since'",
+       "where": "render(), line ~920",
+       "verdict": "uncheckable",
+       "why": "The constant MAX_HORIZON_DAYS is not defined in this chunk; cannot verify the constraint."
+      },
+      {
+       "text": "the item comes back when it passes.",
+       "where": "render(), line ~921",
+       "verdict": "uncheckable",
+       "why": "The behavior of acceptances expiring is not implemented in this chunk; cannot verify."
+      },
+      {
+       "text": "GENERATED by daedalus.mapping.drift -- do not hand-edit anything except 'acceptances'; every other field, INCLUDING repo_state, is covered by 'digest'. Regenerate with: python -m daedalus.mapping.drift --refresh",
+       "where": "_SNAPSHOT_NOTE",
+       "verdict": "uncheckable",
+       "why": "The claim about digest covering fields is not verifiable without seeing the digest implementation; the regeneration command is not defined in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The render method uses self.state.get('counts', {}) but the counts property computes from self.items; there is potential inconsistency if state is not updated.",
+       "where": "render(), line 844",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In the first_run branch, the variable 'verb' is set once and used for all label groups, but the message wording ('recorded' vs 'found') may not be appropriate for every label (e.g., 'shims nothing reaches' found).",
+       "where": "render(), lines 856-862",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The render method returns early for first_run without checking self.ok or self.items; this is intentional but means first_run reports are always generated regardless of drift.",
+       "where": "render(), line 870",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _digest function is documented but its implementation is truncated; we cannot verify its correctness or security.",
+       "where": "_digest, line 941",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "de71c668bc634769d5a8a95f0897b4b1988f5066d35d649b43f487fd190232a5",
+    "objective_chars": 6480,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [8/13]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 8,
+  "total": 13,
+  "first_line": 841
+ }
+}

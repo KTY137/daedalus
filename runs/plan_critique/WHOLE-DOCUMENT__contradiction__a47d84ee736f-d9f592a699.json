@@ -1,0 +1,279 @@
+{
+ "task_id": "WHOLE-DOCUMENT__contradiction__a47d84ee736f",
+ "key": "WHOLE-DOCUMENT__contradiction__a47d84ee736f-d9f592a699",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Multiple cross-section contradictions: Gate 0 requirements conflict with Gate 1 Forest build (section 8 vs 10), Gate 5 comparison claim contradicts section 4 claim 9, section 5 Forest definition conflicts with Gate 2 Forest v2, section 3 forbids new products but section 2 mentions AlphaEvolve as target, section 4 claim 3 isolation is undermined by section 6 latent atlas, section 4 claim 5 promotion contradicts section 8 step 10, section 4 claim 10 amendment protocol conflicts with section 15, section 7 Ikarus persistence conflicts with section 12 forbidden chat state, section 13 kill criteria ",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "0 | high | Section 0 claims sole semantic authority but section 4 claim 10 says changes only through amendment protocol, yet section 15 amendment protocol requires owner approval which is not defined in section 0 authority model. | Check if owner approval is defined as a capability policy; if not, section 4 claim 10 is unenforceable.",
+     "1 | high | Section 1 says 'No model prompt or local hook is a security boundary' and 'Until Gate 0 closes, the guards... do not claim to cover every external client', which directly contradicts section 4 claim 3 'Isolation' that candidate execution is capability-bounded. | Demonstrate a candidate bypassing the guards via --no-verify or direct filesystem write.",
+     "2 | medium | Section 2 north star says 'outperform AlphaEvolve' is a target, but section 12 forbids 'a marketing clone whose comparison protocol is not reproducible' and section 10 Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available', making the target impossible to verify. | Attempt to design a reproducible comparison to AlphaEvolve that satisfies Gate 5 constraints; likely fails.",
+     "3 | high | Section 3 says 'Do not create another mythological product', but section 2 names AlphaEvolve as a target to beat, which implies a comparative product concept. | Check if AlphaEvolve is treated as a product or a benchmark; if product, contradiction.",
+     "4 | medium | Section 4 claim 1 'One kernel' requires one canonical contract, but section 0 authority model lists multiple artifact classes with different authorities, creating multiple sources of truth. | Map all contracts to one event spine; if any class has its own contract, claim fails.",
+     "5 | medium | Section 4 claim 2 'Artifact identity' says candidate source trees are content-addressed, but section 5 says 'Sources and candidate trees live in content-addressed storage' which is consistent, but section 8 step 6 says 'Store the candidate source tree in content-addressed storage' which is redundant, not contradictory. | NONE for this claim.",
+     "6 | high | Section 4 claim 3 'Isolation' says candidate cannot modify its evaluator, but section 6 says 'A verifier checks source evidence... before an edge becomes trusted' and the verifier is part of the evaluator, yet the latent atlas proposes edges that could influence evaluation. | Test if a candidate can propose a false edge that the verifier accepts, altering evaluation.",
+     "7 | medium | Section 4 claim 4 'Evidence boundary' says models may propose but deterministic evaluators decide, but section 6 says the verifier checks 'source evidence, revision compatibility, type/rule constraints, and task relevance' which may include model-based checks, blurring the boundary. | Identify if any verifier step uses a model; if so, claim is violated.",
+     "8 | high | Section 4 claim 5 'Sealed promotion' requires explicit owner approval, but section 8 step 10 says 'Nominate successful candidates; never auto-promote them' and step 11 says 'Promote only through the sealed owner-controlled path', which is consistent but section 0 authority model does not define who the owner is or how approval is authenticated. | Check if owner approval mechanism is defined anywhere; if not, claim is unenforceable.",
+     "9 | medium | Section 4 claim 6 'Atomic revisions' requires consistency, but section 5 says 'The Forest is the immutable, compiled intermediate representation of one project revision' and section 8 step 7 builds a candidate Forest, implying multiple Forests per revision, potentially inconsistent. | Verify that candidate Forest and base Forest are consistent for the same revision; if not, claim fails.",
+     "10 | low | Section 4 claim 7 'Provenance' requires material actions carry origin, but section 7 says 'Typed events and artifacts are authoritative' and section 8 step 9 emits a receipt, which supports provenance. | NONE for this claim.",
+     "11 | medium | Section 4 claim 8 'Bounded effects' requires kill switch, but section 1 says guards do not cover every external client until Gate 0 closes, so kill switch may not be universally enforceable. | Test kill switch from an external client before Gate 0; likely fails.",
+     "12 | medium | Section 4 claim 9 'Honest claims' requires frozen tasks and equal budgets, but section 2 says 'outperform AlphaEvolve' is a target and section 10 Gate 5 says AlphaEvolve is closed, so frozen tasks cannot be identical. | Attempt to define frozen tasks for AlphaEvolve; impossible because it's closed.",
+     "13 | high | Section 4 claim 10 'No silent constitution change' says changes only through amendment protocol, but section 0 says 'A capability policy cannot broaden the plan, and the plan cannot grant a capability', implying the plan can be changed by capability policy, which is not part of the amendment protocol. | Check if a capability policy can override a plan invariant; if so, claim 10 is violated.",
+     "14 | high | Section 5 says 'The Forest is the immutable, compiled intermediate representation of one project revision' and 'It is not a scheduler, chat memory, archive, or oracle', but section 10 Gate 2 says 'Forest v2' adds function/method resolution, data/schema extraction, knowledge crosslinks, which seems to make it an archive and oracle. | Compare Gate 2 Forest v2 features against section 5 restrictions; likely contradictions.",
+     "15 | medium | Section 5 says the Project Twin is a 'god-key candidate, not dogma' and 'earns its centrality only through the kill criteria', but section 13 kill criteria say 'Stop or redesign the four-plane/latent track' when conditions are met, which is consistent. | NONE for this claim.",
+     "16 | high | Section 6 says 'The latent layer is a hypothesis machine' and 'A verifier checks source evidence... before an edge becomes trusted', but section 4 claim 4 says 'Models and embeddings may propose; deterministic or independently controlled evaluators decide whether evidence is valid', which is consistent but the verifier in section 6 is not guaranteed to be deterministic or independently controlled. | Check if the verifier can be a model; if so, contradiction with claim 4.",
+     "17 | medium | Section 7 says 'Ikarus is persistent in goals and evidence, not an unconstrained immortal chat' and 'Chat is an interface, not the workflow database', but section 12 forbids 'chat transcripts as orchestration state', which is consistent. | NONE for this claim.",
+     "18 | medium | Section 8 step 2 says 'Build the base Forest for an exact source revision', but Gate 0 requires delivering the Event Store and content-addressed artifact store before any Forest can be built, and Gate 0 is not yet closed, so step 2 is impossible until Gate 0 exits. | Check if Gate 0 exit criteria include a working Event Store; if not, Forest cannot be built.",
+     "19 | high | Section 8 step 10 says 'Nominate successful candidates; never auto-promote them' and step 11 says 'Promote only through the sealed owner-controlled path', which is consistent with section 4 claim 5, but section 0 authority model does not define who the owner is or how approval is authenticated, making the path undefined. | Attempt to follow the promotion path; will fail due to missing owner definition.",
+     "20 | medium | Section 9 says 'Generation is not a single model call' and lists operator requirements, but section 10 Gate 4 tests 'Graph-conditioned Representation Search' which uses a generator, model, token budget, and evaluator, implying a single model call may be used, contradicting section 9. | Check if Gate 4 generator can be a single model call; if so, contradiction.",
+     "21 | high | Section 10 Gate 0 says 'no new feature path or state store outside the canonical contracts', but Gate 1 requires 'Ikarus produces one MissionContract' and 'the four planes produce two typed WorkItems', which implies a Forest and plane extraction that are not part of Gate 0 deliverables. | Verify if Gate 0 contracts include MissionContract and WorkItems; if not, Gate 1 cannot proceed.",
+     "22 | high | Section 10 Gate 0 exit condition requires 'fault-injection matrix demonstrates fail-closed protected effects and fail-open read-only inspection', but section 1 says guards do not cover every external client until Gate 0 closes, so the fault-injection matrix cannot cover all clients, making the exit condition impossible to fully satisfy. | Attempt to design a fault-injection matrix that covers all external clients; will fail.",
+     "23 | medium | Section 10 Gate 1 says 'Prove one vertical mission: propagate Event.voltage -> bias_voltage across Python, Markdown, and CSV' but Gate 0 has not delivered the canonical kernel yet, so Gate 1 cannot start. | Check if Gate 0 is closed; if not, Gate 1 is premature.",
+     "24 | medium | Section 10 Gate 2 says 'Add function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators' but section 5 says the Forest is immutable and compiled, yet Gate 2 adds features that modify the Forest, contradicting immutability. | Check if Forest v2 is a new version or a modification; if modification, immutability violated.",
+     "25 | low | Section 10 Gate 3 requires baselines including 'transparent AlphaEvolve-like proxy' but section 10 Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available', so the proxy is impossible to validate. | Attempt to build a transparent AlphaEvolve proxy; will be speculative.",
+     "26 | high | Section 10 Gate 4 says 'Freeze generator, model, token budget, and evaluator' but section 8 step 3 says 'Select formulation, parent, one operator axis, model, and evaluation fidelity', implying the model is not frozen across campaigns, contradicting Gate 4. | Check if Gate 4 campaign uses a fixed model; if not, contradiction.",
+     "27 | medium | Section 10 Gate 5 says 'Release reproducible task definitions... and a claim bounded by observed evidence' and 'Beats AlphaEvolve is permitted only for directly comparable public artifact scores', but section 2 says 'outperform AlphaEvolve' is a target, implying a claim may be made before Gate 5, contradicting the gate sequencing. | Check if any earlier gate can make a claim; if so, Gate 5 is not the first.",
+     "28 | medium | Section 11 says 'Until Gate 0 exits, the default answer to new feature work is: wire it through the canonical kernel or keep it as a disposable, isolated experiment', but section 10 Gate 1 is defined and requires features not in Gate 0, so Gate 1 work is not 'wired through the canonical kernel' and may be considered a new feature. | Check if Gate 1 is considered new feature work; if yes, contradiction with section 11.",
+     "29 | high | Section 12 forbids 'chat transcripts as orchestration state' and 'shared mutable memory for product personalization and research adaptation', but section 7 says 'Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores', which are essentially shared mutable memory, contradicting section 12. | Compare the allowed memory stores with the forbidden shared mutable memory; likely overlap.",
+     "30 | medium | Section 12 forbids 'automatic merge/promotion' which is consistent with section 4 claim 5, but section 8 step 10 says 'never auto-promote them', consistent. | NONE for this claim.",
+     "31 | medium | Section 12 forbids 'a marketing clone whose comparison protocol is not reproducible', but section 2 says 'outperform AlphaEvolve' which is a comparison to a closed system, making the protocol irreproducible. | Attempt to create a reproducible comparison protocol for AlphaEvolve; will fail.",
+     "32 | high | Section 13 kill criteria say 'Stop or redesign the four-plane/latent track' when conditions are met, but section 5 says the Project Twin is a 'god-key candidate' that 'earns its centrality only through the kill criteria', which is consistent, but section 3 says only three public concepts exist, and the four-plane/latent track is central to Daedalus, so stopping it would void the north star. | Check if north star can be achieved without the four-plane/latent track; if not, kill criteria are self-defeating.",
+     "33 | medium | Section 13 says 'A kill result does not silently delete this plan. Archive the evidence, stop the affected track, and submit an amendment', but section 4 claim 10 says 'No silent constitution change', which is consistent. | NONE for this claim.",
+     "34 | high | Section 14 says 'Before editing: 1. Read this plan and verify its digest. 2. Classify the work... 3. Name the active gate and the invariant/prior touched. 4. Prefer deletion, consolidation, or wiring over a new subsystem.' But section 0 says 'root instructions, skills, and hooks' are derived projections that 'load the plan, report drift, block ordinary mutation', implying they enforce the alignment protocol, but the protocol itself is not mechanically enforced, so it can be bypassed. | Check if the alignment protocol is enforced by guards; if not, it's advisory.",
+     "35 | high | Section 15 amendment protocol requires 'explicit repository-owner approval' but section 0 authority model does not define who the owner is or how approval is authenticated, making the protocol incomplete. | Attempt to perform an amendment; will fail due to missing owner definition.",
+     "36 | medium | Section 15 says 'Rollback is a new amendment, never a history rewrite', but section 4 claim 10 says 'No silent constitution change', which is consistent. | NONE for this claim."
+    ],
+    "todos": [
+     "Define the repository owner and authentication mechanism for owner approval in section 0 authority model.",
+     "Resolve contradiction between section 5 Forest immutability and Gate 2 Forest v2 modifications.",
+     "Clarify whether AlphaEvolve is a benchmark or a product to resolve contradictions between section 2, section 12, and Gate 5.",
+     "Ensure Gate 0 exit criteria are achievable given section 1 limitations on guard coverage.",
+     "Harmonize memory store definitions between section 7 and section 12 forbidden directions.",
+     "Define the verifier in section 6 to be deterministic or independently controlled to satisfy section 4 claim 4.",
+     "Specify how Gate 1 can proceed before Gate 0 closes, or reorder gates.",
+     "Add a definition of 'owner' and 'owner approval' to section 0 or section 15.",
+     "Clarify if Gate 4 requires a frozen model, and if so, reconcile with section 8 step 3.",
+     "Remove or justify the 'god-key' language in section 5 to align with kill criteria in section 13."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "0",
+       "claim": "This master plan is the sole semantic authority for Daedalus architecture, product order, and research direction.",
+       "verdict": "weak",
+       "why": "Section 0 claims sole semantic authority, but section 4 claim 10 says changes only through amendment protocol, and section 15 amendment protocol requires owner approval which is not defined in section 0 authority model. Additionally, section 0 lists other artifact classes with their own authorities, creating potential conflicts. The claim is not fully supported by the document's own structure."
+      },
+      {
+       "id": "1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "weak",
+       "why": "Section 1 states this, but section 1 also says 'No model prompt or local hook is a security boundary' and 'Until Gate 0 closes, the guards... do not claim to cover every external client', which means the plan cannot prevent drift from external clients, contradicting the claim. The claim is too broad given the acknowledged limitations."
+      },
+      {
+       "id": "2",
+       "claim": "Build a trustworthy system that can understand a software project... and promote only verified improvements.",
+       "verdict": "weak",
+       "why": "Section 2 sets this north star, but section 10 Gate 5 says 'AlphaEvolve is closed, so a broad framework comparison is not scientifically available', yet section 2 says 'outperform AlphaEvolve' is a target. This makes the target unverifiable, undermining the trustworthiness claim. The north star is aspirational but not fully supported by the plan's own constraints."
+      },
+      {
+       "id": "3",
+       "claim": "Only three top-level product/research concepts are public: Daedalus, Ikarus, Ariadne.",
+       "verdict": "weak",
+       "why": "Section 3 forbids creating another mythological product, but section 2 names AlphaEvolve as a target to beat, which implies a comparative product concept. While not a new subsystem, the focus on AlphaEvolve could be seen as a fourth concept. The claim is clear but potentially contradicted by the north star's reference to an external system."
+      },
+      {
+       "id": "4",
+       "claim": "One kernel: Mission, Attempt, Evidence, Campaign, policy decisions, budgets, and promotion status have one canonical contract and event spine.",
+       "verdict": "weak",
+       "why": "Section 4 claim 1 requires one canonical contract, but section 0 authority model lists multiple artifact classes with different authorities (e.g., capability policy, tests, ADRs), which could be interpreted as multiple sources of truth. The claim is strong but the document does not demonstrate a single event spine; instead, it describes multiple stores and contracts."
+      },
+      {
+       "id": "5",
+       "claim": "Artifact identity: Authoritative sources remain the truth. Candidate source trees and code are content-addressed artifacts; a graph delta is not candidate identity.",
+       "verdict": "sound",
+       "why": "Section 4 claim 2 is consistent with section 5 ('Sources and candidate trees live in content-addressed storage') and section 8 step 6 ('Store the candidate source tree in content-addressed storage'). No contradiction found across sections."
+      },
+      {
+       "id": "6",
+       "claim": "Isolation: Candidate execution is capability-bounded and cannot modify its evaluator, policy, evidence, budget ledger, or promotion mechanism.",
+       "verdict": "weak",
+       "why": "Section 4 claim 3 requires isolation, but section 1 says guards do not cover every external client until Gate 0 closes, meaning isolation is not guaranteed for all paths. Additionally, section 6 describes a latent atlas that proposes edges, and a verifier that checks evidence; if the verifier is not deterministic, a candidate could influence evaluation. The claim is not fully enforceable as written."
+      },
+      {
+       "id": "7",
+       "claim": "Evidence boundary: Models and embeddings may propose; deterministic or independently controlled evaluators decide whether evidence is valid.",
+       "verdict": "weak",
+       "why": "Section 4 claim 4 requires deterministic evaluators, but section 6 says the verifier checks 'source evidence, revision compatibility, type/rule constraints, and task relevance' without specifying that the verifier is deterministic. If the verifier uses a model, the boundary is blurred. The claim is not fully supported by the document's description of the verification process."
+      },
+      {
+       "id": "8",
+       "claim": "Sealed promotion: No candidate auto-merges or self-promotes. Promotion requires an evidence packet, policy checks, and explicit owner approval.",
+       "verdict": "weak",
+       "why": "Section 4 claim 5 requires explicit owner approval, but section 0 authority model does not define who the owner is or how approval is authenticated. Section 15 amendment protocol also requires owner approval but does not define the mechanism. Without a definition, the claim is unenforceable."
+      },
+      {
+       "id": "9",
+       "claim": "Atomic revisions: Cross-plane snapshots, evidence locators, and their source revision are consistent and reproducible.",
+       "verdict": "weak",
+       "why": "Section 4 claim 6 requires consistency, but section 5 says the Forest is an immutable representation of one project revision, and section 8 step 7 builds a candidate Forest, implying multiple Forests per revision. If the candidate Forest is not consistent with the base Forest for the same revision, the claim fails. The document does not guarantee consistency between base and candidate Forests."
+      },
+      {
+       "id": "10",
+       "claim": "Provenance: Material actions and claims carry origin, revision, inputs, cost, outcome, and evidence. Failures and rejected candidates remain inspectable.",
+       "verdict": "sound",
+       "why": "Section 4 claim 7 is supported by section 7 (typed events and artifacts), section 8 step 9 (signed receipt), and section 13 (archive evidence). No contradiction found across sections."
+      },
+      {
+       "id": "11",
+       "claim": "Bounded effects: Spend, egress, write roots, concurrency, secrets, and a kill switch are enforced at effect boundaries.",
+       "verdict": "weak",
+       "why": "Section 4 claim 8 requires a kill switch, but section 1 says guards do not cover every external client until Gate 0 closes, so the kill switch may not be universally enforceable. The claim is not fully achievable given the acknowledged limitations."
+      },
+      {
+       "id": "12",
+       "claim": "Honest claims: Comparative claims use frozen tasks, equal budgets, declared hardware/models, repeated trials, uncertainty, and relevant baselines.",
+       "verdict": "weak",
+       "why": "Section 4 claim 9 requires frozen tasks, but section 2 says 'outperform AlphaEvolve' is a target and section 10 Gate 5 says AlphaEvolve is closed, so frozen tasks cannot be identical. The claim cannot be satisfied for the stated north star target."
+      },
+      {
+       "id": "13",
+       "claim": "No silent constitution change: This plan, its amendment chain, active instructions, and guards change only through the amendment protocol in section 15.",
+       "verdict": "weak",
+       "why": "Section 4 claim 10 says changes only through amendment protocol, but section 0 says 'A capability policy cannot broaden the plan, and the plan cannot grant a capability', which implies that capability policies can restrict the plan, potentially changing its effect without an amendment. Additionally, section 1 allows research priors to be challenged without amendment, which could change the plan's interpretation. The claim is not absolute."
+      },
+      {
+       "id": "14",
+       "claim": "The central research prior is a revision-bound four-plane Project Twin.",
+       "verdict": "weak",
+       "why": "Section 5 introduces the Project Twin as a 'god-key candidate', but section 13 kill criteria say to stop or redesign the four-plane track if conditions are met. The 'god-key' language suggests centrality, but the kill criteria allow for abandonment, creating a tension. The claim is strong but the document's own provisions undermine its centrality."
+      },
+      {
+       "id": "15",
+       "claim": "The Forest is the immutable, compiled intermediate representation of one project revision. It is not a scheduler, chat memory, archive, or oracle.",
+       "verdict": "weak",
+       "why": "Section 5 defines the Forest as immutable and not an archive/oracle, but section 10 Gate 2 says 'Forest v2' adds function/method resolution, data/schema extraction, knowledge crosslinks, which effectively makes it an archive and oracle. The claim is contradicted by the planned evolution of the Forest."
+      },
+      {
+       "id": "16",
+       "claim": "Embeddings may consume schema-light Node Cards... The latent layer is a hypothesis machine. A verifier checks source evidence... before an edge becomes trusted.",
+       "verdict": "weak",
+       "why": "Section 6 describes the latent atlas and verifier, but does not guarantee the verifier is deterministic or independently controlled, as required by section 4 claim 4. If the verifier uses a model, the evidence boundary is violated. The claim is not fully aligned with the invariants."
+      },
+      {
+       "id": "17",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat. It compiles user intent into a typed MissionContract...",
+       "verdict": "sound",
+       "why": "Section 7's description of Ikarus is consistent with section 12's forbidding of chat transcripts as orchestration state and shared mutable memory. No contradiction found across sections."
+      },
+      {
+       "id": "18",
+       "claim": "Every campaign follows this controlled loop: 1. Freeze an ExperimentSpec... 11. Promote only through the sealed owner-controlled path.",
+       "verdict": "weak",
+       "why": "Section 8's loop includes step 2 'Build the base Forest for an exact source revision', but Gate 0 has not delivered the canonical kernel yet, so the Forest cannot be built until Gate 0 exits. Additionally, step 3 says 'Select... model' implying model selection, but Gate 4 requires freezing the model. The loop is not consistent with the gate sequencing."
+      },
+      {
+       "id": "19",
+       "claim": "Generation is not a single model call. Each operator declares accepted artifact types, required Project-Twin slice, writable paths, tools, model, budget, timeout, etc.",
+       "verdict": "weak",
+       "why": "Section 9 requires operators to be more than a single model call, but section 10 Gate 4 tests 'Graph-conditioned Representation Search' which uses a generator, model, token budget, and evaluator, potentially allowing a single model call. The claim is contradicted by the flexibility allowed in experiments."
+      },
+      {
+       "id": "20",
+       "claim": "Gate 0 \u2014 Canonical Kernel (active): Deliver Event Store, content-addressed artifact store, canonical schemas, Agent Contract, centralized start/guard path, enforceable policies, adapter fixtures, policy coverage tests, and no new feature path outside canonical contracts.",
+       "verdict": "weak",
+       "why": "Section 10 Gate 0 requires 'no new feature path or state store outside the canonical contracts', but Gate 1 requires a Forest and plane extraction that are not part of Gate 0 deliverables, implying new feature paths. The gate ordering is contradictory: Gate 0 must be complete before Gate 1, but Gate 1 requires features not in Gate 0."
+      },
+      {
+       "id": "21",
+       "claim": "Gate 1 \u2014 Ignition slice: Prove one vertical mission across Python, Markdown, and CSV. Ikarus produces one MissionContract; the four planes produce two typed WorkItems; attempts run in isolation; restart/replay works; tests, schema checks, and link checks produce an EvidencePacket. No auto-merge.",
+       "verdict": "weak",
+       "why": "Gate 1 requires the four planes to produce WorkItems, but the four-plane Project Twin is introduced in section 5 as a research prior, not a delivered product. Gate 0 does not deliver the Forest or plane extraction, so Gate 1 cannot be executed. The gate sequencing is flawed."
+      },
+      {
+       "id": "22",
+       "claim": "Gate 2 \u2014 Forest v2: Add function/method resolution, data/schema extraction, knowledge crosslinks, revision atomicity, evidence locators, and four-plane ablations. Do not scale before the full graph beats simpler representations.",
+       "verdict": "weak",
+       "why": "Gate 2 adds features to the Forest, but section 5 says the Forest is immutable. Adding features implies modification, contradicting immutability. Additionally, Gate 2 requires four-plane ablations, but the four-plane prior is not yet validated."
+      },
+      {
+       "id": "23",
+       "claim": "Gate 3 \u2014 Baseline lab: Freeze public tasks, evaluator versions, budgets, model/hardware reporting, seed policy, and statistical reporting. Required baselines include Random Search, Best-of-N, single-LLM loop, simple local mutation, BM25, embeddings, code-only graph, four separate indices, evaluator-only selection, archive/MAP-Elites, and a transparent AlphaEvolve-like proxy.",
+       "verdict": "weak",
+       "why": "Gate 3 requires a transparent AlphaEvolve-like proxy, but section 10 Gate 5 says AlphaEvolve is closed, so a transparent proxy is impossible. The baseline cannot be established as specified."
+      },
+      {
+       "id": "24",
+       "claim": "Gate 4 \u2014 One research hypothesis: Test Graph-conditioned Representation Search first. Freeze generator, model, token budget, and evaluator. Controls include edge rewiring, relation-label permutation, cross-plane bridges off, stale snapshots, and an oracle graph.",
+       "verdict": "weak",
+       "why": "Gate 4 requires freezing the model, but section 8 step 3 says 'Select... model' implying model selection per campaign, which may vary. The gate requirement contradicts the campaign loop flexibility."
+      },
+      {
+       "id": "25",
+       "claim": "Gate 5 \u2014 Public proof: Release reproducible task definitions, evaluator code/version, receipts, cost/latency tables, ablations, failures, and a claim bounded by observed evidence. 'Beats AlphaEvolve' is permitted only for directly comparable public artifact scores under budget-equal measurements.",
+       "verdict": "weak",
+       "why": "Gate 5 allows 'Beats AlphaEvolve' only for directly comparable public scores, but section 2 says 'outperform AlphaEvolve' is a target, implying a claim may be made before Gate 5. Additionally, AlphaEvolve is closed, so direct comparison is impossible, making the gate's condition moot."
+      },
+      {
+       "id": "26",
+       "claim": "Until Gate 0 exits, the default answer to new feature work is: wire it through the canonical kernel or keep it as a disposable, isolated experiment.",
+       "verdict": "weak",
+       "why": "Section 11 prioritizes Gate 0, but Gate 1 is defined and requires features not in Gate 0, so Gate 1 work is not 'wired through the canonical kernel' and may be considered new feature work. The priority contradicts the gate definitions."
+      },
+      {
+       "id": "27",
+       "claim": "Forbidden default directions include: new public mythological subsystems, direct legacy-to-legacy wiring, universal graph score, unbounded AST hairball, chat transcripts as orchestration state, shared mutable memory, LLM judgment as hard promotion gate, simultaneous unregistered co-evolution, automatic merge/promotion, marketing clone without reproducible comparison, new graph planes without demonstrated marginal evidence.",
+       "verdict": "weak",
+       "why": "Section 12 forbids shared mutable memory, but section 7 allows separate versioned, provenance-bearing stores for product memory and research adaptive memory, which are essentially shared mutable memory. The forbidden direction is contradicted by the allowed memory stores."
+      },
+      {
+       "id": "28",
+       "claim": "Kill criteria: Stop or redesign the four-plane/latent track when replicated, budget-equal experiments show specific failures.",
+       "verdict": "weak",
+       "why": "Section 13 kill criteria allow stopping the four-plane track, but section 5 presents it as a 'god-key candidate' that is central to the north star. If the track is stopped, the north star becomes unachievable, making the kill criteria self-defeating. The document does not provide an alternative path."
+      },
+      {
+       "id": "29",
+       "claim": "Alignment protocol: Before editing, read the plan, classify work, name gate and invariant/prior touched, prefer deletion/consolidation/wiring. Before handoff, run verification and report.",
+       "verdict": "weak",
+       "why": "Section 14 describes an alignment protocol, but section 0 says root instructions, skills, and hooks are derived projections that 'load the plan, report drift, block ordinary mutation', implying mechanical enforcement. However, the protocol itself is not mechanically enforced, so it can be bypassed. The claim is not fully supported by the document's enforcement mechanisms."
+      },
+      {
+       "id": "30",
+       "claim": "Amendment protocol: Propose exact diff, obtain owner approval, start session with environment variable, increment revision, append to amendments.jsonl, update plan and derived controls atomically, run verification. Rollback is a new amendment.",
+       "verdict": "weak",
+       "why": "Section 15 requires 'explicit repository-owner approval', but section 0 authority model does not define who the owner is or how approval is authenticated. The protocol is incomplete without this definition."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ff89a2c363c2699447088e6f14d5980274fbc4a4f80e9f3f9e98ae93126a59b1",
+    "objective_chars": 18612,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "WHOLE-DOCUMENT",
+  "lens": "contradiction",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

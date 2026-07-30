@@ -1,0 +1,163 @@
+{
+ "task_id": "daedalus/council/publish.py#c2of2#5eb1702d",
+ "key": "daedalus_council_publish.py_c2of2_5eb1702d-136d851b83",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 14 kept, 2 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Returns ``(channel, rule)`` for the FIRST hit, or None if clean.\" | screen_egress | KEPT | The function iterates paths then channels and returns on first hit; otherwise None.",
+     "CLAIM | \"The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text, so a refusal can be logged and reported without re-leaking the secret it refused (memstore's ``_scan_secret`` posture, same floor, same reason).\" | screen_egress | KEPT | The function returns the result of secret_floor_rule directly; no matched text is returned.",
+     "CLAIM | \"Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.\" | _classify_failure | KEPT | The function checks authentication markers before 404 markers.",
+     "CLAIM | \"``(verdict, turns)`` reconstructed from a stored bus transcript.\" | load_for_publish | KEPT | The function returns a tuple as documented.",
+     "CLAIM | \"Only what the bus actually recorded. The council package stores no ``outcome`` and no ``convergence`` field -- by construction, because it promotes nothing -- so none is invented here, and :func:`render_markdown` prints '(not recorded)' for them.\" | load_for_publish | KEPT | The function does not add outcome or convergence fields.",
+     "CLAIM | \"Quorum comes from the roster records' ``participants``: a vendor is ANSWERED only if it actually produced a turn, not if it was merely seated.\" | load_for_publish | KEPT | The function populates requested from roster participants and answered only from turns with status 'spoke'.",
+     "CLAIM | \"Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.\" | publish_to_pr | KEPT | The function returns a PublishResult for all failure paths; no raise.",
+     "CLAIM | \"``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result. The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.\" | publish_to_pr | KEPT | The function runs screen_egress before checking dry_run, and returns with markdown without invoking runner.",
+     "CLAIM | \"The body goes to gh on STDIN via ``--body-file -``: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.\" | publish_to_pr | KEPT | The function constructs argv with '--body-file', '-' and calls runner with the body as second argument.",
+     "CLAIM | \"EGRESS GATE. Runs before the runner exists as far as this function is concerned -- on refusal we return without ever constructing a call.\" | publish_to_pr | KEPT | The gate runs before the runner variable is used.",
+     "CLAIM | \"Channel + rule name only. The matched text is never echoed, and the markdown is withheld so a caller cannot log the refused body.\" | publish_to_pr | KEPT | The detail string does not include the matched text.",
+     "CLAIM | \"Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.\" | read_pr_thread | KEPT | The function returns a ThreadResult for all failure paths; no raise.",
+     "CLAIM | \"Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.\" | read_pr_thread | KEPT | The function returns turns but does not add them to any bus.",
+     "CLAIM | \"Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).\" | _parse_comment | BROKEN | Line: `author_obj = _field(raw, \"author\", \"user\", default=None)` -- the order checks 'author' first, then 'user'. But the docstring says author.login is from GraphQL and user.login from REST. The code prefers 'author', which is correct for GraphQL, but if 'author' is present with a different structure (e.g., a string), the code handles it. However, the docstring says 'Tolerant of the two author shapes', but the code only checks 'author' and 'user' as keys; it does not specifically look for 'author.login' or 'user.login'. The docstring implies the function extracts the login from the nested object, but the code extracts the entire object if it's a string/bytes, and otherwise extracts the 'login' or 'name' field. This is acceptable, but the docstring's wording about 'author shapes' is slightly misleading. Actually, the code does handle both shapes: if the raw object has 'author' key with a dict containing 'login', it works; if it has 'user' key with a dict containing 'login', it works. So the claim is KEPT. I re-check: the docstring says 'Tolerant of the two author shapes gh uses (author.login from the GraphQL-backed pr view --json, user.login from the REST-backed gh api).' The code uses _field(raw, 'author', 'user', default=None) which returns the first non-None value from raw['author'] or raw['user']. That is correct. Then it checks if that value is a string/bytes, else treats it as a dict and extracts 'login' or 'name'. This matches the docstring. So KEPT.",
+     "CLAIM | \"One gh comment object -> one PRTurn.\" | _parse_comment | KEPT | The function returns a PRTurn.",
+     "D: none"
+    ],
+    "todos": [
+     "No broken claims to fix."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5144165d6266c42e6d85952c3abe5b5b99fa9ebdab17e05375a8f9bb3e58c70b",
+    "objective_chars": 16518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 10 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Returns ``(channel, rule)`` for the FIRST hit, or None if clean.\" | screen_egress | KEPT | Code iterates paths then channels and returns first hit or None.",
+     "CLAIM | \"The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text, so a refusal can be logged and reported without re-leaking the secret it refused (memstore's ``_scan_secret`` posture, same floor, same reason).\" | screen_egress | UNCHECKABLE | Need to see secret_floor_rule implementation to verify it returns a label/path fragment, not matched text.",
+     "CLAIM | \"Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.\" | _classify_failure | KEPT | Code checks auth markers before not-found markers, consistent with docstring.",
+     "CLAIM | \"Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.\" | publish_to_pr | KEPT | Function returns PublishResult in all branches, no raise.",
+     "CLAIM | \"``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.\" | publish_to_pr | KEPT | Code gates then returns early with STATUS_DRY_RUN and markdown, no runner call.",
+     "CLAIM | \"The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.\" | publish_to_pr | KEPT | screen_egress is called before dry_run check.",
+     "CLAIM | \"The body goes to gh on STDIN via ``--body-file -``: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.\" | publish_to_pr | KEPT | Code builds argv with \"--body-file\", \"-\" and passes body to run separately.",
+     "CLAIM | \"Channel + rule name only. The matched text is never echoed, and the markdown is withheld so a caller cannot log the refused body.\" | publish_to_pr | BROKEN | Detail string includes \"secret floor fired on {channel}: {rule}\" but does not include markdown body; however the function returns the markdown in the PublishResult for STATUS_REFUSED_SECRET? No, the code returns PublishResult(status=STATUS_REFUSED_SECRET, detail=..., markdown=???). The docstring says markdown is withheld, but the PublishResult constructor is not shown; if markdown defaults to None or empty, it's fine. But the risk is that a caller could access result.markdown and log it. The docstring claims markdown is withheld, but the result object may expose it. Without seeing PublishResult definition, it's unclear. I'll mark BROKEN because the claim says \"the markdown is withheld\" but the function does not explicitly prevent it from being accessible.",
+     "CLAIM | \"Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.\" | read_pr_thread | KEPT | Function returns ThreadResult in all branches, no raise.",
+     "CLAIM | \"Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.\" | read_pr_thread | KEPT | Function just reads and returns turns, no claim of authority.",
+     "CLAIM | \"One gh comment object -> one PRTurn. Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).\" | _parse_comment | KEPT | Code checks both \"author\" and \"user\" fields, then extracts login/name.",
+     "D1 | _first_url | parameter `text` is read in the function body | No issue.",
+     "D2 | None | No except that swallows and continues against prose.",
+     "D3 | None | No check-after-side-effect found.",
+     "D4 | None | No impossible branch condition found."
+    ],
+    "todos": [
+     "Ensure PublishResult for STATUS_REFUSED_SECRET does not expose markdown, or remove the claim that markdown is withheld."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5144165d6266c42e6d85952c3abe5b5b99fa9ebdab17e05375a8f9bb3e58c70b",
+    "objective_chars": 16518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "24 claims: 19 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Returns ``(channel, rule)`` for the FIRST hit\" | screen_egress | KEPT | iterates paths then channels, returns on first hit.",
+     "CLAIM | \"The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text\" | screen_egress | KEPT | hit is the return of secret_floor_rule, which is a label/path fragment.",
+     "CLAIM | \"Auth is tested before not-found because GitHub answers 404 -- not 403\" | _classify_failure docstring | KEPT | auth patterns checked before not-found patterns.",
+     "CLAIM | \"classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists\" | _classify_failure docstring | KEPT | matches the ordering in code.",
+     "CLAIM | \"Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``\" | publish_to_pr | KEPT | returns PublishResult in all branches, no raise.",
+     "CLAIM | \"``dry_run=True`` renders and gates but does NOT invoke the runner at all\" | publish_to_pr | KEPT | returns early before runner invocation.",
+     "CLAIM | \"The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor\" | publish_to_pr | KEPT | screen_egress is called before dry_run check.",
+     "CLAIM | \"The body goes to gh on STDIN via ``--body-file -``\" | publish_to_pr | KEPT | argv includes '--body-file', '-' and run(argv, body) passes body as stdin.",
+     "CLAIM | \"deliberation exceeds the Windows argv limit\" | publish_to_pr | KEPT | uses stdin, not argv, for body.",
+     "CLAIM | \"stdin keeps the payload inspectable by a fake runner in tests\" | publish_to_pr | KEPT | run receives body separately, inspectable.",
+     "CLAIM | \"Runs before the runner exists as far as this function is concerned\" | publish_to_pr | KEPT | screen_egress called before runner variable is used.",
+     "CLAIM | \"on refusal we return without ever constructing a call\" | publish_to_pr | KEPT | returns early before runner invocation.",
+     "CLAIM | \"Channel + rule name only. The matched text is never echoed\" | publish_to_pr | KEPT | detail uses channel and rule, not matched text.",
+     "CLAIM | \"markdown is withheld so a caller cannot log the refused body\" | publish_to_pr | KEPT | PublishResult has no markdown field in that branch.",
+     "CLAIM | \"Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``\" | read_pr_thread | KEPT | returns ThreadResult in all branches.",
+     "CLAIM | \"Nothing read here is authoritative\" | read_pr_thread docstring | KEPT | explicitly states it's input, not verdict.",
+     "CLAIM | \"a reply is INPUT to a later round, not a verdict\" | read_pr_thread docstring | KEPT | matches intent.",
+     "CLAIM | \"it is not on the hash-chained bus until the council appends it there\" | read_pr_thread docstring | KEPT | no bus writing occurs.",
+     "CLAIM | \"Tolerant of the two author shapes gh uses\" | _parse_comment docstring | KEPT | handles both 'author' and 'user' keys.",
+     "CLAIM | \"Quorum comes from the roster records' ``participants``: a vendor is ANSWERED only if it actually produced a turn\" | load_for_publish docstring | BROKEN | answered list includes vendors from turn records with status 'spoke', but the code adds to answered even if vendor is not in requested (line: `if actor and actor not in answered: answered.append(actor)` without checking requested). The docstring says it derives from roster participants, but the code adds vendors from turns independently of requested.",
+     "CLAIM | \"That is the distinction the degraded-quorum banner is built on, so deriving it from the seat list would silently upgrade every short council to a full one\" | load_for_publish docstring | BROKEN | The code does derive answered from turns (not seat list), but the docstring claims that deriving from seat list would upgrade short councils; this is a statement about what the code does NOT do, which is true. However, the earlier claim about quorum coming from roster participants is broken, so this claim is also misleading.",
+     "CLAIM | \"The council package stores no ``outcome`` and no ``convergence`` field\" | load_for_publish docstring | UNCHECKABLE | Would need to inspect council package to verify.",
+     "CLAIM | \"Inventing a plausible outcome to make the comment read better would manufacture exactly the authority the whole package refuses to claim\" | load_for_publish docstring | UNCHECKABLE | Statement about what is NOT done, but would need to check if any other code invents outcome.",
+     "D1 | parameter 'store_path' in load_for_publish | UNCHECKABLE | store_path is used in bus.load_transcript(store_path) and str(store_path), so it is read. No D1 found.",
+     "D2 | none | no except blocks that swallow and continue where prose says refuse.",
+     "D3 | none | no comment about guarding side effects.",
+     "D4 | none | no branch conditions that are impossible given assignments.",
+     "D: none"
+    ],
+    "todos": [
+     "Fix load_for_publish to ensure vendors_answered only includes vendors that are in requested (i.e., filter by requested list as the docstring says). Currently line `for v in requested if v in answered` does this, but the earlier addition of vendors not in requested to answered list contradicts the claim that quorum comes from roster participants.",
+     "Align docstring of load_for_publish with implementation: either update the docstring to reflect that answered vendors may include those not in requested, or change the code to only add vendors that are in requested."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5144165d6266c42e6d85952c3abe5b5b99fa9ebdab17e05375a8f9bb3e58c70b",
+    "objective_chars": 16518,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/publish.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 14001
+ }
+}

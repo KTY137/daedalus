@@ -1,0 +1,173 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c9of13__946db82",
+ "key": "scan__daedalus_mapping_drift.py__c9of13__946db82-e8d5e0afa7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 9 of drift.py: defines digest functions, snapshot_bytes, load_snapshot, write_snapshot, and _remedy. No tests run, no files changed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "write_snapshot | medium | Exclusion logic uses prefix matching; items that share prefix with acceptance items may be incorrectly excluded. | Check if any item key can be a substring of another with same prefix.",
+     "write_snapshot | low | 'test_only' items filtered by unreached set; unreached computed after filtering islands/unknown/shims, but accepted items are removed before unreached calculation. | Verify that unreached includes all non-accepted items from those three lists.",
+     "write_snapshot | low | 'counts' dictionary keys hardcoded; if state has additional keys, they are ignored. | Confirm that only listed keys are intended for counts."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "9 of 13",
+     "purpose": "Define digest functions, snapshot serialization, loading, writing, and a helper for remedy messages.",
+     "symbols": [
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Computes SHA-256 digest of mechanical keys from doc, returns 'sha256:<hex>'."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Checks if doc's own digest matches computed digest of mechanical keys."
+      },
+      {
+       "name": "snapshot_bytes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns JSON string of snapshot state and acceptances, sorted keys, no timestamps, trailing newline."
+      },
+      {
+       "name": "load_snapshot",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Loads a JSON snapshot file from path, returns dict or None if missing, or dict with __error__ on failure."
+      },
+      {
+       "name": "write_snapshot",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes snapshot to file, excluding accepted items from certain lists, updates counts, returns text."
+      },
+      {
+       "name": "_remedy",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a string describing how to handle a new island or other kind."
+      }
+     ],
+     "claims": [
+      {
+       "text": "says which tree was scanned, and a freshness stamp anybody can rewrite without invalidating the signature is decorative.",
+       "where": "line 961-963",
+       "verdict": "uncheckable",
+       "why": "Comment refers to signature and freshness stamp, but no signature code is present in this chunk."
+      },
+      {
+       "text": "The cost is that the digest changes on every commit even when no list moved -- which is correct: the snapshot really does describe a different tree.",
+       "where": "line 963-965",
+       "verdict": "uncheckable",
+       "why": "Refers to commit and tree changes; no git or commit logic in this chunk."
+      },
+      {
+       "text": "Does this snapshot's own digest still cover its own mechanical lists?",
+       "where": "digest_ok docstring",
+       "verdict": "kept",
+       "why": "The function compares doc.get(DIGEST_KEY) to _digest(doc)."
+      },
+      {
+       "text": "Public because it is not only :func:`check`'s business. Any verb that INHERITS lists from an existing snapshot rather than rescanning has to ask this first and refuse on a mismatch -- otherwise it re-signs whatever a text editor left behind and turns a caught hand-edit into a valid baseline. ``daedalus map --accept`` is exactly such a verb.",
+       "where": "digest_ok docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to check function and daedalus map --accept verb; not present in this chunk."
+      },
+      {
+       "text": "The exact text of the snapshot. Sorted, no timestamps, trailing newline: two runs over an unchanged tree must produce byte-identical output or the git diff -- the thing a human actually reads -- becomes noise.",
+       "where": "snapshot_bytes docstring",
+       "verdict": "kept",
+       "why": "Function sorts keys, omits timestamps (no generated_at), and adds trailing newline."
+      },
+      {
+       "text": "``repo_state`` comes out of ``state``, not out of a probe taken here, so this stays a pure function of its arguments. A clock reading would not: ``generated_at`` is absent from this artifact on purpose, because the question worth answering is \"which tree\" (``repo_state.head``, stable across a no-op regeneration) and not \"at what o'clock\" (different on every run, and therefore a diff on every run).",
+       "where": "snapshot_bytes docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to repo_state.head and no-op regeneration; not present in this chunk."
+      },
+      {
+       "text": "Write the baseline, EXCLUDING every item that has an acceptance entry. This exclusion is the load-bearing part. If an accepted island were baked into ``islands``, ``--refresh`` would silently become a third, undated way to accept -- and being the easiest one, it would be the only one anybody used. Keeping accepted items out of the baseline means they stay live drift, suppressed only for as long as their date holds.",
+       "where": "write_snapshot docstring",
+       "verdict": "kept",
+       "why": "Function filters out items with keys present in accepted_keys from islands, unknown, shims, etc."
+      }
+     ],
+     "observations": [
+      {
+       "what": "write_snapshot uses prefix matching for acceptance keys; risk of prefix collision.",
+       "where": "write_snapshot keep helper",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "test_only items are further filtered by unreached set; unreached is computed after accepted items are removed from islands/unknown/shims, but before test_only is filtered. This may be intentional but could cause unexpected exclusions.",
+       "where": "write_snapshot",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "counts dictionary in write_snapshot only includes hardcoded keys; extra keys in state are ignored.",
+       "where": "write_snapshot",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_remedy only handles NEW_ISLAND case; other kinds are not shown.",
+       "where": "_remedy",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c64138fa88a8e12ef91194176fa3c05672adb0da7ac596208e0ee339acc468fd",
+    "objective_chars": 5998,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [9/13]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/drift.py",
+  "index": 9,
+  "total": 13,
+  "first_line": 961
+ }
+}

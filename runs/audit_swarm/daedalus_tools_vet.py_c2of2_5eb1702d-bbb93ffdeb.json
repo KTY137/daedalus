@@ -1,0 +1,142 @@
+{
+ "task_id": "daedalus/tools/vet.py#c2of2#5eb1702d",
+ "key": "daedalus_tools_vet.py_c2of2_5eb1702d-bbb93ffdeb",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 8 kept, 1 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Decoding with replacement would let a crafted byte sequence hide a match, so an undecodable file is unscannable, not best-effort.\" | _scan_file | KEPT | The code raises UnicodeDecodeError and returns unscannable, not best-effort.",
+     "CLAIM | \"Takes the parsed dataclass rather than a path so there is exactly one SKILL.md parser in this repo \u2014 skills.load_skill \u2014 and this module cannot disagree with it about what a skill is.\" | vet_skill | KEPT | The function takes a skill object, not a path, consistent with the claim.",
+     "CLAIM | \"Static, fail-closed.\" | vet_skill | KEPT | The function returns a Verdict with outcome UNSCANNABLE on errors, and does not return a success outcome when it should not.",
+     "CLAIM | \"declares allowed-tools ... recorded as a REQUEST by the skill's author, never a grant; a human decides what it actually gets\" | vet_skill | KEPT | The code adds a note and a Finding with severity REVIEW, not a grant.",
+     "CLAIM | \"Skipping it silently would be a hole (bytecode can outlive or replace its source), so the exemption is conditional: the sibling source must actually be in the scanned set.\" | vet_skill | KEPT | The code checks if source is in scanned_sources before skipping; otherwise adds to skipped.",
+     "CLAIM | \"A planted or orphaned .pyc still lands in `skipped` and still makes the verdict UNSCANNABLE.\" | vet_skill | KEPT | Orphaned .pyc adds to skipped list; outcome becomes UNSCANNABLE if skipped non-empty.",
+     "CLAIM | \"Without this, every skill that has ever been run sits permanently at UNSCANNABLE, and a gate that is always amber is a gate nobody reads.\" | vet_skill | UNCHECKABLE | Would need to know the history of skills and gate behavior; not checkable from code alone.",
+     "CLAIM | \"Nothing is started or contacted.\" | vet_mcp_server | KEPT | The function only inspects the spec dict and does not start any process or make network calls.",
+     "CLAIM | \"One implementation of that question exists; call it.\" | vet_mcp_server | UNCHECKABLE | The claim refers to lane_for_host function, which is not defined in this unit; need to see its implementation.",
+     "CLAIM | \"static inspection of the launch command only \u2014 the server was not started, so what it actually exposes at runtime is UNKNOWN, not cleared\" | vet_mcp_server | KEPT | The code appends a note to this effect.",
+     "CLAIM | \"Counts by outcome, plus the blocking subjects. Sorted; no I/O.\" | summarise | BROKEN | The 'cleared' key is not an outcome; the claim says 'blocking subjects', but code includes 'unscannable' and 'cleared' keys not mentioned; also 'sorted' is not guaranteed for 'by_outcome' dict.",
+     "D1 | vet_skill | parameter 'allowances' | WRONG CONCLUSION: caller may think allowances is used, but it is passed to apply_allowances which is not defined in this unit; could be unused if apply_allowances ignores it.",
+     "D2 | _scan_file | except OSError as exc | WRONG CONCLUSION: caller may think the error is handled safely, but the exception is caught and a string returned; no re-raise or logging.",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In summarise: either remove the claim about 'blocking subjects' or change the code to return only blocking subjects (remove 'unscannable' and 'cleared' keys), or update the docstring to accurately describe the returned keys."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "51328c52d03be8b14608b58c1e851c134cb32ebd8b47dc2c469fd99f6fb5aaaf",
+    "objective_chars": 11648,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 11 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Static, fail-closed.\" | vet_skill | KEPT | The function is static (no I/O) and returns UNSCANNABLE when scanning fails.",
+     "CLAIM | \"Takes the parsed dataclass rather than a path so there is exactly one ``SKILL.md`` parser in this repo\" | vet_skill | KEPT | The function takes a Skill object, not a path, as documented.",
+     "CLAIM | \"A ``__pycache__/x.cpython-*.pyc`` is a DERIVATIVE of an ``x.py`` we scanned, so it carries no information the scan of the source did not already cover.\" | vet_skill | KEPT | The code defers .pyc files and later checks if source was scanned, consistent with the claim.",
+     "CLAIM | \"Skipping it silently would be a hole (bytecode can outlive or replace its source), so the exemption is conditional: the sibling source must actually be in the scanned set.\" | vet_skill | KEPT | The code only skips the .pyc if the source was scanned; otherwise it adds to skipped.",
+     "CLAIM | \"A planted or orphaned .pyc still lands in `skipped` and still makes the verdict UNSCANNABLE.\" | vet_skill | KEPT | Orphaned .pyc files are added to skipped list, which causes UNSCANNABLE outcome.",
+     "CLAIM | \"Without this, every skill that has ever been run sits permanently at UNSCANNABLE, and a gate that is always amber is a gate nobody reads.\" | vet_skill | KEPT | The comment explains rationale; the code implements the conditional exemption.",
+     "CLAIM | \"Nothing is started or contacted.\" | vet_mcp_server | KEPT | The function only parses spec and does not execute any command.",
+     "CLAIM | \"Where do the bytes go? One implementation of that question exists; call it.\" | vet_mcp_server | KEPT | The code calls lane_for_host for each host found in URLs.",
+     "CLAIM | \"static inspection of the launch command only \u2014 the server was not started, so what it actually exposes at runtime is UNKNOWN, not cleared\" | vet_mcp_server | KEPT | The note is appended to notes list.",
+     "CLAIM | \"Counts by outcome, plus the blocking subjects. Sorted; no I/O.\" | summarise | KEPT | The function counts outcomes, returns sorted lists, and does no I/O.",
+     "CLAIM | \"Skipping it silently would be a hole (bytecode can outlive or replace its source), so the exemption is conditional: the sibling source must actually be in the scanned set.\" | vet_skill | BROKEN | The code uses `source in scanned_sources` but `scanned_sources` is built from `rel.replace(\"\\\\\", \"/\")` while `source` is built by stripping leading dots and slashes; paths may not match (e.g., relative path vs. absolute-like path).",
+     "D: none"
+    ],
+    "todos": [
+     "Ensure the source path computed for a .pyc file matches the format used in scanned_sources (e.g., remove .lstrip(\".\").strip(\"/\") or normalize both sides consistently)."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "51328c52d03be8b14608b58c1e851c134cb32ebd8b47dc2c469fd99f6fb5aaaf",
+    "objective_chars": 11648,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 12 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Decoding with replacement would let a crafted byte sequence hide a match, so an undecodable file is unscannable, not best-effort.\" | _scan_file | KEPT | The code raises UnicodeDecodeError and returns unscannable, exactly as claimed.",
+     "CLAIM | \"Static, fail-closed.\" | vet_skill docstring | KEPT | The function never starts any process or contacts any network; it returns a Verdict with findings and skipped, which can lead to UNSCANNABLE or BLOCK.",
+     "CLAIM | \"Takes the parsed dataclass rather than a path so there is exactly one SKILL.md parser in this repo \u2014 skills.load_skill \u2014 and this module cannot disagree with it about what a skill is.\" | vet_skill docstring | KEPT | The function takes a skill object (not a path) and uses skill.body, skill.directory, etc. as provided by the dataclass.",
+     "CLAIM | \"A __pycache__/x.cpython-*.pyc is a DERIVATIVE of an x.py we scanned, so it carries no information the scan of the source did not already cover. Skipping it silently would be a hole (bytecode can outlive or replace its source), so the exemption is conditional: the sibling source must actually be in the scanned set. A planted or orphaned .pyc still lands in skipped and still makes the verdict UNSCANNABLE.\" | vet_skill comment | KEPT | The code defers .pyc files, checks if source is in scanned_sources, and adds to notes or skipped accordingly.",
+     "CLAIM | \"Without this, every skill that has ever been run sits permanently at UNSCANNABLE, and a gate that is always amber is a gate nobody reads.\" | vet_skill comment | KEPT | This is a rationale comment, not a checkable claim about code behavior.",
+     "CLAIM | \"Nothing is started or contacted.\" | vet_mcp_server docstring | KEPT | The function never executes the command or contacts any host; it only inspects the spec string.",
+     "CLAIM | \"launched through {cmd!r}, which fetches code at start-up \u2014 what runs tomorrow is not what was reviewed today\" | vet_mcp_server note | KEPT | The note is added when cmd is in _REMOTE_FETCHERS, accurately describing the risk.",
+     "CLAIM | \"unpinned version or a bare URL \u2014 not reproducible\" | vet_mcp_server finding | KEPT | The code checks for _UNPINNED pattern and adds the finding.",
+     "CLAIM | \"Where do the bytes go? One implementation of that question exists; call it.\" | vet_mcp_server comment | KEPT | The code calls lane_for_host(h) to get the lane.",
+     "CLAIM | \"reaches {h}, which sensitivity.lane_for_host calls {lane}\" | vet_mcp_server finding | KEPT | The finding message matches the code.",
+     "CLAIM | \"environment values are handed to the server process\" | vet_mcp_server finding | KEPT | The code checks for env dict and adds the finding.",
+     "CLAIM | \"static inspection of the launch command only \u2014 the server was not started, so what it actually exposes at runtime is UNKNOWN, not cleared\" | vet_mcp_server note | KEPT | The note is appended to notes list.",
+     "CLAIM | \"Counts by outcome, plus the blocking subjects. Sorted; no I/O.\" | summarise docstring | KEPT | The function counts outcomes, sorts subjects, and performs no I/O.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "51328c52d03be8b14608b58c1e851c134cb32ebd8b47dc2c469fd99f6fb5aaaf",
+    "objective_chars": 11648,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/tools/vet.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 9137
+ }
+}

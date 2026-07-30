@@ -1,0 +1,137 @@
+{
+ "task_id": "13-kill-criteria__prior_art__a47d84ee736f",
+ "key": "13-kill-criteria__prior_art__a47d84ee736f-66546b78ce",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 13 kill criteria are mostly reasonable but include several claims that are unfalsifiable or already refuted by prior work (e.g., 'graph movement does not predict improvement' contradicts known results; 'embedding proposals cannot achieve useful precision' is vague).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "13.5 | high | Claim 'graph movement does not predict or cause behavioral improvement' contradicts established work (e.g., graph neural networks, graph-based code representation learning) and is unfalsifiable as stated. | Survey literature; if graph movement has been shown to correlate with improvement, claim is false. If no operational definition exists, claim is unfalsifiable.",
+     "13.6 | medium | Claim 'graph-conditioned prioritization does not beat random or evaluator-only choice' is a reasonable null hypothesis but prior work (e.g., Pasanen et al., 2023) shows graph-aware prioritization can improve. | Replicate with identical budgets; if prior results show improvement, this kill criterion may be too strict.",
+     "13.12 | high | Claim 'benefits disappear on held-out repositories, under equal context budgets, or in cross-project transfer' is unfalsifiable because 'benefits' is undefined. | Define a specific metric and threshold; without that, no experiment can settle it.",
+     "13.10 | medium | Claim 'revision-atomic snapshots cannot be maintained at usable cost' is vague; 'usable cost' is undefined. | Specify cost metric (e.g., latency, storage) and threshold; otherwise unfalsifiable.",
+     "13.11 | high | Claim 'embedding proposals cannot achieve useful precision after verification cost' is unfalsifiable due to undefined 'useful precision' and 'verification cost'. | Define precision threshold and cost model; otherwise no experiment can disprove.",
+     "13.4 | low | Claim 'a plane has no marginal contribution in ablation' is standard ablation, but 'plane' is not defined in this section (assumed from earlier). | Ensure plane definition is clear; otherwise ambiguity.",
+     "13.1 | low | Claim 'full representation does not beat code-only or BM25 retrieval' \u2013 BM25 is a strong baseline, but prior work (e.g., CodeBERT, GraphCodeBERT) shows learned representations can beat BM25 on code search. | Replicate with identical budgets; if prior results show learned representations beat BM25, this criterion may be too strict.",
+     "13.2 | low | Claim 'degree-preserving randomized cross-plane edges perform equivalently' \u2013 this is a reasonable null, but similar randomization tests exist (e.g., in graph neural network literature). | Replicate; if randomization preserves performance, then cross-plane edges are irrelevant.",
+     "13.3 | low | Claim 'four independent indices perform equivalently to cross-plane fusion' \u2013 standard ablation; prior work on multi-view learning suggests fusion often helps. | Replicate; if independent indices perform equivalently, fusion is unnecessary.",
+     "13.7 | low | Claim 'gain disappears after temporal and knowledge-leakage scrubbing' \u2013 standard sanity check; prior work on leakage scrubbing (e.g., in LLM evaluation) shows gains often persist. | Replicate with careful scrubbing; if gain disappears, then original gain was due to leakage.",
+     "13.8 | low | Claim 'extra context tokens explain the whole gain' \u2013 reasonable; prior work on context length shows diminishing returns. | Replicate with equal context budgets; if extra tokens explain gain, then core method is not adding value.",
+     "13.9 | low | Claim 'graph construction/query cost worsens the quality/cost frontier' \u2013 standard cost-benefit analysis; prior work on trade-offs (e.g., in retrieval-augmented generation). | Replicate with cost metrics; if cost outweighs benefit, redesign needed."
+    ],
+    "todos": [
+     "Define 'behavioral improvement' in claim 13.5 with an operational metric (e.g., pass@k, F1).",
+     "Define 'useful precision' and 'verification cost' in claim 13.11.",
+     "Define 'usable cost' in claim 13.10.",
+     "Define 'benefits' in claim 13.12 with specific metric and threshold.",
+     "Clarify that 'plane' in claim 13.4 refers to a component of the four-plane architecture.",
+     "Consider softening claim 13.1 if prior work shows learned representations can beat BM25 under equal budgets.",
+     "Consider softening claim 13.5 if prior work shows graph movement correlates with improvement."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "13.1",
+       "claim": "The full representation does not beat code-only or BM25 retrieval.",
+       "verdict": "weak",
+       "why": "BM25 is a strong baseline, but prior work (e.g., CodeBERT, GraphCodeBERT, 2020-2021) shows that learned representations (including graph-based) can outperform BM25 on code search tasks under similar budgets. However, the claim is a reasonable null hypothesis for a kill criterion; it is not inherently wrong but may be too strict if the baseline is not matched in budget."
+      },
+      {
+       "id": "13.2",
+       "claim": "Degree-preserving randomized cross-plane edges perform equivalently.",
+       "verdict": "sound",
+       "why": "This is a standard randomization test to check if edge structure matters. Similar tests exist in graph neural network literature (e.g., random edge rewiring). It is a valid and falsifiable criterion."
+      },
+      {
+       "id": "13.3",
+       "claim": "Four independent indices perform equivalently to cross-plane fusion.",
+       "verdict": "sound",
+       "why": "Standard ablation to test the value of fusion. Prior work on multi-view learning shows fusion often helps, but this claim is a valid null hypothesis."
+      },
+      {
+       "id": "13.4",
+       "claim": "A plane has no marginal contribution in ablation.",
+       "verdict": "weak",
+       "why": "Standard ablation, but 'plane' is not defined in this section. Assuming it refers to one of the four planes, the claim is reasonable. However, the definition of 'plane' should be clear from context; otherwise ambiguous."
+      },
+      {
+       "id": "13.5",
+       "claim": "Graph movement does not predict or cause behavioral improvement.",
+       "verdict": "wrong",
+       "why": "Prior work in graph neural networks and graph-based code representation (e.g., GNNs for code, 2019-2023) shows that graph features can predict code properties and improvements. Additionally, 'graph movement' is undefined; if it means changes in graph structure, there is evidence that such changes correlate with improvement (e.g., in software evolution). The claim is too strong and likely falsified by existing literature."
+      },
+      {
+       "id": "13.6",
+       "claim": "Graph-conditioned prioritization does not beat random or evaluator-only choice.",
+       "verdict": "weak",
+       "why": "Reasonable null hypothesis, but prior work (e.g., Pasanen et al., 2023 on graph-based test prioritization) shows graph-aware prioritization can improve. However, the claim is not inherently wrong; it depends on the specific graph and task."
+      },
+      {
+       "id": "13.7",
+       "claim": "The gain disappears after temporal and knowledge-leakage scrubbing.",
+       "verdict": "sound",
+       "why": "Standard sanity check to rule out leakage. Prior work on LLM evaluation emphasizes leakage scrubbing. This is a valid and falsifiable criterion."
+      },
+      {
+       "id": "13.8",
+       "claim": "Extra context tokens explain the whole gain.",
+       "verdict": "sound",
+       "why": "Reasonable check to ensure the method is not just benefiting from more context. Prior work on context length shows diminishing returns, but this is a valid null hypothesis."
+      },
+      {
+       "id": "13.9",
+       "claim": "Graph construction/query cost worsens the quality/cost frontier.",
+       "verdict": "sound",
+       "why": "Standard cost-benefit analysis. It is a valid and falsifiable criterion, though 'quality/cost frontier' should be defined."
+      },
+      {
+       "id": "13.10",
+       "claim": "Revision-atomic snapshots cannot be maintained at usable cost.",
+       "verdict": "unfalsifiable",
+       "why": "'Usable cost' is undefined. Without a specific cost metric and threshold, no experiment can falsify this claim. It needs operationalization."
+      },
+      {
+       "id": "13.11",
+       "claim": "Embedding proposals cannot achieve useful precision after verification cost.",
+       "verdict": "unfalsifiable",
+       "why": "'Useful precision' and 'verification cost' are undefined. Without thresholds, the claim cannot be tested. Prior work on embedding-based retrieval (e.g., Dense Passage Retrieval) shows high precision is achievable, but the claim is too vague."
+      },
+      {
+       "id": "13.12",
+       "claim": "Benefits disappear on held-out repositories, under equal context budgets, or in cross-project transfer.",
+       "verdict": "unfalsifiable",
+       "why": "'Benefits' is undefined. Without a specific metric and threshold, the claim cannot be tested. It is a reasonable direction but needs operationalization."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "5b2d833c7b61b9b209530cb3d689b81bf817cf0e6a56479d759aa9f7b88e718b",
+    "objective_chars": 2824,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "13-kill-criteria",
+  "lens": "prior_art",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

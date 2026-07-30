@@ -1,0 +1,285 @@
+{
+ "task_id": "scan__daedalus_providers_deepseek.py__c1of5__946db82",
+ "key": "scan__daedalus_providers_deepseek.py__c1of5__946db82-8da2b0c9a7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of deepseek.py: imports, constants, docstrings, and re-exported guard functions. No public symbols defined; all claims checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "DEFAULT_BASE_URL | low | Hardcoded to api.deepseek.com; if environment overrides are intended they are not documented here. | Check if env-var fallback exists in unseen code.",
+     "_ELISION_MARKERS tuple | medium | Comment says 'kept as own tuple... free to diverge' but duplication risks drift. | Verify ollama.py has identical copy and both are maintained.",
+     "DEFAULT_MODEL comment | medium | Claims 'deepseek-v4-flash' is default; model availability depends on external API. | Confirm model exists and is not deprecated.",
+     "MAX_REWRITE_FILES/CHARS comment | medium | Claims these are 'BLAST-RADIUS limits' not window limits; no enforcement code visible. | Verify usage in write path enforces these caps.",
+     "_REWRITE_SYSTEM prompt | high | Truncated mid-sentence at end of chunk; incomplete prompt could cause misbehavior. | Complete prompt must be seen in later chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/deepseek.py",
+     "chunk": "1 of 5",
+     "purpose": "Imports, constants, and re-exported guard functions for the DeepSeek provider.",
+     "symbols": [
+      {
+       "name": "DEFAULT_BASE_URL",
+       "kind": "constant",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Default API endpoint URL for DeepSeek."
+      },
+      {
+       "name": "DEFAULT_MODEL",
+       "kind": "constant",
+       "effects": [
+        "spend"
+       ],
+       "note": "Default model identifier for DeepSeek."
+      },
+      {
+       "name": "MAX_REWRITE_FILES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum number of files allowed to rewrite in one operation."
+      },
+      {
+       "name": "MAX_REWRITE_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum characters allowed per rewrite."
+      },
+      {
+       "name": "MAX_NOTES_PER_FILE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maximum number of notes allowed per file."
+      },
+      {
+       "name": "_ELISION_MARKERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of elision markers to detect incomplete file rewrites."
+      },
+      {
+       "name": "_CHECK_POLICY",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Check policy with custom elision markers."
+      },
+      {
+       "name": "_MIN_SYMBOLS_TO_JUDGE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Minimum number of top-level definitions to judge substitution."
+      },
+      {
+       "name": "_FIRST_PARTY",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "First-party import roots."
+      },
+      {
+       "name": "_toplevel_defs",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-export of shared toplevel_defs."
+      },
+      {
+       "name": "_substitution_reason",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-export of shared not_substituted check."
+      },
+      {
+       "name": "_unresolved_first_party_imports",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Re-export of shared unresolved_first_party_imports."
+      },
+      {
+       "name": "_REWRITE_SYSTEM",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "System prompt for rewrite requests (truncated in this chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "DeepSeek exposes an OpenAI-compatible endpoint.",
+       "where": "line 22",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk verifies endpoint compatibility; relies on external fact."
+      },
+      {
+       "text": "json_object mode only (no GA strict schema) -> validate-and-retry",
+       "where": "line 23",
+       "verdict": "uncheckable",
+       "why": "No retry logic visible in this chunk; refers to usage not shown."
+      },
+      {
+       "text": "the legacy deepseek-chat/reasoner ids deprecate 2026-07-24, so default to v4-flash.",
+       "where": "lines 23-24",
+       "verdict": "uncheckable",
+       "why": "Model deprecation date and model availability are external facts; DEFAULT_MODEL is set but not verified."
+      },
+      {
+       "text": "DeepSeek trains on inputs by default and is PRC-hosted -> non-sensitive content only (enforced below by classify_data).",
+       "where": "lines 25-26",
+       "verdict": "uncheckable",
+       "why": "classify_data is imported but not used in this chunk; enforcement not visible."
+      },
+      {
+       "text": "Write-path bounds. Deliberately the SAME numbers the local bench uses (providers/ollama.py): they are not window limits -- DeepSeek's window is far larger -- they are BLAST-RADIUS limits.",
+       "where": "lines 29-32",
+       "verdict": "uncheckable",
+       "why": "Comparison to ollama.py and window sizes not verifiable from this chunk alone."
+      },
+      {
+       "text": "An occasional external write (\"ab und zu\") is a scoped edit to a handful of files; a fan-out wider than this belongs to Ikarus",
+       "where": "lines 32-34",
+       "verdict": "uncheckable",
+       "why": "Reference to Ikarus not present; policy rationale not enforceable from this chunk."
+      },
+      {
+       "text": "MAX_REWRITE_CHARS also caps what a single request can put on an untrusted wire.",
+       "where": "lines 34-35",
+       "verdict": "uncheckable",
+       "why": "No usage of MAX_REWRITE_CHARS shown in this chunk."
+      },
+      {
+       "text": "Notes are a side channel, not a report. Capping per file keeps a chatty model from burying the one useful observation under twenty restatements of the diff.",
+       "where": "lines 38-39",
+       "verdict": "uncheckable",
+       "why": "No usage of MAX_NOTES_PER_FILE shown in this chunk."
+      },
+      {
+       "text": "a \"full file\" rewrite containing one of these almost certainly dropped code instead of returning the whole file. Only rejected when the marker is NEW (absent from the original), so a file that legitimately contains the phrase is not permanently unwritable.",
+       "where": "lines 42-45",
+       "verdict": "uncheckable",
+       "why": "Logic for rejecting markers not visible; relies on usage in checks not shown."
+      },
+      {
+       "text": "Kept as this module's own tuple rather than imported from the local-bench provider: this is a claim about what an EXTERNAL model emits, and the two must be free to diverge without one lane silently re-tuning the other's guard.",
+       "where": "lines 45-47",
+       "verdict": "kept",
+       "why": "The tuple is defined locally; the comment accurately describes the design choice visible in code."
+      },
+      {
+       "text": "This lane's own policy over the shared daedalus.lanes baseline -- see providers/ollama.py's identical construction and daedalus/lanes/__init__.py for why the marker tuple is local while everything else is shared.",
+       "where": "lines 50-52",
+       "verdict": "kept",
+       "why": "A _CHECK_POLICY is created with local _ELISION_MARKERS; comment describes the pattern visible."
+      },
+      {
+       "text": "Below this many top-level definitions, the survival ratio is noise -- losing one of two functions is an ordinary edit, not a substitution. Re-exported from the shared baseline (below) so existing callers naming this constant keep working; it is no longer this module's own number.",
+       "where": "lines 55-58",
+       "verdict": "kept",
+       "why": "The constant _MIN_SYMBOLS_TO_JUDGE is set to BASELINE_POLICY.min_symbols_to_judge; re-export comment accurate."
+      },
+      {
+       "text": "Import roots that belong to THIS repository. Re-exported from the shared baseline for the same reason.",
+       "where": "lines 60-61",
+       "verdict": "kept",
+       "why": "_FIRST_PARTY is set to BASELINE_POLICY.first_party_roots; comment accurate."
+      },
+      {
+       "text": "The three guards below (substitution, unresolved imports, and the AST helper they share) used to be defined here, and ONLY here. ... They now live in daedalus.lanes.checks as the shared baseline every write lane runs, and are re-exported here under their original names",
+       "where": "lines 64-70",
+       "verdict": "kept",
+       "why": "The functions _toplevel_defs, _substitution_reason, _unresolved_first_party_imports are re-exported from shared checks; comment describes this accurately."
+      },
+      {
+       "text": "The docstrings, the measurements, and the thresholds moved with them -- read them there.",
+       "where": "lines 70-71",
+       "verdict": "uncheckable",
+       "why": "No docstrings present in this chunk; refers to external module."
+      },
+      {
+       "text": "MEASURED 2026-07-30. A change request naming two files (\"add tests for shift.py in tests/test_shift.py\") is sent once PER FILE, and the model answered the REQUEST rather than the FILE: asked to rewrite daedalus/shift.py it returned the test module, destroying the real one. Three of five multi-file writes failed this way, each reporting success. The output must be bound to the file that was sent, not to whichever file the prose happens to mention.",
+       "where": "lines 81-87",
+       "verdict": "uncheckable",
+       "why": "Measurement data and failure instances not present; refers to external events."
+      },
+      {
+       "text": "The change request may mention SEVERAL files. You are being asked about exactly ONE of them, named below, and you are rewriting only that one. Return the new contents of THAT file and nothing else -- never the",
+       "where": "lines 88-91",
+       "verdict": "broken",
+       "why": "The prompt is truncated mid-sentence; the claim about returning 'nothing else' is incomplete and not fully enforceable from visible text."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Chunk ends mid-sentence in _REWRITE_SYSTEM prompt string.",
+       "where": "line 91",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Multiple constants and functions are re-exported from shared modules; correctness depends on those modules.",
+       "where": "lines 73-78",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Hardcoded API URL and model; no environment variable override visible.",
+       "where": "lines 23-24",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "591b25b47095c27756e1d43dca37c185a9e202c768e67fa90677bfeaffac9000",
+    "objective_chars": 6604,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/deepseek.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/providers/deepseek.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

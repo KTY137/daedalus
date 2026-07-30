@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c11of11__946db82",
+ "key": "scan__daedalus_spine_picker.py__c11of11__946db82-463b734d6c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 11/11 of picker.py: CLI argument parser and main() function. No issues found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "main() | medium | The function references EXIT_BY_STATE and EXIT_FAILED which are not defined in this chunk; if missing, runtime error. | Check that these constants are defined elsewhere in the module or imported."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "11 of 11",
+     "purpose": "Define CLI argument parser for 'daedalus improve' and implement main() entry point.",
+     "symbols": [
+      {
+       "name": "_build_parser",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds and returns argparse.ArgumentParser for daedalus improve subcommand."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Entry point for daedalus improve; parses args, builds queue, and optionally attempts one candidate."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Rank the repo's own work by measurement and, with --once, attempt the top item in an isolated worktree. NEVER applies anything: the output is a patch plus a gate verdict for a human to promote or discard.",
+       "where": "description in _build_parser",
+       "verdict": "uncheckable",
+       "why": "The claim that it ranks work and produces a patch/gate verdict is not verifiable from this chunk alone; it depends on build_queue and review_packet which are not defined here."
+      },
+      {
+       "text": "There is no --apply flag and there will not be one here.",
+       "where": "epilog in _build_parser",
+       "verdict": "kept",
+       "why": "The argument parser does not define an --apply flag, and the epilog states it will never be added."
+      },
+      {
+       "text": "Exit codes for --once: 0 = a gated candidate patch is waiting for you, 2 = the attempt ran and changed nothing, 3 = a source could not be consulted, so 'no candidate' is NOT evidence that there is no work, 1 = anything else (gate failed, runner failed, no candidate).",
+       "where": "epilog in _build_parser",
+       "verdict": "uncheckable",
+       "why": "The exit codes are defined by EXIT_BY_STATE, EXIT_SOURCE_UNAVAILABLE, EXIT_FAILED etc., which are not defined in this chunk. The actual mapping cannot be verified."
+      },
+      {
+       "text": "Default behaviour with no flags is the DRY RUN. An operator who types daedalus improve to see what it does must not thereby start a model run in a worktree -- the destructive-by-default reading of an ambiguous command is the one that has to be wrong.",
+       "where": "docstring of main",
+       "verdict": "kept",
+       "why": "In main, if args.once is False (default), it prints the queue and returns early without running any attempt, confirming dry-run behavior."
+      },
+      {
+       "text": "Default behaviour with no flags is the DRY RUN. An operator who types daedalus improve to see what it does must not thereby start a model run in a worktree",
+       "where": "docstring of main",
+       "verdict": "kept",
+       "why": "In main, if args.once is False (default), it prints the queue and returns early without running any attempt, confirming dry-run behavior."
+      },
+      {
+       "text": "The output is a patch plus a gate verdict for a human to promote or discard.",
+       "where": "description in _build_parser",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show what review_packet returns; it is only called and printed."
+      },
+      {
+       "text": "Promotion is a human act.",
+       "where": "epilog in _build_parser",
+       "verdict": "kept",
+       "why": "The code never applies any changes; it only prints a review packet."
+      },
+      {
+       "text": "Exit codes for --once: 0 = a gated candidate patch is waiting for you, 2 = the attempt ran and changed nothing, 3 = a source could not be consulted, so 'no candidate' is NOT evidence that there is no work, 1 = anything else (gate failed, runner failed, no candidate).",
+       "where": "epilog in _build_parser",
+       "verdict": "uncheckable",
+       "why": "The exit codes are defined by EXIT_BY_STATE, EXIT_SOURCE_UNAVAILABLE, EXIT_FAILED etc., which are not defined in this chunk. The actual mapping cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "main() references EXIT_BY_STATE, EXIT_SOURCE_UNAVAILABLE, EXIT_FAILED, EXIT_BY_STATE which are not defined in this chunk.",
+       "where": "main function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() calls build_queue, render_queue, review_packet, _default_attempt which are not defined in this chunk.",
+       "where": "main function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "main() uses _console_safe function which is not defined in this chunk.",
+       "where": "main function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The --help text for --once says 'still applies nothing' but the code does not show any application logic.",
+       "where": "parser argument --once help",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The --dry-run help says it is the default when --once is absent, which matches the code logic.",
+       "where": "parser argument --dry-run help",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The --eval help says 'also consult a FRESH advisory eval gate run (slow: replays every task, builds an index)' but the actual behavior depends on build_queue.",
+       "where": "parser argument --eval help",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The --hotspots help says 'also consult churn x complexity hotspots (slow: builds the whole-repo structural index)' but actual behavior depends on build_queue.",
+       "where": "parser argument --hotspots help",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The --live help says 'with --once, let the runner actually invoke a model in the worktree (default: advisory, which normally produces no change)' but the code only prints a message if not --live; the actual runner behavior is delegated to attempt_fn.",
+       "where": "parser argument --live help",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "44cdbf45c0ebb37363957313f929ef4d809626ba045b4c1144ac97195a313135",
+    "objective_chars": 6777,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [11/11]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 11,
+  "total": 11,
+  "first_line": 2801
+ }
+}

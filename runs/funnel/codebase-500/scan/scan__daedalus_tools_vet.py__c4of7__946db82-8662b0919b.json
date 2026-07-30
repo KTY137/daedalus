@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c4of7__946db82",
+ "key": "scan__daedalus_tools_vet.py__c4of7__946db82-8662b0919b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of vet.py: defines _canonical_identity helper, apply_allowances function, Verdict dataclass, _worst, _clip, and _INVISIBLE constant.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "4 of 7",
+     "purpose": "Define canonical identity computation, allowance application, Verdict dataclass, and utility helpers.",
+     "symbols": [
+      {
+       "name": "canonical",
+       "kind": "constant",
+       "effects": [],
+       "note": "Local variable in _canonical_identity (not shown in chunk but used as return value)."
+      },
+      {
+       "name": "apply_allowances",
+       "kind": "function",
+       "effects": [],
+       "note": "Downgrades BLOCK findings to REVIEW if an allowance matches, with pinning logic."
+      },
+      {
+       "name": "Verdict",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a vetting verdict with outcome, findings, and metadata."
+      },
+      {
+       "name": "Verdict.cleared",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning True only for full scan with nothing found and no skipped files."
+      },
+      {
+       "name": "Verdict.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes Verdict to a dictionary."
+      },
+      {
+       "name": "_worst",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the worst outcome from a sequence based on _ORDER."
+      },
+      {
+       "name": "_clip",
+       "kind": "function",
+       "effects": [],
+       "note": "Truncates a string to n characters with ellipsis."
+      },
+      {
+       "name": "_INVISIBLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary of invisible Unicode codepoints used for detection."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An allowance MAY pin ``body_sha256``. When it does, the acknowledgement applies only to the exact bytes a human reviewed -- a different skill of the same name does not match, and neither does the SAME skill after it is edited, which is the more valuable half.",
+       "where": "apply_allowances docstring",
+       "verdict": "kept",
+       "why": "The code checks `if pinned and pinned != identity` and refuses to apply the allowance, matching the claim."
+      },
+      {
+       "text": "An allowance without a pin still works (they are written by hand, and demanding a digest up front would mean nobody writes one) but it is reported as UNPINNED so the weaker form is visible rather than assumed.",
+       "where": "apply_allowances docstring",
+       "verdict": "kept",
+       "why": "When `not pinned`, the code appends \"[UNPINNED: ...]\" to the note, confirming the claim."
+      },
+      {
+       "text": "A pin whose counterpart cannot be computed is a pin that cannot be honoured.",
+       "where": "apply_allowances docstring (within code comment)",
+       "verdict": "kept",
+       "why": "When `pinned` and `not identity`, the code refuses the allowance and adds a note about inability to verify."
+      },
+      {
+       "text": "True ONLY for a full scan with nothing found. Everything else \u2014 including an unreadable file \u2014 is not cleared. This property is the whole fail-closed contract; callers must not re-derive it from ``findings`` being empty.",
+       "where": "Verdict.cleared docstring",
+       "verdict": "kept",
+       "why": "The property returns `self.outcome == CLEAR and not self.skipped`. If there are skipped files, `self.skipped` is non-empty, so `cleared` is False. If outcome is not CLEAR, it's False. This matches the claim."
+      },
+      {
+       "text": "An adversarial review on 2026-07-30 showed why: skills come from several scopes, so a project-scope skill called ``room`` inherited the acknowledgement written for the user-scope ``room`` and its ``subprocess`` call was downgraded from BLOCK to REVIEW. A name is not an identity; anyone who can place a directory can choose one.",
+       "where": "apply_allowances docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to a historical adversarial review and behavior of allowances across scopes; this code chunk does not contain the allowance lookup or scope handling to verify."
+      },
+      {
+       "text": "An adversarial review on 2026-07-30 broke every exec rule with ``e\u200bval(`` -- the regex sees two tokens, a Python parser sees one identifier, and a MODEL reading the skill sees \"eval\". Their presence inside source or instructions is itself a signal, so they are stripped for matching AND reported.",
+       "where": "_INVISIBLE comment",
+       "verdict": "uncheckable",
+       "why": "The comment describes a historical review and behavior of stripping/reporting invisible characters; this chunk only defines the codepoints, not the matching or reporting logic."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The `canonical` dictionary is built but its context (function definition) is not in this chunk; it appears to be part of a helper likely named `_canonical_identity`.",
+       "where": "Lines before apply_allowances",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The `apply_allowances` function uses `identity` parameter but the docstring claim about pinning refers to `body_sha256`; the code correctly compares `pinned != identity`.",
+       "where": "apply_allowances",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `_INVISIBLE` constant is defined as a dict.fromkeys but the closing parenthesis is missing in the chunk (line ends with `[0x00AD, 0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0x2060, 0xFEFF]`). This is likely a truncation; the full definition would include a closing `)`.",
+       "where": "Line after _INVISIBLE definition",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The `_worst` function references `_ORDER` which is not defined in this chunk; it is presumably a global dictionary mapping outcome strings to severity integers.",
+       "where": "_worst function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `Verdict.cleared` property uses `self.outcome == CLEAR`; `CLEAR` is not defined in this chunk, but is presumably a constant imported or defined elsewhere.",
+       "where": "Verdict.cleared",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e9f1f754d0e57ead06540bf131e9465bfde987e5b9a07ac9277e342dd817d37f",
+    "objective_chars": 6342,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [4/7]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 4,
+  "total": 7,
+  "first_line": 361
+ }
+}

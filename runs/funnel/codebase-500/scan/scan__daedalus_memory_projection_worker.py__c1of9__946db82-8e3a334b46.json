@@ -1,0 +1,281 @@
+{
+ "task_id": "scan__daedalus_memory_projection_worker.py__c1of9__946db82",
+ "key": "scan__daedalus_memory_projection_worker.py__c1of9__946db82-8e3a334b46",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of 9 of projection_worker.py. No public symbols defined yet. Module docstring makes many claims about behaviour; most are uncheckable against this chunk as they refer to external functions, classes, or future code. Observations about imports and constants noted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 1-110 | high | Module docstring claims about resumability, idempotency, watermark safety, journal integrity checks, and failure handling cannot be verified from this chunk alone; they depend on code in embeddings.py and other modules not provided. | Provide the referenced modules to verify each claim.",
+     "line 92-96 | medium | Import of _source_hash as projection_source_hash from .embeddings is a private name; if it is not intended for public use, changes to embeddings.py could break this import without warning. | Confirm that _source_hash is a stable public symbol or rename it appropriately.",
+     "line 97-100 | low | Constant JOURNAL_ID is defined but not used in this chunk; its purpose is unclear without seeing the rest of the module. | Check usage in later chunks or remove if unused."
+    ],
+    "todos": [
+     "Verify all claims in the module docstring against the actual implementation in subsequent chunks.",
+     "Check that _source_hash is a stable export from .embeddings.",
+     "Ensure JOURNAL_ID is used appropriately in the code."
+    ],
+    "handoff": {
+     "module": "daedalus/memory/projection_worker.py",
+     "chunk": "1 of 9",
+     "purpose": "Module docstring, imports, and constants for the projection worker.",
+     "symbols": [
+      {
+       "name": "JOURNAL_ID",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String constant 'memory/events.local.jsonl' used as stable journal identity."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The journal (``memory/events.local.jsonl``) is authoritative.",
+       "where": "line 1",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk establishes authoritativeness; it depends on the write path and other modules."
+      },
+      {
+       "text": "Nothing in the operational append path is allowed to block on an embedding call, so this worker is the *only* component that is supposed to move the index forward",
+       "where": "line 2-3",
+       "verdict": "uncheckable",
+       "why": "This claim references the append path and embedding call policy, which are not shown in this chunk."
+      },
+      {
+       "text": "it is also the component that owns :meth:`EventVectorStore.record_journal_watermark`",
+       "where": "line 4",
+       "verdict": "uncheckable",
+       "why": "EventVectorStore and its method are imported from .embeddings but not defined here; ownership claim cannot be verified."
+      },
+      {
+       "text": "Before it existed, every search reported ``freshness == 'unanchored'``: freshness unknown.",
+       "where": "line 5",
+       "verdict": "uncheckable",
+       "why": "Refers to historical behaviour not present in this chunk."
+      },
+      {
+       "text": "Progress is a byte offset into the journal, stored as a :class:`JournalPosition` watermark inside the index itself.",
+       "where": "line 9",
+       "verdict": "uncheckable",
+       "why": "JournalPosition is imported but not defined here; the watermark storage mechanism is not shown."
+      },
+      {
+       "text": "A run starts at the recorded watermark, never at zero, so restarting is cheap.",
+       "where": "line 9-10",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk shows the start-up logic."
+      },
+      {
+       "text": "the index is content-addressed (``UNIQUE(index_id, source_hash)`` with ``INSERT OR IGNORE``), so a replayed entry *cannot* duplicate",
+       "where": "line 12-13",
+       "verdict": "uncheckable",
+       "why": "Refers to database schema not present in this chunk."
+      },
+      {
+       "text": "this worker filters entries whose ``source_hash`` is already in the index *before* embedding them, so a replay also costs nothing.",
+       "where": "line 13-14",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements such filtering."
+      },
+      {
+       "text": "If the filter were wrong in the direction of 'not yet projected', the result is redundant embedding work, never a duplicate row and never a lost entry.",
+       "where": "line 14-15",
+       "verdict": "uncheckable",
+       "why": "Hypothetical analysis not backed by code in this chunk."
+      },
+      {
+       "text": "A watermark is recorded only after the projections for every journal byte below it are committed.",
+       "where": "line 17-18",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk shows watermark recording logic."
+      },
+      {
+       "text": "The crash window is therefore one batch wide and it always fails *behind*",
+       "where": "line 18-19",
+       "verdict": "uncheckable",
+       "why": "Crash recovery behaviour not shown."
+      },
+      {
+       "text": "the reverse -- a watermark ahead of the vectors -- is never written, because that would silently drop journal entries forever.",
+       "where": "line 20-21",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk prevents such a scenario."
+      },
+      {
+       "text": "``content_hash`` on the watermark is the SHA-256 of the journal prefix ``[0, position)``.",
+       "where": "line 23",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk computes content_hash."
+      },
+      {
+       "text": "On every run that prefix is re-hashed. A journal that was rewritten, truncated, or replaced fails the check and the run refuses with ``journal_forked``",
+       "where": "line 23-25",
+       "verdict": "uncheckable",
+       "why": "No check logic in this chunk."
+      },
+      {
+       "text": "Only complete lines are consumed. A trailing line with no ``\\n`` is a writer mid-append, not a record. The watermark stops before it.",
+       "where": "line 27-28",
+       "verdict": "uncheckable",
+       "why": "No line-reading logic in this chunk."
+      },
+      {
+       "text": "Consuming it would parse a fragment and then skip the real record forever.",
+       "where": "line 28-29",
+       "verdict": "uncheckable",
+       "why": "Hypothetical scenario not backed by code in this chunk."
+      },
+      {
+       "text": "``embedder_unavailable`` is an outage: the run stops, keeps the watermark it earned, and exits non-zero",
+       "where": "line 31-32",
+       "verdict": "uncheckable",
+       "why": "No error handling code in this chunk."
+      },
+      {
+       "text": "``model_drift`` is a correctness fault that survives a retry: :mod:`daedalus.memory.embeddings` refuses *before* writing, and this worker neither catches that refusal nor advances past it.",
+       "where": "line 32-33",
+       "verdict": "uncheckable",
+       "why": "Refers to code in embeddings.py not present here."
+      },
+      {
+       "text": "The worker resolves its :class:`EmbeddingSpec` **without calling the backend**: either by adopting the one index already recorded for this (provider, model, revision, normalization, projector) identity, or from the declared ``dimension`` (default :data:`DEFAULT_DIMENSION`).",
+       "where": "line 37-39",
+       "verdict": "uncheckable",
+       "why": "No resolution logic in this chunk."
+      },
+      {
+       "text": "That is what makes 'a second run over an unchanged journal does zero embedding work' true rather than approximately true -- a probe call to discover the dimension would break it.",
+       "where": "line 39-40",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk demonstrates zero-embedding behaviour."
+      },
+      {
+       "text": "``model_revision`` defaults to ``None`` on purpose.",
+       "where": "line 42",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk sets a default for model_revision."
+      },
+      {
+       "text": "The shipped reader, ``daedalus.context_plan.latent_memory_seed_scores``, searches with no spec, so the spec it resolves has ``model_revision=None``.",
+       "where": "line 42-43",
+       "verdict": "uncheckable",
+       "why": "Refers to external module not provided."
+      },
+      {
+       "text": "Pinning a revision here produces a *different* ``index_id``, and ``daedalus context --latent`` would report ``index_unavailable`` against a perfectly good index.",
+       "where": "line 43-44",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk ties revision to index_id or reports index_unavailable."
+      },
+      {
+       "text": "The worker warns when a revision is pinned.",
+       "where": "line 44",
+       "verdict": "uncheckable",
+       "why": "No warning logic in this chunk."
+      },
+      {
+       "text": "Drift is still caught, empirically, by the identity anchor in :mod:`daedalus.memory.embeddings`",
+       "where": "line 44-45",
+       "verdict": "uncheckable",
+       "why": "Refers to embeddings.py not provided."
+      },
+      {
+       "text": "One run reads every unprojected complete line before batching. ``--limit`` is the bound for a journal that has grown far beyond what one run should chew through; there is no streaming path.",
+       "where": "line 49-50",
+       "verdict": "uncheckable",
+       "why": "No batch reading logic in this chunk."
+      },
+      {
+       "text": "Position is a byte offset, and only compares to byte offsets. A caller that measures the same journal in line counts and passes that as a :class:`JournalPosition` will get a meaningless freshness answer.",
+       "where": "line 52-53",
+       "verdict": "uncheckable",
+       "why": "No comparison logic in this chunk."
+      },
+      {
+       "text": "Use :func:`journal_position` on both sides.",
+       "where": "line 53",
+       "verdict": "uncheckable",
+       "why": "journal_position function not defined in this chunk; likely in embeddings.py."
+      },
+      {
+       "text": "A malformed or blank line is stepped over, not retried. Both are counted and named in the report, and the watermark advances past them",
+       "where": "line 55-56",
+       "verdict": "uncheckable",
+       "why": "No line processing logic in this chunk."
+      },
+      {
+       "text": "Nothing here schedules anything. The index goes stale the moment the next event is appended. Freshness is now *answerable*; keeping it fresh is a scheduling decision this module does not make.",
+       "where": "line 58-59",
+       "verdict": "uncheckable",
+       "why": "No scheduling code in this chunk."
+      },
+      {
+       "text": "Run it: python -m daedalus.memory.projection_worker --json",
+       "where": "line 61",
+       "verdict": "uncheckable",
+       "why": "No __main__ block in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring is extensive and makes many specific claims about behaviour, but this chunk only contains imports and a constant. None of the claims can be verified from this code alone.",
+       "where": "lines 1-110",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "Import of _source_hash as projection_source_hash from .embeddings uses a private name; this may be fragile if embeddings.py changes.",
+       "where": "line 96",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Constant JOURNAL_ID is defined but not referenced in this chunk.",
+       "where": "line 99",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several imports from .embeddings (EMBED_MODEL, EVENT_PROJECTOR_VERSION, AgentEvent, EmbeddingBackend, EmbeddingSpec, EventVectorStore, JournalPosition, OllamaEmbeddingBackend) are not used in this chunk, suggesting they will be used later.",
+       "where": "lines 88-94",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e9babc999f218806b1e477acffa3a74a970a5a0ed7fcdae8dac3bc750556835e",
+    "objective_chars": 6704,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/projection_worker.py [1/9]",
+  "rev": "946db82",
+  "module": "daedalus/memory/projection_worker.py",
+  "index": 1,
+  "total": 9,
+  "first_line": 1
+ }
+}

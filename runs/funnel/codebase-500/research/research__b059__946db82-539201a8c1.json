@@ -1,0 +1,103 @@
+{
+ "task_id": "research__b059__946db82",
+ "key": "research__b059__946db82-539201a8c1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis: 3 hypotheses identified spanning eval/__init__.py, mapping/drift.py, spine/attempt.py, and structcore/ignore.py.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "No module actually implements the 'fail-closed' gate behavior promised by spine/attempt.py's docstring; that responsibility is deferred to an external module (daedalus.eval.correctness.correctness_gate) which may not exist or may behave differently.",
+     "The 'freshness' contract in mapping/drift.py is documented but no code in any scanned report implements snapshot_freshness; consumers may rely on a non-existent function.",
+     "The eval package's docstring claims isolation from structcore, but structcore/ignore.py provides ProjectScope which is likely consumed by eval; if eval mutates it, the claim is violated."
+    ],
+    "todos": [
+     "Verify that daedalus.eval.correctness.correctness_gate exists and implements fail-closed for correctness_before_state as documented.",
+     "Locate and inspect snapshot_freshness function to confirm it matches the documented behavior.",
+     "Check if daedalus.eval or any other module imports and mutates ProjectScope or other structcore types."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "deferred-gate-fail-closed",
+       "claim": "Multiple modules promise fail-closed behavior for gate/validation but defer implementation to absent or untested external code, creating a gap where no actual enforcement occurs.",
+       "spans": [
+        "spine/attempt.py",
+        "eval/__init__.py",
+        "mapping/drift.py"
+       ],
+       "mechanism": "spine/attempt.py's TaskSpec docstring states that correctness_before_state is verified by daedalus.eval.correctness.correctness_gate at gate time, but that function is not defined or imported in any scanned chunk. mapping/drift.py's parse_acceptances claims fail-closed but only collects problems without raising/failing. eval/__init__.py's docstring promises gating logic for Tier 2 but run_tier2 is imported from .harness, whose body is unseen. The chain of deferred responsibility means no scanned module actually enforces fail-closed.",
+       "severity": "critical",
+       "confidence": "likely",
+       "refuted_by": "If daedalus.eval.correctness.correctness_gate is found in another chunk and verified to implement fail-closed validation for correctness_before_state, this hypothesis is refuted.",
+       "evidence": [
+        "spine/attempt.py: TaskSpec docstring lines 549-562",
+        "mapping/drift.py: parse_acceptances docstring and code (fail-closed claim but no raise)",
+        "eval/__init__.py: docstring lines 14-17 (gated Tier 2, but run_tier2 imported from unseen .harness)"
+       ]
+      },
+      {
+       "id": "freshness-contract-unimplemented",
+       "claim": "The drift report's freshness field is documented as critical for ranking work but no implementation of snapshot_freshness or its consumption is present in any scanned module, risking silent reliance on a non-existent function.",
+       "spans": [
+        "mapping/drift.py"
+       ],
+       "mechanism": "DriftReport defines freshness as a dict field. A comment states that consumers ranking work must fail closed on snapshot_freshness. However, no code in the scanned reports implements snapshot_freshness or uses the freshness field. If snapshot_freshness is defined elsewhere, it may be missing or behave differently from documented expectations.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If snapshot_freshness is defined in another chunk of mapping/drift.py or another module and is verified to be used by consumers, this hypothesis is refuted.",
+       "evidence": [
+        "mapping/drift.py: comment near DriftReport.freshness (lines ~800) stating 'consumers that RANK WORK ... must fail closed on it -- see :func:`snapshot_freshness`'",
+        "mapping/drift.py: DriftReport class definition with freshness field but no method snapshot_freshness"
+       ]
+      },
+      {
+       "id": "eval-isolation-leak",
+       "claim": "The eval package claims isolation from structcore (no mutation, only imports stable public API), but structcore's ProjectScope (from ignore.py) is likely used by eval's harness or tasks, and the claim is unverifiable; if eval mutates ProjectScope instances, the isolation promise is broken.",
+       "spans": [
+        "eval/__init__.py",
+        "structcore/ignore.py"
+       ],
+       "mechanism": "eval/__init__.py docstring states 'Isolated package: imports structcore's stable public API; never mutates it.' structcore/ignore.py defines ProjectScope, a frozen dataclass used for scope decisions. If eval's harness (run_tier1/run_tier2) or tasks import and modify ProjectScope attributes (despite frozen), or if they rely on internal state that is mutated, the isolation claim is violated. No code in eval/__init__.py shows imports, so the claim is uncheckable.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If eval's __init__.py or any other eval module is shown to not import structcore at all, or if it only reads from ProjectScope without mutation, this hypothesis is refuted.",
+       "evidence": [
+        "eval/__init__.py: docstring line 19 ('Isolated package: imports structcore's stable public API; never mutates it.')",
+        "structcore/ignore.py: ProjectScope class (frozen dataclass with methods like in_center, is_shell)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c3c2d6c7e216bd7a91fcd397690bb17bb925a36c6e2a8cebdcaf94e9e3417222",
+    "objective_chars": 22997,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 59 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 59,
+  "inputs": 4
+ }
+}

@@ -1,0 +1,133 @@
+{
+ "task_id": "scan__daedalus_mapping_switches.py__c7of10__946db82",
+ "key": "scan__daedalus_mapping_switches.py__c7of10__946db82-385e085927",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 7 of switches.py: EnvSite generation for registry keys, helper functions for registry env keys, string values, param switches, and config flattening.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_registry_env_keys | medium | Only checks for 'env_key' and 'env_keys' keywords, may miss other registry env key patterns. | Review the registry code to confirm all env key declarations are captured.",
+     "_string_values | low | Only returns strings from Constant, Tuple, List, Set; may miss f-strings or other expressions. | Check if f-strings or other expressions are used for env key values.",
+     "_param_switches | medium | Skips functions/methods with leading underscore or nested in private class/function; may miss valid switches. | Verify that this filtering matches intended public API.",
+     "_flatten | low | Skips dict keys starting with '_', but only if str(key) matches; may miss non-string keys. | Confirm that all config dict keys are strings.",
+     "_registry_env_keys | low | Handles ast.Dict but only checks keys that are ast.Constant; may miss variable keys. | Check if env_key can be specified with a variable key in dict."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/switches.py",
+     "chunk": "7 of 10",
+     "purpose": "Generates EnvSite entries for registry-declared env keys and provides helper functions.",
+     "symbols": [
+      {
+       "name": "_registry_env_keys",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts env_key/env_keys from ast.keyword or ast.Dict nodes."
+      },
+      {
+       "name": "_string_values",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts string values from Constant, Tuple, List, Set nodes."
+      },
+      {
+       "name": "_param_switches",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates ParamSwitch entries for boolean parameters with default False."
+      },
+      {
+       "name": "_flatten",
+       "kind": "function",
+       "effects": [],
+       "note": "Flattens nested dict into key-value pairs, skipping keys starting with '_'."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Without these the provider lanes look unconfigurable because no literal name appears at the read site.",
+       "where": "comment before for loop",
+       "verdict": "uncheckable",
+       "why": "The claim about provider lanes being unconfigurable refers to behavior outside this chunk; no evidence here."
+      },
+      {
+       "text": "the lane reports unconfigured until it is set",
+       "where": "gates string in EnvSite",
+       "verdict": "uncheckable",
+       "why": "Refers to lane behavior not defined in this chunk."
+      },
+      {
+       "text": "`_comment` keys are prose, not switches",
+       "where": "comment in _flatten",
+       "verdict": "kept",
+       "why": "The code skips keys starting with '_' via `if str(key).startswith(\"_\")`."
+      }
+     ],
+     "observations": [
+      {
+       "what": "EnvSite for registry keys uses via='registry' and sets dark=True, state='OFF'.",
+       "where": "for loop after comment 'Registry-declared env keys'",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_registry_env_keys only checks ast.keyword and ast.Dict; may miss other AST patterns.",
+       "where": "_registry_env_keys function",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_string_values only handles Constant, Tuple, List, Set; ignores f-strings, Name, etc.",
+       "where": "_string_values function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_param_switches filters out private functions (leading _), nested in private class, or nested helpers.",
+       "where": "_param_switches function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_flatten uses sorted(value, key=str) which may fail on mixed types.",
+       "where": "_flatten function",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fc8ec3bc4d2e53874de891e5cef954fe7c56295d64f11ffc82a4d6626e7c52ee",
+    "objective_chars": 5634,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/switches.py [7/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/switches.py",
+  "index": 7,
+  "total": 10,
+  "first_line": 721
+ }
+}

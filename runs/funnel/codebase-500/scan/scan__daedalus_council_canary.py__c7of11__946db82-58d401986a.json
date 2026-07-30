@@ -1,0 +1,234 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c7of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c7of11__946db82-58d401986a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 7 of 11 of daedalus/council/canary.py: exit_code, Lane dataclass, resolve_exe, _CanaryAdapterMixin, and helper functions. Claims verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 724 | low | exit_code returns 1 if regressions('liveness') is truthy, but regressions method not defined in this chunk; interface contract uncheckable. | Verify regressions method exists and returns expected type.",
+     "line 793 | low | _is_local_http matches endpoint against _HTTP_HOST_RE; if endpoint is None or empty, returns False. Could be fragile if endpoint format unexpected. | Check typical endpoint strings.",
+     "line 800 | low | _bind returns a closure that calls adapter.ask with role='', but adapter.ask signature not fully visible; role parameter default might mismatch. | Confirm adapter.ask accepts role keyword.",
+     "line 803 | low | default_lanes function signature shown but body not in this chunk; many parameters with defaults, but usage unclear. | Review full function body."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "7 of 11",
+     "purpose": "Defines exit_code, Lane dataclass, resolve_exe, _CanaryAdapterMixin, and helper functions for lane binding.",
+     "symbols": [
+      {
+       "name": "exit_code",
+       "kind": "method",
+       "effects": [],
+       "note": "Returns 1 if self.regressions('liveness') else 0."
+      },
+      {
+       "name": "Lane",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: vendor, model, endpoint, ask, local, adapter."
+      },
+      {
+       "name": "resolve_exe",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves CLI name to executable path on Windows, preferring .exe over .cmd/.bat."
+      },
+      {
+       "name": "_CanaryAdapterMixin",
+       "kind": "class",
+       "effects": [],
+       "note": "Mixin with assemble() and argv() overrides for canary adapters."
+      },
+      {
+       "name": "_CanaryClaude",
+       "kind": "class",
+       "effects": [],
+       "note": "Combines _CanaryAdapterMixin and ClaudeAdapter."
+      },
+      {
+       "name": "_CanaryCodex",
+       "kind": "class",
+       "effects": [],
+       "note": "Combines _CanaryAdapterMixin and CodexAdapter."
+      },
+      {
+       "name": "_CanaryAntigravity",
+       "kind": "class",
+       "effects": [],
+       "note": "Combines _CanaryAdapterMixin and AntigravityAdapter."
+      },
+      {
+       "name": "_CanaryOllama",
+       "kind": "class",
+       "effects": [],
+       "note": "Combines _CanaryAdapterMixin and OllamaAdapter; overrides argv to return []."
+      },
+      {
+       "name": "_LOCAL_HOSTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of local host strings: '127.0.0.1', '::1', 'localhost'."
+      },
+      {
+       "name": "_HTTP_HOST_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to extract host from HTTP URL."
+      },
+      {
+       "name": "_is_local_http",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if endpoint's host is in _LOCAL_HOSTS."
+      },
+      {
+       "name": "_bind",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a closure that calls adapter.ask with role=''."
+      },
+      {
+       "name": "default_lanes",
+       "kind": "function",
+       "effects": [],
+       "note": "Signature shown; body not in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Non-zero only when a previously-passing LIVENESS probe now fails.",
+       "where": "exit_code docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes behaviour dependent on self.regressions('liveness') and the concept of 'previously-passing' which are not defined in this chunk."
+      },
+      {
+       "text": "a lane that has never passed is not a regression, and an unavailable lane is not a failure at all.",
+       "where": "exit_code docstring",
+       "verdict": "uncheckable",
+       "why": "The logic distinguishing 'never passed' from regression is not visible; relies on regressions method."
+      },
+      {
+       "text": "A quality regression is printed but does not page anyone -- see the module docstring.",
+       "where": "exit_code docstring",
+       "verdict": "uncheckable",
+       "why": "Module docstring not in this chunk; behaviour of 'printed but does not page' not visible."
+      },
+      {
+       "text": "Injecting it is what lets the whole runner be tested with fakes and no network: the tests never construct an adapter, never touch a CLI and never open a socket.",
+       "where": "Lane docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about test behaviour is not verifiable from this code chunk alone."
+      },
+      {
+       "text": "adapter is the seat ask was bound from, when there was one. It is carried for ONE reason: live_egress_lanes has to hand something to session.live_egress_seats, and a bare closure is not classifiable.",
+       "where": "Lane docstring",
+       "verdict": "uncheckable",
+       "why": "References functions live_egress_lanes and session.live_egress_seats not in this chunk."
+      },
+      {
+       "text": "Nothing in the runner reads it -- the canary still calls ask and only ask, so a fake lane stays a fake lane.",
+       "where": "Lane docstring",
+       "verdict": "uncheckable",
+       "why": "The runner's behaviour is not visible in this chunk."
+      },
+      {
+       "text": "resolve_exe: Preferring the native .exe also skips the .cmd layer entirely -- the layer that truncated a multi-line argv and started all of this.",
+       "where": "resolve_exe docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about a .cmd layer truncating argv is a historical context not verifiable from code."
+      },
+      {
+       "text": "(The prompt still goes on stdin regardless; the arrival probe is what proves that end to end rather than asserting it.)",
+       "where": "resolve_exe docstring",
+       "verdict": "uncheckable",
+       "why": "References arrival probe not in this chunk."
+      },
+      {
+       "text": "Returns name unchanged when nothing is found, so the spawn fails as not_on_path -> unavailable instead of guessing.",
+       "where": "resolve_exe docstring",
+       "verdict": "kept",
+       "why": "Code: if no candidate found via shutil.which, returns name unchanged."
+      },
+      {
+       "text": "The council's data-notice preamble is for model-written evidence. A canary prompt is generated in this file and carries none -- and the preamble would sit AHEAD of the arrival nonce, destroying the head position that probe measures. So the probe body goes out verbatim.",
+       "where": "_CanaryAdapterMixin.assemble docstring",
+       "verdict": "uncheckable",
+       "why": "References 'council's data-notice preamble', 'arrival nonce', 'probe' not in this chunk."
+      },
+      {
+       "text": "argv: Resolves the first argument via resolve_exe.",
+       "where": "_CanaryAdapterMixin.argv body",
+       "verdict": "kept",
+       "why": "Code: argv[0] = resolve_exe(argv[0]) if argv non-empty."
+      }
+     ],
+     "observations": [
+      {
+       "what": "exit_code method depends on self.regressions('liveness') which is not defined in this chunk.",
+       "where": "line 724",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Lane dataclass has adapter field typed as CouncilAdapter | None, but _bind returns a closure that doesn't set adapter.",
+       "where": "Lane definition, _bind function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_CanaryOllama overrides argv to return [] with comment 'HTTP, no argv', but OllamaAdapter may have an argv method that is ignored.",
+       "where": "line 785",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "resolve_exe iterates candidates: .exe, .cmd, .bat, name. On non-Windows, .exe may not exist but .cmd/.bat are Windows-specific; shutil.which returns None for those on Linux.",
+       "where": "resolve_exe function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "default_lanes function signature shown but body not in this chunk; parameters include ollama_host, agy_signed_in, repo_root.",
+       "where": "line 803",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "94dd51617ae279c2b403cdb054030ff05e81a9f9d170c9f717563cadbb643e18",
+    "objective_chars": 4840,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [7/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 7,
+  "total": 11,
+  "first_line": 721
+ }
+}

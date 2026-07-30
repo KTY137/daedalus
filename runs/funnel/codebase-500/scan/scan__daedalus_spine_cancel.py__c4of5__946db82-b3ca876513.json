@@ -1,0 +1,198 @@
+{
+ "task_id": "scan__daedalus_spine_cancel.py__c4of5__946db82",
+ "key": "scan__daedalus_spine_cancel.py__c4of5__946db82-b3ca876513",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 5: defines select_backend, live registry, cancel_all_managed, and ManagedProcess.__init__; sets BACKEND and BACKEND_NAME at module level.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "select_backend | low | Uses platform.startswith(\"win\") which matches 'win32' or 'win64', but also hypothetical 'win' prefix; but that's fine as it's a common pattern. | No risk, just observation.",
+     "_LIVE | medium | WeakSet may not immediately remove entries if the object is kept alive elsewhere; but that's expected behavior. | No action needed.",
+     "cancel_all_managed | medium | Catches Exception (BLE001 suppressed) silently; may hide bugs. | Consider logging or re-raising after collection.",
+     "ManagedProcess.__init__ | medium | If after_spawn fails, process is killed and waited with timeout 5; if kill fails, wait may hang? But it's in except, so safe. | No action needed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/cancel.py",
+     "chunk": "4 of 5",
+     "purpose": "Define backend selection, live process registry, emergency cancellation, and ManagedProcess class init.",
+     "symbols": [
+      {
+       "name": "select_backend",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns WindowsJobBackend if platform starts with 'win', else PosixSessionBackend."
+      },
+      {
+       "name": "BACKEND",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Module-level instance of the selected backend class."
+      },
+      {
+       "name": "BACKEND_NAME",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Name of the backend class (e.g., 'WindowsJobBackend' or 'PosixSessionBackend')."
+      },
+      {
+       "name": "_LIVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "WeakSet of ManagedProcess instances, protected by _LIVE_LOCK."
+      },
+      {
+       "name": "_LIVE_LOCK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Threading lock for _LIVE access."
+      },
+      {
+       "name": "live_managed_processes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of ManagedProcess objects with returncode None."
+      },
+      {
+       "name": "cancel_all_managed",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Calls cancel on each live process; default grace_s=0.0; never raises."
+      },
+      {
+       "name": "ManagedProcess",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Context manager for a child process tree; supports cancellation and container release."
+      },
+      {
+       "name": "ManagedProcess.__init__",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Initializes with argv, optional cwd/env/stdin/stdout/stderr/backend; spawns subprocess and registers it."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Pick the containment backend for a platform string (``sys.platform``). Split out as a pure function so the platform decision is assertable from either OS without spawning anything.",
+       "where": "docstring of select_backend",
+       "verdict": "kept",
+       "why": "The function takes a string and returns a class; no side effects. The docstring accurately describes it."
+      },
+      {
+       "text": "A WeakSet, so registration cannot keep a finished process object alive and cannot leak; entries are also discarded eagerly on close().",
+       "where": "comment above _LIVE",
+       "verdict": "uncheckable",
+       "why": "The chunk does not define close() on ManagedProcess; the claim about eager discard on close() cannot be verified."
+      },
+      {
+       "text": "Snapshot of every contained child alive in THIS interpreter.",
+       "where": "docstring of live_managed_processes",
+       "verdict": "kept",
+       "why": "The function returns a list of processes from _LIVE where returncode is None."
+      },
+      {
+       "text": "Cancel every live :class:`ManagedProcess` tree. Returns what each did. Never raises: one wedged child must not stop the rest from being killed. The default grace is 0.0, not :data:`DEFAULT_GRACE_S` -- this is the emergency path, where the whole point is to be fast, and a child that would have exited politely within three seconds is no less dead for being killed now.",
+       "where": "docstring of cancel_all_managed",
+       "verdict": "kept",
+       "why": "The function iterates over live processes, catches exceptions, and returns results. Default grace_s=0.0. Does not raise."
+      },
+      {
+       "text": "A child process whose whole tree can be cancelled. Use as a context manager; leaving the block cancels anything still running and then releases the container. Dropping the last reference also releases the container, which on win32 kills any survivor -- an orphaned ``ManagedProcess`` must not leave writers behind.",
+       "where": "docstring of ManagedProcess class",
+       "verdict": "uncheckable",
+       "why": "The chunk does not include __enter__, __exit__, or __del__; context manager behavior and last reference release cannot be verified."
+      },
+      {
+       "text": "Registered ONLY here: after containment is established. A process we failed to contain is killed above and must never appear in a registry",
+       "where": "comment at end of __init__",
+       "verdict": "uncheckable",
+       "why": "The chunk ends before the registration code; the claim cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "select_backend uses platform.startswith(\"win\") to match Windows, which is correct for sys.platform values like 'win32' or 'win64'.",
+       "where": "line 361-365",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_LIVE is a WeakSet; the comment says entries are discarded eagerly on close(), but close() is not defined in this chunk.",
+       "where": "comment before _LIVE",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "cancel_all_managed catches Exception silently (BLE001 suppressed); this may hide errors.",
+       "where": "line 399-402",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "ManagedProcess.__init__ has a complex error path: if after_spawn fails, it kills the process and waits with timeout 5; if that also fails, it silently passes.",
+       "where": "lines 425-435",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk ends before registering the process into _LIVE; the claim about registration only after containment is uncheckable in this chunk.",
+       "where": "line 435 (end)",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6f9ff0919eab6bda0cf8c1bb533b1f91b9a0040bedd84fafb0262d1c7418437d",
+    "objective_chars": 4996,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/cancel.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/spine/cancel.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 361
+ }
+}

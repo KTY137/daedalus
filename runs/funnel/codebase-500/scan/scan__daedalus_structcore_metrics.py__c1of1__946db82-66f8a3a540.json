@@ -1,0 +1,245 @@
+{
+ "task_id": "scan__daedalus_structcore_metrics.py__c1of1__946db82",
+ "key": "scan__daedalus_structcore_metrics.py__c1of1__946db82-66f8a3a540",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Enumerated symbols and claims in daedalus/structcore/metrics.py chunk 1 of 1.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_count_comments | medium | Block comment parsing for non-Python languages is simplistic and may miscount (e.g., block comment markers inside strings). | Verify against a corpus of multi-language files with block comments.",
+     "_lizard_cc | low | Returns None on any exception; silent failure may hide issues. | Add logging or specific exception handling.",
+     "file_metrics | low | guard_density uses guard_count / loc; guard_count may double-count if guard_keywords overlap. | Review guard_keywords definitions in LanguageSpec."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/metrics.py",
+     "chunk": "1 of 1",
+     "purpose": "Compute per-file health metrics (LOC, comment density, guard density, long functions, optional cyclomatic complexity via lizard).",
+     "symbols": [
+      {
+       "name": "_LONG_FN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Threshold for long function (60 LOC)."
+      },
+      {
+       "name": "lizard_available",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if lizard can be imported, else False; cached with maxsize=1."
+      },
+      {
+       "name": "file_metrics",
+       "kind": "function",
+       "effects": [],
+       "note": "Main entry: computes dict of metrics for a file given module, text, LanguageSpec, and list of CodeUnit."
+      },
+      {
+       "name": "_count_comments",
+       "kind": "function",
+       "effects": [],
+       "note": "Counts comment lines: uses tokenize for Python, otherwise line-based block/line comment detection."
+      },
+      {
+       "name": "_count_guards",
+       "kind": "function",
+       "effects": [],
+       "note": "Counts occurrences of guard_keywords from LanguageSpec using regex for alphabetic keywords, else str.count."
+      },
+      {
+       "name": "_lizard_cc",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with cc_avg and cc_max from lizard analysis, or None if not available or fails."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Per-file health metrics \u2014 the 'code health' signal, comment-aware per language.",
+       "where": "module docstring line 1",
+       "verdict": "kept",
+       "why": "The module provides per-file metrics including comment_density, which is comment-aware and uses language-specific comment detection."
+      },
+      {
+       "text": "Stdlib-only baseline (LOC, function count, comment density, guard/over-defensive density, long-function flag).",
+       "where": "module docstring line 3",
+       "verdict": "kept",
+       "why": "file_metrics returns loc, n_functions (function count), comment_density, guard_density, guard_count, long_functions. No external libraries are required for these."
+      },
+      {
+       "text": "If ``lizard`` is installed, real cyclomatic complexity (avg/max) is added for the languages lizard supports.",
+       "where": "module docstring line 4",
+       "verdict": "kept",
+       "why": "lizard_available() checks for lizard; file_metrics calls _lizard_cc which uses lizard.analyze_file.analyze_source_code and returns cc_avg and cc_max."
+      },
+      {
+       "text": "_LONG_FN = 60",
+       "where": "line 15",
+       "verdict": "kept",
+       "why": "Constant defined as 60."
+      },
+      {
+       "text": "@lru_cache(maxsize=1) def lizard_available():",
+       "where": "line 17",
+       "verdict": "kept",
+       "why": "Function is decorated with lru_cache(maxsize=1)."
+      },
+      {
+       "text": "def file_metrics(module: str, text: str, spec: LanguageSpec, units: list[CodeUnit]) -> dict:",
+       "where": "line 26",
+       "verdict": "kept",
+       "why": "Function signature matches; returns a dict."
+      },
+      {
+       "text": "lines = text.splitlines() / loc = len(lines)",
+       "where": "line 27-28",
+       "verdict": "kept",
+       "why": "Code does exactly that."
+      },
+      {
+       "text": "comment_lines = _count_comments(text, spec)",
+       "where": "line 29",
+       "verdict": "kept",
+       "why": "Calls _count_comments with text and spec."
+      },
+      {
+       "text": "guard = _count_guards(text, spec)",
+       "where": "line 30",
+       "verdict": "kept",
+       "why": "Calls _count_guards with text and spec."
+      },
+      {
+       "text": "long_fns = [{\"name\": u.name, \"line\": u.line, \"loc\": u.loc} for u in units if u.loc > _LONG_FN]",
+       "where": "line 31-32",
+       "verdict": "kept",
+       "why": "List comprehension filters units with loc > 60."
+      },
+      {
+       "text": "metrics = { \"language\": spec.name, \"loc\": loc, \"n_functions\": len(units), \"comment_density\": round(comment_lines / max(loc, 1), 3), \"guard_density\": round(guard / max(loc, 1), 3), \"guard_count\": guard, \"long_functions\": long_fns }",
+       "where": "line 34-40",
+       "verdict": "kept",
+       "why": "Dictionary is built exactly as shown."
+      },
+      {
+       "text": "cc = _lizard_cc(module, text) if lizard_available() else None",
+       "where": "line 41",
+       "verdict": "kept",
+       "why": "Conditional assignment as described."
+      },
+      {
+       "text": "if cc: metrics.update(cc)",
+       "where": "line 42-43",
+       "verdict": "kept",
+       "why": "Updates metrics if cc is truthy (non-None dict)."
+      },
+      {
+       "text": "def _count_comments(text: str, spec: LanguageSpec) -> int:",
+       "where": "line 46",
+       "verdict": "kept",
+       "why": "Function signature present."
+      },
+      {
+       "text": "if spec.name == \"python\": n = 0; try: for tok in tokenize.generate_tokens(io.StringIO(text).readline): if tok.type == tokenize.COMMENT: n += 1; except (tokenize.TokenError, IndentationError): pass; return n",
+       "where": "line 47-54",
+       "verdict": "kept",
+       "why": "Code uses tokenize for Python and returns count."
+      },
+      {
+       "text": "n = 0; in_block = False; block = spec.block_comment[0] if spec.block_comment else None",
+       "where": "line 55-57",
+       "verdict": "kept",
+       "why": "Initialization as described."
+      },
+      {
+       "text": "for raw in text.splitlines(): line = raw.strip(); if in_block: n += 1; if block and block[1] in line: in_block = False; continue; if block and block[0] in line and block[1] not in line: in_block = True; n += 1; continue; if any(line.startswith(m) for m in spec.line_comment) or (block and block[0] in line): n += 1",
+       "where": "line 58-67",
+       "verdict": "kept",
+       "why": "Line-based comment counting logic matches the description."
+      },
+      {
+       "text": "def _count_guards(text: str, spec: LanguageSpec) -> int:",
+       "where": "line 70",
+       "verdict": "kept",
+       "why": "Function signature present."
+      },
+      {
+       "text": "n = 0; for kw in spec.guard_keywords: if kw.isalpha(): n += len(re.findall(rf\"\\b{re.escape(kw)}\\b\", text)); else: n += text.count(kw); return n",
+       "where": "line 71-75",
+       "verdict": "kept",
+       "why": "Code counts guard keywords as described."
+      },
+      {
+       "text": "def _lizard_cc(module: str, text: str) -> dict | None:",
+       "where": "line 77",
+       "verdict": "kept",
+       "why": "Function signature present."
+      },
+      {
+       "text": "import lizard; ext = \".\" + module.rsplit(\".\", 1)[-1] if \".\" in module else \".txt\"; try: analysis = lizard.analyze_file.analyze_source_code(module, text); except Exception: return None; ccs = [f.cyclomatic_complexity for f in analysis.function_list]; if not ccs: return None; return {\"cc_avg\": round(sum(ccs) / len(ccs), 1), \"cc_max\": max(ccs)}",
+       "where": "line 78-86",
+       "verdict": "kept",
+       "why": "Code imports lizard, attempts analysis, computes averages and returns dict or None."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims 'comment-aware per language', but the comment counting logic for non-Python languages is simplistic and may miscount block comments that span multiple lines or appear inside strings.",
+       "where": "_count_comments lines 55-67",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "lizard_available() caches the result with maxsize=1, so if lizard is not installed at first call, subsequent calls will not retry even if lizard becomes available.",
+       "where": "line 17",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_lizard_cc constructs an extension ext but never uses it; the variable is dead code.",
+       "where": "line 79",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "file_metrics returns a dict with keys 'cc_avg' and 'cc_max' only if lizard analysis succeeds; otherwise those keys are absent. This may surprise callers expecting them always.",
+       "where": "file_metrics lines 41-43",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "00a6fb3d10e509065d0a198867eadc96708e1e1a9600fcf8994813c056f6b215",
+    "objective_chars": 3560,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/metrics.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/metrics.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

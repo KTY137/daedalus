@@ -1,0 +1,199 @@
+{
+ "task_id": "scan__daedalus_memory_embeddings.py__c2of15__946db82",
+ "key": "scan__daedalus_memory_embeddings.py__c2of15__946db82-a9290c595e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 15 of embeddings.py: defines AgentEvent, EmbeddingSpec, JournalPosition, ProjectionFilter dataclasses with validation and methods.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "AgentEvent.from_dict | medium | Assumes data['event_id'], data['event_type'], data['content'], data['timestamp'] exist; missing keys raise KeyError. | Add test with missing keys.",
+     "EmbeddingSpec.__post_init__ | low | Validation allows normalization 'l2' or 'none' but not others; caller may expect 'cosine' etc. | Confirm list of allowed values.",
+     "EmbeddingSpec.index_id | low | Uses _canonical_json from outside chunk; if that function changes, index_id changes. | Review _canonical_json implementation.",
+     "EmbeddingSpec.pins_model_revision | medium | Relies on MOVABLE_TAG_PROVIDERS defined outside chunk; if that set is wrong, logic is wrong. | Verify MOVABLE_TAG_PROVIDERS contents.",
+     "JournalPosition.__post_init__ | low | Rejects bool as position but bool is subclass of int; check isinstance(self.position, int) and not isinstance(self.position, bool). | Confirm intended behavior."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/embeddings.py",
+     "chunk": "2 of 15",
+     "purpose": "Defines dataclasses for agent events, embedding specs, journal positions, and projection filters.",
+     "symbols": [
+      {
+       "name": "AgentEvent",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass for projection input with to_dict/from_dict methods."
+      },
+      {
+       "name": "AgentEvent.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict with event fields."
+      },
+      {
+       "name": "AgentEvent.from_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Classmethod to create AgentEvent from dict, parsing metadata if string."
+      },
+      {
+       "name": "EmbeddingSpec",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass identifying embedding coordinate system with validation."
+      },
+      {
+       "name": "EmbeddingSpec.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict of spec fields."
+      },
+      {
+       "name": "EmbeddingSpec.index_id",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns SHA256 hash of canonical JSON of spec dict."
+      },
+      {
+       "name": "EmbeddingSpec.pins_model_revision",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if provider not in MOVABLE_TAG_PROVIDERS or model_revision is non-empty."
+      },
+      {
+       "name": "JournalPosition",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass for journal position with validation."
+      },
+      {
+       "name": "ProjectionFilter",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass with optional project and trust fields."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A projection input, not the authoritative event record.",
+       "where": "AgentEvent docstring",
+       "verdict": "uncheckable",
+       "why": "No evidence in chunk about authoritative event record; cannot verify claim."
+      },
+      {
+       "text": "Identity of one mutually compatible embedding coordinate system.",
+       "where": "EmbeddingSpec docstring",
+       "verdict": "uncheckable",
+       "why": "No definition of 'mutually compatible' in chunk; cannot verify."
+      },
+      {
+       "text": "True when this spec cannot be repointed by moving a model tag.",
+       "where": "EmbeddingSpec.pins_model_revision docstring",
+       "verdict": "uncheckable",
+       "why": "MOVABLE_TAG_PROVIDERS not defined in chunk; cannot verify logic about repointing."
+      },
+      {
+       "text": "A position in the authoritative journal this index is derived from.",
+       "where": "JournalPosition docstring",
+       "verdict": "uncheckable",
+       "why": "No reference to 'authoritative journal' or 'index' in chunk; cannot verify."
+      },
+      {
+       "text": "position is any caller-chosen monotonically increasing measure - byte offset, line count, or sequence number - as long as one journal_id uses one measure consistently.",
+       "where": "JournalPosition docstring",
+       "verdict": "uncheckable",
+       "why": "No validation of monotonicity or consistency in chunk; claim is about intended usage."
+      },
+      {
+       "text": "content_hash is optional but turns the watermark into an append-only check as well as a freshness check.",
+       "where": "JournalPosition docstring",
+       "verdict": "uncheckable",
+       "why": "No code in chunk implements append-only or freshness checks; cannot verify."
+      },
+      {
+       "text": "Exact-match provenance filters applied before vector scoring.",
+       "where": "ProjectionFilter docstring",
+       "verdict": "uncheckable",
+       "why": "No code in chunk applies filters or performs vector scoring; cannot verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "AgentEvent.from_dict handles metadata as string by parsing JSON; but if metadata is not a string or dict, it will be left as-is, potentially causing issues.",
+       "where": "AgentEvent.from_dict, lines 143-145",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "EmbeddingSpec.__post_init__ validates fields but does not check that dimension is integer; it could be float, but dimension <= 0 check would still work.",
+       "where": "EmbeddingSpec.__post_init__, lines 162-167",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "JournalPosition.__post_init__ rejects bool as position, but bool is subclass of int; the check isinstance(self.position, bool) is redundant but explicit.",
+       "where": "JournalPosition.__post_init__, line 200",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ProjectionFilter has no validation; fields are optional and no __post_init__.",
+       "where": "ProjectionFilter class, line 208",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d29e765bb146c1b4aa22b20a20a7f7e42ea7e52d2c2596ed093d142778c666a5",
+    "objective_chars": 4598,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/embeddings.py [2/15]",
+  "rev": "946db82",
+  "module": "daedalus/memory/embeddings.py",
+  "index": 2,
+  "total": 15,
+  "first_line": 121
+ }
+}

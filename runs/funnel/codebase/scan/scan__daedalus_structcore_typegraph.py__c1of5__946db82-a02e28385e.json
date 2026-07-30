@@ -1,0 +1,453 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c1of5__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c1of5__946db82-a02e28385e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of typegraph.py: module docstring, constants, node id helpers, and PlainNaming dataclass. 11 public symbols, 22 claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 5 | medium | Claim 'parse.py extracted RAW, unresolved facts' refers to code outside this chunk. | Verify in parse.py that PyTypeFacts contains raw annotation strings.",
+     "line 12 | medium | Claim 'cache.file_key mixes a sha256 of parse.py specifically' refers to caching mechanism outside this chunk. | Verify in parse.py or cache module.",
+     "line 19 | medium | Claim 'SymbolResolver.defs_by_file IS NOT TOUCHED' refers to code outside this chunk. | Search this file for 'defs_by_file' and check import of graph module.",
+     "line 20 | medium | Claim 'this module never imports graph and never calls build_resolver' refers to imports not shown in full. | Check full file for import of graph.",
+     "line 26 | low | Claim 'A grep for defs_by_file in this file must return nothing' is a directive, not testable from this chunk. | Full grep of the file.",
+     "line 29 | medium | Claim 'a test asserts it stays unchanged' refers to test outside this chunk. | Check test file for assertion.",
+     "line 32 | medium | Claim 'resolution is TWO-PASS' refers to algorithm not fully shown. | Verify in later chunk that registration precedes resolution.",
+     "line 38 | medium | Claim 'two modules that both declare Result make the first sorted import a stably reproduced FALSE edge' is a consequence of deterministic behavior, not directly checkable here. | Verify ambiguity handling in later chunk.",
+     "line 42 | medium | Claim 'Nothing here registers a relation with dss' refers to code outside this chunk. | Search file for 'dss'.",
+     "line 44 | medium | Claim 'DEFAULT_HUB_CAP was MEASURED on daedalus/' refers to measurement described in comments, not code. | Trust comment; measurement not in code.",
+     "line 48 | medium | Claim 'it emits node ids in their own type:/field: namespace' is partially checkable: type_node_id and field_node_id defined. | Confirm all emitted ids use these functions.",
+     "line 48 | medium | Claim 'it never constructs a CodeUnit' refers to behavior not shown. | Check full file for CodeUnit instantiation.",
+     "line 48 | medium | Claim 'it never returns anything that belongs in modules, import_edges or all_units' refers to output not shown. | Check return types of public functions.",
+     "line 56 | medium | Claim 'a type DECLARED IN F, matched on its full in-file qualname' refers to resolution logic not shown. | Verify in later chunk.",
+     "line 59 | medium | Claim 'Module-name -> file resolution is done by FILTERING the import edges index.py already computed' refers to code outside this chunk. | Verify in later chunk and index.py.",
+     "line 68 | medium | Claim 'A STAR IMPORT IS NOT A TIER' refers to _star_candidates function not shown. | Verify in later chunk.",
+     "line 68 | medium | Claim 'tests/test_typegraph_star_imports.py' exists is uncheckable. | Check test file existence.",
+     "line 74 | medium | Claim 'Builtins and typing vocabulary are counted in their own buckets' refers to _VOCABULARY and _BUILTIN_TYPES constants defined here. | Check usage in later chunk.",
+     "line 78 | medium | Claim 'A name bound by an import whose module is NOT in this repo is external, not unresolved' refers to classification logic not shown. | Verify in later chunk.",
+     "line 84 | medium | Claim 'Every iteration that can reach output is over a sorted sequence' refers to code not shown. | Verify in later chunk.",
+     "line 85 | medium | Claim 'union_id comes from parse.union_id' is partially checkable: import of union_id shown. | Confirm usage in later chunk.",
+     "line 99 | medium | Claim 'TYPE_GRAPH_VERSION is separate from TYPE_FACTS_VERSION' is checkable: constants defined. | Both defined with different values.",
+     "line 119 | medium | Claim 'RELATIONS tuple contains exactly the six relations' is checkable: constant defined. | Yes, six items.",
+     "line 122 | medium | Claim '_CAPPED_RELATIONS is frozenset of REL_CONSUMES and REL_PRODUCES' is checkable: constant defined. | Yes.",
+     "line 129 | medium | Claim 'DEFAULT_HUB_CAP measured before this module existed' is historical, not checkable. | Trust comment.",
+     "line 144 | medium | Claim '0 disables it' refers to hub cap behavior. | Check usage in later chunk.",
+     "line 149 | medium | Claim 'STRUCTURAL_MIN_MEMBERS = 2' and 'STRUCTURAL_MAX_MATCHES = 25' are constants defined. | Checkable: defined.",
+     "line 155 | medium | Claim '_ORIGIN_RANK order' is defined. | Checkable: defined.",
+     "line 158 | medium | Claim '_VOCABULARY set catches spellings with no binding' refers to usage. | Check in later chunk.",
+     "line 161 | medium | Claim 'tier 1 (same-file declaration) runs first' refers to resolution order. | Verify in later chunk.",
+     "line 188 | medium | Claim '_BUILTIN_TYPES includes None and NoneType' is checkable: set defined with those. | Yes.",
+     "line 199 | medium | Claim 'type_node_id returns f\"type:{module}#{qualname}\"' is checkable: function defined. | Yes.",
+     "line 203 | medium | Claim 'field_node_id returns f\"field:{module}#{qualname}.{field_name}\"' is checkable: function defined. | Yes.",
+     "line 207 | medium | Claim 'function_ref deliberately NOT a forest node id' is checkable: function defined. | Yes.",
+     "line 218 | medium | Claim 'is_type_node_id returns True for type:/field: prefixes' is checkable: function defined. | Yes.",
+     "line 226 | medium | Claim 'PlainNaming is a no-center view for callers without _PyNaming' refers to class defined. | Checkable: class defined.",
+     "line 229 | medium | Claim 'index imports THIS module' refers to import cycle, not checkable here. | Check index.py imports."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, constants, node id helpers, and PlainNaming dataclass.",
+     "symbols": [
+      {
+       "name": "TYPE_GRAPH_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant \"1\" for resolution version."
+      },
+      {
+       "name": "TYPE_NODE_KIND",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"type\"."
+      },
+      {
+       "name": "FIELD_NODE_KIND",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"field\"."
+      },
+      {
+       "name": "REL_HAS_FIELD",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"has_field\"."
+      },
+      {
+       "name": "REL_FIELD_TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"field_type\"."
+      },
+      {
+       "name": "REL_INHERITS",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"inherits\"."
+      },
+      {
+       "name": "REL_CONSUMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"consumes\"."
+      },
+      {
+       "name": "REL_PRODUCES",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"produces\"."
+      },
+      {
+       "name": "REL_ALIAS_OF",
+       "kind": "constant",
+       "effects": [],
+       "note": "String \"alias_of\"."
+      },
+      {
+       "name": "RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of six relation strings."
+      },
+      {
+       "name": "_CAPPED_RELATIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of REL_CONSUMES and REL_PRODUCES."
+      },
+      {
+       "name": "DEFAULT_HUB_CAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 64."
+      },
+      {
+       "name": "STRUCTURAL_MIN_MEMBERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 2."
+      },
+      {
+       "name": "STRUCTURAL_MAX_MATCHES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 25."
+      },
+      {
+       "name": "_MAX_SAMPLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 25."
+      },
+      {
+       "name": "_ORIGIN_RANK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping origin strings to rank integers."
+      },
+      {
+       "name": "_VOCABULARY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of typing vocabulary strings."
+      },
+      {
+       "name": "_BUILTIN_TYPES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of builtin type names including None and NoneType."
+      },
+      {
+       "name": "type_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns forest node id for a type: 'type:{module}#{qualname}'."
+      },
+      {
+       "name": "field_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns forest node id for a field: 'field:{module}#{qualname}.{field_name}'."
+      },
+      {
+       "name": "function_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns stable identity for a function: '{module}#{qualname}'."
+      },
+      {
+       "name": "is_type_node_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if node_id starts with 'type:' or 'field:'."
+      },
+      {
+       "name": "PlainNaming",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for repo-root dotted namespace, duck-typing compatible with _PyNaming."
+      }
+     ],
+     "claims": [
+      {
+       "text": "parse.py extracted RAW, unresolved facts per file (PyTypeFacts: declarations, fields, signatures, import bindings).",
+       "where": "line 5",
+       "verdict": "uncheckable",
+       "why": "Refers to code in parse.py not present in this chunk."
+      },
+      {
+       "text": "cache.file_key mixes a sha256 of parse.py specifically, so an extractor in a sibling module would be served stale cache rows by new code with no error.",
+       "where": "line 12",
+       "verdict": "uncheckable",
+       "why": "Refers to caching mechanism outside this chunk."
+      },
+      {
+       "text": "graph.SymbolResolver.defs_by_file IS NOT TOUCHED.",
+       "where": "line 19",
+       "verdict": "uncheckable",
+       "why": "Refers to graph module not present in this chunk."
+      },
+      {
+       "text": "this module never imports graph and never calls build_resolver.",
+       "where": "line 20",
+       "verdict": "uncheckable",
+       "why": "Import statements shown do not include graph; full file not seen."
+      },
+      {
+       "text": "A grep for defs_by_file in this file must return nothing, and a test asserts it stays unchanged.",
+       "where": "line 26",
+       "verdict": "uncheckable",
+       "why": "Refers to test file and grep result not available in this chunk."
+      },
+      {
+       "text": "Resolution is TWO-PASS: every type declaration in the repo is registered first, then annotations are resolved against the finished table.",
+       "where": "line 29",
+       "verdict": "uncheckable",
+       "why": "Algorithm description not implemented in this chunk."
+      },
+      {
+       "text": "A name with ZERO candidates produces NO edge and increments unresolved; a name with MORE THAN ONE produces NO edge and increments ambiguous.",
+       "where": "line 32",
+       "verdict": "uncheckable",
+       "why": "Behavior not shown in this chunk."
+      },
+      {
+       "text": "two modules that both declare Result make the first sorted import a stably reproduced FALSE edge, which is strictly worse than a missing one because a determinism test would then protect it.",
+       "where": "line 38",
+       "verdict": "uncheckable",
+       "why": "Refers to resolution behavior not implemented in this chunk."
+      },
+      {
+       "text": "Nothing here registers a relation with dss and nothing here is added to DEFAULT_RELATION_WEIGHTS.",
+       "where": "line 42",
+       "verdict": "uncheckable",
+       "why": "Refers to dss module not present in this chunk."
+      },
+      {
+       "text": "The hub cap (DEFAULT_HUB_CAP) was MEASURED on daedalus/ before this code was written, not guessed, and both the kept and the suppressed edge counts are published so nobody mistakes the kept set for the whole truth.",
+       "where": "line 44",
+       "verdict": "uncheckable",
+       "why": "Measurement data not in code; comment only."
+      },
+      {
+       "text": "it emits node ids in their own type:/field: namespace, it never constructs a CodeUnit, and it never returns anything that belongs in modules, import_edges or all_units.",
+       "where": "line 48",
+       "verdict": "uncheckable",
+       "why": "Behavior not fully shown in this chunk; node id helpers are defined but usage not shown."
+      },
+      {
+       "text": "a type DECLARED IN F, matched on its full in-file qualname (so Outer.Inner resolves and a bare Inner does not -- searching nested qualnames by leaf name is exactly the fabrication I5 forbids);",
+       "where": "line 56",
+       "verdict": "uncheckable",
+       "why": "Resolution logic not present in this chunk."
+      },
+      {
+       "text": "Module-name -> file resolution is done by FILTERING the import edges index.py already computed, never by re-resolving imports here, so a type edge can never contradict the import graph: if the import edge is absent, so is the type edge.",
+       "where": "line 59",
+       "verdict": "uncheckable",
+       "why": "Refers to index.py and resolution logic not in this chunk."
+      },
+      {
+       "text": "A STAR IMPORT IS NOT A TIER. from m import * is walked, but only to DETECT an ambiguity -- it can never be the single winner, because what a star actually binds depends on m.__all__ (a bare assignment, which parse.py does not record) and on the leading-underscore rule, and because a star from a module outside this repo can supply the same name unseen.",
+       "where": "line 68",
+       "verdict": "uncheckable",
+       "why": "Refers to _star_candidates function not present in this chunk."
+      },
+      {
+       "text": "tests/test_typegraph_star_imports.py",
+       "where": "line 68",
+       "verdict": "uncheckable",
+       "why": "Refers to a test file not present in this chunk."
+      },
+      {
+       "text": "Builtins (str, int, Exception) and typing vocabulary (Protocol, Literal) are counted in their own buckets rather than as failures, because folding them into unresolved would make the coverage number a lie in one direction (1722 mentions of str in daedalus/ are not 1722 gaps).",
+       "where": "line 74",
+       "verdict": "uncheckable",
+       "why": "Classification logic not shown in this chunk; constants _VOCABULARY and _BUILTIN_TYPES are defined but usage not shown."
+      },
+      {
+       "text": "A name bound by an import whose module is NOT in this repo is external, not unresolved: 'declared somewhere else' and 'declared nowhere' are different facts and a report that merges them cannot be acted on.",
+       "where": "line 78",
+       "verdict": "uncheckable",
+       "why": "Classification logic not shown in this chunk."
+      },
+      {
+       "text": "Every iteration that can reach output is over a sorted sequence, every published list is sorted by a total order, and no counter is derived from a set's iteration order.",
+       "where": "line 84",
+       "verdict": "uncheckable",
+       "why": "Iteration and sorting not shown in this chunk."
+      },
+      {
+       "text": "union_id comes from parse.union_id (derived from the site's identity, never from a counter) for the same reason.",
+       "where": "line 85",
+       "verdict": "kept",
+       "why": "Import of union_id from .parse is present on line 96."
+      },
+      {
+       "text": "Bump when the MEANING of a published node, edge or coverage key changes. Separate from TYPE_FACTS_VERSION (the EXTRACTOR's version) because the two move independently: a resolution fix does not change what was extracted, and a reader has to be able to tell which half produced a number.",
+       "where": "line 99",
+       "verdict": "kept",
+       "why": "TYPE_GRAPH_VERSION = \"1\" is defined; TYPE_FACTS_VERSION is imported from .parse but its value is not shown; the claim about separation is a directive, not a checkable fact."
+      },
+      {
+       "text": "RELATIONS tuple contains exactly the six relations.",
+       "where": "line 119",
+       "verdict": "kept",
+       "why": "RELATIONS is defined as a tuple of six strings: REL_HAS_FIELD, REL_FIELD_TYPE, REL_INHERITS, REL_CONSUMES, REL_PRODUCES, REL_ALIAS_OF."
+      },
+      {
+       "text": "_CAPPED_RELATIONS = frozenset({REL_CONSUMES, REL_PRODUCES})",
+       "where": "line 122",
+       "verdict": "kept",
+       "why": "Constant _CAPPED_RELATIONS is defined as frozenset with exactly those two relations."
+      },
+      {
+       "text": "MEASURED on daedalus/ (143 files, 2207 functions, 2182 carrying >=1 type edge, 227 distinct nominal types) BEFORE this module existed",
+       "where": "line 129",
+       "verdict": "uncheckable",
+       "why": "Measurement data is comment, not code; cannot verify."
+      },
+      {
+       "text": "0 disables it.",
+       "where": "line 144",
+       "verdict": "uncheckable",
+       "why": "Refers to behavior of hub cap when set to 0; not implemented in this chunk."
+      },
+      {
+       "text": "A protocol with a single common member name (run, close) matches half a repo by coincidence, which is the fixture corpus's own argument (emit/flush 'make coincidence the normal case'), so one member is not evidence. And a protocol that matches more classes than the cap has told us nothing at all: the whole match set is dropped rather than truncated, because publishing the first N of an arbitrary set is a guess wearing a number.",
+       "where": "line 149",
+       "verdict": "uncheckable",
+       "why": "Refers to structural matching logic not present in this chunk."
+      },
+      {
+       "text": "Field origins in preference order when the same member was written twice -- limit: int = 10 in the class body AND self.limit = limit in __init__ are two facts about ONE member (parse.py says so explicitly), and two field nodes for one member would be a fabrication. An ANNOTATED origin always wins first; this order only breaks the remaining ties.",
+       "where": "line 155",
+       "verdict": "kept",
+       "why": "_ORIGIN_RANK is defined with keys 'annassign', 'self', 'assign', 'enum_member' in that order, matching the described preference."
+      },
+      {
+       "text": "Typing / ABC vocabulary that is a WORD IN THE LANGUAGE, not a repo type. Counted in its own bucket so it never inflates unresolved. Most of these arrive with an explicit from typing import ... and are classified external before this set is consulted; the set catches the spellings that arrive with no binding at all. A repo that genuinely DECLARES one of these names shadows it, because tier 1 (same-file declaration) runs first.",
+       "where": "line 158",
+       "verdict": "uncheckable",
+       "why": "Usage of _VOCABULARY not shown in this chunk; classification logic absent."
+      },
+      {
+       "text": "Names bound in every module by the interpreter itself. Asked of builtins rather than hand-listed so the set cannot drift from the interpreter running the scan, and filtered to actual TYPES so that len/print (never legal in an annotation) are not silently treated as resolved-away vocabulary. Every exception class comes along for free, which matters: -> ValueError is a real annotation shape and it is not an unresolved repo type.",
+       "where": "line 188",
+       "verdict": "kept",
+       "why": "_BUILTIN_TYPES is defined using vars(builtins) and filtered to types, with None and NoneType added."
+      },
+      {
+       "text": "Forest node id for a type declaration.",
+       "where": "line 199",
+       "verdict": "kept",
+       "why": "type_node_id returns f\"type:{module}#{qualname}\"."
+      },
+      {
+       "text": "Forest node id for one member of a type.",
+       "where": "line 203",
+       "verdict": "kept",
+       "why": "field_node_id returns f\"field:{module}#{qualname}.{field_name}\"."
+      },
+      {
+       "text": "Deliberately NOT a forest node id: functions are not forest nodes today (the forest's nodes are files and documents), so consumes/produces attach to the FILE node and carry this string in their attributes.",
+       "where": "line 207",
+       "verdict": "kept",
+       "why": "function_ref returns f\"{module}#{qualname}\" without type: or field: prefix."
+      },
+      {
+       "text": "True for a type/field node id. For forest and dss guards.",
+       "where": "line 218",
+       "verdict": "kept",
+       "why": "is_type_node_id returns True if node_id starts with 'type:' or 'field:'."
+      },
+      {
+       "text": "The repo-root dotted namespace, for callers that have no _PyNaming. index.build_index passes its own _PyNaming (the authority: it knows about declared package roots and center-relative spellings). This is the no-center view, which is what an unconfigured repo gets anyway, and it exists so tools and tests can resolve without importing index -- which they must not do, because index imports THIS module.",
+       "where": "line 226",
+       "verdict": "uncheckable",
+       "why": "PlainNaming class is defined but its methods (name, tables_for) are not shown; claim about index importing this module is not verifiable from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring contains detailed design rationale and invariants, but many claims refer to code outside this chunk.",
+       "where": "lines 1-85",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Constants TYPE_GRAPH_VERSION, RELATIONS, _CAPPED_RELATIONS, DEFAULT_HUB_CAP, STRUCTURAL_MIN_MEMBERS, STRUCTURAL_MAX_MATCHES, _MAX_SAMPLE, _ORIGIN_RANK, _VOCABULARY, _BUILTIN_TYPES are defined with expected values.",
+       "where": "lines 99-192",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Node id helper functions (type_node_id, field_node_id, function_ref, is_type_node_id) are defined and their behavior matches docstrings.",
+       "where": "lines 197-220",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "PlainNaming dataclass is defined but its methods are not shown; the chunk ends mid-definition.",
+       "where": "line 226-230",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "11112642f9c7493cbfe018281d69f294181799db81f882521a906c53b4d838bb",
+    "objective_chars": 15252,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [1/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

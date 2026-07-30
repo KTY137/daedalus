@@ -1,0 +1,95 @@
+{
+ "task_id": "scan__daedalus_structcore_perfile.py__c2of2__946db82",
+ "key": "scan__daedalus_structcore_perfile.py__c2of2__946db82-b7d5ed7cc3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 defines analyze_chunk; claims about batching and order restoration are uncheckable; ts_on is unpacked but unused in comprehension.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 127-128 | high | ts_on is unpacked but not used in the list comprehension; it is passed to analyze_file but the call includes ts_on as the last argument. If analyze_file does not expect ts_on, this will cause a TypeError. | Check analyze_file signature to confirm it accepts ts_on."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/perfile.py",
+     "chunk": "2 of 2",
+     "purpose": "Defines analyze_chunk worker entry point for batched file analysis with index tagging.",
+     "symbols": [
+      {
+       "name": "analyze_chunk",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Worker entry point; takes a tuple (ts_on, items) and returns list of (index, FileAnalysis) tuples."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Worker entry point: analyze a batch of files, tagging each with its ORIGINAL index.",
+       "where": "docstring of analyze_chunk",
+       "verdict": "kept",
+       "why": "The function returns [(i, analyze_file(...)) for i, ...] which tags each result with its original index i."
+      },
+      {
+       "text": "Batched rather than one-task-per-file because Windows spawns (not forks) workers, so per-task overhead is real.",
+       "where": "docstring of analyze_chunk",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain any code related to Windows spawn vs fork or overhead analysis; this is a design justification not verifiable from the code."
+      },
+      {
+       "text": "The index tag is what lets the parent restore exact input order regardless of completion order -- ``all_units`` order is load-bearing for the clone passes.",
+       "where": "docstring of analyze_chunk",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain code for the parent restoring order or any reference to all_units or clone passes; these are external to this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function analyze_chunk uses a tuple assignment ts_on, items = job, but ts_on is not used in the list comprehension; it is passed to analyze_file but analyze_file's signature in this chunk expects (rel, text, spec, ts_on) as per the call.",
+       "where": "line 127-128",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function returns a list of tuples (int, FileAnalysis) but FileAnalysis is not defined in this chunk; its structure is unknown.",
+       "where": "return statement",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "188c8cda904cccca3a6d38aba9638c70a432c4cb3832358e511f65bfa5c756ac",
+    "objective_chars": 1232,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/perfile.py [2/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/perfile.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 121
+ }
+}

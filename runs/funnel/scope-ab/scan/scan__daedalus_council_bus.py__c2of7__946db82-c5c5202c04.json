@@ -1,0 +1,322 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c2of7__946db82",
+ "key": "scan__daedalus_council_bus.py__c2of7__946db82-c5c5202c04",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 7 in daedalus/council/bus.py: defines constants, regexes, lock, caches, and public functions for hashing, identity, and path resolution.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "MAX_CONTENT_CHARS | medium | Hard-coded limit of 200,000 chars may be too low for large turns; not adjustable without code change.",
+     "DEFAULT_COUNCIL_DIR | high | Referenced but not defined in this chunk; will cause NameError at runtime.",
+     "_check_council_id | medium | Called in council_store_path but defined later in chunk; order of definition in file may cause NameError if called before definition.",
+     "canonical_body_json | low | Uses json.dumps with sort_keys=True; key order is guaranteed but value serialization may differ across Python versions for some types (e.g., floats).",
+     "evidence_ref | low | Uses backslash replacement for Windows paths; may produce unexpected results for already-forward-slash paths.",
+     "council_store_path | medium | Uses DEFAULT_COUNCIL_DIR which is not defined in this chunk; will raise NameError.",
+     "_resolve_store | medium | Referenced but not fully defined in this chunk; incomplete function may cause errors.",
+     "read_anchor, verify_chain | low | Listed as defined elsewhere but not used in this chunk; dead code risk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "2 of 7",
+     "purpose": "Define constants, regexes, lock, caches, and public functions for hashing, identity, and path resolution.",
+     "symbols": [
+      {
+       "name": "PARTICIPANT_OUTCOMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of participant outcome strings."
+      },
+      {
+       "name": "MAX_CONTENT_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum content length for a single turn, set to 200,000."
+      },
+      {
+       "name": "_ACTOR_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for actor ID validation."
+      },
+      {
+       "name": "_COUNCIL_ID_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for council ID validation."
+      },
+      {
+       "name": "_SHA256_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for SHA256 hex string validation."
+      },
+      {
+       "name": "_WRITE_LOCK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Threading lock for write serialization."
+      },
+      {
+       "name": "_NON_BODY_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of fields excluded from body hash."
+      },
+      {
+       "name": "_ALLOWED_TURN_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of allowed keys in a turn record."
+      },
+      {
+       "name": "_ALLOWED_META_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of allowed keys in meta dict."
+      },
+      {
+       "name": "_ALLOWED_PARTICIPANT_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of allowed keys in participant record."
+      },
+      {
+       "name": "_APPEND_CACHE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict cache for per-store append index."
+      },
+      {
+       "name": "canonical_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict without _NON_BODY_FIELDS."
+      },
+      {
+       "name": "canonical_body_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns JSON string of canonical body with sorted keys."
+      },
+      {
+       "name": "_body_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns SHA256 hex digest of canonical body JSON."
+      },
+      {
+       "name": "_entry_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns SHA256 hex digest of prev+body_sha+ts."
+      },
+      {
+       "name": "_now_iso",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns current UTC ISO timestamp."
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns council.<vendor>.<model> string."
+      },
+      {
+       "name": "evidence_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with path and sha256 of data."
+      },
+      {
+       "name": "council_store_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns Path to council transcript file."
+      },
+      {
+       "name": "anchor_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns Path to anchor file next to transcript."
+      },
+      {
+       "name": "_check_council_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates council_id format, raises ValueError."
+      },
+      {
+       "name": "_resolve_store",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves store path, refusing paths under memory/."
+      }
+     ],
+     "claims": [
+      {
+       "text": "MAX_CONTENT_CHARS = 200_000 -- Fail-closed ceiling on a single turn. Transcript tokens grow as O(V^2 R^2), not O(V R); the per-council budget lives in session.py, but no single turn may blow the file up on its own.",
+       "where": "line 127-130",
+       "verdict": "uncheckable",
+       "why": "Claim about growth complexity and budget in session.py cannot be verified from this chunk."
+      },
+      {
+       "text": "_ACTOR_RE = re.compile(r\"^council\\.[a-z0-9][a-z0-9_-]*\\.[A-Za-z0-9][A-Za-z0-9._:+-]*$\") -- ADR-010 actor-namespace rule, pinned to the MODEL and not just the vendor: \"claude said X\" is not reproducible six months out, because the model behind a stable command name changes underneath it.",
+       "where": "line 133-134",
+       "verdict": "uncheckable",
+       "why": "Claim about ADR-010 and reproducibility cannot be verified from this chunk."
+      },
+      {
+       "text": "_NON_BODY_FIELDS = frozenset({\"ts\", \"prev\", \"entry_sha\", \"id\", \"body_sha\"}) -- Position/identity fields, excluded from body_sha (see module docstring).",
+       "where": "line 140",
+       "verdict": "uncheckable",
+       "why": "Claim about module docstring cannot be verified from this chunk."
+      },
+      {
+       "text": "_ALLOWED_TURN_KEYS = frozenset({...}) -- Accepted caller keys. A key outside this set is REFUSED loudly, never dropped: a silently dropped field lets two semantically distinct turns canonicalise to the same body and hands the caller a success id for a turn never recorded.",
+       "where": "line 143-148",
+       "verdict": "uncheckable",
+       "why": "Claim about refusal behaviour cannot be verified from this chunk; no enforcement code shown."
+      },
+      {
+       "text": "_APPEND_CACHE: dict[str, dict] = {} -- Per-store append index: tail entry_sha + record/turn counts, keyed by resolved path and invalidated by the file's (size, mtime_ns). Re-parsing the whole transcript per append is O(n^2) overall; a 500-turn council must not pay that.",
+       "where": "line 157-160",
+       "verdict": "uncheckable",
+       "why": "Claim about cache invalidation and complexity cannot be verified from this chunk; no usage shown."
+      },
+      {
+       "text": "canonical_body(record: dict) -> dict -- The content projection ``body_sha`` is taken over: everything EXCEPT the position/identity fields. Uniform across turn and roster records so the chain walk needs no per-record-type branch.",
+       "where": "line 163-166",
+       "verdict": "kept",
+       "why": "Function returns dict excluding _NON_BODY_FIELDS as claimed."
+      },
+      {
+       "text": "canonical_body_json(record: dict) -> str -- The exact bytes hashed. Exposed so a test can assert determinism against the canonical form rather than against a digest it cannot inspect.",
+       "where": "line 168-170",
+       "verdict": "kept",
+       "why": "Function returns JSON string of canonical body with sorted keys and no whitespace, as claimed."
+      },
+      {
+       "text": "_body_sha(record: dict) -> str -- returns hashlib.sha256(canonical_body_json(record).encode(\"utf-8\")).hexdigest()",
+       "where": "line 172-173",
+       "verdict": "kept",
+       "why": "Function body matches claim exactly."
+      },
+      {
+       "text": "_entry_sha(prev: str | None, body_sha: str, ts: str) -> str -- payload = (prev or \"\") + \"\\0\" + body_sha + \"\\0\" + ts",
+       "where": "line 175-177",
+       "verdict": "kept",
+       "why": "Function body matches claim exactly."
+      },
+      {
+       "text": "actor_id(vendor: str, model: str) -> str -- ``council.<vendor>.<model>`` per ADR-010. An unknown model id is recorded as the literal ``unknown`` by the CALLER -- never omitted, never inferred.",
+       "where": "line 182-184",
+       "verdict": "uncheckable",
+       "why": "Claim about caller behaviour and 'unknown' literal cannot be verified from this chunk."
+      },
+      {
+       "text": "evidence_ref(path: str, data: bytes) -> dict -- One evidence citation: the path as given plus the sha256 of the exact bytes shown to the model. Two participants citing \"the file\" may have been shown different bytes; without this the transcript records a citation that cannot be reproduced.",
+       "where": "line 186-190",
+       "verdict": "kept",
+       "why": "Function returns dict with path (with backslash replacement) and sha256 of data as claimed."
+      },
+      {
+       "text": "council_store_path(council_id: str, base_dir: str | Path | None = None) -> Path -- ``<base_dir>/<council_id>.jsonl``. ``council_id`` is filename-safe by validation, not by sanitising: a silently rewritten id would point two councils at one transcript.",
+       "where": "line 192-195",
+       "verdict": "kept",
+       "why": "Function calls _check_council_id and returns Path with council_id.jsonl in base_dir."
+      },
+      {
+       "text": "anchor_path(store_path: str | Path) -> Path -- The head/count anchor beside the transcript. Separate file on purpose: the chain walk cannot detect tail truncation from a truncated file alone.",
+       "where": "line 197-199",
+       "verdict": "kept",
+       "why": "Function returns Path with .anchor.json suffix as claimed."
+      },
+      {
+       "text": "_check_council_id(council_id: str) -> None -- if not isinstance(council_id, str) or not _COUNCIL_ID_RE.match(council_id): raise ValueError",
+       "where": "line 201-204",
+       "verdict": "kept",
+       "why": "Function body matches claim exactly."
+      },
+      {
+       "text": "_resolve_store(council_id: str, store_path: str | Path | None) -> Path -- Resolve and REFUSE any path under ``<repo>/memory/``. Council turns must never reach the memory ledger (see module docstring).",
+       "where": "line 206-209",
+       "verdict": "uncheckable",
+       "why": "Function body incomplete; memory/ refusal logic not fully shown. Claim about module docstring cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "DEFAULT_COUNCIL_DIR is referenced in council_store_path but not defined in this chunk.",
+       "where": "line 194",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_resolve_store function is incomplete; it ends with a try: block and no except or further code.",
+       "where": "line 209",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_check_council_id is defined after its usage in council_store_path; in Python this is fine as long as the function is called at runtime after definition, but if called during module import (e.g., in a default argument) it would fail.",
+       "where": "line 193, 201",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "MAX_CONTENT_CHARS is a hard-coded constant; no mechanism to override it is provided.",
+       "where": "line 127",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "evidence_ref replaces backslashes with forward slashes; this may alter paths that already use forward slashes (no-op) but is correct for Windows paths.",
+       "where": "line 189",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "canonical_body_json uses json.dumps with sort_keys=True, which guarantees key order but may produce different output for non-string keys or custom types; however, body keys are strings.",
+       "where": "line 169-170",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "387616e5a0f1f07e6808f3059553458a9d8e0c4d35e6fbff1a8c519f63f37842",
+    "objective_chars": 6881,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [2/7]",
+  "rev": "946db82",
+  "module": "daedalus/council/bus.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 121
+ }
+}

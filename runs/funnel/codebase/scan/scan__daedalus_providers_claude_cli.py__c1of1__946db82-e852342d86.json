@@ -1,0 +1,129 @@
+{
+ "task_id": "scan__daedalus_providers_claude_cli.py__c1of1__946db82",
+ "key": "scan__daedalus_providers_claude_cli.py__c1of1__946db82-e852342d86",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "ClaudeCLIProvider: a provider that delegates to ask_claude, checks claude CLI availability.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "ask_claude import | medium | ask_claude is imported from ..claude_bridge but not defined in this chunk; its behaviour is unchecked. | Check that ask_claude exists and matches its expected signature.",
+     "policy parameter | low | The policy parameter is documented as unused, but it is still accepted; future changes might accidentally use it without updating docs. | Confirm that policy is intentionally ignored.",
+     "agent.get('model_tier', 'sonnet') | low | Falls back to 'sonnet' if model_tier missing; may not match intended model selection logic. | Verify that model_tier is always provided in agent dict."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/claude_cli.py",
+     "chunk": "1 of 1",
+     "purpose": "Define ClaudeCLIProvider, a provider that uses ask_claude to run tasks with agentic capabilities.",
+     "symbols": [
+      {
+       "name": "ClaudeCLIProvider",
+       "kind": "class",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Provider subclass; its run method calls ask_claude which likely spawns a process and makes network calls."
+      },
+      {
+       "name": "ClaudeCLIProvider.caps",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "ProviderCapabilities instance marking the provider as agentic, write-capable, trusted with IP, not local."
+      },
+      {
+       "name": "ClaudeCLIProvider.available",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if 'claude' is on PATH."
+      },
+      {
+       "name": "ClaudeCLIProvider.run",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "network_egress"
+       ],
+       "note": "Calls ask_claude and returns a dict with provider name, agent, and report."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Primary lane: the agentic, write-capable, trusted Claude CLI.",
+       "where": "class docstring (line 10)",
+       "verdict": "uncheckable",
+       "why": "The claim about being 'primary lane' is not verifiable from this chunk alone; it requires knowledge of other providers."
+      },
+      {
+       "text": "unused: Claude is agentic + trusted",
+       "where": "policy parameter comment (line 30)",
+       "verdict": "kept",
+       "why": "The code indeed does not use the policy parameter; it is accepted but never referenced."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The class docstring claims it's the 'primary lane', but this chunk does not include any other providers for comparison.",
+       "where": "line 10",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "ask_claude is imported from a sibling module; its signature and behaviour are not defined here.",
+       "where": "line 5",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The policy parameter is documented as unused, but it is still accepted; future changes might accidentally use it without updating docs.",
+       "where": "line 30",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The model parameter defaults to agent.get('model_tier', 'sonnet') which may not be the intended fallback.",
+       "where": "line 34",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8ed945c14759fd798d97758d726f11261a3e43e28daffd5e315381494598a7af",
+    "objective_chars": 1610,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/claude_cli.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/providers/claude_cli.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

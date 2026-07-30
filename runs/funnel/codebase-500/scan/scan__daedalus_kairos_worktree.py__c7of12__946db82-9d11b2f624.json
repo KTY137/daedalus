@@ -1,0 +1,137 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c7of12__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c7of12__946db82-9d11b2f624",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 7 of worktree.py: contains allocation lookup, discard, containment decision methods, and a long docstring for _refuse_if_the_primary_checkout_moved.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "handoff.module | medium | No file context provided; claims about _path_identity, _chain_between, etc. are uncheckable. | Provide the full file or relevant definitions."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "7 of 12",
+     "purpose": "Contains allocation lookup, discard, containment decision methods, and a long docstring for _refuse_if_the_primary_checkout_moved.",
+     "symbols": [
+      {
+       "name": "_discard_allocation",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Removes the allocation file for a worktree path; unlinks the file, ignores OSError."
+      },
+      {
+       "name": "_refuse",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a WorktreeContainmentError with a formatted message."
+      },
+      {
+       "name": "_reach_chain",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the chain of Paths from worktree_root to target; raises WorktreeContainmentError if not contained."
+      },
+      {
+       "name": "_refuse_if_repo_adjacent",
+       "kind": "function",
+       "effects": [],
+       "note": "Raises WorktreeContainmentError if candidate is within repo_path or vice versa."
+      },
+      {
+       "name": "_refuse_if_the_primary_checkout_moved",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks that the primary checkout hasn't moved; docstring details mitigation."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``_discard_allocation`` removes the allocation file for a worktree path by unlinking it, ignoring OSError.",
+       "where": "_discard_allocation",
+       "verdict": "kept",
+       "why": "The code tries to unlink the file and catches OSError with pass."
+      },
+      {
+       "text": "``_reach_chain`` returns the chain of Paths from worktree_root to target.",
+       "where": "_reach_chain",
+       "verdict": "kept",
+       "why": "It calls _chain_between with lexical representations and returns the result; raises ValueError and converts to WorktreeContainmentError."
+      },
+      {
+       "text": "``_refuse_if_repo_adjacent`` raises if candidate is within repo_path or vice versa.",
+       "where": "_refuse_if_repo_adjacent",
+       "verdict": "kept",
+       "why": "It checks _is_within both ways and raises WorktreeContainmentError if true."
+      },
+      {
+       "text": "``_refuse_if_the_primary_checkout_moved`` checks that the primary checkout hasn't moved using st_dev and st_ino.",
+       "where": "_refuse_if_the_primary_checkout_moved",
+       "verdict": "uncheckable",
+       "why": "The docstring describes checks but the function body is not present in this chunk; only the docstring is shown."
+      },
+      {
+       "text": "The docstring claims that ``__init__`` calls ``.resolve()`` on repo_path, so it is never a reparse point.",
+       "where": "_refuse_if_the_primary_checkout_moved",
+       "verdict": "uncheckable",
+       "why": "__init__ is not in this chunk."
+      },
+      {
+       "text": "The docstring claims that checks 2 and 3 disable themselves when st_ino is zero.",
+       "where": "_refuse_if_the_primary_checkout_moved",
+       "verdict": "uncheckable",
+       "why": "No code for checks 2 and 3 is in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends with a long docstring for _refuse_if_the_primary_checkout_moved that describes attack mitigations but no implementation.",
+       "where": "line 741 onward",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "No imports or external references are visible; symbols like _chain_between, _is_within, _path_identity are referenced but not defined in this chunk.",
+       "where": "multiple lines",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2bc4d1fa8ad383fa1d5fd10fd8c07a4adf96c82e8bec858127d92251ad81fb13",
+    "objective_chars": 7177,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [7/12]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 7,
+  "total": 12,
+  "first_line": 721
+ }
+}

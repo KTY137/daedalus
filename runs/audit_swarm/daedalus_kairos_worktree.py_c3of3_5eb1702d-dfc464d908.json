@@ -1,0 +1,153 @@
+{
+ "task_id": "daedalus/kairos/worktree.py#c3of3#5eb1702d",
+ "key": "daedalus_kairos_worktree.py_c3of3_5eb1702d-dfc464d908",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 10 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The target must be PROVEN to be a worktree this manager allocated (see :meth:`_require_allocated_worktree`); anything else raises without removing a thing.\" | cleanup_worktree | KEPT | The first call after the primary-checkout check is to _require_allocated_worktree, which raises if not allocated.",
+     "CLAIM | \"The removal itself is done here rather than by ``git worktree remove --force``, which follows reparse points planted inside the tree; ``git worktree prune`` then deregisters it.\" | cleanup_worktree | KEPT | The code calls _remove_tree_no_follow (not git worktree remove) and then _run_git('worktree', 'prune').",
+     "CLAIM | \"The candidate BRANCH is deliberately left alone here -- see :meth:`reap_branches` for why deleting it in this call would be wrong.\" | cleanup_worktree | KEPT | No branch deletion occurs in cleanup_worktree; reap_branches handles it separately.",
+     "CLAIM | \"WorktreeContainmentError: If the target cannot be proven to be an allocated worktree, or if the primary checkout is no longer the directory this manager was created for. Nothing is removed in either case.\" | cleanup_worktree | KEPT | Both conditions raise before any removal; _refuse_if_the_primary_checkout_moved and _require_allocated_worktree are called first.",
+     "CLAIM | \"WorktreeRemovalRace: If a reparse point appeared above the removal while it was underway. The tree is PARTIALLY removed and that is what the exception says; it is deliberately not repaired.\" | cleanup_worktree | KEPT | WorktreeRemovalRace is a RuntimeError subclass, and the docstring says it passes through undisguised. The code does not catch it separately.",
+     "CLAIM | \"RuntimeError: If the worktree directory could not be removed. A failed removal is never swallowed silently.\" | cleanup_worktree | KEPT | The OSError from _remove_tree_no_follow is caught and re-raised as RuntimeError.",
+     "CLAIM | \"A FAILED CALL IS NOT AN ANSWER. git being missing, the repository being locked, ``.git`` being written by something else, a candidate that exhausted the handle table -- none of those is evidence that the tip is held elsewhere, so none of them may license a delete.\" | _refs_containing | KEPT | The except RuntimeError returns an empty list, which causes reap_branches to retain the branch.",
+     "CLAIM | \"Deleting the ``except`` below lets the ``RuntimeError`` escape ``reap_branches`` instead of retaining; that mutation SURVIVED the suite until 2026-07-28, and it is killed now by ``test_reap_retains_a_branch_when_git_cannot_say_who_contains_its_tip``.\" | _refs_containing | KEPT | The except returns [], not re-raise, as described.",
+     "CLAIM | \"The path is proven to be an allocated worktree first: a swapped directory would otherwise turn ``git add -A`` + ``git commit`` into a commit of the developer's working tree.\" | commit_candidate | KEPT | The first line calls _require_allocated_worktree(path).",
+     "CLAIM | \"Return whether the candidate worktree differs from its HEAD.\" | has_changes | KEPT | Returns bool of git status --porcelain output.",
+     "CLAIM | \"The one input to the reap decision that no candidate can forge. If this is non-empty, deleting the branch cannot orphan a commit -- every commit on it stays reachable from something else. If it is empty the branch is the only thing holding that history, and holding history is exactly what this method must never destroy.\" | _refs_containing | BROKEN | The docstring says 'If it is empty the branch is the only thing holding that history', but if git fails (RuntimeError), the method returns [] even though the branch might not be the only holder. The docstring implicitly assumes a successful call, but the code's behavior (return [] on failure) contradicts the absolute statement that emptiness implies the branch is the sole holder. The docstring should qualify that emptiness could also result from a failed call."
+    ],
+    "todos": [
+     "Update the docstring of _refs_containing to clarify that an empty list may also result from a failed git call, not only from the branch being the sole holder."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b026efc022afb4bb6dc7ba8b44a55862191a40ca76d683558763114676cfdf55",
+    "objective_chars": 20773,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "28 claims: 17 kept, 10 broken, 1 uncheckable; 4 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a single junction anywhere in DAEDALUS_WORKTREE_ROOT lands the entire worktree root inside the developer's checkout while every lexical check above passes. `cleanup_worktree` catches that case (step 4), but only when it is time to delete\" | cleanup_worktree | BROKEN | cleanup_worktree does not check for junctions; it only checks if the primary checkout moved via _refuse_if_the_primary_checkout_moved, which is about the manager's own checkout, not about junctions in DAEDALUS_WORKTREE_ROOT.",
+     "CLAIM | \"Creation is where that has to be refused.\" | create_worktree | BROKEN | The comment claims creation must refuse junctions, but the code does not check for junctions; it only calls _refuse_if_repo_adjacent on the resolved root, which checks for repository adjacency, not junctions.",
+     "CLAIM | \"`cleanup_worktree` catches that case (step 4)\" | cleanup_worktree | BROKEN | cleanup_worktree does not implement step 4; it only checks primary checkout movement and removes the target tree, no junction detection.",
+     "CLAIM | \"The candidate BRANCH is deliberately left alone here\" | cleanup_worktree | KEPT | The code does not delete the branch.",
+     "CLAIM | \"WorktreeContainmentError: If the target cannot be proven to be an allocated worktree, or if the primary checkout is no longer the directory this manager was created for. Nothing is removed in either case.\" | cleanup_worktree | BROKEN | The code raises WorktreeContainmentError if _require_allocated_worktree fails, but if the primary checkout moved, it raises WorktreeContainmentError? Actually _refuse_if_the_primary_checkout_moved raises WorktreeContainmentError? That method is not shown but likely raises WorktreeContainmentError. However the docstring says \"if the primary checkout is no longer the directory this manager was created for\" raises WorktreeContainmentError, but the code does not check that the primary checkout is the same directory; it only calls _refuse_if_the_primary_checkout_moved, which likely checks something else. The claim is ambiguous: the code may raise WorktreeContainmentError, but the condition is not exactly as stated.",
+     "CLAIM | \"WorktreeRemovalRace: If a reparse point appeared above the removal while it was underway. The tree is PARTIALLY removed and that is what the exception says; it is deliberately not repaired.\" | cleanup_worktree | UNCHECKABLE | The code does not raise WorktreeRemovalRace; it calls _remove_tree_no_follow which may raise it, but that function is not shown. Cannot verify if the exception is raised or its message.",
+     "CLAIM | \"RuntimeError: If the worktree directory could not be removed. A failed removal is never swallowed silently.\" | cleanup_worktree | KEPT | The code catches OSError and raises RuntimeError.",
+     "CLAIM | \"The directory is gone; deregister it. A prune failure raises (RuntimeError from _run_git) rather than leaving a stale registration unreported.\" | cleanup_worktree | KEPT | The code calls _run_git('worktree', 'prune') which raises RuntimeError on failure.",
+     "CLAIM | \"The record is RETAINED, not discarded\" | cleanup_worktree | KEPT | The code writes to the record and does not delete it.",
+     "CLAIM | \"cleanup refuses a path that does not exist, and this one no longer does.\" | cleanup_worktree | BROKEN | cleanup_worktree does not check if the path exists after removal; it proceeds to write the record. The claim says it refuses a path that does not exist, but there is no such check.",
+     "CLAIM | \"reap must not be steerable into deleting the branch of a worktree that is still LIVE just because a candidate wrote a `worktree_removed_ts` into its record.\" | reap_branches | KEPT | The code checks allocation.get(\"worktree_removed\") which is set in memory, not from disk.",
+     "CLAIM | \"A branch is deleted only when BOTH hold: 1. THIS manager object allocated it, in THIS process (:attr:`_allocations`, written by :meth:`create_worktree`), its worktree has been through :meth:`cleanup_worktree`, and its tip is byte-identical to the sha this manager itself read from git at allocation time. Nothing on disk contributes to this.\" | reap_branches | KEPT | The code checks allocation in _allocations, checks worktree_removed, and compares tip with branch_tip_at_creation from memory.",
+     "CLAIM | \"2. Some OTHER ref still contains that tip, so deleting the branch orphans no commit. This is git's answer, not ours\" | reap_branches | KEPT | The code calls _refs_containing and checks holders.",
+     "CLAIM | \"a branch leaked by a CRASHED run is never reaped, because the process that could vouch for it is gone.\" | reap_branches | KEPT | The code only uses _allocations (in-memory), so crashed run records are not reaped.",
+     "CLAIM | \"Records left on disk are reported as `unverifiable` and acted on by nobody.\" | reap_branches | KEPT | The code calls _report_unverifiable_records and adds to report with action \"unverifiable\".",
+     "CLAIM | \"A leaked ref is cheap; a deleted branch is not.\" | reap_branches | KEPT | The code retains branches when uncertain.",
+     "CLAIM | \"RuntimeError: If any branch that was cleared for deletion could not be deleted. Every allocation is still examined first; the failures are reported together rather than aborting on the first one.\" | reap_branches | KEPT | The code collects failures and raises at the end.",
+     "CLAIM | \"The one input to the reap decision that no candidate can forge.\" | _refs_containing | KEPT | The method uses git's for-each-ref which is not forgeable by candidate.",
+     "CLAIM | \"A FAILED CALL IS NOT AN ANSWER. ... Deleting the `except` below lets the `RuntimeError` escape `reap_branches` instead of retaining; that mutation SURVIVED the suite until 2026-07-28, and it is killed now by `test_reap_retains_a_branch_when_git_cannot_say_who_contains_its_tip`.\" | _refs_containing | KEPT | The code catches RuntimeError and returns empty list, retaining the branch.",
+     "CLAIM | \"Compared case-INSENSITIVELY although git refs are case-sensitive: the only effect of a spurious match is that a ref is dropped from the holder list, which retains the branch. Erring toward retention is the correct direction for a method whose failure mode is deleting work.\" | _refs_containing | KEPT | The code uses .casefold() for comparison.",
+     "CLAIM | \"`-d` is tried first so git's own merged-check applies. If git refuses anyway ... the sha proof (re-taken here, so the branch cannot have moved in between) is what authorises `-D`. The force flag is never reached without that proof.\" | _delete_unused_branch | KEPT | The code tries -d, then re-reads tip and compares with proven_tip before -D.",
+     "CLAIM | \"The path is proven to be an allocated worktree first: a swapped directory would otherwise turn `git add -A` + `git commit` into a commit of the developer's working tree.\" | commit_candidate | KEPT | The code calls _require_allocated_worktree.",
+     "CLAIM | \"Return whether the candidate worktree differs from its HEAD.\" | has_changes | KEPT | The code runs git status --porcelain and returns bool.",
+     "D1 | path parameter in cleanup_worktree | used only in _require_allocated_worktree and target variable, but that's fine; no unused parameters. Actually check: reap_branches has no unused parameters. commit_candidate has path, message, author all used. has_changes path used. _refs_containing sha and excluding used. _delete_unused_branch branch and proven_tip used. _report_unverifiable_records no parameters. _forget_allocation worktree_path used. So D1: none.",
+     "D2 | except: pass in _delete_unused_branch | swallows RuntimeError and continues. The docstring says \"-d is tried first so git's own merged-check applies. If git refuses anyway ... the sha proof ... is what authorises -D.\" This is intentional, not a silent swallow. So not a D2.",
+     "D3 | check after side effect: in cleanup_worktree, the comment says \"The directory is gone; deregister it.\" but the code does not check if the directory is actually gone before deregistering. If _remove_tree_no_follow fails partially, the directory may still exist. The comment implies the directory is gone, but the check is not done. So D3: cleanup_worktree | The comment claims the directory is gone, but no check verifies it before proceeding.",
+     "D4 | branch condition impossible: in reap_branches, the condition `if not branch:` after `branch = str(allocation.get(\"branch\") or \"\")` - if allocation has no \"branch\" key, branch becomes \"\", so the condition can be true. So no impossible branch.",
+     "D4 | in _refs_containing, the comparison `if line.strip() and line.strip().casefold() != excluded:` - line.strip() is called twice, but that's fine. No impossible condition.",
+     "D4 | in cleanup_worktree, `record = self._read_allocation(target) or {}` - if _read_allocation returns None, record becomes {}. That's fine."
+    ],
+    "todos": [
+     "Implement junction detection in create_worktree to refuse creation when a junction lands the worktree root inside the developer's checkout.",
+     "Remove or correct the comment in create_worktree that claims cleanup_worktree catches the junction case; it does not.",
+     "Implement step 4 in cleanup_worktree or remove the reference to it.",
+     "Add a check in cleanup_worktree after removal to verify the directory is gone before deregistering, or correct the comment.",
+     "Clarify the docstring of cleanup_worktree regarding WorktreeContainmentError conditions to match the actual checks."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b026efc022afb4bb6dc7ba8b44a55862191a40ca76d683558763114676cfdf55",
+    "objective_chars": 20773,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 3 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A prune failure raises (RuntimeError from _run_git) rather than leaving a stale registration unreported.\" | cleanup_worktree | BROKEN | The code calls self._run_git('worktree', 'prune') and does not catch RuntimeError, so it propagates; but the record is not updated before the prune, so if prune fails the record is still stale. The claim says 'rather than leaving a stale registration unreported', but the stale registration exists before the prune call and is not updated on failure.",
+     "CLAIM | \"The record is RETAINED, not discarded: it is now the only place that remembers which branch this worktree left behind and what its tip was at creation, which is what makes a later reap safe.\" | cleanup_worktree | BROKEN | The code updates record with worktree_removed_ts and writes it, but then also updates the in-memory allocation with worktree_removed=True. The claim says 'RETAINED, not discarded' which is true, but the in-memory allocation is updated, not just the record. The claim is misleading because it implies only the on-disk record is retained, but both are updated.",
+     "CLAIM | \"A FAILED CALL IS NOT AN ANSWER. git being missing, the repository being locked, .git being written by something else, a candidate that exhausted the handle table -- none of those is evidence that the tip is held elsewhere, so none of them may license a delete.\" | _refs_containing | KEPT | The except block catches RuntimeError and returns an empty list, which causes reap_branches to retain the branch. This matches the claim.",
+     "CLAIM | \"The force flag is never reached without that proof.\" | _delete_unused_branch | KEPT | The code only reaches the force delete (branch -D) after re-checking the tip with rev-parse and comparing to proven_tip. If they differ, it raises an error. So the force flag is only reached if the tip matches, which is the proof.",
+     "CLAIM | \"The path is proven to be an allocated worktree first: a swapped directory would otherwise turn git add -A + git commit into a commit of the developer's working tree.\" | commit_candidate | KEPT | The method calls self._require_allocated_worktree(path) before running git commands, which verifies the path is an allocated worktree. This matches the claim."
+    ],
+    "todos": [
+     "Update the record with worktree_removed_ts before calling prune, or adjust the comment to reflect that a prune failure leaves a stale record.",
+     "Clarify the docstring to state that both on-disk and in-memory records are updated, not just the on-disk record."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b026efc022afb4bb6dc7ba8b44a55862191a40ca76d683558763114676cfdf55",
+    "objective_chars": 20773,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/kairos/worktree.py",
+  "chunk": 3,
+  "chunks": 3,
+  "bytes": 18256
+ }
+}

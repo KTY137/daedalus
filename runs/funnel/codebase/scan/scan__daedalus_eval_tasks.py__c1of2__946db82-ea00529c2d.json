@@ -1,0 +1,180 @@
+{
+ "task_id": "scan__daedalus_eval_tasks.py__c1of2__946db82",
+ "key": "scan__daedalus_eval_tasks.py__c1of2__946db82-ea00529c2d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/eval/tasks.py chunk 1 of 2. Enumerated 4 public symbols (resolve_task_repo, CORRECTNESS_KEYS, is_correctness_task, task_project_label) and 13 checkable claims from docstrings/comments. Verdicts: 6 kept, 0 broken, 7 uncheckable. Observations: 2 medium confidence items (circularity acknowledged, correctness task isolation documented).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_task_repo / medium | Function uses os.path.isabs and Path.exists but may raise ValueError for unknown repo labels; no fallback for label resolution failure other than exception. | Could cause runtime errors if task repo label is misspelled or not registered. Settled by verifying all task repos are registered or absolute paths.",
+     "is_correctness_task / medium | Predicate relies on key presence; a task with empty fail_to_pass/pass_to_pass is considered correctness task, but validation is delegated to correctness module. | Could allow invalid tasks to pass is_correctness_task check, leading to incorrect handling. Settled by checking correctness.validate_task logic."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/tasks.py",
+     "chunk": "1 of 2",
+     "purpose": "Define task data structures for distillation evaluation, including slice-recall and correctness task formats, and provide the task set for agent_env and sunny_garden repos.",
+     "symbols": [
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps repo label to absolute path; handles 'agent_env', absolute paths, and registered project names."
+      },
+      {
+       "name": "CORRECTNESS_KEYS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of keys that identify a correctness task: ('fail_to_pass', 'pass_to_pass')."
+      },
+      {
+       "name": "is_correctness_task",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if task dict contains any CORRECTNESS_KEYS; used to prevent mixing task formats."
+      },
+      {
+       "name": "task_project_label",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns project bucket for task filtering; returns '<unknown>' if no repo key."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Each task targets a real symbol/file in a small repo and records the symbols a *sufficient* distilled slice MUST carry to reason about that target.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes task intent; cannot verify against this chunk alone as it requires checking actual tasks against slice content."
+      },
+      {
+       "text": "The labels below were picked by reading the code and VERIFIED reachable by running ``semantic_slice`` (see ``daedalus.eval.harness``); a label is only listed if a competent answer about the target genuinely needs it AND it is a real dependency or caller in the neighborhood.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to labels in TASKS list (present) and verification via semantic_slice (not in chunk); cannot confirm verification process."
+      },
+      {
+       "text": "``must_include`` items are matched as substrings against the slice text.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Describes scoring mechanism; not implementable from this chunk alone."
+      },
+      {
+       "text": "For a symbol target the slice is 1-hop (the focus symbol's direct callees/callers), so we only label symbols reachable within that hop -- we do NOT claim transitive callees-of-callees are present when they are not.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Describes slice scope; requires knowledge of slicing implementation not in this chunk."
+      },
+      {
+       "text": "A correctness task carries no ``must_include``, so scoring one with ``harness._recall`` would return the vacuous 1.0 -- a task that cannot fail, silently inflating the very number the tier machinery exists to keep honest.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Describes behavior of harness._recall; not present in this chunk."
+      },
+      {
+       "text": "``is_correctness_task`` below is the single predicate that decides, and ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly (an ERRORED row, which ``run_gate`` reports and fails on for a primary tier) instead of grading it.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to harness functions not in this chunk; cannot verify refusal behavior."
+      },
+      {
+       "text": "Correctness tasks live in their own store (``correctness.DEFAULT_CORPUS_PATH``) and never enter ``harness.all_tasks()``.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Refers to modules and paths not in this chunk."
+      },
+      {
+       "text": "\"agent_env\" -> this harness repo (dogfood target)",
+       "where": "resolve_task_repo docstring",
+       "verdict": "kept",
+       "why": "resolve_task_repo returns AGENT_ENV_ROOT when repo == 'agent_env'."
+      },
+      {
+       "text": "a registered name -> daedalus.projects.resolve_repo_root (e.g. sunny_garden)",
+       "where": "resolve_task_repo docstring",
+       "verdict": "kept",
+       "why": "When repo is in list_projects(), function calls resolve_repo_root(None, repo)."
+      },
+      {
+       "text": "an absolute path -> used as-is (temp fixtures in tests)",
+       "where": "resolve_task_repo docstring",
+       "verdict": "kept",
+       "why": "If os.path.isabs(repo) and Path(repo).exists(), returns repo directly."
+      },
+      {
+       "text": "Either one is enough: a task carrying a test list is claiming its grade comes from running tests, not from substring containment, and half a claim is still a claim.",
+       "where": "comment after CORRECTNESS_KEYS",
+       "verdict": "kept",
+       "why": "is_correctness_task returns True if any CORRECTNESS_KEYS present, consistent with 'either one is enough'."
+      },
+      {
+       "text": "A task with ``\"fail_to_pass\": []`` is a correctness task with an empty (and therefore invalid, see ``correctness.validate_task``) test list, NOT a slice-recall task -- and it must never be handed to ``_recall``, which would score its absent ``must_include`` as a vacuous 1.0.",
+       "where": "is_correctness_task docstring",
+       "verdict": "kept",
+       "why": "is_correctness_task returns True if key present regardless of value; empty list is present, so it's correctness task."
+      },
+      {
+       "text": "A task with NO ``repo`` key labels as ``\"<unknown>\"`` rather than raising ``KeyError``.",
+       "where": "task_project_label docstring",
+       "verdict": "kept",
+       "why": "task_project_label uses task.get('repo') and returns '<unknown>' if repo is None."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring explicitly acknowledges circularity: hand_reachable labels are verified by the slicer being graded.",
+       "where": "module docstring, label_provenance section",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "Correctness task isolation is documented and enforced via is_correctness_task predicate; harness functions refuse correctness tasks.",
+       "where": "module docstring, is_correctness_task function",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "439601592e835802128b49e8e5618c1ea84da2a32b4f582d9852c98d48f28e70",
+    "objective_chars": 13983,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/tasks.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/eval/tasks.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

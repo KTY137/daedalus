@@ -1,0 +1,157 @@
+{
+ "task_id": "scan__daedalus_memory_projection_worker.py__c5of9__946db82",
+ "key": "scan__daedalus_memory_projection_worker.py__c5of9__946db82-1d2b3d6747",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of projection_worker.py: defines WorkerReport.to_dict(), _Progress dataclass, ProjectionWorker class with __init__, _provider, _warnings, _report methods.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/memory/projection_worker.py",
+     "chunk": "5 of 9",
+     "purpose": "Define WorkerReport serialization, _Progress, ProjectionWorker class and helper methods.",
+     "symbols": [
+      {
+       "name": "WorkerReport.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes WorkerReport to a dictionary."
+      },
+      {
+       "name": "_Progress",
+       "kind": "class",
+       "effects": [],
+       "note": "Internal dataclass tracking projection progress counters."
+      },
+      {
+       "name": "ProjectionWorker",
+       "kind": "class",
+       "effects": [],
+       "note": "Main worker class to move vector index forward matching the journal."
+      },
+      {
+       "name": "ProjectionWorker.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes worker with journal path, db path, embedding backend, etc."
+      },
+      {
+       "name": "ProjectionWorker._provider",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns provider string from backend, defaults to 'ollama'."
+      },
+      {
+       "name": "ProjectionWorker._warnings",
+       "kind": "function",
+       "effects": [],
+       "note": "Generates warnings list based on EmbeddingSpec, e.g., if model_revision is pinned."
+      },
+      {
+       "name": "ProjectionWorker._report",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a WorkerReport from given parameters and progress."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Move the derived vector index forward to match the authoritative journal.",
+       "where": "ProjectionWorker class docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring describes the class's purpose, but no code in this chunk shows the actual movement logic; it is a claim about behavior not present in this chunk."
+      },
+      {
+       "text": "A batch is one HTTP request.  ``EventVectorStore``'s implicit backend times out at 10s, which a batch of 32 real journal entries can exceed on a cold model -- and a timeout is reported as ``embedder_unavailable``, i.e. an outage that never happened.  Own the backend so the timeout is a stated parameter rather than an accident of batch size.",
+       "where": "Comment in __init__",
+       "verdict": "uncheckable",
+       "why": "The comment explains design rationale referencing EventVectorStore and its behavior, none of which is present in this chunk. The claim about timeout reporting as embedder_unavailable cannot be verified here."
+      },
+      {
+       "text": "model_revision is pinned, so this index_id differs from the one `daedalus context --latent` searches (that reader resolves a spec with model_revision=None). The latent half will report index_unavailable against this index.",
+       "where": "Inside _warnings method",
+       "verdict": "uncheckable",
+       "why": "This warning string references behavior of `daedalus context --latent` and index_unavailable reporting, which are outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "WorkerReport.to_dict returns a dictionary with nested structures; no side effects.",
+       "where": "lines 481-502",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_Progress dataclass has fields: scanned, projected, already, blank, malformed, embed_calls, malformed_lines.",
+       "where": "lines 505-513",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ProjectionWorker.__init__ defaults backend to OllamaEmbeddingBackend with host and timeout.",
+       "where": "lines 515-539",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_provider returns str from backend.provider attribute, defaulting to 'ollama'.",
+       "where": "lines 541-542",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_warnings returns a tuple of strings; currently only one warning about model_revision.",
+       "where": "lines 544-551",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_report constructs WorkerReport with fields from parameters and a _Progress instance (defaults to zeros).",
+       "where": "lines 553-572",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk ends mid-_report method; the return statement is incomplete.",
+       "where": "line 572",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7c68ba384673dd46be7b6bba462eb3dce18aebf13f39222f63dec2c3a955cceb",
+    "objective_chars": 4902,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/memory/projection_worker.py [5/9]",
+  "rev": "946db82",
+  "module": "daedalus/memory/projection_worker.py",
+  "index": 5,
+  "total": 9,
+  "first_line": 481
+ }
+}

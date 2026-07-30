@@ -1,0 +1,199 @@
+{
+ "task_id": "scan__daedalus_structcore_cache.py__c2of3__946db82",
+ "key": "scan__daedalus_structcore_cache.py__c2of3__946db82-284d4235a2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 3 of cache.py: encoder/decoder functions for type, field, param, sig, alias, facts; _encode/_decode using zlib+json; _evict_old_caches docstring with claims.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_evict_old_caches | medium | Docstring claims 'Keep only the most recently used cache DBs' but function body is truncated; actual eviction logic not visible. | Review the full function body to confirm it implements LRU eviction.",
+     "_dec_facts | low | Converts JSON lists back to tuples; shape-compatible but consumers expecting mutable lists may be surprised. | Check all consumers of PyTypeFacts to ensure they treat tuples as acceptable."
+    ],
+    "todos": [
+     "Verify _evict_old_caches implementation matches its docstring claim about recency-based eviction.",
+     "Ensure that all consumers of decoded data (e.g., PyTypeFacts fields) handle tuples correctly."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/cache.py",
+     "chunk": "2 of 3",
+     "purpose": "Encoder/decoder functions for serialization of analysis data structures, plus beginning of cache eviction function.",
+     "symbols": [
+      {
+       "name": "_dec_type",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes a list to TypeDecl; inverse of _enc_type."
+      },
+      {
+       "name": "_enc_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes FieldDecl to list."
+      },
+      {
+       "name": "_dec_field",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to FieldDecl."
+      },
+      {
+       "name": "_enc_param",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes ParamDecl to list."
+      },
+      {
+       "name": "_dec_param",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to ParamDecl."
+      },
+      {
+       "name": "_enc_sig",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes SignatureDecl to list, recursively encoding params."
+      },
+      {
+       "name": "_dec_sig",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to SignatureDecl, recursively decoding params."
+      },
+      {
+       "name": "_enc_alias",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes AliasImport to list."
+      },
+      {
+       "name": "_dec_alias",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to AliasImport."
+      },
+      {
+       "name": "_enc_facts",
+       "kind": "function",
+       "effects": [],
+       "note": "Encodes PyTypeFacts to list, encoding its subfields."
+      },
+      {
+       "name": "_dec_facts",
+       "kind": "function",
+       "effects": [],
+       "note": "Decodes list to PyTypeFacts, decoding subfields."
+      },
+      {
+       "name": "_encode",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes FileAnalysis to compressed JSON bytes using zlib level 1."
+      },
+      {
+       "name": "_decode",
+       "kind": "function",
+       "effects": [],
+       "note": "Deserializes bytes to FileAnalysis; uses subscript access to ensure cache miss on missing keys."
+      },
+      {
+       "name": "_MAX_CACHE_FILES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Constant set to 20, presumably for cache eviction limit."
+      },
+      {
+       "name": "_evict_old_caches",
+       "kind": "function",
+       "effects": [],
+       "note": "Docstring claims it keeps only most recently used cache DBs; body truncated."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every field is read by subscript, never .get(<default>): a row written by an older encoder is missing keys, and a default would let it decode into a plausible-looking analysis carrying a wrong measurement (n_tokens=0 reads as 'this file contributes nothing to the repo's token total'). KeyError here is caught by get_many and becomes a cache MISS -- recompute, not quietly-wrong. ANALYSIS_VERSION already separates the generations; this is the second lock on the same door.",
+       "where": "comment in _decode",
+       "verdict": "kept",
+       "why": "The code uses subscript access (doc['key']) for all fields in FileAnalysis constructor. The comment about KeyError being caught externally is uncheckable but the claim about subscript usage is verified."
+      },
+      {
+       "text": "Subscript, like every field above: a row from before the type layer has no such key, and a .get(PyTypeFacts()) default would decode it into a plausible analysis claiming the file has NO types -- which is indistinguishable from a file that genuinely has none.",
+       "where": "comment in _decode",
+       "verdict": "kept",
+       "why": "The code uses doc['type_facts'] subscript, not .get. The reasoning about default being indistinguishable is a comment, not a claim about this code."
+      },
+      {
+       "text": "Keep only the most recently used cache DBs.",
+       "where": "_evict_old_caches docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is truncated; only the docstring and beginning of try block are present. The actual eviction logic is not in this chunk."
+      },
+      {
+       "text": "Each DB is named by a hash of the repo root, so a root that disappears leaves an orphan nothing will ever reopen -- and the test suite indexes throwaway temp repos, which would otherwise drop a new orphan in the user's profile on every run. The root is unrecoverable from the hash, so bound the directory by recency instead.",
+       "where": "_evict_old_caches docstring",
+       "verdict": "uncheckable",
+       "why": "These are explanatory comments about the design; no code in this chunk implements or verifies these claims."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_enc_facts and _dec_facts convert types/fields/signatures/aliases to/from lists; consumers expecting mutable lists may receive tuples.",
+       "where": "_dec_facts",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_encode uses zlib.compress with level 1 (fast but less compression).",
+       "where": "_encode",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_decode converts py_imports and raw_imports from lists to tuples; shape-compatible but type change.",
+       "where": "_decode",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_evict_old_caches docstring claims recency-based eviction but implementation is not visible.",
+       "where": "_evict_old_caches",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4f11bf87f72f62f16e446cfbbbd5fcd7198511586ccdd5f1a19c9cfc9a8118be",
+    "objective_chars": 5041,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/cache.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/cache.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 121
+ }
+}

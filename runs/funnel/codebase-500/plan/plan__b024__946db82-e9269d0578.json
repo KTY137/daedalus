@@ -1,0 +1,124 @@
+{
+ "task_id": "plan__b024__946db82",
+ "key": "plan__b024__946db82-e9269d0578",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 reviewed findings: ignore-rules-incomplete (high, narrowed), dry-run-gate-bypass (low, narrowed), missing-cross-module-cancellation-protocol (high, confirmed), reparse-escape (high, narrowed).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "IgnoreRules._hit fails for multi-segment unanchored directory patterns.",
+     "No integration test for cancellation propagation across modules.",
+     "TOCTOU window in worktree cleanup between reachability check and syscall."
+    ],
+    "todos": [
+     "Add test for multi-segment unanchored directory pattern in ignore rules.",
+     "Add integration test for cancellation propagation from gate_candidates to runner.",
+     "Add re-verification before os.rmdir/os.unlink in worktree cleanup.",
+     "Document fragility of gate ordering in publish_to_pr."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix multi-segment unanchored directory pattern matching in IgnoreRules._hit",
+       "gate": "1",
+       "why_now": "Current implementation fails to match patterns like 'a/b' against paths like 'a/b/c.py', causing directories to be incorrectly ignored. This is a correctness bug in a core path-matching function.",
+       "steps": [
+        {
+         "do": "Modify _hit to join candidate segments for dir_only patterns and compare against the full pattern using fnmatch.",
+         "file": "daedalus/structcore/ignore.py",
+         "verified_by": "pytest tests/test_structcore_ignore.py -k test_multi_segment_dir_pattern"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The fix should join segments with '/' and match against the full pattern. Existing tests for single-segment patterns must still pass."
+      },
+      {
+       "rank": 2,
+       "title": "Add integration test for cancellation propagation from gate_candidates to runner",
+       "gate": "2",
+       "why_now": "No test verifies that a cancel token passed to gate_candidates propagates through run_attempt to the actual runner. This could lead to hangs or unresponsive cancellation.",
+       "steps": [
+        {
+         "do": "Search for existing test that imports both gated_writes and attempt and calls gate_candidates with cancel token.",
+         "file": "UNKNOWN",
+         "verified_by": "grep -r 'cancel' tests/ --include='*.py' | grep -i 'gate_candidates\\|run_attempt'"
+        },
+        {
+         "do": "If no test found, write a test that creates a cancel token, calls gate_candidates with it, and verifies the runner stops within timeout.",
+         "file": "tests/test_gated_writes.py",
+         "verified_by": "pytest tests/test_gated_writes.py -k test_cancellation_propagates_to_runner"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The test file name is assumed; actual location may differ. The cancel token API is as described in daedalus/kairos/gated_writes.py and daedalus/spine/attempt.py."
+      },
+      {
+       "rank": 3,
+       "title": "Add re-verification before syscall in worktree cleanup to close TOCTOU window",
+       "gate": "2",
+       "why_now": "There is a race between _verify_reachable and os.rmdir/os.unlink where an attacker with write access to the worktree could swap a junction, causing deletion outside the worktree.",
+       "steps": [
+        {
+         "do": "Add a call to _verify_reachable immediately before each os.rmdir and os.unlink in the cleanup loop.",
+         "file": "daedalus/spine/worktree.py",
+         "verified_by": "pytest tests/test_worktree.py -k test_reverify_before_syscall"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The function _verify_reachable exists and can be called on the exact path. The TOCTOU window is small but closing it improves security."
+      },
+      {
+       "rank": 4,
+       "title": "Add test verifying gate runs even when dry_run=True in publish_to_pr",
+       "gate": "1",
+       "why_now": "The call order dependency (screen_egress before dry_run check) is fragile and could be broken by future refactoring, potentially bypassing the egress gate.",
+       "steps": [
+        {
+         "do": "Add a test that calls publish_to_pr with dry_run=True and verifies that screen_egress was called (e.g., by mocking).",
+         "file": "tests/test_council_publish.py",
+         "verified_by": "pytest tests/test_council_publish.py -k test_gate_runs_when_dry_run"
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The test can mock screen_egress or inspect its side effects. The function is in daedalus/council/publish.py."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4baa2d8403e364fca223859d5479f004346f5c049cb396ac876f7161c8c6a0c6",
+    "objective_chars": 144538,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 24 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 24,
+  "inputs": 4
+ }
+}

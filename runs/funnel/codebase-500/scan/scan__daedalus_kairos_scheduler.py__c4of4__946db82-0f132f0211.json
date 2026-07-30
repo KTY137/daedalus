@@ -1,0 +1,97 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c4of4__946db82",
+ "key": "scan__daedalus_kairos_scheduler.py__c4of4__946db82-0f132f0211",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4 of scheduler.py: prints assignment table and final summary line, then calls main() if __name__ == '__main__'.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "4 of 4",
+     "purpose": "Print assignment table and final summary line, then entry point.",
+     "symbols": [
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [],
+       "note": "Called when script is executed directly; defined outside this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "bounced {plan['bounced_to_adam']} back to Adam.",
+       "where": "line 369",
+       "verdict": "uncheckable",
+       "why": "The claim about the bounce count depends on key 'bounced_to_adam' in plan, which is set outside this chunk."
+      },
+      {
+       "text": "spawned {plan['spawned']} local worker(s) across {plan['waves']} wave(s) (<= {args.max_workers}/wave);",
+       "where": "line 368-369",
+       "verdict": "uncheckable",
+       "why": "The claim about spawn count, waves, and max_workers depends on keys 'spawned', 'waves' in plan and attribute 'max_workers' of args, all set outside this chunk."
+      },
+      {
+       "text": "if __name__ == \"__main__\": main()",
+       "where": "line 371-372",
+       "verdict": "kept",
+       "why": "Directly present in the code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Format string uses args.max_workers which is not defined in this chunk.",
+       "where": "line 369",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Variable 'plan' referenced but not defined in this chunk.",
+       "where": "line 361",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Variable 'args' referenced but not defined in this chunk.",
+       "where": "line 369",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "42402cd5e00bea147b1db8c440788f5335f17f2983e3c60c3f3d528aecff1317",
+    "objective_chars": 994,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 361
+ }
+}

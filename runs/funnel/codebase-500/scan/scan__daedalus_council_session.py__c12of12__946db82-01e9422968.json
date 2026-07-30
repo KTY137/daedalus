@@ -1,0 +1,157 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c12of12__946db82",
+ "key": "scan__daedalus_council_session.py__c12of12__946db82-01e9422968",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 12 of 12: helpers for budget rounds, turn references, and chain reads.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "secret_floor_rule | medium | Dependency on external function secret_floor_rule not defined in this chunk; if missing or misbehaving, _first_offending_path may fail or return incorrect path. | Verify secret_floor_rule is defined and imported correctly in the sensitivity module.",
+     "load_transcript | medium | Dependency on external function load_transcript not defined in this chunk; if missing or misbehaving, _chained may fail or return wrong data. | Verify load_transcript is defined and imported correctly.",
+     "append_round | medium | Dependency on external function append_round not defined in this chunk; if missing or misbehaving, _append_budget_round may fail or not record round. | Verify append_round is defined and imported correctly.",
+     "CouncilAdapter.independence_class | low | Access to attribute independence_class on adapter; if adapter does not have this attribute, _unavailable_turn will raise AttributeError. | Ensure CouncilAdapter always has independence_class attribute.",
+     "TurnRef | low | Dependency on external class TurnRef not defined in this chunk; if missing, _turn_ref will fail. | Verify TurnRef is defined and imported correctly.",
+     "secret_floor_rule(path, \"\") | low | The second argument is an empty string; if secret_floor_rule expects a non-empty string, behavior is undefined. | Check secret_floor_rule signature.",
+     "_chained | low | The function filters records with 'record' == 'turn' and 'round' == round_no; if load_transcript returns records without these keys, the filter may fail or return unexpected results. | Ensure load_transcript returns dicts with these keys."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "12 of 12",
+     "purpose": "Provide helper functions for budget rounds, turn references, and reading turns from the chain.",
+     "symbols": [
+      {
+       "name": "_first_offending_path",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns first path from Evidence whose PATH channel fires according to secret_floor_rule."
+      },
+      {
+       "name": "_unavailable_turn",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a dict representing an unavailable turn for a CouncilAdapter."
+      },
+      {
+       "name": "_append_budget_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Records a budget-exhausted round to disk and updates state."
+      },
+      {
+       "name": "_chained",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reads turn records from the chain for a given round."
+      },
+      {
+       "name": "_turn_ref",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Constructs a TurnRef named tuple from a turn record dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The first path whose PATH channel fires, for the refusal receipt.",
+       "where": "docstring of _first_offending_path",
+       "verdict": "uncheckable",
+       "why": "The docstring refers to 'PATH channel' and 'refusal receipt', but these concepts are not defined in this chunk. The logic returns the first path from evidence.paths and evidence.files for which secret_floor_rule(path, '') returns truthy. Whether that corresponds to 'PATH channel fires' cannot be verified here."
+      },
+      {
+       "text": "A blown budget is a RECORDED round, not a shortened one.",
+       "where": "docstring of _append_budget_round",
+       "verdict": "kept",
+       "why": "The function calls append_round to record the round, then updates outcomes with 'unavailable' and 'budget_exhausted'. It does not shorten the round; it records it fully."
+      },
+      {
+       "text": "Read this round's turns back FROM THE CHAIN.",
+       "where": "docstring of _chained",
+       "verdict": "uncheckable",
+       "why": "The function reads from load_transcript(store), which presumably reads from the chain. The phrase 'FROM THE CHAIN' cannot be verified because the chain concept is not defined in this chunk."
+      },
+      {
+       "text": "Round 2 prompts are built from these, not from the in-memory replies: a turn the secret floor refused is a receipt on disk, and re-feeding the raw reply would smuggle the refused bytes into another vendor's prompt.",
+       "where": "docstring of _chained",
+       "verdict": "uncheckable",
+       "why": "This comment describes usage context (Round 2 prompts and secret floor refused) that is not present in this chunk. The function itself just filters records by 'record' and 'round'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The function _first_offending_path imports secret_floor_rule from ..sensitivity but does not handle the case where secret_floor_rule might raise an exception.",
+       "where": "_first_offending_path",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The function _chained filters records based on 'record' key equal to 'turn' and 'round' key equal to round_no. If load_transcript returns records with missing keys, this could raise KeyError.",
+       "where": "_chained",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function _turn_ref accesses multiple keys from rec dict using .get() with defaults, which is safe but may silently return defaults if keys are missing.",
+       "where": "_turn_ref",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function _unavailable_turn accesses adapter.independence_class, which is assumed to be a tuple of two values; if not, unpacking may fail.",
+       "where": "_unavailable_turn",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The function _append_budget_round uses _chained(store, round_no) to get records, but _chained filters by round_no; if the round number is not yet in the store, it returns an empty list, which is fine.",
+       "where": "_append_budget_round",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a64163ee218709de91d094adc212e19175423e0d80ce7c0af9298f729a5613de",
+    "objective_chars": 3836,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [12/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 12,
+  "total": 12,
+  "first_line": 1321
+ }
+}

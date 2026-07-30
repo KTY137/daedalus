@@ -1,0 +1,185 @@
+{
+ "task_id": "scan__daedalus_spine_killswitch.py__c5of6__946db82",
+ "key": "scan__daedalus_spine_killswitch.py__c5of6__946db82-0cca2bf595",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 6 of killswitch.py: implements watch loop, arm, stop, atomic write with retry; docstrings explain cooperative grace period, marker-first order, and force re-arm guard.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "stop_watch | medium | watcher.join timeout can block if thread doesn't exit; caller must handle timeout | verify timeout handling in callers",
+     "arm | low | force=True unlinks marker without checking if it's a directory or symlink; could raise unexpected OSError | confirm that os.unlink expects file and not directory",
+     "stop | low | marker written before permit; if crash between writes, marker alone is sufficient for stop, but permit still says RUN; claim that crash window resolves to STOPPED is uncheckable here | need to see _marker_present logic"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/killswitch.py",
+     "chunk": "5 of 6",
+     "purpose": "Implements watch loop, arm, stop, atomic write with retry; includes cooperative grace period and marker-first stop order.",
+     "symbols": [
+      {
+       "name": "stop_watch",
+       "kind": "function",
+       "effects": [],
+       "note": "Stops the poller and joins the watcher thread; idempotent and safe after a trip."
+      },
+      {
+       "name": "_watch_loop",
+       "kind": "function",
+       "effects": [],
+       "note": "Main loop that polls for stop and triggers cooperative grace period before killing children."
+      },
+      {
+       "name": "watch",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a _WatchScope context manager wrapping start_watch/stop_watch."
+      },
+      {
+       "name": "__enter__",
+       "kind": "function",
+       "effects": [],
+       "note": "Starts watch when entering context."
+      },
+      {
+       "name": "__exit__",
+       "kind": "function",
+       "effects": [],
+       "note": "Stops watch when exiting context."
+      },
+      {
+       "name": "_atomic_write",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Atomically writes text to target file, retrying on Windows sharing conflict; delegates to write_text_atomic."
+      },
+      {
+       "name": "arm",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes permit to allow work; refuses if stop marker present unless force=True."
+      },
+      {
+       "name": "stop",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Revokes permit and writes sticky marker; marker written first to ensure stop is effective even if process crashes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Stop the poller and join it. Idempotent; safe after a trip.",
+       "where": "stop_watch docstring",
+       "verdict": "kept",
+       "why": "Code sets _watch_stop, acquires lock, sets _watcher to None, and joins the previous watcher thread if not current thread; idempotent because setting _watcher to None ensures subsequent calls skip join."
+      },
+      {
+       "text": "The sweep and the gate's own poll race for the same child. When the sweep won, the gate saw `proc.poll()` return non-None, left its loop by the ordinary exit, and reported `cancelled=False, returncode=1` -- which attempt.py then records as `gates_failed` rather than `cancelled`. That is a FABRICATED VERDICT about a candidate whose tests were never judged, and it would feed the picker as if the candidate had been measured and lost. Observed flapping ~50/50 across runs before this wait.",
+       "where": "comment in _watch_loop",
+       "verdict": "uncheckable",
+       "why": "The claim describes a bug in interaction with external components (pytest_gate, attempt.py, picker) not present in this chunk."
+      },
+      {
+       "text": "The sweep is not weakened by yielding: the gate's own `proc.cancel()` blocks for its DEFAULT 3 s grace against a child that ignores CTRL_BREAK, and the sweep's grace-0 kill_tree cuts that wait short the moment it fires. So the cooperative path gets the correct ATTRIBUTION and the sweep still supplies the SPEED.",
+       "where": "comment in _watch_loop",
+       "verdict": "uncheckable",
+       "why": "The claim references proc.cancel() and kill_tree which are not defined in this chunk."
+      },
+      {
+       "text": "wait() returns True only when asked to shut down, so an armed switch costs one syscall per poll and no busy loop.",
+       "where": "comment in _watch_loop",
+       "verdict": "kept",
+       "why": "The code uses self._watch_stop.wait(self.poll_s) which returns True only if the event is set, thus no busy loop."
+      },
+      {
+       "text": "MEASURED, and the reason this retry exists: on win32 a poller reading the permit holds it open WITHOUT `FILE_SHARE_DELETE` (CPython's `open()` offers no way to ask for it), so `MoveFileEx` over it returns ERROR_ACCESS_DENIED. With a 50 ms poll that raced often enough to break the operator's own stop command -- i.e. the kill switch could fail to engage precisely because something was watching it. The window is one `read_bytes` of a <1 KiB file, so a bounded retry closes it; the caller decides what an exhausted retry means.",
+       "where": "_atomic_write docstring",
+       "verdict": "uncheckable",
+       "why": "The claim describes a Windows-specific race condition; the code in this chunk delegates to write_text_atomic and does not show the retry implementation."
+      },
+      {
+       "text": "This is where that retry was first measured and written. It now delegates to :mod:`daedalus.atomic`, which is this same loop lifted so the four other publishers that documented themselves as atomic and omitted it (``arch_memory.save``, ``shift._write_atomic``, ``file_bridge._write_json_atomic``, ``loop.LoopLedger.save``) share one implementation instead of four divergent copies. Behaviour here is unchanged: same temp-sibling scheme, same bounded retry, same raise on an exhausted deadline.",
+       "where": "_atomic_write docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references other modules and functions not present in this chunk."
+      },
+      {
+       "text": "REFUSES if a stop marker is present unless `force=True`. That refusal is the guard against the most likely way an unattended system undoes a human decision: the loop crashes, a supervisor restarts it, its startup path calls `arm()`, and the 3am stop evaporates. Re-arming after a deliberate stop has to be a deliberate act.",
+       "where": "arm docstring",
+       "verdict": "kept",
+       "why": "Code checks _marker_present() and raises LoopHalted if present and not force."
+      },
+      {
+       "text": "MARKER FIRST, and that order is load-bearing twice over:\n\n* If the process dies between the two writes, the permit still says ``RUN`` -- but the marker alone already means stop, so the crash window resolves to STOPPED rather than to running.\n* :meth:`_marker_present` uses ``os.stat``, which does not open the file, so nothing a poller does can block the marker being written. The permit rewrite is the one that can lose a sharing race, and by then the stop has ALREADY taken effect.",
+       "where": "stop docstring",
+       "verdict": "kept",
+       "why": "Code writes marker first (self._marker), then permit (self._path). The claim about _marker_present using os.stat is uncheckable but the order is confirmed."
+      }
+     ],
+     "observations": [
+      {
+       "what": "stop_watch sets _watch_stop, acquires lock, and sets _watcher to None, then joins the previous watcher thread if it is not the current thread and not None.",
+       "where": "stop_watch method lines 481-486",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_watch_loop uses cooperative_grace_s to wait before calling stop_children, and then returns. If not stopped, it polls with _watch_stop.wait(poll_s).",
+       "where": "_watch_loop method lines 488-508",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "arm writes permit after optionally unlinking marker if force=True; raises LoopHalted if marker present and not force.",
+       "where": "arm method lines 543-558",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "stop writes marker first, then permit, with _atomic_write. The docstring claims marker-first order is load-bearing.",
+       "where": "stop method lines 560-571",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "78b23fae230219220dcc52a9efd1e48a6535e36d0685bacfb76fb7f4d9e2c7f6",
+    "objective_chars": 6729,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/killswitch.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/killswitch.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 481
+ }
+}

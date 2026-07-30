@@ -1,0 +1,222 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c2of12__946db82",
+ "key": "scan__daedalus_council_session.py__c2of12__946db82-d92e7a36c3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 12: defines constants, role briefs, transport snapshot, and imports; docstring claims are largely uncheckable or kept.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_SHIPPED_TRANSPORTS | medium | Snapshot at import time may miss dynamically registered transports. | Check if vendors module allows late registration.",
+     "docstring | low | Claim about offline replay harness path (tests/test_council_session.py) is uncheckable without that file.",
+     "docstring | low | Claim about live-wire gate (tests/test_council_livewire.py) is uncheckable without that file.",
+     "docstring | low | Claim about falsification measurement being 'UNRUN' is uncheckable without execution context.",
+     "docstring | low | Claim about --live buying transcripts not evidence is uncheckable without CLI code.",
+     "docstring | low | Claim about transcript tokens growing as O(V^2 R^2) is uncheckable without formula or data.",
+     "docstring | low | Claim about bus refusing reasons outside UNAVAILABLE_REASONS is uncheckable without bus module.",
+     "_REASON_MAP | medium | Mapping from transport reasons to bus reasons may be incomplete if vendors add new reasons.",
+     "MAX_ROUNDS_CAP | low | Hard cap at 3 may be too restrictive for some use cases.",
+     "DEFAULT_TOKEN_CEILING | low | Ceiling of 240,000 may be insufficient for councils with many rounds or vendors."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "2 of 12",
+     "purpose": "Define constants, bounds, role briefs, and transport snapshot for council session.",
+     "symbols": [
+      {
+       "name": "_SHIPPED_TRANSPORTS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of transport callables snapshotted at import to prevent live-wire gate disarm."
+      },
+      {
+       "name": "MAX_ROUNDS_CAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Hard maximum rounds set to 3."
+      },
+      {
+       "name": "DEFAULT_ROUNDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default number of rounds set to 2."
+      },
+      {
+       "name": "DEFAULT_PER_CALL_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default per-call timeout in seconds set to 120.0."
+      },
+      {
+       "name": "DEFAULT_WALL_CLOCK_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default wall clock timeout in seconds set to 900.0."
+      },
+      {
+       "name": "DEFAULT_TOKEN_CEILING",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default per-council prompt-token ceiling set to 240,000."
+      },
+      {
+       "name": "DEFAULT_ROLES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of default role names: falsifier, security, maintainer, measurement."
+      },
+      {
+       "name": "ROLE_BRIEFS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dictionary mapping role names to brief descriptions."
+      },
+      {
+       "name": "END_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of reasons why the council stopped."
+      },
+      {
+       "name": "_REASON_MAP",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping from vendor transport reasons to bus unavailable reasons."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the offline replay harness (``tests/test_council_session.py``, fake adapters, no network, no vendor CLI) is what runs in CI and in every test",
+       "where": "docstring (lines 121-124)",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain tests/test_council_session.py or CI configuration; no evidence of this claim."
+      },
+      {
+       "text": "a live multi-vendor council runs ONLY on an invocation where a human typed ``--live``",
+       "where": "docstring (lines 124-125)",
+       "verdict": "uncheckable",
+       "why": "No CLI argument parsing or --live flag handling is present in this chunk."
+      },
+      {
+       "text": "``tests/test_council_livewire.py`` holds that line by driving the gate, not by reading this comment.",
+       "where": "docstring (lines 125-126)",
+       "verdict": "uncheckable",
+       "why": "The file tests/test_council_livewire.py is not part of this chunk."
+      },
+      {
+       "text": "The falsification measurement above is still UNRUN: ``--live`` buys transcripts, not evidence.",
+       "where": "docstring (lines 126-127)",
+       "verdict": "uncheckable",
+       "why": "No execution context or measurement logic is present in this chunk."
+      },
+      {
+       "text": "The shipped transport callables, SNAPSHOTTED AT IMPORT so the live-wire gate cannot be disarmed by rebinding ``vendors.run_managed`` after the fact.",
+       "where": "comment (lines 143-147)",
+       "verdict": "kept",
+       "why": "_SHIPPED_TRANSPORTS is defined by fetching functions at module level via getattr, thus snapshotted at import."
+      },
+      {
+       "text": "An adapter holding one of these is holding the code that really spawns a vendor CLI or opens the Ollama socket; an adapter holding anything else was handed a substitute by its constructor and cannot reach a vendor through it.",
+       "where": "comment (lines 147-150)",
+       "verdict": "uncheckable",
+       "why": "No adapter class or constructor is defined in this chunk; the claim about adapter behavior cannot be verified."
+      },
+      {
+       "text": "Hard maximum. Round 3+ is where convergence dominates; going past 2 must be justified by the measurement, not by taste.",
+       "where": "comment (lines 178-179)",
+       "verdict": "kept",
+       "why": "MAX_ROUNDS_CAP is set to 3, enforcing a hard maximum."
+      },
+      {
+       "text": "Transcript tokens grow as O(V^2 R^2): four vendors x three rounds is twelve calls each carrying up to eleven prior turns.",
+       "where": "comment (lines 184-186)",
+       "verdict": "uncheckable",
+       "why": "No transcript size formula or actual growth pattern is defined in this chunk; the claim is a theoretical estimate."
+      },
+      {
+       "text": "Rotated between rounds so the role/vendor confound is at least stirred.",
+       "where": "comment (lines 188-189)",
+       "verdict": "uncheckable",
+       "why": "No rotation logic is present in this chunk; the comment describes intended behavior not implemented here."
+      },
+      {
+       "text": "Why the council stopped. Recorded, never inferred from a short transcript.",
+       "where": "comment (lines 205-206)",
+       "verdict": "kept",
+       "why": "END_REASONS is defined as a tuple of strings; the comment describes its purpose."
+      },
+      {
+       "text": "vendors.py transport reasons -> bus.UNAVAILABLE_REASONS (a fixed, filterable vocabulary; the bus refuses anything outside it).",
+       "where": "comment (lines 210-211)",
+       "verdict": "uncheckable",
+       "why": "The bus module is not in this chunk; _REASON_MAP is defined but its usage and the bus's refusal behavior are not shown."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring at the top of the chunk is a multi-line comment about testing and live-wire gate, but it is not a proper docstring for any symbol; it appears to be a leftover or explanatory note.",
+       "where": "lines 121-127",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "Imports include count_tokens from ..structcore.tokens, but count_tokens is not used in this chunk.",
+       "where": "line 134",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several imports from .bus (append_roster, append_round, etc.) are imported but not used in this chunk.",
+       "where": "lines 136-139",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The constant _SHIPPED_TRANSPORTS uses getattr on _vendors for 'run_managed' and 'native_chat'; if these are not defined, the tuple may be empty.",
+       "where": "lines 151-155",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _REASON_MAP only maps 'not_on_path', 'not_authenticated', 'connect_failed' but the chunk ends mid-definition; the mapping is incomplete.",
+       "where": "lines 212-214",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "76fe3db25614f1bee4cfec032f98d747ce01a14f728aae08b037b633b6f08fdd",
+    "objective_chars": 4582,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [2/12]",
+  "rev": "946db82",
+  "module": "daedalus/council/session.py",
+  "index": 2,
+  "total": 12,
+  "first_line": 121
+ }
+}

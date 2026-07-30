@@ -1,0 +1,160 @@
+{
+ "task_id": "scan__daedalus_structcore_parse.py__c10of11__946db82",
+ "key": "scan__daedalus_structcore_parse.py__c10of11__946db82-5a00819e7f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 10 of 11 of parse.py: implements _annassign, _assign, _visit, _pep695_alias, and facts; handles type aliases, field declarations, and PEP 695.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_assign | low | NewType detection uses _dotted_tail on node.value.func but does not check that node.value.func is a Name or Attribute; could raise AttributeError on malformed call. | Verify that _dotted_tail handles all possible AST node types for func.",
+     "_assign | medium | When NewType has no args, alias_target is set to annotation_text(None) which may produce unexpected results. | Check annotation_text behaviour with None.",
+     "_visit | low | The recursion depth limit _STMT_DEPTH is not defined in this chunk; if it is missing or misconfigured, truncated may never be set. | Ensure _STMT_DEPTH is defined in module scope.",
+     "facts | low | Sorting keys use t.line, t.qualname, t.kind; if line is None for some types, sorting may raise TypeError. | Confirm that all TypeDecls have a valid line number."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/parse.py",
+     "chunk": "10 of 11",
+     "purpose": "Define visitor methods for annotated assignments, plain assignments, general descent, PEP 695 type aliases, and the facts() method.",
+     "symbols": [
+      {
+       "name": "_annassign",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Handles AnnAssign nodes; creates TypeDecl for TypeAlias, FieldDecl for class members, and FieldDecl for self assignments."
+      },
+      {
+       "name": "_assign",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Handles Assign nodes; creates TypeDecl for NewType calls, FieldDecl for class members and self assignments."
+      },
+      {
+       "name": "_visit",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Recursively visits child nodes dispatching to specialized handlers; tracks depth and sets truncated if exceeded."
+      },
+      {
+       "name": "_pep695_alias",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates TypeDecl for PEP 695 type alias nodes (Python 3.12+)."
+      },
+      {
+       "name": "facts",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a PyTypeFacts tuple with sorted types, fields, and signatures."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``Vec: TypeAlias = list[int]`` declares a type, not a member.",
+       "where": "line 1082 (comment)",
+       "verdict": "kept",
+       "why": "The code checks tail == 'TypeAlias' and target is ast.Name, then appends a TypeDecl and returns, avoiding field creation."
+      },
+      {
+       "text": "``X = NewType(\"X\", int)`` is the one unannotated assignment that unambiguously declares a type.",
+       "where": "line 1105 (docstring)",
+       "verdict": "kept",
+       "why": "The code specifically checks for ast.Call with _dotted_tail == 'NewType' and single Name target, then creates a TypeDecl."
+      },
+      {
+       "text": "A bare ``X = int`` is NOT treated as an alias: at module level that shape is far more often a constant, and minting a type node for it would fabricate declarations.",
+       "where": "lines 1106-1107 (docstring)",
+       "verdict": "kept",
+       "why": "The code only creates TypeDecl for NewType calls; a plain assignment like X = int goes to the general assignment handling, which does not create a TypeDecl."
+      },
+      {
+       "text": "Sored, not merely \"whatever the descent produced\". The descent IS deterministic, but two processes must agree byte-for-byte and a sort makes that true by construction rather than by argument.",
+       "where": "lines 1170-1172 (comment)",
+       "verdict": "kept",
+       "why": "The facts() method returns sorted tuples using key=lambda t: (t.line, t.qualname, t.kind) for types and similar for fields and signatures."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In _annassign, when tail == 'TypeAlias', annotation_text is called on node.value, but the comment says 'alias_target=annotation_text(node.value)'. The variable 'annotation' is not used in that branch.",
+       "where": "line 1088",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "In _assign, the NewType detection does not verify that node.value.func is either ast.Name or ast.Attribute; _dotted_tail may fail on other node types.",
+       "where": "line 1111",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _assign, when NewType has less than 2 args, arg becomes None and annotation_text(None) is called; behaviour unknown.",
+       "where": "line 1113",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In _visit, the variable alias_node is assigned getattr(ast, 'TypeAlias', None) and used in isinstance check; if ast.TypeAlias does not exist, alias_node is None and isinstance(child, None) returns False, so PEP 695 aliases are silently ignored.",
+       "where": "line 1138",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The facts() method sorts types by (t.line, t.qualname, t.kind). If t.line is None, sorting will raise TypeError.",
+       "where": "line 1175",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The facts() method returns PyTypeFacts with fields from self.fields and signatures from self.signatures, but self.signatures is not defined in this chunk; it may be defined elsewhere or missing.",
+       "where": "line 1178",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7205a9c139fe0665295e645615778e8f656c98ec9fef19c4e9bd17aeddd2091a",
+    "objective_chars": 6678,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/parse.py [10/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/parse.py",
+  "index": 10,
+  "total": 11,
+  "first_line": 1081
+ }
+}

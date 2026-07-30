@@ -1,0 +1,230 @@
+{
+ "task_id": "scan__daedalus_structcore_markdown.py__c3of4__946db82",
+ "key": "scan__daedalus_structcore_markdown.py__c3of4__946db82-21603868aa",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of markdown.py: wiki_lookup, _hits, resolve_wiki_target, resolve_wiki_links, KnowledgeLinks, knowledge_links, parse_document, internal_links, DocSkeleton. Claims verified against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_hits | medium | Base name lookup with '/' in name ignores by_path if '/' not in name; but if '/' present, only by_path is used, not by_base. This matches documented behaviour but may miss files if path is ambiguous. | Verify with test where a bare name matches multiple base names and also a path; see if _hits excludes by_path when '/' absent.",
+     "resolve_wiki_target | low | If default_ext is provided and raw already ends with that extension, forms will have only raw (no appended). This is correct per docstring. | Confirm with test where default_ext is empty: forms = [raw] only.",
+     "knowledge_links | medium | Uses internal_links which is defined only by signature in this chunk; implementation not visible. Claim that doc_targets is superset of internal_links' first return value is uncheckable. | Review internal_links implementation in another chunk."
+    ],
+    "todos": [
+     "Verify that internal_links function is defined elsewhere and returns expected tuple.",
+     "Check that WIKI_RESOLVED constant is defined (used in resolve_wiki_target but not in this chunk)."
+    ],
+    "handoff": {
+     "module": "daedalus/structcore/markdown.py",
+     "chunk": "3 of 4",
+     "purpose": "Wikilink resolution, KnowledgeLinks aggregator, document parsing, and skeleton dataclass.",
+     "symbols": [
+      {
+       "name": "WIKI_UNRESOLVED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'unresolved' used as status indicator."
+      },
+      {
+       "name": "WIKI_AMBIGUOUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'ambiguous' used as status indicator."
+      },
+      {
+       "name": "WIKI_DEFERRED",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'deferred' used as status indicator."
+      },
+      {
+       "name": "wiki_lookup",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds two dictionaries mapping lowercased paths and basenames to sorted list of original paths."
+      },
+      {
+       "name": "_hits",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns set of candidate paths for a given name and document, considering both bare names and paths."
+      },
+      {
+       "name": "resolve_wiki_target",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves a single wikilink target to (target path or None, status). Supports default extension fallback."
+      },
+      {
+       "name": "resolve_wiki_links",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves all wikilinks in a DocumentParse, returning list of (link, target, status) triples."
+      },
+      {
+       "name": "KnowledgeLinks",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding resolved link targets and counts, with to_dict method."
+      },
+      {
+       "name": "knowledge_links",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregates standard and wikilinks into a KnowledgeLinks instance."
+      },
+      {
+       "name": "parse_document",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses markdown text into a DocumentParse with sections and links."
+      },
+      {
+       "name": "internal_links",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves standard markdown links, returns sorted targets and unresolved count."
+      },
+      {
+       "name": "DocSkeleton",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass for distilled document view with metrics and to_dict method."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Built once per document rather than once per link, and sorted at build time so two processes see candidates in the same order",
+       "where": "wiki_lookup docstring",
+       "verdict": "kept",
+       "why": "The function sorts the known_files and builds dictionaries; sorting ensures deterministic order."
+      },
+      {
+       "text": "A bare note name is Obsidian's 'shortest path when possible': it names a file anywhere in the vault. Two files with that basename is exactly the tie this module refuses to break.",
+       "where": "_hits docstring",
+       "verdict": "kept",
+       "why": "When '/' not in name, _hits returns set from by_base lookup, which returns all basename matches; caller (resolve_wiki_target) returns WIKI_AMBIGUOUS if len(hits)>1."
+      },
+      {
+       "text": "A path is read BOTH as vault-root-relative (what Obsidian does) and as document-relative (what a reader who knows markdown assumes). When the two readings name two different files that BOTH exist, the link is genuinely ambiguous and gets counted as such",
+       "where": "_hits docstring",
+       "verdict": "kept",
+       "why": "The function builds candidates list: one with stripped leading '/' (root-relative), and if not starting with '/', also a document-relative candidate by joining with document's dirname. Both are looked up in by_path."
+      },
+      {
+       "text": "default_ext is appended ONLY as a second round, when the name as written matches nothing: [[Note]] finds Note.md, while ![[chart.png]] still finds the png rather than hunting for chart.png.md.",
+       "where": "resolve_wiki_target docstring",
+       "verdict": "kept",
+       "why": "The function first tries raw, then if default_ext is non-empty and raw doesn't end with default_ext, appends ext and tries again. So raw .png is tried first, then extension not appended if already ends with .png."
+      },
+      {
+       "text": "The per-occurrence view: a reader UI needs to chip an individual link as unresolved or ambiguous, and an aggregate count cannot tell it which one.",
+       "where": "resolve_wiki_links docstring",
+       "verdict": "kept",
+       "why": "The function returns a list of (link, target, status) for each wikilink, preserving per-link granularity."
+      },
+      {
+       "text": "A document linking to itself is not an edge",
+       "where": "resolve_wiki_links docstring",
+       "verdict": "kept",
+       "why": "The function checks if target == parse.document and appends (link, None, WIKI_RESOLVED) without adding to edges."
+      },
+      {
+       "text": "Deliberately NOT folded into internal_links: that function is the contract index.py builds document_links from today, and doc->code is a different relation from doc->doc. Mixing them would have made the wiki's first feature a silent change to an existing edge set.",
+       "where": "KnowledgeLinks docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to index.py and existing edge sets not present in this chunk."
+      },
+      {
+       "text": "doc_targets is a superset of internal_links' first return value: same standard-markdown edges, plus the wikilink ones.",
+       "where": "knowledge_links docstring",
+       "verdict": "uncheckable",
+       "why": "The function calls internal_links which is defined by signature only; its actual return value is not visible in this chunk."
+      },
+      {
+       "text": "A section runs to the next heading of EQUAL OR HIGHER level, so an H2 contains its H3s -- the same containment a Python function has over its nested defs (_units_from_tree emits both).",
+       "where": "parse_document docstring",
+       "verdict": "kept",
+       "why": "In the loop, end is set to the index of the next heading with level <= current level, so sections span until a heading of equal or higher level."
+      },
+      {
+       "text": "(resolved rel targets, unresolved count). Sorted, de-duplicated, self excluded -- a document linking to itself is not an edge.",
+       "where": "internal_links docstring",
+       "verdict": "kept",
+       "why": "The function adds to resolved set (de-duplicated), excludes self via 'target != parse.document', and returns sorted list."
+      },
+      {
+       "text": "distilled False means the raw document was returned because no skeleton of it was SMALLER than the document itself (a short README, a doc that is nothing but headings). Returning the raw text there is the honest outcome: the alternative is a 'distillation' that grows the prompt, which this repo has already measured as a lie and pinned with a test.",
+       "where": "DocSkeleton docstring",
+       "verdict": "uncheckable",
+       "why": "The logic for setting distilled is not in this chunk; only the dataclass definition is present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "WIKI_RESOLVED constant is used in resolve_wiki_target but not defined in this chunk.",
+       "where": "resolve_wiki_target line",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "internal_links function is defined only by signature; implementation not visible.",
+       "where": "internal_links function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "DocSkeleton.to_dict method is incomplete; chunk ends mid-dict.",
+       "where": "DocSkeleton.to_dict line",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "parse_document uses _strip_front_matter, _headings, _dedup_anchors, _link_occurrences which are not defined in this chunk.",
+       "where": "parse_document function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment 'The honest slice: keep the heading tree, drop the prose, SAY WHAT WAS DROPPED' suggests a function to produce DocSkeleton, but no such function is in this chunk.",
+       "where": "Comment before DocSkeleton",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b3b2ea6a34fc68a0c40cc54c58c98595815e04a76eb2e3931553ada52b2aa28a",
+    "objective_chars": 11753,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/markdown.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/markdown.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

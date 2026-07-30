@@ -1,0 +1,322 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c1of3__946db82",
+ "key": "scan__daedalus_tools_vet.py__c1of3__946db82-9dde5e7495",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of vet.py: module docstring, constants, rule table, Finding dataclass, load_allowances, and partial _EXEC_DIRECTING_ENV set.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_allowances | high | The allowance loader had a bug where dict-shaped entries were rejected, making body_sha256 unreachable. Fixed in this chunk, but the fix is only one half; the writer is not here. | Verify that `apply_allowances` (unseen) writes dict-shaped entries correctly."
+    ],
+    "todos": [
+     "Review the rest of _EXEC_DIRECTING_ENV (cut off) for completeness.",
+     "Ensure the writer of allowances (unseen) matches the dict shape the loader now accepts."
+    ],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "1 of 3",
+     "purpose": "Define constants, rule patterns, Finding dataclass, and load_allowances for static vetting of skills/MCP servers.",
+     "symbols": [
+      {
+       "name": "VET_VERSION",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String '1'; bump when verdict meaning changes."
+      },
+      {
+       "name": "CLEAR",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'clear'."
+      },
+      {
+       "name": "REVIEW",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'review'."
+      },
+      {
+       "name": "BLOCK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'block'."
+      },
+      {
+       "name": "UNSCANNABLE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "String 'unscannable'."
+      },
+      {
+       "name": "_ORDER",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Dict mapping severity strings to ints for ordering."
+      },
+      {
+       "name": "MAX_FILE_BYTES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "2 MB limit for file reads."
+      },
+      {
+       "name": "MAX_FILES_SCANNED",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "400 file limit."
+      },
+      {
+       "name": "TEXT_SUFFIXES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of extensions considered text."
+      },
+      {
+       "name": "_EXEC",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of exec-related rule tuples."
+      },
+      {
+       "name": "_NET",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of network-related rule tuples."
+      },
+      {
+       "name": "_SECRET",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of secret-related rule tuples."
+      },
+      {
+       "name": "_INJECT",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of injection-related rule tuples."
+      },
+      {
+       "name": "_DESTRUCTIVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "List of destructive rule tuples."
+      },
+      {
+       "name": "RULES",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Compiled regex rules from all categories."
+      },
+      {
+       "name": "Finding",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass for a single finding."
+      },
+      {
+       "name": "Finding.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts Finding to dict, includes acknowledged if present."
+      },
+      {
+       "name": "ALLOWANCE_PATH",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path string to tool-allowances.json."
+      },
+      {
+       "name": "load_allowances",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads and parses tool-allowances.json; returns allowances dict and errors list."
+      },
+      {
+       "name": "_EXEC_DIRECTING_ENV",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozenset of env vars that can change execution; chunk ends mid-definition."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Vetting never executes the thing being vetted, never imports it, never resolves it over the network, and never starts an MCP server to ask it what it does. The whole module is file reads and regex.",
+       "where": "docstring (INVARIANTS 1)",
+       "verdict": "uncheckable",
+       "why": "This chunk defines data structures and constants but contains no scanning logic; the claim about behaviour cannot be verified from this chunk alone."
+      },
+      {
+       "text": "FAIL CLOSED, and 'unknown' is not 'clean'. Every verdict distinguishes scanned and found nothing from could not scan. An unreadable file, a binary blob, a truncated read and a missing directory all produce UNSCANNABLE, never CLEAR.",
+       "where": "docstring (INVARIANTS 2)",
+       "verdict": "uncheckable",
+       "why": "The constants UNSCANNABLE and CLEAR are defined, but the logic that decides when to return each is not in this chunk."
+      },
+      {
+       "text": "Findings, not scores. A verdict carries the file, the line and the matched text, so a human can overrule it by looking rather than by arguing.",
+       "where": "docstring (INVARIANTS 3)",
+       "verdict": "kept",
+       "why": "The Finding dataclass has fields 'where', 'line', 'excerpt' exactly as described."
+      },
+      {
+       "text": "This module owns no policy about hosts. Whether bytes may leave the machine has exactly one implementation, sensitivity.lane_for_host, and this module calls it rather than re-deciding.",
+       "where": "docstring (INVARIANTS 4)",
+       "verdict": "uncheckable",
+       "why": "The import `from ..sensitivity import lane_for_host` exists, but no call to lane_for_host appears in this chunk."
+      },
+      {
+       "text": "A declaration is a request, never a grant. allowed-tools in a skill's frontmatter is what its author would like. It is reported as an ask and it escalates the review; it never authorises anything.",
+       "where": "docstring (INVARIANTS 5)",
+       "verdict": "uncheckable",
+       "why": "No logic referencing 'allowed-tools' exists in this chunk."
+      },
+      {
+       "text": "It does not install, enable, route to, or run anything. It returns a verdict.",
+       "where": "docstring (WHAT THIS DELIBERATELY DOES NOT DO)",
+       "verdict": "uncheckable",
+       "why": "No return statement or verdict-returning function is present in this chunk."
+      },
+      {
+       "text": "A skill that ships a 40 MB file is not scanned 'mostly' \u2014 it is reported as unscannable, because a partial scan that reads as clean is a lie.",
+       "where": "comment above MAX_FILE_BYTES",
+       "verdict": "uncheckable",
+       "why": "MAX_FILE_BYTES is defined as 2 MB, but the logic that enforces the limit and returns UNSCANNABLE is not in this chunk."
+      },
+      {
+       "text": "Patterns are deliberately broad. This gate over-reports on purpose: a false REVIEW costs a human thirty seconds, a missed exfiltration costs a machine.",
+       "where": "comment above rule table",
+       "verdict": "uncheckable",
+       "why": "The actual scanning and reporting logic is not in this chunk."
+      },
+      {
+       "text": "NARROWED after calibration run 1 (2026-07-30). The first version was r\"\\.env\\b\", which fired 14 times inside a design-rule CSV whose rows merely DISCUSS environment files ('Expose secrets to client') and blocked a skill a human had already read and cleared. A gate that blocks on prose is a gate that gets switched off, so the rule now demands a path or an API context: a quoted/slashed path, or a dotenv loader by name.",
+       "where": "comment on secret.dotenv rule",
+       "verdict": "kept",
+       "why": "The regex for secret.dotenv uses a multi-line pattern that includes path contexts and loader names, matching the described narrowing."
+      },
+      {
+       "text": "an acknowledgement must name BOTH the subject and the exact rule id; there is no wildcard",
+       "where": "comment before ALLOWANCE_PATH",
+       "verdict": "kept",
+       "why": "The load_allowances code iterates over subject and then rule_id, requiring exact matches; no wildcard logic is present."
+      },
+      {
+       "text": "it DOWNGRADES to REVIEW, never to CLEAR \u2014 an acknowledged capability is still reported on every run, with its reason attached",
+       "where": "comment before ALLOWANCE_PATH",
+       "verdict": "uncheckable",
+       "why": "No downgrade logic (e.g., changing BLOCK to REVIEW) appears in this chunk; the Finding dataclass has an acknowledged field but the downgrade is not implemented here."
+      },
+      {
+       "text": "an unparseable allowance file is an error that degrades the report, never an empty allowance set that silently blocks everything",
+       "where": "comment before ALLOWANCE_PATH",
+       "verdict": "kept",
+       "why": "load_allowances returns errors as a second return value for unparseable files (OSError, ValueError) and does not return an empty dict; the caller must handle errors."
+      },
+      {
+       "text": "The test for membership is not 'is it sensitive' \u2014 it is: can changing this value alone cause different code to execute, with the command line unchanged?",
+       "where": "comment before _EXEC_DIRECTING_ENV",
+       "verdict": "kept",
+       "why": "The set includes variables like NODE_OPTIONS, LD_PRELOAD, PATH, etc., which match the described criterion."
+      },
+      {
+       "text": "Compared case-insensitively: Windows environment variables are case-insensitive, so a check against the exact spelling would be evaded by node_options.",
+       "where": "comment before _EXEC_DIRECTING_ENV",
+       "verdict": "uncheckable",
+       "why": "No case-insensitive comparison code appears in this chunk; the set itself is defined with uppercase names."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _EXEC_DIRECTING_ENV constant is cut off mid-definition; the closing brace and frozenset instantiation are missing.",
+       "where": "line ~end of chunk",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_allowances has a detailed comment about a historical bug where dict-shaped entries were rejected, but the fix is present: it now accepts dicts with 'reason' and optional 'body_sha256'.",
+       "where": "load_allowances function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The rule table defines rules with severity BLOCK or REVIEW, but the comment says 'This gate over-reports on purpose: a false REVIEW costs a human thirty seconds' \u2014 implying REVIEW is the expected false positive severity. BLOCK is also used, which would not be a false positive.",
+       "where": "comment above rule table and rule definitions",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6d1887d3fb92d560b0109862f0a718020191fc0dc1fb050cc24501f94468862b",
+    "objective_chars": 14690,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [1/3]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

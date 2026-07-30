@@ -1,0 +1,161 @@
+{
+ "task_id": "WHOLE-DOCUMENT__cost__a47d84ee736f",
+ "key": "WHOLE-DOCUMENT__cost__a47d84ee736f-762208405c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 10 Gate 0 requires 'real adapter fixtures for start, stream, tool events...' but Section 6's latent atlas and Section 8's Ariadne loop depend on a Forest that Gate 2 delivers; the kernel must exist before Forest, yet Forest is needed to test the kernel's evidence pipeline. No section defines how to test the kernel without a working Forest.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Section 10 Gate 0 vs Section 6 and Section 8 | high | Gate 0 requires a canonical kernel with evidence pipeline, but the evidence pipeline logically depends on the Forest (Gate 2) to produce evidence packets. The ordering creates a circular dependency: Gate 0 cannot be fully tested without Gate 2, and Gate 2 cannot be built without Gate 0. No section resolves this.",
+     "Section 3 vs Section 12 | medium | Section 3 limits public concepts to three (Daedalus, Ikarus, Ariadne). Section 12 forbids 'new public mythological subsystems.' Yet Section 5 introduces 'Forest' as a major architectural component not listed among the three public concepts. If Forest is part of Daedalus, it should be stated; if not, it violates the three-concept limit.",
+     "Section 5 vs Section 12 | medium | Section 5 defines Forest as 'immutable, compiled intermediate representation' and says it is 'not a scheduler, chat memory, archive, or oracle.' Section 12 forbids 'a fifth AST graph.' Forest is a four-plane graph; adding a fifth plane is forbidden, but Forest itself is already a graph that might be interpreted as a new plane. Clarify whether Forest counts as a 'graph plane' or not.",
+     "Section 7 vs Section 12 | medium | Section 7 describes Ikarus as having 'product memory' and 'research adaptive memory' as separate stores. Section 12 forbids 'shared mutable memory for product personalization and research adaptation.' The document does not clarify whether these stores are shared or mutable; if they are, they are forbidden.",
+     "Section 8 vs Section 12 | high | Section 8 requires that 'code, prompts, operators, evaluators, and orchestration do not silently co-evolve in one campaign.' Section 12 forbids 'simultaneous unregistered co-evolution of code, prompts, evaluators, and policy.' These are essentially the same rule, but Section 8's phrasing is weaker ('do not silently co-evolve' vs 'simultaneous unregistered co-evolution'). The two sections could be interpreted differently, creating ambiguity.",
+     "Section 10 Gate 0 vs Section 10 Gate 1 | high | Gate 0 exit requires 'no new feature path or state store outside the canonical contracts.' Gate 1 requires proving a vertical mission that uses the four planes. If the four planes are not part of the canonical kernel (Gate 0), then Gate 1 cannot be built without violating Gate 0's exit criteria. The document does not specify whether the plane schemas are part of Gate 0.",
+     "Section 4 invariant 6 vs Section 5 | medium | Invariant 6 requires 'atomic revisions' and that 'partial graph states do not masquerade as a revision.' Section 5 defines Forest as an 'immutable, compiled intermediate representation of one project revision.' If Forest is built from a revision, it must be atomic; but the document does not specify how Forest handles partial or incremental updates, which could violate invariant 6.",
+     "Section 15 vs Section 4 invariant 10 | medium | Section 15 describes the amendment protocol; invariant 10 says 'This plan, its amendment chain, active instructions, and guards change only through the amendment protocol in section 15.' However, Section 15 does not mention 'active instructions' or 'guards' as part of the atomic update (only the plan, ledger, derived controls, and tests). There is a gap: instructions and guards are not explicitly covered by the amendment protocol.",
+     "Section 13 vs Section 5 | medium | Section 13 lists kill criteria for the four-plane/latent track. Section 5 states that the Project Twin hypothesis 'earns its centrality only through the kill criteria in section 13.' However, Section 13's criteria are not directly testable at the time of Gate 0 or Gate 1; they require Gate 3 baselines and Gate 4 experiments. This means the hypothesis cannot be falsified until late in the delivery order, which may be too late for architectural changes.",
+     "Section 14 vs Section 15 | low | Section 14 requires that before editing, one must 'classify the work as ALIGNED, EXPERIMENT, or AMENDMENT.' Section 15 describes the amendment protocol. The document does not define what constitutes an amendment vs an experiment vs aligned work, especially for changes that affect invariants. This could lead to misclassification."
+    ],
+    "todos": [
+     "Resolve circular dependency between Gate 0 and Gate 2: define how to test the kernel's evidence pipeline without Forest, or move evidence schema delivery to Gate 0.",
+     "Clarify whether Forest is part of Daedalus or a separate public concept; if part of Daedalus, state that explicitly.",
+     "Define whether Forest is a 'graph plane' and whether it violates the 'no fifth AST graph' rule.",
+     "Clarify whether Ikarus's product memory and research adaptive memory are shared mutable stores; if so, they violate Section 12.",
+     "Harmonize the co-evolution rule between Section 8 and Section 12 to a single unambiguous statement.",
+     "Specify whether the four-plane schemas are part of Gate 0 or Gate 2; adjust gate exit criteria accordingly.",
+     "Define how Forest handles incremental updates to maintain atomic revision invariant.",
+     "Extend amendment protocol in Section 15 to explicitly cover active instructions and guards.",
+     "Define criteria for classifying work as ALIGNED, EXPERIMENT, or AMENDMENT, especially for changes affecting invariants."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "Section 0",
+       "claim": "This master plan is the sole semantic authority for Daedalus architecture, product order, and research direction.",
+       "verdict": "weak",
+       "why": "The claim is clear, but Section 0 also says 'A capability policy cannot broaden the plan, and the plan cannot grant a capability.' This creates a dual authority with capability policies, which is not fully consistent with 'sole semantic authority.'"
+      },
+      {
+       "id": "Section 1",
+       "claim": "The plan prevents silent drift; it does not prevent learning.",
+       "verdict": "sound",
+       "why": "Well stated; the distinction between hard invariants and falsifiable priors is clear."
+      },
+      {
+       "id": "Section 2",
+       "claim": "Build a trustworthy system that can understand a software project across code, types, data, and knowledge; formulate useful changes; run controlled experiments; learn from evidence; and promote only verified improvements.",
+       "verdict": "sound",
+       "why": "The north star is clear and aligns with the rest of the document."
+      },
+      {
+       "id": "Section 3",
+       "claim": "Only three top-level product/research concepts are public: Daedalus, Ikarus, Ariadne.",
+       "verdict": "weak",
+       "why": "Section 5 introduces 'Forest' as a major component not listed among these three. If Forest is part of Daedalus, it should be stated; otherwise it violates the three-concept limit."
+      },
+      {
+       "id": "Section 4",
+       "claim": "These invariants apply to every production-capable path.",
+       "verdict": "sound",
+       "why": "The invariants are well-defined and cover key architectural principles."
+      },
+      {
+       "id": "Section 5",
+       "claim": "The central research prior is a revision-bound four-plane Project Twin.",
+       "verdict": "weak",
+       "why": "The claim is clear, but it introduces 'Forest' as a new component not listed among the three public concepts in Section 3, creating a conflict."
+      },
+      {
+       "id": "Section 6",
+       "claim": "Embeddings may consume schema-light Node Cards; a shared embedding space can retrieve possible relations without a single giant ontology.",
+       "verdict": "sound",
+       "why": "The latent atlas concept is well described and scoped."
+      },
+      {
+       "id": "Section 7",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "sound",
+       "why": "The description of Ikarus's role is clear and consistent with the architecture."
+      },
+      {
+       "id": "Section 8",
+       "claim": "Every campaign follows this controlled loop.",
+       "verdict": "weak",
+       "why": "The loop requires a Forest (Gate 2) but is described before Gate 0 is complete. The ordering dependency is not addressed."
+      },
+      {
+       "id": "Section 9",
+       "claim": "Generation is not a single model call; each operator declares specific properties.",
+       "verdict": "sound",
+       "why": "The operator model is well-defined and aligns with the controlled evolution loop."
+      },
+      {
+       "id": "Section 10",
+       "claim": "Work advances in order. A later-gate experiment may be prototyped only when it does not create a competing kernel and is explicitly labelled experimental.",
+       "verdict": "weak",
+       "why": "Gate 0 exit requires 'real adapter fixtures' and 'policy coverage tests' that may depend on Gate 2's Forest for evidence pipeline testing. The ordering may be circular."
+      },
+      {
+       "id": "Section 11",
+       "claim": "Until Gate 0 exits, the default answer to new feature work is: wire it through the canonical kernel or keep it as a disposable, isolated experiment.",
+       "verdict": "sound",
+       "why": "Clear priority rule."
+      },
+      {
+       "id": "Section 12",
+       "claim": "Do not add these to the production architecture.",
+       "verdict": "weak",
+       "why": "Some forbidden directions (e.g., 'shared mutable memory') conflict with Section 7's mention of separate stores; clarification needed."
+      },
+      {
+       "id": "Section 13",
+       "claim": "Stop or redesign the four-plane/latent track when replicated, budget-equal experiments show any of the following.",
+       "verdict": "sound",
+       "why": "Kill criteria are specific and testable."
+      },
+      {
+       "id": "Section 14",
+       "claim": "Before editing: read this plan and verify its digest; classify the work; name the active gate and invariant/prior touched; prefer deletion, consolidation, or wiring over a new subsystem.",
+       "verdict": "weak",
+       "why": "The classification (ALIGNED, EXPERIMENT, AMENDMENT) is not defined; no criteria for distinguishing them."
+      },
+      {
+       "id": "Section 15",
+       "claim": "Ordinary tasks must not edit the plan, amendment chain, active instructions, or guards. To amend, follow the protocol.",
+       "verdict": "weak",
+       "why": "The protocol does not explicitly cover 'active instructions' and 'guards' in the atomic update steps; only the plan, ledger, derived controls, and tests are mentioned."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "241b4cbf18fda3ad0f6763c4469348c1af99e7360121dfe364187378a46bc3f7",
+    "objective_chars": 18574,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "WHOLE-DOCUMENT",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

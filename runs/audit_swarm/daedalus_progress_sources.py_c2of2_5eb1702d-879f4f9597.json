@@ -1,0 +1,108 @@
+{
+ "task_id": "daedalus/progress_sources.py#c2of2#5eb1702d",
+ "key": "daedalus_progress_sources.py_c2of2_5eb1702d-879f4f9597",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 3 kept, 0 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never guesses across sources, and never prefers a stale one over a live one: if the log has events for this id, that IS the answer\" | snapshot_any | KEPT | Code checks log first and returns immediately if found, no fallback to other sources.",
+     "CLAIM | \"Returns the FIRST source that recognises the id.\" | snapshot_any | KEPT | Code tries log, then ledger, then bridge, and returns the first non-None result.",
+     "CLAIM | \"a caller that already knows an id is ledger- or bridge-backed should call :func:`snapshot_from_ledger`/:func:`snapshot_from_bridge` directly rather than relying on this fallback order\" | snapshot_any | KEPT | Docstring suggests direct calls for known cases; code does not prevent it.",
+     "D1 | snapshot_any parameter 'log' | Defined as keyword argument with default None, but never read in snapshot_any; it is only used to compute 'own' via P.snapshot which uses the default log if None. The parameter is effectively unused.",
+     "D4 | snapshot_any: 'if own.found' branch | The condition is always true when own.found is True, but there is no contradiction. However, note that 'own' is always a P.UnitProgress object (never None), so the check is valid."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "23f7d26fa276823ddb3f3b9a8ae5b9403483992ae7bfc42cb569d979500f2730",
+    "objective_chars": 6212,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "5 claims: 4 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never guesses across sources, and never prefers a stale one over a live one\" | snapshot_any | BROKEN | The function prefers log over ledger/bridge regardless of freshness; if log has a stale entry, it returns that stale entry without checking ledger/bridge which might have a newer one.",
+     "D: none"
+    ],
+    "todos": [
+     "In snapshot_any, before returning own when own.found, add a freshness check (e.g., compare own.timestamp with potential from_ledger/from_bridge timestamps) to ensure the log entry is not stale."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "23f7d26fa276823ddb3f3b9a8ae5b9403483992ae7bfc42cb569d979500f2730",
+    "objective_chars": 6212,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 2 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never guesses across sources, and never prefers a stale one over a live one\" | snapshot_any | UNCHECKABLE | would need to see the implementations of snapshot_from_ledger and snapshot_from_bridge to verify staleness logic",
+     "D1 | ledger_path | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller believes they can supply a custom ledger_path, but it is ignored in this chunk"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "23f7d26fa276823ddb3f3b9a8ae5b9403483992ae7bfc42cb569d979500f2730",
+    "objective_chars": 6212,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/progress_sources.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 3694
+ }
+}

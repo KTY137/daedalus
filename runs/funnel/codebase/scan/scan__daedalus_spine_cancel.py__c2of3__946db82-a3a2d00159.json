@@ -1,0 +1,381 @@
+{
+ "task_id": "scan__daedalus_spine_cancel.py__c2of3__946db82",
+ "key": "scan__daedalus_spine_cancel.py__c2of3__946db82-a3a2d00159",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 3 of cancel.py: WindowsJobBackend, PosixSessionBackend, select_backend, live registry, ManagedProcess class with init, properties, cancel method.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/cancel.py",
+     "chunk": "2 of 3",
+     "purpose": "Implement Windows and POSIX process containment backends, live process registry, and ManagedProcess class with cancellation logic.",
+     "symbols": [
+      {
+       "name": "WindowsJobBackend.after_spawn",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Assigns process to Windows job object and resumes all threads."
+      },
+      {
+       "name": "WindowsJobBackend.signal_group",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Sends CTRL_BREAK_EVENT to process group."
+      },
+      {
+       "name": "WindowsJobBackend.kill_tree",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Terminates job object or kills process if no job."
+      },
+      {
+       "name": "WindowsJobBackend.release",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Closes job handle, enabling KILL_ON_JOB_CLOSE."
+      },
+      {
+       "name": "PosixSessionBackend",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Contains process tree via session/process group."
+      },
+      {
+       "name": "PosixSessionBackend.popen_kwargs",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns start_new_session=True."
+      },
+      {
+       "name": "PosixSessionBackend.before_spawn",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "No-op."
+      },
+      {
+       "name": "PosixSessionBackend.after_spawn",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "No-op."
+      },
+      {
+       "name": "PosixSessionBackend._pgid",
+       "kind": "static method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns process group ID, falling back to PID."
+      },
+      {
+       "name": "PosixSessionBackend.signal_group",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Sends SIGINT to process group."
+      },
+      {
+       "name": "PosixSessionBackend.kill_tree",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Sends SIGKILL to process group, falls back to process.kill()."
+      },
+      {
+       "name": "PosixSessionBackend.release",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "No-op."
+      },
+      {
+       "name": "select_backend",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns WindowsJobBackend for win platforms, else PosixSessionBackend."
+      },
+      {
+       "name": "BACKEND",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Instance of selected backend class."
+      },
+      {
+       "name": "BACKEND_NAME",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Name of selected backend."
+      },
+      {
+       "name": "_LIVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "WeakSet of ManagedProcess objects."
+      },
+      {
+       "name": "_LIVE_LOCK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Thread lock for _LIVE."
+      },
+      {
+       "name": "live_managed_processes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns list of ManagedProcesses with returncode None."
+      },
+      {
+       "name": "cancel_all_managed",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Cancels every live ManagedProcess, returns CancelResult list."
+      },
+      {
+       "name": "ManagedProcess",
+       "kind": "class",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Wraps a subprocess with cancellation support."
+      },
+      {
+       "name": "ManagedProcess.__init__",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns process, sets up containment, registers in _LIVE."
+      },
+      {
+       "name": "ManagedProcess.pid",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns process PID."
+      },
+      {
+       "name": "ManagedProcess.process",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns underlying Popen object."
+      },
+      {
+       "name": "ManagedProcess.backend_name",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns backend name."
+      },
+      {
+       "name": "ManagedProcess.returncode",
+       "kind": "property",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns poll result or None."
+      },
+      {
+       "name": "ManagedProcess.poll",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns returncode."
+      },
+      {
+       "name": "ManagedProcess.wait",
+       "kind": "method",
+       "effects": [
+        "none"
+       ],
+       "note": "Waits for process to exit."
+      },
+      {
+       "name": "ManagedProcess.cancel",
+       "kind": "method",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Signals group, waits grace, then kills tree."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Only now is it safe to let the child run: anything it spawns from here on is born inside the job.",
+       "where": "WindowsJobBackend.after_spawn (line 286 comment)",
+       "verdict": "uncheckable",
+       "why": "The comment explains the timing of resuming threads, but the property that spawned children are inside the job depends on Windows behavior not shown in this chunk."
+      },
+      {
+       "text": "KILL_ON_JOB_CLOSE: closing the last handle destroys any survivor.",
+       "where": "WindowsJobBackend.release (line 304 comment)",
+       "verdict": "uncheckable",
+       "why": "The comment refers to Windows job object flag KILL_ON_JOB_CLOSE, which is not set in this chunk; the effect depends on code outside the chunk."
+      },
+      {
+       "text": "Contain the tree in its own session/process group.",
+       "where": "PosixSessionBackend docstring (line 310)",
+       "verdict": "kept",
+       "why": "The class uses start_new_session=True in popen_kwargs, and signal_group/kill_tree use os.killpg, which operates on process groups."
+      },
+      {
+       "text": "Pick the containment backend for a platform string (sys.platform). Split out as a pure function so the platform decision is assertable from either OS without spawning anything.",
+       "where": "select_backend docstring (line 340)",
+       "verdict": "kept",
+       "why": "The function returns a class based on platform.startswith('win'), no side effects."
+      },
+      {
+       "text": "The cancel token reaches a child only if every layer between the loop driver and the spawn remembered to thread it through. The kill switch may not depend on that: a driver that forgot one cancel= argument would leave a pytest tree or a vendor CLI running after the operator pulled the plug, and 'the loop stopped but its children did not' is not stopping. This is the sweep of last resort -- KillSwitch.stop_children calls it on every trip.",
+       "where": "Comment block before _LIVE (lines 351-359)",
+       "verdict": "uncheckable",
+       "why": "The comment references KillSwitch.stop_children from another module, not present in this chunk."
+      },
+      {
+       "text": "A WeakSet, so registration cannot keep a finished process object alive and cannot leak; entries are also discarded eagerly on close().",
+       "where": "Comment after _LIVE definition (line 361)",
+       "verdict": "kept",
+       "why": "_LIVE is a weakref.WeakSet; weak references allow garbage collection of unreferenced ManagedProcess objects."
+      },
+      {
+       "text": "Snapshot of every contained child alive in THIS interpreter.",
+       "where": "live_managed_processes docstring (line 365)",
+       "verdict": "kept",
+       "why": "Function returns list of processes with returncode None (alive) from _LIVE WeakSet."
+      },
+      {
+       "text": "Never raises: one wedged child must not stop the rest from being killed. The default grace is 0.0, not DEFAULT_GRACE_S -- this is the emergency path, where the whole point is to be fast, and a child that would have exited politely within three seconds is no less dead for being killed now.",
+       "where": "cancel_all_managed docstring (line 370)",
+       "verdict": "kept",
+       "why": "Function catches Exception per child and continues; default grace_s=0.0 is used (not DEFAULT_GRACE_S)."
+      },
+      {
+       "text": "Use as a context manager; leaving the block cancels anything still running and then releases the container. Dropping the last reference also releases the container, which on win32 kills any survivor -- an orphaned ManagedProcess must not leave writers behind.",
+       "where": "ManagedProcess docstring (line 390)",
+       "verdict": "uncheckable",
+       "why": "Context manager behavior (__enter__/__exit__) is not present in this chunk; release on last reference relies on __del__ not shown."
+      },
+      {
+       "text": "Registered ONLY here: after containment is established. A process we failed to contain is killed above and must never appear in a registry that promises 'cancelling this reaps its tree'.",
+       "where": "Comment in ManagedProcess.__init__ (line 428)",
+       "verdict": "kept",
+       "why": "The code registers in _LIVE only after successful after_spawn; on failure, process is killed and release called."
+      },
+      {
+       "text": "Idempotent: cancelling an already-exited process is a no-op that reports already_exited.",
+       "where": "ManagedProcess.cancel docstring (line 451)",
+       "verdict": "kept",
+       "why": "If process.poll() is not None, returns CancelResult with STAGE_ALREADY_EXITED immediately."
+      }
+     ],
+     "observations": [
+      {
+       "what": "WindowsJobBackend.after_spawn resumes all threads after assigning to job, ensuring spawned children are in job.",
+       "where": "WindowsJobBackend.after_spawn (lines 281-294)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "PosixSessionBackend uses start_new_session and killpg for process group containment.",
+       "where": "PosixSessionBackend (lines 309-336)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Live registry uses WeakSet and thread lock for safe concurrent access.",
+       "where": "_LIVE, _LIVE_LOCK definitions (lines 362-363)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "ManagedProcess.__init__ handles failures by killing process and releasing backend.",
+       "where": "ManagedProcess.__init__ (lines 403-434)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "cancel_all_managed catches all exceptions per process to avoid blocking.",
+       "where": "cancel_all_managed (lines 370-385)",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "ManagedProcess.cancel uses grace_s parameter, defaults to DEFAULT_GRACE_S.",
+       "where": "ManagedProcess.cancel (lines 451-479)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0dd453176738ed7c728a3605a10ea507dad0c27a8eccf139e96bb5570db8fd3e",
+    "objective_chars": 10093,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/cancel.py [2/3]",
+  "rev": "946db82",
+  "module": "daedalus/spine/cancel.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

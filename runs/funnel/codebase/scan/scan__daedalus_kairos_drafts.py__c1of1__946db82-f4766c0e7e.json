@@ -1,0 +1,272 @@
+{
+ "task_id": "scan__daedalus_kairos_drafts.py__c1of1__946db82",
+ "key": "scan__daedalus_kairos_drafts.py__c1of1__946db82-f4766c0e7e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed daedalus/kairos/drafts.py chunk 1/1: persistence for advisory drafts, with 6 public functions, path traversal protection, explicit non-merge safety model.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_safe_path | medium | Symlink escape may not be fully prevented if DRAFT_DIR itself is a symlink; resolve() then relative_to() checks target, but the file could be outside if DRAFT_DIR is a symlink to a directory outside intended boundary. | Test with DRAFT_DIR as symlink to /tmp.",
+     "_safe_path | low | _ID_RE allows '.' which could be used in filenames like '..json' but the regex requires at least one character and no path separators, so '..' alone is rejected (too short? actually '..' is 2 chars, matches [A-Za-z0-9._-]{1,120}, but _safe_path then resolves and checks relative_to, which would fail because '..json' resolves to parent, so it's safe. | Confirm with '..' as input: _ID_RE matches but relative check fails.",
+     "save_draft | medium | No file size limit; large reports could fill disk. | Add size check or quota.",
+     "list_drafts | low | Reading every draft file in directory; if many drafts, could be slow or memory heavy. | Add pagination or limit.",
+     "apply_payload | low | Calls set_status which rewrites the file; if multiple concurrent calls, race condition on write. | Use file locking or atomic write."
+    ],
+    "todos": [
+     "Consider adding file size limit in save_draft.",
+     "Consider pagination in list_drafts for scalability.",
+     "Consider concurrency safety for draft file writes.",
+     "Add unit tests for _safe_path with edge cases (symlinks, traversal, special chars)."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/drafts.py",
+     "chunk": "1 of 1",
+     "purpose": "Persist advisory drafts to runs/drafts/ as JSON files; provide CRUD and lifecycle transitions.",
+     "symbols": [
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved to two parents up from __file__, expected to be repository root."
+      },
+      {
+       "name": "DRAFT_DIR",
+       "kind": "constant",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Path to runs/drafts directory under ROOT."
+      },
+      {
+       "name": "_SLUG_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to replace non-alphanumeric characters with hyphen."
+      },
+      {
+       "name": "_ID_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex to validate draft id: alphanumeric, dot, underscore, hyphen, 1-120 chars."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Generate a filesystem-safe slug from text, max_len default 48."
+      },
+      {
+       "name": "_safe_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolve draft id to Path only if it is a plain stem and stays inside DRAFT_DIR; returns None otherwise."
+      },
+      {
+       "name": "save_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Write advisory report to drafts store; returns the path. Never overwrites existing file by appending -n."
+      },
+      {
+       "name": "list_drafts",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Return newest-first summaries of all stored drafts."
+      },
+      {
+       "name": "get_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Return a single draft dict by id, or None if not found."
+      },
+      {
+       "name": "delete_draft",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Delete a draft file by id; returns True if deleted, False otherwise."
+      },
+      {
+       "name": "_STATUSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of valid statuses: pending, applied, dismissed."
+      },
+      {
+       "name": "set_status",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Transition draft status; raises ValueError on invalid status. Idempotent."
+      },
+      {
+       "name": "apply_payload",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Return review packet for applying a draft and marks it 'applied'. Performs no write of the proposal itself."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Persist advisory drafts -- the missing half of the FrugalGPT loop (Era 3 #1).",
+       "where": "module docstring line 1",
+       "verdict": "uncheckable",
+       "why": "The claim about FrugalGPT loop and Era 3 cannot be verified from this file alone; it references external architecture."
+      },
+      {
+       "text": "An advisory-mode task legitimately writes nothing: the free lane produces a PROPOSAL that a write-capable, trusted lane (Claude / the user) applies later.",
+       "where": "module docstring line 3-5",
+       "verdict": "kept",
+       "why": "The code does not perform any write to the target repo; save_draft writes to drafts store, and apply_payload explicitly says 'performs no write itself'."
+      },
+      {
+       "text": "Here every accepted advisory report is persisted to runs/drafts/<ts>-<slug>.json",
+       "where": "module docstring line 6-7",
+       "verdict": "kept",
+       "why": "save_draft constructs path as DRAFT_DIR / f\"{ts}-{_slug(objective)}.json\" and writes the report."
+      },
+      {
+       "text": "so it can be listed, reviewed, applied, and cleaned up later -- daedalus drafts list|show|rm.",
+       "where": "module docstring line 7-8",
+       "verdict": "kept",
+       "why": "Functions list_drafts, get_draft, delete_draft, apply_payload provide those operations."
+      },
+      {
+       "text": "Apply is deliberately NOT automated: a draft is a proposal, and the safety model says a free model may propose but never merge.",
+       "where": "module docstring line 10-11",
+       "verdict": "kept",
+       "why": "apply_payload returns a packet and marks 'applied' but does not write to target repo; set_status doc also states 'free model may propose, never merge'."
+      },
+      {
+       "text": "Applying stays a human / Claude action (Era-3 follow-up wires it into the webapp queue view).",
+       "where": "module docstring line 11-12",
+       "verdict": "uncheckable",
+       "why": "No webapp queue view in this file; reference to external code."
+      },
+      {
+       "text": "This module moved one package level deeper. Runtime state remains at the repository root for backward compatibility with every existing draft.",
+       "where": "comment line 18-19",
+       "verdict": "uncheckable",
+       "why": "Cannot verify module movement or backward compatibility from this file alone."
+      },
+      {
+       "text": "A draft id is our own timestamp-slug stem. It arrives from the CLI and from URL path segments (/api/drafts/<id>/apply), so it MUST NOT be trusted into a filesystem path -- reject anything that isn't a plain stem (no separators, no traversal). Closes the path-traversal gap Minos would have flagged.",
+       "where": "comment lines 23-26",
+       "verdict": "kept",
+       "why": "_safe_path uses _ID_RE which rejects path separators, and then resolves and checks relative_to DRAFT_DIR, preventing traversal."
+      },
+      {
+       "text": "never overwrite an existing draft from the same second",
+       "where": "comment in save_draft line 51",
+       "verdict": "kept",
+       "why": "The while loop appends -n suffix if path already exists."
+      },
+      {
+       "text": "pending -> applied|dismissed (future)",
+       "where": "comment in save_draft line 61",
+       "verdict": "kept",
+       "why": "The draft is saved with status 'pending'; set_status allows transition to 'applied' or 'dismissed'."
+      },
+      {
+       "text": "Newest-first summaries of every stored draft.",
+       "where": "list_drafts docstring line 66",
+       "verdict": "kept",
+       "why": "list_drafts sorts the glob results with reverse=True, which gives newest first (assuming lexicographic order of filenames with timestamp)."
+      },
+      {
+       "text": "Transition a draft's lifecycle. Returns the updated draft, or None if the id is unknown; raises ValueError on an invalid status. This does NOT touch the filesystem of the target repo -- 'applied' only marks the proposal as handled (a free model may propose, never merge; the actual edit is a human / Claude action). Idempotent.",
+       "where": "set_status docstring lines 95-99",
+       "verdict": "kept",
+       "why": "set_status only writes to the draft file, not to target repo; checks status against _STATUSES; if status same, it rewrites same value (idempotent); returns None if file not found; raises ValueError for invalid status."
+      },
+      {
+       "text": "The review packet a human / the Claude lane needs to ACTUALLY apply a draft: the objective, the target paths, and the proposal text. Marks the draft 'applied' (handled) but performs no write itself -- returning the packet IS the handoff. None if the id is unknown.",
+       "where": "apply_payload docstring lines 108-111",
+       "verdict": "kept",
+       "why": "apply_payload returns a dict with objective, paths, proposal, etc.; calls set_status to mark 'applied'; does not write to target repo; returns None if get_draft returns None."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module uses a regex-based id validation and path resolution to prevent path traversal, which appears robust.",
+       "where": "_safe_path function",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "save_draft uses a while loop to avoid overwriting, but if many drafts in same second, it could loop many times; unlikely but possible.",
+       "where": "save_draft lines 52-55",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "list_drafts loads all draft files into memory; with many drafts this could be slow.",
+       "where": "list_drafts function",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "There is no concurrency control; concurrent writes to the same draft file could cause data loss or corruption.",
+       "where": "set_status and save_draft",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The constant ROOT is defined as parents[2], which assumes the file is exactly two levels deep (daedalus/kairos/drafts.py). If the file is moved, ROOT will be wrong.",
+       "where": "ROOT definition line 21",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module imports from __future__ import annotations, which is a standard practice for forward references, not an issue.",
+       "where": "line 14",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "390abcf2efc4f1892c16560014671a82df92e7fca66fc79ab58bb21334d74cbe",
+    "objective_chars": 6592,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/drafts.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/drafts.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

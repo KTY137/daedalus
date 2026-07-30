@@ -1,0 +1,421 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c1of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c1of25__946db82-e0154641e1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed docstring and top-level constants from daedalus/spine/picker.py chunk 1 of 25.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "1 of 25",
+     "purpose": "Module docstring, constants, and imports for the work queue picker.",
+     "symbols": [
+      {
+       "name": "ATTEMPT_INTENT_KIND",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "ATTEMPT_MEMORY_PENALTY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "BAND_SPAN",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "Candidate",
+       "kind": "class",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "apply_attempt_memory",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "attempt_history",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "EXIT_CANDIDATE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "EXIT_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "EXIT_NO_CHANGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "EXIT_SOURCE_UNAVAILABLE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "INVENTORY_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant set to 'docs/FEATURE_INVENTORY.json'."
+      },
+      {
+       "name": "MAP_STATE_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "WORK_QUEUE_SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant set to 'daedalus-work-queue/1'."
+      },
+      {
+       "name": "DEFAULT_WORK_QUEUE_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant set to '.agentenv/work-queue.json'."
+      },
+      {
+       "name": "DEFAULT_SPINE_DB_REL_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant set to 'runs/spine/spine.sqlite3'."
+      },
+      {
+       "name": "OUTCOME_POLICY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "OutcomePolicy",
+       "kind": "class",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "PickedQueue",
+       "kind": "class",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "SOURCE_BANDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "SOURCE_ORDER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "UNKNOWN_OUTCOME",
+       "kind": "constant",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "build_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "eval_baseline_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "eval_gate_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "hotspot_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "instruction_fingerprint",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "inventory_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "inventory_freshness",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "load_inventory",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "load_map_state",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "load_work_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "map_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "map_state_trustworthy",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "outcome_policy",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "rank",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "render_queue",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "review_packet",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "resolve_spine_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "work_queue_candidates",
+       "kind": "function",
+       "effects": [],
+       "note": "Undefined in this chunk; expected elsewhere."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path resolved to parent of parent of this file."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The loop is: PICK a task by measurement -> attempt it in an isolated worktree (:mod:`daedalus.spine.attempt`) -> run gates -> hand a HUMAN a patch.",
+       "where": "docstring lines 2-4",
+       "verdict": "uncheckable",
+       "why": "References daedalus.spine.attempt, not present in this chunk."
+      },
+      {
+       "text": "This module is the first and last step: it decides what is worth attempting, and it renders the review packet a human reads before deciding to promote anything.",
+       "where": "docstring lines 4-5",
+       "verdict": "uncheckable",
+       "why": "Claims about module's role; no functions defined in this chunk to verify."
+      },
+      {
+       "text": "Every candidate carries three things and is refused without them: ``reason`` one sentence a human can disagree with, ``score`` a number, ``evidence`` the MEASUREMENT the score was computed from, as data -- the file it was read out of, the counts, the recall, the churn.",
+       "where": "docstring lines 8-12",
+       "verdict": "uncheckable",
+       "why": "Candidate class not defined in this chunk."
+      },
+      {
+       "text": ":func:`_candidate` enforces this: a candidate with an empty reason or empty evidence raises rather than entering the queue.",
+       "where": "docstring line 14",
+       "verdict": "uncheckable",
+       "why": "_candidate function not present in this chunk."
+      },
+      {
+       "text": "A queue that can be filled with opinion is a queue that will be, and an unvalidated metric must never gate autonomy -- so the metric has to stay auditable all the way to the terminal.",
+       "where": "docstring lines 14-16",
+       "verdict": "uncheckable",
+       "why": "General design claim; no code in chunk to verify."
+      },
+      {
+       "text": "``score = BAND + offset``.",
+       "where": "docstring line 19",
+       "verdict": "uncheckable",
+       "why": "BAND and offset not defined in this chunk."
+      },
+      {
+       "text": "The BAND (:data:`SOURCE_BANDS`) is the source's priority. It is a PRIOR, chosen by a human, not a measurement -- islands before stale artifacts, both before eval misses, all before hotspots.",
+       "where": "docstring lines 21-23",
+       "verdict": "uncheckable",
+       "why": "SOURCE_BANDS not defined in this chunk."
+      },
+      {
+       "text": "It is stated here as a constant instead of being smuggled into a weighting so a reviewer can argue with it directly.",
+       "where": "docstring line 23",
+       "verdict": "uncheckable",
+       "why": "Constant not present in this chunk."
+      },
+      {
+       "text": "The OFFSET, within ``[0, BAND_SPAN]``, is the measurement: test counts and entrypoint counts for inventory features, recall shortfall for eval misses, normalised churn x complexity for hotspots.",
+       "where": "docstring lines 25-27",
+       "verdict": "uncheckable",
+       "why": "BAND_SPAN not defined in this chunk; offset calculation not present."
+      },
+      {
+       "text": "Two candidates from the same source are ordered by evidence and nothing else.",
+       "where": "docstring line 27",
+       "verdict": "uncheckable",
+       "why": "Ranking logic not in this chunk."
+      },
+      {
+       "text": "Once a candidate has been ATTEMPTED, the ledger's record of how that attempt ended puts a CEILING on its offset (:data:`OUTCOME_POLICY`).",
+       "where": "docstring lines 29-30",
+       "verdict": "uncheckable",
+       "why": "OUTCOME_POLICY not defined in this chunk."
+      },
+      {
+       "text": "That is still a measurement -- the loop's own return path -- and it obeys the band like every other one: memory reorders inside a priority and can never leave it.",
+       "where": "docstring lines 30-31",
+       "verdict": "uncheckable",
+       "why": "No code in chunk to verify."
+      },
+      {
+       "text": "Cross-band comparison is therefore NOT a claim that one island beats one hotspot on evidence. It is the stated priority order.",
+       "where": "docstring lines 33-34",
+       "verdict": "uncheckable",
+       "why": "No band definitions in this chunk."
+      },
+      {
+       "text": "Sources that require a fresh eval run or a whole-repo structural index are OFF unless asked for (``--eval``, ``--hotspots``).",
+       "where": "docstring lines 38-39",
+       "verdict": "uncheckable",
+       "why": "CLI flags not in this chunk."
+      },
+      {
+       "text": "The default queue is built from files already on disk, so the picker stays fast enough to run before every attempt.",
+       "where": "docstring lines 39-40",
+       "verdict": "uncheckable",
+       "why": "Queue building logic not in this chunk."
+      },
+      {
+       "text": "The honesty cost is stated at the point of use: a clean cheap eval read means 'nothing is RECORDED as missing', never 'the eval passes'.",
+       "where": "docstring lines 40-41",
+       "verdict": "uncheckable",
+       "why": "No code in chunk to verify."
+      },
+      {
+       "text": ":func:`main` can run at most ONE attempt (``--once``), and an attempt produces inert bytes (see :class:`daedalus.spine.attempt.PatchArtifact`).",
+       "where": "docstring lines 43-44",
+       "verdict": "uncheckable",
+       "why": "main not defined in this chunk; references external class."
+      },
+      {
+       "text": "Promotion is a separate human act. There is no ``--apply``, and adding one belongs in a different module with a different review.",
+       "where": "docstring lines 44-45",
+       "verdict": "uncheckable",
+       "why": "No code in chunk to verify."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Many symbols declared in __all__ but not defined in this chunk.",
+       "where": "lines 47-91",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "ROOT path uses __file__.resolve().parents[2], which assumes a specific directory structure.",
+       "where": "line 93",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ca96c16ed69b7c52fdd8c0e667abf4e63c58a14ed5e65efd1dbc401cba6b4faa",
+    "objective_chars": 4987,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [1/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 1,
+  "total": 25,
+  "first_line": 1
+ }
+}

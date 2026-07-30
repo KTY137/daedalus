@@ -1,0 +1,120 @@
+{
+ "task_id": "daedalus/runtime_registry.py#c1of1#5eb1702d",
+ "key": "daedalus_runtime_registry.py_c1of1_5eb1702d-c62f249d80",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 4 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Safe readiness test; no paid LLM prompt is sent.\" | test_runtime | BROKEN | calls runtime_status which for ollama_http makes an HTTP request to Ollama API; not a paid LLM but contradicts \"no paid LLM prompt\" because it does send a prompt (list models).",
+     "CLAIM | \"Spawn the RESOLVED path, not the bare name\" | _run_version | BROKEN | comment says spawn resolved path but code spawns `[path, \"--version\"]` where `path` is resolved; actually KEPT, but the comment is about the reason, not a claim. Actually the comment is a rationale, not a claim. The only claim is \"Same lesson is already encoded in providers/codex_cli.py and doctor.py.\" which is not checkable here.",
+     "CLAIM | \"Same lesson is already encoded in providers/codex_cli.py and doctor.py.\" | _run_version | UNCHECKABLE | requires checking code in providers/codex_cli.py and doctor.py.",
+     "CLAIM | \"Safe readiness test; no paid LLM prompt is sent.\" | test_runtime | BROKEN | calls runtime_status which for ollama_http calls _ollama_http_status which sends an HTTP request to Ollama API; this is an LLM prompt (list models) and contradicts \"no paid LLM prompt\".",
+     "CLAIM | \"CLI-first, API-ready runtime registry. Daedalus orchestration should depend on runtime capabilities, not on random subprocess calls scattered through the app. This registry exposes a stable status/test surface for CLIs today and API providers later.\" | module docstring | KEPT | the module provides runtime_status and all_status which centralize capability checks.",
+     "CLAIM | \"Safe readiness test; no paid LLM prompt is sent.\" | test_runtime | BROKEN | see above.",
+     "D1 | load_env | imported but not used in this unit | WRONG CONCLUSION: a caller believes environment is loaded, but load_env is called in runtime_status, so it is used. Actually load_env is used in runtime_status, so not D1.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Change test_runtime docstring to remove claim about no paid LLM prompt, or ensure _ollama_http_status does not make any HTTP request."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ea34a26c3101afc7616bc77a4c2fc300cf4965f39081f08f8a45f3a98020c84",
+    "objective_chars": 9204,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 5 kept, 0 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"CLI-first, API-ready runtime registry\" | module docstring | UNCHECKABLE | needs to see callers to verify CLIs are served first and API providers later",
+     "CLAIM | \"Daedalus orchestration should depend on runtime capabilities, not on random subprocess calls scattered through the app\" | module docstring | KEPT | the module centralises runtime checks in one place",
+     "CLAIM | \"This registry exposes a stable status/test surface for CLIs today and API providers later\" | module docstring | KEPT | runtime_status and test_runtime provide a stable surface",
+     "CLAIM | \"Safe readiness test; no paid LLM prompt is sent\" | test_runtime docstring | KEPT | test_runtime only calls runtime_status which does not send any prompts",
+     "D1 | test_runtime parameter runtime_id | parameter 'runtime_id' is used on line 152 | WRONG CONCLUSION: no unused parameter found",
+     "D2 | no except swallows and continues where prose says refuse | none | WRONG CONCLUSION: no such pattern",
+     "D3 | no check runs after the side effect its comment says it guards | none | WRONG CONCLUSION: no such pattern",
+     "D4 | no branch whose condition cannot be true given assignments above it | none | WRONG CONCLUSION: no such pattern"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ea34a26c3101afc7616bc77a4c2fc300cf4965f39081f08f8a45f3a98020c84",
+    "objective_chars": 9204,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 claims: 3 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Safe readiness test; no paid LLM prompt is sent.\" | test_runtime | KEPT | test_runtime only calls runtime_status which does not issue any LLM prompts.",
+     "CLAIM | \"Spawn the RESOLVED path, not the bare name: npm ships `codex` as a .CMD shim on Windows...\" | _run_version | KEPT | The code uses [path, \"--version\"] with the resolved path from shutil.which().",
+     "CLAIM | \"Same lesson is already encoded in providers/codex_cli.py and doctor.py.\" | _run_version | KEPT | This is a cross-reference comment; no code in this unit contradicts it."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ea34a26c3101afc7616bc77a4c2fc300cf4965f39081f08f8a45f3a98020c84",
+    "objective_chars": 9204,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/runtime_registry.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 6755
+ }
+}

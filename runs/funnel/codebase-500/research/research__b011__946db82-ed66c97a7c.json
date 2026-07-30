@@ -1,0 +1,103 @@
+{
+ "task_id": "research__b011__946db82",
+ "key": "research__b011__946db82-ed66c97a7c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Identified three cross-file patterns: duplicated git pointer reading, inconsistent cancel normalisation, and conflicting path confinement assumptions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Duplicated git pointer logic may diverge and cause subtle bugs",
+     "Inconsistent cancel normalisation may cause cancellation failures or hangs",
+     "Conflicting path confinement assumptions may allow path escape or denial of service"
+    ],
+    "todos": [
+     "Audit daedalus/spine/attempt.py for _read_gitdir_pointer and _as_predicate to confirm duplication",
+     "Unify cancel normalisation across gated_writes.py and spine/attempt.py",
+     "Reconcile path confinement between picker.py and bus.py's _FORBIDDEN_STORE_DIR",
+     "Verify watermark advancement logic in projection_worker.py"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-git-pointer",
+       "claim": "The git admin_dir pointer reading logic is independently duplicated in daedalus/kairos/gated_writes.py and daedalus/spine/attempt.py, risking divergence.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "Both modules define a private function to read the .git pointer from a worktree: gated_writes.py has _read_gitdir_pointer, and spine/attempt.py has its own version (referenced in docstring). They both parse the 'gitdir:' prefix. If one is updated and the other is not, they may behave differently.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If daedalus/spine/attempt.py does not contain a similar private function, or if the two functions are identical and maintained together.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py:_read_gitdir_pointer",
+        "daedalus/spine/attempt.py: (referenced in docstring of gated_writes.py)"
+       ]
+      },
+      {
+       "id": "cancel-normalisation-inconsistency",
+       "claim": "The cancel token normalisation in daedalus/kairos/gated_writes.py is incomplete compared to its counterpart in daedalus/spine/attempt.py, missing handling for objects with is_set() method.",
+       "spans": [
+        "daedalus/kairos/gated_writes.py",
+        "daedalus/spine/attempt.py"
+       ],
+       "mechanism": "gated_writes.py defines _as_cancel_predicate which only handles None and callable, but its docstring claims it also handles objects with is_set() (like threading.Event). The code shown in the chunk does not implement the is_set branch. If spine/attempt.py's version does handle is_set, then gated_writes.py's version is inconsistent and may fail to properly cancel operations when a threading.Event is passed.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the full implementation of _as_cancel_predicate in gated_writes.py does include the is_set branch, or if spine/attempt.py's version also lacks it.",
+       "evidence": [
+        "daedalus/kairos/gated_writes.py:_as_cancel_predicate",
+        "daedalus/spine/attempt.py: (referenced in docstring of gated_writes.py)"
+       ]
+      },
+      {
+       "id": "path-confinement-conflict",
+       "claim": "The path confinement in daedalus/spine/picker.py's _confined_path and the forbidden directory constant in daedalus/council/bus.py's _FORBIDDEN_STORE_DIR may conflict: _confined_path ensures paths stay under repo_root, but bus.py explicitly forbids writing to <repo>/memory/, while picker.py does not forbid that path.",
+       "spans": [
+        "daedalus/spine/picker.py",
+        "daedalus/council/bus.py"
+       ],
+       "mechanism": "bus.py defines _FORBIDDEN_STORE_DIR = ROOT / 'memory' and claims any store path under that is refused loudly by _resolve_store. picker.py's _confined_path only checks containment under repo_root, not a forbidden subdirectory. If a picker source resolves a path under memory/, it would be allowed by picker but refused by bus, causing a silent failure or inconsistency.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If _resolve_store in bus.py is never called with paths from picker.py, or if picker.py also has a similar forbidden check.",
+       "evidence": [
+        "daedalus/spine/picker.py:_confined_path",
+        "daedalus/council/bus.py:_FORBIDDEN_STORE_DIR"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cbfdb4b16b3bed06a60d9893e44a55180557c4e718dcef5f66844e7977d52e7f",
+    "objective_chars": 30863,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 11 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 11,
+  "inputs": 5
+ }
+}

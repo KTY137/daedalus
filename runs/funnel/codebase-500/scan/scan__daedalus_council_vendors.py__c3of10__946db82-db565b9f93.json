@@ -1,0 +1,207 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c3of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c3of10__946db82-db565b9f93",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of vendors.py: dataclasses TurnResult, FloorRefusal, RunResult; functions floor_check and _withheld_paths; docstring claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "TurnResult.__post_init__ | medium | Validation against STATUSES and LANES assumes these constants are defined elsewhere; if missing, runtime error. | Check that STATUSES and LANES are defined in scope.",
+     "floor_check | medium | Relies on secret_floor_rule and slice_egress_rule; not defined in chunk; behaviour uncheckable. | Verify these functions exist and match expected signatures.",
+     "_withheld_paths | medium | Depends on slice_egress_rule; not defined in chunk; behaviour uncheckable. | Verify slice_egress_rule exists and accepts (path, text, lane)."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "3 of 10",
+     "purpose": "Define data classes and secret-floor checking logic for council vendors.",
+     "symbols": [
+      {
+       "name": "TurnResult",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing a single turn result from a vendor."
+      },
+      {
+       "name": "FloorRefusal",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass recording a secret-floor hit with rule and channel."
+      },
+      {
+       "name": "RunResult",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass representing what an injected runner must return."
+      },
+      {
+       "name": "floor_check",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs secret floor checks on prompt, evidence paths, and evidence files."
+      },
+      {
+       "name": "_withheld_paths",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of paths withheld by tier-2 allow-list for untrusted lanes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "If the chunk does not contain what a claim refers to, the verdict is 'uncheckable'",
+       "where": "instruction",
+       "verdict": "uncheckable",
+       "why": "This is a meta-instruction, not a claim in the code."
+      },
+      {
+       "text": "status must be one of the closed set STATUSES",
+       "where": "TurnResult.__post_init__",
+       "verdict": "uncheckable",
+       "why": "STATUSES is not defined in this chunk."
+      },
+      {
+       "text": "lane must be one of LANES",
+       "where": "TurnResult.__post_init__",
+       "verdict": "uncheckable",
+       "why": "LANES is not defined in this chunk."
+      },
+      {
+       "text": "secret_floor_rule has two INDEPENDENT channels: path markers checked against path, value-shaped regexes checked against text.",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "secret_floor_rule is not defined in this chunk; its behaviour cannot be verified."
+      },
+      {
+       "text": "A council prompt is question + evidence + a multi-file diff",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "No definition of 'council prompt' in this chunk."
+      },
+      {
+       "text": "secret_floor_rule(\"\", prompt) kills the path tier outright",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "Depends on behaviour of secret_floor_rule not seen here."
+      },
+      {
+       "text": "evidence_paths -- every changed path (PatchArtifact.changed_paths) and every evidence file path, each through the PATH channel alone",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "PatchArtifact.changed_paths is not defined in this chunk."
+      },
+      {
+       "text": "evidence_files -- (path, text) pairs, both channels, per file",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The function iterates over evidence_files as (path, text) and calls secret_floor_rule(path, text)."
+      },
+      {
+       "text": "prompt -- a content-channel BACKSTOP for a credential pasted into the question itself.",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The function calls secret_floor_rule(\"\", prompt) as a final check."
+      },
+      {
+       "text": "Returns the first FloorRefusal, or None",
+       "where": "floor_check docstring",
+       "verdict": "kept",
+       "why": "The function returns a FloorRefusal on first hit, or None at end."
+      },
+      {
+       "text": "A hit means REFUSE -- there is no redact-and-send",
+       "where": "floor_check docstring",
+       "verdict": "uncheckable",
+       "why": "The function only returns the refusal; what the caller does is outside this chunk."
+      },
+      {
+       "text": "Not a decision made by a default argument: an untrusted lane means OpenAI / Google get the allow-list",
+       "where": "_withheld_paths docstring",
+       "verdict": "uncheckable",
+       "why": "Reference to external entities not in this chunk."
+      },
+      {
+       "text": "every withheld path is named on the reply so a reader can see what the council did NOT see",
+       "where": "_withheld_paths docstring",
+       "verdict": "uncheckable",
+       "why": "The function returns the withheld paths; how they are used is outside this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "TurnResult.__post_init__ validates status and lane against STATUSES and LANES, but these constants are not defined in this chunk.",
+       "where": "line ~257",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "floor_check relies on secret_floor_rule which is not defined in this chunk.",
+       "where": "line ~293",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "_withheld_paths relies on slice_egress_rule which is not defined in this chunk.",
+       "where": "line ~322",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "FloorRefusal channel field is typed as str but docstring suggests only 'path', 'content', 'prompt'; no validation.",
+       "where": "line ~266",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "RunResult fields match typical subprocess result; no validation.",
+       "where": "line ~272",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "677b324ca576fc2d3ac052df33b2d8b70fa098d9fb4c490e9cde6e785ac634ce",
+    "objective_chars": 4792,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [3/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 3,
+  "total": 10,
+  "first_line": 241
+ }
+}

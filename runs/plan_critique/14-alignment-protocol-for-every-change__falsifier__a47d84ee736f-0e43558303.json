@@ -1,0 +1,116 @@
+{
+ "task_id": "14-alignment-protocol-for-every-change__falsifier__a47d84ee736f",
+ "key": "14-alignment-protocol-for-every-change__falsifier__a47d84ee736f-0e43558303",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 14 contains unfalsifiable claims (e.g., 'prefer' with no measurable criterion) and missing operational details (e.g., how to verify digest, what constitutes valid evidence).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "14.1 | high | 'verify its digest' is unfalsifiable: no method specified for verification, so compliance cannot be tested | Attempt to verify digest without any tool or algorithm; failure to complete shows claim is undefined.",
+     "14.2 | high | 'Classify the work' is unfalsifiable because categories are undefined; any classification can be rationalized | Ask two independent raters to classify the same change; high disagreement indicates claim is not falsifiable.",
+     "14.3 | high | 'Name the active gate and the invariant/prior touched' is unfalsifiable: 'active gate' and 'prior' are undefined | Try to name them without definitions; inability to determine correct answer shows claim is not falsifiable.",
+     "14.4 | medium | 'Prefer deletion, consolidation, or wiring over a new subsystem' is unfalsifiable: 'prefer' is subjective and no metric for measuring preference | Implement two equivalent solutions, one new subsystem and one deletion/consolidation; cannot falsify because 'prefer' does not require a specific choice.",
+     "14.5 | low | 'Run python tools/iron_plan_guard.py verify' is falsifiable but depends on existence of tool; if tool exists, claim is testable | Run command; if tool missing or fails, claim is falsified.",
+     "14.6 | medium | 'Report: Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT' is falsifiable if categories are defined; currently unfalsifiable because categories undefined | Ask two independent raters to report classification; high disagreement shows unfalsifiability.",
+     "14.7 | medium | 'Iron Gate: 0..5' is falsifiable if gates are defined; currently unfalsifiable because gates undefined | Ask two raters to assign gate number; if definitions missing, cannot falsify.",
+     "14.8 | high | 'Evidence: <tests, receipts, or analysis>' is unfalsifiable: no minimum quality or relevance criteria for evidence | Accept any arbitrary string as evidence; claim cannot be contradicted.",
+     "14.9 | medium | 'An experiment also records its spec, scope, budget, evaluator, and expiry' is falsifiable if these terms are defined; currently unfalsifiable because definitions missing | Check if experiment records all five fields; but 'spec', 'scope', etc. undefined, so cannot determine compliance."
+    ],
+    "todos": [
+     "Define 'verify its digest' with a specific algorithm or tool command.",
+     "Define classification criteria for ALIGNED, EXPERIMENT, AMENDMENT.",
+     "Define what constitutes an active gate and invariant/prior.",
+     "Replace 'prefer' with a measurable rule (e.g., 'must not add new subsystem unless criteria X, Y, Z met').",
+     "Define the Iron Gate numbering scheme (0..5) with clear meanings.",
+     "Specify minimum standards for evidence (e.g., must include output of a test suite).",
+     "Define terms spec, scope, budget, evaluator, expiry for experiments."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "14.1",
+       "claim": "Before editing, read this plan and verify its digest.",
+       "verdict": "unfalsifiable",
+       "why": "No method for verifying digest is given; without a defined procedure, any action can be claimed as verification. To be falsifiable, specify an algorithm or tool (e.g., 'run sha256sum on the file and compare to stored value')."
+      },
+      {
+       "id": "14.2",
+       "claim": "Classify the work as ALIGNED, EXPERIMENT, or AMENDMENT.",
+       "verdict": "unfalsifiable",
+       "why": "The categories are undefined; without criteria, any classification can be justified. To be falsifiable, define each category with necessary and sufficient conditions."
+      },
+      {
+       "id": "14.3",
+       "claim": "Name the active gate and the invariant/prior touched.",
+       "verdict": "unfalsifiable",
+       "why": "'Active gate' and 'prior' are undefined; without definitions, there is no correct answer to test against. To be falsifiable, define the gate numbering and what constitutes a prior."
+      },
+      {
+       "id": "14.4",
+       "claim": "Prefer deletion, consolidation, or wiring over a new subsystem.",
+       "verdict": "unfalsifiable",
+       "why": "'Prefer' is subjective and not measurable; any choice can be said to satisfy preference. To be falsifiable, state a hard rule (e.g., 'must not add a new subsystem unless X, Y, Z hold')."
+      },
+      {
+       "id": "14.5",
+       "claim": "Run python tools/iron_plan_guard.py verify.",
+       "verdict": "falsifiable",
+       "why": "If the tool exists, running it produces an outcome (success/failure). The claim is testable by attempting to execute the command. However, if the tool is missing, the claim is falsified."
+      },
+      {
+       "id": "14.6",
+       "claim": "Report: Iron Plan: ALIGNED | EXPERIMENT | AMENDMENT",
+       "verdict": "unfalsifiable",
+       "why": "Without definitions of the categories, any report can be claimed correct. To be falsifiable, provide classification rules."
+      },
+      {
+       "id": "14.7",
+       "claim": "Iron Gate: 0..5",
+       "verdict": "unfalsifiable",
+       "why": "Gate numbers are not defined; without meaning, any number can be claimed. To be falsifiable, define each gate (e.g., 'Gate 0: initial design, Gate 1: prototype, ...')."
+      },
+      {
+       "id": "14.8",
+       "claim": "Evidence: <tests, receipts, or analysis>",
+       "verdict": "unfalsifiable",
+       "why": "No criteria for what counts as valid evidence; any string can be placed. To be falsifiable, specify minimum requirements (e.g., 'must include output of test suite X')."
+      },
+      {
+       "id": "14.9",
+       "claim": "An experiment also records its spec, scope, budget, evaluator, and expiry.",
+       "verdict": "unfalsifiable",
+       "why": "Terms like spec, scope, budget, evaluator, expiry are undefined; without definitions, compliance cannot be checked. To be falsifiable, define each term operationally."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cdfc8c53e9d5ef840b94cdf1eecd3dbc0c53494440f387a183f61f7a30a31e3d",
+    "objective_chars": 1582,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "14-alignment-protocol-for-every-change",
+  "lens": "falsifier",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,121 @@
+{
+ "task_id": "research__b046__946db82",
+ "key": "research__b046__946db82-e13026f5ea",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: budget overshoot (graph_brief vs. ollama), stale index vs. filesystem reads, undefined symbols across modules, and receipt provenance gap.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Budget overshoot in graph_brief may cause truncated prompts that ollama's token estimation cannot anticipate",
+     "Stale cached_index may cause graph_brief to serve outdated dependency info while ollama reads fresh filesystem paths",
+     "Undefined symbols (_REASON_MAP, evidence_ref, _deep_only_modules, _tail_matches, DEEP_EDGE_MARK) may cause runtime errors",
+     "DSSReceipt envelope embeds hash but does not guarantee receipt is actually persisted or broadcast; no cross-module verification"
+    ],
+    "todos": [
+     "Verify _HEADER_RESERVE constant value and check if header overshoot is possible",
+     "Cross-reference cached_index invalidation with filesystem reads in ollama",
+     "Define missing symbols or confirm they are imported from other chunks",
+     "Ensure DSSReceipt is actually stored/transmitted by the bus or egress subsystem"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "budget-overshoot",
+       "claim": "graph_brief's _emit may overshoot the token budget by adding the header after checking line fit, while ollama's window correction assumes the budget is strictly respected; this mismatch can cause truncated prompts that ollama cannot repair.",
+       "spans": [
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "In graph_brief's _emit, spent is incremented per line (line 283-294) and header cost is added after checking lines; if a line fits but adding the header would exceed budget, the header is added anyway, causing overshoot. In ollama's window correction, the budget is calculated as window_budget = est_in + reserve (line 916-920) and the model is expected to produce output within output_cap. If graph_brief overshoots, the prompt may be truncated, leading to incomplete context that ollama's retry logic cannot fix because it assumes the input fits.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If graph_brief's header cost is subtracted from spent before checking lines, or if _emit enforces a hard cap that includes header, then overshoot cannot occur.",
+       "evidence": [
+        "daedalus/lanes/graph_brief.py: _emit lines 283-294 (spent increment and header addition after line check)",
+        "daedalus/providers/ollama.py: window_budget calculation lines 916-920"
+       ]
+      },
+      {
+       "id": "stale-index-vs-filesystem",
+       "claim": "graph_brief uses cached_index(root) which may return stale data if filesystem changes, while ollama's code_context reads from the filesystem directly; this inconsistency can cause graph_brief to serve outdated dependency info that does not match the actual files used by ollama.",
+       "spans": [
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "graph_brief loads index via cached_index(root) (line 262) which may cache without invalidation (observation: no invalidation logic visible). ollama's code_context reads files from repo_root (lines 880-887) directly from the filesystem. If the file system changes (e.g., files added/removed), graph_brief may serve stale dependency information while ollama uses current files, leading to mismatched context plans.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If cached_index is invalidated on every call or if the index is read-only and never stale, then this mismatch cannot occur.",
+       "evidence": [
+        "daedalus/lanes/graph_brief.py: line 262 (cached_index usage)",
+        "daedalus/providers/ollama.py: lines 880-887 (filesystem read for code_context)"
+       ]
+      },
+      {
+       "id": "undefined-symbols",
+       "claim": "Multiple modules reference symbols that are not defined within the provided chunks, indicating potential missing imports or definitions that could cause runtime errors when these modules are executed.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "session.py uses _REASON_MAP (line 767) and evidence_ref (line 795) which are not defined in the chunk. graph_brief.py uses _deep_only_modules (line 302), _tail_matches (line 303), and DEEP_EDGE_MARK (line 303) which are not defined. These missing symbols may be defined in other chunks or modules; if not, NameError will occur at runtime.",
+       "severity": "high",
+       "confidence": "certain",
+       "refuted_by": "If these symbols are defined in other chunks of the same modules or imported from elsewhere, the missing definitions are resolved.",
+       "evidence": [
+        "daedalus/council/session.py: _REASON_MAP usage (line 767), evidence_ref usage (line 795)",
+        "daedalus/lanes/graph_brief.py: _deep_only_modules (line 302), _tail_matches (line 303), DEEP_EDGE_MARK (line 303)"
+       ]
+      },
+      {
+       "id": "receipt-provenance-gap",
+       "claim": "DSSReceipt provides a content-addressed envelope but there is no evidence that the receipt is actually persisted or transmitted to the bus or egress subsystem; the receipt may be created and then discarded, breaking the provenance chain.",
+       "spans": [
+        "daedalus/structcore/dss.py",
+        "daedalus/council/session.py"
+       ],
+       "mechanism": "DSSReceipt.envelope returns a dict with receipt_sha256 and to_dict() (lines 813-816). However, the chunk does not show any code that stores the receipt to disk or sends it over the network. The bus (session.py) uses turn envelopes but does not reference DSSReceipt. If receipts are not persisted or broadcast, the provenance chain is broken.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If DSSReceipt is stored or transmitted in other chunks (e.g., egress or bus modules), the provenance chain is intact.",
+       "evidence": [
+        "daedalus/structcore/dss.py: DSSReceipt.envelope (lines 813-816)",
+        "daedalus/council/session.py: no reference to DSSReceipt in provided chunk"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2fd56a13a7bb6c93d35367b8c62879aa3b792cf3dd97f463f153cf38cdeb5824",
+    "objective_chars": 20110,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 46 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 46,
+  "inputs": 4
+ }
+}

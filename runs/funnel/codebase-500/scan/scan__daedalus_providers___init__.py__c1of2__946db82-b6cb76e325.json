@@ -1,0 +1,154 @@
+{
+ "task_id": "scan__daedalus_providers___init__.py__c1of2__946db82",
+ "key": "scan__daedalus_providers___init__.py__c1of2__946db82-b6cb76e325",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 1 of daedalus/providers/__init__.py: module docstring, ProviderMetadata dataclass, _PROVIDERS dict, and get_provider function stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "get_provider | medium | Missing else/fallback for unrecognized provider names; will raise unhandled exception if name not in _PROVIDERS keys. | Add a default return or raise a clear error.",
+     "codex_cli metadata | low | 'requires_key=False' but relies on 'codex login' which may not be available in all environments; not enforced by this code. | Verify external auth mechanism works without env key."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/providers/__init__.py",
+     "chunk": "1 of 2",
+     "purpose": "Define provider metadata and expose get_provider entry point.",
+     "symbols": [
+      {
+       "name": "ProviderMetadata",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding metadata for each provider."
+      },
+      {
+       "name": "_PROVIDERS",
+       "kind": "constant",
+       "effects": [],
+       "note": "dict mapping provider names to ProviderMetadata instances."
+      },
+      {
+       "name": "get_provider",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a Provider instance by name; currently handles claude_cli, deepseek, ollama."
+      },
+      {
+       "name": "list_providers",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      },
+      {
+       "name": "provider_health",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      },
+      {
+       "name": "available_providers",
+       "kind": "function",
+       "effects": [],
+       "note": "Declared in __all__ but not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Providers differ in capability, not interface",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "No interface definition (e.g., Provider base class) is shown in this chunk."
+      },
+      {
+       "text": "claude_cli \u2014 agentic, write-capable, trusted with proprietary IP (primary)",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "ProviderMetadata for claude_cli: agentic=True, can_write=True, trusted_with_ip=True."
+      },
+      {
+       "text": "deepseek \u2014 external, opt-in write-capable, non-sensitive content only",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "ProviderMetadata for deepseek: local=False, can_write=True, trusted_with_ip=False."
+      },
+      {
+       "text": "ollama \u2014 read-only, local (no egress), trusted with IP",
+       "where": "module docstring",
+       "verdict": "broken",
+       "why": "ProviderMetadata for ollama: can_write=True, not read-only."
+      },
+      {
+       "text": "codex_cli \u2014 agentic, write-capable, EXTERNAL: egress-gated like deepseek",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "ProviderMetadata for codex_cli: agentic=True, can_write=True, trusted_with_ip=False."
+      },
+      {
+       "text": "Selection is done by daedalus.provider_router",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "daedalus.provider_router is not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "ollama declared as read-only in docstring but metadata shows can_write=True.",
+       "where": "module docstring vs _PROVIDERS['ollama']",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "get_provider function only handles three providers (claude_cli, deepseek, ollama) but _PROVIDERS has six; missing fallback.",
+       "where": "get_provider function",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "list_providers, provider_health, available_providers are exported in __all__ but not defined in this chunk.",
+       "where": "__all__ list",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "codex_cli metadata has requires_key=False but comment says auth via codex login; no env_keys set.",
+       "where": "_PROVIDERS['codex_cli']",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "be48bb048788200d0dba0e1d327c0e1415412e37bb50293eb47b565e38f409b8",
+    "objective_chars": 3741,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/providers/__init__.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/providers/__init__.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

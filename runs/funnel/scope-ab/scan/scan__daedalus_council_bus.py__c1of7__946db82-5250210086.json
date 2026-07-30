@@ -1,0 +1,291 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c1of7__946db82",
+ "key": "scan__daedalus_council_bus.py__c1of7__946db82-5250210086",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed bus.py chunk 1 of 7: module docstring, constants, and imports. Verified docstring claims against present code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring | medium | Claims that _resolve_store refuses paths under <repo>/memory/ but _resolve_store is not defined in this chunk. | Check _resolve_store definition in later chunk.",
+     "docstring | medium | Claims that secret_floor_rule has two independent channels (PATH and CONTENT) but the rule itself is imported, not defined. | Verify secret_floor_rule implementation in sensitivity module.",
+     "docstring | medium | Claims that append_round sorts by vendor-namespaced actor id and stamps one chain timestamp, but append_round is not defined here. | Check append_round in later chunk.",
+     "docstring | medium | Claims that a refused receipt names only the rule label, not matched text, and degrades to anonymous if identity fields carry secret. | Verify receipt generation logic in later chunk.",
+     "docstring | medium | Claims that withheld paths are scanned with content channel only, not path channel. | Verify scanning logic in later chunk.",
+     "docstring | low | Claims that memstore.fold_state promotes entry to primary after three confirmations, but memstore is not imported or defined. | This is a design rationale, not a code claim; no action needed.",
+     "docstring | low | Claims that council records are never an input to memory recall, but no enforcement code is present. | Check for enforcement in other files or at runtime."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "1 of 7",
+     "purpose": "Module docstring, imports, constants, and design rationale for append-only hash-chained transcript.",
+     "symbols": [
+      {
+       "name": "ENTRY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant \"dcouncil/1\" marking entry version."
+      },
+      {
+       "name": "ANCHOR_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant \"dcouncil-anchor/1\" marking anchor version."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Resolved Path to project root (two directories up from this file)."
+      },
+      {
+       "name": "DEFAULT_COUNCIL_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Default path for council transcripts: runs/council under ROOT."
+      },
+      {
+       "name": "_FORBIDDEN_STORE_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Forbidden store directory: runs/memory under ROOT."
+      },
+      {
+       "name": "TURN_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of valid turn status values: spoke, refused, unavailable, budget_exhausted, anomaly."
+      },
+      {
+       "name": "UNAVAILABLE_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of machine reasons for unavailable status."
+      },
+      {
+       "name": "ANOMALY_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of machine reasons for anomaly status."
+      }
+     ],
+     "claims": [
+      {
+       "text": "APPEND-ONLY, HASH-CHAINED JSONL file per council at runs/council/<council_id>.jsonl",
+       "where": "docstring line 4",
+       "verdict": "kept",
+       "why": "DEFAULT_COUNCIL_DIR is ROOT / 'runs' / 'council', consistent with claim."
+      },
+      {
+       "text": "every line carries the SHA of the line before it",
+       "where": "docstring line 5",
+       "verdict": "uncheckable",
+       "why": "No line writing or hashing code is present in this chunk."
+      },
+      {
+       "text": "verify_chain NAMES the offending 1-indexed line",
+       "where": "docstring line 5",
+       "verdict": "uncheckable",
+       "why": "verify_chain is not defined in this chunk."
+      },
+      {
+       "text": "TAIL truncation ... caught only against the head/count ANCHOR persisted beside the transcript",
+       "where": "docstring line 6",
+       "verdict": "uncheckable",
+       "why": "Anchor reading/writing functions not present in this chunk."
+      },
+      {
+       "text": "This is dcouncil/1",
+       "where": "docstring line 9",
+       "verdict": "kept",
+       "why": "ENTRY_VERSION is set to 'dcouncil/1'."
+      },
+      {
+       "text": "it deliberately REIMPLEMENTS memstore.py's two-SHA discipline instead of importing it",
+       "where": "docstring line 9",
+       "verdict": "kept",
+       "why": "No import of memstore is present; hashlib is imported."
+      },
+      {
+       "text": "it must never write to the memory ledger",
+       "where": "docstring line 9",
+       "verdict": "kept",
+       "why": "_FORBIDDEN_STORE_DIR is defined as ROOT / 'memory', and _resolve_store (mentioned elsewhere) is expected to refuse it. No write code in this chunk."
+      },
+      {
+       "text": "memstore.fold_state promotes an entry to primary after three independent confirmations",
+       "where": "docstring line 10",
+       "verdict": "uncheckable",
+       "why": "memstore is not imported or defined in this chunk."
+      },
+      {
+       "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL",
+       "where": "docstring line 11",
+       "verdict": "uncheckable",
+       "why": "No enforcement code present in this chunk."
+      },
+      {
+       "text": "Any store path under <repo>/memory/ is refused loudly by _resolve_store",
+       "where": "docstring line 11",
+       "verdict": "uncheckable",
+       "why": "_resolve_store is not defined in this chunk."
+      },
+      {
+       "text": "body_sha -- sha256 over json.dumps(canonical_body, sort_keys=True, separators=(\",\",\":\"), ensure_ascii=True)",
+       "where": "docstring lines 14-16",
+       "verdict": "uncheckable",
+       "why": "No hashing code is present in this chunk."
+      },
+      {
+       "text": "entry_sha -- sha256(prev + \"\\0\" + body_sha + \"\\0\" + ts)",
+       "where": "docstring lines 17-18",
+       "verdict": "uncheckable",
+       "why": "No hashing code is present in this chunk."
+      },
+      {
+       "text": "Genesis prev is None and folds in as \"\"",
+       "where": "docstring line 18",
+       "verdict": "uncheckable",
+       "why": "No chain construction code in this chunk."
+      },
+      {
+       "text": "a turn's id is entry_sha[:16], not body_sha[:16]",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "No id assignment code in this chunk."
+      },
+      {
+       "text": "there is NO dedupe",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "No deduplication logic present; but claim is about absence, so uncheckable."
+      },
+      {
+       "text": "append_round takes a whole round's turns in ANY completion order, sorts them by the vendor-namespaced actor id, assigns seq at chain time, and stamps ONE chain timestamp for the round",
+       "where": "docstring lines 24-26",
+       "verdict": "uncheckable",
+       "why": "append_round is not defined in this chunk."
+      },
+      {
+       "text": "sensitivity.secret_floor_rule has two independent channels and they are fed SEPARATELY here",
+       "where": "docstring lines 29-30",
+       "verdict": "uncheckable",
+       "why": "secret_floor_rule is imported but its implementation is not in this chunk; no scanning code present."
+      },
+      {
+       "text": "PATH channel: every evidence path, INDIVIDUALLY",
+       "where": "docstring line 32",
+       "verdict": "uncheckable",
+       "why": "No scanning code present in this chunk."
+      },
+      {
+       "text": "CONTENT channel: the turn content, every ref, and every metadata string, each scanned on its own",
+       "where": "docstring line 33",
+       "verdict": "uncheckable",
+       "why": "No scanning code present in this chunk."
+      },
+      {
+       "text": "This runs on OUTBOUND turns and ... on INBOUND vendor responses BEFORE they are chained",
+       "where": "docstring line 35",
+       "verdict": "uncheckable",
+       "why": "No scanning or chaining code present in this chunk."
+      },
+      {
+       "text": "A hit REFUSES the turn -- no redact-and-send, no redact-and-store",
+       "where": "docstring line 37",
+       "verdict": "uncheckable",
+       "why": "No refusal logic present in this chunk."
+      },
+      {
+       "text": "a status=\"refused\" receipt is chained naming ONLY the rule label",
+       "where": "docstring line 37",
+       "verdict": "uncheckable",
+       "why": "No receipt generation code in this chunk."
+      },
+      {
+       "text": "The receipt is re-scanned before it is written; if the identity fields themselves carry the secret the receipt degrades to an anonymous one",
+       "where": "docstring lines 38-39",
+       "verdict": "uncheckable",
+       "why": "No receipt scanning or writing code in this chunk."
+      },
+      {
+       "text": "withheld (paths an egress lane declined to send) is scanned with the CONTENT channel only, never the path channel",
+       "where": "docstring lines 41-42",
+       "verdict": "uncheckable",
+       "why": "No scanning code present in this chunk."
+      },
+      {
+       "text": "EVERY REQUESTED PARTICIPANT PRODUCES EXACTLY ONE CHAINED TURN PER ROUND -- content, refused, unavailable with a machine reason, or budget_exhausted",
+       "where": "docstring lines 44-45",
+       "verdict": "uncheckable",
+       "why": "No turn production logic in this chunk."
+      },
+      {
+       "text": "TURN_STATUS is one of these and nothing else. There is deliberately no \"ok\" here",
+       "where": "comment line 6 after constants",
+       "verdict": "kept",
+       "why": "TURN_STATUS tuple contains exactly spoke, refused, unavailable, budget_exhausted, anomaly."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Module docstring makes many detailed claims about behavior, but this chunk only defines constants and imports. Most claims are uncheckable.",
+       "where": "entire docstring",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_resolve_store is referenced in docstring but not defined in this chunk; it is listed in NAMES DEFINED ELSEWHERE IN THIS SAME FILE, so it exists later in the file.",
+       "where": "docstring line 11",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "secret_floor_rule is imported from ..sensitivity, but its two-channel behavior is not verified here.",
+       "where": "docstring lines 29-30",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The constants TURN_STATUS, UNAVAILABLE_REASONS, ANOMALY_REASONS are defined as tuples, consistent with the docstring's description of valid statuses and reasons.",
+       "where": "lines after constants",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "efc7f25368e5177189d8a3ac1e1434632497586d46bf65d7c142935938ed8d9f",
+    "objective_chars": 7632,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [1/7]",
+  "rev": "946db82",
+  "module": "daedalus/council/bus.py",
+  "index": 1,
+  "total": 7,
+  "first_line": 1
+ }
+}

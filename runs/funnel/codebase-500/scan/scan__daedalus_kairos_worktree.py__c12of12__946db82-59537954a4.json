@@ -1,0 +1,133 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c12of12__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c12of12__946db82-59537954a4",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 12 of 12: delete_branch, commit_candidate, has_changes; claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "12 of 12",
+     "purpose": "Define delete_branch, commit_candidate, has_changes methods.",
+     "symbols": [
+      {
+       "name": "delete_branch",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Deletes a branch, first with -d, then with -D if tip matches proven_tip."
+      },
+      {
+       "name": "commit_candidate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Stages and commits all changes in an allocated worktree."
+      },
+      {
+       "name": "has_changes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if worktree has uncommitted changes via git status --porcelain."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``-d`` is tried first so git's own merged-check applies.",
+       "where": "docstring of delete_branch",
+       "verdict": "kept",
+       "why": "Code calls self._run_git('branch', '-d', branch) first."
+      },
+      {
+       "text": "the sha proof (re-taken here, so the branch cannot have moved in between) is what authorises ``-D``.",
+       "where": "docstring of delete_branch",
+       "verdict": "kept",
+       "why": "Code retrieves tip via rev-parse and compares to proven_tip before force delete."
+      },
+      {
+       "text": "The force flag is never reached without that proof.",
+       "where": "docstring of delete_branch",
+       "verdict": "kept",
+       "why": "Force delete (branch -D) is only executed after the tip check passes; otherwise RuntimeError is raised."
+      },
+      {
+       "text": "Commits all changes in the specified worktree.",
+       "where": "docstring of commit_candidate",
+       "verdict": "kept",
+       "why": "Code runs git add -A and git commit in the worktree."
+      },
+      {
+       "text": "The path is proven to be an allocated worktree first: a swapped directory would otherwise turn ``git add -A`` + ``git commit`` into a commit of the developer's working tree.",
+       "where": "docstring of commit_candidate",
+       "verdict": "uncheckable",
+       "why": "The method _require_allocated_worktree is not defined in this chunk; its behaviour cannot be verified."
+      },
+      {
+       "text": "Return whether the candidate worktree differs from its HEAD.",
+       "where": "docstring of has_changes",
+       "verdict": "kept",
+       "why": "Code runs git status --porcelain and returns bool of the output."
+      }
+     ],
+     "observations": [
+      {
+       "what": "delete_branch uses 'proven_tip' parameter to authorise force deletion; the docstring explains the logic.",
+       "where": "delete_branch method",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "commit_candidate calls _require_allocated_worktree but that method is not defined in this chunk.",
+       "where": "commit_candidate method",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "has_changes returns bool of git status --porcelain output; empty string is falsy.",
+       "where": "has_changes method",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ad15468a552c64362a2e5c07e60c8374e9570ec102b9de086a6d8b87f4fba258",
+    "objective_chars": 2467,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [12/12]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 12,
+  "total": 12,
+  "first_line": 1321
+ }
+}

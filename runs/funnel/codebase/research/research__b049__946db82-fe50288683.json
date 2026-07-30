@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b049__946db82",
+ "key": "research__b049__946db82-fe50288683",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three hypotheses: (1) git invocation patterns differ between churn.py and other modules, risking inconsistent failure handling; (2) module boundary assumptions about 'static' functions contradict each other; (3) path resolution assumptions differ between mint.py and reach.py, risking incorrect repo root identification.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Inconsistent git invocation patterns may cause silent failures in some paths but not others.",
+     "Unchecked external function dependencies (e.g., lane_for_host) could break static guarantees.",
+     "Path resolution discrepancies may lead to incorrect repo root detection and minting failures."
+    ],
+    "todos": [
+     "Verify that all git subprocess calls use the same error-handling contract (return empty on failure).",
+     "Ensure 'static' functions in vet.py have explicit error handling to match fail-closed claims.",
+     "Review path resolution logic across mint.py and reach.py for consistency."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "git-subprocess-contract",
+       "claim": "Multiple modules (churn.py, mint.py) use git subprocess calls but do not share a consistent error-handling contract: churn.py returns empty dict/list on failure, while mint.py's _git returns None on failure. This inconsistency could lead to silent data loss or unexpected behavior in callers that expect a specific return type.",
+       "spans": [
+        "daedalus/structcore/churn.py",
+        "daedalus/eval/mint.py"
+       ],
+       "mechanism": "churn.py's git_churn and co_change_pairs catch exceptions and return {} or []. mint.py's _git returns None on failure. If a function in mint.py calls _git and expects a dict or list, it may crash or misbehave when None is returned. No shared utility enforces a uniform contract.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "Finding that all callers of _git in mint.py explicitly handle None values without assuming a sequence type, or that a shared git utility is used by both modules.",
+       "evidence": [
+        "daedalus/structcore/churn.py:git_churn (returns {} on failure)",
+        "daedalus/eval/mint.py:_git (returns None on failure)"
+       ]
+      },
+      {
+       "id": "static-function-assumptions",
+       "claim": "vet.py claims its functions are 'static' and 'fail-closed', but they rely on external functions (apply_allowances, lane_for_host, mcp_spec_digest) that are not defined in the chunk and may have side effects or raise exceptions, violating the static guarantee. Meanwhile, reach.py's _shim_body and other functions are genuinely static (no I/O). This asymmetry means vet.py's contract is weaker than stated.",
+       "spans": [
+        "daedalus/tools/vet.py",
+        "daedalus/mapping/reach.py"
+       ],
+       "mechanism": "vet_skill and vet_mcp_server call undefined external functions. If those functions perform I/O or raise exceptions, the 'static, fail-closed' promise is broken. In contrast, reach.py functions like _shim_body operate purely on AST nodes with no external dependencies.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Finding that apply_allowances, lane_for_host, and mcp_spec_digest are also purely static (no I/O, no exceptions) and defined elsewhere in the codebase, or that vet.py wraps calls in try/except to enforce fail-closed behavior.",
+       "evidence": [
+        "daedalus/tools/vet.py:vet_skill (calls apply_allowances, _clip, etc.)",
+        "daedalus/mapping/reach.py:_shim_body (no external calls)"
+       ]
+      },
+      {
+       "id": "path-resolution-discrepancy",
+       "claim": "mint.py assumes repo paths are absolute and stored as such in the mint store, while reach.py's _resolve uses resolve_python_imports to compute relative paths. If a minted task stores a relative path or if reach.py encounters an absolute path, the two modules may disagree on file locations, leading to incorrect import resolution or minting failures.",
+       "spans": [
+        "daedalus/eval/mint.py",
+        "daedalus/mapping/reach.py"
+       ],
+       "mechanism": "mint.py's docstring states that the repo is stored as an absolute path in the mint store. reach.py's _resolve (incomplete) is supposed to resolve imports to relative paths. If reach.py receives an absolute path where a relative one is expected, or vice versa, resolve_python_imports may fail or produce incorrect results.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Finding that reach.py's _resolve explicitly handles both absolute and relative paths, or that mint.py always passes a relative path to reach.py, or that resolve_python_imports accepts absolute paths.",
+       "evidence": [
+        "daedalus/eval/mint.py: docstring (absolute path storage)",
+        "daedalus/mapping/reach.py:_resolve (uses resolve_python_imports, undefined)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9cf95cd4d342c3256ced27c4ef5e1307a05449f8eceb43de64b4caefc22b3ce4",
+    "objective_chars": 37347,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 49 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 49,
+  "inputs": 5
+ }
+}

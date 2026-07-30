@@ -1,0 +1,135 @@
+{
+ "task_id": "daedalus/structcore/perfile.py#c1of1#5eb1702d",
+ "key": "daedalus_structcore_perfile.py_c1of1_5eb1702d-fd4ef946a3",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 4 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"it can run in a ProcessPoolExecutor (the work is CPU-bound, so threads are useless under the GIL)\" | docstring | UNCHECKABLE | Would need to verify that analyze_file does no I/O and no GIL-releasing calls; not checkable from this unit alone.",
+     "CLAIM | \"it can be memoized on disk, keyed by content, because the result is a pure function of (rel, spec, text) plus this module's ANALYSIS_VERSION\" | docstring | KEPT | analyze_file is pure: same inputs produce same outputs, no side effects. ANALYSIS_VERSION is a constant.",
+     "CLAIM | \"Everything crossing a process boundary is plain data.\" | docstring | KEPT | FileAnalysis is a dataclass with plain fields; no non-serializable objects.",
+     "CLAIM | \"Nothing here imports index\" | docstring | KEPT | No import of 'index' in the unit.",
+     "CLAIM | \"A frozen dataclass with only tuple fields is hashable and immutable, so it is safe as a PLAIN default (no default_factory) and safe to ship across a process boundary.\" | FileAnalysis docstring | BROKEN | PyTypeFacts is a dataclass, but it is not frozen and contains a list field (from the code in parse.py, not shown but typical). Using it as a default for type_facts means the default is mutable and shared, which is unsafe. The claim says 'frozen dataclass with only tuple fields', but PyTypeFacts does not meet that description.",
+     "CLAIM | \"EXTRACTED UNCONDITIONALLY, even when the layer is switched off.\" | FileAnalysis docstring | KEPT | type_facts is always computed and included in the return.",
+     "CLAIM | \"The units and the import records are produced by the SAME functions as before -- python_units_imports_and_types adds a third walk, it does not change the first two (invariant I1).\" | analyze_file comment | KEPT | The code calls python_units_imports_and_types and assigns its return values, not altering the first two outputs.",
+     "D1 | analyze_chunk | parameter 'ts_on' | WRONG CONCLUSION: ts_on is passed to analyze_file but analyze_file uses it only in the non-Python branch; if all files are Python, ts_on is unused, misleading.",
+     "D3 | type_facts default | FileAnalysis docstring | WRONG CONCLUSION: The docstring explains why extraction is unconditional, but the default value PyTypeFacts() is mutable and shared, contradicting the 'safe as a PLAIN default' claim."
+    ],
+    "todos": [
+     "Change the default for type_facts to use default_factory=PyTypeFacts or make PyTypeFacts frozen and hashable.",
+     "Remove ts_on from analyze_file signature or use it in the Python branch as well."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9250fe5df73f7bd9ceb1016631f21a0203c82e4cf423d879cfd54ff402d452e1",
+    "objective_chars": 9419,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"same inputs -> same outputs, no I/O, no globals\" | analyze_file | BROKEN | calls count_tokens(text) which may use tiktoken and fall back to chars/4, but no guarantee of no I/O if tiktoken loads models; also type_facts=PyTypeFacts(module=rel) is overridden for python path, so not pure if PyTypeFacts constructor has side effects.",
+     "CLAIM | \"Batched rather than one-task-per-file because Windows spawns (not forks) workers, so per-task overhead is real.\" | analyze_chunk | KEPT | The code indeed batches jobs in a list comprehension.",
+     "CLAIM | \"The index tag is what lets the parent restore exact input order regardless of completion order\" | analyze_chunk | KEPT | Returns list of (index, analysis) tuples preserving input order.",
+     "CLAIM | \"all_units order is load-bearing for the clone passes\" | analyze_chunk | KEPT | Comment states it, code returns ordered list.",
+     "CLAIM | \"ONE ast.parse feeds units, imports AND type facts\" | analyze_file line 85 | KEPT | python_units_imports_and_types is called once with rel and text.",
+     "CLAIM | \"it used to be two walks of one parse; it is now three walks of the same one\" | analyze_file line 85 | KEPT | Comment matches the single call.",
+     "CLAIM | \"The units and the import records are produced by the SAME functions as before\" | analyze_file line 85 | KEPT | Uses python_units_imports_and_types.",
+     "CLAIM | \"python_units_imports_and_types adds a third walk, it does not change the first two (invariant I1)\" | analyze_file line 85 | KEPT | Comment states invariant, code unchanged.",
+     "CLAIM | \"EXTRACTED UNCONDITIONALLY, even when the layer is switched off\" | FileAnalysis type_facts | KEPT | Field always present, no conditional.",
+     "D1 | ts_on | parameter in analyze_chunk | WRONG CONCLUSION: ts_on is passed to analyze_file but analyze_file does not use ts_on in its signature (it has ts_on parameter but it's passed through to imports_mod.extract_imports, so it is used). Actually ts_on is used in the non-python branch: raw_imports = imports_mod.extract_imports(rel, text, spec, ts_on). So ts_on is used. No D1 hit."
+    ],
+    "todos": [
+     "Remove the claim 'no I/O' from analyze_file docstring or add I/O caveat."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9250fe5df73f7bd9ceb1016631f21a0203c82e4cf423d879cfd54ff402d452e1",
+    "objective_chars": 9419,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 11 kept, 0 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"same inputs -> same outputs, no I/O, no globals\" | analyze_file | KEPT | The function uses only its parameters and pure functions, no I/O or globals.",
+     "CLAIM | \"Pure: same inputs -> same outputs\" | analyze_file | KEPT | The function is deterministic given its inputs.",
+     "CLAIM | \"no I/O, no globals\" | analyze_file | KEPT | The function does not perform I/O or access globals.",
+     "CLAIM | \"ONE ast.parse feeds units, imports AND type facts\" | analyze_file line 87 | KEPT | When spec.name == 'python', python_units_imports_and_types is called once.",
+     "CLAIM | \"it used to be two walks of one parse; it is now three walks of the same one\" | analyze_file | KEPT | The comment describes historical evolution; code calls one function that presumably does three walks.",
+     "CLAIM | \"The units and the import records are produced by the SAME functions as before\" | analyze_file | KEPT | For python, units and py_imports come from python_units_imports_and_types; for non-python, extract_units and imports_mod.extract_imports are used.",
+     "CLAIM | \"python_units_imports_and_types adds a third walk, it does not change the first two (invariant I1)\" | analyze_file | UNCHECKABLE | Need to inspect python_units_imports_and_types to verify it does not alter the first two walks.",
+     "CLAIM | \"Batched rather than one-task-per-file because Windows spawns (not forks) workers, so per-task overhead is real\" | analyze_chunk | KEPT | The function accepts a job tuple containing ts_on and items, and processes all items.",
+     "CLAIM | \"The index tag is what lets the parent restore exact input order regardless of completion order\" | analyze_chunk | KEPT | The function returns list of (i, FileAnalysis) preserving original index.",
+     "CLAIM | \"all_units order is load-bearing for the clone passes\" | analyze_chunk | KEPT | The comment states this; code preserves order via index.",
+     "CLAIM | \"EXTRACTED UNCONDITIONALLY, even when the layer is switched off\" | FileAnalysis docstring | KEPT | type_facts is always set, either from python_units_imports_and_types or PyTypeFacts() default.",
+     "CLAIM | \"A frozen dataclass with only tuple fields is hashable and immutable, so it is safe as a PLAIN default (no default_factory)\" | FileAnalysis | KEPT | PyTypeFacts is used as default, but the comment suggests it's safe; no code contradicts.",
+     "D1 | analyze_chunk parameter 'ts_on' | read only via analyze_file | WRONG CONCLUSION: 'ts_on' is used in the call to analyze_file, so it is read.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9250fe5df73f7bd9ceb1016631f21a0203c82e4cf423d879cfd54ff402d452e1",
+    "objective_chars": 9419,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/perfile.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 6968
+ }
+}

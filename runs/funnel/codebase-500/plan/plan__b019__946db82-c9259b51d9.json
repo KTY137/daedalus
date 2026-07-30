@@ -1,0 +1,144 @@
+{
+ "task_id": "plan__b019__946db82",
+ "key": "plan__b019__946db82-c9259b51d9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "3 items: fix silent anchor failure in council/bus.py, verify lane assignment in council/session.py and providers/ollama.py, verify exception handling in kairos/gated_writes.py. Gate 0 for anchor fix, Gate 1 for others.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Fixing anchor silent failure may change behavior of verify_chain; existing tests may rely on silent skip.",
+     "Lane assignment gap is critical but unconfirmed; inspection may find no issue, wasting effort.",
+     "Exception leak fix may require broader exception handling or docstring update."
+    ],
+    "todos": [
+     "Inspect default_participants in council/session.py for lane setting.",
+     "Inspect Ollama provider's _run_rewrite for lane check.",
+     "Read full ceiling.py and inventory.py to verify docstring claims.",
+     "Implement fix for anchor silent failure in council/bus.py.",
+     "Implement exception handling or update docstring in kairos/gated_writes.py."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix silent anchor failure in council/bus.py",
+       "gate": "0",
+       "why_now": "Corrupt anchor file silently disables truncation detection, allowing undetected data corruption. This is a core integrity issue.",
+       "steps": [
+        {
+         "do": "In read_anchor, add logging when JSONDecodeError occurs instead of silently returning None.",
+         "file": "daedalus/council/bus.py",
+         "verified_by": "Create corrupt anchor file, run verify_chain, observe log message about corrupt anchor."
+        },
+        {
+         "do": "In verify_chain, when read_anchor returns None, raise an exception or at least log a warning to ensure truncation detection is not silently disabled.",
+         "file": "daedalus/council/bus.py",
+         "verified_by": "Run verify_chain with corrupt anchor, observe error or warning instead of silent skip."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Changing behavior to raise an exception may break callers that expect silent skip; we assume that is acceptable for integrity."
+      },
+      {
+       "rank": 2,
+       "title": "Verify lane assignment in council/session.py and providers/ollama.py",
+       "gate": "1",
+       "why_now": "If default_participants does not set lane and providers do not check lane, adapters may run with unintended privileges, a critical security gap. Must be resolved before first end-to-end slice.",
+       "steps": [
+        {
+         "do": "Inspect default_participants function in council/session.py to see if lane is set.",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Read full function; if lane is not set, file a bug."
+        },
+        {
+         "do": "Inspect Ollama provider's _run_rewrite method to see if it checks lane before writing files.",
+         "file": "daedalus/providers/ollama.py",
+         "verified_by": "Read full method; if lane is not checked, file a bug."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume the finding's narrowed claim is plausible; inspection may reveal no issue."
+      },
+      {
+       "rank": 3,
+       "title": "Fix exception leak in kairos/gated_writes.py",
+       "gate": "1",
+       "why_now": "promote_candidates may raise exceptions other than PromotionUnavailable, violating its docstring claim. This can cause unhandled crashes and undermines reliability before first slice.",
+       "steps": [
+        {
+         "do": "Grep for exception handling in gated_writes.py to confirm only PromotionUnavailable is caught.",
+         "file": "daedalus/kairos/gated_writes.py",
+         "verified_by": "Run: grep -n 'except\\|raise' daedalus/kairos/gated_writes.py | head -20"
+        },
+        {
+         "do": "Add broader exception handling or update docstring to reflect actual behavior.",
+         "file": "daedalus/kairos/gated_writes.py",
+         "verified_by": "Run tests; ensure no unhandled exceptions from git operations."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume the finding's cited source is incomplete; full file may have more exception handling."
+      },
+      {
+       "rank": 4,
+       "title": "Verify docstring vs code in ceiling.py and inventory.py",
+       "gate": "1",
+       "why_now": "Docstring claims may not match implementation due to incomplete scanning. Must be resolved to ensure documentation accuracy before first slice.",
+       "steps": [
+        {
+         "do": "Read full ceiling.py to verify docstring-described behavior is implemented.",
+         "file": "daedalus/eval/ceiling.py",
+         "verified_by": "Manual inspection; compare docstring with implementation."
+        },
+        {
+         "do": "Read full inventory.py to verify docstring-described behavior is implemented.",
+         "file": "daedalus/mapping/inventory.py",
+         "verified_by": "Manual inspection; compare docstring with implementation."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "We assume the finding's narrowed claim is accurate; full files may show implementation matches docstring."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/council/bus.py",
+      "daedalus/kairos/gated_writes.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "544300ce09f9daee01fe8498302e62f9bba29679023fba979993bc6dc774a572",
+    "objective_chars": 146205,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 19 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 19,
+  "inputs": 4
+ }
+}

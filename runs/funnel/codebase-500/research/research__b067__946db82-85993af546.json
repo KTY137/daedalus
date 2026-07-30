@@ -1,0 +1,137 @@
+{
+ "task_id": "research__b067__946db82",
+ "key": "research__b067__946db82-85993af546",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three cross-cutting patterns: (1) gate/discrimination logic is duplicated across bootstrap and correctness modules with inconsistent handling of receipts; (2) the 'writes nothing' contract in inventory's build() is unverifiable and conflicts with correctness module's file writes; (3) index gates claim additive keys but depend on external modules not shown to enforce isolation, risking silent cache hits.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Duplicate gate logic may diverge, allowing invalid states to pass one gate but not the other.",
+     "Unverifiable 'writes nothing' contract in build() could lead to side effects that corrupt index or corpus data.",
+     "Index gate isolation is not enforced by the code in the reports; a cache hit could serve stale data with wrong layer configuration.",
+     "The correctness module's CORPUS_NOTE makes unverifiable claims about corpus structure; if those claims are wrong, evaluation results are invalid.",
+     "ShadowResult docstring claims 'never promotes' but no promotion logic is shown; if promotion is later added, the docstring becomes a lie."
+    ],
+    "todos": [
+     "Verify that bootstrap's gate discrimination and correctness's run_corpus use the same receipt format and validation logic.",
+     "Add an explicit assertion in inventory.build() that no filesystem writes occur, or document the actual side effects.",
+     "Add integration tests that toggle index gates and verify that the output dict is byte-identical except for the claimed additive keys.",
+     "Implement a test that checks the corpus file structure matches CORPUS_NOTE claims.",
+     "Review ShadowResult for any promotion logic; if none exists, add a test that asserts it cannot promote."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-gate-discrimination",
+       "claim": "The gate discrimination logic in bootstrap.py and the receipt validation in correctness.py implement overlapping but inconsistent checks for task/gate validity, creating a risk that a gate can pass one check but fail the other.",
+       "spans": [
+        "daedalus/spine/bootstrap.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "bootstrap.py validates a gate receipt by checking head hash, gate binding, planted/killed counts, kill rate floor, and critical defect classes. correctness.py's verify_before_state runs tests and checks selection, but also references a 'gate' concept (selection_digest) that is not validated in the same way. The two modules do not share a common receipt format or validation function, so a task could pass correctness's checks but fail bootstrap's discrimination, or vice versa.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If both modules use a shared receipt validation function (e.g., a common utility) that is called consistently, the duplication is benign.",
+       "evidence": [
+        "daedalus/spine/bootstrap.py: lines 361-434 (gate discrimination logic with multiple failure messages)",
+        "daedalus/eval/correctness.py: verify_before_state docstring and function (runs tests, checks selection, returns BeforeState)",
+        "daedalus/eval/correctness.py: run_corpus docstring (describes outcome counting but not receipt validation)"
+       ]
+      },
+      {
+       "id": "unverifiable-writes-contract",
+       "claim": "The inventory module's build() function claims to write nothing, but the correctness module's save_correctness_tasks writes files and references harness.write_baseline, suggesting that a similar unverifiable 'no-write' contract exists elsewhere and may be violated.",
+       "spans": [
+        "daedalus/mapping/inventory.py",
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "inventory.py's build() docstring states 'Writes nothing.' but the chunk does not show the end of the function, so we cannot verify no writes occur. correctness.py's save_correctness_tasks explicitly writes to disk and references harness.write_baseline and mint.save_minted_tasks, which are not in the chunk. If build() actually writes files (e.g., for caching or logging), it would violate its contract and could interfere with other modules that assume no side effects.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the complete build() function is examined and contains no filesystem writes, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/mapping/inventory.py: build() docstring line 601 ('Derive the whole document. Writes nothing.')",
+        "daedalus/eval/correctness.py: save_correctness_tasks docstring line 1264 ('Overwrite the corpus. Deterministic formatting, same contract as harness.write_baseline / mint.save_minted_tasks.')"
+       ]
+      },
+      {
+       "id": "index-gate-isolation-unenforced",
+       "claim": "The index module's feature gates (documents, types, wiki) claim to add keys without touching existing ones, but the code in the reports does not show how that isolation is enforced across the many downstream consumers (e.g., clone passes, graph nodes), and a cache miss could serve stale data.",
+       "spans": [
+        "daedalus/structcore/index.py",
+        "daedalus/mapping/inventory.py"
+       ],
+       "mechanism": "index.py defines gates that return booleans, but the actual filtering of keys happens in modules not present (forest.py, graph._graph_nodes, etc.). inventory.py's build() processes entry points and modules but does not reference the index gates. If a downstream module does not respect the gate, it could include excluded data. Additionally, the disk cache (mentioned in index.py comments) could serve a result built with one gate configuration to a request with a different configuration, because the cache key may not include the gate flags.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If all downstream consumers are shown to check the gate flags before including the corresponding keys, and the cache key includes the gate flags, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/index.py: documents_enabled, types_enabled, wiki_enabled functions (return bool based on flag/env)",
+        "daedalus/structcore/index.py: comments lines 129-131 ('Documents are excluded from all four clone passes...') and lines 172-175 ('Type nodes are excluded...')",
+        "daedalus/mapping/inventory.py: build() function (processes modules but no gate checks visible)"
+       ]
+      },
+      {
+       "id": "corpus-note-unverifiable-claims",
+       "claim": "The CORPUS_NOTE in correctness.py makes many claims about corpus structure, seeding, and verification that are not backed by code in the reports, creating a risk that the corpus is not actually structured as documented.",
+       "spans": [
+        "daedalus/eval/correctness.py"
+       ],
+       "mechanism": "CORPUS_NOTE describes a corpus with before-state measurement, selection_digest, dropped_candidates, and verification commands. However, the chunk only shows verify_before_state, load/save_correctness_tasks, and run_corpus. The seeding logic, selection_digest validation, and dropped_candidates recording are not present. If the actual implementation differs from the note, users may misunderstand the corpus's guarantees.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If the complete correctness.py file is examined and all claims in CORPUS_NOTE are implemented, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/eval/correctness.py: CORPUS_NOTE constant lines 1250-1260",
+        "daedalus/eval/correctness.py: verify_before_state docstring (claims to measure only before-state but does more)"
+       ]
+      },
+      {
+       "id": "shadowresult-promise-unchecked",
+       "claim": "ShadowResult's docstring claims it 'never promotes', but the class only stores data and no promotion logic is shown; if promotion is later added without updating the docstring, the claim becomes a lie.",
+       "spans": [
+        "daedalus/spine/bootstrap.py"
+       ],
+       "mechanism": "ShadowResult is a dataclass with fields like planted, killed, etc. The docstring says 'One shadow iteration. Never promotes, and says so in words.' However, the chunk does not show any code that prevents promotion (e.g., a check that rejects promotion attempts). If a downstream function uses ShadowResult as input to a promotion decision without verifying it is a shadow, it could inadvertently promote a shadow result.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "If the codebase contains an explicit check that prevents ShadowResult from being used in promotion (e.g., a type guard or a method that raises), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/bootstrap.py: ShadowResult class definition line 436"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c715aec75e602ddd515c624bf8edb1e06a67e7f9f7985112823a3ce66bcded19",
+    "objective_chars": 22557,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 67 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 67,
+  "inputs": 4
+ }
+}

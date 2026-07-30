@@ -1,0 +1,118 @@
+{
+ "task_id": "research__b047__946db82",
+ "key": "research__b047__946db82-38b4ee1f7f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypothesis: contract inconsistency on lane assignment and localhost detection across council, providers, and lanes modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Lane assignment default may allow untrusted adapters to run in trusted lane, bypassing security checks.",
+     "Localhost detection inconsistent between council and providers could lead to misrouting of local requests.",
+     "Determinism claim in DSS pipeline may be violated by external dependencies not guaranteed deterministic."
+    ],
+    "todos": [
+     "Verify if default_participants sets lane argument for adapters; if not, ensure lane is set from profile.",
+     "Check _is_local_http regex coverage and align with provider routing logic.",
+     "Confirm determinism of all external functions called in semantic_super_sample."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "lane-assignment-gap",
+       "claim": "The council's default_participants does not set lane on adapters, relying on profiles, but the providers may assume a default lane (e.g., trusted) that contradicts the council's untrusted assumption, creating a security gap.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "In session.py, default_participants creates adapters without a lane argument, expecting profiles to set it. In ollama.py, the provider may assume a default lane (e.g., trusted) for its operations. If the profile does not set lane, the adapter may run in an unintended lane, allowing untrusted code to execute with trusted privileges.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "Evidence that default_participants always sets lane explicitly from profile, or that providers check lane before executing sensitive operations.",
+       "evidence": [
+        "daedalus/council/session.py:default_participants (no lane argument in chunk)",
+        "daedalus/providers/ollama.py:_run_rewrite (writes files without lane check)"
+       ]
+      },
+      {
+       "id": "localhost-detection-mismatch",
+       "claim": "The council's _is_local_http uses a regex and localhost set, but the providers may use a different method (e.g., OLLAMA_HOST env var) to determine local vs remote, leading to inconsistent routing decisions.",
+       "spans": [
+        "daedalus/council/session.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "In session.py, _is_local_http checks if host is in _LOCAL_HOSTS (loopback/localhost). In ollama.py, DEFAULT_BENCH_OLLAMA_HOST may read OLLAMA_HOST env var, which could be set to a remote host. The council may consider a request local while the provider treats it as remote, or vice versa, causing misrouting or security bypass.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Evidence that both modules use the same host resolution logic, or that OLLAMA_HOST is never used for routing decisions.",
+       "evidence": [
+        "daedalus/council/session.py:_is_local_http (regex + _LOCAL_HOSTS)",
+        "daedalus/providers/ollama.py:DEFAULT_BENCH_OLLAMA_HOST (env var reference in default_participants)"
+       ]
+      },
+      {
+       "id": "determinism-breach",
+       "claim": "The DSS pipeline in dss.py claims determinism but calls external functions (build_forest_hierarchy, carry_temporal_scores, etc.) that may not be deterministic, breaking reproducibility.",
+       "spans": [
+        "daedalus/structcore/dss.py",
+        "daedalus/lanes/graph_brief.py"
+       ],
+       "mechanism": "In dss.py, semantic_super_sample's docstring claims 'deterministic' pipeline. However, it calls functions like build_forest_hierarchy and carry_temporal_scores whose implementations are not shown. If those functions rely on unordered data structures (e.g., sets) or random seeds, the output may vary between runs, invalidating the determinism guarantee.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Evidence that all called functions are deterministic (e.g., use sorted iteration, no randomness).",
+       "evidence": [
+        "daedalus/structcore/dss.py:semantic_super_sample (docstring claims determinism, calls external functions)",
+        "daedalus/lanes/graph_brief.py:graph_brief (reads filesystem, may be non-deterministic if file order varies)"
+       ]
+      },
+      {
+       "id": "exception-silence-risk",
+       "claim": "The render_brief function in graph_brief.py catches all exceptions and returns empty string, which may silently hide errors that should propagate, causing downstream failures.",
+       "spans": [
+        "daedalus/lanes/graph_brief.py",
+        "daedalus/providers/ollama.py"
+       ],
+       "mechanism": "In graph_brief.py, render_brief wraps graph_brief in a try-except that returns '' on any exception. If graph_brief fails due to filesystem issues or data corruption, the error is swallowed. Downstream code in ollama.py may rely on the brief being non-empty or valid, leading to silent data loss or incorrect behavior.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Evidence that all callers of render_brief handle empty string gracefully, or that exceptions are logged.",
+       "evidence": [
+        "daedalus/lanes/graph_brief.py:render_brief (catches all exceptions, returns '')",
+        "daedalus/providers/ollama.py:_run_rewrite (may use brief for context, no error handling shown)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e98ed35fa2e7faca840857f9af4feab6737b6aedc603e5457aa3ff18cf815a7c",
+    "objective_chars": 26003,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 47 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 47,
+  "inputs": 4
+ }
+}

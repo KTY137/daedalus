@@ -1,0 +1,162 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c6of10__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c6of10__946db82-1c65dcd6d3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of typegraph.py: resolve and _resolve methods, _Site named tuple, _canon function. Claims about resolution tiers and star imports are checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_resolve | medium | The logic for star imports when cands exist and star_cands differ adds both sets to cands, potentially creating duplicates before dedup. | Check if duplicates cause issues; consider using set union or dedup earlier.",
+     "_resolve | medium | The condition 'not cands and not saw_binding' for star-only resolution may miss cases where saw_binding is False but cands is empty due to other reasons. | Verify that saw_binding is correctly set for all import paths."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "6 of 10",
+     "purpose": "Resolve name to declaration using tiered strategy; define _Site and _canon.",
+     "symbols": [
+      {
+       "name": "resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public method with caching; delegates to _resolve."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Implements resolution tiers: local, dotted/bare candidates, star imports, then fallback to UNRESOLVED."
+      },
+      {
+       "name": "_Site",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "NamedTuple for annotation slot information."
+      },
+      {
+       "name": "_canon",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Produces JSON-canonical form of attribute values for sorting."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tier 1: declared in THIS file, matched on the full in-file qualname.",
+       "where": "_resolve, line ~620",
+       "verdict": "kept",
+       "why": "Code calls self._declared(importer, name) and returns RESOLVED if local is truthy."
+      },
+      {
+       "text": "Tier 2: through this file's own import statements.",
+       "where": "_resolve, line ~626",
+       "verdict": "kept",
+       "why": "If local is falsy, code proceeds to dotted or bare candidates, which use the file's imports."
+      },
+      {
+       "text": "``import *`` binds bare names only, so a dotted spelling is never a star's doing and the star tables are not consulted.",
+       "where": "_resolve, line ~631",
+       "verdict": "kept",
+       "why": "The code explicitly checks if '.' in name and if so, uses _dotted_candidates and does not consult star imports."
+      },
+      {
+       "text": "A star is the ONLY route to this name. See ``_star_candidates``: a star can prove an AMBIGUITY and can never prove a BINDING, so the candidates are kept for the report and ``starred`` refuses the resolution below.",
+       "where": "_resolve, lines ~637-642",
+       "verdict": "kept",
+       "why": "When not cands and not saw_binding, cands is set to star_cands, saw_binding set to True, starred set to bool(cands). Later, if starred is True, returns AMBIGUOUS."
+      },
+      {
+       "text": "An explicit binding AND a star that reaches a DIFFERENT declaration of the same name. Which one wins is statement order plus the star module's ``__all__``, i.e. not something this table can read -- so the two disagree and the answer is refused, exactly as for ``try``/``except``.",
+       "where": "_resolve, lines ~643-648",
+       "verdict": "kept",
+       "why": "When star_cands - cands is non-empty, cands is extended with star_cands, leading to len(unique) > 1 and AMBIGUOUS."
+      },
+      {
+       "text": "Exactly one candidate, reachable only through ``import *``. NOT a resolution: ``__all__`` and the leading-underscore rule are both invisible here, and an unseen star module may supply the name too. Counted as AMBIGUOUS rather than UNRESOLVED because the candidate is real and naming it in the sample is what makes the refusal actionable",
+       "where": "_resolve, lines ~652-658",
+       "verdict": "kept",
+       "why": "When starred is True and len(unique)==1, returns AMBIGUOUS with the candidate."
+      },
+      {
+       "text": "The bindings DISAGREE about where the name comes from, and at least one of them is a type we can see. Emitting the visible one is the false edge I5 exists to prevent: which import wins is a property of the environment (a try/except ImportError pair), not of the source.",
+       "where": "_resolve, lines ~659-665",
+       "verdict": "kept",
+       "why": "When len(targets)>1 and unique is non-empty, returns AMBIGUOUS with unique."
+      },
+      {
+       "text": "Tier 3: nothing -- but say WHICH nothing.",
+       "where": "_resolve, line ~667",
+       "verdict": "kept",
+       "why": "After all checks, returns EXTERNAL, BUILTIN, VOCABULARY, or UNRESOLVED based on saw_binding and head."
+      },
+      {
+       "text": "JSON-canonical form of an attribute value, for the sort key.",
+       "where": "_canon docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is incomplete in this chunk; cannot verify behavior beyond the docstring."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _resolve method returns _Outcome instances; _Outcome is not defined in this chunk.",
+       "where": "_resolve",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _canon function is incomplete; only the first few lines are present.",
+       "where": "_canon",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _star_imports and _star_candidates methods are called but not defined in this chunk.",
+       "where": "_resolve",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ad13fa4d683744dcc896e588624866fc7d02a0b8e1f9840607e0fa388b963048",
+    "objective_chars": 6087,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [6/10]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 6,
+  "total": 10,
+  "first_line": 601
+ }
+}

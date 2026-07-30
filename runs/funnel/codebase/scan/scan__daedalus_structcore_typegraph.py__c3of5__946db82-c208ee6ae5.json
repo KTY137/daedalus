@@ -1,0 +1,255 @@
+{
+ "task_id": "scan__daedalus_structcore_typegraph.py__c3of5__946db82",
+ "key": "scan__daedalus_structcore_typegraph.py__c3of5__946db82-c208ee6ae5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of typegraph.py: implements _star_candidates, _dotted_candidates, resolve, _resolve, _Site, helper functions, and resolve_type_graph entry point.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_resolve | medium | Starred candidate logic may misclassify ambiguous star imports. | Verify with test cases where star import yields exactly one candidate but another module also supplies it.",
+     "_dotted_candidates | medium | Ambiguity detection in dotted resolution may miss some cases when alias kinds differ. | Add tests with mixed import and from-import aliases for the same head.",
+     "resolve_type_graph | medium | Large duplicate_declarations count may indicate performance issue. | Profile on large repos to assess impact."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/typegraph.py",
+     "chunk": "3 of 5",
+     "purpose": "Define star and dotted candidate resolution, the resolve ladder, _Site, helpers, and the main resolve_type_graph function.",
+     "symbols": [
+      {
+       "name": "_star_candidates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves a bare name via star imports; returns list of candidate node IDs."
+      },
+      {
+       "name": "_dotted_candidates",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves dotted name via bindings of the head segment; returns candidates, flags, and targets."
+      },
+      {
+       "name": "resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public method caching _resolve results."
+      },
+      {
+       "name": "_resolve",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Implements the resolution ladder: local, imports, fallback."
+      },
+      {
+       "name": "_Site",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "NamedTuple representing one annotation slot with resolution context."
+      },
+      {
+       "name": "_canon",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns JSON-canonical form of an attribute value for sorting."
+      },
+      {
+       "name": "_edge_key",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns sort key for an edge mapping."
+      },
+      {
+       "name": "_dedupe_fields",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Deduplicates FieldDecl records per (owner, name) using ranking."
+      },
+      {
+       "name": "_field_rank",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns sort key for a FieldDecl."
+      },
+      {
+       "name": "_member_names",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of member names from fields and signatures for a qualname."
+      },
+      {
+       "name": "resolve_type_graph",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Entry point: resolves raw per-file type facts into the published type layer."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A star is the ONLY route to this name. See ``_star_candidates``: a star can prove an AMBIGUITY and can never prove a BINDING, so the candidates are kept for the report and ``starred`` refuses the resolution below.",
+       "where": "_resolve, lines 637-642",
+       "verdict": "kept",
+       "why": "The code sets `starred = bool(cands)` and later returns AMBIGUOUS if starred is True, exactly as claimed."
+      },
+      {
+       "text": "An explicit binding AND a star that reaches a DIFFERENT declaration of the same name. Which one wins is statement order plus the star module's ``__all__``, i.e. not something this table can read -- so the two disagree and the answer is refused, exactly as for ``try``/``except``.",
+       "where": "_resolve, lines 643-648",
+       "verdict": "kept",
+       "why": "The code appends star_cands to cands when set(star_cands) - set(cands) is non-empty, leading to len(unique)>1 and AMBIGUOUS later."
+      },
+      {
+       "text": "Exactly one candidate, reachable only through ``import *``. NOT a resolution: ``__all__`` and the leading-underscore rule are both invisible here, and an unseen star module may supply the name too. Counted as AMBIGUOUS rather than UNRESOLVED because the candidate is real and naming it in the sample is what makes the refusal actionable",
+       "where": "_resolve, lines 650-658",
+       "verdict": "kept",
+       "why": "Code returns AMBIGUOUS with the unique candidate when starred is True."
+      },
+      {
+       "text": "The bindings DISAGREE about where the name comes from, and at least one of them is a type we can see. Emitting the visible one is the false edge I5 exists to prevent: which import wins is a property of the environment (a try/except ImportError pair), not of the source.",
+       "where": "_resolve, lines 659-664",
+       "verdict": "kept",
+       "why": "Code returns AMBIGUOUS when len(targets)>1 and unique is non-empty."
+      },
+      {
+       "text": "``head.mid.Leaf`` through the binding of ``head``.",
+       "where": "_dotted_candidates docstring",
+       "verdict": "kept",
+       "why": "The function resolves dotted names by looking up bindings of the head segment."
+      },
+      {
+       "text": "``import a.b`` binds ``a`` and the annotation spells the rest out, so the prefix is the bound name; ``import a.b as c`` binds ``c`` for the whole dotted target, so the prefix is it.",
+       "where": "_dotted_candidates, lines 587-589",
+       "verdict": "kept",
+       "why": "The code sets prefix accordingly based on alias.kind=='import' and comparison with alias.orig."
+      },
+      {
+       "text": "``from x import y`` leaves TWO readings of ``y.Z``: y is a submodule of x holding Z, or y is a type in x holding a nested Z. Both are generated; if both land, that IS an ambiguity and is refused below rather than ranked.",
+       "where": "_dotted_candidates, lines 593-598",
+       "verdict": "kept",
+       "why": "The code appends both (joined, leaf) and (base, alias.orig + mid + leaf) to modules list."
+      },
+      {
+       "text": "One record per (owner, name). An annotated origin wins; ``_ORIGIN_RANK`` breaks the rest. parse.py emits TWO records for a member written both as a class-body annotation and as ``self.x = ...`` on purpose -- they are two facts about one member, and choosing between them is a whole-repo judgement that lives here.",
+       "where": "_dedupe_fields docstring",
+       "verdict": "uncheckable",
+       "why": "The code uses _field_rank which references _ORIGIN_RANK (not defined in this chunk) and mentions parse.py behavior outside this file."
+      },
+      {
+       "text": "The member-name set used for structural (Protocol) matching. Methods and fields both count: a Protocol may declare either.",
+       "where": "_member_names docstring",
+       "verdict": "kept",
+       "why": "The function collects names from both fields and signatures matching the qualname."
+      },
+      {
+       "text": "``facts_by_rel``   rel -> ``PyTypeFacts`` (Python files only; Stufe 1).",
+       "where": "resolve_type_graph docstring",
+       "verdict": "uncheckable",
+       "why": "The parameter is typed as Mapping[str, PyTypeFacts] but PyTypeFacts and Stufe 1 are not defined in this chunk."
+      },
+      {
+       "text": "``imports_by_file`` rel -> rels, i.e. ``index[\"import_edges\"]`` -- REUSED, never recomputed. Absent means \"no imports known\", which degrades to same-file resolution only.",
+       "where": "resolve_type_graph docstring",
+       "verdict": "uncheckable",
+       "why": "The parameter is used in the code but its source (index[\"import_edges\"]) is external."
+      },
+      {
+       "text": "``naming``         anything with ``name(rel)`` / ``tables_for(rel)`` (``index._PyNaming``). Defaults to ``PlainNaming``.",
+       "where": "resolve_type_graph docstring",
+       "verdict": "uncheckable",
+       "why": "PlainNaming and index._PyNaming are not defined in this chunk."
+      },
+      {
+       "text": "``languages``      ``index[\"languages\"]``, so coverage can report every non-Python language as ``not_supported`` rather than 0.",
+       "where": "resolve_type_graph docstring",
+       "verdict": "uncheckable",
+       "why": "The parameter is declared but not used in this chunk; its usage is external."
+      },
+      {
+       "text": "``ignored``        rels whose facts are withheld, exactly as ``all_units`` withholds units for out-of-scope files.",
+       "where": "resolve_type_graph docstring",
+       "verdict": "kept",
+       "why": "The code filters facts and imports using skip set built from ignored."
+      },
+      {
+       "text": "``hub_cap``        max fan-in a type may have and still keep its ``consumes``/``produces`` edges. 0 disables.",
+       "where": "resolve_type_graph docstring",
+       "verdict": "uncheckable",
+       "why": "The parameter is declared but not used in this chunk; its usage is external."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In _dotted_candidates, the variable `rel` is used but may shadow outer scope; it's a local variable in the for loop.",
+       "where": "line 600",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _resolve function handles star candidates only when cands is empty and saw_binding is False, but star_cands may contain candidates that overlap with cands; the logic handles that with set difference.",
+       "where": "lines 636-648",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_type_graph builds nodes for declarations and fields, but the chunk ends before processing signatures or edges.",
+       "where": "lines 700-750",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e5f914967298c4a612ee9a12178d63e96d9c7bdd7a99d45d471aad482ebcde63",
+    "objective_chars": 13083,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/typegraph.py [3/5]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/typegraph.py",
+  "index": 3,
+  "total": 5,
+  "first_line": 561
+ }
+}

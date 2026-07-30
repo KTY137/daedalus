@@ -1,0 +1,305 @@
+{
+ "task_id": "scan__daedalus_spine_containment.py__c5of6__946db82",
+ "key": "scan__daedalus_spine_containment.py__c5of6__946db82-7bb6df1fd1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 6 of containment.py: ContainedProcess methods (poll, job_accounting, wait, cancel, kill, close, context manager), JobLimits dataclass, _query_job_limits, job_accounting, _create_job, _HandleAllowlist init. All claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_HandleAllowlist.__init__ | medium | memory leak risk if _buffer allocated but UpdateProcThreadAttribute fails; _buffer is not freed before raising | Check if _kernel32.DeleteProcThreadAttributeList is called on failure path (it is called after UpdateProcThreadAttribute fails, but not after InitializeProcThreadAttributeList fails? Actually after InitializeProcThreadAttributeList fails, _buffer is allocated but not freed. However, if InitializeProcThreadAttributeList fails, _buffer is not yet allocated? Wait: size is computed, then _buffer is created, then InitializeProcThreadAttributeList is called. If it fails, _buffer is allocated but not freed. This is a potential leak. Settle by adding cleanup.)"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/containment.py",
+     "chunk": "5 of 6",
+     "purpose": "ContainedProcess lifecycle, job limits query, job creation, handle allowlist",
+     "symbols": [
+      {
+       "name": "ContainedProcess.poll",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self.returncode."
+      },
+      {
+       "name": "ContainedProcess.job_accounting",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns job accounting dict if not closed, else None."
+      },
+      {
+       "name": "ContainedProcess.wait",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Waits on handle, kills if still active, returns exit code."
+      },
+      {
+       "name": "ContainedProcess.cancel",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Stops tree with escalating signals, returns CancelResult."
+      },
+      {
+       "name": "ContainedProcess.kill",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Terminates job or process."
+      },
+      {
+       "name": "ContainedProcess.close",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Cancels if running, closes handles, idempotent."
+      },
+      {
+       "name": "ContainedProcess.__enter__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns self."
+      },
+      {
+       "name": "ContainedProcess.__exit__",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Calls self.close()."
+      },
+      {
+       "name": "JobLimits",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding limit_flags, active_process_limit, job_memory_limit_bytes."
+      },
+      {
+       "name": "JobLimits.kill_on_close",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property returning bool of limit_flags & KILL_ON_JOB_CLOSE."
+      },
+      {
+       "name": "JobLimits.breakaway_denied",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "True when neither breakaway flag present."
+      },
+      {
+       "name": "JobLimits.summary",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns dict of limits."
+      },
+      {
+       "name": "_query_job_limits",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Queries actual job limits via QueryInformationJobObject."
+      },
+      {
+       "name": "job_accounting",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns TotalProcesses, ActiveProcesses, TotalTerminatedProcesses for a job."
+      },
+      {
+       "name": "_create_job",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Creates job with limits, verifies by read-back, raises ContainmentUnavailable on mismatch."
+      },
+      {
+       "name": "_HandleAllowlist",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Manages PROC_THREAD_ATTRIBUTE_HANDLE_LIST for given handles."
+      }
+     ],
+     "claims": [
+      {
+       "text": "How many processes this job has seen. ``None`` once closed.",
+       "where": "job_accounting docstring",
+       "verdict": "kept",
+       "why": "Method returns None if self._closed or self._job is None, else calls job_accounting."
+      },
+      {
+       "text": "Must be read before :meth:`close`, which destroys the job along with its counters.",
+       "where": "job_accounting docstring",
+       "verdict": "kept",
+       "why": "close sets self._closed=True and self._job=None; after that job_accounting returns None."
+      },
+      {
+       "text": "Stop the tree, escalating from a group signal to a job kill.",
+       "where": "cancel docstring",
+       "verdict": "kept",
+       "why": "Starts with GenerateConsoleCtrlEvent (group signal), then kill() if still active."
+      },
+      {
+       "text": "Returns a :class:`daedalus.spine.cancel.CancelResult` so the two spawn paths are indistinguishable to every caller that cancels them.",
+       "where": "cancel docstring",
+       "verdict": "uncheckable",
+       "why": "CancelResult class not defined in this chunk; import from daedalus.spine.cancel."
+      },
+      {
+       "text": "Destroy the whole tree, not just the immediate child.",
+       "where": "kill docstring",
+       "verdict": "kept",
+       "why": "Terminates job object if available, else terminates process."
+      },
+      {
+       "text": "Cancel anything still running, then release the job. Idempotent.",
+       "where": "close docstring",
+       "verdict": "kept",
+       "why": "Checks self._closed, cancels if returncode is None, then closes handles and sets self._closed=True."
+      },
+      {
+       "text": "What the kernel SAYS is armed on a job, read back out of it.",
+       "where": "JobLimits docstring",
+       "verdict": "kept",
+       "why": "Built from _query_job_limits which reads actual limits via QueryInformationJobObject."
+      },
+      {
+       "text": "Not what was requested. :func:`_create_job` asks, then queries, then compares, and this object is built from the query -- so an attestation carrying it is reporting a fact about the running job rather than repeating the constant at the top of this file.",
+       "where": "JobLimits docstring",
+       "verdict": "kept",
+       "why": "_create_job asks via SetInformationJobObject, queries via _query_job_limits, then compares; JobLimits is built from query result."
+      },
+      {
+       "text": "True when NEITHER breakaway flag is present.",
+       "where": "breakaway_denied docstring",
+       "verdict": "kept",
+       "why": "Returns not (limit_flags & (BREAKAWAY_OK | SILENT_BREAKAWAY_OK))."
+      },
+      {
+       "text": "The job's ACTUAL limits, from ``QueryInformationJobObject``.",
+       "where": "_query_job_limits docstring",
+       "verdict": "kept",
+       "why": "Function calls QueryInformationJobObject and returns JobLimits."
+      },
+      {
+       "text": "``TotalProcesses``/``ActiveProcesses`` for a job. For MEASUREMENT.",
+       "where": "job_accounting function docstring",
+       "verdict": "kept",
+       "why": "Returns dict with total_processes, active_processes, total_terminated_processes."
+      },
+      {
+       "text": "Exists so the process cap can be set from a number that was observed rather than picked: run a real gate, read ``total_processes``, and the margin between that and :data:`JOB_ACTIVE_PROCESS_LIMIT` is visible instead of asserted.",
+       "where": "job_accounting function docstring",
+       "verdict": "uncheckable",
+       "why": "JOB_ACTIVE_PROCESS_LIMIT not defined in this chunk."
+      },
+      {
+       "text": "A job with a lifetime AND caps, every one of them verified by read-back.",
+       "where": "_create_job docstring",
+       "verdict": "kept",
+       "why": "Sets caps via SetInformationJobObject, then queries and verifies via _query_job_limits; raises ContainmentUnavailable on mismatch."
+      },
+      {
+       "text": "The parameters exist for MEASUREMENT and for the tests that prove the caps bite -- a test that had to allocate four gigabytes or fork ninety-six times to show the limit works would be a test nobody runs. They are NOT a loosening knob: there is no path from a gate to a call site that raises them, and :func:`spawn_contained` does not accept them.",
+       "where": "_create_job docstring",
+       "verdict": "uncheckable",
+       "why": "spawn_contained not defined in this chunk."
+      },
+      {
+       "text": "Raises :class:`ContainmentUnavailable` if the kernel hands back limits that are not the ones asked for, including the case where a breakaway flag appeared that was never set. A job whose limits could not be confirmed is not a bounded job, and this module does not ship an unbounded one under a bounded name.",
+       "where": "_create_job docstring",
+       "verdict": "kept",
+       "why": "Code raises ContainmentUnavailable for limit mismatch and breakaway_denied False."
+      },
+      {
+       "text": "``PROC_THREAD_ATTRIBUTE_HANDLE_LIST`` over exactly the given handles.",
+       "where": "_HandleAllowlist docstring",
+       "verdict": "kept",
+       "why": "Class initializes attribute list and updates with given handles."
+      },
+      {
+       "text": "Holds a reference to the HANDLE array for its whole lifetime: ``UpdateProcThreadAttribute`` stores a POINTER to the value, so letting the array be collected before ``CreateProcessAsUserW`` would hand the kernel a dangling list -- and a dangling allowlist is an unbounded one.",
+       "where": "_HandleAllowlist docstring",
+       "verdict": "kept",
+       "why": "self._array is stored as attribute, preventing collection."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In _HandleAllowlist.__init__, if InitializeProcThreadAttributeList (sizing) fails, _buffer may not be allocated yet; but if InitializeProcThreadAttributeList (actual) fails after _buffer allocation, _buffer is not freed before raising. This could be a memory leak.",
+       "where": "_HandleAllowlist.__init__ lines after size check",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "In close method, _kernel32.CloseHandle is called with wintypes.HANDLE(handle) for each handle, but handle may already be closed? The try-except suppresses errors.",
+       "where": "ContainedProcess.close",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "In cancel method, if grace_s <= 0, it skips the wait loop and goes directly to kill. The docstring says 'escalating from a group signal to a job kill' which is still true.",
+       "where": "ContainedProcess.cancel",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0286a73362b90c6b5f86ccb567cd099874444f3247a19384075c43ed7547f3e6",
+    "objective_chars": 12868,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/containment.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/spine/containment.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

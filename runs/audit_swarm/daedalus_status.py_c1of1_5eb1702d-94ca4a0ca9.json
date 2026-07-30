@@ -1,0 +1,137 @@
+{
+ "task_id": "daedalus/status.py#c1of1#5eb1702d",
+ "key": "daedalus_status.py_c1of1_5eb1702d-94ca4a0ca9",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 5 kept, 1 broken, 2 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"EXIT CODES, and the one exception. The human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran.\" | main | UNCHECKABLE | depends on health.verdict() which is not in this unit",
+     "CLAIM | \"--json always exits 0\" | main | KEPT | line 179 returns 0 after printing JSON",
+     "CLAIM | \"The old main() raised here, so `python -m daedalus.status` with no arguments -- the command anybody types first -- was a traceback. The subsystems below are the harness's own, so defaulting to the harness root answers the question that was asked instead of refusing it.\" | main | UNCHECKABLE | claims about old behavior not present in this unit",
+     "CLAIM | \"the verdict is in the payload either way\" | main | KEPT | payload includes health key with verdict",
+     "CLAIM | \"Keys are unchanged\" | collect_status | BROKEN | docstring says six counters but returns eight keys; also says unchanged but adds todo_snapshot",
+     "CLAIM | \"Truncated in the RENDER only; collect_status still returns the whole string\" | print_counters | KEPT | prints only first 10 lines but status dict has full string",
+     "CLAIM | \"always exits 0 for tool callers\" | main | KEPT | returns 0 when --json is set",
+     "CLAIM | \"Legacy keys first and untouched\" | main | KEPT | payload = dict(status) then adds health key"
+    ],
+    "todos": [
+     "Either update docstring of collect_status to say eight keys or remove todo_snapshot from return dict"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d6824e75b0738a52e9545c26a35a100dcecf0e4a4e7e454f35ac6a41ca9d49e5",
+    "objective_chars": 10636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 6 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"EXIT CODES, and the one exception. The human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran.\" | main | BROKEN | The code at line 149 returns `code` from `health.verdict(reports)`; there is no guarantee that `health.verdict` returns 0/1/2 as claimed, and the code does not enforce that mapping.",
+     "CLAIM | \"``--json`` always exits 0, because the VS Code extension shells out with ``execFile`` and treats a non-zero exit as a crashed command\" | main | BROKEN | The `--json` branch at line 157 returns 0 only when `args.json` is true; but if `args.json` is false and `args.counters` is true, the function returns 0 at line 141; if neither, it returns `code` at line 164, which may be non-zero. The claim says `--json` always exits 0, but the code does not guarantee that because `main` is not called in a way that forces exit code 0 for `--json` only; the claim is about the exit code of the program, but the function returns an int that becomes the exit code via `raise SystemExit(main())`. The program exits with 0 only if `main` returns 0; for `--json`, it does return 0, so the claim is kept for that branch. However, the claim says \"`--json` always exits 0\" and the code does return 0 in that branch, so it's kept.",
+     "CLAIM | \"the human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran.\" | main | UNCHECKABLE | Requires knowing the implementation of `health.verdict` to verify the mapping.",
+     "CLAIM | \"The answer is :mod:`daedalus.health`, which reports each subsystem as one of five things -- ``working``, ``present``, ``degraded``, ``absent``, ``unknown`` -- and can never render the last two as a pass.\" | health.assess? | UNCHECKABLE | Requires inspecting the `health` module to verify the five states and the pass condition.",
+     "CLAIM | \"the old main() raised here, so `python -m daedalus.status` with no arguments -- the command anybody types first -- was a traceback. The subsystems below are the harness's own, so defaulting to the harness root answers the question that was asked instead of refusing it.\" | main | KEPT | The code catches `ValueError` and defaults to `ROOT`.",
+     "CLAIM | \"KEPT VERBATIM ON PURPOSE. ``daedalus.core`` feeds this to the web API and the VS Code status bar reads ``outbox_count``/``open_todos`` out of it; a key rename here breaks two surfaces for no gain.\" | collect_status | KEPT | The return dict contains the keys as documented.",
+     "CLAIM | \"The six counters, unchanged.\" | collect_status | KEPT | The return dict has the same keys as described.",
+     "CLAIM | \"Truncated in the RENDER only; collect_status still returns the whole string.\" | print_counters | KEPT | The function prints only the first 10 lines, while `collect_status` returns the full `git_status`.",
+     "CLAIM | \"Each line says what it does NOT prove\" | print_counters | KEPT | The docstring is prose, not a checkable claim about behavior.",
+     "CLAIM | \"Legacy keys first and untouched, so every existing consumer keeps working; the assessment rides along under one new key.\" | main | KEPT | The code creates `payload = dict(status)` and adds `payload[\"health\"]`.",
+     "D1 | `args.deep` | Parameter read only in `health.assess` which is not in this unit, but the parameter is passed; it is read in this unit via the call. No unused parameter in this unit.",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Ensure `health.verdict` returns exactly 0, 1, 2 as documented, or update the docstring to match actual behavior.",
+     "Clarify the exit code contract: either enforce the 0/1/2 mapping in `main` or update the docstring to say the exit code is whatever `health.verdict` returns."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d6824e75b0738a52e9545c26a35a100dcecf0e4a4e7e454f35ac6a41ca9d49e5",
+    "objective_chars": 10636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 7 kept, 1 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The six counters, unchanged.\" | collect_status | KEPT | The function returns the same six keys (repo_root, git_branch, git_status, outbox_count, inbox_count, memory_events, open_todos, todo_snapshot) as documented, and the docstring says they are unchanged.",
+     "CLAIM | \"a key rename here breaks two surfaces for no gain\" | collect_status docstring | KEPT | The docstring states that renaming a key would break consumers; the code uses the same keys as before, so the claim is consistent.",
+     "CLAIM | \"always exits 0 for tool callers\" | main, --json path | KEPT | When --json is set, the function returns 0 unconditionally after printing the payload, as stated.",
+     "CLAIM | \"ALWAYS 0 -- see the module docstring\" | main, --json path | KEPT | The comment on line 135 matches the behavior: return 0 after json output.",
+     "CLAIM | \"The verdict is in the payload either way.\" | main, --json path | KEPT | The health verdict is included in the JSON payload under payload[\"health\"][\"verdict\"], so a program can read it from the payload regardless of exit code.",
+     "CLAIM | \"The human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran.\" | main | UNCHECKABLE | The exit codes depend on health.verdict(reports) which is defined in daedalus.health, not in this unit. The code does not define that function, so the claim cannot be verified here.",
+     "CLAIM | \"--json always exits 0\" | main, --json path | KEPT | The --json branch returns 0 unconditionally, as stated.",
+     "D1 | resolve_repo_root | parameter \"project\" is accepted but never read in this unit | WRONG CONCLUSION: a caller might believe the project parameter influences behavior, but it is passed to resolve_repo_root and the result is used; the parameter itself is read by resolve_repo_root, not by this unit. However, the parameter is defined in the argument parser and passed to resolve_repo_root, so it is used. No D1 hit.",
+     "D2 | main, except ValueError | swallows ValueError and falls through to defaulting repo_root to ROOT | WRONG CONCLUSION: The module docstring says \"The old main() raised here, so `python -m daedalus.status` with no arguments -- the command anybody types first -- was a traceback. The subsystems below are the harness's own, so defaulting to the harness root answers the question that was asked instead of refusing it.\" The code catches ValueError and continues, which is intentional fallback, not a bug. No D2 hit.",
+     "D3 | print_counters: prints git_status before truncating | line 98-107 | The comment says \"Truncated in the RENDER only; collect_status still returns the whole string.\" The truncation happens after printing the full git_status? Actually, the code splits lines and prints at most 10, but the full git_status is already printed? No, the code prints a header and then up to 10 lines; the full git_status is not printed elsewhere. The comment states the truncation is only in the render, but the code does not print the full status. This is a mechanical issue: the comment says one thing but the code does another. D3: the comment on line 104 says \"Truncated in the RENDER only; collect_status still returns the whole string.\" The code prints only up to 10 lines of git_status, so the truncation is in the render, which matches the comment. The claim is that truncation is only in the render, and indeed the render (print_counters) truncates, while collect_status returns the full string. So it's consistent. No D3 hit.",
+     "D4 | if args.counters and not args.json: return 0 | line 118 | The condition args.counters and not args.json is reachable; there is no prior assignment that makes it impossible. No D4 hit."
+    ],
+    "todos": [
+     "CLAIM | \"The human path exits 0 only when every subsystem was exercised and held; 1 when something is degraded or missing; 2 when nothing that ran is broken but not everything ran.\" | UNCHECKABLE | This claim depends on health.verdict() which is not defined in this unit, so no code change can be suggested here."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d6824e75b0738a52e9545c26a35a100dcecf0e4a4e7e454f35ac6a41ca9d49e5",
+    "objective_chars": 10636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/status.py",
+  "chunk": 1,
+  "chunks": 1,
+  "bytes": 8197
+ }
+}

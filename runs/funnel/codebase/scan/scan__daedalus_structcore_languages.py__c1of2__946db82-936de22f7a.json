@@ -1,0 +1,162 @@
+{
+ "task_id": "scan__daedalus_structcore_languages.py__c1of2__946db82",
+ "key": "scan__daedalus_structcore_languages.py__c1of2__946db82-936de22f7a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed languages.py chunk 1: defines LanguageSpec dataclass, _rx helper, _SPECS tuple with 20 languages, SPECS dict, and spec_for function. Docstring claims about backends, comment stripping, and document spec registry are partially uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "docstring line 16 | medium | Claim that string_delims default covers C family but Rust and Swift override; Rust override is present, Swift override is present, but claim 'Default covers the C family' is accurate for the default. No risk.",
+     "docstring line 48 | low | Claim that node-type names follow tree-sitter grammar; cannot verify against actual grammar files, but naming convention looks plausible.",
+     "docstring line 122 | medium | Claim that spec_for is not a lookup table but a claim; this is confusing and may mislead. The code shows it is a simple dict lookup, so the claim is misleading.",
+     "docstring line 124-138 | high | Claim about thirteen call sites and their behavior; none of those call sites are present in this chunk, so the claim is uncheckable. Relies on code outside chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/languages.py",
+     "chunk": "1 of 2",
+     "purpose": "Define LanguageSpec dataclass and populate the language registry with 20 language definitions.",
+     "symbols": [
+      {
+       "name": "LanguageSpec",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with fields: name, extensions, line_comment, block_comment, string_delims, ts_grammar, function_types, import_types, guard_keywords, safety_content."
+      },
+      {
+       "name": "_rx",
+       "kind": "function",
+       "effects": [],
+       "note": "Helper to compile regex patterns into tuple of re.Pattern."
+      },
+      {
+       "name": "_SPECS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of 20 LanguageSpec instances for languages: python, c, cpp, java, rust, go, javascript, typescript, csharp, qml, css, qss, scss, kotlin, swift, ruby, php, lua, shell."
+      },
+      {
+       "name": "SPECS",
+       "kind": "constant",
+       "effects": [],
+       "note": "dict[str, LanguageSpec] mapping lowercase extension to LanguageSpec, built from _SPECS."
+      },
+      {
+       "name": "spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns LanguageSpec for given path by extension, or None if unsupported."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Adding a language is *data*, not code: one ``LanguageSpec`` entry.",
+       "where": "docstring line 2-3",
+       "verdict": "kept",
+       "why": "The code defines a LanguageSpec dataclass and populates _SPECS with declarative entries; no conditional logic per language."
+      },
+      {
+       "text": "Fields are consumed by three backends: ... the stdlib/lexical path (always available) uses ``line_comment`` / ``block_comment`` / ``guard_keywords`` ...",
+       "where": "docstring lines 5-7",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk shows backends consuming these fields."
+      },
+      {
+       "text": "... the tree-sitter path (optional) uses ``ts_grammar`` + ``function_types`` + ``import_types`` ...",
+       "where": "docstring lines 8-9",
+       "verdict": "uncheckable",
+       "why": "No tree-sitter backend code is present in this chunk."
+      },
+      {
+       "text": "... the safety fence uses ``safety_content`` regexes to raise the risk tier ...",
+       "where": "docstring lines 10-12",
+       "verdict": "uncheckable",
+       "why": "No safety fence code is present in this chunk."
+      },
+      {
+       "text": "Default covers the C family; override where ' is not a string opener -- Rust lifetimes ('a) and Swift, where consuming to the next ' would eat code.",
+       "where": "docstring lines 20-22",
+       "verdict": "kept",
+       "why": "Rust spec sets string_delims=('\"',) (single quote excluded), Swift spec sets string_delims=('\"',) (single quote excluded). Default is ('\"', \"'\")."
+      },
+      {
+       "text": "Node-type names follow the corresponding tree-sitter grammar; they are only read when tree-sitter is installed.",
+       "where": "comment line 49",
+       "verdict": "uncheckable",
+       "why": "No tree-sitter grammar files or usage code in this chunk."
+      },
+      {
+       "text": "A DocumentSpec is NOT a LanguageSpec and ``.md`` is deliberately NOT added to ``SPECS``. ``spec_for`` is not a lookup table, it is a CLAIM, and thirteen call sites read it as one: ...",
+       "where": "docstring lines 118-138",
+       "verdict": "uncheckable",
+       "why": "No DocumentSpec or call sites are present in this chunk. spec_for is a simple dict lookup in this chunk, so the 'claim' statement is misleading but cannot be fully verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring claims three backends consume the fields, but no backend code is present in this chunk.",
+       "where": "docstring lines 5-12",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims spec_for is not a lookup table but a claim, yet the implementation is a simple dict lookup (SPECS.get). This is contradictory.",
+       "where": "docstring lines 122-123",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring lists thirteen call sites and their behavior, none of which are present in this chunk.",
+       "where": "docstring lines 124-138",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about string_delims default covering C family and overrides for Rust and Swift is accurate: Rust and Swift specs explicitly set string_delims to exclude single quote.",
+       "where": "docstring lines 20-22",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _SPECS tuple includes 20 languages, each with varying fields; some languages lack certain fields (e.g., css has no line_comment or guard_keywords).",
+       "where": "_SPECS definition lines 52-117",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d59423234d00a069d740e3ed03d430035f26cdd5b3c4aea10040cf752149a5be",
+    "objective_chars": 11448,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/languages.py [1/2]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/languages.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

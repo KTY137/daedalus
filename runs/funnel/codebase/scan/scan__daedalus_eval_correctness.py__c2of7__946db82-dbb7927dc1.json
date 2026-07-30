@@ -1,0 +1,296 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c2of7__946db82",
+ "key": "scan__daedalus_eval_correctness.py__c2of7__946db82-dbb7927dc1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 2 of 7: defines _git_read, resolve_revision, pytest_node_argv, parse_pytest_output, PytestRun, _spawn_pytest, run_node_ids. Enforces worktree safety, revision resolution, pytest invocation, output parsing with per-node attribution and worst-wins ranking.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "resolve_revision | low | _git_read uses subprocess.run with timeout; if git hangs, it will raise TimeoutExpired, not return None. | Test with a rev that causes git to hang (e.g. network timeout) and see if exception propagates.",
+     "pytest_node_argv | low | Uses sys.executable which may be a virtualenv python; if pytest is not installed there, the call will fail. | Ensure pytest is available in the same environment.",
+     "_spawn_pytest | medium | File-based output to a temp dir; if disk is full or permissions fail, OSError is caught and output is set to error message, but the temp dir cleanup may also fail. | Test with disk full or read-only temp dir.",
+     "_spawn_pytest | low | ManagedProcess import may fail, then subprocess.run is used; containment string will be 'none' even if job object was intended. | Test without spine.cancel installed.",
+     "run_node_ids | medium | Solo re-run for unattributed nodes may itself timeout or fail; no limit on number of solo runs. | Consider adding a max solo retries or timeout per solo run.",
+     "parse_pytest_output | medium | FILE_ERROR_RE matches lines like 'ERROR tests/x.py' but the regex is broad; might match unintended lines. | Test with various error messages from pytest.",
+     "_same_node | low | Suffix match logic may produce false positives for deeply nested paths. | Test with paths that share suffixes incorrectly.",
+     "run_node_ids | medium | Uses _refuse_primary_checkout which may raise a PermissionError or similar; not handled. | Check exception handling in caller."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "2 of 7",
+     "purpose": "Define git read, pytest argv, output parsing, PytestRun dataclass, spawn helper, and run_node_ids function.",
+     "symbols": [
+      {
+       "name": "_git_read",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git with args in worktree, uses _refuse_primary_checkout."
+      },
+      {
+       "name": "resolve_revision",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns full sha for rev or None."
+      },
+      {
+       "name": "pytest_node_argv",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of argv for pytest node ids."
+      },
+      {
+       "name": "_OUTCOME_TOKENS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps pytest outcome strings to internal status constants."
+      },
+      {
+       "name": "_PROGRESS_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for pytest progress lines."
+      },
+      {
+       "name": "_NOT_FOUND_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for 'not found' error."
+      },
+      {
+       "name": "_NO_COLLECTORS_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for 'no collectors' error."
+      },
+      {
+       "name": "_FILE_ERROR_RE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex for file-level collection error."
+      },
+      {
+       "name": "_norm_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Normalizes node string: replace backslash, strip."
+      },
+      {
+       "name": "_same_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if reported node matches requested."
+      },
+      {
+       "name": "_STATUS_RANK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Ranking for worst-wins outcome reduction."
+      },
+      {
+       "name": "parse_pytest_output",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses pytest output to dict of requested node -> status."
+      },
+      {
+       "name": "PytestRun",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Dataclass holding results of one pytest run."
+      },
+      {
+       "name": "PytestRun.to_dict",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Serializes PytestRun to dict with truncated output."
+      },
+      {
+       "name": "_spawn_pytest",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Runs pytest with containment, captures output to temp file."
+      },
+      {
+       "name": "run_node_ids",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Runs node ids in worktree, returns PytestRun."
+      }
+     ],
+     "claims": [
+      {
+       "text": "exactly as ``spine.attempt._git`` does for its own choke point.",
+       "where": "docstring of _git_read",
+       "verdict": "uncheckable",
+       "why": "The referenced function is not in this chunk."
+      },
+      {
+       "text": "Deliberately close to ``spine.attempt.pytest_gate_argv``: the same interpreter and the same ``-p no:cacheprovider`` (a gate that dirties the tree it is judging is a trap worth not setting).",
+       "where": "docstring of pytest_node_argv",
+       "verdict": "uncheckable",
+       "why": "The referenced function is not in this chunk."
+      },
+      {
+       "text": "It differs in two measured ways, and both are needed for PER-NODE attribution, which ``-q`` cannot give: ``-v`` prints ``<nodeid> PASSED|FAILED|SKIPPED (reason)`` per test, which is the only output form that carries the EXACT node id for a skip -- ``-rA``'s short summary prints skips as ``SKIPPED [1] file.py:12: reason``, with no node id at all. ``--tb=no`` the verdict is what is parsed; the traceback is kept in the raw output tail, not in the parse.",
+       "where": "docstring of pytest_node_argv",
+       "verdict": "kept",
+       "why": "The function returns argv including '-v' and '--tb=no'."
+      },
+      {
+       "text": "Three spellings have to compare equal, and all three were measured on this box rather than assumed: * pytest prints node ids relative to its rootdir on progress lines, and as an ABSOLUTE path in the ``not found`` line -- so this is a normalised SUFFIX match, not equality; * Windows spells the same file two ways, so it is case-insensitive; * a PARAMETRIZED test is requested as ``file.py::test_x`` and reported as ``file.py::test_x[1]``, once per case. Those report lines belong to the requested node (see :func:`parse_pytest_output`, which reduces several outcomes for one node to the WORST of them, so one red case cannot be averaged away by two green ones).",
+       "where": "docstring of _same_node",
+       "verdict": "kept",
+       "why": "The function normalizes case, checks suffix match, and checks parametrized extension with '['."
+      },
+      {
+       "text": "Worst-wins ranking when one requested node produces several report lines (parametrized cases). A single red case makes the node red -- averaging is exactly the move that hides a fatal blind spot behind an acceptable number.",
+       "where": "comment before _STATUS_RANK",
+       "verdict": "kept",
+       "why": "_STATUS_RANK is defined with PASSED lowest and ERROR highest."
+      },
+      {
+       "text": "Per-node status for every requested node id. Never guesses. A node the output says nothing about is ``not_run`` -- not a pass, not a fail. An explicit ``not found`` (``missing``) is final and outranks everything, because the node does not exist; otherwise several report lines for one node reduce to the WORST outcome seen (see ``_STATUS_RANK``); a node with no line of its own inherits ``collect_error`` if its FILE failed to collect.",
+       "where": "docstring of parse_pytest_output",
+       "verdict": "kept",
+       "why": "The function initializes all to STATUS_NOT_RUN, then applies missing last, uses _STATUS_RANK for worst-wins, and sets STATUS_COLLECT_ERROR if file error matches."
+      },
+      {
+       "text": "Preferred path is :class:`daedalus.spine.cancel.ManagedProcess`, i.e. a Windows Job Object with KILL_ON_JOB_CLOSE, so a hung or forking test tree dies with the run -- the same containment the repo's own pytest gate uses. If that backend is unavailable the run still happens through ``subprocess.run`` and SAYS SO in ``containment``, because a quietly weaker containment that nobody can see is worse than a named one.",
+       "where": "docstring of _spawn_pytest",
+       "verdict": "kept",
+       "why": "The code tries ManagedProcess first, falls back to subprocess.run, and sets containment accordingly."
+      },
+      {
+       "text": "Output goes to a file OUTSIDE the worktree: a pipe deadlocks on a chatty run while the parent is polling instead of reading (measured in ``spine.attempt.pytest_gate``, whose shape this follows).",
+       "where": "docstring of _spawn_pytest",
+       "verdict": "kept",
+       "why": "The code opens a temp file outside the worktree and writes stdout/stderr to it."
+      },
+      {
+       "text": "Batch first (one interpreter start, ~2.2s on this box, measured), then RE-RUN ALONE every node the batch left unattributed. That fallback is not belt-and-braces, it is required: measured on this box, a single node id pytest cannot collect aborts the WHOLE invocation with exit 4 and nothing else runs -- even with ``--continue-on-collection-errors``. Without the solo re-run, one bad node id would turn every other node in the batch into ``not_run`` and the task into ``could_not_run``.",
+       "where": "docstring of run_node_ids",
+       "verdict": "uncheckable",
+       "why": "The solo re-run logic is not present in this chunk (chunk ends before that code)."
+      },
+      {
+       "text": "``worktree`` is refused if it is the primary checkout or inside it.",
+       "where": "docstring of run_node_ids",
+       "verdict": "kept",
+       "why": "The function calls _refuse_primary_checkout which presumably enforces that."
+      }
+     ],
+     "observations": [
+      {
+       "what": "resolve_revision uses _git_read which raises subprocess.TimeoutExpired on timeout, not returning None.",
+       "where": "resolve_revision line 289-294",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "pytest_node_argv returns tuple; sys.executable may not have pytest available.",
+       "where": "pytest_node_argv line 313",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_same_node uses a suffix match that might match unintended nodes if paths share suffixes.",
+       "where": "_same_node lines 371-375",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "parse_pytest_output uses file_errors list but only checks if path contains '/'; on Windows this might behave differently.",
+       "where": "parse_pytest_output line 418",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_spawn_pytest catches OSError and sets output to error message; cleanup may also fail silently.",
+       "where": "_spawn_pytest lines 444-456",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_node_ids calls _refuse_primary_checkout but does not handle its exceptions.",
+       "where": "run_node_ids line 463",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The solo re-run logic described in run_node_ids docstring is not present in this chunk.",
+       "where": "run_node_ids docstring",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ff832ee44f4ea79e1a6eead7f0092efd718996dc9791e5d5e489a2bd5608444a",
+    "objective_chars": 13064,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [2/7]",
+  "rev": "946db82",
+  "module": "daedalus/eval/correctness.py",
+  "index": 2,
+  "total": 7,
+  "first_line": 281
+ }
+}

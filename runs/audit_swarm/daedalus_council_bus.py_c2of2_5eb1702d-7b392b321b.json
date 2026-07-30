@@ -1,0 +1,134 @@
+{
+ "task_id": "daedalus/council/bus.py#c2of2#5eb1702d",
+ "key": "daedalus_council_bus.py_c2of2_5eb1702d-7b392b321b",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 1 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Turns are normalised, secret-floored, then sorted by actor id and chained with ``seq`` assigned here -- so reversed completion order yields a byte-identical chain head.\" | append_round | KEPT | The code sorts by actor, role, status, canonical_body_json, which includes secret floor via _normalize_turn, and _chain_records assigns seq, ensuring deterministic order.",
+     "CLAIM | \"Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice\" | append_round | KEPT | The code checks for duplicate actors and raises ValueError if any are found.",
+     "CLAIM | \"a missing participant must be recorded as an ``unavailable`` turn rather than skipped.\" | append_round | UNCHECKABLE | This claim is about caller behavior; the function does not enforce that missing participants are recorded as unavailable. Checking would require inspecting callers.",
+     "CLAIM | \"REFUSE. The offending bytes never reach the file -- not in the turn, and not in the receipt.\" | append_round | KEPT | The code replaces the turn with a refusal receipt, which is then chained instead of the original turn.",
+     "CLAIM | \"Counts are DERIVED here, never accepted from the caller\" | append_roster | KEPT | The function computes requested, seated, responded, unavailable, distinct_classes from the participants list; no caller-supplied counts are used.",
+     "CLAIM | \"Availability is not correctness: a council that lost a voice says so.\" | append_roster | KEPT | The degraded flag is set to True when responded < requested, indicating a loss of voice.",
+     "CLAIM | \"Read all records, skipping a torn tail line (never fatal). Missing is [].\" | load_transcript | KEPT | The function returns [] if file does not exist; it reads all lines and skips JSONDecodeError, which handles torn lines.",
+     "CLAIM | \"Three independent checks per line\" | verify_chain | KEPT | The code performs body_sha, entry_sha, and prev linkage checks on each line.",
+     "CLAIM | \"TAIL truncation is the one deletion a per-line walk cannot catch (a valid chain's prefix is a valid chain), so the persisted anchor is consulted by default and a shortfall in count or head is NAMED.\" | verify_chain | KEPT | The function reads the anchor to get expected count/head and compares with actual, flagging mismatches.",
+     "CLAIM | \"Explicit ``expected_count`` / ``expected_head`` override it; ``use_anchor=False`` verifies linkage only.\" | verify_chain | BROKEN | Line: `if use_anchor and expected_count is None and expected_head is None:` The logic sets anchor defaults only when both expected_count and expected_head are None, but the claim says explicit overrides work. Actually, explicit overrides do work because the condition only sets defaults when both are None; if either is provided, anchor is not consulted. However, the claim says \"override it\" and the code does that. Wait, re-reading claim: \"Explicit ``expected_count`` / ``expected_head`` override it; ``use_anchor=False`` verifies linkage only.\" The code: if use_anchor and expected_count is None and expected_head is None: anchor = read_anchor(...). If use_anchor is True but expected_count or expected_head is provided, the anchor is not read, so explicit values override. That is correct. But if use_anchor is False, the anchor is never consulted regardless of expected values. That matches \"verifies linkage only\". So claim is KEPT. Actually, let's double-check: the claim says \"Explicit expected_count / expected_head override it; use_anchor=False verifies linkage only.\" In code, if use_anchor is True and both expected_count and expected_head are None, anchor is read. If either is provided, anchor is not read. So explicit overrides work. If use_anchor is False, anchor is not read and the checks still use the provided expected values (or None). That means if use_anchor=False and expected_count is provided, it will still check length. The claim says \"verifies linkage only\", but the code still checks length/head if expected values are given. So the claim is BROKEN because with use_anchor=False and explicit expected values, the function does more than just verify linkage. Actually, the docstring says: \"Explicit ``expected_count`` / ``expected_head`` override it; ``use_anchor=False`` verifies linkage only.\" The code: if use_anchor and expected_count is None and expected_head is None: anchor = read_anchor(...). Then later: if expected_count is not None ... and if expected_head is not None ... So if use_anchor=False but expected_count is provided, the length check still runs. That contradicts \"verifies linkage only\". So claim is BROKEN. Line: the condition for reading anchor and the later checks. But the broken part is that the claim asserts that use_anchor=False only verifies linkage, but the code still performs count/head checks if explicit values are given. So the claim is too strong."
+    ],
+    "todos": [
+     "In verify_chain, when use_anchor=False, skip count/head checks even if expected_count or expected_head is provided, or update the docstring to clarify that explicit values still cause those checks."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "08d8e821dc903cf03fc4eeb5ce07c2640dae3123acd10346d3855915f531f34b",
+    "objective_chars": 14401,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "12 claims: 10 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice\" | append_round | KEPT | dupes check raises ValueError.",
+     "CLAIM | \"a missing participant must be recorded as an ``unavailable`` turn rather than skipped\" | append_round | UNCHECKABLE | No code in this unit enforces that missing participants are recorded; would need to see caller or surrounding logic.",
+     "CLAIM | \"The offending bytes never reach the file -- not in the turn, and not in the receipt.\" | append_round | KEPT | rec is replaced with refusal receipt before any chain call.",
+     "CLAIM | \"Canonical body is the final tiebreak so the order is TOTAL even when two anonymised refusal receipts collapse to the same actor\" | append_round | KEPT | sort key includes canonical_body_json.",
+     "CLAIM | \"Convenience over :func:`append_round`; prefer the round form so ordering stays deterministic.\" | append_turn | KEPT | append_turn calls append_round with a single turn.",
+     "CLAIM | \"Counts are DERIVED here, never accepted from the caller\" | append_roster | KEPT | counts computed from norm list, not from input.",
+     "CLAIM | \"Duplicate weights are detected over everyone SEATED ... the distinct-class count is over those who actually RESPONDED\" | append_roster | KEPT | code uses seated_classes for duplicates and heard_classes for distinct_classes.",
+     "CLAIM | \"Availability is not correctness: a council that lost a voice says so.\" | append_roster | KEPT | rec includes 'degraded': responded < requested.",
+     "CLAIM | \"Read all records, skipping a torn tail line (never fatal). Missing is []\" | load_transcript | KEPT | returns [] if file missing, continues on JSONDecodeError.",
+     "CLAIM | \"``(record_count, head_entry_sha)`` -- the tail anchor, recomputed from the file. Compare against :func:`read_anchor` to catch a truncation.\" | transcript_head | KEPT | returns len(records) and last entry_sha.",
+     "CLAIM | \"Three independent checks per line\" and descriptions | verify_chain | KEPT | code checks body_sha, entry_sha, prev linkage.",
+     "CLAIM | \"TAIL truncation is the one deletion a per-line walk cannot catch ... the persisted anchor is consulted by default\" | verify_chain | BROKEN | Line: \"if use_anchor and expected_count is None and expected_head is None:\" -- default use_anchor=True, but anchor is only read if both expected_* are None; if a caller passes expected_count=..., anchor is ignored, so tail truncation may not be caught. The claim says \"by default\", which is true, but the overall statement that anchor is consulted is misleading because explicit parameters override. However, the claim is not strictly broken; the implementation does consult anchor by default. Re-evaluating: The claim says \"the persisted anchor is consulted by default and a shortfall in count or head is NAMED.\" This is true for the default case. But the claim also says \"Explicit ``expected_count`` / ``expected_head`` override it; ``use_anchor=False`` verifies linkage only.\" which is exactly what the code does. So claim is KEPT.",
+     "D1 | _resolve_store | parameter store_path defined but not read in this unit | WRONG CONCLUSION: a caller believes it is used, but it is only passed through; actually it is used in the function body? No, _resolve_store is not shown in this chunk. But it is imported? Not shown. So D1 applies."
+    ],
+    "todos": [
+     "Clarify that missing participants must be recorded as unavailable turns, but no enforcement code is present in this unit."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "08d8e821dc903cf03fc4eeb5ce07c2640dae3123acd10346d3855915f531f34b",
+    "objective_chars": 14401,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 0 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Exactly one turn per actor per round is allowed: a duplicate is a caller bug that would double a voice\" | append_round | KEPT | code raises ValueError on duplicates.",
+     "CLAIM | \"a missing participant must be recorded as an ``unavailable`` turn rather than skipped\" | append_round | UNCHECKABLE | cannot verify because missing participant handling is not shown in this chunk.",
+     "CLAIM | \"The offending bytes never reach the file -- not in the turn, and not in the receipt.\" | append_round | KEPT | refusal receipt is stored instead of the original turn, and receipt is also scanned and anonymised if needed.",
+     "CLAIM | \"Counts are DERIVED here, never accepted from the caller\" | append_roster | KEPT | counts computed from norm list, not from caller input.",
+     "CLAIM | \"TAIL truncation is the one deletion a per-line walk cannot catch (a valid chain's prefix is a valid chain), so the persisted anchor is consulted by default and a shortfall in count or head is NAMED.\" | verify_chain | KEPT | anchor is read and compared to expected count/head.",
+     "CLAIM | \"Explicit ``expected_count`` / ``expected_head`` override it; ``use_anchor=False`` verifies linkage only.\" | verify_chain | KEPT | code uses expected_count/expected_head if provided, or anchor if use_anchor is True.",
+     "CLAIM | \"Never a bare False.\" | verify_chain | UNCHECKABLE | depends on callers checking the tuple; not verifiable from this unit alone.",
+     "CLAIM | \"Missing is []\" | load_transcript | KEPT | returns empty list if file does not exist.",
+     "D1 | anonymous | append_round | parameter 'anonymous' is passed to _refusal_receipt but never read in this unit; it is only used as an argument to a call, but the function itself is not defined here, so it may be read elsewhere. However, within this unit, it is not used after the call. | WRONG CONCLUSION: a caller may think 'anonymous' controls something local, but it is only passed through.",
+     "D2 | none | | | no `except` that swallows and continues contrary to prose."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "08d8e821dc903cf03fc4eeb5ce07c2640dae3123acd10346d3855915f531f34b",
+    "objective_chars": 14401,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/council/bus.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 11888
+ }
+}

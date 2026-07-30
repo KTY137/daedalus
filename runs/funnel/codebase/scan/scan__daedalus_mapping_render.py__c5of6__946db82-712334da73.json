@@ -1,0 +1,275 @@
+{
+ "task_id": "scan__daedalus_mapping_render.py__c5of6__946db82",
+ "key": "scan__daedalus_mapping_render.py__c5of6__946db82-712334da73",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 5 of 6: continues render_html, defines write_map, accept; builds HTML for gate reconciliation, limits, TOC, narrative sections; writes file.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/render.py",
+     "chunk": "5 of 6",
+     "purpose": "Render HTML page sections (gate reconciliation, limits, TOC, narrative) and define write_map and accept.",
+     "symbols": [
+      {
+       "name": "accept",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Adds one dated acceptance to the snapshot. Returns tuple[bool, str]. Uses snapshot_path, today."
+      },
+      {
+       "name": "write_map",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Renders HTML and writes to path, creating parent directories."
+      },
+      {
+       "name": "render_html",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Assembles full HTML page from data and narrative."
+      },
+      {
+       "name": "_limits",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns HTML list of limitations of the page."
+      },
+      {
+       "name": "_reconciliation",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns HTML table comparing gate counts with page counts."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The gate above and the tables on this page are derived from the SAME reachability walk and the SAME switch scan, computed once per run.",
+       "where": "docstring of _limits",
+       "verdict": "kept",
+       "why": "The code in _limits states this as the first bit."
+      },
+      {
+       "text": "Where a number differs it is a stated subtraction over one list, shown in the table under 'the gate against this page', not two scanners that happen to be close.",
+       "where": "docstring of _limits",
+       "verdict": "kept",
+       "why": "The code in _reconciliation builds a table with explicit subtractions (e.g., dark - secrets - gate_dark)."
+      },
+      {
+       "text": "broken_entries: declared entry points cannot actually be taken (a [project.scripts] target naming a module or function that does not exist). They are listed, never counted as entry points: entry is the strongest claim here and it is verified, not believed.",
+       "where": "_limits function, second bit",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the code that generates the entry table; it only references reach['broken_entries']."
+      },
+      {
+       "text": "weak_edges: imports exist in the source but are not evidence that anything runs them (a dead if False: branch, or a try: whose ImportError is swallowed). They are excluded from the graph, and nothing puts them back: a module whose only importers are these is unknown \u2014 never reachable \u2014 including on runs where a structural index is supplied, which is every run of daedalus map.",
+       "where": "_limits function, third bit",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the reachability walk code; it only references reach['weak_edges']."
+      },
+      {
+       "text": "That sentence was false for as long as this page carried it: the index's edges were unioned into the walk, so a module imported only under if False: printed reachable on this very page.",
+       "where": "_limits function, third bit",
+       "verdict": "kept",
+       "why": "The code in _reconciliation mentions index_extra_edges and states they are not counted as reachability by either half of this page, implying the historical bug is fixed."
+      },
+      {
+       "text": "This page maps MODULES, not features. A module holding one live function and four dead ones is reachable here by construction; feature-level darkness needs a symbol-level pass this engine does not do.",
+       "where": "_limits function, fourth bit",
+       "verdict": "kept",
+       "why": "The code in render_html sections states 'Every module, and what reaches it' and does not perform symbol-level analysis."
+      },
+      {
+       "text": "unparsable: python files could not be parsed; switches unparsable: could not be parsed by the switch scanner.",
+       "where": "_limits function, fifth bit",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the parsing code; it only references reach['unparsable'] and sw['unparsable']."
+      },
+      {
+       "text": "dynamic_surfaces: non-literal dynamic-import surfaces are recorded rather than resolved.",
+       "where": "_limits function, sixth bit",
+       "verdict": "uncheckable",
+       "why": "The chunk only references reach['dynamic_surfaces']; no resolution logic is present."
+      },
+      {
+       "text": "index_extra_edges: import edges are known to the structural index and are NOT in this walk \u2014 they are recorded as a disagreement between two engines and are not counted as reachability by either half of this page.",
+       "where": "_limits function, seventh bit",
+       "verdict": "kept",
+       "why": "The code in _reconciliation counts gate_edges = len(gate_state.get('index_extra_edges', [])) and the table row states 'the structural index has the edge and the reachability walk refused it.'"
+      },
+      {
+       "text": "The single largest judgement call is the main_guard entry kind: a module with a __main__ guard is runnable as python -m and counts as a way in. Drop that rule and materially more modules go dark. The kind is recorded on every module so the call can be re-litigated without re-running anything.",
+       "where": "_limits function, eighth bit",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the entry point detection logic; it only references entry kinds in comments."
+      },
+      {
+       "text": "The stamp says WHEN this ran and WHAT WAS ON DISK. It is allowed to claim 'and that is revision X' only when both halves of that claim were checked.",
+       "where": "comment before notes in render_html",
+       "verdict": "kept",
+       "why": "The code checks stamp['dirty'] and stamp.get('describes_revision') to conditionally assert revision."
+      },
+      {
+       "text": "The working tree was DIRTY when this page was generated (paths).",
+       "where": "notes.append in render_html",
+       "verdict": "kept",
+       "why": "Code checks stamp['dirty'] == 'dirty' and appends note with stamp['dirty_paths']."
+      },
+      {
+       "text": "Whether the working tree was clean could not be determined.",
+       "where": "notes.append in render_html",
+       "verdict": "kept",
+       "why": "Code checks stamp['dirty'] == 'unknown' and appends that note."
+      },
+      {
+       "text": "untracked_scanned: python files NOT TRACKED by git, so they are in no revision and the dirty probe above cannot see them",
+       "where": "notes.append in render_html",
+       "verdict": "kept",
+       "why": "Code checks stamp.get('untracked_scanned', -1) > 0 and appends note with sample."
+      },
+      {
+       "text": "Whether the scanned files are tracked by git could not be determined.",
+       "where": "notes.append in render_html",
+       "verdict": "kept",
+       "why": "Code checks stamp.get('untracked_scanned', -1) < 0 and appends note."
+      },
+      {
+       "text": "This page describes WHAT WAS ON DISK when it ran; it is not a description of revision [short].",
+       "where": "dirty_note in render_html",
+       "verdict": "kept",
+       "why": "When notes non-empty, dirty_note includes that sentence."
+      },
+      {
+       "text": "Working tree clean and every scanned file tracked: what this page describes is revision [short].",
+       "where": "dirty_note in render_html",
+       "verdict": "kept",
+       "why": "When no notes and stamp.get('describes_revision') truthy, dirty_note includes that sentence."
+      },
+      {
+       "text": "gate OK / no baseline yet / gate FAILING \u2014 [blocking] blocking",
+       "where": "gate_line in render_html",
+       "verdict": "kept",
+       "why": "Code constructs gate_line based on gate['ok'], gate['first_run'], and gate['blocking']."
+      },
+      {
+       "text": "The narrative half is hand-written in [narrative.path] and survives regeneration untouched.",
+       "where": "lede paragraph in render_html",
+       "verdict": "kept",
+       "why": "Code includes narrative.path in the lede paragraph."
+      },
+      {
+       "text": "Numbers below are derived from the tree as it was at the moment stamped here.",
+       "where": "lede paragraph in render_html",
+       "verdict": "kept",
+       "why": "The stamp information is displayed and the page is generated from data."
+      },
+      {
+       "text": "Nine words, carried over unchanged from the hand-built map so the generated page and anything still written by hand cannot drift into two dialects.",
+       "where": "status vocabulary section",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the _legend or _class_legend functions; the nine words are not shown."
+      },
+      {
+       "text": "A switch is dark when every read site defaults it off AND at least one site has no fallback to a usable value.",
+       "where": "switches section",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain the switch scanning logic; it only references dark switches."
+      },
+      {
+       "text": "The gate reads the same walk this page does; where a count differs it is the stated subtraction below, not a second opinion.",
+       "where": "gate section",
+       "verdict": "kept",
+       "why": "The _reconciliation function builds a table with explicit subtractions."
+      },
+      {
+       "text": "Prose belongs in [narrative.path], which this generator reads and never writes.",
+       "where": "foot paragraph",
+       "verdict": "kept",
+       "why": "The code reads narrative.path and includes it in the foot paragraph."
+      },
+      {
+       "text": "The counts, the entry points, the classes and the switch tables are derived; the invariants, reversals, kitchen and area prose are not, and no scanner claims to derive them.",
+       "where": "foot paragraph",
+       "verdict": "kept",
+       "why": "The code generates derived sections and includes narrative sections unchanged."
+      },
+      {
+       "text": "Returns (ok, message). The mechanical lists are carried over from the EXISTING snapshot rather than rescanned, so recording an acceptance can never quietly bank unrelated drift",
+       "where": "docstring of accept",
+       "verdict": "uncheckable",
+       "why": "The function body is not fully shown; only the signature and docstring are present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function accept is only partially shown; its body is truncated.",
+       "where": "line 1121 onwards",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _reconciliation function builds a detailed comparison table between page counts and gate counts.",
+       "where": "_reconciliation function (lines before _limits)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "render_html assembles a complete HTML page with sections for entries, modules, switches, gate, limits, and narrative.",
+       "where": "render_html function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "write_map writes the rendered HTML to a file, creating parent directories if needed.",
+       "where": "write_map function",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "808b8d31764c9d86bf9e5b365147ff6b98174e7801d5a34811f2d33f89c7b853",
+    "objective_chars": 15316,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/render.py [5/6]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/render.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

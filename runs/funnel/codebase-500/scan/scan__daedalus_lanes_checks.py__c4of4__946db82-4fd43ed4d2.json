@@ -1,0 +1,107 @@
+{
+ "task_id": "scan__daedalus_lanes_checks.py__c4of4__946db82",
+ "key": "scan__daedalus_lanes_checks.py__c4of4__946db82-4fd43ed4d2",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 4: defines run_checks and with_markers functions for check execution and policy modification.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/checks.py",
+     "chunk": "4 of 4",
+     "purpose": "Define run_checks and with_markers functions for check execution and policy modification.",
+     "symbols": [
+      {
+       "name": "run_checks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs baseline and extra checks, returns empty string if all pass, otherwise returns refusal reason. Fail-closed: exceptions caught and return refusal."
+      },
+      {
+       "name": "with_markers",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns a new CheckPolicy with elision_markers replaced by given markers."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Run the baseline, then any lane-specific additions. \"\" means write it.",
+       "where": "run_checks docstring",
+       "verdict": "kept",
+       "why": "The function iterates over BASELINE and extra, and returns \"\" if no check returns a reason."
+      },
+      {
+       "text": "FAIL-CLOSED, and this is the part worth not losing: a check that raises is reported as a refusal naming the crash.",
+       "where": "run_checks docstring",
+       "verdict": "kept",
+       "why": "Exception is caught and returns a string with exception info, thus refusing the write."
+      },
+      {
+       "text": "A lane may pass ``extra`` to ADD checks. There is deliberately no argument for removing one from the baseline.",
+       "where": "run_checks docstring",
+       "verdict": "kept",
+       "why": "Function accepts extra Iterable[Check] and adds to BASELINE; no removal argument exists."
+      },
+      {
+       "text": "``policy`` with this lane's own elision markers. Convenience only.",
+       "where": "with_markers docstring",
+       "verdict": "kept",
+       "why": "Returns replace(policy, elision_markers=tuple(markers))."
+      }
+     ],
+     "observations": [
+      {
+       "what": "run_checks returns str, empty string means success, non-empty means refusal.",
+       "where": "run_checks function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "with_markers uses replace from dataclasses (implied) to create new policy.",
+       "where": "with_markers function",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3e7155ccdf1a710dee2aa467459c3b7b55b12cc64bf3503b1d23431fc1a2040b",
+    "objective_chars": 1842,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/checks.py [4/4]",
+  "rev": "946db82",
+  "module": "daedalus/lanes/checks.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 361
+ }
+}

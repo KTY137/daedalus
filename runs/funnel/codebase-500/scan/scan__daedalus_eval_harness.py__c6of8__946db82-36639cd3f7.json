@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c6of8__946db82",
+ "key": "scan__daedalus_eval_harness.py__c6of8__946db82-36639cd3f7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6/8 of harness.py: implements _arms_aggregate, _score, detect_provider, _ask, and run_tier2. Detects Ollama, scores substring matches, and runs Tier 2 LLM evaluation with token cap honesty fix.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "detect_provider | low | GET /api/tags with 2s timeout may block if network is slow; consider shorter timeout or async. | Test with slow/failing network.",
+     "_ask | low | chat_completion import from daedalus.providers._openai_compat may fail if module missing; exception caught but silent. | Ensure module exists or add fallback log.",
+     "run_tier2 | medium | cap_tokens parameter is 120,000 but docstring mentions cap_tokens * 4 chars; logic not shown in this chunk. | Verify truncation logic in context assembly.",
+     "run_tier2 | medium | tokens_B_true described as added but not defined in this chunk; may be elsewhere. | Check definition and usage in full file."
+    ],
+    "todos": [
+     "Verify that _arms_aggregate function exists and is used correctly in _by_provenance.",
+     "Confirm that chat_completion function is properly exposed from daedalus.providers._openai_compat.",
+     "Check that tokens_B_true is computed and reported in the return dict of run_tier2.",
+     "Ensure that the truncation logic for B's context matches the cap_tokens * 4 chars description."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "6 of 8",
+     "purpose": "Implements Tier-arms aggregate, Tier-2 LLM evaluation with provider detection and scoring.",
+     "symbols": [
+      {
+       "name": "_arms_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Defined earlier in file; referenced in by_provenance call."
+      },
+      {
+       "name": "_score",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (bool, float) based on substring matching."
+      },
+      {
+       "name": "detect_provider",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Probes Ollama /api/tags with 2s timeout."
+      },
+      {
+       "name": "_ask",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Single LLM turn; catches all exceptions."
+      },
+      {
+       "name": "run_tier2",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Opt-in Tier 2 using provider; returns dict with tier, skipped, reason or results."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Model-free (recall via ``_recall``), offline, no LLM -- safe to run alongside Tier 1.",
+       "where": "docstring of _arms_aggregate",
+       "verdict": "uncheckable",
+       "why": "Refers to _recall and offline nature; not in this chunk."
+      },
+      {
+       "text": "See ``eval_task_arms`` for what each arm measures and ``by_provenance`` for the (never-blended) per-provenance-tier breakdown.",
+       "where": "docstring of _arms_aggregate",
+       "verdict": "uncheckable",
+       "why": "Functions not defined in this chunk."
+      },
+      {
+       "text": "Success = every expected substring appears (case-insensitive). Also return the fraction present for a softer signal.",
+       "where": "docstring of _score",
+       "verdict": "kept",
+       "why": "Code checks all substrings case-insensitively and returns fraction."
+      },
+      {
+       "text": "Only a local Ollama HTTP endpoint is probed (free, no key, no egress). The probe is a 2s GET to /api/tags -- it does nothing unless Tier 2 is requested.",
+       "where": "docstring of detect_provider",
+       "verdict": "kept",
+       "why": "Code does GET /api/tags with 2s timeout; no egress to external hosts."
+      },
+      {
+       "text": "Single text-only turn against the provider. Never raises to the caller.",
+       "where": "docstring of _ask",
+       "verdict": "kept",
+       "why": "Wraps chat_completion in try/except, returns '' on failure."
+      },
+      {
+       "text": "Opt-in Tier 2. Compares distilled-slice (A) vs whole-repo-concat (B) task success + tokens. Cleanly skipped (never crashes) when no provider is up.",
+       "where": "docstring of run_tier2",
+       "verdict": "uncheckable",
+       "why": "Logic for A/B comparison not shown; skip path returns dict with skipped=True."
+      },
+      {
+       "text": "B's tokens were ALREADY measured with the real tokenizer before this change (``count_tokens`` is exact whenever tiktoken is installed) -- that part was honest. What was NOT honest: B is capped at ``cap_tokens * 4`` chars before being measured, so ``tokens_B`` silently reflected a TRUNCATED text, not the real whole-repo size. ``tokens_B_true`` (added here) is the untruncated whole-repo token count, so a truncated B can never be mistaken for the real baseline.",
+       "where": "docstring of run_tier2",
+       "verdict": "uncheckable",
+       "why": "Referenced variables (tokens_B, tokens_B_true) not present in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "detect_provider uses urllib.request with hardcoded timeout 2; may block if host unresponsive.",
+       "where": "detect_provider",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_ask imports chat_completion from daedalus.providers._openai_compat; no fallback if import fails.",
+       "where": "_ask",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "run_tier2 docstring mentions cap_tokens*4 chars truncation but code for that not visible.",
+       "where": "run_tier2",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "tokens_B_true is referenced in docstring but not defined in this chunk; may be added elsewhere.",
+       "where": "run_tier2",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9fc182d542ca74c8cab6b74e96a0cb721ea60ef5e9254821a2070c2143a82373",
+    "objective_chars": 5835,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [6/8]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 6,
+  "total": 8,
+  "first_line": 601
+ }
+}

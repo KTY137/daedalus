@@ -1,0 +1,137 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c6of7__946db82",
+ "key": "scan__daedalus_council_bus.py__c6of7__946db82-d8412a2680",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 6 of 7 of daedalus/council/bus.py: contains append_turn, append_roster, and load_transcript function definitions with validation and roster logic.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "append_roster | medium | _reject_unknown, _ACTOR_RE, _ALLOWED_PARTICIPANT_KEYS, PARTICIPANT_OUTCOMES, _norm_class, _norm_strs, _scan_roster, _chain_records are not defined in this chunk. If missing or incorrect, behavior will break. | Confirm these symbols exist in the same module or imports.",
+     "append_roster | medium | The 'refused' key in the final record is set to rule from _scan_roster, but if _scan_roster returns a non-dict, type mismatch may occur. | Verify _scan_roster returns a dict or None.",
+     "load_transcript | low | Function signature present but no body; missing implementation could cause import errors. | Provide implementation of load_transcript."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "6 of 7",
+     "purpose": "Define append_turn, append_roster, and load_transcript functions with roster validation and chaining.",
+     "symbols": [
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Convenience over append_round; chains a single turn."
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Chains roster accounting with derived counts and degraded flag."
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads all records, skipping torn tail line."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Chain a single turn (a one-participant round). Convenience over :func:`append_round`; prefer the round form so ordering stays deterministic.",
+       "where": "append_turn docstring",
+       "verdict": "uncheckable",
+       "why": "append_round is not defined in this chunk; cannot verify that append_turn is a convenience over it or that ordering is deterministic."
+      },
+      {
+       "text": "Chain the roster accounting: requested / seated / responded / unavailable with machine reasons, plus the DISTINCT INDEPENDENCE CLASS count and a ``degraded`` flag whenever fewer participants responded than were requested.",
+       "where": "append_roster docstring",
+       "verdict": "kept",
+       "why": "The function builds a record with these fields: requested, seated, responded, unavailable, distinct_classes, degraded. The degraded flag is set to responded < requested."
+      },
+      {
+       "text": "Counts are DERIVED here, never accepted from the caller: \"3 of 4\" and \"2 of 2\" must not be able to render as the same string, and a consumer that shows the participant count instead of the distinct-class count is showing a council of clones as a council.",
+       "where": "append_roster docstring",
+       "verdict": "kept",
+       "why": "Counts are computed from the norm list (requested = len(norm), seated, responded, unavailable, distinct_classes = len(set(heard_classes))). Not accepted from caller."
+      },
+      {
+       "text": "Duplicate weights are detected over everyone SEATED (that is when the clone was let in); the distinct-class count is over those who actually RESPONDED, because an unavailable participant contributes no voice and a class count that includes it overstates the independence on the record.",
+       "where": "append_roster comment",
+       "verdict": "kept",
+       "why": "seated_classes includes 'seated', 'responded', 'refused'; heard_classes only includes 'responded'. distinct_classes is len(set(heard_classes)). Duplicate detection uses seated_classes."
+      },
+      {
+       "text": "Read all records, skipping a torn tail line (never fatal). Missing is [].",
+       "where": "load_transcript docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is not provided in this chunk; cannot verify behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "append_turn calls append_round which is not defined in this chunk; relies on external definition.",
+       "where": "append_turn",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_roster uses several undefined symbols: _reject_unknown, _ACTOR_RE, _ALLOWED_PARTICIPANT_KEYS, PARTICIPANT_OUTCOMES, _norm_class, _norm_strs, _scan_roster, _chain_records.",
+       "where": "append_roster",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_transcript has no implementation; only a stub.",
+       "where": "load_transcript",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "The 'refused' key is set to the return of _scan_roster; if _scan_roster returns a non-dict, the record shape changes.",
+       "where": "append_roster",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "1259dd803423de86879b4fd11f5796b3312023d708804c4604aaf08d57210a29",
+    "objective_chars": 6329,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/council/bus.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 601
+ }
+}

@@ -1,0 +1,167 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c8of11__946db82",
+ "key": "scan__daedalus_council_canary.py__c8of11__946db82-389ec024e7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 8 of 11 of daedalus/council/canary.py: defines build_roster, LiveCanaryRefused, _adapters_behind, live_egress_lanes, _TRANSPORT_MAP, and grade; docstrings make several claims about behaviour that are partially checkable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_adapters_behind | medium | The docstring claims three places are checked, but the code only checks lane.adapter, ask.__self__, and ask.__closure__; if a custom Lane has an adapter stored elsewhere, it will be missed. This is a design limitation, not a bug. To settle: review all call sites that construct Lane objects.",
+     "grade | low | The docstring claims 'checker runs ONLY on status == ok', but the code for grade is not shown; the claim is uncheckable in this chunk. To settle: inspect the full grade function.",
+     "live_egress_lanes | low | The docstring claims classification is done by session.live_egress_seats, which is imported; correctness depends on that external function. To settle: verify the import and its implementation."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "8 of 11",
+     "purpose": "Defines build_roster, LiveCanaryRefused, _adapters_behind, live_egress_lanes, _TRANSPORT_MAP, and grade.",
+     "symbols": [
+      {
+       "name": "build_roster",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds live roster from vendor names; uses _CanaryClaude, _CanaryCodex, _CanaryAntigravity, _CanaryOllama."
+      },
+      {
+       "name": "LiveCanaryRefused",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Exception subclass of LiveCouncilRefused; raised when live=True is needed."
+      },
+      {
+       "name": "_adapters_behind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns CouncilAdapter instances reachable via a Lane's ask."
+      },
+      {
+       "name": "live_egress_lanes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns tuple of lane vendor/model and seat for egress lanes."
+      },
+      {
+       "name": "_TRANSPORT_MAP",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps VendorReply transport statuses to canary statuses."
+      },
+      {
+       "name": "grade",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Grades a VendorReply into a ProbeResult."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The Ollama host is passed EXPLICITLY, per call. OLLAMA_HOST is neither read for routing nor written anywhere here, and the local flag is a property of the RESOLVED host rather than of the provider's name",
+       "where": "build_roster docstring (line 841)",
+       "verdict": "kept",
+       "why": "The code uses the explicit 'host' parameter and does not reference OLLAMA_HOST; 'local' flag is set based on _is_local_http(host)."
+      },
+      {
+       "text": "the bench is another machine, so a probe sent there is egress and is labelled as such on every record it produces.",
+       "where": "build_roster docstring (line 841)",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk labels records; depends on external probe logic."
+      },
+      {
+       "text": "Subclasses the council's refusal ON PURPOSE. 'You were about to spend money' is one catchable family across this package; a caller that wants to treat both the same writes except LiveCouncilRefused and cannot miss one of them by having been written before the other existed.",
+       "where": "LiveCanaryRefused docstring (line 882)",
+       "verdict": "kept",
+       "why": "LiveCanaryRefused explicitly inherits from LiveCouncilRefused; the exception hierarchy supports the described catchability."
+      },
+      {
+       "text": "Three places, because default_lanes is not the only way to build a Lane and a gate that only understood that one path would be a gate with a documented bypass: the adapter field, set by default_lanes; ask.__self__, for a bound method of an adapter; ask.__closure__, which is where _bind keeps its adapter -- so a hand-rolled Lane(ask=_bind(ClaudeAdapter())) is caught too.",
+       "where": "_adapters_behind docstring (line 895)",
+       "verdict": "kept",
+       "why": "The code checks lane.adapter, ask.__self__, and ask.__closure__ exactly as documented."
+      },
+      {
+       "text": "Finding NOTHING means ask is a plain caller-supplied callable, and the verdict for that is deliberately the same one session.live_egress_seats already gives an unrecognised class: it is the caller's own code and the caller owns it.",
+       "where": "_adapters_behind docstring (line 895)",
+       "verdict": "uncheckable",
+       "why": "The behavior when no adapters are found depends on session.live_egress_seats, which is not in this chunk."
+      },
+      {
+       "text": "The classification itself is NOT done here -- it is session.live_egress_seats, imported. This function only resolves a lane back to its adapter(s) and prefixes the lane's identity onto whatever that one classifier says, so the canary and the council can never drift into disagreeing about which seats cost money.",
+       "where": "live_egress_lanes docstring (line 923)",
+       "verdict": "kept",
+       "why": "The code calls live_egress_seats (imported) and prepends lane.vendor/lane.model; classification is delegated."
+      },
+      {
+       "text": "The checker runs ONLY on status == 'ok': grading the body of a reply we never received would manufacture a wrong_answer out of an outage, which is the same lie as merging the two statuses.",
+       "where": "grade docstring (line 949)",
+       "verdict": "uncheckable",
+       "why": "The grade function is truncated; the condition checking status == 'ok' is not visible in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "build_roster uses VENDOR_KEYS but its definition is not in this chunk; the error message references it.",
+       "where": "build_roster line 869",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_TRANSPORT_MAP is defined but not used in this chunk; it is likely used elsewhere.",
+       "where": "_TRANSPORT_MAP line 945",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "grade function is incomplete; the docstring claim about 'checker runs ONLY on status == ok' cannot be verified.",
+       "where": "grade line 949",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e96ff9358f4b4de44542cde01a27258efea3c23bfa8ba9bab963a8f21a9b810f",
+    "objective_chars": 5795,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [8/11]",
+  "rev": "946db82",
+  "module": "daedalus/council/canary.py",
+  "index": 8,
+  "total": 11,
+  "first_line": 841
+ }
+}

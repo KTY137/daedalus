@@ -1,0 +1,170 @@
+{
+ "task_id": "scan__daedalus_tools_vet.py__c3of3__946db82",
+ "key": "scan__daedalus_tools_vet.py__c3of3__946db82-75af28e758",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3/3 of vet.py: vet_skill, vet_mcp_server, summarise functions with docstrings and inline comments.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "vet_skill docstring | medium | Claim 'fail-closed' is uncheckable: no error-handling code visible in chunk. | Show try/except or guard clauses in full function.",
+     "vet_skill docstring | medium | Claim 'exactly one SKILL.md parser' is uncheckable: no reference to skills.load_skill in chunk. | Confirm skills.load_skill is the only parser.",
+     "vet_mcp_server docstring | medium | Claim 'Nothing is started or contacted' is uncheckable: no code in chunk proves no side effects. | Add explicit assertion or static analysis proof.",
+     "Comment # A __pycache__/x.cpython-*.pyc ... | medium | Claim 'sibling source must actually be in the scanned set' is kept but relies on external variable scanned_sources. | Ensure scanned_sources is correctly populated before deferred loop.",
+     "Comment # An MCP server is a command line ... | medium | Claim 'what can be judged statically is the command line' is kept but limited to static analysis. | No action needed.",
+     "summarise docstring | low | Claim 'Sorted; no I/O' is kept: function returns dict without I/O. | No action needed."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/tools/vet.py",
+     "chunk": "3 of 3",
+     "purpose": "Defines vet_skill, vet_mcp_server, and summarise functions for static vetting of skills and MCP servers.",
+     "symbols": [
+      {
+       "name": "vet_skill",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Vets one skills.Skill dataclass instance. Static, fail-closed. Returns Verdict."
+      },
+      {
+       "name": "vet_mcp_server",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Vets one .mcp.json server entry. Static, no network/process. Returns Verdict."
+      },
+      {
+       "name": "summarise",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Counts verdicts by outcome, returns dict with blocking/unscannable/cleared lists. No I/O."
+      },
+      {
+       "name": "_UNPINNED",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex matching unpinned versions or bare URLs."
+      },
+      {
+       "name": "_URL_IN_ARG",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Regex to extract host from URLs in command arguments."
+      },
+      {
+       "name": "_REMOTE_FETCHERS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Tuple of remote fetcher commands (npx, uvx, etc.)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Vet one ``skills.Skill``. Static, fail-closed.",
+       "where": "vet_skill docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring claims static and fail-closed, but no code in this chunk proves fail-closed (no try/except or error handling). The function appears to return normally; fail-closed behavior is not demonstrated."
+      },
+      {
+       "text": "Takes the parsed dataclass rather than a path so there is exactly one ``SKILL.md`` parser in this repo \u2014 ``skills.load_skill`` \u2014 and this module cannot disagree with it about what a skill is.",
+       "where": "vet_skill docstring",
+       "verdict": "uncheckable",
+       "why": "The claim about skills.load_skill being the only parser is not verifiable in this chunk. No import or reference to skills.load_skill appears here."
+      },
+      {
+       "text": "A ``__pycache__/x.cpython-*.pyc`` is a DERIVATIVE of an ``x.py`` we scanned, so it carries no information the scan of the source did not already cover. Skipping it silently would be a hole (bytecode can outlive or replace its source), so the exemption is conditional: the sibling source must actually be in the scanned set. A planted or orphaned .pyc still lands in `skipped` and still makes the verdict UNSCANNABLE.",
+       "where": "Comment before deferred loop",
+       "verdict": "kept",
+       "why": "The code implements this logic: deferred .pyc files are collected; then for each deferred, if the corresponding source is in scanned_sources, it is noted; otherwise it is added to skipped. This matches the description."
+      },
+      {
+       "text": "An MCP server is a command line, so what can be judged statically is the command line: what it runs, from where, pinned or not, and where its bytes go.",
+       "where": "Comment section header before vet_mcp_server",
+       "verdict": "kept",
+       "why": "vet_mcp_server inspects command, args, env, and uses regex to check for pinned versions and egress hosts. It does not start the server."
+      },
+      {
+       "text": "Vet one ``.mcp.json`` server entry. Nothing is started or contacted.",
+       "where": "vet_mcp_server docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring claims no side effects, but the function itself does not contain any network or process calls. However, the claim is about the function's behavior, and the code does not prove it cannot be called in a way that causes side effects. The function is static, so the claim is plausible but uncheckable from this chunk alone."
+      },
+      {
+       "text": "Counts by outcome, plus the blocking subjects. Sorted; no I/O.",
+       "where": "summarise docstring",
+       "verdict": "kept",
+       "why": "The function returns a dict with counts and sorted lists. No I/O operations are present in the code."
+      }
+     ],
+     "observations": [
+      {
+       "what": "vet_skill uses external functions apply_allowances, _clip, _worst, scan_text, _scan_file, lane_for_host, mcp_spec_digest which are not defined in this chunk.",
+       "where": "vet_skill function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The deferred .pyc handling uses 'parent' variable constructed from path manipulation; potential edge cases with paths that have no parent (e.g., top-level .pyc).",
+       "where": "deferred loop in vet_skill",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "vet_mcp_server calls lane_for_host and mcp_spec_digest which are not defined in this chunk.",
+       "where": "vet_mcp_server function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "summarise function uses Verdict.cleared attribute; not defined in this chunk.",
+       "where": "summarise return statement",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6c832cc5e2f10e392374714615721cb246bf9ebcd719b9689725eaa4b8b771cf",
+    "objective_chars": 8232,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/tools/vet.py [3/3]",
+  "rev": "946db82",
+  "module": "daedalus/tools/vet.py",
+  "index": 3,
+  "total": 3,
+  "first_line": 561
+ }
+}

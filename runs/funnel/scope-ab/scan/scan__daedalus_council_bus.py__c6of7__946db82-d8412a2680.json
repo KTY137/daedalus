@@ -1,0 +1,165 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c6of7__946db82",
+ "key": "scan__daedalus_council_bus.py__c6of7__946db82-d8412a2680",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 6 of bus.py: append_turn, append_roster, load_transcript signatures and logic; docstring claims checked against visible code.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "append_roster | medium | Uses _ALLOWED_PARTICIPANT_KEYS and _ACTOR_RE but neither is defined in this chunk; if missing or misdefined, validation may be incorrect. | Check that _ALLOWED_PARTICIPANT_KEYS and _ACTOR_RE are defined correctly in the file.",
+     "append_roster | medium | _norm_class and _norm_strs are called but not defined in this chunk; their behavior is unknown. | Verify _norm_class and _norm_strs exist and produce expected output.",
+     "append_roster | medium | _scan_roster is called but not defined in this chunk; its behavior and return value are unknown. | Verify _scan_roster exists and returns a truthy value when a rule should apply.",
+     "append_roster | medium | _chain_records is called but not defined in this chunk; its behavior is unknown. | Verify _chain_records exists and works as expected.",
+     "load_transcript | medium | load_transcript is declared with docstring 'Missing is []' but body is not shown; cannot verify behavior. | Check the implementation of load_transcript."
+    ],
+    "todos": [
+     "Verify that _ALLOWED_PARTICIPANT_KEYS, _ACTOR_RE, _norm_class, _norm_strs, _scan_roster, _chain_records are defined elsewhere in the file and work as expected."
+    ],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "6 of 7",
+     "purpose": "Implements append_turn, append_roster, and declares load_transcript; contains sorting and roster validation logic.",
+     "symbols": [
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Convenience function that calls append_round with a single-turn list. Returns the chain hash."
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Validates and normalizes participant list, computes counts (requested, seated, responded, unavailable, distinct_classes, degraded), checks for duplicate classes, applies _scan_roster rule, and chains the roster record."
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Declared only; body not in this chunk. Docstring says returns list of dicts, missing is []."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Canonical body is the final tiebreak so the order is TOTAL even when two anonymised refusal receipts collapse to the same actor: chaining must not inherit wall-clock completion order from anywhere.",
+       "where": "comment in append_round (line ~618)",
+       "verdict": "uncheckable",
+       "why": "The sorting logic using canonical_body_json is present, but the claim about 'anonymised refusal receipts' and 'wall-clock completion order' cannot be verified from this chunk alone; requires context of refusal receipts and overall chaining design."
+      },
+      {
+       "text": "Convenience over :func:`append_round`; prefer the round form so ordering stays deterministic.",
+       "where": "docstring of append_turn",
+       "verdict": "uncheckable",
+       "why": "The docstring references append_round and a preference for deterministic ordering, but the implementation of append_round is not fully visible here; the claim about ordering cannot be confirmed."
+      },
+      {
+       "text": "Chain a single turn (a one-participant round).",
+       "where": "docstring of append_turn",
+       "verdict": "kept",
+       "why": "append_turn calls append_round with a list containing a single turn, effectively chaining a one-participant round."
+      },
+      {
+       "text": "Chain the roster accounting: requested / seated / responded / unavailable with machine reasons, plus the DISTINCT INDEPENDENCE CLASS count and a degraded flag whenever fewer participants responded than were requested.",
+       "where": "docstring of append_roster",
+       "verdict": "kept",
+       "why": "The code computes and includes all these fields in the record dict."
+      },
+      {
+       "text": "Counts are DERIVED here, never accepted from the caller: '3 of 4' and '2 of 2' must not be able to render as the same string, and a consumer that shows the participant count instead of the distinct-class count is showing a council of clones as a council.",
+       "where": "docstring of append_roster",
+       "verdict": "kept",
+       "why": "Counts like requested, seated, responded, unavailable, distinct_classes are computed from the normalized participants list, not taken from caller input."
+      },
+      {
+       "text": "Duplicate weights are detected over everyone SEATED (that is when the clone was let in); the distinct-class count is over those who actually RESPONDED, because an unavailable participant contributes no voice and a class count that includes it overstates the independence on the record.",
+       "where": "comment in append_roster (line ~664)",
+       "verdict": "kept",
+       "why": "The code computes seated_classes from outcomes 'seated', 'responded', 'refused' and heard_classes only from 'responded'. Duplicate detection uses seated_classes; distinct_classes uses heard_classes."
+      },
+      {
+       "text": "Read all records, skipping a torn tail line (never fatal). Missing is [].",
+       "where": "docstring of load_transcript",
+       "verdict": "uncheckable",
+       "why": "The body of load_transcript is not in this chunk, so the claim about skipping torn tail lines and returning [] for missing store cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "append_turn delegates to append_round with a single-element list and returns the first element of its result.",
+       "where": "append_turn function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_roster validates phase in {'open', 'close'}, participant keys, actor format against _ACTOR_RE, and outcome against PARTICIPANT_OUTCOMES.",
+       "where": "append_roster function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_roster normalizes each participant with _norm_class and _norm_strs, and sorts by actor.",
+       "where": "append_roster function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_roster computes duplicate_classes from seated_classes, and distinct_classes from heard_classes.",
+       "where": "append_roster function body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "append_roster checks _scan_roster and if truthy, replaces participants with empty list and adds 'refused' field.",
+       "where": "append_roster function body",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "load_transcript is declared but its implementation is not in this chunk; the docstring claims behavior that cannot be verified here.",
+       "where": "load_transcript declaration",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e13229e0aa1057f197b3252a32e5654a5833fdfbecce1db25d29404fbbe96a4d",
+    "objective_chars": 7224,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [6/7]",
+  "rev": "946db82",
+  "module": "daedalus/council/bus.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 601
+ }
+}

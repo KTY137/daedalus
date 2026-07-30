@@ -1,0 +1,141 @@
+{
+ "task_id": "plan__b023__946db82",
+ "key": "plan__b023__946db82-e6cd203a25",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings: 1 confirmed (KillSwitch.clear() not resetting self._tripped), 1 narrowed (env restoration edge case), 2 needs-evidence (session lifecycle, stale-index detection). Prioritize critical confirmed bug, then high-severity needs-evidence items, then low-severity narrowed.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Session class may not exist or may be defined elsewhere; step depends on finding its definition.",
+     "search() wrapper may not be used by any consumer; stale-index detection gap may be irrelevant.",
+     "env restoration edge case may be harmless in practice if no consumer distinguishes empty from missing."
+    ],
+    "todos": [
+     "Fix KillSwitch.clear() to reset self._tripped to False.",
+     "Verify session attributes are initialized; add None-checks if needed.",
+     "Audit picker and other modules for use of search() vs search_report.",
+     "Trace env var consumers to confirm if empty string vs missing matters."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Fix KillSwitch.clear() to reset self._tripped",
+       "gate": "0",
+       "why_now": "Confirmed critical bug: clear() deletes marker files but leaves self._tripped=True, causing subsequent reads to indicate tripped state incorrectly. This breaks kill switch semantics and could prevent loop restart.",
+       "steps": [
+        {
+         "do": "Locate clear() method in daedalus/spine/killswitch.py (likely around lines 633-639). Add line: self._tripped = False after deleting marker files.",
+         "file": "daedalus/spine/killswitch.py",
+         "verified_by": "Run `grep -A 10 'def clear' daedalus/spine/killswitch.py` to see the method; then run tests/test_killswitch.py to verify clear() resets state."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "clear() method exists in killswitch.py as described."
+      },
+      {
+       "rank": 2,
+       "title": "Verify session attribute initialization and add None-checks",
+       "gate": "1",
+       "why_now": "High severity needs-evidence: subprocess_adapter.py accesses session.timeout_s, started_at, cwd without None-check. If any session object lacks these attributes, AttributeError occurs, crashing the adapter.",
+       "steps": [
+        {
+         "do": "Search for Session class definition: grep -rn 'class Session' daedalus/",
+         "file": "daedalus/council/session.py",
+         "verified_by": "Command returns file path; inspect class to see if attributes have defaults."
+        },
+        {
+         "do": "If Session class missing defaults, add None-check in subprocess_adapter.py events method before accessing attributes, or ensure creation paths set them.",
+         "file": "daedalus/adapters/subprocess_adapter.py",
+         "verified_by": "Run tests that exercise subprocess_adapter with various session objects; no AttributeError."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Session class is defined in daedalus/council/session.py; if not, adjust path."
+      },
+      {
+       "rank": 3,
+       "title": "Audit picker and consumers for search() vs search_report usage",
+       "gate": "1",
+       "why_now": "High severity needs-evidence: if picker uses search() wrapper instead of search_report, it loses freshness info and may use stale embeddings.",
+       "steps": [
+        {
+         "do": "Search for calls to 'search(' in picker and other modules: grep -rn 'search(' daedalus/spine/picker.py daedalus/memory/",
+         "file": "daedalus/spine/picker.py",
+         "verified_by": "Command output shows whether search() is used."
+        },
+        {
+         "do": "If any consumer uses search(), verify they also check freshness via other means; if not, add freshness check or switch to search_report.",
+         "file": "daedalus/memory/embeddings.py",
+         "verified_by": "Run tests/test_picker_work_queue.py and test_embeddings.py; ensure no stale index used."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "search() wrapper is defined in embeddings.py; search_report is the main API."
+      },
+      {
+       "rank": 4,
+       "title": "Trace env var consumers and fix restoration if needed",
+       "gate": "1",
+       "why_now": "Low severity narrowed: if prior_env is empty string, restoration sets to empty instead of deleting key; some consumers may treat empty differently from missing.",
+       "steps": [
+        {
+         "do": "Find all consumers of DAEDALUS_TRACE_ID: grep -rn 'DAEDALUS_TRACE_ID' daedalus/",
+         "file": "UNKNOWN",
+         "verified_by": "Command returns list of files; inspect each to see if they distinguish empty from missing."
+        },
+        {
+         "do": "If any consumer treats empty as set, change restoration to delete key when prior_env is empty string.",
+         "file": "UNKNOWN",
+         "verified_by": "Run tests that exercise env restoration; ensure trace attribution correct."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "The env variable restoration code is in a file under daedalus/; exact path not given."
+      }
+     ],
+     "suggested_files": [
+      "daedalus/spine/killswitch.py",
+      "daedalus/adapters/subprocess_adapter.py",
+      "daedalus/council/session.py",
+      "daedalus/spine/picker.py",
+      "daedalus/memory/embeddings.py"
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "16d3998e48a8805d4b998a5efb9a47a07716a72584040b0d0198389b998f5e32",
+    "objective_chars": 17003,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 23 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 23,
+  "inputs": 4
+ }
+}

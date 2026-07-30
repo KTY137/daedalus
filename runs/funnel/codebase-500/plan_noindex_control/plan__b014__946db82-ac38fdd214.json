@@ -1,0 +1,130 @@
+{
+ "task_id": "plan__b014__946db82",
+ "key": "plan__b014__946db82-ac38fdd214",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "4 findings survive: unparsed-claims-assumption (medium), build-index-contract-gap (medium), not-substituted-truncation (high), unchecked-dict-access (high). Ordered by severity then cost; requires inspection of session.py, checks.py, render.py, docrefs.py, parse.py, and grep for build_index.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "unparsed-claims-assumption: session.py may not handle parsed=False claims; quorum and render could be incorrect.",
+     "build-index-contract-gap: build_index implementation not visible; untested contract between CLI and core.",
+     "not-substituted-truncation: full not_substituted function missing from scan; guard may be incomplete or missing.",
+     "unchecked-dict-access: multiple functions risk KeyError on malformed data; high severity."
+    ],
+    "todos": [
+     "Inspect session.py quorum and render for parsed=False handling.",
+     "Grep for def build_index in daedalus/structcore/.",
+     "Open daedalus/lanes/checks.py lines 199-250 for not_substituted.",
+     "Add unit tests with incomplete data to trigger KeyError in render.py, docrefs.py, parse.py."
+    ],
+    "handoff": {
+     "items": [
+      {
+       "rank": 1,
+       "title": "Inspect session.py for unparsed claim handling in quorum and render",
+       "gate": "1",
+       "why_now": "Unparsed claims could cause incorrect quorum or rendering; must be fixed before end-to-end vertical slice.",
+       "steps": [
+        {
+         "do": "Open session.py and inspect quorum property and render method for handling of claims with parsed=False.",
+         "file": "session.py",
+         "verified_by": "Manual inspection; write test with unparsed claim and verify quorum and render behave correctly."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "session.py exists in the repository; path not provided in findings, so file is UNKNOWN. Assumed location based on context."
+      },
+      {
+       "rank": 2,
+       "title": "Verify build_index implementation exists in daedalus/structcore/",
+       "gate": "1",
+       "why_now": "CLI depends on build_index; missing implementation breaks contract and untested.",
+       "steps": [
+        {
+         "do": "Run grep -r 'def build_index' daedalus/structcore/",
+         "file": "daedalus/structcore/",
+         "verified_by": "Command output shows definition or not."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Path daedalus/structcore/ exists; if not, adjust based on actual repo structure."
+      },
+      {
+       "rank": 3,
+       "title": "Inspect full not_substituted function in daedalus/lanes/checks.py",
+       "gate": "1",
+       "why_now": "Missing implementation may cause guard to fail; high severity if incomplete.",
+       "steps": [
+        {
+         "do": "Open daedalus/lanes/checks.py and read lines 199-250 to see the full not_substituted function.",
+         "file": "daedalus/lanes/checks.py",
+         "verified_by": "Manual reading; verify function signature and logic."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "File path is exact as in cited_source."
+      },
+      {
+       "rank": 4,
+       "title": "Add existence checks for nested dictionary access in render.py, docrefs.py, parse.py",
+       "gate": "2",
+       "why_now": "Unchecked dict access risks KeyError; high severity, blocks reliability.",
+       "steps": [
+        {
+         "do": "In render.py, add .get() calls or try/except for nested key accesses.",
+         "file": "render.py",
+         "verified_by": "Run test suite; no KeyError traces."
+        },
+        {
+         "do": "In docrefs.py, add existence checks for nested dict keys.",
+         "file": "docrefs.py",
+         "verified_by": "Run test suite; no KeyError traces."
+        },
+        {
+         "do": "In parse.py, add existence checks for nested dict keys.",
+         "file": "parse.py",
+         "verified_by": "Run test suite; no KeyError traces."
+        }
+       ],
+       "depends_on": "",
+       "effort": "hours",
+       "assumption": "Files render.py, docrefs.py, parse.py exist in repository; paths not provided, so file is UNKNOWN. Assumed based on finding context."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "d31a088b77644e9a80bfa4f5795c0446080d0f93de52a86e4ae61446c19dd630",
+    "objective_chars": 6426,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "ce42e59123324ddd2650e49b95c5b10b68e3469912d139447b2a5ca5a8705ece",
+    "system_override_chars": 1957,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "plan",
+  "label": "bucket 14 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 14,
+  "inputs": 4
+ }
+}

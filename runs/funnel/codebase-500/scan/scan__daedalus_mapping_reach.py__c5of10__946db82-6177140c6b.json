@@ -1,0 +1,145 @@
+{
+ "task_id": "scan__daedalus_mapping_reach.py__c5of10__946db82",
+ "key": "scan__daedalus_mapping_reach.py__c5of10__946db82-6177140c6b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of daedalus/mapping/reach.py: defines helper functions for import record extraction, toplevel name collection, module-level binding mapping, shim detection, and the _scan function.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_toplevel_names | medium | Docstring claims descends into if/try for conditional definitions but code also descends into With and AsyncWith, and only up to depth < 3. | Check if With/AsyncWith should be included per spec.",
+     "_module_level_bindings | medium | Docstring claims 'MODULE LEVEL ONLY' is load-bearing but code does not enforce it; it only processes top-level statements. | Add assertion or comment to clarify enforcement.",
+     "_shim_body | medium | Docstring says 'no def, no class' but code does not check for def/class explicitly; it returns False on non-import/assign/if/try statements, which would catch def/class. | Verify that def/class are indeed caught by the final return False.",
+     "_shim_body | medium | Docstring mentions '__all__' but code only allows Assign with target being a Name, not a tuple or list; __all__ is often assigned to a list. | Check if __all__ = [...] is considered a plain alias assignment.",
+     "_scan | low | Function uses _py_dotted(rel) which is not defined in this chunk; its behavior is uncheckable. | Ensure _py_dotted is defined elsewhere."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/reach.py",
+     "chunk": "5 of 10",
+     "purpose": "Define helper functions: _import_records_of, _toplevel_names, _module_level_bindings, _shim_body, and _scan.",
+     "symbols": [
+      {
+       "name": "_import_records_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns live import records from _split_imports(node)[0]."
+      },
+      {
+       "name": "_toplevel_names",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns set of names bound at module import time, descending into if/try/with/asyncwith up to depth 2."
+      },
+      {
+       "name": "_module_level_bindings",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict mapping bound name to list of records for module-level imports only."
+      },
+      {
+       "name": "_shim_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if body re-exports only (no def/class/executable statements beyond imports, __all__, plain alias assignments)."
+      },
+      {
+       "name": "_scan",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses text into _Src with tree, records, weak, is_shim, toplevel, and string constants."
+      }
+     ],
+     "claims": [
+      {
+       "text": "LIVE import records only. Weak ones are reachable only via :func:`_split_imports`, so no caller can pick them up by accident.",
+       "where": "_import_records_of docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references _split_imports which is not defined in this chunk; cannot verify that weak records are only reachable via that function."
+      },
+      {
+       "text": "Names a module binds at import time. Descends one level into ``if`` and ``try`` because conditional definitions are ordinary in this codebase.",
+       "where": "_toplevel_names docstring",
+       "verdict": "broken",
+       "why": "The code descends into if, try, with, and asyncwith, not just if and try. Also descends up to depth < 3, not just one level (depth 0 becomes depth 1, etc.)."
+      },
+      {
+       "text": "MODULE LEVEL ONLY, and that restriction is load-bearing. cli.py's branches all write ``from .doctor import main as m`` / ``from .benchmark import main as m`` -- the SAME local name ``m`` in sixty different branches. Binding names from every scope made ``m`` resolve to all sixty modules, so every subcommand appeared to reach every other subcommand's target and the whole dispatch collapsed into one blob. A branch's own imports are handled separately, from that branch's own records.",
+       "where": "_module_level_bindings docstring",
+       "verdict": "uncheckable",
+       "why": "The claim refers to cli.py and specific import patterns not present in this chunk; cannot verify the behavior of branch imports or the collapse scenario."
+      },
+      {
+       "text": "True when the module body re-exports and does nothing else. Detected structurally, never guessed: no def, no class, no executable statement beyond imports, ``__all__`` and plain alias assignments. A shim is worth naming because it is the one module class where 'nothing reaches it' is expected rather than alarming.",
+       "where": "_shim_body docstring",
+       "verdict": "broken",
+       "why": "The code does not explicitly check for def/class; it returns False on any statement that is not Import, ImportFrom, Assign (with specific conditions), Try, If, or Expr (first line only). This catches def/class implicitly, but the docstring claims 'no def, no class' as a structural detection, which is misleading. Also, the code allows __all__ only if assigned to a Name, List, Tuple, or Attribute, but the docstring says 'plain alias assignments' which might be interpreted differently."
+      },
+      {
+       "text": "Parses text into _Src with tree, records, weak, is_shim, toplevel, and string constants.",
+       "where": "implicit from _scan function",
+       "verdict": "kept",
+       "why": "The code sets src.tree, src.records, src.weak, src.is_shim, src.toplevel, and then walks for string constants."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_toplevel_names descends into With and AsyncWith in addition to If and Try, and allows depth up to 2 (depth < 3).",
+       "where": "_toplevel_names function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_module_level_bindings does not enforce 'MODULE LEVEL ONLY' beyond processing only top-level statements; no guard against being called with non-module tree.",
+       "where": "_module_level_bindings docstring",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_shim_body returns False on any statement that is not Import, ImportFrom, Assign (with specific target/value types), Try, If, or Expr (first line only). It does not explicitly check for def/class, but they would be caught by the final return False.",
+       "where": "_shim_body function",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_scan uses _py_dotted(rel) which is not defined in this chunk.",
+       "where": "_scan function",
+       "severity": "high",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cf0ca66814e683184652da057faa0f3eb32e3939592443699aae755a4ec041ec",
+    "objective_chars": 5786,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/reach.py [5/10]",
+  "rev": "946db82",
+  "module": "daedalus/mapping/reach.py",
+  "index": 5,
+  "total": 10,
+  "first_line": 481
+ }
+}

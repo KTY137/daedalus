@@ -1,0 +1,122 @@
+{
+ "task_id": "research__b008__946db82",
+ "key": "research__b008__946db82-84e28bc364",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Two modules (bus.py, forest.py) independently reimplement hash chaining and canonical serialization; bootstrap.py's closure captures a variable that later reassignment changes; all three rely on external modules not in these reports.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Duplicated hash chain logic between bus.py and memstore.py may diverge, breaking chain verification",
+     "Forest.py's type node filter via '#' may fail if repo contains '#' in filenames",
+     "bootstrap.py's closure capturing disc by name, not value, could lead to subtle bugs if more reassignments are added",
+     "Cross-file verification of chain integrity is not testable from these chunks alone"
+    ],
+    "todos": [
+     "Verify that bus.py's hash chain matches memstore.py's exactly, or document intentional divergence",
+     "Check that forest.py's _is_type_node_id is robust against '#' in paths",
+     "Refactor bootstrap.py to capture disc value explicitly (e.g., via default argument) to avoid closure ambiguity",
+     "Ensure verify_chain in bus.py is implemented and consistent with anchor file checks"
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-hash-chain",
+       "claim": "bus.py and memstore.py each implement the same two-SHA chain discipline independently, but there is no cross-reference or import; a bug fix in one will silently diverge from the other, breaking chain verification across the two stores.",
+       "spans": [
+        "daedalus/council/bus.py",
+        "daedalus/memstore.py (not in reports)"
+       ],
+       "mechanism": "bus.py defines _body_sha and _entry_sha with specific canonicalization; memstore.py (inferred from docstring of bus.py) implements the same two-SHA chain. Both are used in different contexts (council transcript vs. memory ledger) but must produce identical chains for cross-verification. Without shared code, any change to one (e.g., canonical separators) will not propagate to the other.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If bus.py imports memstore.py's chain functions instead of reimplementing them, or if a shared utility module exists that both use, the duplication is resolved.",
+       "evidence": [
+        "daedalus/council/bus.py: docstring claims 'deliberately REIMPLEMENTS memstore.py's two-SHA discipline instead of importing it'",
+        "daedalus/council/bus.py: _body_sha and _entry_sha functions implement the chain",
+        "daedalus/council/bus.py: _resolve_store forbids paths under memory/, reinforcing separation"
+       ]
+      },
+      {
+       "id": "closure-capture-ambiguity",
+       "claim": "bootstrap.py's _finish closure captures the variable disc by name, not value; the later reassignment of disc changes the closure's behavior, which is intentional but fragile. If any code path reassigns disc again or introduces a third assignment, the closure may use an unintended value.",
+       "spans": [
+        "daedalus/spine/bootstrap.py"
+       ],
+       "mechanism": "shadow_run defines _finish as a closure referencing disc. disc is first assigned from gate_discrimination(require_gate_binding=True) and then reassigned from a second gate_discrimination call. The closure is used in two places: once before reassignment (early return) and once after (main return). The closure uses the current value of disc at call time, not at definition time. This is correct but relies on the order of execution and the fact that disc is not reassigned again before the second use. If someone adds a third reassignment or moves the closure definition, the behavior changes silently.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If disc is never reassigned after the second gate_discrimination call, or if the closure captures disc by value (e.g., via a default argument), the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/spine/bootstrap.py: lines 572-577 define _finish and first disc assignment",
+        "daedalus/spine/bootstrap.py: lines 598-602 reassign disc and call _finish again"
+       ]
+      },
+      {
+       "id": "type-node-boundary-leak",
+       "claim": "forest.py's _is_type_node_id heuristic (presence of '#') is the only defense against type nodes leaking into file-based calculations (e.g., token budget, dominance fraction). If a repository file path contains '#', a type node will be misclassified as a file node, or a file node as a type node, causing incorrect measurements in downstream modules like dss and graph.",
+       "spans": [
+        "daedalus/structcore/forest.py",
+        "daedalus/dss (not in reports)",
+        "daedalus/mapping/graph (not in reports)"
+       ],
+       "mechanism": "forest.py uses _is_type_node_id to filter out type nodes from module_ids and other file-only sets. The filter checks for '#' in the node id. Downstream modules (dss, graph) rely on module_ids for token estimation and dominance calculations. If a file path contains '#', it would be incorrectly excluded from module_ids, or a type node without '#' (if naming convention changes) would be incorrectly included.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If the repository's file naming policy guarantees no '#' in paths, or if there is additional validation elsewhere that catches misclassifications, this hypothesis is refuted.",
+       "evidence": [
+        "daedalus/structcore/forest.py: _is_type_node_id checks for '#'",
+        "daedalus/structcore/forest.py: module_ids derived from index['modules'] excludes type nodes via this filter",
+        "daedalus/structcore/forest.py: docstring warns about build_forest_hierarchy segmenting on '/' and reading 'type:pkg/mod.py#Foo' as directory 'type:pkg'"
+       ]
+      },
+      {
+       "id": "incomplete-chain-verification",
+       "claim": "bus.py's docstring promises verify_chain and anchor-based tail truncation detection, but the function is not present in the chunk; if it is never implemented, the chain integrity guarantee is false, and a truncated transcript can be verified as valid.",
+       "spans": [
+        "daedalus/council/bus.py"
+       ],
+       "mechanism": "bus.py defines _entry_sha and _body_sha for building the chain, but the verification function verify_chain is not in the chunk. The anchor file mechanism (anchor_path) exists, but the code to read and compare the anchor against the chain head is missing. Without verify_chain, no integrity check is performed, and a truncated transcript (removing tail entries) would still have a valid chain internally.",
+       "severity": "critical",
+       "confidence": "possible",
+       "refuted_by": "If verify_chain is defined in a later chunk of bus.py or imported from another module, the hypothesis is refuted.",
+       "evidence": [
+        "daedalus/council/bus.py: docstring claims 'verify_chain NAMES the offending 1-indexed line'",
+        "daedalus/council/bus.py: anchor_path returns separate .anchor.json file",
+        "daedalus/council/bus.py: _entry_sha and _body_sha are present but verify_chain is not"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a4f8a7e954b752e4db70bdde34dbfbedcd2cd538a591807125a9f2b86d114fa0",
+    "objective_chars": 38346,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 8 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 8,
+  "inputs": 5
+ }
+}

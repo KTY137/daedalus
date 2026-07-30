@@ -1,0 +1,201 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c9of10__946db82",
+ "key": "scan__daedalus_council_vendors.py__c9of10__946db82-b22ad727ab",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 9/10 of vendors.py: defines OllamaLocalAdapter class with budget enforcement and dispatch, plus VendorAvailability dataclass and available_vendors function stub.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OllamaLocalAdapter.__init__ | low | self.local computed from lane_for_host(self.host) but self.host may be set after super().__init__? Actually set before super().__init__, so fine. | Verify that lane_for_host is deterministic and does not rely on mutable state.",
+     "OllamaLocalAdapter._dispatch | medium | Uses effective_input_window() and num_ctx_value() without imports shown; assumes they are available. If not imported, NameError at runtime. | Check that these functions are imported in the module.",
+     "available_vendors | medium | Function stub ends mid-definition; missing return statement and closing. | Ensure function is completed in next chunk."
+    ],
+    "todos": [
+     "Complete available_vendors function.",
+     "Verify imports for effective_input_window, num_ctx_value, count_tokens, ProviderHTTPError, native_chat, lane_for_host, model_family.",
+     "Ensure DEFAULT_BENCH_OLLAMA_HOST, DEFAULT_BENCH_OLLAMA_HOST are defined."
+    ],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "9 of 10",
+     "purpose": "Define OllamaLocalAdapter, VendorAvailability, and start available_vendors.",
+     "symbols": [
+      {
+       "name": "OllamaLocalAdapter",
+       "kind": "class",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Adapter for local Ollama instance; enforces input budget before dispatch."
+      },
+      {
+       "name": "OllamaLocalAdapter.vendor",
+       "kind": "constant",
+       "effects": [],
+       "note": "Class attribute set to 'local'."
+      },
+      {
+       "name": "OllamaLocalAdapter.__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Initializes host, output_reserve, _chat, endpoint, local."
+      },
+      {
+       "name": "OllamaLocalAdapter.independence_class",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns tuple of ('local', model_family(self.model)). Not host-keyed."
+      },
+      {
+       "name": "OllamaLocalAdapter._dispatch",
+       "kind": "function",
+       "effects": [
+        "network_egress"
+       ],
+       "note": "Dispatches prompt to local Ollama with budget check; returns dict with status."
+      },
+      {
+       "name": "VendorAvailability",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for cheap probe result; no model invoked."
+      },
+      {
+       "name": "available_vendors",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Incomplete function stub; returns tuple of VendorAvailability via cheap probes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "loopback only, the same predicate that decides the egress lane, so the two cannot disagree about one host.",
+       "where": "docstring before OllamaLocalAdapter",
+       "verdict": "uncheckable",
+       "why": "Refers to a predicate and egress lane logic not present in this chunk."
+      },
+      {
+       "text": "The bench is another machine on the tailnet, and bytes sent there have left this one.",
+       "where": "docstring before OllamaLocalAdapter",
+       "verdict": "uncheckable",
+       "why": "Refers to a 'bench' concept not defined in this chunk."
+      },
+      {
+       "text": "Over-budget prompts are REFUSED LOUDLY.",
+       "where": "docstring before OllamaLocalAdapter",
+       "verdict": "kept",
+       "why": "_dispatch returns error dict with 'over_context_budget' reason when tokens > window."
+      },
+      {
+       "text": "Ollama HEAD-truncates an over-long prompt -- it eats the system prompt first -- so a silently truncated council turn is a reviewer that never saw the question it is answering.",
+       "where": "docstring before OllamaLocalAdapter",
+       "verdict": "uncheckable",
+       "why": "Describes external behavior of Ollama; not verifiable from this code."
+      },
+      {
+       "text": "The budget is ``_ollama_native.effective_input_window()`` (full ``num_ctx`` minus the generation reserve), reused rather than reinvented.",
+       "where": "docstring before OllamaLocalAdapter",
+       "verdict": "kept",
+       "why": "_dispatch calls effective_input_window() (with optional reserve) to compute window."
+      },
+      {
+       "text": "ONE predicate, shared with the egress gate it feeds. Not a local copy: ``local`` and ``lane`` must never be able to disagree about the same host, and they did (``[::1]`` was local-but-untrusted).",
+       "where": "comment in __init__",
+       "verdict": "uncheckable",
+       "why": "Refers to egress gate logic not present in this chunk."
+      },
+      {
+       "text": "Deliberately NOT keyed on host: local 7b and bench 7b are the same weights, so they must collide as one class.",
+       "where": "independence_class property docstring",
+       "verdict": "kept",
+       "why": "Property returns ('local', model_family(self.model)), not including host."
+      },
+      {
+       "text": "Cheap probe result.  No model is invoked to produce this.",
+       "where": "VendorAvailability docstring",
+       "verdict": "kept",
+       "why": "Dataclass fields are all metadata; no invocation in its definition."
+      },
+      {
+       "text": "Does the binary exist; does the Ollama host answer ``/api/version``.  No model is invoked, no prompt is sent, nothing is billed.",
+       "where": "available_vendors docstring",
+       "verdict": "uncheckable",
+       "why": "Function body is incomplete; no implementation of probes in this chunk."
+      },
+      {
+       "text": "``agy`` is reported unavailable until an operator asserts sign-in: the only way to test its auth is to call it, and a probe that calls a model is not a probe.",
+       "where": "available_vendors docstring",
+       "verdict": "uncheckable",
+       "why": "No agy-related code in this chunk."
+      },
+      {
+       "text": "Both callables are injectable so a test can establish availability with no CLI on PATH and no network.",
+       "where": "available_vendors docstring",
+       "verdict": "kept",
+       "why": "Function signature includes injectable callables 'which' and 'http_probe'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "OllamaLocalAdapter._dispatch uses effective_input_window and num_ctx_value without imports visible in chunk.",
+       "where": "line ~1000-1010",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "available_vendors function is incomplete; ends mid-definition after first append.",
+       "where": "line ~1065",
+       "severity": "critical",
+       "confidence": "certain"
+      },
+      {
+       "what": "OllamaLocalAdapter.independence_class uses model_family(self.model) but self.model is not set in __init__; likely inherited from parent.",
+       "where": "line ~985",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "Docstring claims 'loopback only' but no check restricts host to loopback; host parameter defaults to DEFAULT_BENCH_OLLAMA_HOST which may not be loopback.",
+       "where": "docstring before class",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e664a1c1c2f72ad6d516960781b89e5ce9aa49273c76dbd02782dc2e03ed43ac",
+    "objective_chars": 5421,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [9/10]",
+  "rev": "946db82",
+  "module": "daedalus/council/vendors.py",
+  "index": 9,
+  "total": 10,
+  "first_line": 961
+ }
+}

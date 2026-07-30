@@ -1,0 +1,381 @@
+{
+ "task_id": "scan__daedalus_structcore_index.py__c1of11__946db82",
+ "key": "scan__daedalus_structcore_index.py__c1of11__946db82-f6a3560da5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/structcore/index.py: module docstring and imports, no executable logic yet.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/index.py",
+     "chunk": "1 of 11",
+     "purpose": "Module docstring describing build_index output and opt-in features; imports and helper constants/functions.",
+     "symbols": [
+      {
+       "name": "DOCUMENT_EXTENSIONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .languages, not defined here."
+      },
+      {
+       "name": "DocumentSpec",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .languages, not defined here."
+      },
+      {
+       "name": "LanguageSpec",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .languages, not defined here."
+      },
+      {
+       "name": "doc_spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .languages, not defined here."
+      },
+      {
+       "name": "spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .languages, not defined here."
+      },
+      {
+       "name": "CodeUnit",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .parse, not defined here."
+      },
+      {
+       "name": "PyTypeFacts",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .parse, not defined here."
+      },
+      {
+       "name": "resolve_python_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .parse, not defined here."
+      },
+      {
+       "name": "tree_sitter_available",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .parse, not defined here."
+      },
+      {
+       "name": "markdown_mod",
+       "kind": "module",
+       "effects": [],
+       "note": "Imported as .markdown, not defined here."
+      },
+      {
+       "name": "lizard_available",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .metrics, not defined here."
+      },
+      {
+       "name": "TYPE3_EXCLUDED_LANGUAGES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "CloneMemo",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "unit_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "window_clusters_from_runs",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "renamed_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "near_clusters",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .clones, not defined here."
+      },
+      {
+       "name": "FileAnalysis",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .perfile, not defined here."
+      },
+      {
+       "name": "analyze_chunk",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .perfile, not defined here."
+      },
+      {
+       "name": "analyze_file",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .perfile, not defined here."
+      },
+      {
+       "name": "FileCache",
+       "kind": "constant",
+       "effects": [],
+       "note": "Imported from .cache, not defined here."
+      },
+      {
+       "name": "file_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .cache, not defined here."
+      },
+      {
+       "name": "imports_mod",
+       "kind": "module",
+       "effects": [],
+       "note": "Imported as .imports, not defined here."
+      },
+      {
+       "name": "graph",
+       "kind": "module",
+       "effects": [],
+       "note": "Imported as .graph, not defined here."
+      },
+      {
+       "name": "tokens",
+       "kind": "module",
+       "effects": [],
+       "note": "Imported as .tokens, not defined here."
+      },
+      {
+       "name": "typegraph_mod",
+       "kind": "module",
+       "effects": [],
+       "note": "Imported as .typegraph, not defined here."
+      },
+      {
+       "name": "git_churn",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .churn, not defined here."
+      },
+      {
+       "name": "project_scope",
+       "kind": "function",
+       "effects": [],
+       "note": "Imported from .ignore, not defined here."
+      },
+      {
+       "name": "_IGNORE_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of directory basenames to skip during file collection."
+      },
+      {
+       "name": "backend_status",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with keys 'tree_sitter' and 'lizard' indicating availability."
+      },
+      {
+       "name": "_collect",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Walks root directory, yields up to max_files (path, rel, spec) tuples, skipping ignored dirs."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Output (all derived, regenerate-anytime): languages, modules, dependencies / fan_in, duplication, hotspots, backend",
+       "where": "docstring line 4-10",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk produces or returns any of these outputs. The claim refers to the module's overall behavior, which is defined in later chunks."
+      },
+      {
+       "text": "dependencies / fan_in \u2014 internal import graph (Python precise; other languages best-effort via imports.py -> module->file resolution is approximated without a real build graph, so unresolved edges are dropped, never guessed)",
+       "where": "docstring line 7-9",
+       "verdict": "uncheckable",
+       "why": "The chunk imports imports_mod but does not contain the logic that builds the import graph or resolves edges. The claim about behavior of imports.py cannot be verified from this chunk."
+      },
+      {
+       "text": "duplication \u2014 exact (unit) + renamed (Type-2) + near-miss (Type-3) clone clusters, plus window-level (universal, parser-free)",
+       "where": "docstring line 10",
+       "verdict": "uncheckable",
+       "why": "The chunk imports clone-cluster functions (unit_clusters, renamed_clusters, near_clusters, window_clusters_from_runs) but does not invoke them. The claim about duplication output cannot be verified from this chunk."
+      },
+      {
+       "text": "hotspots \u2014 complexity ranking, multiplied by normalized git churn (the CodeScene signal: rot lives where code is complex AND changing)",
+       "where": "docstring line 11-12",
+       "verdict": "uncheckable",
+       "why": "The chunk imports git_churn but does not contain the logic to compute hotspots. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "backend \u2014 which optional precision engines were active",
+       "where": "docstring line 13",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk computes or returns backend status; backend_status() is defined but not called. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "OPT-IN, absent unless documents=True (or DAEDALUS_INDEX_DOCUMENTS=1): documents, document_links / document_links_reverse",
+       "where": "docstring line 15-18",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements the documents opt-in or produces document-related output. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "With documents on, modules also carries document entries, each marked kind: \"document\" (markdown.is_document / code_modules).",
+       "where": "docstring line 20-21",
+       "verdict": "uncheckable",
+       "why": "The chunk imports markdown_mod but does not reference markdown.is_document or code_modules. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "OPT-IN, absent unless types=True (or DAEDALUS_INDEX_TYPES=1): types, type_nodes, type_edges",
+       "where": "docstring line 27-33",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk implements the types opt-in or produces type-related output. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "Type nodes NEVER enter modules, import_edges, dependencies, fan_in, all_units or the symbol resolver.",
+       "where": "docstring line 35-36",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk enforces that separation. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "MEASURED COST (2026-07-29, both indexes built end-to-end and diffed): ... cost is bounded on every real repo available, and cost is NOT the reason for the gate.",
+       "where": "docstring lines 46-56",
+       "verdict": "uncheckable",
+       "why": "The numbers and reasoning are comments about historical measurements; no code in this chunk implements the gate or the cost analysis. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "The reason is total_tokens, which is the distill ratio's DENOMINATOR. Turning documents on inflates it by 17.2% on this repo, so EVERY existing reduction_pct improves by ~17 points without the slicer getting one line better.",
+       "where": "docstring lines 58-60",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk computes total_tokens or reduction_pct. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "WHAT DEFAULT-OFF COSTS: the indexing defect stays open until someone flips the flag. ... The flip is one argument (documents=True), one env var (DAEDALUS_INDEX_DOCUMENTS=1) or one CLI switch (--documents)",
+       "where": "docstring lines 65-68",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk reads documents argument, env var, or CLI switch. The claim cannot be verified from this chunk."
+      },
+      {
+       "text": "_IGNORE_DIRS = { \".git\", \".hg\", \".svn\", \"node_modules\", \".venv\", \"venv\", \"env\", \"__pycache__\", \"dist\", \"build\", \"target\", \"out\", \"coverage\", \".next\", \".nuxt\", \".mypy_cache\", \".pytest_cache\", \".ruff_cache\", \".idea\", \".vs\", \".vscode\", \"vendor\", \".cache\" }",
+       "where": "line 49-52",
+       "verdict": "kept",
+       "why": "The set literal exactly matches the code on those lines."
+      },
+      {
+       "text": "backend_status() returns {\"tree_sitter\": tree_sitter_available(), \"lizard\": lizard_available()}",
+       "where": "line 54-55",
+       "verdict": "kept",
+       "why": "The function body exactly returns that dict."
+      },
+      {
+       "text": "_collect(root, max_files) returns list[tuple[Path, str, LanguageSpec]]",
+       "where": "line 57-65",
+       "verdict": "kept",
+       "why": "The function signature and return type match the code: it appends (p, rel, spec) tuples to out and returns out."
+      },
+      {
+       "text": "_collect skips directories in _IGNORE_DIRS and those starting with '.'",
+       "where": "line 59",
+       "verdict": "kept",
+       "why": "The code explicitly filters dirnames: [d for d in dirnames if d not in _IGNORE_DIRS and not d.startswith('.')]"
+      },
+      {
+       "text": "_collect skips files for which spec_for(fn) returns None",
+       "where": "line 60-61",
+       "verdict": "kept",
+       "why": "The code checks 'if spec is None: continue' after calling spec_for(fn)."
+      },
+      {
+       "text": "_collect stops after max_files entries",
+       "where": "line 62-63",
+       "verdict": "kept",
+       "why": "The code checks 'if len(out) >= max_files: return out' inside the loop."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring contains extensive design rationale and historical measurement data, but the actual implementation is in later chunks.",
+       "where": "docstring lines 1-69",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "Several imports (e.g., CloneMemo, FileAnalysis) are imported but unused in this chunk; they are presumably used in later chunks.",
+       "where": "lines 8-24",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The _collect function has side effect of walking the filesystem (os.walk) but is marked with effects ['filesystem_write'] which is inaccurate; it only reads the filesystem, does not write.",
+       "where": "line 57 definition of _collect",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims 'OPT-IN, absent unless documents=True (or DAEDALUS_INDEX_DOCUMENTS=1)' but no code in this chunk implements such a flag or reads that environment variable.",
+       "where": "docstring line 15",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims 'OPT-IN, absent unless types=True (or DAEDALUS_INDEX_TYPES=1)' but no code in this chunk implements such a flag or reads that environment variable.",
+       "where": "docstring line 27",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "918da4389d3741c4e25af87e94d13c0cfa87684d53d1b531ddb09b6c9f5759b1",
+    "objective_chars": 6456,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/index.py [1/11]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/index.py",
+  "index": 1,
+  "total": 11,
+  "first_line": 1
+ }
+}

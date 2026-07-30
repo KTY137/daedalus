@@ -1,0 +1,70 @@
+{
+ "task_id": "9-code-generation-and-evolution-framewor__cost__a47d84ee736f",
+ "key": "9-code-generation-and-evolution-framewor__cost__a47d84ee736f-b1927f2195",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 9 makes unfalsifiable claims about operator structure and discovery, costing future research freedom without specifying what must be built.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "9.1 | high | 'Each operator declares' eight required fields, but no schema or witness is given, so the claim is unenforceable and any implementation can claim compliance without verification. | Write a concrete operator declaration for a repair operator; if the fields are underspecified, the claim is unfalsifiable.",
+     "9.2 | medium | 'Initial operator families' lists six categories but does not define membership criteria, so the list is a placeholder, not a commitment. | Attempt to write a test that distinguishes a 'repair' operator from a 'refactor' operator; if no objective criteria exist, the claim is weak.",
+     "9.3 | medium | 'Operator discovery itself is a later bounded research problem' asserts boundedness without evidence, costing the project the option to treat it as unbounded or to invest early, and no cheaper alternative is stated. | Try to specify a finite set of all possible operators; if impossible, the claim is unfalsifiable."
+    ],
+    "todos": [
+     "Define a concrete schema or interface for operator declarations so that 'each operator declares' is falsifiable.",
+     "Provide membership criteria for each operator family or remove the list as a commitment.",
+     "Replace 'bounded research problem' with a specific scope statement (e.g., 'Operator discovery is not part of the kernel; the kernel must support at most 10 operator families initially')."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "9.1",
+       "claim": "Generation is not a single model call. Each operator declares accepted artifact types and required Project-Twin slice; writable paths, tools, model, budget, and timeout; deterministic preconditions and generated candidate identity; evaluation ladder and rejection conditions; provenance, replay inputs, and expected failure modes.",
+       "verdict": "unfalsifiable",
+       "why": "The claim lists required declarations but provides no schema, format, or verifiable criteria. Without a concrete definition, any implementation can claim compliance. Cost to build is undefined; cost to keep is high because every future operator must be retrofitted. A cheaper alternative is to define a minimal interface (e.g., a JSON schema) that operators must implement, making the claim testable."
+      },
+      {
+       "id": "9.2",
+       "claim": "Initial operator families are repair, refactor, representation search, test generation, schema/document synchronization, and targeted algorithm search.",
+       "verdict": "weak",
+       "why": "The list is a placeholder with no membership criteria. It does not commit to any specific behavior or interface. Cost to build is low (just naming), but cost to keep is medium because future operators may need to justify belonging to a family. A cheaper alternative is to omit the list or define it as non-normative examples."
+      },
+      {
+       "id": "9.3",
+       "claim": "Operator discovery itself is a later bounded research problem, not a reason to skip the kernel.",
+       "verdict": "unfalsifiable",
+       "why": "The claim asserts boundedness without evidence or scope. It defers discovery to later research but does not define what 'bounded' means. Cost to build is low (deferral), but cost to keep is high because it may prevent early investment in discovery infrastructure. A cheaper alternative is to explicitly state the kernel's scope (e.g., 'the kernel supports only the six families listed; discovery beyond them is out of scope')."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "21563c05a79b47a0b090d8f9cae803497839a68631e33a5110ef36505fe2f0e0",
+    "objective_chars": 1572,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "9-code-generation-and-evolution-framewor",
+  "lens": "cost",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

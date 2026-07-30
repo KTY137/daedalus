@@ -1,0 +1,178 @@
+{
+ "task_id": "scan__daedalus_spine___init__.py__c1of1__946db82",
+ "key": "scan__daedalus_spine___init__.py__c1of1__946db82-336c13f630",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/spine/__init__.py chunk 1/1: module docstring and re-exports from .ledger. All claims about crash-window contract deferred to ledger module.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 4 | low | Claim about crash-window contract is uncheckable because the referenced module (.ledger) is not provided. | Review ledger module to verify the contract.",
+     "line 4 | low | The docstring references :mod:`daedalus.spine.ledger` which does not exist in the provided files. | Ensure the module exists or correct the reference."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Module docstring and public API re-exports from .ledger",
+     "symbols": [
+      {
+       "name": "DEFAULT_BUSY_TIMEOUT_MS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "DEFAULT_DB_PATH",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "SCHEMA_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "STATE_COMPLETED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "STATE_FAILED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "STATE_INTENDED",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "TERMINAL_STATES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "Intent",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "IntentAlreadyResolved",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "IntentEvent",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "SpineError",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "SpineLedger",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "UnknownIntent",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "canonical_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "canonical_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      },
+      {
+       "name": "default_db_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .ledger"
+      }
+     ],
+     "claims": [
+      {
+       "text": "intent is recorded and COMMITTED before the external effect, so a crash can never leave an effect the system has no record of intending",
+       "where": "line 3-4",
+       "verdict": "uncheckable",
+       "why": "This claim about the crash-window contract is not verifiable from this chunk alone; it references module daedalus.spine.ledger which is not provided."
+      },
+      {
+       "text": "See :mod:`daedalus.spine.ledger` for the crash-window contract (closed by effect identification, not by the key alone)",
+       "where": "line 4-5",
+       "verdict": "uncheckable",
+       "why": "The referenced module is not present in the provided files, so the claim cannot be checked."
+      }
+     ],
+     "observations": [
+      {
+       "what": "All public symbols are re-exports from .ledger; no new symbols defined in this file.",
+       "where": "lines 7-24",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module docstring makes a strong claim about crash safety that depends on the ledger implementation.",
+       "where": "lines 3-5",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ef5b9494b5c8c7c5c2199d0d35d3ac923d72bbd57ebb64e0e2e3eadc21c1ab15",
+    "objective_chars": 1568,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/__init__.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/spine/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

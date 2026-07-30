@@ -1,0 +1,249 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c4of5__946db82",
+ "key": "scan__daedalus_kairos_worktree.py__c4of5__946db82-d631450b51",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 4 of 5 of worktree.py: contains _require_allocated_worktree, create_worktree, cleanup_worktree, and start of reap_branches. Enumerates safety checks and rationale.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_require_allocated_worktree | medium | The docstring claims ordering is 'the whole defect being fixed' but the code does not enforce ordering across different calls; potential confusion. | Clarify if ordering refers to internal check sequence only.",
+     "create_worktree | low | The docstring claims 'allocation that cannot be contained is refused before anything is created', but the resolved-root check happens after directory creation (line 937). The comment says 'creation is where that has to be refused' but the resolved-root check is after mkdir. | Verify actual order: resolved-root check occurs before mkdir? Code shows mkdir at line 937, resolved-root check at line 930. So claim is kept.",
+     "cleanup_worktree | medium | The docstring states 'The candidate BRANCH is deliberately left alone here' but the code does not include any branch deletion logic; uncheckable if this is a promise for the future. | Check if branch deletion is indeed absent in full file.",
+     "cleanup_worktree | medium | The docstring claims 'WorktreeRemovalRace is a RuntimeError, not an OSError' but the exception class is not defined in this chunk; uncheckable. | Verify exception class definition elsewhere."
+    ],
+    "todos": [
+     "Verify that _remove_tree_no_follow, _read_allocation, _write_allocation, _record_allocation, _refuse_if_repo_adjacent, _refuse, _reach_chain, _is_reparse_point, _path_identity, _lexical, _is_within, _key, _lexists, require_storage, _run_git, WorktreeContainmentError, WorktreeRemovalRace are defined elsewhere.",
+     "Confirm that the claim about 'allocation that cannot be contained is refused before anything is created' holds: resolved-root check (line 930) occurs before mkdir (line 937). Code shows yes.",
+     "Check that the removed guard comment refers to code not present; uncheckable."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "4 of 5",
+     "purpose": "Contains _require_allocated_worktree, create_worktree, cleanup_worktree, and start of reap_branches with detailed safety checks and rationale.",
+     "symbols": [
+      {
+       "name": "_require_allocated_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Private method. Proves a path is an allocated worktree via multiple checks, returns unresolved Path."
+      },
+      {
+       "name": "create_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "repository_mutation"
+       ],
+       "note": "Public method. Creates a new git worktree; performs containment checks, records allocation, runs git commands."
+      },
+      {
+       "name": "cleanup_worktree",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn"
+       ],
+       "note": "Public method. Removes a worktree directory, prunes git, retains allocation record."
+      },
+      {
+       "name": "reap_branches",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Public method. Only signature and docstring start present; rest in next chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the primary checkout's own path is now a symlink or Windows junction (reparse point), not the real directory this manager was created for: it was moved and a link was hung on its name, which makes every identity read through it a forgery",
+       "where": "line 841-847",
+       "verdict": "kept",
+       "why": "The code raises when _is_reparse_point(self.repo_path) is true, with the exact message."
+      },
+      {
+       "text": "the primary checkout at this path is not the directory this manager was created for (identity {recorded} -> {current}): it was moved and something else now wears its name",
+       "where": "line 856-860",
+       "verdict": "kept",
+       "why": "The code raises when recorded is not None and recorded[1] and current != recorded."
+      },
+      {
+       "text": "component, which the primary checkout is reached THROUGH, is not the directory it was when this manager was created (identity {was} -> {now}): the checkout may have been moved wholesale by moving a parent, and every path below that component now means something else",
+       "where": "line 869-875",
+       "verdict": "kept",
+       "why": "The code iterates _repo_ancestor_identity and raises when now != was."
+      },
+      {
+       "text": "Ordering is the whole defect being fixed, so it is spelled out: every check below is lexical or no-follow, and the returned path is the UNRESOLVED one -- callers operate on exactly what was checked.",
+       "where": "docstring of _require_allocated_worktree (line 878-882)",
+       "verdict": "kept",
+       "why": "The method performs checks in order: lexical root check, repo-adjacent, reparse point check, then resolution. Returns target (unresolved)."
+      },
+      {
+       "text": "1. inside the manager's own root, and never the root itself.",
+       "where": "line 883-887",
+       "verdict": "kept",
+       "why": "The code compares _key(target) to _key(root) and uses _is_within; raises if equal or not within."
+      },
+      {
+       "text": "2. never the primary checkout, an ancestor of it, or anything in it.",
+       "where": "line 889-890",
+       "verdict": "uncheckable",
+       "why": "Calls _refuse_if_repo_adjacent; that function is not defined in this chunk."
+      },
+      {
+       "text": "3. no symlink / junction anywhere from the worktree root down. Checked top-down and BEFORE any resolution: a reparse point at any level can redirect everything below it.",
+       "where": "line 892-899",
+       "verdict": "kept",
+       "why": "The code loops _reach_chain(target) and raises if _is_reparse_point(component)."
+      },
+      {
+       "text": "4. only now is resolution trustworthy -- nothing at or below the root can redirect it. Re-check the repo relation on the resolved form so a root that itself sits under a symlinked prefix cannot smuggle the target back into the checkout.",
+       "where": "line 901-910",
+       "verdict": "kept",
+       "why": "The code resolves target and root with os.path.realpath, then calls _refuse_if_repo_adjacent and checks _is_within."
+      },
+      {
+       "text": "5. it must actually be there, as a real directory (no-follow).",
+       "where": "line 912-918",
+       "verdict": "kept",
+       "why": "The code checks _lexists(target) and uses os.lstat to verify it is a directory."
+      },
+      {
+       "text": "6. it must be something THIS manager allocated for THIS repo.",
+       "where": "line 920-924",
+       "verdict": "uncheckable",
+       "why": "Calls _read_allocation; that function is not defined in this chunk."
+      },
+      {
+       "text": "Creates a new git worktree branching from a specific commit.",
+       "where": "docstring of create_worktree (line 926)",
+       "verdict": "kept",
+       "why": "The method calls _run_git('worktree', 'add', ...) with base_commit."
+      },
+      {
+       "text": "Raises: WorktreeContainmentError: If the requested placement escapes the manager's worktree root or touches the primary checkout.",
+       "where": "docstring of create_worktree (line 931-933)",
+       "verdict": "kept",
+       "why": "The code raises WorktreeContainmentError for escape (line 948-951) and for repo adjacency (via _refuse_if_repo_adjacent)."
+      },
+      {
+       "text": "Raises: StorageUnavailable: If the worktree root volume is missing or below the free-space watermark (fail-closed; never spills elsewhere).",
+       "where": "docstring of create_worktree (line 933-934)",
+       "verdict": "uncheckable",
+       "why": "Calls require_storage; that function is not defined in this chunk."
+      },
+      {
+       "text": "An allocation that cannot be contained is refused before anything is created: `..` in a branch name would otherwise place a candidate worktree (and later, a recursive delete) outside the root.",
+       "where": "line 939-942",
+       "verdict": "kept",
+       "why": "The code calls _refuse_if_repo_adjacent and checks escape before creating directory."
+      },
+      {
+       "text": "ORDER IS DELIBERATE, and it is what makes each of these testable on its own. \"Is this inside the developer's checkout?\" is the worst answer, so it is asked FIRST and named precisely; asking it after the escape check would make it unreachable, because a path that escapes the root INTO the checkout would already have been refused with the generic reason.",
+       "where": "line 943-948",
+       "verdict": "kept",
+       "why": "The code performs repo-adjacent check (line 947) before escape check (line 948-951)."
+      },
+      {
+       "text": "WHAT IS NOT HERE, and why. There used to be a second lexical call, `_refuse_if_repo_adjacent(_lexical(root), \"worktree root\")`. It is DOMINATED -- 0 counterexamples in 216,225 enumerated (root, repo, branch) shapes -- but NOT for the reason an earlier version of this comment gave.",
+       "where": "line 952-958",
+       "verdict": "uncheckable",
+       "why": "Refers to code not present; comment about removed guard."
+      },
+      {
+       "text": "What actually covers them is the RESOLVED-root check further down: on a genuine ancestor chain with no reparse points, realpath is the identity map, so the resolved root is still that strict ancestor and `_refuse_if_repo_adjacent` fires on it.",
+       "where": "line 959-964",
+       "verdict": "uncheckable",
+       "why": "Refers to code not present; comment about removed guard."
+      },
+      {
+       "text": "`_worktree_root_for` is PURE TEXT -- it reads an env var and appends a digest -- so a single junction anywhere in DAEDALUS_WORKTREE_ROOT lands the entire worktree root inside the developer's checkout while every lexical check above passes.",
+       "where": "line 966-970",
+       "verdict": "uncheckable",
+       "why": "Refers to _worktree_root_for not defined in this chunk."
+      },
+      {
+       "text": "The directory is gone; deregister it. A prune failure raises (RuntimeError from _run_git) rather than leaving a stale registration unreported.",
+       "where": "line 1008-1010",
+       "verdict": "kept",
+       "why": "The code calls _run_git('worktree', 'prune') after removal; _run_git raises RuntimeError on failure."
+      },
+      {
+       "text": "The record is RETAINED, not discarded: it is now the only place that remembers which branch this worktree left behind and what its tip was at creation, which is what makes a later reap safe. The retained record can never re-authorise a delete -- cleanup refuses a path that does not exist, and this one no longer does.",
+       "where": "line 1012-1017",
+       "verdict": "kept",
+       "why": "The code writes allocation with worktree_removed_ts, does not delete record."
+      },
+      {
+       "text": "WHY THIS IS NOT PART OF ``cleanup_worktree``",
+       "where": "docstring of reap_branches (line 1026)",
+       "verdict": "uncheckable",
+       "why": "Only the start of the docstring is present; full explanation in next chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk ends mid-docstring for reap_branches; the rest is in chunk 5.",
+       "where": "line 1026",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring of cleanup_worktree claims WorktreeRemovalRace is a RuntimeError, but the exception class is not defined in this chunk; it may be defined elsewhere.",
+       "where": "docstring of cleanup_worktree (line 1006)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment about removed guard (lines 952-964) references code and tests not in this chunk; its claims are uncheckable.",
+       "where": "line 952-964",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The method _require_allocated_worktree performs a resolved check after reparse point check; ordering is deliberate but the docstring claim about ordering being 'the whole defect being fixed' is vague.",
+       "where": "docstring of _require_allocated_worktree (line 878)",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "199234018a10627c06bdfad5796e747763d1a9059f0ffe689b67bb0edcc3c39f",
+    "objective_chars": 15290,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [4/5]",
+  "rev": "946db82",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

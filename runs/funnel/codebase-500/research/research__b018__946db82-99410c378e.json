@@ -1,0 +1,102 @@
+{
+ "task_id": "research__b018__946db82",
+ "key": "research__b018__946db82-99410c378e",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis reveals three patterns: inconsistent snapshot isolation between canary and scheduler, hidden missing fields in shape comparison, and unenforced write isolation in scheduler's parallel mode.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Concurrent canary runs and scheduler dispatches may corrupt history files due to lack of file locking.",
+     "Compare_declared hides missing fields when truncated, which could mask regressions.",
+     "Scheduler's parallel mode for advisory tasks may cause cross-task interference."
+    ],
+    "todos": [
+     "Verify if canary's append_history uses file locking or atomic writes.",
+     "Check if shape consumers check the truncated flag before trusting missing_in_observation.",
+     "Confirm that advisory tasks in scheduler's parallel mode are truly side-effect-free."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "inconsistent-snapshot-isolation",
+       "claim": "Canary's history file append and scheduler's whole-repo snapshot do not coordinate, so concurrent runs can observe inconsistent history states.",
+       "spans": [
+        "daedalus/council/canary.py",
+        "daedalus/kairos/scheduler.py"
+       ],
+       "mechanism": "Canary's append_history writes to a JSONL file with mode 'a' (no locking). Scheduler's dispatch docstring claims it uses offload._repo_snapshot for whole-repo content hashing to detect writes. If a canary run and a scheduler dispatch execute concurrently, the snapshot may capture a partially written history file, leading to incorrect diff results.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If canary's append_history uses file locking or atomic writes (e.g., write to temp then rename), or if scheduler's snapshot explicitly excludes the history file path.",
+       "evidence": [
+        "daedalus/council/canary.py:append_history: 'Parents created; never rewritten.' and mode 'a'",
+        "daedalus/kairos/scheduler.py:dispatch docstring: 'each live write is verified by diffing a WHOLE-repo content-hash snapshot'"
+       ]
+      },
+      {
+       "id": "hidden-missing-fields",
+       "claim": "Compare_declared in shape.py hides missing fields when the observation is truncated, but no caller in the observed code checks the truncated flag, so missing fields go unreported.",
+       "spans": [
+        "daedalus/observe/shape.py",
+        "daedalus/council/canary.py"
+       ],
+       "mechanism": "In shape.py compare_declared, when shape.truncated is True, missing_in_observation is set to empty tuple, and a note is added. However, the canary module uses compare_to_history (referenced but not defined) which likely calls compare_declared. If compare_to_history does not check shape.truncated, it will treat missing_in_observation as empty and miss actual missing fields, potentially allowing regressions.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "If compare_to_history or any caller explicitly checks the truncated flag and handles missing fields accordingly.",
+       "evidence": [
+        "daedalus/observe/shape.py:compare_declared: 'missing_in_observation=() if shape.truncated else missing'",
+        "daedalus/council/canary.py: 'compare_to_history' referenced but not defined"
+       ]
+      },
+      {
+       "id": "unenforced-write-isolation",
+       "claim": "Scheduler's parallel mode allows concurrent advisory tasks, but no isolation mechanism is provided for shared resources like history files, so advisory tasks could interfere with each other or with write tasks.",
+       "spans": [
+        "daedalus/kairos/scheduler.py",
+        "daedalus/council/canary.py"
+       ],
+       "mechanism": "Scheduler's dispatch sets can_parallel = parallel and not has_writes, meaning advisory (non-write) tasks run concurrently. However, canary's history file is a shared resource that both advisory and write tasks may read/write (load_history, append_history). Without explicit isolation (e.g., file locks or per-task worktrees), concurrent advisory tasks could corrupt history state.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If advisory tasks are proven to never access history files, or if the scheduler enforces isolation via per-task worktrees for all tasks, not just writes.",
+       "evidence": [
+        "daedalus/kairos/scheduler.py:dispatch: 'can_parallel = parallel and not has_writes' and comment 'real concurrency requires per-task isolation'",
+        "daedalus/council/canary.py:load_history and append_history: shared file access"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "84e39ac4dbbcab47c8c586c00ff649074d68a3a8a644014f1481245591293369",
+    "objective_chars": 19965,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 18 (4 inputs)",
+  "rev": "946db82",
+  "bucket": 18,
+  "inputs": 4
+ }
+}

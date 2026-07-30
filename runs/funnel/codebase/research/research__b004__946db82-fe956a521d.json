@@ -1,0 +1,107 @@
+{
+ "task_id": "research__b004__946db82",
+ "key": "research__b004__946db82-fe956a521d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypothesis: SubprocessAdapter creates sessions but never exposes a close or cleanup method, leaving subprocess handles and stderr tasks orphaned; provenance check and analysis orchestration assume subprocesses are short-lived, but this assumption is unenforced and could cause resource leaks in long-running evals.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "SubprocessAdapter sessions are never explicitly closed; subprocess handles and stderr tasks may leak, especially if sessions are long-lived or many are created.",
+     "Provenance check spawns a subprocess per candidate; if many candidates are evaluated, resource exhaustion is possible without cleanup guarantees.",
+     "analyse_once in render.py is documented as a single walk, but if called multiple times (e.g., by page, gate, re-baseline) it could create multiple subprocesses without coordination.",
+     "The stderr_task in _Session reads stderr into bytes but the result is never awaited; large stderr output can accumulate memory indefinitely."
+    ],
+    "todos": [
+     "Add a close/cleanup method to SubprocessAdapter and ensure sessions are properly terminated.",
+     "Verify that provenance check subprocesses are properly awaited and cleaned up after use.",
+     "Check if analyse_once can be called multiple times and if subprocess sessions are shared or isolated.",
+     "Consider adding a context manager or finalizer for subprocess sessions to prevent resource leaks."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "orphan-subprocess-sessions",
+       "claim": "SubprocessAdapter creates subprocess sessions that are never explicitly closed or cleaned up, and no other module provides lifecycle management for these sessions. The provenance check and analysis orchestration both assume subprocesses are ephemeral, but this assumption is unenforced, leading to potential resource leaks (orphaned processes, unread stderr buffers) when sessions are long-lived or numerous.",
+       "spans": [
+        "daedalus/adapters/subprocess_adapter.py",
+        "daedalus/eval/provenance.py",
+        "daedalus/mapping/render.py"
+       ],
+       "mechanism": "SubprocessAdapter.create_session() spawns a subprocess and stores a _Session with a stderr reading task. Neither the adapter nor any other module provides a method to close sessions or await stderr. Provenance check (check_import_provenance) spawns a subprocess per candidate without explicit cleanup. Analyse_once (in render.py) may be called multiple times (by page, gate, re-baseline) without coordinating subprocess lifecycle. The stderr task accumulates output indefinitely, and subprocess handles are never released.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If SubprocessAdapter (or any module) is found to have a close/cleanup method that is called in all paths, or if sessions are short-lived and garbage-collected promptly, this hypothesis would be refuted.",
+       "evidence": [
+        "daedalus/adapters/subprocess_adapter.py:SubprocessAdapter.create_session",
+        "daedalus/adapters/subprocess_adapter.py:_Session.stderr_task",
+        "daedalus/eval/provenance.py:check_import_provenance",
+        "daedalus/mapping/render.py:analyse_once"
+       ]
+      },
+      {
+       "id": "unused-admin-dir",
+       "claim": "Attempt._run_with_ledger reads the admin directory pointer from the worktree but never uses it in subsequent git operations within the same chunk. This suggests the value is read but not consumed, potentially indicating a bug where the pointer is ignored (similar to the historical bug described in comments). The claim that reading it makes the pointer irrelevant is unverifiable because no code in the chunk actually relies on it.",
+       "spans": [
+        "daedalus/spine/attempt.py",
+        "daedalus/adapters/subprocess_adapter.py"
+       ],
+       "mechanism": "In Attempt._run_with_ledger, self._admin_dir is set by reading the gitdir pointer from the worktree. However, no subsequent _git calls in this chunk reference self._admin_dir. The subprocess adapter uses a different mechanism (config) and does not interact with admin_dir. If later git operations use a default git directory instead of the worktree's admin dir, they may operate on the wrong repository.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If other chunks of attempt.py or related modules show that self._admin_dir is passed to _git calls, or if the pointer is used elsewhere, this hypothesis would be refuted.",
+       "evidence": [
+        "daedalus/spine/attempt.py:_run_with_ledger (admin_dir assignment)",
+        "daedalus/spine/attempt.py:comment about historical bug"
+       ]
+      },
+      {
+       "id": "namespace-package-provenance-gap",
+       "claim": "The provenance check (check_import_provenance) accepts a candidate as valid if any path in daedalus.__path__ is under the candidate's base, but for namespace packages, __path__ may contain multiple entries; a candidate might pass even if the primary daedalus package is outside its tree, as long as one path entry happens to be inside. This could allow a candidate that shadows part of daedalus to pass provenance checks.",
+       "spans": [
+        "daedalus/eval/provenance.py",
+        "daedalus/structcore/dss.py"
+       ],
+       "mechanism": "check_import_provenance collects candidates from daedalus.__file__ and daedalus.__path__. It returns ok=True if any candidate path is under the candidate's base. For a namespace package, __path__ may contain multiple directories; only one needs to be under base for the check to pass. The DSS module (dss.py) assumes the hierarchy is built from a single repository root, but the provenance check does not enforce that daedalus resolves uniquely.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "If daedalus is not a namespace package (i.e., always has __file__) or if the check requires all candidates to be under base, this hypothesis would be refuted.",
+       "evidence": [
+        "daedalus/eval/provenance.py:check_import_provenance (line 133-139)",
+        "daedalus/structcore/dss.py:build_forest_hierarchy (assumes single root)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58938c5b668d8b59f1e876c81ce7132f5d997733493f5f5082bede904a28b45a",
+    "objective_chars": 42633,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 4 (5 inputs)",
+  "rev": "946db82",
+  "bucket": 4,
+  "inputs": 5
+ }
+}

@@ -1,0 +1,145 @@
+{
+ "task_id": "daedalus/core.py#c2of2#5eb1702d",
+ "key": "daedalus_core.py_c2of2_5eb1702d-20897d2232",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 10 kept, 3 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the invariant is checked directly, against resolved policies: naming a project must never grant MORE write permission than not naming one\" | _gov_write_confinement | BROKEN | the check compares `repo_local` with `cfg` by identity, but the invariant is about policy content, not object identity; and `local_allow` is computed from `repo_local` but `cfg` is the config object, not a policy, so the comparison is semantically wrong.",
+     "CLAIM | \"This is stated as a property, not as a diff of two files, so it keeps holding however the safety core chooses to merge them.\" | _gov_write_confinement | BROKEN | the property is not checked independently; it's checked by comparing `repo_local` and `cfg` by identity, which is fragile and does not survive changes in how policies are resolved.",
+     "CLAIM | \"Fail-closed: a missing or unrecognized lane (typo, hand-edited/legacy outbox file) is treated as local_only so the watcher can never bill an unlabeled task to a paid provider unattended.\" | process_bridge_payload | KEPT | code maps unknown lanes to 'local_only'.",
+     "CLAIM | \"Forced external lane: egress-gated in _codex_report, no Claude fallback.\" | process_bridge_payload | KEPT | code returns _codex_report directly for 'codex' lane.",
+     "CLAIM | \"Like the forced ``claude`` lane there is NO fallback -- a failure is reported, not silently re-billed to another lane.\" | _codex_report | KEPT | code returns failure dict on exception.",
+     "CLAIM | \"Unlike Claude, codex is an EXTERNAL UNTRUSTED lane, so the egress policy is enforced twice: here, BEFORE dispatch (a denied path never reaches the provider), and again inside the provider itself (defense in depth).\" | _codex_report | KEPT | code checks `verdict.sensitive` before dispatch.",
+     "CLAIM | \"This legacy bridge used to grant workspace-write directly, bypassing offload's before/after snapshot, verifier, rollback, and the newer worktree path. Until Forge supplies one transaction boundary for every runtime, the forced lane is intentionally advisory-only.\" | _codex_report | KEPT | code sets `writable=False` and adds mutation_blocked message.",
+     "CLAIM | \"Codex can still translate, inspect, and propose a patch; it cannot mutate the primary checkout through this split-brain seam.\" | _codex_report | KEPT | code sets `writable=False` and adds mutation_blocked message.",
+     "CLAIM | \"1500s to match the provider's own default (codex real-task budget is 8-20 min; an explicit 300 here silently overrode that and killed D2/D3 wrappers while codex was still finishing on disk).\" | _codex_report | KEPT | code uses `timeout_s=int(payload.get(\"timeout_s\", 1500))`.",
+     "CLAIM | \"One payload, one shape, consumed identically by the HTTP API, the VS Code Mission Control webview and the web app.\" | get_governance | UNCHECKABLE | would need to see the consumers and verify they all call this function and use the same shape.",
+     "CLAIM | \"Adding a consumer must not add a second opinion, which is why this is computed here and not in any surface.\" | get_governance | UNCHECKABLE | would need to see that no other code computes a different governance verdict.",
+     "CLAIM | \"The headline verdict is DERIVED from the discrimination gate alone, matching spine.bootstrap.ShadowResult.promotion_allowed exactly.\" | get_governance | KEPT | code uses `disc[\"state\"] == \"working\"` to set `promotion_allowed`.",
+     "CLAIM | \"The other gates inform the operator; they do not get a vote on promotion, because a second opinion here is how an override sneaks in.\" | get_governance | KEPT | code only uses `disc` for `promotion_allowed`.",
+     "CLAIM | \"Rides along with the dashboard ON PURPOSE. Both UI surfaces already poll this one payload, and test_ui_contract.py pins its top-level keys across both -- so shipping the promotion verdict here is what makes it impossible for one surface to show it and the other to quietly not.\" | get_dashboard | KEPT | code includes `governance` in the dashboard payload.",
+     "CLAIM | \"Never let the promotion verdict take the whole dashboard down, and never let its absence read as 'nothing is wrong'.\" | get_dashboard | KEPT | code catches exception and provides a fallback governance dict with `promotion_allowed=False` and `state=\"unknown\"`.",
+     "D1 | `_gov_discrimination` is called but not defined in this unit; it's an external dependency. | get_governance | WRONG CONCLUSION: the function is defined elsewhere, so it's not a D1 hit.",
+     "D2 | `except Exception: pass` in `_gov_write_confinement` | _gov_write_confinement | WRONG CONCLUSION: the comment says \"advisory only\", so swallowing is intentional.",
+     "D3 | `if local_allow and widened:` check runs after `widened` is computed; the check is correct. | _gov_write_confinement | WRONG CONCLUSION: no ordering issue.",
+     "D4 | `if project and repo_local is not None and cfg is not repo_local:` \u2013 `repo_local` is compared to `cfg` by identity; `cfg` is the function parameter `cfg`? Actually `cfg` is not defined in scope; it's a typo for `project`? No, `cfg` is not defined in `_gov_write_confinement`; it's a free variable. This will raise NameError at runtime. | _gov_write_confinement | BROKEN | `cfg` is used but never defined in the function; it should be `project` or `repo_local`.",
+     "D4 | `if repo_root:` in `get_dashboard` \u2013 `repo_root` is a string from `pdata`, can be empty string; condition works correctly. | get_dashboard | WRONG CONCLUSION: no issue."
+    ],
+    "todos": [
+     "Fix `cfg` to `project` or `repo_local` in `_gov_write_confinement` line `if project and repo_local is not None and cfg is not repo_local:`",
+     "Fix the invariant check in `_gov_write_confinement` to compare policy content, not object identity, and ensure `local_allow` is computed from the correct policy."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "83337657b37fd81492623a34371e376a8b5fe0b0af644cc1e56a353e94bc4387",
+    "objective_chars": 26469,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 8 kept, 2 broken, 5 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"naming a project must never grant MORE write permission than not naming one\" | _gov_write_confinement | KEPT | Code checks widened = named_allow - local_allow and returns degraded if non-empty.",
+     "CLAIM | \"the invariant is checked directly, against resolved policies\" | _gov_write_confinement | KEPT | Code loads repo_local policy and compares write_allow sets.",
+     "CLAIM | \"the confinement does not hold\" | _gov_write_confinement | KEPT | If denied_blocked is False, gate updated to degraded with that headline.",
+     "CLAIM | \"the allow-list is narrower than it claims\" | _gov_write_confinement | KEPT | If permitted_blocked is True, gate updated to degraded with that headline.",
+     "CLAIM | \"writes are confined to ... verified by probing the live write predicate\" | _gov_write_confinement | KEPT | Gate set to working with that headline when both probes pass.",
+     "CLAIM | \"the headline verdict is DERIVED from the discrimination gate alone\" | get_governance | KEPT | promotion_allowed = disc[\"state\"] == \"working\" and verdict uses disc[\"headline\"].",
+     "CLAIM | \"the other gates inform the operator; they do not get a vote on promotion\" | get_governance | KEPT | Only disc state used for promotion_allowed; other gates only in blockers.",
+     "CLAIM | \"one payload, one shape, consumed identically by the HTTP API, the VS Code Mission Control webview and the web app\" | get_governance | UNCHECKABLE | Needs to know that all consumers use the same shape; not verifiable from this unit.",
+     "CLAIM | \"Adding a consumer must not add a second opinion, which is why this is computed here and not in any surface\" | get_governance | UNCHECKABLE | Intent statement; no code in this unit enforces that consumers don't add opinions.",
+     "CLAIM | \"RESOLVED THE SAME WAY get_dashboard RESOLVES IT\" | get_governance | KEPT | Both functions use same logic: list_projects, default to first project, etc.",
+     "CLAIM | \"Fail-closed: a missing or unrecognized lane ... is treated as local_only\" | process_bridge_payload | KEPT | If lane not in KNOWN_LANES, lane = \"local_only\".",
+     "CLAIM | \"Only 'auto'/'local' spend\" | process_bridge_payload | UNCHECKABLE | No code in this unit enforces spending; needs external billing logic.",
+     "CLAIM | \"Forced external lane: egress-gated in _codex_report\" | _codex_report | KEPT | Code calls classify_data and checks verdict.sensitive before dispatch.",
+     "CLAIM | \"no Claude fallback\" | _codex_report | KEPT | No fallback to Claude after _codex_report.",
+     "CLAIM | \"the forced lane is intentionally advisory-only\" | _codex_report | KEPT | writable = False and comment says advisory-only.",
+     "D1 | _gov_operability_drill parameter 'head' | head is read, so no D1. | WRONG CONCLUSION: All parameters are used.",
+     "D2 | except Exception in _gov_write_confinement | Swallows exception from load_policy and set comparison | WRONG CONCLUSION: The comment says 'advisory only', but the surrounding prose says the invariant is checked directly; swallowing an exception silently ignores a failure to check, which could hide a widening.",
+     "D3 | none | No check after side effect. | WRONG CONCLUSION: No such check.",
+     "D4 | if project and repo_local is not None and cfg is not repo_local | The condition is possible given assignments above. | WRONG CONCLUSION: Condition can be true."
+    ],
+    "todos": [
+     "D2: In _gov_write_confinement, log or handle the exception from load_policy or set comparison instead of silently passing, to ensure the invariant check is not skipped."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "83337657b37fd81492623a34371e376a8b5fe0b0af644cc1e56a353e94bc4387",
+    "objective_chars": 26469,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _write_json_atomic | BROKEN | uses a fixed .tmp name, so two concurrent publishers share one scratch file",
+     "D1 | retry_s | parameter accepted and never read in this unit | WRONG CONCLUSION: a caller believes it can tune the retry"
+    ],
+    "todos": [
+     "give the temp file a random suffix"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "83337657b37fd81492623a34371e376a8b5fe0b0af644cc1e56a353e94bc4387",
+    "objective_chars": 26469,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/core.py",
+  "chunk": 2,
+  "chunks": 2,
+  "bytes": 23963
+ }
+}

@@ -1,0 +1,96 @@
+{
+ "task_id": "scan__daedalus_spine_picker.py__c23of25__946db82",
+ "key": "scan__daedalus_spine_picker.py__c23of25__946db82-6adf6dffcb",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 23 of 25 of daedalus/spine/picker.py: function _build_packet (lines 2641-2746). No public symbols, claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/spine/picker.py",
+     "chunk": "23 of 25",
+     "purpose": "Build human review packet for candidate attempt, including rationale, diff display, and next steps.",
+     "symbols": [],
+     "claims": [
+      {
+       "text": "The patch bytes are decoded for display only. A human promoting this must write artifact_path (the raw bytes) -- a diff round-tripped through a terminal is not the artifact that was hashed and gated.",
+       "where": "docstring of _build_packet (line 2641-2644)",
+       "verdict": "kept",
+       "why": "The code prints the diff text for display and later references artifact_path for the raw bytes. It warns that the displayed diff is not the hashed artifact."
+      },
+      {
+       "text": "NOTHING HAS BEEN APPLIED. This is a proposal.",
+       "where": "line 2647",
+       "verdict": "kept",
+       "why": "The string is appended to the output as a header line."
+      },
+      {
+       "text": "An empty patch is captured and hashed like any other, but showing it as a diff -- and, worse, offering an apply command for it below -- would let \"the runner did nothing\" read as \"here is a change\".",
+       "where": "comment lines 2690-2693",
+       "verdict": "kept",
+       "why": "The code checks for empty patch and outputs a special message, not a diff, and later omits the apply command for empty patches."
+      },
+      {
+       "text": "Windows PowerShell may expose a CP-1252 stdout even when a verifier emits Unicode progress glyphs such as Vite's check mark. The attempt and ledger are already complete when the review packet is printed, so an encoding",
+       "where": "docstring of _console_safe (line 2741-2744)",
+       "verdict": "uncheckable",
+       "why": "The function _console_safe is not fully shown; only the docstring is visible. The claim about encoding behavior cannot be verified from this chunk alone."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The chunk contains a function _build_packet that builds a human-readable review packet; it is not exported (name starts with underscore).",
+       "where": "line 2641",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code references artifact.diff and artifact.diff_bytes; the attribute diff_bytes is accessed via getattr with a fallback to artifact.diff.",
+       "where": "line 2684",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The chunk ends mid-sentence in the docstring of _console_safe.",
+       "where": "line 2744",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c398894144dd2db145f04b469c11b45f662962ddb3f47ade6d52e85fefda90ae",
+    "objective_chars": 6019,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/spine/picker.py [23/25]",
+  "rev": "946db82",
+  "module": "daedalus/spine/picker.py",
+  "index": 23,
+  "total": 25,
+  "first_line": 2641
+ }
+}

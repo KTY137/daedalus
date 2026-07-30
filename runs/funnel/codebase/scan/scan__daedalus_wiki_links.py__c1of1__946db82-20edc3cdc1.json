@@ -1,0 +1,297 @@
+{
+ "task_id": "scan__daedalus_wiki_links.py__c1of1__946db82",
+ "key": "scan__daedalus_wiki_links.py__c1of1__946db82-20edc3cdc1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Parsed wikilinks module: extract, index, backlinks, unlinked mentions, local graph. All claims checked against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "extract_wikilinks | low | MAX_LINKS_PER_PAGE bound applied but no warning given; silent truncation may hide links. | Add logging or return count.",
+     "build_index | medium | known_code_paths empty leads to code links marked as resolved=True but not actually checked; stale=False may be misleading. | Clarify semantics or require non-empty set.",
+     "local_graph | medium | edges deduplication by key dict may treat embed as part of identity; two edges with same source/target but different embed are merged. | Confirm intent or fix dedup key."
+    ],
+    "todos": [
+     "Consider adding logging when MAX_LINKS_PER_PAGE is hit.",
+     "Clarify code link resolution behavior when known_code_paths is empty.",
+     "Review edge deduplication in local_graph for embed distinction."
+    ],
+    "handoff": {
+     "module": "daedalus/wiki/links.py",
+     "chunk": "1 of 1",
+     "purpose": "Wikilink parsing, indexing, backlinks, unlinked mentions, and local graph computation.",
+     "symbols": [
+      {
+       "name": "LINKS_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant '1' for version tracking."
+      },
+      {
+       "name": "MAX_LINKS_PER_PAGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum wikilinks per page, set to 500."
+      },
+      {
+       "name": "MAX_MENTIONS_PER_PAGE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum unlinked mentions per page, set to 50."
+      },
+      {
+       "name": "MAX_LOCAL_NODES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maximum nodes in local graph, set to 200."
+      },
+      {
+       "name": "_WIKILINK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for wikilink pattern including embed, target, anchor, alias."
+      },
+      {
+       "name": "DOC",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'doc' for link kind."
+      },
+      {
+       "name": "CODE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'code' for link kind."
+      },
+      {
+       "name": "TYPE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'type' for link kind."
+      },
+      {
+       "name": "VAULT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'vault' for link kind."
+      },
+      {
+       "name": "WikiLink",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing a parsed wikilink."
+      },
+      {
+       "name": "WikiLink.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts WikiLink to dict."
+      },
+      {
+       "name": "extract_wikilinks",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses all wikilinks from body string, returns list of WikiLink."
+      },
+      {
+       "name": "LinkIndex",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding forward/backward indices and lists for code, type, cross-vault, unresolved, ambiguous links."
+      },
+      {
+       "name": "LinkIndex.counts",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict of counts for pages, doc edges, code links, type links, cross-vault, unresolved, ambiguous."
+      },
+      {
+       "name": "_candidates_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves doc target to list of candidate paths by relative path then title. No near-matches."
+      },
+      {
+       "name": "build_index",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds LinkIndex from pages list, optionally with known_code_paths. Deterministic, sorted."
+      },
+      {
+       "name": "backlinks",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns list of backlink records for a given rel."
+      },
+      {
+       "name": "_WORD",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for word matching (unused in chunk)."
+      },
+      {
+       "name": "unlinked_mentions",
+       "kind": "function",
+       "effects": [],
+       "note": "Finds pages mentioning page title without linking, bounded by limit."
+      },
+      {
+       "name": "local_graph",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns n-hop undirected neighbourhood around a page, bounded by max_nodes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "a link that does not resolve to something present is DROPPED and COUNTED, never bound to a near-match",
+       "where": "docstring (REFUSE TO GUESS)",
+       "verdict": "kept",
+       "why": "build_index adds unresolved entries to idx.unresolved when _candidates_for returns empty list, and does not attempt near-match."
+      },
+      {
+       "text": "a link matching MORE THAN ONE candidate is AMBIGUOUS and produces no edge at all",
+       "where": "docstring (REFUSE TO GUESS)",
+       "verdict": "kept",
+       "why": "build_index, when len(uniq) > 1, adds ambiguous entry and does not create edge."
+      },
+      {
+       "text": "Picking the first of two would be a stably reproduced fabrication, which is worse than an honest gap",
+       "where": "docstring (REFUSE TO GUESS)",
+       "verdict": "kept",
+       "why": "Code does not pick first; it reports ambiguity and skips edge creation."
+      },
+      {
+       "text": "Every wikilink in a page body, in source order. No resolution, no I/O.",
+       "where": "extract_wikilinks docstring",
+       "verdict": "kept",
+       "why": "Function uses regex finditer returning matches in order; no I/O or resolution performed."
+      },
+      {
+       "text": "Resolve a doc target by path first, then by title. Sorted; no near-matches.",
+       "where": "_candidates_for docstring",
+       "verdict": "kept",
+       "why": "First checks by_rel for exact path (with or without .md), then by_title for exact title, then stem; returns sorted list; no fuzzy matching."
+      },
+      {
+       "text": "Obsidian allows the bare page name. That can be ambiguous, and ambiguity is reported rather than resolved by picking one.",
+       "where": "_candidates_for docstring",
+       "verdict": "kept",
+       "why": "After title lookup, if multiple hits, they are returned sorted; build_index handles ambiguity by adding to ambiguous list and not creating edge."
+      },
+      {
+       "text": "Parsed and counted; resolution belongs to the type layer, and importing it here would couple a wiki read to an index build.",
+       "where": "build_index comment for TYPE links",
+       "verdict": "kept",
+       "why": "Type links are appended to idx.type_links with resolved=False and not further resolved; no import of type layer."
+      },
+      {
+       "text": "cross-vault resolution is deferred",
+       "where": "build_index comment for VAULT links",
+       "verdict": "kept",
+       "why": "Cross-vault links are appended with resolved=False and note about deferral."
+      },
+      {
+       "text": "stale is only knowable when a file set was supplied; without one it is UNKNOWN, not fine",
+       "where": "build_index comment for CODE links",
+       "verdict": "broken",
+       "why": "When code_known is empty, stale is set to False, not UNKNOWN. The comment says it should be UNKNOWN but code sets False."
+      },
+      {
+       "text": "a self-link is not an edge",
+       "where": "build_index comment",
+       "verdict": "kept",
+       "why": "Code checks if tgt == p.rel and continues without adding edge."
+      },
+      {
+       "text": "Pages that link TO this one. The panel users actually read.",
+       "where": "backlinks docstring",
+       "verdict": "kept",
+       "why": "Function returns list from idx.backward for given rel."
+      },
+      {
+       "text": "Bounded on purpose: a page titled 'agent' would otherwise match every page in the vault, which is both a UI collapse and a quadratic scan. The bound is reported by the caller, never silently applied.",
+       "where": "unlinked_mentions docstring",
+       "verdict": "kept",
+       "why": "Function has limit parameter defaulting to MAX_MENTIONS_PER_PAGE and breaks when limit reached; returns list of limited length. Bound not reported by this function, but doc says reported by caller."
+      },
+      {
+       "text": "too short to mean anything",
+       "where": "unlinked_mentions comment",
+       "verdict": "kept",
+       "why": "If title length < 3, returns empty list."
+      },
+      {
+       "text": "Depth 1 by default because that is the question a reader has ('what is next to this?'). Bounded and it SAYS when it stopped, rather than presenting a clipped neighbourhood as complete.",
+       "where": "local_graph docstring",
+       "verdict": "kept",
+       "why": "Default depth=1; max_nodes parameter; when truncated, sets truncated=True and note field indicates truncation."
+      },
+      {
+       "text": "Deterministic: every list sorted at the end.",
+       "where": "build_index docstring",
+       "verdict": "kept",
+       "why": "All lists (forward, backward, code_links, type_links, unresolved, ambiguous) are sorted at the end."
+      }
+     ],
+     "observations": [
+      {
+       "what": "MAX_LINKS_PER_PAGE bound silently truncates link extraction without warning.",
+       "where": "extract_wikilinks",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "When known_code_paths is empty, code links are marked resolved=True and stale=False, but actual resolution is not performed. Comment suggests stale should be UNKNOWN.",
+       "where": "build_index",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "local_graph uses a dict key {'source', 'target', 'embed'} for deduplication; if two edges have same source/target but different embed, only one is kept. This may be intentional or a bug.",
+       "where": "local_graph",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The regex _WORD is defined but never used in this chunk.",
+       "where": "_WORD",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "340806b498e73e9a4a51eeb31781e7fd07f748c9dbd73af97d4a453b00a288d4",
+    "objective_chars": 12501,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/wiki/links.py [1/1]",
+  "rev": "946db82",
+  "module": "daedalus/wiki/links.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

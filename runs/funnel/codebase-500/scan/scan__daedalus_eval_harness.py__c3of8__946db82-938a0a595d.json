@@ -1,0 +1,137 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c3of8__946db82",
+ "key": "scan__daedalus_eval_harness.py__c3of8__946db82-938a0a595d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 3 of 8: harness.py lines 241-345 \u2014 implements tier1 evaluation, aggregation, and whole-repo text generation.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "run_tier1 | medium | The function modifies dirnames in os.walk to skip ignored dirs; side-effect on the walk is safe but could be surprising. | Confirm that _IGNORE_DIRS is properly defined and that mutating dirnames is intended."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "3 of 8",
+     "purpose": "Implements tier1 evaluation loop, result aggregation, and whole-repo text generation.",
+     "symbols": [
+      {
+       "name": "_tier1_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregates per-task rows into summary stats: n_tasks, mean_recall, mean_compression, n_slice_recall_misses, missed_ids."
+      },
+      {
+       "name": "run_tier1",
+       "kind": "function",
+       "effects": [],
+       "note": "Main entry point for Tier 1 evaluation. Accepts optional task list, builds index cache, evaluates each task, returns summary dict with per_task, errored, by_provenance, etc."
+      },
+      {
+       "name": "_whole_repo_text",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Walks a repo root, concatenates source files with headers; returns (text, truncated). cap_chars=None means untruncated."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``truncated`` is always False when uncapped.",
+       "where": "_whole_repo_text docstring",
+       "verdict": "kept",
+       "why": "The function initializes truncated = False and only sets it to True inside the loop (not shown) when cap_chars is reached; if cap_chars is None the loop never sets truncated, so it remains False."
+      },
+      {
+       "text": "``cap_chars=None`` (the new default) walks the ENTIRE repo untruncated -- the TRUE size of the baseline.",
+       "where": "_whole_repo_text docstring",
+       "verdict": "uncheckable",
+       "why": "The code shows the function signature with cap_chars: int | None = None and the loop, but the actual truncation logic (if cap_chars is not None) is not in this chunk; we cannot confirm that None disables truncation, though the comment says so."
+      },
+      {
+       "text": "``tier == \"quarantine\"`` tasks are counted in ``n_quarantine_tasks`` and reported inside ``by_provenance``, but never inside a go/no-go figure.",
+       "where": "run_tier1 docstring",
+       "verdict": "kept",
+       "why": "The return dict includes 'n_quarantine_tasks' computed as n - n_primary, and 'by_provenance' is computed from 'healthy' tasks; there is no 'go/no-go' field in the return, so quarantine tasks are excluded from any such figure."
+      },
+      {
+       "text": "A single unresolvable task (bad ``repo`` label, or a target no longer in the index -- the quarantined-mint-task crash this guards against) is caught here too, not just inside ``eval_task_tier1``.",
+       "where": "run_tier1 docstring",
+       "verdict": "kept",
+       "why": "The loop catches ValueError/OSError from resolve_task_repo or cached_index and appends _task_error_row, then continues; this is the guard described."
+      },
+      {
+       "text": "ERRORED rows land in both ``per_task`` (never silently dropped -- 'a degraded measurement is reported, never silent') and the dedicated ``errored`` list, and are excluded from ``by_provenance`` (every mean/recall/compression aggregate) -- see ``_by_provenance``'s docstring.",
+       "where": "run_tier1 docstring",
+       "verdict": "kept",
+       "why": "errored = [t for t in per_task if 'error' in t] collects them; healthy = [t for t in per_task if 'error' not in t and not t.get('focus_withheld')]; by_provenance is called only with healthy, so errored rows are excluded from aggregates."
+      },
+      {
+       "text": "``n_tasks``/``n_primary_tasks``/``n_quarantine_tasks`` remain simple total-attempted counts over label alone (unaffected by error status, and therefore byte-identical to before this existed for any store with zero errored tasks); ``n_errored_tasks`` is new and additive.",
+       "where": "run_tier1 docstring",
+       "verdict": "kept",
+       "why": "n_tasks = len(per_task) (includes errored), n_primary counts based on label_tier, n_quarantine = n - n_primary; these are unaffected by error status. n_errored_tasks is computed separately."
+      },
+      {
+       "text": "FOCUS-WITHHELD (lane A1): the fence fail-closed on the task's own focus file -- not a resolution error (excluded above), not a recall outcome either. Excluded from `healthy` (therefore from every mean/miss count in by_provenance) same as errored rows, and separately counted/named so it is reported, never silently folded into either a pass or a miss.",
+       "where": "run_tier1 docstring",
+       "verdict": "kept",
+       "why": "focus_withheld = [t for t in per_task if t.get('focus_withheld')]; healthy excludes focus_withheld; return includes n_focus_withheld and focus_withheld_ids."
+      },
+      {
+       "text": "Defaulted so pre-provenance task dicts (e.g. ad-hoc test fixtures that predate this schema) still group as 'hand_reachable'/'primary' -- additive, byte-identical aggregation for callers who never adopted the new fields.",
+       "where": "Slice result dict near line 241",
+       "verdict": "kept",
+       "why": "The return dict uses task.get('label_provenance', 'hand_reachable') and task.get('tier', 'primary'), providing defaults."
+      }
+     ],
+     "observations": [
+      {
+       "what": "Function _whole_repo_text modifies dirnames in os.walk to skip ignored dirs; this is safe but may be surprising.",
+       "where": "_whole_repo_text",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring for run_tier1 references _by_provenance's docstring, which is not in this chunk; cannot verify the claim about its behavior.",
+       "where": "run_tier1 docstring",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "281447cef849a9542b57d09da78afdd7a9627884120bacf6ca610ee936dfdf5c",
+    "objective_chars": 6412,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [3/8]",
+  "rev": "946db82",
+  "module": "daedalus/eval/harness.py",
+  "index": 3,
+  "total": 8,
+  "first_line": 241
+ }
+}

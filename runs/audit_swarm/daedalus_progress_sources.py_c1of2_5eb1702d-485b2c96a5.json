@@ -1,0 +1,185 @@
+{
+ "task_id": "daedalus/progress_sources.py#c1of2#5eb1702d",
+ "key": "daedalus_progress_sources.py_c1of2_5eb1702d-485b2c96a5",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 14 kept, 3 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a transparent tee: every item is yielded UNCHANGED, in the same order\" | watch_stream | BROKEN | line 93: `yield event, payload` yields the original items, but line 85 catches all exceptions and passes, swallowing recording errors but still yielding; claim is kept",
+     "CLAIM | \"a transparent tee: every item is yielded UNCHANGED, in the same order\" | watch_stream | KEPT | code yields the original (event, payload) unchanged",
+     "CLAIM | \"recording as a side effect only\" | watch_stream | KEPT | recording calls are made before yield, no modification to yield",
+     "CLAIM | \"each one is a byte physically read from the child's stdout\" | watch_stream delta | UNCHECKABLE | need to see _claude_stream implementation to verify delta production",
+     "CLAIM | \"applied is always False: a chat reply is text\" | watch_stream 'final' | KEPT | line 83 passes applied=False",
+     "CLAIM | \"proves TEXT generation, never TOOL invocation\" | watch_stream docstring | KEPT | code only records deltas with text, no tool call recording",
+     "CLAIM | \"result['report']['files_changed'] (the worker's self-report) is never read by this function\" | record_offload_result | KEPT | code never reads report['files_changed']",
+     "CLAIM | \"NEVER emits DISK_CHANGED\" | record_attempt_result | KEPT | code uses record_patch_produced, not record_disk_change",
+     "CLAIM | \"Re-raises whatever fn raises\" | track_call | BROKEN | line 158 catches Exception, records done, then raises; but line 163 `finally` runs after raise, setting stop; re-raise is correct. However, line 158 catches Exception and re-raises, but if an exception occurs in the finally block (stop.set()), the original exception is lost. This is a minor issue but claim is kept because the exception from fn is re-raised.",
+     "CLAIM | \"after recording a failed DONE\" | track_call | KEPT | line 159 records done with succeeded=False before re-raise",
+     "CLAIM | \"Opens SpineLedger(read_only=True)\" | snapshot_from_ledger | KEPT | line 218 passes read_only=True",
+     "CLAIM | \"Returns None on a miss (never raises for 'nothing matches')\" | snapshot_from_ledger | KEPT | lines 224, 230, 232 return None without raising",
+     "CLAIM | \"no code elsewhere had to change for this to be true\" | open_attempts docstring | UNCHECKABLE | need to see other modules to verify no changes needed",
+     "CLAIM | \"the ledger already commits the claim before the effect\" | open_attempts docstring | KEPT | code reads from ledger which is assumed to commit before effect",
+     "CLAIM | \"Reads real, already-durable facts and nothing else\" | snapshot_from_bridge | KEPT | code reads filesystem facts",
+     "CLAIM | \"Returns None when the key matches nothing in any of the four places\" | snapshot_from_bridge | KEPT | function returns None if no path matches",
+     "D1 | heartbeat_interval_s | track_call | WRONG CONCLUSION: parameter is read in the if condition and used to create stop event, but the value is not used elsewhere; the thread uses wait(heartbeat_interval_s) on line 149, so it is read. Actually it is read.",
+     "D2 | except Exception: pass | watch_stream line 85 | KEPT | docstring says \"a bug in recording must never break the caller's real stream\" so swallowing is intentional, not a bug.",
+     "D3 | check after side effect | None | none found",
+     "D4 | branch condition always false | None | none found"
+    ],
+    "todos": [
+     "Fix watch_stream docstring: 'transparent tee' claim is kept, no fix needed",
+     "Fix track_call: ensure re-raise of original exception even if finally block raises (currently not an issue but fragile)"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9d688f1aa47a6bd1c23941f8f633a09b5d3f613828abcb2ed5a71f73f6d606bb",
+    "objective_chars": 30519,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "31 claims: 28 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A transparent tee: every item is yielded UNCHANGED, in the same order\" | watch_stream | BROKEN | yields 'event, payload' unchanged but the docstring says 'every item is yielded UNCHANGED' while the code only yields 'event, payload' tuples; if the iterator yields other structures, they are not passed through unchanged.",
+     "CLAIM | \"a caller drops this around an existing ``for event, payload in ask_stream(...):`` loop with no other change\" | watch_stream | KEPT | The function accepts an iterator of (event, payload) tuples and yields the same tuples.",
+     "CLAIM | \"('start', {...}) -> CLAIMED\" | watch_stream | KEPT | The code calls P.claim_unit when event == 'start'.",
+     "CLAIM | \"('delta', {'text'}) -> GENERATING, iff the text is non-empty\" | watch_stream | KEPT | The code calls P.record_generating only if text is truthy.",
+     "CLAIM | \"Each one is a byte physically read from the child's stdout\" | watch_stream | UNCHECKABLE | The docstring references _claude_stream's internals not shown in this unit.",
+     "CLAIM | \"('final', envelope) -> DONE\" | watch_stream | KEPT | The code calls P.record_done when event == 'final'.",
+     "CLAIM | \"``succeeded`` is True whenever a reply string exists\" | watch_stream | KEPT | The code uses bool(envelope.get('assistant')).",
+     "CLAIM | \"``applied`` is always False\" | watch_stream | KEPT | The code passes applied=False.",
+     "CLAIM | \"this module does not invent a tool-call signal ``_claude_stream`` does not expose\" | watch_stream | KEPT | The function only handles start, delta, final events; no tool-call event is added.",
+     "CLAIM | \"every non-empty 'delta' is a byte physically read from a live child process's stdout\" | module docstring | UNCHECKABLE | Depends on _claude_stream implementation not in this unit.",
+     "CLAIM | \"this module never edits, wraps the internals of, or monkeypatches the modules it reads\" | module docstring | KEPT | No monkeypatching or editing visible in this unit.",
+     "CLAIM | \"result['report']['files_changed'] is never read by any function below, on purpose\" | module docstring | KEPT | No function in this unit reads that field.",
+     "CLAIM | \"this file has no code path that turns an AttemptResult into DISK_CHANGED\" | module docstring | KEPT | record_attempt_result does not call P.record_disk_change.",
+     "CLAIM | \"Opened ``read_only=True`` everywhere in this file\" | module docstring | KEPT | Both snapshot_from_ledger and open_attempts open SpineLedger with read_only=True.",
+     "CLAIM | \"No function in this file reads it\" (referring to report['files_changed']) | module docstring | KEPT | No function reads that field.",
+     "CLAIM | \"Every snapshot function here stamps ``observed_at``/recomputes every age at call time\" | module docstring | KEPT | snapshot_from_ledger and open_attempts compute now = time.time() at call time.",
+     "CLAIM | \"nothing in this file memoises a result across calls\" | module docstring | KEPT | No caching or memoization visible.",
+     "CLAIM | \"result['wrote'] -- offload's own before/after content-hash diff\" | record_offload_result docstring | KEPT | The function reads result.get('wrote') and passes it to P.record_disk_change.",
+     "CLAIM | \"result['report']['files_changed'] (the worker's self-report) is never read by this function\" | record_offload_result docstring | KEPT | The function never accesses that field.",
+     "CLAIM | \"NEVER emits DISK_CHANGED\" | record_attempt_result docstring | KEPT | The function does not call P.record_disk_change.",
+     "CLAIM | \"any artifact it produces is PATCH_PRODUCED at most\" | record_attempt_result docstring | KEPT | The function calls P.record_patch_produced if artifact is present and non-empty.",
+     "CLAIM | \"Re-raises whatever ``fn`` raises, after recording a failed DONE\" | track_call docstring | KEPT | The except block records DONE then re-raises.",
+     "CLAIM | \"Optionally emits HEARTBEAT from a background thread while ``fn`` runs\" | track_call docstring | KEPT | The code starts a thread that calls P.heartbeat.",
+     "CLAIM | \"proof the calling thread has not died, nothing more\" | track_call docstring | KEPT | The heartbeat is only a liveness signal.",
+     "CLAIM | \"Opens ``SpineLedger(read_only=True)``\" | snapshot_from_ledger docstring | KEPT | Code passes read_only=True.",
+     "CLAIM | \"Returns ``None`` on a miss (never raises for 'nothing matches')\" | snapshot_from_ledger docstring | KEPT | The function returns None if intent is None or path does not exist.",
+     "CLAIM | \"a genuinely broken ledger path/file still raises\" | snapshot_from_ledger docstring | KEPT | If path exists but file is corrupt, SpineLedger constructor may raise; not caught.",
+     "CLAIM | \"No code elsewhere had to change for this to be true\" | open_attempts docstring | KEPT | The function uses existing ledger.open_intents.",
+     "CLAIM | \"Returns ``None`` when the key matches nothing in any of the four places (never guesses)\" | snapshot_from_bridge docstring | BROKEN | The function does not return None; it falls through to the end of the function without an explicit return, so it returns None implicitly if no branch matches? Actually, after the heartbeat check, there is no return statement, so it falls off the end and returns None implicitly. That is correct, but the docstring says 'never guesses' which is kept. Wait, re-read: the last branch is the heartbeat check, which returns a _bridge_progress. If that also fails, the function ends without a return, which returns None. So the claim is kept. However, the docstring says 'never guesses' which is a bit vague, but the behavior matches. I'll keep it.",
+     "CLAIM | \"Archived (terminal, acknowledged)\" | snapshot_from_bridge docstring | KEPT | The archive path check returns _bridge_progress with P.DONE.",
+     "CLAIM | \"Quarantined: the watcher gave up\" | snapshot_from_bridge docstring | KEPT | The quarantined check returns _bridge_progress with P.DONE and succeeded=False.",
+     "D1 | heartbeat_interval_s | track_call | The parameter is read (if heartbeat_interval_s and heartbeat_interval_s > 0) so it's used. No D1.",
+     "D2 | watch_stream except | The except catches all exceptions and passes, but the docstring says 'a bug in recording must never break the caller's real stream' which is a deliberate design. Not a mechanical D2 because the prose permits it.",
+     "D3 | N/A",
+     "D4 | N/A"
+    ],
+    "todos": [
+     "Change the docstring of watch_stream to clarify that only (event, payload) tuples are passed through unchanged, not arbitrary iterator items."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9d688f1aa47a6bd1c23941f8f633a09b5d3f613828abcb2ed5a71f73f6d606bb",
+    "objective_chars": 30519,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 12 kept, 4 broken, 2 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"a transparent tee: every item is yielded UNCHANGED, in the same order\" | watch_stream | BROKEN | yields the item after the try-except, but if an exception occurs in recording, the item is still yielded (that's fine), but the docstring says 'unchanged' and 'same order' \u2014 it is unchanged, but the order is preserved, so this is KEPT. Actually re-read: the claim is about transparency, and the code yields after recording; if recording raises, the exception is caught and the item is still yielded. So the item is unchanged and order preserved. KEPT.",
+     "CLAIM | \"('start', {...}) -> CLAIMED\" | watch_stream | KEPT | code calls P.claim_unit on 'start'.",
+     "CLAIM | \"('delta', {'text'}) -> GENERATING, iff the text is non-empty\" | watch_stream | KEPT | code checks text and calls P.record_generating.",
+     "CLAIM | \"('final', envelope) -> DONE\" | watch_stream | KEPT | code calls P.record_done.",
+     "CLAIM | \"succeeded is True whenever a reply string exists\" | watch_stream | BROKEN | line: `P.record_done(unit_id, succeeded=bool(envelope.get(\"assistant\")), ...` \u2014 the docstring says 'reply string exists', but the code uses `envelope.get(\"assistant\")` which is a different key ('assistant' vs 'reply'). The docstring says 'reply string', but the code checks 'assistant'. This is a mismatch: the docstring's claim is not implemented.",
+     "CLAIM | \"applied is always False\" | watch_stream | KEPT | code passes applied=False.",
+     "CLAIM | \"LIMITATION, STATED PLAINLY: this proves TEXT generation, never TOOL invocation.\" | watch_stream | UNCHECKABLE | need to verify that _claude_stream filters frames as described; not in this unit.",
+     "CLAIM | \"offload() is one blocking call with no internal hook this module may reach into without editing it (out of scope)\" | record_offload_result | UNCHECKABLE | need to see offload.py to verify no hook.",
+     "CLAIM | \"result[\"report\"][\"files_changed\"] (the worker's self-report) is never read by this function.\" | record_offload_result | KEPT | code does not read that key.",
+     "CLAIM | \"NEVER emits DISK_CHANGED\" | record_attempt_result | KEPT | code does not call P.record_disk_change.",
+     "CLAIM | \"Re-raises whatever fn raises, after recording a failed DONE.\" | track_call | KEPT | code catches, records done, then re-raises.",
+     "CLAIM | \"Opens SpineLedger(read_only=True) -- same discipline as daedalus.health\" | snapshot_from_ledger | KEPT | code passes read_only=True.",
+     "CLAIM | \"Returns None on a miss (never raises for 'nothing matches')\" | snapshot_from_ledger | KEPT | returns None if intent is None.",
+     "CLAIM | \"a genuinely broken ledger path/file still raises\" | snapshot_from_ledger | BROKEN | line: `if not path.exists(): return None` \u2014 if the path exists but is broken (e.g., corrupted), SpineLedger will raise. That's consistent with 'still raises'. But the docstring says 'a genuinely broken ledger path/file still raises' \u2014 that is true because the code does not catch. So KEPT.",
+     "CLAIM | \"Every currently-OPEN (claimed, unresolved) ledger intent, right now, from any process.\" | open_attempts | KEPT | code calls ledger.open_intents(kind=kind).",
+     "CLAIM | \"No code elsewhere had to change for this to be true\" | open_attempts | BROKEN | The function open_attempts is defined here, so code elsewhere does not need to change to use it. But the claim is about the ledger already committing the claim before the effect \u2014 that is a property of spine.ledger, not checkable here. However, the claim 'No code elsewhere had to change for this to be true' is about this function: it is a new function, so code elsewhere would need to change to call it. The claim is ambiguous but likely means that the ledger already has the data, so this function can just read it. That is true. So KEPT.",
+     "CLAIM | \"Reads real, already-durable facts and nothing else\" | snapshot_from_bridge | KEPT | code reads filesystem paths and heartbeat status.",
+     "CLAIM | \"Returns None when the key matches nothing in any of the four places (never guesses).\" | snapshot_from_bridge | KEPT | returns None if none of the conditions match.",
+     "D1 | heartbeat_interval_s | parameter accepted but never read? It is read in the if condition: `if heartbeat_interval_s and heartbeat_interval_s > 0:` \u2014 so it is read. No D1.",
+     "D2 | except: pass in watch_stream | line: `except Exception: pass` \u2014 swallows and continues. The docstring says 'a bug in recording must never break the caller's real stream. The caller still gets every event/payload it would have gotten without this wrapper; only OUR bookkeeping is at risk here.' That is a deliberate design, not a contradiction. But the mechanical check D2 is for 'except that swallows and continues where the surrounding prose says refuse, fail-closed, or must not'. The prose does not say refuse or fail-closed; it says the opposite. So not a hit.",
+     "D2 | except: pass in track_call heartbeat | line: `except Exception: pass` \u2014 same reasoning, not a hit.",
+     "D2 | except: pass in snapshot_from_bridge | lines: `except Exception: pass` for quarantined and heartbeat \u2014 same reasoning, not a hit.",
+     "D3 | no check after side effect found.",
+     "D4 | no impossible branch found."
+    ],
+    "todos": [
+     "Fix watch_stream docstring: change 'reply string exists' to 'assistant field truthy' or change code to check 'reply' key.",
+     "Fix record_attempt_result docstring: remove claim 'NEVER emits DISK_CHANGED' if it does, but it doesn't, so it's kept. Actually the claim is kept. No todo.",
+     "Fix open_attempts docstring: clarify that 'No code elsewhere had to change' is about the ledger property, not about this function being new."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9d688f1aa47a6bd1c23941f8f633a09b5d3f613828abcb2ed5a71f73f6d606bb",
+    "objective_chars": 30519,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/progress_sources.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28001
+ }
+}

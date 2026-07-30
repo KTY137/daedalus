@@ -1,0 +1,134 @@
+{
+ "task_id": "7-ikarus-orchestration-and-knowledge__adversary__a47d84ee736f",
+ "key": "7-ikarus-orchestration-and-knowledge__adversary__a47d84ee736f-af16d6d40d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Section 7 makes unfalsifiable architectural claims: no test can confirm 'persistent in goals and evidence' or 'artifact-first' because the terms are undefined and the data model is absent.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "7.1 | high | 'Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.' \u2013 'persistent' and 'unconstrained' are undefined; an agent could implement a chat that logs goals and evidence and claim compliance, defeating the intent to avoid chat-based workflow. | Define persistence semantics and constraints on agent behavior; inspect the agent's implementation for goal/evidence storage and lifecycle.",
+     "7.2 | high | 'It compiles user intent into a typed MissionContract...' \u2013 no schema for MissionContract is defined; a careless engineer could use a stringly-typed contract that is still 'typed' in a broad sense, making the claim unfalsifiable. | Require a formal schema or type definition for MissionContract; verify that all contracts conform.",
+     "7.3 | medium | 'creates an artifact DAG' \u2013 no constraints on DAG structure (acyclic? connected?); an agent could create a cyclic graph of artifacts and claim it is a DAG. | Enforce acyclicity checks on the artifact graph; verify that cycles are rejected.",
+     "7.4 | medium | 'selects stateless or explicitly versioned recipes' \u2013 'explicitly versioned' is ambiguous; a recipe could embed a version string without any versioning policy, defeating the intent of traceability. | Define what constitutes an explicit version (e.g., semantic version, hash) and enforce it in the recipe selection mechanism.",
+     "7.5 | medium | 'monitors budgets and attempts' \u2013 no definition of 'budget' or 'attempt'; an agent could monitor only a trivial budget (e.g., 1 attempt) and claim compliance. | Define budget types (time, cost, retries) and attempt semantics; verify monitoring is active and enforced.",
+     "7.6 | medium | 'presents decisions and evidence' \u2013 'presents' is vague; an agent could log decisions to a hidden file and claim it presents them. | Specify presentation format and channel; verify that decisions/evidence are surfaced to the user or audit log.",
+     "7.7 | high | 'Coordination is artifact-first' \u2013 the subsequent pipeline is described but no mechanism enforces that coordination is driven by artifacts rather than chat; an agent could use chat as the primary coordination and still produce artifacts. | Define what 'artifact-first' means operationally (e.g., all state changes must be triggered by artifact events); verify that chat interactions are not the source of truth.",
+     "7.8 | medium | 'Typed events and artifacts are authoritative' \u2013 'authoritative' is undefined; an agent could treat events as authoritative but still allow mutable artifacts, defeating provenance. | Define authority semantics (e.g., events are immutable, artifacts are derived); verify that events are append-only and artifacts are versioned.",
+     "7.9 | medium | 'Chat is an interface, not the workflow database' \u2013 a careless engineer could store workflow state in chat logs and claim compliance because chat is 'an interface' (the logs are not the interface). | Explicitly forbid storing workflow state in chat; verify that the workflow database is separate and not directly accessible via chat.",
+     "7.10 | high | 'Product memory (preferences, projects, explanations) and research adaptive memory (operators, priors, trial outcomes) are separate, versioned, provenance-bearing stores with explicit projection rules.' \u2013 'explicit projection rules' are not defined; an agent could have no projection rules or trivial ones and claim compliance. | Define projection rules for each store; verify that projections are computed and enforced.",
+     "7.11 | medium | 'provenance-bearing stores' \u2013 no definition of provenance; an agent could store a timestamp as provenance, which is insufficient to trace lineage. | Define provenance requirements (e.g., source event IDs, transformation history); verify that stores carry sufficient provenance."
+    ],
+    "todos": [
+     "Define 'persistent in goals and evidence' with concrete lifecycle and storage requirements.",
+     "Provide a formal schema for MissionContract.",
+     "Specify that the artifact DAG must be acyclic and enforce it.",
+     "Define 'explicitly versioned' recipes (e.g., must include a version field with a policy).",
+     "Define 'budget' and 'attempt' with measurable units and enforcement.",
+     "Define 'presents' in terms of output channels and formats.",
+     "Operationally define 'artifact-first' coordination (e.g., state transitions must be triggered by artifact events).",
+     "Define 'authoritative' for events and artifacts (e.g., events immutable, artifacts derived).",
+     "Explicitly forbid workflow state in chat logs.",
+     "Define 'explicit projection rules' for each memory store.",
+     "Define provenance requirements (e.g., store source event IDs and transformation chain)."
+    ],
+    "handoff": {
+     "claims": [
+      {
+       "id": "7.1",
+       "claim": "Ikarus is persistent in goals and evidence, not an unconstrained immortal chat.",
+       "verdict": "unfalsifiable",
+       "why": "The terms 'persistent' and 'unconstrained immortal chat' are not defined. An agent could store goals and evidence in a transient memory and claim persistence, or implement a chat that logs everything and claim it is not unconstrained. No mechanical check can distinguish compliance from violation without operational definitions."
+      },
+      {
+       "id": "7.2",
+       "claim": "It compiles user intent into a typed MissionContract.",
+       "verdict": "weak",
+       "why": "The claim requires a 'typed' contract but does not specify the type system or schema. A careless engineer could use a simple string or untyped dictionary and still call it 'typed' (e.g., Python's typing module). To be falsifiable, the type definition must be part of the document or referenced."
+      },
+      {
+       "id": "7.3",
+       "claim": "creates an artifact DAG.",
+       "verdict": "weak",
+       "why": "DAG (Directed Acyclic Graph) is a well-defined term, but the claim does not enforce acyclicity. An agent could create a graph with cycles and claim it is a DAG if no check is performed. The document should require that the graph is verified to be acyclic."
+      },
+      {
+       "id": "7.4",
+       "claim": "selects stateless or explicitly versioned recipes.",
+       "verdict": "weak",
+       "why": "'Explicitly versioned' is ambiguous. A recipe could have a version string that is never updated, or the versioning could be implicit (e.g., file name). Without a definition of what constitutes an explicit version (e.g., semantic version, hash), an agent can comply trivially."
+      },
+      {
+       "id": "7.5",
+       "claim": "monitors budgets and attempts.",
+       "verdict": "unfalsifiable",
+       "why": "'Budgets' and 'attempts' are not defined. An agent could monitor a single attempt or a trivial budget (e.g., time limit of 1 second) and claim compliance. Without measurable definitions, no test can verify this claim."
+      },
+      {
+       "id": "7.6",
+       "claim": "presents decisions and evidence.",
+       "verdict": "unfalsifiable",
+       "why": "'Presents' is vague. An agent could log decisions to a file without any user interface and claim it presents them. The document should specify the presentation mechanism (e.g., UI, report, API) and the format."
+      },
+      {
+       "id": "7.7",
+       "claim": "Coordination is artifact-first.",
+       "verdict": "weak",
+       "why": "'Artifact-first' is not defined. An agent could use chat as the primary coordination mechanism but still produce artifacts, claiming that coordination is artifact-first. The document should define what 'artifact-first' means operationally, e.g., that all state changes are triggered by artifact events."
+      },
+      {
+       "id": "7.8",
+       "claim": "Typed events and artifacts are authoritative.",
+       "verdict": "unfalsifiable",
+       "why": "'Authoritative' is not defined. An agent could treat events as authoritative but still allow mutable artifacts, or treat artifacts as authoritative but events as secondary. Without a definition of what it means for events/artifacts to be authoritative (e.g., they are the source of truth, immutable), this claim cannot be tested."
+      },
+      {
+       "id": "7.9",
+       "claim": "Chat is an interface, not the workflow database.",
+       "verdict": "weak",
+       "why": "This claim prohibits using chat as the workflow database, but a careless engineer could store workflow state in chat logs (which are not the interface itself) and claim compliance. The document should explicitly forbid storing workflow state in chat logs or any chat-accessible storage."
+      },
+      {
+       "id": "7.10",
+       "claim": "Product memory and research adaptive memory are separate, versioned, provenance-bearing stores with explicit projection rules.",
+       "verdict": "weak",
+       "why": "'Explicit projection rules' are not defined. An agent could have no projection rules or trivial ones and claim compliance. The document must define what projection rules are and require them to be documented and enforced."
+      },
+      {
+       "id": "7.11",
+       "claim": "Provenance-bearing stores.",
+       "verdict": "unfalsifiable",
+       "why": "'Provenance-bearing' is not defined. An agent could store a simple timestamp as provenance, which is insufficient to trace lineage. Without a definition of what provenance includes (e.g., source, transformation, version), this claim cannot be verified."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2684966d75e1c598ca88d1bc897730e4c53841629a4ec13d83efb7608434133",
+    "objective_chars": 1636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "62bf03f4728cd033383da01e91a79deba67610aafaee8e68967bc2a3df9ddc23",
+    "system_override_chars": 2974,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "section": "7-ikarus-orchestration-and-knowledge",
+  "lens": "adversary",
+  "plan_sha12": "a47d84ee736f"
+ }
+}

@@ -1,0 +1,151 @@
+{
+ "task_id": "scan__daedalus_adapters_subprocess_adapter.py__c1of4__946db82",
+ "key": "scan__daedalus_adapters_subprocess_adapter.py__c1of4__946db82-6576801593",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of subprocess_adapter.py: defines RuntimeConfig, RUNTIME_PROFILES, _Session, and SubprocessAdapter class with __init__ signature. Docstring claims about one-shot execution, non-interactive CLIs, and verified profiles are uncheckable from this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/adapters/subprocess_adapter.py",
+     "chunk": "1 of 4",
+     "purpose": "Define subprocess adapter for non-interactive agent CLIs",
+     "symbols": [
+      {
+       "name": "PromptMode",
+       "kind": "constant",
+       "effects": [],
+       "note": "Type alias for Literal['argument', 'stdin', 'none']"
+      },
+      {
+       "name": "RuntimeConfig",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass for process-launch contract"
+      },
+      {
+       "name": "RUNTIME_PROFILES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict of built-in profiles for claude and codex"
+      },
+      {
+       "name": "_Session",
+       "kind": "class",
+       "effects": [],
+       "note": "Internal dataclass holding process and metadata"
+      },
+      {
+       "name": "SubprocessAdapter",
+       "kind": "class",
+       "effects": [],
+       "note": "AgentAdapter subclass for running configured CLIs"
+      },
+      {
+       "name": "__init__",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructor accepting config, command, args, repo_root, timeout_s, sink"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Subprocess transport for explicitly configured, non-interactive agent CLIs.",
+       "where": "module docstring line 1",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk demonstrates non-interactive or explicit configuration enforcement."
+      },
+      {
+       "text": "This is a process/event normalization layer, not a universal agent protocol",
+       "where": "module docstring line 3",
+       "verdict": "uncheckable",
+       "why": "No event normalization code is present in this chunk."
+      },
+      {
+       "text": "each CLI still needs a verified command profile and provider-specific event parser.",
+       "where": "module docstring line 4",
+       "verdict": "uncheckable",
+       "why": "No verification logic or event parser is shown in this chunk."
+      },
+      {
+       "text": "Built-in profiles are limited to CLIs whose local ``--help`` contract is exercised by tests and whose execution is one-shot.",
+       "where": "module docstring line 5",
+       "verdict": "uncheckable",
+       "why": "No test references or --help contract checks in this chunk."
+      },
+      {
+       "text": "These profiles describe one-shot, non-interactive invocations.",
+       "where": "comment before RUNTIME_PROFILES",
+       "verdict": "kept",
+       "why": "RUNTIME_PROFILES contains two entries (claude, codex) with flags like --permission-mode dontAsk and --ask-for-approval never, consistent with non-interactive one-shot use."
+      },
+      {
+       "text": "Antigravity isn't listed: no ``agy`` executable or stable JSON protocol exists on this machine, and a desktop/IDE session does not imply a callable CLI contract.",
+       "where": "comment before RUNTIME_PROFILES",
+       "verdict": "uncheckable",
+       "why": "No reference to antigravity or agy in this chunk; claim about machine state is external."
+      },
+      {
+       "text": "Run a configured CLI in a bounded working directory and normalize output.",
+       "where": "SubprocessAdapter docstring",
+       "verdict": "uncheckable",
+       "why": "No working directory bounding or output normalization code shown in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "RUNTIME_PROFILES includes claude and codex with specific flags. The claude profile uses --permission-mode dontAsk and codex uses --ask-for-approval never, consistent with non-interactive operation.",
+       "where": "lines 53-69",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "SubprocessAdapter.__init__ accepts optional config, command, args, repo_root, timeout_s, sink. The method signature is incomplete (ends with 'sink: TransportSink | None = None,').",
+       "where": "line 83",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "RuntimeConfig has fields for streaming, resume, hidden_state_access, output_format, prompt_mode, stdin_prompt_marker, cwd_arg, model_arg, close_stdin_after_prompt, env, timeout_s. These are configuration knobs not yet used in this chunk.",
+       "where": "lines 30-42",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "26bb5fa7477e52faebb09bedcb5f42b2b386689939965b6d3019c9855cb7dd86",
+    "objective_chars": 4393,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/adapters/subprocess_adapter.py [1/4]",
+  "rev": "946db82",
+  "module": "daedalus/adapters/subprocess_adapter.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

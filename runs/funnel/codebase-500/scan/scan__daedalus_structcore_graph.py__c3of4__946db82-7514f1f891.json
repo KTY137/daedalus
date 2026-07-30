@@ -1,0 +1,169 @@
+{
+ "task_id": "scan__daedalus_structcore_graph.py__c3of4__946db82",
+ "key": "scan__daedalus_structcore_graph.py__c3of4__946db82-7514f1f891",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Analyzed chunk 3 of 4 of graph.py: contains canonical_node, _graph_nodes, fenced_reachability, and fenced_dominance (partial). Verified claims about BFS, over-reporting, and document exclusion.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "_graph_nodes | medium | Claims to exclude documents but imports code_modules; no evidence documents are actually excluded beyond the docstring. | Check if code_modules excludes documents or if idx has a document flag.",
+     "fenced_reachability | medium | Claims to over-report non-Python edges; no mechanism visible in chunk to include non-Python edges. | Verify if idx contains non-Python edges or if over-reporting is aspirational.",
+     "fenced_dominance | low | Only partial docstring present; fraction calculation not implemented in chunk. | Complete implementation in next chunk."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/structcore/graph.py",
+     "chunk": "3 of 4",
+     "purpose": "Contains canonical_node, _graph_nodes, fenced_reachability, and start of fenced_dominance.",
+     "symbols": [
+      {
+       "name": "canonical_node",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns canonical spelling of a node from the graph; uses _graph_nodes and case-insensitive fallback."
+      },
+      {
+       "name": "_graph_nodes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns set of all nodes in the dependency graph, excluding documents per docstring. Imports code_modules and uses import_edges and import_edges_reverse."
+      },
+      {
+       "name": "fenced_reachability",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "BFS from rel to find shortest dependency chain to a fenced module. Returns dict with reaches, hops, via, fenced_node, fragment, chain, visited, truncated, known."
+      },
+      {
+       "name": "fenced_dominance",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Partial implementation; docstring only. Should compute fraction of non-fenced modules that feed a fenced module."
+      }
+     ],
+     "claims": [
+      {
+       "text": "documents are excluded deliberately, and this is a safety decision rather than a tidiness one",
+       "where": "_graph_nodes docstring",
+       "verdict": "uncheckable",
+       "why": "No code in chunk filters out documents; relies on code_modules which is not shown."
+      },
+      {
+       "text": "turning documents on would DILUTE the fence's dominance fraction with files that cannot reach anything",
+       "where": "_graph_nodes docstring",
+       "verdict": "uncheckable",
+       "why": "Dominance fraction calculation not implemented in this chunk; claim about dilution cannot be verified."
+      },
+      {
+       "text": "BFS over idx[\"import_edges_reverse\"] (rel -> rels that import it), i.e. outward through everything that would be affected by editing rel",
+       "where": "fenced_reachability docstring",
+       "verdict": "kept",
+       "why": "Code uses rev = idx.get(\"import_edges_reverse\") and traverses neighbours from rev."
+      },
+      {
+       "text": "hops 0 means the edited path is itself fenced",
+       "where": "fenced_reachability docstring",
+       "verdict": "kept",
+       "why": "At start, hops=0; if frontier contains fenced node, returns with hops=0."
+      },
+      {
+       "text": "hops >= 1 is the case the literal check cannot see: a leaf that a fenced module transitively depends on",
+       "where": "fenced_reachability docstring",
+       "verdict": "kept",
+       "why": "After each BFS level, hops increments; return includes hops value."
+      },
+      {
+       "text": "Determinism is load-bearing: the frontier and every neighbour list are iterated sorted, first parent wins, and among fenced nodes found at the minimal hop level the lexicographically smallest is reported",
+       "where": "fenced_reachability docstring",
+       "verdict": "kept",
+       "why": "Frontier sorted before fenced check; neighbours sorted; first hit in sorted list is taken; chain reversed to show path."
+      },
+      {
+       "text": "Non-Python import edges are best-effort, so this OVER-reports",
+       "where": "fenced_reachability docstring",
+       "verdict": "uncheckable",
+       "why": "No mechanism to include non-Python edges visible in code; over-reporting cannot be verified from this chunk."
+      },
+      {
+       "text": "a spurious escalation costs a Claude call, a missed one lets a 7B model write code a hardware interlock depends on. Do not \"tighten\" this.",
+       "where": "fenced_reachability docstring",
+       "verdict": "uncheckable",
+       "why": "Operational claim about consequences; no code to verify."
+      },
+      {
+       "text": "An unknown path is still walked as given so a fenced-looking path is never let through merely for being absent from the graph.",
+       "where": "fenced_reachability docstring",
+       "verdict": "kept",
+       "why": "After canonical_node, if node is None, rel is used as-is: 'rel = node or rel'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_graph_nodes claims to exclude documents but the code does not show any exclusion logic; it imports code_modules and adds nodes from import_edges and import_edges_reverse. The exclusion must happen inside code_modules.",
+       "where": "_graph_nodes",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "fenced_reachability uses a visit_cap default REACH_VISIT_CAP which is not defined in this chunk; likely imported or defined earlier.",
+       "where": "fenced_reachability signature",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "fenced_fragment is used but not defined in this chunk; it must be defined elsewhere.",
+       "where": "fenced_reachability",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "fenced_dominance docstring is present but implementation is missing; chunk ends after docstring.",
+       "where": "fenced_dominance",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b6ca11905ae3b449102475ec5c832af16fef204cbbc7daa9001894157b8b5e7e",
+    "objective_chars": 5416,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/structcore/graph.py [3/4]",
+  "rev": "946db82",
+  "module": "daedalus/structcore/graph.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 241
+ }
+}
