@@ -1053,6 +1053,24 @@ def write_receipt(receipt: dict, out_path: Path) -> None:
     doc.setdefault("state", "measured")
     doc.setdefault("kill_rate_floor", KILL_RATE_FLOOR)
     doc.setdefault("critical_defect_classes", list(CRITICAL_DEFECT_CLASSES))
+    # WHICH MACHINE MEASURED THIS. A kill rate is comparable across hosts; a
+    # DURATION is not, and a receipt with no host block invites exactly that
+    # comparison. MEASURED 2026-07-30 on the primary box: the suite runs in
+    # ~105 s in a warm checkout and ~18 min per mutation under the gate. That
+    # factor of ten is environmental -- an i7-10510U is a 15 W four-core laptop
+    # part from 2019 -- and without a host block the next reader would look for
+    # it in the code.
+    #
+    # Fail-soft by construction: an unavailable host block must never turn a
+    # completed measurement into an unwritable receipt. `bootstrap` refuses an
+    # INCOMPLETE receipt loudly, so adding a new way to be incomplete would be
+    # trading a real measurement for a cosmetic field.
+    if "host" not in doc:
+        try:
+            from tools.gate_host_preflight import collect_host
+            doc["host"] = collect_host(Path(__file__).resolve().parents[1])
+        except Exception as exc:              # noqa: BLE001
+            doc["host"] = {"unknown": f"{type(exc).__name__}: {exc}"}
     head = str(doc.get("head") or "")
     if "frozen_gate" not in doc and head:
         # The gate was frozen AT the measurement head, so the binding names the
