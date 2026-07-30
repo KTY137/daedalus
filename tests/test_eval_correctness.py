@@ -813,5 +813,106 @@ def _unified_diff(rel: str, before: str, after: str) -> bytes:
         fromfile=f"a/{rel}", tofile=f"b/{rel}")).encode("utf-8")
 
 
+class TheVerbGuardRefusesWrites(unittest.TestCase):
+    """``_git_read`` may only aim READ-ONLY git verbs at the primary checkout.
+
+    FOUND BY AUDIT 2026-07-30 (Aristaeus): this guard had NO TEST. It is the
+    allowlist behind a no-write property -- `correctness.py:265` refuses any verb
+    outside ``spine.attempt.READ_ONLY_REPO_VERBS`` because the primary checkout
+    is the one tree this module must never modify, and the module's own docstring
+    records that "this repo has already lost a working tree".
+
+    An unguarded guard is the shape this repo keeps finding in itself: a control
+    that is correct today, protected by nothing, and silently removable. These
+    tests are deliberately written BEFORE the refactor that would move the
+    allowlist to a spine leaf -- moving an untested safety declaration is how you
+    find out afterwards.
+
+    Every test here asserts on the REFUSAL, never on a subprocess result: a test
+    that let a mutating verb through in order to check the outcome would be doing
+    the thing the guard exists to prevent.
+    """
+
+    #: Verbs that write. Not exhaustive -- it does not need to be, because the
+    #: guard is an ALLOWLIST. The point of each entry is that it is a plausible
+    #: thing for a future caller to reach for.
+    WRITING_VERBS = ("checkout", "commit", "clean", "reset", "apply", "rm",
+                     "add", "push", "fetch", "merge", "rebase", "stash",
+                     "worktree", "gc", "restore", "switch", "mv")
+
+    def test_every_allowed_verb_is_actually_read_only(self):
+        # The allowlist is the whole security argument, so it is asserted
+        # verbatim rather than trusted: an addition to it must fail this test and
+        # force a reviewer to look, which is exactly what attempt.py:185-187 says
+        # the list is for.
+        self.assertEqual(
+            set(C.READ_ONLY_REPO_VERBS),
+            {"rev-parse", "status", "diff", "log", "show", "cat-file",
+             "ls-files", "config"},
+            "the read-only allowlist changed -- if a verb was ADDED, prove it "
+            "cannot write to the primary checkout before updating this test")
+
+    def test_a_writing_verb_is_refused(self):
+        for verb in self.WRITING_VERBS:
+            with self.subTest(verb=verb):
+                with self.assertRaises(C.PrimaryCheckoutTouch):
+                    C._git_read(AGENT_ENV_ROOT, verb)
+
+    def test_the_refusal_names_the_verb_the_path_and_what_is_allowed(self):
+        # A refusal a human cannot act on gets worked around. It must say which
+        # verb, which tree, and what would have been acceptable.
+        with self.assertRaises(C.PrimaryCheckoutTouch) as ctx:
+            C._git_read(AGENT_ENV_ROOT, "checkout", "-f", "main")
+        msg = str(ctx.exception)
+        self.assertIn("checkout", msg)
+        self.assertIn(str(AGENT_ENV_ROOT), msg)
+        self.assertIn("rev-parse", msg)          # the allowlist is shown
+        self.assertIn("none of them writes", msg)
+
+    def test_a_writing_verb_is_refused_before_any_process_starts(self):
+        """The guard must run BEFORE subprocess.run, not filter its result.
+
+        This is the difference between a check and a postmortem. Patching
+        subprocess.run to explode proves nothing was spawned: if the guard ran
+        late, this test fails with the sentinel instead of the refusal.
+        """
+        import subprocess as sp
+        original = sp.run
+
+        def explode(*a, **k):                    # pragma: no cover -- must not run
+            raise AssertionError(
+                "subprocess.run was reached with a mutating verb; the guard "
+                f"filters the RESULT instead of preventing the call: {a[:1]}")
+
+        sp.run = explode
+        try:
+            with self.assertRaises(C.PrimaryCheckoutTouch):
+                C._git_read(AGENT_ENV_ROOT, "commit", "-m", "should never run")
+        finally:
+            sp.run = original
+
+    def test_an_empty_verb_list_is_refused_not_defaulted(self):
+        with self.assertRaises(ValueError):
+            C._git_read(AGENT_ENV_ROOT)
+
+    def test_a_verb_that_merely_starts_like_an_allowed_one_is_refused(self):
+        # Membership, not prefix matching. `show` is allowed; `show-ref` is not
+        # this module's business, and `diff` being allowed must not admit
+        # `difftool`, which launches a program.
+        for verb in ("show-ref", "difftool", "status-ish", "logrotate",
+                     "config-hook"):
+            with self.subTest(verb=verb):
+                with self.assertRaises(C.PrimaryCheckoutTouch):
+                    C._git_read(AGENT_ENV_ROOT, verb)
+
+    def test_the_allowlist_is_imported_not_redeclared(self):
+        # attempt.py:185-187 calls itself "the single place a reviewer has to
+        # look". A second copy in correctness.py would make that false, and this
+        # is the assertion that keeps the two from drifting apart -- the same
+        # failure lanes/checks.py was created to end.
+        from daedalus.spine import attempt
+        self.assertIs(C.READ_ONLY_REPO_VERBS, attempt.READ_ONLY_REPO_VERBS)
+
+
 if __name__ == "__main__":
     unittest.main()
