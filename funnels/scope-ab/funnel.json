@@ -1,0 +1,19 @@
+{
+  "name": "scope-ab",
+  "description": "same chunks, one variable: does handing a chunk its file's symbol table remove the false 'undefined symbol' class?",
+  "tiers": [
+    {
+      "name": "scan",
+      "system": "../codebase/scan.md",
+      "source": {
+        "kind": "code_chunks",
+        "glob": "daedalus/**/*.py",
+        "chunk_lines": 120,
+        "file_scope": true
+      },
+      "fence": "CODE",
+      "intro": "FILE: {module}  (chunk {index} of {total}, starting at line {first_line})",
+      "task": "Enumerate every public symbol and every checkable claim in the docstrings and comments above, and give each claim a verdict against THIS code. Report what you observe, not what you suspect about code you cannot see. If a claim refers to something outside this chunk, its verdict is 'uncheckable'. Cite real paths only: a reference to a file that does not exist is worse than no reference."
+    }
+  ]
+}

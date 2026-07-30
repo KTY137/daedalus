@@ -1,0 +1,76 @@
+{
+  "name": "codebase-500",
+  "description": "the codebase funnel at 500 scale, same ratios, with near-duplicate hypotheses merged before review",
+  "tiers": [
+    {
+      "name": "scan",
+      "system": "../codebase/scan.md",
+      "source": {
+        "kind": "code_chunks",
+        "glob": "daedalus/**/*.py",
+        "chunk_lines": 120
+      },
+      "fence": "CODE",
+      "intro": "FILE: {module}  (chunk {index} of {total}, starting at line {first_line})",
+      "task": "Enumerate every public symbol and every checkable claim in the docstrings and comments above, and give each claim a verdict against THIS code. Report what you observe, not what you suspect about code you cannot see. If a claim refers to something outside this chunk, its verdict is 'uncheckable'. Cite real paths only: a reference to a file that does not exist is worse than no reference."
+    },
+    {
+      "name": "research",
+      "system": "../codebase/research.md",
+      "source": {
+        "kind": "tier",
+        "from": "scan",
+        "buckets": 125
+      },
+      "fence": "SCAN REPORTS (json)",
+      "intro": "You have {inputs} independent scan reports from different parts of one Python codebase (the Daedalus agent harness: an agent orchestration kernel with budget, egress and evaluation subsystems).",
+      "task": "Find what spans them. State each cross-file pattern as a hypothesis with a refutation condition. Every path and symbol you cite in `evidence` must be one you actually saw in the reports above -- an invented reference cannot be checked and will be discarded."
+    },
+    {
+      "name": "review",
+      "system": "../codebase/review.md",
+      "source": {
+        "kind": "tier",
+        "from": "research",
+        "field": "hypotheses",
+        "_dedupe_disabled_why": "MEASURED on the 253-run's 187 hypotheses: the highest word-overlap between ANY two was 0.32, and the closest pairs were distinct findings sharing vocabulary (two undefined variables in two different modules). No threshold merges duplicates without also merging real findings, because round-robin dealing gives each research bucket DISJOINT scan reports -- there are structurally no duplicates to merge. Retained as negative evidence; the code stays, off by default.",
+        "attach_evidence": true,
+        "evidence_field": "evidence",
+        "evidence_refs": 4,
+        "evidence_window": 40,
+        "buckets": 50
+      },
+      "fence": "HYPOTHESES (json)",
+      "intro": "You have {inputs} hypotheses produced by a research tier over the Daedalus codebase. Attack each one. A hypothesis carrying `raised_independently_by: N` was reached by N research groups that could not see each other -- weigh that as weak corroboration of the OBSERVATION, never of the EXPLANATION, since they shared a prior and the same scan reports.",
+      "task": "Each hypothesis carries `cited_source`: the ACTUAL source at the references it cites, read from the repository just now. Judge against that source, not against the hypothesis's description of it -- the description is what you are testing. If `cited_source` says NOT FOUND IN REPOSITORY or NOT PRESENT IN FILE, the hypothesis rests on evidence that does not exist and is refuted on that ground alone; say so and move on.\n\nFor each: the strongest counterargument first, then whether it survives, then the narrowest surviving form, then the concrete check that would settle it. Default to refuted when uncertain."
+    },
+    {
+      "name": "plan",
+      "system": "../codebase/plan.md",
+      "repo_index": true,
+      "index_globs": [
+        "daedalus/**/*.py",
+        "tools/*.py",
+        "tests/*.py"
+      ],
+      "source": {
+        "kind": "tier",
+        "from": "review",
+        "field": "verdicts",
+        "attach_evidence": true,
+        "evidence_refs": 3,
+        "evidence_window": 30,
+        "buckets": 25,
+        "drop_where": {
+          "verdict": [
+            "refuted"
+          ]
+        }
+      },
+      "fence": "REVIEWED FINDINGS (json)",
+      "intro": "You have {inputs} reviewed findings about the Daedalus codebase. The reviewer already discarded what it refuted; these survived.",
+      "task": "Turn the survivors into ordered work. Every step names a file and the check that proves it worked.\n\nPATHS ARE NOT NEGOTIABLE. MEASURED on the previous run: 75 of 88 file paths in the plan tier's output did not exist in the repository -- the findings were reconstructed from memory of what a project like this ought to contain, and every step pointed at a file nobody could open. A step naming a file that does not exist is worse than no step, because it looks actionable.\n\nSo: you may name a file ONLY if that exact path appears in the input above (in a finding, in `settling_check`, or in `cited_source`). Copy it character for character; do not tidy it, do not guess a more natural-looking location, do not translate `tools/x.py` into `daedalus/x.py`. If a finding gives you no usable path, set `file` to \"UNKNOWN\" and say in `assumption` what you would need to locate it. UNKNOWN is a correct answer; an invented path is not.\n\nThe index lists, for every file, the names it defines. A symbol belongs to the file the index says it belongs to. MEASURED on the previous arm: paths resolved 92% of the time and symbols were still misattributed -- `_human_bytes` was blamed on council/vendors.py when the index shows it in observe/shape.py. Look the symbol up before you name its file.",
+      "index_symbols": true
+    }
+  ]
+}

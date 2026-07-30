@@ -1,0 +1,59 @@
+{
+  "name": "codebase",
+  "description": "scan every chunk of the tracked source, then synthesise, attack, and plan",
+  "tiers": [
+    {
+      "name": "scan",
+      "system": "scan.md",
+      "source": {
+        "kind": "code_chunks",
+        "glob": "daedalus/**/*.py",
+        "chunk_lines": 280
+      },
+      "fence": "CODE",
+      "intro": "FILE: {module}  (chunk {index} of {total}, starting at line {first_line})",
+      "task": "Enumerate every public symbol and every checkable claim in the docstrings and comments above, and give each claim a verdict against THIS code. Report what you observe, not what you suspect about code you cannot see. If a claim refers to something outside this chunk, its verdict is 'uncheckable'."
+    },
+    {
+      "name": "research",
+      "system": "research.md",
+      "source": {
+        "kind": "tier",
+        "from": "scan",
+        "buckets": 50
+      },
+      "fence": "SCAN REPORTS (json)",
+      "intro": "You have {inputs} independent scan reports from different parts of one Python codebase (the Daedalus agent harness: an agent orchestration kernel with budget, egress and evaluation subsystems).",
+      "task": "Find what spans them. State each cross-file pattern as a hypothesis with a refutation condition."
+    },
+    {
+      "name": "review",
+      "system": "review.md",
+      "source": {
+        "kind": "tier",
+        "from": "research",
+        "field": "hypotheses",
+        "buckets": 20
+      },
+      "fence": "HYPOTHESES (json)",
+      "intro": "You have {inputs} hypotheses produced by a research tier over the Daedalus codebase. Attack each one.",
+      "task": "For each: the strongest counterargument first, then whether it survives, then the narrowest surviving form, then the concrete check that would settle it. Default to refuted when uncertain."
+    },
+    {
+      "name": "plan",
+      "system": "plan.md",
+      "source": {
+        "kind": "tier",
+        "from": "review",
+        "field": "verdicts",
+        "buckets": 10,
+        "drop_where": {
+          "verdict": ["refuted"]
+        }
+      },
+      "fence": "REVIEWED FINDINGS (json)",
+      "intro": "You have {inputs} reviewed findings about the Daedalus codebase. The reviewer already discarded what it refuted; these survived.",
+      "task": "Turn the survivors into ordered work. Every step names a file and the check that proves it worked."
+    }
+  ]
+}

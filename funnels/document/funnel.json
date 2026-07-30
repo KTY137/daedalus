@@ -1,0 +1,45 @@
+{
+  "name": "document",
+  "description": "attack one document from six non-overlapping angles, section by section and whole",
+  "tiers": [
+    {
+      "name": "critique",
+      "system": "critique.md",
+      "source": {
+        "kind": "document_sections",
+        "path": "docs/IKARUS_ARIADNE_MASTER_PLAN.md",
+        "split_on": "## ",
+        "whole_document": true,
+        "lenses": [
+          {
+            "name": "falsifier",
+            "instruction": "For each claim, decide whether it is FALSIFIABLE as written. If it is, name the cheapest concrete experiment or observation that would kill it, and the result that would count as a kill. If it is not falsifiable, say what makes it unfalsifiable and what narrower claim WOULD be. A claim that cannot be wrong is a defect in a document that calls itself scientific."
+          },
+          {
+            "name": "adversary",
+            "instruction": "For each rule, describe how an agent, a candidate, or a careless engineer could FORMALLY COMPLY while completely defeating the intent. Be concrete about the mechanism. Then say whether the rule as written can detect that, and what mechanical check would."
+          },
+          {
+            "name": "prior_art",
+            "instruction": "For each claim, name published work, systems, or results that already establish, supersede, or REFUTE it. Distinguish 'we are reinventing this' from 'this is genuinely novel' from 'this was tried and failed'. Cite concretely (paper, system, year). If you do not know of relevant work for a claim, say UNKNOWN rather than inventing one."
+          },
+          {
+            "name": "cost",
+            "instruction": "For each commitment, estimate what it costs to BUILD and to KEEP WORKING (engineering effort, runtime cost, maintenance drag, the cost of the checks it forces on every future change). Then name the cheaper construction that achieves the same guarantee, or say that none exists and why."
+          },
+          {
+            "name": "contradiction",
+            "instruction": "For each claim, find where ELSEWHERE IN THIS SAME DOCUMENT it is contradicted, made impossible, or made redundant. Quote both sides. Ordering conflicts count: a gate that requires something a later gate is supposed to build is a contradiction. Say NONE for a claim you cannot fault this way, but examine every one."
+          },
+          {
+            "name": "omission",
+            "instruction": "For each claim, name what must ALREADY BE TRUE for it to work that this document never states -- unstated assumptions, missing definitions, undefined authority, absent failure modes, questions a competent implementer would have to invent an answer to. An omission that forces an implementer to guess is the defect."
+          }
+        ]
+      },
+      "fence": "PASSAGE UNDER REVIEW",
+      "intro": "You are reviewing part of a document: section '{section}'. Assign each distinct claim an id: the section number followed by its position, e.g. 4.1, 4.2. A numbered or bulleted item is one claim; a table row is one claim; an unnumbered paragraph asserting something checkable is one claim.",
+      "task": "YOUR LENS FOR THIS REVIEW -- {lens}:\n{lens_instruction}\n\nApply ONLY this lens. Another reviewer has the others; duplicating their work wastes this pass. Every claim in the passage gets a verdict under your lens. If the passage you were given is the WHOLE document, then your value is ONLY in what a section-bound reviewer cannot see: conflicts BETWEEN sections, a commitment one place makes that another makes impossible, an ordering the stages cannot satisfy, a term used with two meanings, an authority claimed twice."
+    }
+  ]
+}
