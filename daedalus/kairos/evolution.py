@@ -4,6 +4,7 @@ from typing import List, Callable, Optional, Dict, Any
 from pathlib import Path
 import logging
 
+from daedalus.eval.provenance import check_import_provenance
 from daedalus.kairos.shadow_shell import ShadowShellManager, CandidateBranch
 
 logger = logging.getLogger(__name__)
@@ -87,6 +88,26 @@ class EvolutionaryOrchestrator:
         async def evaluate_single(candidate: CandidateBranch):
             if not candidate.completed or candidate.error:
                 candidate.score = -1.0
+                return
+
+            # VERIFY the docstring's argument instead of trusting it. `-m` plus
+            # this cwd makes the candidate win by sys.path ORDERING, and nothing
+            # enforced that ordering still holds -- a set PYTHONPATH, a candidate
+            # whose daedalus/ was destroyed, or a future "simplification" back to
+            # bare `pytest` all produce the same worst-shaped failure: tests
+            # pass, score is high, wrong tree. See daedalus.eval.provenance.
+            #
+            # A failure here VOIDS THE EVALUATION and is not a candidate score.
+            # -1.0 is this module's own "not evaluated" marker (used above for an
+            # incomplete candidate); 0.0 would mean "measured, and bad", which
+            # would let an unrunnable evaluation argue against a candidate
+            # nobody actually judged.
+            prov = check_import_provenance(candidate.worktree_path)
+            if not prov.ok:
+                candidate.score = -1.0
+                candidate.error = prov.as_error()
+                logger.error("candidate %s: %s",
+                             candidate.branch_name, prov.as_error())
                 return
 
             process = None

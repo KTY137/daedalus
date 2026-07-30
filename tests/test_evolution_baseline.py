@@ -173,14 +173,43 @@ def test_the_fitness_function_has_no_caller():
     no method chaining generate -> evaluate -> select: the "runner" is three
     disconnected callables. If this ever goes red, something finally wired the
     baseline up and ADR-015 needs revisiting.
+
+    CALLS, not mentions. The check was a substring scan until 2026-07-30, when
+    it went red for `tests/test_eval_provenance.py` -- a file that reads the
+    method with `inspect.getsource` to assert a property OF it and never invokes
+    it. The claim being pinned ("nothing calls this") was still true; only the
+    detector could not tell reading from calling.
+
+    So this walks the AST for actual Call nodes. Strictly narrower than the
+    substring scan in exactly one way -- it no longer counts a mention -- and
+    unchanged for every real caller, which is the only thing the assertion is
+    about.
     """
+    import ast
+
     repo = Path(__file__).resolve().parents[1]
     hits = []
     for path in list(repo.glob("daedalus/**/*.py")) + list(repo.glob("tests/*.py")):
         if path == _EVOLUTION_PY or path == Path(__file__).resolve():
             continue
-        if "evaluate_candidates" in path.read_text(encoding="utf-8", errors="replace"):
-            hits.append(str(path.relative_to(repo)))
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if "evaluate_candidates" not in text:
+            continue                      # cheap pre-filter, same as before
+        try:
+            tree = ast.parse(text)
+        except SyntaxError:
+            # Unparseable means we cannot rule out a call, and this test's whole
+            # point is that a caller must not appear unnoticed. Report it.
+            hits.append(f"{path.relative_to(repo)} (unparseable)")
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            fn = node.func
+            name = (fn.attr if isinstance(fn, ast.Attribute)
+                    else fn.id if isinstance(fn, ast.Name) else None)
+            if name == "evaluate_candidates":
+                hits.append(f"{path.relative_to(repo)}:{node.lineno}")
     assert hits == [], f"evaluate_candidates now has callers: {hits}"
 
 

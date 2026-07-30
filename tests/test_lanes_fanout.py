@@ -15,7 +15,7 @@ from pathlib import Path
 from daedalus.lanes import fanout as F
 
 
-def _answer(task, vote, repo_root, model, timeout_s, brief):
+def _answer(task, vote, repo_root, model, timeout_s, brief, *_, **__):
     return {"vote": vote, "report": {"summary": f"ok {task.task_id}"},
             "brief_len": len(brief), "notes": []}
 
@@ -51,7 +51,7 @@ class ResumeIsFree(unittest.TestCase):
         self.dir = Path(tempfile.mkdtemp())
         self.calls: list[int] = []
 
-        def counting(task, vote, repo_root, model, timeout_s, brief):
+        def counting(task, vote, repo_root, model, timeout_s, brief, *_, **__):
             self.calls.append(vote)
             return _answer(task, vote, repo_root, model, timeout_s, brief)
 
@@ -106,7 +106,7 @@ class OneFailureDoesNotKillTheQueue(unittest.TestCase):
         self.dir = Path(tempfile.mkdtemp())
         self._orig = F._one_call
 
-        def flaky(task, vote, repo_root, model, timeout_s, brief):
+        def flaky(task, vote, repo_root, model, timeout_s, brief, *_, **__):
             if task.task_id == "boom":
                 raise RuntimeError("transport exploded")
             return _answer(task, vote, repo_root, model, timeout_s, brief)
@@ -176,7 +176,7 @@ class TheGraphBriefIsInjected(unittest.TestCase):
         self._orig = F._one_call
         self.briefs: list[str] = []
 
-        def capture(task, vote, repo_root, model, timeout_s, brief):
+        def capture(task, vote, repo_root, model, timeout_s, brief, *_, **__):
             self.briefs.append(brief)
             return _answer(task, vote, repo_root, model, timeout_s, brief)
 

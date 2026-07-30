@@ -149,8 +149,22 @@ class FanoutResult:
 
 
 def _one_call(task: FanoutTask, vote: int, repo_root: str, model: str | None,
-              timeout_s: int, brief: str) -> dict[str, Any]:
-    """One advisory call. Returns the answer dict; raises on transport failure."""
+              timeout_s: int, brief: str,
+              policy: Any | None = None) -> dict[str, Any]:
+    """One advisory call. Returns the answer dict; raises on transport failure.
+
+    ``policy`` is handed to the provider, which passes it to
+    :func:`daedalus.sensitivity.classify_data`. Default ``None`` means the
+    project's own policy applies -- so a caller that never heard of this argument
+    gets the fence it already had, and widening egress is something an operator
+    does on purpose at the call site rather than a default anybody inherits.
+
+    It cannot lift the secret floor. ``providers/deepseek.py`` calls
+    :func:`secret_floor_rule` per path independently of ``classify_data``, and
+    that rule is documented as running "in EVERY lane, no bypass ... cannot be
+    weakened by a project config". Verified with a fully permissive policy:
+    source files pass, ``.env`` is still refused.
+    """
     # Imported here, not at module scope: this module is imported by tooling that
     # must not pull the provider stack (and its network config) just to read the
     # dataclasses.
@@ -176,6 +190,7 @@ def _one_call(task: FanoutTask, vote: int, repo_root: str, model: str | None,
         agent={"name": f"fanout-{task.key}-v{vote}"},
         model=model,
         timeout_s=timeout_s,
+        policy=policy,                     # operator-set egress scope, or None
         writable=False,                    # advisory only, structurally
     )
     return {
@@ -197,6 +212,17 @@ def fan_out(
     timeout_s: int = DEFAULT_TIMEOUT_S,
     graph_hops: int = 1,
     brief_budget_chars: int = 6000,
+    #: Handed to every call, and through the provider to
+    #: :func:`daedalus.sensitivity.classify_data`. ``None`` means the project's
+    #: own policy applies, so a caller that never heard of this argument keeps
+    #: the fence it already had. It cannot lift the secret floor --
+    #: ``secret_floor_rule`` runs per path in every lane and is documented as
+    #: unweakenable by project config.
+    #:
+    #: Wired through because ``_one_call`` already accepted it and NOTHING could
+    #: reach it: a parameter with a docstring, a verification, and no caller is
+    #: the exact defect shape this session spent the day removing.
+    policy: Any | None = None,
     resume: bool = True,
     on_result: Callable[[FanoutResult], None] | None = None,
     progress_every: int = 25,
@@ -284,7 +310,8 @@ def fan_out(
         for vote in range(1, max(1, task.votes) + 1):
             try:
                 res.answers.append(
-                    _one_call(task, vote, root, model, timeout_s, brief))
+                    _one_call(task, vote, root, model, timeout_s, brief,
+                              policy))
             except Exception as exc:             # noqa: BLE001 -- one task, not the run
                 res.errors.append(
                     f"vote {vote}: {type(exc).__name__}: {exc}\n"
