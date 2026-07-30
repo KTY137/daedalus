@@ -22,6 +22,7 @@ a function             a SECTION: heading + body up to the next heading of
                        EQUAL OR HIGHER level (so an H2 contains its H3s,
                        exactly as a Python function contains its nested defs)
 ``import x``           an intra-repo link ``[text](path)`` / ``(path#anchor)``
+                       or an Obsidian wikilink ``[[Note]]`` / ``[[code:f.py]]``
 a signature            the heading line
 a body                 prose  -> dropped by the skeleton, and SAID SO
 =====================  ======================================================
@@ -31,11 +32,52 @@ asserts a relation between two nodes in THIS forest; a link to the outside world
 has no second node, so it is carried as an attribute and counted, never faked
 into an edge that points at nothing.
 
+OBSIDIAN-FLAVORED MARKDOWN (the wiki half, phase K1)
+----------------------------------------------------
+A vault is a folder of ``.md`` files whose links are ``[[wikilinks]]``.  Being
+FORMAT-compatible is the whole escape hatch: a user can open this wiki in
+Obsidian and it works, because nothing here is a proprietary container.  So the
+four forms below are parsed as first-class links, and NOT as prose:
+
+=========================  ==================================================
+``[[Note]]``               doc -> doc.  Bare name: matched against the file
+``[[Note#Heading]]``       set; the heading is carried, never verified here.
+``[[Note|alias]]``         The alias is display text, never part of the target.
+``![[Note]]`` ``![[a.png]]``  an EMBED (transclusion). Same target resolution,
+                           carried with ``embed=True`` -- a caller that renders
+                           inline and a caller that draws an edge need to tell
+                           the two apart, so the parser does not collapse them.
+``[[code:daedalus/x.py]]``    doc -> CODE.  A SEPARATE relation from doc -> doc,
+``[[code:x.py#symbol]]``   because "this page documents that file" is not the
+                           same claim as "this page links that page", and a
+                           staleness check only makes sense for the former.
+``[[type:DSSResult]]``     doc -> TYPE.  PARSED, CARRIED, COUNTED, and
+                           DELIBERATELY NOT RESOLVED: the type layer is being
+                           built in parallel, and this module does not import
+                           it.  A reference to a resolver that does not exist
+                           yet is recorded as deferred, not as unresolved --
+                           "we did not look" and "we looked and found nothing"
+                           are different claims.
+=========================  ==================================================
+
+``[[vault:NAME/path]]`` (cross-vault) is NOT implemented.  It is phase K6 and
+gated on a separate security review (the ``.md`` egress allow-list and the
+write-confinement question).  It is recognised only far enough to be counted as
+deferred and resolved to nothing, so that it can never fall through to the
+note-name matcher and bind to some same-named local file.
+
 WHAT THIS PARSER REFUSES TO DO
 ------------------------------
 * It does not guess.  A link that does not resolve to a file actually present in
   the file set is DROPPED and COUNTED, never bound to a near-match.  Same rule
   ``index.py`` already applies to non-Python imports.
+* It does not break a TIE.  If a wikilink target matches more than one file in
+  the set (``[[note]]`` with both ``a/note.md`` and ``b/note.md`` present, or a
+  relative path that is equally readable as vault-root-relative), NO link is
+  emitted and the occurrence is counted as AMBIGUOUS.  Picking the first sorted
+  candidate would be deterministic and still wrong -- it would reproduce the
+  same fabricated edge on every run, which is the failure mode the type layer's
+  invariant 5 was written against.  Deterministic is not the same as correct.
 * It does not produce a "distilled" view larger than its input.  ``document_
   skeleton`` guarantees ``len(result) <= len(text)`` by construction, degrading
   through a fixed ladder and finally returning the raw document with
@@ -133,13 +175,38 @@ class DocSection:
 
 @dataclass(frozen=True)
 class DocLink:
-    """One link occurrence. ``href`` is the raw destination as written."""
+    """One link occurrence. ``href`` is the raw destination as written.
+
+    The wikilink fields are appended with defaults on purpose: a link parsed
+    from ``[text](path)`` carries exactly the values it carried before this
+    module learned Obsidian syntax, so every existing consumer keeps reading the
+    same five fields and a document without a single ``[[`` is unmoved.
+    """
 
     href: str
     line: int
     kind: str                      # "path" | "external" | "anchor"
+                                   #   | "wiki" | "code" | "type" | "deferred"
     path: str = ""                 # link path, document-relative, before resolution
     anchor: str = ""
+    embed: bool = False            # written as ![[...]] -- a transclusion
+    alias: str = ""                # display text after '|', never part of the target
+    namespace: str = ""            # "" | "code" | "type" | "vault"
+
+
+# The wikilink kinds, in one place so "is this an OFM link" is asked once.
+# ``deferred`` is a link this parser recognises but refuses to resolve in this
+# phase (today: the reserved ``vault:`` literal).
+WIKI_KINDS = ("wiki", "code", "type", "deferred")
+
+# Reserved namespaces. ``code``/``type`` are implemented below; ``vault`` is
+# recognised ONLY so it cannot be mistaken for a note called "vault:NAME/path".
+# Implementing it is phase K6 and needs its own review -- see the module
+# docstring.
+_NS_CODE = "code"
+_NS_TYPE = "type"
+_NS_VAULT = "vault"
+_WIKI_NAMESPACES = (_NS_CODE, _NS_TYPE, _NS_VAULT)
 
 
 @dataclass(frozen=True)
@@ -166,6 +233,15 @@ class DocumentParse:
     @property
     def path_links(self) -> tuple[DocLink, ...]:
         return tuple(l for l in self.links if l.kind == "path")
+
+    @property
+    def wiki_links(self) -> tuple[DocLink, ...]:
+        """Every ``[[...]]`` occurrence, embeds included, in document order."""
+        return tuple(l for l in self.links if l.kind in WIKI_KINDS)
+
+    @property
+    def embeds(self) -> tuple[DocLink, ...]:
+        return tuple(l for l in self.links if l.embed)
 
 
 # --------------------------------------------------------------------------- #
@@ -199,6 +275,16 @@ _INLINE_LINK = re.compile(
 _REF_DEF = re.compile(r"^ {0,3}\[[^\]\n]+\]:[ \t]*(<[^<>\n]*>|\S+)")
 # Bare autolink <https://...>; carried so external link COUNTS are honest.
 _AUTOLINK = re.compile(r"<([A-Za-z][A-Za-z0-9+.\-]*:[^<>\s]*)>")
+# Obsidian wikilink, with the embed form as an optional leading '!'. The inner
+# text may not contain a bracket or a newline: ``[[a]`` and a ``[[`` left open at
+# end of line are NOT links, and completing them for the author would invent an
+# edge out of a typo. Nested brackets are excluded for the same reason -- there
+# is no unambiguous reading of ``[[a[[b]]]]``, so there is no link in it.
+_WIKILINK = re.compile(r"(!?)\[\[([^\[\]\n]+)\]\]")
+# Default extension for a doc->doc wikilink: a vault is a folder of .md files,
+# and ``[[Note]]`` means ``Note.md``. Tried ONLY when the literal name matches
+# nothing, so ``![[diagram.png]]`` still means the png.
+_WIKI_DEFAULT_EXT = ".md"
 
 _SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
 _SLUG_STRIP = re.compile(r"[^a-z0-9 _\-]")
@@ -311,8 +397,86 @@ def _classify(href: str) -> DocLink | None:
     return DocLink(href, 0, "path", path=path, anchor=anchor)
 
 
-def _link_lines(lines: list[str], start: int):
-    """Yield (line_index, destination) for every link outside a code fence."""
+def _classify_wiki(inner: str, embed: bool) -> DocLink | None:
+    """Classify one ``[[...]]`` body. Returns None when there is no target.
+
+    Splitting order is Obsidian's and is not negotiable: alias on the FIRST
+    ``|``, heading on the FIRST ``#`` of what remains, so ``[[a#b|c|d]]`` has
+    target ``a``, heading ``b`` and alias ``c|d`` -- the same reading Obsidian
+    renders, which is the point of being format-compatible.
+
+    ``href`` is set to the destination as written WITHOUT the alias, matching
+    what ``[text](dest)`` puts there: the alias is display text, and a consumer
+    that reads ``href`` (``external_links`` does) must not receive prose.
+    """
+    target, sep, alias = inner.partition("|")
+    alias = alias.strip() if sep else ""
+    target = target.strip()
+    if not target:
+        return None
+    href = target
+
+    namespace = ""
+    head, sep_ns, rest = target.partition(":")
+    if sep_ns and head in _WIKI_NAMESPACES:
+        # A FIXED literal, matched exactly. ``[[Code:x]]`` is NOT the namespace;
+        # it falls through to the scheme test below and is carried as an
+        # attribute, producing no edge. Accepting case variants would mean
+        # guessing at intent, and this parser does not guess.
+        namespace = head
+        target = rest.strip()
+        if not target:
+            return None
+
+    if namespace == _NS_VAULT:
+        # Cross-vault, phase K6, gated on a security review. Recognised so it
+        # can never fall through to the note matcher and bind to a local file of
+        # the same name; resolved to nothing, counted as deferred.
+        path, _, anchor = target.partition("#")
+        return DocLink(href, 0, "deferred", path=path.strip(), anchor=anchor.strip(),
+                       embed=embed, alias=alias, namespace=namespace)
+    if namespace == _NS_TYPE:
+        # Parsed, carried, counted -- resolved by nobody here. The type layer is
+        # a separate module being built in parallel; importing it from the
+        # document parser would couple two layers that have no reason to know
+        # each other, and answering "does DSSResult exist" without it would be a
+        # guess.
+        path, _, anchor = target.partition("#")
+        return DocLink(href, 0, "type", path=path.strip(), anchor=anchor.strip(),
+                       embed=embed, alias=alias, namespace=namespace)
+
+    if target.startswith("#"):
+        # ``[[#Heading]]`` is an in-document jump. Same reading as ``(#anchor)``
+        # in standard markdown: not a relation between two nodes, so not an edge
+        # and not an unresolved link either.
+        return DocLink(href, 0, "anchor", anchor=target[1:].strip(),
+                       embed=embed, alias=alias)
+    if target.startswith("//") or _SCHEME.match(target):
+        # An off-repo URL written in wiki brackets is still off-repo. Attribute,
+        # never an edge -- the rule does not bend for a different syntax.
+        return DocLink(href, 0, "external", embed=embed, alias=alias)
+
+    path, _, anchor = target.partition("#")
+    path = path.strip()
+    if not path:
+        return None
+    try:
+        path = unquote(path)
+    except Exception:                                   # pragma: no cover
+        pass
+    kind = "code" if namespace == _NS_CODE else "wiki"
+    return DocLink(href, 0, kind, path=path, anchor=anchor.strip(),
+                   embed=embed, alias=alias, namespace=namespace)
+
+
+def _content_lines(lines: list[str], start: int):
+    """Yield (line_index, line with inline code removed) outside code fences.
+
+    Both link scanners share this so "a link inside a fence is not a link" is
+    decided once. Inline code is stripped for the same reason: ``[x](y)`` and
+    ``[[Note]]`` inside backticks are a RENDERING of a link -- documentation
+    about syntax, which this repo's own docs are full of -- not a link.
+    """
     fence: tuple[str, int] | None = None
     for i in range(start, len(lines)):
         raw = lines[i]
@@ -327,16 +491,36 @@ def _link_lines(lines: list[str], start: int):
         if fence_hit:
             fence = (fence_hit.group(1)[0], len(fence_hit.group(1)))
             continue
-        # Strip inline code spans: `[x](y)` inside backticks is a rendering of a
-        # link, not a link.
-        stripped = _INLINE_CODE.sub("", raw)
+        yield i, _INLINE_CODE.sub("", raw)
+
+
+def _link_occurrences(lines: list[str], start: int):
+    """Yield (line_index, DocLink) for every link, standard and wiki.
+
+    Standard destinations on a line come first, in their existing order, then
+    the wikilinks on that line. The two syntaxes cannot overlap -- ``[[a]]``
+    contains no ``](`` and ``[a](b)`` contains no ``]]`` -- so nothing is
+    counted twice, and a document with no ``[[`` yields exactly the sequence
+    this function's predecessor yielded.
+    """
+    for i, stripped in _content_lines(lines, start):
         for m in _INLINE_LINK.finditer(stripped):
-            yield i, m.group(1)
+            link = _classify(m.group(1))
+            if link is not None:
+                yield i, link
         ref = _REF_DEF.match(stripped)
         if ref:
-            yield i, ref.group(1)
+            link = _classify(ref.group(1))
+            if link is not None:
+                yield i, link
         for m in _AUTOLINK.finditer(stripped):
-            yield i, m.group(1)
+            link = _classify(m.group(1))
+            if link is not None:
+                yield i, link
+        for m in _WIKILINK.finditer(stripped):
+            link = _classify_wiki(m.group(2), bool(m.group(1)))
+            if link is not None:
+                yield i, link
 
 
 def resolve_link(document: str, link_path: str, known_files) -> str | None:
@@ -363,6 +547,195 @@ def resolve_link(document: str, link_path: str, known_files) -> str | None:
     # case the file set does not use. Mirrors ``graph._resolve_node``'s fallback.
     lowered = {str(f).lower(): str(f) for f in sorted(known_files)}
     return lowered.get(candidate.lower())
+
+
+# --------------------------------------------------------------------------- #
+# Wikilink resolution: match, refuse to break ties, count everything            #
+# --------------------------------------------------------------------------- #
+# The four outcomes a wikilink can have. Every occurrence lands in exactly one,
+# and the three that produce no edge are COUNTED separately, because they are
+# three different statements: "no such file" (unresolved), "several such files
+# and picking one would be fabrication" (ambiguous), and "this parser does not
+# answer that question in this phase" (deferred).
+WIKI_RESOLVED = "resolved"
+WIKI_UNRESOLVED = "unresolved"
+WIKI_AMBIGUOUS = "ambiguous"
+WIKI_DEFERRED = "deferred"
+
+
+def wiki_lookup(known_files) -> tuple[dict, dict]:
+    """(by full rel path, by basename), both lower-cased, values sorted.
+
+    Built once per document rather than once per link, and sorted at build time
+    so two processes see candidates in the same order -- an ambiguity verdict
+    that depended on set iteration order would be a coin flip wearing a receipt.
+    """
+    by_path: dict[str, list[str]] = {}
+    by_base: dict[str, list[str]] = {}
+    for name in sorted(str(f) for f in known_files):
+        rel = name.replace("\\", "/")
+        by_path.setdefault(rel.lower(), []).append(rel)
+        by_base.setdefault(posixpath.basename(rel).lower(), []).append(rel)
+    return by_path, by_base
+
+
+def _hits(document: str, name: str, lookup: tuple[dict, dict]) -> set[str]:
+    by_path, by_base = lookup
+    if "/" not in name:
+        # A bare note name is Obsidian's "shortest path when possible": it names
+        # a file anywhere in the vault. Two files with that basename is exactly
+        # the tie this module refuses to break.
+        return set(by_base.get(name.lower(), ()))
+    out: set[str] = set()
+    # A path is read BOTH as vault-root-relative (what Obsidian does) and as
+    # document-relative (what a reader who knows markdown assumes). When the two
+    # readings name two different files that BOTH exist, the link is genuinely
+    # ambiguous and gets counted as such -- this is the case B-M2 of the plan
+    # names, where the failure mode would otherwise flip from "unresolved" to
+    # "silently resolved to the wrong one of two candidates".
+    candidates = [posixpath.normpath(name.lstrip("/"))]
+    if not name.startswith("/"):
+        base = posixpath.dirname(document)
+        if base:
+            candidates.append(posixpath.normpath(posixpath.join(base, name)))
+    for candidate in candidates:
+        if candidate in ("", ".") or candidate.startswith(".."):
+            continue                     # escapes the repo -> not our node
+        out.update(by_path.get(candidate.lower(), ()))
+    return out
+
+
+def resolve_wiki_target(document: str, path: str, lookup: tuple[dict, dict], *,
+                        default_ext: str = "") -> tuple[str | None, str]:
+    """(target rel or None, status) for one wikilink target.
+
+    ``default_ext`` is appended ONLY as a second round, when the name as written
+    matches nothing: ``[[Note]]`` finds ``Note.md``, while ``![[chart.png]]``
+    still finds the png rather than hunting for ``chart.png.md``.
+    """
+    raw = (path or "").replace("\\", "/").strip()
+    if not raw:
+        return None, WIKI_UNRESOLVED
+    forms = [raw]
+    if default_ext and not raw.lower().endswith(default_ext):
+        forms.append(raw + default_ext)
+    for form in forms:
+        hits = _hits(document, form, lookup)
+        if not hits:
+            continue
+        if len(hits) > 1:
+            return None, WIKI_AMBIGUOUS
+        return sorted(hits)[0], WIKI_RESOLVED
+    return None, WIKI_UNRESOLVED
+
+
+def resolve_wiki_links(parse: DocumentParse, known_files):
+    """[(link, target or None, status)] for every wikilink, in document order.
+
+    The per-occurrence view: a reader UI needs to chip an individual link as
+    unresolved or ambiguous, and an aggregate count cannot tell it which one.
+    """
+    lookup = wiki_lookup(known_files)
+    out: list[tuple[DocLink, str | None, str]] = []
+    for link in parse.wiki_links:
+        if link.kind in ("type", "deferred"):
+            out.append((link, None, WIKI_DEFERRED))
+            continue
+        ext = "" if link.kind == "code" else _WIKI_DEFAULT_EXT
+        target, status = resolve_wiki_target(
+            parse.document, link.path, lookup, default_ext=ext)
+        if target == parse.document:
+            # A document linking to itself is not an edge -- the rule
+            # ``internal_links`` already applies, restated here rather than
+            # left to the caller.
+            out.append((link, None, WIKI_RESOLVED))
+            continue
+        out.append((link, target, status))
+    return out
+
+
+@dataclass(frozen=True)
+class KnowledgeLinks:
+    """Every relation one document asserts, plus the receipt for what was refused.
+
+    Deliberately NOT folded into ``internal_links``: that function is the
+    contract ``index.py`` builds ``document_links`` from today, and doc->code is
+    a different relation from doc->doc. Mixing them would have made the wiki's
+    first feature a silent change to an existing edge set.
+    """
+
+    document: str
+    doc_targets: tuple[str, ...] = ()      # doc -> doc/asset, resolved, sorted
+    code_targets: tuple[str, ...] = ()     # doc -> code, from [[code:...]]
+    embed_targets: tuple[str, ...] = ()    # subset of the above written as ![[..]]
+    type_refs: tuple[str, ...] = ()        # [[type:X]] names, RESOLVED BY NOBODY
+    unresolved: int = 0
+    ambiguous: int = 0
+    deferred: int = 0
+    external: int = 0
+    n_wikilinks: int = 0
+    n_embeds: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "doc_targets": list(self.doc_targets),
+            "code_targets": list(self.code_targets),
+            "embed_targets": list(self.embed_targets),
+            "type_refs": list(self.type_refs),
+            "unresolved": self.unresolved,
+            "ambiguous": self.ambiguous,
+            "deferred": self.deferred,
+            "external": self.external,
+            "n_wikilinks": self.n_wikilinks,
+            "n_embeds": self.n_embeds,
+        }
+
+
+def knowledge_links(parse: DocumentParse, known_files) -> KnowledgeLinks:
+    """Standard links AND wikilinks, resolved, with every refusal counted.
+
+    ``doc_targets`` is a superset of ``internal_links``' first return value:
+    same standard-markdown edges, plus the wikilink ones. ``code_targets`` is
+    kept apart on purpose (see ``KnowledgeLinks``), and ``type_refs`` carries
+    names this module never tried to resolve.
+    """
+    std_targets, unresolved = internal_links(parse, known_files)
+    docs: set[str] = set(std_targets)
+    code: set[str] = set()
+    embeds: set[str] = set()
+    types: set[str] = set()
+    ambiguous = 0
+    deferred = 0
+    for link, target, status in resolve_wiki_links(parse, known_files):
+        if status == WIKI_DEFERRED:
+            deferred += 1
+            if link.kind == "type" and link.path:
+                types.add(link.path)
+            continue
+        if status == WIKI_AMBIGUOUS:
+            ambiguous += 1
+            continue
+        if status == WIKI_UNRESOLVED:
+            unresolved += 1
+            continue
+        if target is None:                 # resolved onto the document itself
+            continue
+        (code if link.kind == "code" else docs).add(target)
+        if link.embed:
+            embeds.add(target)
+    return KnowledgeLinks(
+        document=parse.document,
+        doc_targets=tuple(sorted(docs)),
+        code_targets=tuple(sorted(code)),
+        embed_targets=tuple(sorted(embeds)),
+        type_refs=tuple(sorted(types)),
+        unresolved=unresolved,
+        ambiguous=ambiguous,
+        deferred=deferred,
+        external=len(parse.external_links),
+        n_wikilinks=len(parse.wiki_links),
+        n_embeds=len(parse.embeds),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -409,10 +782,9 @@ def parse_document(document: str, text: str) -> DocumentParse:
         stack.append((level, title))
 
     links: list[DocLink] = []
-    for i, dest in _link_lines(lines, start):
-        link = _classify(dest)
-        if link is not None:
-            links.append(DocLink(link.href, i + 1, link.kind, link.path, link.anchor))
+    for i, link in _link_occurrences(lines, start):
+        links.append(DocLink(link.href, i + 1, link.kind, link.path, link.anchor,
+                             link.embed, link.alias, link.namespace))
 
     title = next((t for _, lvl, t in heads if lvl == 1 and t), "")
     if not title:

@@ -41,6 +41,22 @@ def print_summary(idx: dict) -> None:
               f"{docs['n_links_external']} off-repo URLs kept as attributes, "
               f"{docs['n_links_unresolved']} links unresolved and dropped)")
         print(f"           held out of: {', '.join(docs['excluded_from'])}")
+    # Same rule again, and the numbers that matter are the REFUSALS: a reader who
+    # sees only the edge count cannot tell "nothing was dropped" from "most of it
+    # was". Coverage says which.
+    ty = idx.get("types")
+    if ty and ty.get("enabled"):
+        cov = ty["coverage"]
+        print(f"types:   {ty['count']} declarations, {ty['n_fields']} fields, "
+              f"{ty['n_edges']} edges over {ty['n_files']} Python files")
+        print(f"         resolved={cov['resolved']} unresolved={cov['unresolved']} "
+              f"ambiguous={cov['ambiguous']} external={cov['external']} "
+              f"builtin={cov['builtin']} vocabulary={cov['vocabulary']} "
+              f"(of {cov['attempts']} attempts)")
+        print(f"         hub_cap={cov['hub_cap']} suppressed "
+              f"{cov['hub_suppressed_edges']} edges over "
+              f"{len(cov['hub_suppressed_types'])} hub types")
+        print(f"         held out of: {', '.join(ty['excluded_from'])}")
     print("\nLANGUAGES (by loc):")
     for lang, s in langs.items():
         print(f"  {s['loc']:7}  {s['files']:4} files  {lang}")
@@ -108,10 +124,16 @@ def main(argv: list[str] | None = None) -> int:
                          "own relation layer). Off by default: it grows "
                          "total_tokens, which is the distill ratio's denominator. "
                          "Env: DAEDALUS_INDEX_DOCUMENTS=1.")
+    ap.add_argument("--types", action="store_true", default=None,
+                    help="also publish the type/data-structure layer (types, "
+                         "type_nodes, type_edges). Additive -- no existing key "
+                         "moves -- but it adds forest nodes and relation layers, "
+                         "so it is off by default. Env: DAEDALUS_INDEX_TYPES=1.")
     args = ap.parse_args(argv)
 
     idx = build_index(args.repo, max_files=args.max_files, center=args.center,
-                      ignore=args.ignore, documents=args.documents)
+                      ignore=args.ignore, documents=args.documents,
+                      types=args.types)
     if args.json:
         Path(args.json).write_text(json.dumps(idx, indent=1), encoding="utf-8")
         print(f"wrote {args.json}")

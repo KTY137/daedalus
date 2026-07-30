@@ -1156,6 +1156,17 @@ def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple
                 "symbol": _field(ref, "symbol"),
                 "why": str(_field(ref, "why") or "")[:200],
             })
+        # A reference whose line number is missing or unparseable contributes no
+        # window rather than a guessed one: pointing an editor at the wrong
+        # lines is worse than letting it read the whole file.
+        window_lines: list[int] = []
+        for d in detail:
+            try:
+                line_no = int(d["line"])
+            except (TypeError, ValueError):
+                continue
+            if line_no > 0 and line_no not in window_lines:
+                window_lines.append(line_no)
         # Bounded so a document with a hundred broken references cannot move
         # further than the band allows -- the gap to the next band is what keeps
         # a measurement from silently reordering a human's stated priority.
@@ -1163,16 +1174,25 @@ def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple
         candidates.append(_candidate(
             task_id=f"docref-{_slug(doc)}-{_short_hash(doc)}",
             source="docref",
+            # WORDING IS LOAD-BEARING, measured on the first live loop run: the
+            # earlier phrasing of the guard sentence ("DO NOT delete ...
+            # removing the claim ... make the reference go away") tripped
+            # change_risk's keyword escalation -- the sentence FORBIDDING
+            # deletion was read as intent to delete, every docref write routed
+            # "high -> stays on Claude", and the free-lane gate bounced the
+            # whole lane. The classifier is deliberately blunt; the instruction
+            # is ours. So it states the same invariant in preserving verbs.
             instruction=(
                 f"{doc} contains {len(refs)} reference(s) to code that does not "
                 f"exist in this tree. Correct the PROSE to match the tree, or "
                 f"correct the reference to name what the code is actually "
                 f"called now.\n\n"
-                f"DO NOT delete the sentence, the paragraph or the file to make "
-                f"the reference go away. The verifier checks the number of "
-                f"RESOLVING references before it checks the broken one: removing "
-                f"the claim lowers that number and is rejected as a fix, because "
-                f"withdrawing a statement is not the same as correcting it.\n\n"
+                f"Every sentence, paragraph and file must SURVIVE the edit: the "
+                f"verifier counts the RESOLVING references before it judges the "
+                f"broken one, so a withdrawn claim lowers that count and fails "
+                f"the gate. Correcting the wording is the only accepted move -- "
+                f"a statement that quietly vanishes is treated as evidence "
+                f"destroyed, not as a fix.\n\n"
                 f"Broken references:\n" + "\n".join(
                     f"  line {d['line']}: {d['raw']}  -- {d['why']}"
                     for d in detail)),
@@ -1184,6 +1204,25 @@ def docref_candidates(report: Mapping[str, Any] | Any, *, top: int = 5) -> tuple
                 "doc_path": doc,
                 "broken_in_this_doc": len(refs),
                 "references": detail,
+                # WINDOWED-REWRITE hint for the local write lane. The first
+                # end-to-end attempt proved the default +/-40 fragment too
+                # expensive for an unattended loop: two HANDOFF windows asked
+                # the model to regenerate 1,352 words and were still running
+                # after four minutes. Docref is unusually precise -- the scan
+                # names the exact broken line -- so it requests only that line
+                # here. Live probes at +/-8 and +/-2 showed the bench reflowing
+                # 17->10 and 5->4 lines; exact-line windows make the splice
+                # invariant structural rather than aspirational.
+                # Other callers that pass bare line numbers retain the
+                # provider's conservative DEFAULT_WINDOW_RADIUS unchanged.
+                # Consumed via
+                # TaskSpec.metadata["picker_evidence"]["rewrite_windows"];
+                # a consumer that ignores it gets today's full-file rewrite.
+                # Drawn from `detail`, not `refs`, so the model is only pointed
+                # at lines the instruction actually named (both cap at 12).
+                "rewrite_windows": {
+                    doc: [{"line": line, "radius": 0} for line in window_lines]
+                } if window_lines else {},
                 "corpus_resolving": resolving,
                 "corpus_broken": len(broken),
                 "corpus_files_scanned": scanned,

@@ -50,6 +50,15 @@ from daedalus.provider_router import (
 from daedalus.router import load_agents, route_task
 
 AVAIL = {"claude_cli": True, "ollama": True, "deepseek": False, "codex_cli": False}
+# Cross-lane fixtures need roles to resolve to measurably different empirical
+# lanes. With trusted Ollama available both roles now resolve to ollama/write,
+# so use an external advisory fallback for the external-ok role.
+CROSS_AVAIL = {
+    "claude_cli": True,
+    "ollama": False,
+    "deepseek": True,
+    "codex_cli": False,
+}
 
 # Every key LatentRouteResult.to_dict() promises, plus the lane-guard verdict.
 # The receipt must have the same shape on every path, so a reader never has to
@@ -68,7 +77,7 @@ INTRA_TARGET = "ui-ux-dev"
 
 # A CROSS-LANE steer. No trigger fires, so the keyword router falls to its
 # qa-critic catch-all (external_ok=false -> trusted lane), while the embedding
-# wants ui-ux-dev (external_ok=true -> local bench, write). This is the measured
+# wants ui-ux-dev (external_ok=true -> external advisory). This is the measured
 # case that has to be overruled: on the real backend the top three roles were
 # within 0.0069 cosine of each other.
 CROSS_OBJECTIVE = "the graph is hard to read"
@@ -253,13 +262,14 @@ class LaneGuardTests(_WiredCase):
 
     Measured on the real backend: ``the graph is hard to read`` scored
     data-analysis-dev 0.4735 / docs-dev 0.4666 / ui-ux-dev 0.4638, and that
-    near-tie moved the task from the trusted lane onto a local WRITE lane.
+    near-tie moved the task from the trusted write lane onto an external
+    advisory lane.
     """
 
     def _cross_lane(self):
         names = [a["name"] for a in load_agents()]
         self.serve(_steer_to(CROSS_TARGET, names))
-        return route_and_select(CROSS_OBJECTIVE, [], AVAIL)
+        return route_and_select(CROSS_OBJECTIVE, [], CROSS_AVAIL)
 
     def test_a_cross_lane_latent_choice_is_overruled(self):
         keyword_choice = route_task(CROSS_OBJECTIVE, [])["name"]
@@ -275,13 +285,13 @@ class LaneGuardTests(_WiredCase):
     def test_the_overruled_task_keeps_the_keyword_lane_exactly(self):
         """Not merely 'a' lane -- the SAME decision the keyword router alone
         would have produced, persona and reason included."""
-        _, kw = route_and_select(CROSS_OBJECTIVE, [], AVAIL, latent=False)
+        _, kw = route_and_select(CROSS_OBJECTIVE, [], CROSS_AVAIL, latent=False)
         _, guarded = self._cross_lane()
 
         self.assertEqual(kw.provider, guarded.provider)
         self.assertEqual(kw.mode, guarded.mode)
         self.assertEqual(kw.persona, guarded.persona)
-        # the measured case: trusted lane held, local write lane refused
+        # the measured case: trusted write lane held, external advisory refused
         self.assertEqual(guarded.provider, "claude_cli")
 
     def test_the_overrule_records_both_roles_both_lanes_and_the_margin(self):
@@ -317,7 +327,7 @@ class LaneGuardTests(_WiredCase):
         self.serve(_steer_to(CROSS_TARGET, names))
 
         with self.assertLogs("daedalus.provider_router", level=logging.WARNING) as caught:
-            route_and_select(CROSS_OBJECTIVE, [], AVAIL)
+            route_and_select(CROSS_OBJECTIVE, [], CROSS_AVAIL)
 
         blob = "\n".join(caught.output)
         self.assertIn("LANE GUARD", blob)
@@ -590,8 +600,10 @@ class ReceiptTests(_WiredCase):
 
     OBJECTIVE = INTRA_OBJECTIVE
 
-    def _receipt(self, objective: str | None = None) -> dict:
-        _, decision = route_and_select(objective or self.OBJECTIVE, [], AVAIL)
+    def _receipt(self, objective: str | None = None,
+                 availability: dict | None = None) -> dict:
+        _, decision = route_and_select(
+            objective or self.OBJECTIVE, [], availability or AVAIL)
         return decision.as_dict()["latent_route"]
 
     def test_receipt_reaches_as_dict_on_the_latent_path(self):
@@ -629,7 +641,8 @@ class ReceiptTests(_WiredCase):
 
         self.serve(_steer_to(INTRA_TARGET, names))
         shapes.append(self._receipt())                                   # latent
-        shapes.append(self._receipt(CROSS_OBJECTIVE))                    # overruled
+        shapes.append(self._receipt(
+            CROSS_OBJECTIVE, availability=CROSS_AVAIL))                 # overruled
         with patch.dict(os.environ, {LATENT_ENV: "0"}):
             shapes.append(self._receipt())                               # disabled
         _, owned = route_and_select("review scan state machine races",
@@ -714,9 +727,14 @@ class OffloadReceiptTests(_WiredCase):
             route_task(self.OBJECTIVE, [], repo_root=self._tmp.name)["name"], "alpha",
             "fixture assumes the keyword router picks alpha")
 
-    def _offload(self):
+    def _offload(self, availability=None):
         from daedalus.offload import offload
-        return offload(self.OBJECTIVE, self._tmp.name, paths=[], availability=AVAIL)
+        return offload(
+            self.OBJECTIVE,
+            self._tmp.name,
+            paths=[],
+            availability=availability or AVAIL,
+        )
 
     def test_offload_result_carries_the_stage_1_receipt(self):
         """Intra-lane: alpha -> beta, same lane, so the embedding wins and the
@@ -737,7 +755,7 @@ class OffloadReceiptTests(_WiredCase):
         holds the lane, and the offload result shows what was refused."""
         self.serve(_steer_to("gamma", self.names))
 
-        result = self._offload()
+        result = self._offload(availability=CROSS_AVAIL)
 
         receipt = result["latent_route"]
         self.assertEqual(receipt["mechanism"], LATENT_OVERRULED)

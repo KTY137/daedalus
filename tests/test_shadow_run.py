@@ -28,7 +28,42 @@ import pytest
 from daedalus.spine import bootstrap as B
 
 
+def _frozen_gate(head: str, gate_paths: tuple = ()) -> dict:
+    """The gate binding, built by the PRODUCTION argv builder.
+
+    bootstrap cross-checks a receipt's argv against ``pytest_gate_argv(paths)``,
+    so a hand-written copy here would certify a command nobody runs the moment
+    the real one changes."""
+    from daedalus.spine.attempt import pytest_gate_argv
+    return {
+        "argv": [str(v) for v in pytest_gate_argv(gate_paths)],
+        "gate_paths": list(gate_paths),
+        "gate_scope": "whole-suite" if not gate_paths else "scoped",
+        "head": head,
+    }
+
+
 def _receipt(tmp_path: Path, **doc) -> Path:
+    """A receipt that passes every check, with any field overridable.
+
+    The defaults matter: a receipt missing `state`, `kill_rate_floor` or
+    `critical_defect_classes` is "not a completed measurement", so a test that
+    means to flip ONE field would otherwise fail for a reason it never intended
+    to measure."""
+    full = {
+        "state": "measured",
+        "head": doc.get("head", HEAD),
+        "measured_at": "2026-07-29T00:00:00+00:00",
+        "planted": 12,
+        "killed": 12,
+        "surviving_classes": [],
+        "kill_rate_floor": B.KILL_RATE_FLOOR,
+        "critical_defect_classes": list(B.CRITICAL_DEFECT_CLASSES),
+    }
+    full.update(doc)
+    if "frozen_gate" not in doc:
+        full["frozen_gate"] = _frozen_gate(str(full["head"]))
+    doc = full
     p = tmp_path / B.DISCRIMINATION_REL_PATH
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(doc), encoding="utf-8")

@@ -21,7 +21,8 @@ from __future__ import annotations
 
 from .languages import (LanguageSpec, spec_for, SPECS,
                         DocumentSpec, doc_spec_for, DOC_SPECS)
-from .index import build_index, backend_status, cached_index, documents_enabled
+from .index import (build_index, backend_status, cached_index,
+                    documents_enabled, types_enabled)
 from .markdown import (DOCUMENT_KIND, DocSection, DocSkeleton, DocumentParse,
                        code_modules, document_modules, document_skeleton,
                        is_document, parse_document)
@@ -31,6 +32,17 @@ from .forest import (
     ForestNode,
     KnowledgeForest,
     build_knowledge_forest,
+)
+from .typegraph import (
+    DEFAULT_HUB_CAP,
+    FIELD_NODE_KIND,
+    RELATIONS,
+    TYPE_NODE_KIND,
+    TypeGraph,
+    field_node_id,
+    is_type_node_id,
+    resolve_type_graph,
+    type_node_id,
 )
 from .dss import (
     ContextPlan,
@@ -57,6 +69,16 @@ __all__ = [
     "DOCUMENT_KIND", "DocSection", "DocSkeleton", "DocumentParse",
     "parse_document", "document_skeleton", "is_document",
     "code_modules", "document_modules",
+    # types (opt-in node kinds; a LENS, not a DSS diffusion channel)
+    # ``resolve_type_graph`` is the whole-repo second pass ``build_index`` runs
+    # when ``types=True``; the ``*_node_id`` helpers and ``is_type_node_id`` are
+    # the ``type:``/``field:`` namespace, which is what keeps these nodes out of
+    # ``modules`` and out of the fence's denominator. The EXTRACTOR's records
+    # (``PyTypeFacts`` and friends) stay unexported for the same reason
+    # ``CodeUnit`` is: ``parse`` is an internal producer, not public vocabulary.
+    "types_enabled", "TYPE_NODE_KIND", "FIELD_NODE_KIND", "RELATIONS",
+    "DEFAULT_HUB_CAP", "TypeGraph", "resolve_type_graph",
+    "type_node_id", "field_node_id", "is_type_node_id",
 ]
 
 

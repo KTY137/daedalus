@@ -47,6 +47,18 @@ REPOSITORY_NODE_ID = "repo:."
 # architecture document got a context plan of three TypeScript files, because
 # the specification was not a node the selector could see. A document that is
 # indexed but unselectable fixes nothing.
+#
+# ``type`` and ``field`` are DELIBERATELY ABSENT, and adding them is not a
+# completion of this set, it is a defect. A document has bytes on disk; a type
+# node is a derived assertion about a region of a file that is already a node.
+# Admit it here and it becomes a hierarchy leaf, a legal seed and a budget
+# candidate -- at which point ``_estimated_tokens`` falls through to its
+# ``loc * 8`` fallback and invents a token cost for something no reader can
+# read, while the file that actually holds the declaration may be dropped for
+# lack of budget. Type evidence RE-SCORES file nodes; it is never itself the
+# thing shipped to a model. ``forest.py``'s module docstring carries the full
+# argument, including the measured 2-hop blow-up that keeps these relations out
+# of diffusion as well (see ``_relation_adjacencies``).
 FILE_NODE_KINDS = frozenset({"source_file", "file", "document"})
 
 
@@ -457,10 +469,35 @@ class RelationChannel:
 def _relation_adjacencies(
     forest: KnowledgeForest,
 ) -> dict[str, tuple[dict[str, dict[str, float]], bool | None, str]]:
-    """Build per-relation transitions without merging evidence semantics."""
+    """Build per-relation transitions without merging evidence semantics.
+
+    DIFFUSION IS FILE-TO-FILE ONLY, BY CONSTRUCTION. This function is where a
+    relation layer becomes a channel, and it used to accept whatever endpoints
+    it found -- which was harmless while every layer was file-to-file, and stops
+    being harmless the moment the forest carries ``type``/``field`` nodes.
+
+    The reason is measured, not feared. On this repository, 2182 functions
+    mention 227 distinct nominal types; if a type node may carry a diffusion
+    step, then "two functions that mention the same type" are two hops apart and
+    1,276,024 of the 2,379,471 possible function pairs become adjacent -- 53.6%
+    of the complete graph, of which ``str`` alone contributes 939,135. A channel
+    that connects half the repository to itself does not rank anything; it
+    normalises everything to the same score and the packer then falls back to
+    node id order. So the type layers ship as a LENS: published for consumers
+    that ask for them by name, never mixed into the score that decides what is
+    read. Turning them into a channel is a separate, gated lane whose
+    precondition is the hub cap in ``index["types"]["coverage"]``.
+
+    Filtering by node KIND rather than by relation NAME is deliberate: a name
+    list would have to be edited every time a relation is added, and the edit
+    that is forgotten is the one that reopens this.
+    """
     raw: dict[str, dict[str, dict[str, float]]] = {}
     direction: dict[str, bool | None] = {}
     source_kind: dict[str, str] = {}
+    file_ids = {
+        node.id for node in forest.nodes if node.kind in FILE_NODE_KINDS
+    }
 
     def add(relation: str, source: str, target: str, weight: float) -> None:
         if source == target or weight <= 0:
@@ -472,6 +509,11 @@ def _relation_adjacencies(
         weight = _finite_non_negative(
             edge.weight, name=f"weight for relation {edge.relation!r}"
         )
+        if edge.source not in file_ids or edge.target not in file_ids:
+            # Validated first and skipped second, so a malformed weight still
+            # fails closed on every edge in the forest, not only on the ones
+            # that happen to be diffusible.
+            continue
         direction.setdefault(edge.relation, edge.directed)
         if direction[edge.relation] != edge.directed:
             direction[edge.relation] = None
@@ -487,7 +529,10 @@ def _relation_adjacencies(
         )
         direction[hyperedge.relation] = False
         source_kind[hyperedge.relation] = "hyperedge"
-        members = tuple(dict.fromkeys(hyperedge.members))
+        members = tuple(
+            member for member in dict.fromkeys(hyperedge.members)
+            if member in file_ids
+        )
         if len(members) < 2:
             continue
         share = weight / (len(members) - 1)
@@ -679,6 +724,11 @@ def _estimated_tokens(
                 return value
     # A deterministic documented fallback; callers should pass measured costs
     # when context budgeting must correspond to a specific tokenizer.
+    #
+    # It is also the reason ``build_context_plan`` refuses non-file node kinds
+    # BEFORE calling this: this fallback cannot fail, so for a node with no
+    # bytes on disk it does not report a gap, it reports 8 tokens. The guard
+    # upstream is what keeps that number honest -- do not relax it here.
     loc = max(1, int(node.attributes.get("loc", 1) or 1))
     return loc * 8
 
@@ -691,16 +741,38 @@ def build_context_plan(
     token_costs: Mapping[str, int] | None = None,
     reasons: Mapping[str, Iterable[str]] | None = None,
 ) -> ContextPlan:
-    """Greedily pack the score-ranked whole-file candidates into a budget."""
+    """Greedily pack the score-ranked whole-file candidates into a budget.
+
+    "Whole-file" is enforced, not assumed. Membership in the forest is not
+    enough to be packable: only ``FILE_NODE_KINDS`` name something with bytes on
+    disk, and a plan is a list of things to READ. A ``type``/``field`` node is
+    valid evidence and an invalid candidate, and the two failures are reported
+    separately -- an unknown id is a typo, a known id of the wrong kind is a
+    category error -- because collapsing them would send the author of either
+    one looking for the other's bug.
+
+    Refusing loudly rather than skipping quietly is the same posture
+    ``restrict_scores`` and ``semantic_super_sample`` already take on their own
+    inputs. Nothing inside this module can trigger it: ``_relation_adjacencies``
+    keeps diffusion file-to-file, so a type node has no path into ``fused``.
+    That makes this the SECOND lock on the door, and the one that turns a
+    regression in the first into a stack trace instead of a fabricated cost.
+    """
     if token_budget < 0:
         raise ValueError("token_budget must be non-negative")
     token_costs = token_costs or {}
     reasons = reasons or {}
-    valid_ids = {node.id for node in forest.nodes}
+    kinds = {node.id: node.kind for node in forest.nodes}
     candidates: list[ContextItem] = []
     for node_id, raw_score in ranked_scores.items():
-        if node_id not in valid_ids:
+        if node_id not in kinds:
             raise KeyError(f"unknown Forest node ID: {node_id!r}")
+        if kinds[node_id] not in FILE_NODE_KINDS:
+            raise KeyError(
+                f"Forest node ID {node_id!r} is not a packable node kind: "
+                f"{kinds[node_id]!r} is not one of "
+                f"{sorted(FILE_NODE_KINDS)}"
+            )
         score = _finite_non_negative(
             raw_score, name=f"ranked score for {node_id!r}"
         )

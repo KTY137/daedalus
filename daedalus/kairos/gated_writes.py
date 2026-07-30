@@ -24,6 +24,10 @@ a thread pool, every attempt in its own worktree. Output: one
 ``.artifact`` is a ``PatchArtifact`` (inert bytes) when the candidate is
 clean. The primary checkout is untouched -- that is ``TaskAttempt``'s own
 structural guarantee, not something re-implemented or re-verified here.
+``run_write_wave`` additionally asks Phase 1 to persist those bytes in the
+checkout-external Daedalus artifact archive.  That is load-bearing for a held
+candidate: its attempt branch is reaped before this function returns, so an
+in-memory-only patch could not honestly be described as waiting for review.
 
 PHASE 2 -- PROMOTION (``promote_candidates``; opt-in, a separate call, NOT
 wired into ``KairosScheduler.dispatch()``'s default path -- see
@@ -75,16 +79,25 @@ patch is still required.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import subprocess
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass, replace as _dc_replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 from .worktree import GitWorktreeManager
+
+#: Fallback timeout for a curated command gate that names none. Mirrors
+#: ``daedalus.spine.attempt.DEFAULT_GATE_TIMEOUT_S`` without importing it at
+#: module scope -- this module imports spine.attempt lazily inside functions
+#: (see _spec_for/_attempt_assignment) and adding a top-level import would
+#: change that deliberate import order.
+_DEFAULT_GATE_TIMEOUT_S = 900.0
 
 if TYPE_CHECKING:
     from daedalus.spine.attempt import AttemptResult, TaskSpec
@@ -153,6 +166,24 @@ class GatedCandidate:
     result: Any        # daedalus.spine.attempt.AttemptResult
 
 
+def _artifact_root_for(repo_root: Path) -> Path:
+    """Durable, checkout-external storage for gated candidate patch bytes.
+
+    A held candidate cannot live only in ``AttemptResult.artifact``:
+    ``run_write_wave`` returns plain dictionaries and ``TaskAttempt`` reaps its
+    candidate branch, so those bytes otherwise disappear as soon as the call
+    returns.  Keep the archive beside the worktree/control state, namespaced by
+    checkout identity, and let ``TaskAttempt._persist`` apply its primary-tree
+    fence before it creates or writes anything.
+    """
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    base = Path(local_appdata) if local_appdata else Path(tempfile.gettempdir())
+    digest = hashlib.sha256(
+        str(Path(repo_root).resolve()).encode("utf-8")
+    ).hexdigest()[:12]
+    return base / "daedalus" / "artifacts" / digest / "patches"
+
+
 def _relay_gate(box: dict):
     """A TaskAttempt gate that judges by offload()'s OWN verdict, not a
     second test run.
@@ -217,31 +248,160 @@ def _recording_runner(**offload_kwargs):
     return _runner, box
 
 
+def _provider_receipt(result: Any) -> dict[str, Any] | None:
+    """Project the small operational part of an offload runner result.
+
+    The full provider result lives on ``AttemptResult.runner_detail``. The
+    write-wave projection used to drop it, collapsing every provider refusal
+    into ``the runner produced no change to gate``. Keep only routing/action
+    facts, measured writes, and rewrite activation/skip provenance -- never
+    prompts, repository content, or arbitrary model prose.
+    """
+    detail = getattr(result, "runner_detail", None)
+    if not isinstance(detail, Mapping):
+        return None
+    report = detail.get("report")
+    report = report if isinstance(report, Mapping) else {}
+    handoff = report.get("handoff")
+    handoff = handoff if isinstance(handoff, Mapping) else {}
+    visible_handoff = {
+        key: handoff[key]
+        for key in ("windowed_rewrite", "skipped", "slice_context_dropped")
+        if key in handoff
+    }
+    receipt: dict[str, Any] = {
+        key: detail[key]
+        for key in ("provider", "model", "action", "wrote", "did_work")
+        if key in detail
+    }
+    if report.get("status") is not None:
+        receipt["report_status"] = report.get("status")
+    verify = detail.get("verify")
+    if isinstance(verify, Mapping):
+        receipt["verify"] = dict(verify)
+    if visible_handoff:
+        receipt["handoff"] = visible_handoff
+    return receipt or None
+
+
 def _spec_for(assignment: "Assignment", base_revision: str, primary_root: Path,
-              nonce: str) -> "TaskSpec":
+              nonce: str, gate: Mapping[str, Any] | None = None,
+              model: str | None = None) -> "TaskSpec":
+    """The TaskSpec for one assignment.
+
+    ``gate`` is the task's OWN curated command gate ({"argv", "cwd",
+    "timeout_s"}), forwarded by the caller from the picker candidate that
+    produced this work. ``None``/empty reproduces the previous behaviour
+    byte-for-byte, including the effect-key digest: ``TaskSpec.body()`` admits
+    ``gate`` into the canonical body only when ``gate_argv`` is non-empty, so
+    no task that lacks one sees its digest move.
+
+    WHY THIS IS NOT A NEW EXECUTION RISK. The argv is repo-authored, not
+    model-authored: ``spine/picker.py`` builds it (docref's is
+    ``sys.executable -m daedalus.spine.docref_gate ...``), and the work-queue
+    source validates it as a NUL-free string array out of a repo-curated file.
+    It is then executed by ``spine.attempt.command_gate`` as an argv list with
+    no shell, at LOW INTEGRITY inside containment, in a Job Object, in the
+    candidate's own worktree -- the same instrument, with the same containment,
+    that already runs every default pytest gate. A model-written patch cannot
+    reach this path without a human `git merge` first, because the picker reads
+    the primary checkout and promotion stops at an integration branch.
+    """
     from daedalus.spine.attempt import TaskSpec
 
     rel_paths = rebase_declared_paths(assignment.paths, primary_root)
+    argv = tuple(str(a) for a in ((gate or {}).get("argv") or ()))
+    metadata: dict[str, Any] = {
+        "kairos_owner": assignment.owner,
+        "kairos_lane": assignment.lane,
+        "kairos_worker": assignment.worker,
+    }
+    rewrite_windows = (gate or {}).get("rewrite_windows")
+    if isinstance(rewrite_windows, Mapping) and rewrite_windows:
+        # Preserve the exact measured hint on the attempt intent as well as
+        # handing it to offload below. This makes "window requested or silently
+        # lost?" answerable from one ledger row.
+        metadata["rewrite_windows"] = dict(rewrite_windows)
+    if model:
+        metadata["model"] = str(model)
     return TaskSpec(
         task_id=f"kairos-{assignment.lane}-{nonce}",
         instruction=assignment.objective,
         base_revision=base_revision,
         target_paths=rel_paths,
-        metadata={"kairos_owner": assignment.owner, "kairos_lane": assignment.lane,
-                  "kairos_worker": assignment.worker},
+        gate_argv=argv,
+        gate_cwd=str((gate or {}).get("cwd") or "."),
+        gate_timeout_s=float((gate or {}).get("timeout_s") or _DEFAULT_GATE_TIMEOUT_S),
+        metadata=metadata,
     )
 
 
+def _curated_relay_gate(box: dict, spec: Any):
+    """``_relay_gate`` AND the task's own curated command gate, in that order.
+
+    THIS COMPOSITION IS THE WHOLE POINT, and it exists because putting
+    ``gate_argv`` on the TaskSpec alone would have done NOTHING: ``TaskAttempt.
+    __init__`` gives an explicitly-passed ``gate=`` precedence over
+    ``task.gate_argv``, and this module always passes one. A curated gate that
+    is silently ignored is worse than none.
+
+    Order matters, and it is not arbitrary:
+
+    1. ``_relay_gate`` first, as a PRECONDITION. It is the only check that
+       catches ``offload()`` finishing ``escalated_after_verify_fail`` with a
+       NON-EMPTY ``wrote`` -- a write it could not fully roll back, kept
+       visible on purpose. Those bytes are a failed run's debris; judging them
+       with a docref re-scan could well return "references resolve" and would
+       promote debris. Replacing the relay gate rather than preceding it would
+       have opened exactly that hole.
+    2. The curated command gate second, as the DISCRIMINATOR -- the thing that
+       actually knows whether THIS task succeeded.
+
+    Both verdicts are returned UNCHANGED (never re-wrapped into a fresh
+    GateResult), so containment attestations and gate output survive whichever
+    one decides. Fail-closed: both must pass.
+    """
+    relay = _relay_gate(box)
+
+    def _gate(ctx):
+        from daedalus.spine.attempt import command_gate
+
+        first = relay(ctx)
+        if not first.passed:
+            return first
+        return command_gate(spec.gate_argv,
+                            timeout_s=float(spec.gate_timeout_s),
+                            name="queue-command")(ctx)
+
+    return _gate
+
+
 def _attempt_assignment(assignment: "Assignment", base_revision: str, primary_root: Path,
-                         *, project, availability, ledger_path, cancel: Any = None
+                         *, project, availability, ledger_path, cancel: Any = None,
+                         gate: Mapping[str, Any] | None = None,
+                         model: str | None = None,
+                         artifact_dir: Path | None = None,
                          ) -> GatedCandidate:
     from daedalus.spine.attempt import run_attempt
 
-    spec = _spec_for(assignment, base_revision, primary_root, uuid.uuid4().hex[:10])
-    runner, box = _recording_runner(project=project, availability=availability, live=True)
+    spec = _spec_for(assignment, base_revision, primary_root, uuid.uuid4().hex[:10],
+                     gate=gate, model=model)
+    runner_kwargs: dict[str, Any] = {
+        "project": project,
+        "availability": availability,
+        "live": True,
+    }
+    rewrite_windows = (gate or {}).get("rewrite_windows")
+    if isinstance(rewrite_windows, Mapping) and rewrite_windows:
+        runner_kwargs["rewrite_windows"] = dict(rewrite_windows)
+    if model:
+        runner_kwargs["model"] = str(model)
+    runner, box = _recording_runner(**runner_kwargs)
+    gate_fn = _curated_relay_gate(box, spec) if spec.gate_argv else _relay_gate(box)
     result = run_attempt(
-        spec, runner=runner, gate=_relay_gate(box), repo_root=str(primary_root),
+        spec, runner=runner, gate=gate_fn, repo_root=str(primary_root),
         ledger_path=ledger_path, keep_worktree=False, reap=True, cancel=cancel,
+        artifact_dir=artifact_dir,
     )
     return GatedCandidate(assignment=assignment, spec=spec, result=result)
 
@@ -260,7 +420,10 @@ def _rev_parse_head(repo_root: Path, timeout: int = 30) -> str:
 def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
                      availability: dict, max_workers: int,
                      base_commit: str | None = None, ledger_path=None,
-                     cancel: Any = None) -> list[GatedCandidate]:
+                     cancel: Any = None,
+                     gates: list[Mapping[str, Any] | None] | None = None,
+                     artifact_dir: Path | None = None,
+                     ) -> list[GatedCandidate]:
     """PHASE 1: run every write Assignment through ``TaskAttempt``, concurrently.
 
     Returns one ``GatedCandidate`` per assignment, in ``assignments`` order
@@ -275,8 +438,16 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
     not a module-level killswitch lookup -- a caller (e.g. a loop driver) that
     wants every attempt in one batch to share one cancel token passes it once,
     here; this module does not reach for global cancellation state on its own.
+
+    ``artifact_dir`` is optional for direct callers. ``run_write_wave`` always
+    supplies the checkout-external content-addressed archive because it returns
+    dictionaries rather than the live ``GatedCandidate`` objects.
     """
     root = Path(repo_root).resolve()
+    if gates is not None and len(gates) != len(assignments):
+        raise RuntimeError(
+            f"gate_candidates: {len(gates)} gate hint(s) for "
+            f"{len(assignments)} assignment(s)")
     if ledger_path is None:
         from daedalus.spine.picker import resolve_spine_db_path
 
@@ -286,14 +457,33 @@ def gate_candidates(repo_root: str, assignments: list, *, project: str | None,
     if base_commit is None:
         base_commit = _rev_parse_head(root)
 
+    # Resolve model assignments against the PRIMARY checkout. The isolated
+    # worktree is cut from committed HEAD and therefore (correctly) excludes
+    # dirty policy edits; letting offload rediscover the assignment there
+    # silently changed Lucia's measured 14B run back to the .env default.
+    try:
+        from daedalus.config import resolve_project
+
+        primary_data = resolve_project(str(root), project) or {}
+        model_assignments = (
+            (primary_data.get("team") or {}).get("model_assignments") or {})
+    except Exception:  # fail to the provider default, never abort isolation
+        model_assignments = {}
+
     from concurrent.futures import ThreadPoolExecutor
 
     results: list[GatedCandidate | None] = [None] * len(assignments)
     with ThreadPoolExecutor(max_workers=max(1, max_workers)) as pool:
         futs = {
-            pool.submit(_attempt_assignment, a, base_commit, root, project=project,
-                        availability=availability, ledger_path=ledger_path,
-                        cancel=cancel): i
+            pool.submit(
+                _attempt_assignment, a, base_commit, root,
+                project=project, availability=availability,
+                ledger_path=ledger_path, cancel=cancel,
+                gate=(gates[i] if gates is not None else None),
+                model=(str(model_assignments.get(a.owner))
+                       if model_assignments.get(a.owner) else None),
+                artifact_dir=artifact_dir,
+            ): i
             for i, a in enumerate(assignments)
         }
         for fut in futs:
@@ -488,9 +678,24 @@ def _reattempt(candidate: GatedCandidate, new_base: str, root: Path, *, project,
     from daedalus.spine.attempt import run_attempt
 
     fresh_spec = _dc_replace(candidate.spec, base_revision=new_base)
-    runner, box = _recording_runner(project=project, availability=availability, live=True)
+    runner_kwargs: dict[str, Any] = {
+        "project": project,
+        "availability": availability,
+        "live": True,
+    }
+    rewrite_windows = fresh_spec.metadata.get("rewrite_windows")
+    if isinstance(rewrite_windows, Mapping) and rewrite_windows:
+        runner_kwargs["rewrite_windows"] = dict(rewrite_windows)
+    assigned_model = fresh_spec.metadata.get("model")
+    if assigned_model:
+        runner_kwargs["model"] = str(assigned_model)
+    runner, box = _recording_runner(**runner_kwargs)
+    gate_fn = (
+        _curated_relay_gate(box, fresh_spec)
+        if fresh_spec.gate_argv else _relay_gate(box)
+    )
     result = run_attempt(
-        fresh_spec, runner=runner, gate=_relay_gate(box), repo_root=str(root),
+        fresh_spec, runner=runner, gate=gate_fn, repo_root=str(root),
         ledger_path=ledger_path, keep_worktree=False, reap=True, cancel=cancel,
     )
     return GatedCandidate(assignment=candidate.assignment, spec=fresh_spec, result=result)
@@ -944,11 +1149,16 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
 
     avail = scheduler.availability or DEFAULT_AVAILABILITY
     write_assignments = [assignments[i] for i in write_idx]
+    write_gates = [
+        tasks[i].get("gate") if isinstance(tasks[i].get("gate"), Mapping) else None
+        for i in write_idx
+    ]
     candidates = gate_candidates(
         str(root), write_assignments, project=scheduler.project,
         availability=avail,
         max_workers=min(scheduler.max_parallel_writes, scheduler.max_workers),
-        ledger_path=ledger_path, cancel=cancel)
+        ledger_path=ledger_path, cancel=cancel, gates=write_gates,
+        artifact_dir=_artifact_root_for(root))
 
     promotion_allowed, gov_state, gov_verdict = _governance_verdict(scheduler.project)
 
@@ -1011,6 +1221,19 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
             "attempt_state": res.state, "attempt_branch": res.branch,
             "auto_promote": auto_promote, "governance_state": gov_state,
         }
+        receipt = _provider_receipt(res)
+        if receipt is not None:
+            base["provider_receipt"] = receipt
+            if receipt.get("model"):
+                base["model"] = str(receipt["model"])
+        if res.artifact is not None:
+            base["artifact_sha256"] = res.artifact.diff_sha256
+            base["artifact_bytes"] = res.artifact.byte_length
+            base["changed_paths"] = list(res.artifact.changed_paths)
+        if res.artifact_path:
+            base["artifact_path"] = res.artifact_path
+        if res.persist_error:
+            base["artifact_persist_error"] = res.persist_error
         if not res.ok or not res.artifact:
             results[i] = {**base, "status": "write_gate_failed",
                          "reason": (res.error or f"attempt state={res.state}")}
@@ -1030,9 +1253,20 @@ def run_write_wave(scheduler, repo_root: str, tasks: list[dict], assignments: li
             continue
         # Clean candidate, not (yet) submitted for promotion: held by policy
         # or by governance -- see `held_by_task` for exactly which.
-        results[i] = {**base, "status": "gated_held",
-                     "reason": held_by_task.get(
-                         task_id, "held for a human to promote "
-                         "(daedalus.kairos.gated_writes.promote_candidates)")}
+        if not res.artifact_path:
+            results[i] = {
+                **base,
+                "status": "gated_artifact_lost",
+                "reason": (
+                    "candidate passed its gates but its patch bytes could not "
+                    "be persisted after the attempt branch was reaped: "
+                    f"{res.persist_error or 'no artifact path reported'}"
+                ),
+            }
+        else:
+            results[i] = {**base, "status": "gated_held",
+                         "reason": held_by_task.get(
+                             task_id, "held for a human to promote "
+                             "(daedalus.kairos.gated_writes.promote_candidates)")}
 
     return results  # type: ignore[return-value]

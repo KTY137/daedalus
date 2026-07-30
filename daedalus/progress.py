@@ -102,6 +102,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .health import ASSUMED, INHERITED, MEASURED, Fact, assumed, measured
+from .spine.envelope import current_trace_id
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -346,8 +347,20 @@ def reset_default_log() -> None:
 def _record(unit_id: str, kind: str, *, source: str, detail: Mapping[str, Any] | None = None,
            batch_id: str | None = None, log: ProgressLog | None = None) -> ProgressEvent:
     log = log or default_log()
+    d = dict(detail or {})
+    # THE ONE CHOKE POINT EVERY EVENT PASSES THROUGH, so the correlation id is
+    # stamped once here rather than at ~10 call sites that would each have to
+    # remember. Ambient (contextvar or DAEDALUS_TRACE_ID), so a caller inside a
+    # `trace_context(...)` scope gets it for free and one outside gets nothing
+    # -- never a minted id, because an id invented at observation time joins to
+    # nothing and would look exactly like a real one. Never overwrites a
+    # trace_id a caller passed explicitly.
+    if "trace_id" not in d:
+        tid = current_trace_id()
+        if tid:
+            d["trace_id"] = tid
     ev = ProgressEvent(unit_id=str(unit_id), kind=kind, ts=now_iso(), source=str(source),
-                       detail=dict(detail or {}), batch_id=batch_id)
+                       detail=d, batch_id=batch_id)
     return log.append(ev)
 
 

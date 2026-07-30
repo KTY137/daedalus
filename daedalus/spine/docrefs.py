@@ -150,6 +150,22 @@ _FILE_EXTENSIONS: frozenset[str] = frozenset({
     "exe", "dll", "so", "dylib", "rst", "in", "out", "tmp", "bak", "env",
 })
 
+# Dotted inline-code spans that are demonstrably NOT module-symbol references.
+# These are measured corpus ambiguities, not a general vocabulary blacklist:
+#
+# * ``core.autocrlf`` is Git's configuration key. A coincidental ``core.py``
+#   made the suffix resolver reinterpret accurate historical prose as a missing
+#   Python attribute.
+# * ``status.code`` is an ``OperationStatus`` instance attribute. A coincidental
+#   ``status.py`` made the same mistake.
+#
+# The scanner dispatches autonomous edits, so a known false positive must be
+# skipped explicitly rather than left to a writer to "improve" into falsehood.
+_NON_MODULE_DOTTED_NAMES: frozenset[str] = frozenset({
+    "core.autocrlf",
+    "status.code",
+})
+
 
 # --------------------------------------------------------------------------- #
 # records                                                                      #
@@ -452,6 +468,13 @@ def resolve_reference(ref: Reference, repo_root: str | Path,
     if suffixes is None:
         suffixes = cache["__suffixes__"] = _suffix_index(root)
     probe = ref.raw[:-2].strip() if ref.raw.endswith("()") else ref.raw
+    if probe in _NON_MODULE_DOTTED_NAMES:
+        return Reference(**{
+            **ref.__dict__,
+            "state": "skipped",
+            "why": "known non-module dotted name; a coincidental module basename "
+                   "must not turn it into an autonomous edit target",
+        })
 
     def _by_path(rel_path: str) -> Path | None:
         direct = root / rel_path

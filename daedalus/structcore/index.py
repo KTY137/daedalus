@@ -21,6 +21,18 @@ OPT-IN, absent unless ``documents=True`` (or ``DAEDALUS_INDEX_DOCUMENTS=1``):
 With documents on, ``modules`` also carries document entries, each marked
 ``kind: "document"`` (``markdown.is_document`` / ``code_modules``). See the
 ``DOCUMENTS`` block below for the measurement that made this opt-in.
+
+OPT-IN, absent unless ``types=True`` (or ``DAEDALUS_INDEX_TYPES=1``):
+  * types       — the type/data-structure layer's counts and its own coverage
+    record (what it looked at, what it refused to guess, what a hub cap dropped)
+  * type_nodes  — one node per class/dataclass/TypedDict/NamedTuple/Enum/
+    Protocol/alias declaration and per field, in their OWN id namespace
+    (``type:rel#Qual`` / ``field:rel#Qual.name``)
+  * type_edges  — has_field / field_type / inherits / consumes / produces /
+    alias_of, in their OWN relation layer
+
+Type nodes NEVER enter ``modules``, ``import_edges``, ``dependencies``,
+``fan_in``, ``all_units`` or the symbol resolver. See the ``TYPES`` block below.
 """
 from __future__ import annotations
 
@@ -32,7 +44,8 @@ from typing import NamedTuple
 
 from .languages import (DOCUMENT_EXTENSIONS, DocumentSpec, LanguageSpec,
                         doc_spec_for, spec_for)
-from .parse import CodeUnit, resolve_python_imports, tree_sitter_available
+from .parse import (CodeUnit, PyTypeFacts, resolve_python_imports,
+                    tree_sitter_available)
 from . import markdown as markdown_mod
 from .metrics import lizard_available
 from .clones import (TYPE3_EXCLUDED_LANGUAGES, CloneMemo, unit_clusters,
@@ -42,6 +55,7 @@ from .cache import FileCache, file_key
 from . import imports as imports_mod
 from . import graph
 from . import tokens
+from . import typegraph as typegraph_mod
 from .churn import git_churn
 from .ignore import project_scope
 
@@ -130,6 +144,74 @@ def documents_enabled(flag: bool | None = None) -> bool:
     if flag is not None:
         return bool(flag)
     return os.environ.get(_DOC_ENV, "").strip().lower() in _TRUTHY
+
+
+# --------------------------------------------------------------------------- #
+# TYPES — opt-in, and why the safe default is OFF                              #
+# --------------------------------------------------------------------------- #
+# The type/data-structure layer (``types``, ``type_nodes``, ``type_edges``) is
+# ADDITIVE by construction: it publishes three new keys and touches nothing that
+# already existed. ``modules``, ``import_edges``, ``import_edges_reverse``,
+# ``fan_in``, ``duplication``, ``n_files``, ``languages``, ``total_tokens`` and
+# ``hotspots`` are byte-identical with it on and with it off, and
+# ``tests/test_typegraph_index.py`` pins exactly that. So unlike DOCUMENTS, this
+# gate is NOT about a moving denominator -- nothing here moves one.
+#
+# It is off by default for a different reason, and it is the reason the plan's
+# invariant 6 gives: the foundation ships a LENS, not a channel. The moment
+# ``forest.py`` reads ``type_nodes`` (the next lane), a type-bearing index
+# produces a forest with more nodes, more relation layers and therefore a
+# DIFFERENT ``content_sha256``. Every consumer that hashes or counts the forest
+# -- the web payload, the DSS receipts, the eval baselines -- would move on the
+# strength of a feature nobody asked for. Opt-in means the forest an
+# unconfigured repo gets is the forest it always got, by construction rather
+# than by a flag test, and the operator who turns this on knows the baseline
+# changed. Same argument, same shape, same wording as ``documents``.
+#
+# WHAT THE GATE DOES NOT COVER, ON PURPOSE: per-file EXTRACTION is
+# unconditional (see ``perfile.FileAnalysis.type_facts``). Gating extraction
+# would put the flag on the wrong side of a content-keyed disk cache and a
+# layer-off row would be served as a hit to a layer-on build -- an empty type
+# block with no error. What the gate covers is whole-repo RESOLUTION (serial, in
+# the parent, not cached) and PUBLICATION. Because the gate changes the returned
+# dict, it is part of ``_scope_key`` exactly as ``documents`` is.
+#
+# Type nodes are excluded, always, from: ``modules`` (so also ``hotspots`` /
+# ``module_heat`` / ``score_modules``), ``import_edges`` / ``import_edges_reverse``
+# / ``dependencies`` / ``fan_in``, ``graph._graph_nodes`` (the fence's
+# denominator), ``all_units`` and therefore all four clone passes, and
+# ``graph.build_resolver``'s ``defs_by_file``. Their relations live in their own
+# layer, ``type_edges``.
+_TYPES_ENV = "DAEDALUS_INDEX_TYPES"
+
+
+def types_enabled(flag: bool | None = None) -> bool:
+    """Whether this build resolves and publishes the type layer. Explicit
+    argument wins; else the ``DAEDALUS_INDEX_TYPES`` env var; else False."""
+    if flag is not None:
+        return bool(flag)
+    return os.environ.get(_TYPES_ENV, "").strip().lower() in _TRUTHY
+
+
+# WIKI. ``markdown.py`` parses ``[[wikilinks]]`` and resolves doc->doc and
+# doc->code, but until this gate existed nothing called ``knowledge_links`` --
+# the parser had no consumer, which is the same defect ``skills.py`` had for a
+# thousand lines. Gated for the same reason documents and types are: turning it
+# on adds edges, and an edge set that changes without a deliberate act is how a
+# ranking moves for a reason nobody can name.
+#
+# ``document_links`` is NOT touched by this. That block is built from
+# ``internal_links`` exactly as before, so an index built without this flag is
+# byte-identical to one built before the flag existed.
+_WIKI_ENV = "DAEDALUS_INDEX_WIKI"
+
+
+def wiki_enabled(flag: bool | None = None) -> bool:
+    """Whether this build resolves and publishes the wiki link layer. Explicit
+    argument wins; else ``DAEDALUS_INDEX_WIKI``; else False."""
+    if flag is not None:
+        return bool(flag)
+    return os.environ.get(_WIKI_ENV, "").strip().lower() in _TRUTHY
 
 
 def _collect_docs(root: Path, max_files: int) -> list[tuple[Path, str, DocumentSpec]]:
@@ -450,7 +532,8 @@ def _compute(pending: list[tuple[int, str, str, LanguageSpec]], ts_on: bool,
 
 
 def build_index(root, max_files: int = 20000, center=None, ignore=None,
-                documents: bool | None = None) -> dict:
+                documents: bool | None = None, types: bool | None = None,
+                wiki: bool | None = None) -> dict:
     root = Path(root).resolve()
     collected = _collect(root, max_files)
 
@@ -466,6 +549,18 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     # measurement that decided that. When off, nothing below this flag executes
     # and the returned dict is byte-identical to the pre-document build.
     docs_on = documents_enabled(documents)
+    wiki_on = wiki_enabled(wiki) and docs_on   # wiki edges need documents indexed
+    wiki_doc_links: dict = {}
+    wiki_code_links: dict = {}
+    wiki_type_refs: dict = {}
+    wiki_embeds: dict = {}
+    wiki_totals = {"documents": 0, "doc_edges": 0, "code_edges": 0, "type_refs": 0,
+                   "unresolved": 0, "ambiguous": 0, "deferred": 0}
+    # TYPES. Resolved here, ONCE, next to ``docs_on`` and for the same reason:
+    # the flag decides the shape of the returned dict, so it must be a single
+    # boolean that the cache key and the build both read. Resolution and
+    # publication are gated; per-file extraction is not (see ``types_enabled``).
+    types_on = types_enabled(types)
     doc_records: list[tuple[str, DocumentSpec, str]] = []
     if docs_on:
         for path, rel, dspec in _collect_docs(root, max_files):
@@ -529,6 +624,16 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     # Unified rel->rel internal import map (ALL languages) — powers the Move-4
     # symbol resolver; distinct from ``dep_edges`` whose Python keys are dotted.
     import_targets_by_rel: dict[str, set[str]] = defaultdict(set)
+    # Raw per-file type facts, keyed by rel. Collected for EVERY Python file,
+    # including shell files, and OUTSIDE the metric-withholding guard below --
+    # exactly like import resolution and for the same reason: a real file whose
+    # annotation names a type declared in a vendored module must be resolvable, or
+    # the layer would report a gap that is an artifact of scoping rather than a
+    # fact about the code. The WITHHOLDING happens one layer down:
+    # ``resolve_type_graph(ignored=...)`` drops a withheld file's own facts, so a
+    # shell file contributes no node, no edge and no coverage number of its own.
+    # This dict never reaches ``modules``, ``all_units`` or ``build_resolver``.
+    type_facts_by_rel: dict[str, PyTypeFacts] = {}
     total_chars = 0
     total_tokens = 0
 
@@ -559,6 +664,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
             lang_summary[spec.name]["files"] += 1
             lang_summary[spec.name]["loc"] += a.loc
         if spec.name == "python":
+            type_facts_by_rel[rel] = a.type_facts
             # Python resolution: precise, relative-aware, and resolved against
             # the tables THIS file's own package root implies -- a center file
             # against its center-relative view, a shell file against the
@@ -620,6 +726,28 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
                 continue
             parsed = markdown_mod.parse_document(rel, text)
             targets, unresolved = markdown_mod.internal_links(parsed, known_all)
+            if wiki_on:
+                # A SECOND pass over the same parse, deliberately. Reusing
+                # `targets` would mean building `document_links` from the
+                # wiki-aware superset, which silently moves an existing edge set
+                # -- the one thing this layer must not do. The cost is paid only
+                # when the flag is on.
+                kl = markdown_mod.knowledge_links(parsed, known_all)
+                if kl.doc_targets:
+                    wiki_doc_links[rel] = tuple(kl.doc_targets)
+                if kl.code_targets:
+                    wiki_code_links[rel] = tuple(kl.code_targets)
+                if kl.type_refs:
+                    wiki_type_refs[rel] = tuple(kl.type_refs)
+                if kl.embed_targets:
+                    wiki_embeds[rel] = tuple(kl.embed_targets)
+                wiki_totals["documents"] += 1
+                wiki_totals["doc_edges"] += len(kl.doc_targets)
+                wiki_totals["code_edges"] += len(kl.code_targets)
+                wiki_totals["type_refs"] += len(kl.type_refs)
+                wiki_totals["unresolved"] += kl.unresolved
+                wiki_totals["ambiguous"] += kl.ambiguous
+                wiki_totals["deferred"] += kl.deferred
             n_external = len(parsed.external_links)
             doc_totals["count"] += 1
             doc_totals["sections"] += len(parsed.sections)
@@ -657,6 +785,46 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
                 "guard_count": 0,
                 "long_functions": [],
             }
+
+    # ----------------------------------------------------------------------- #
+    # TYPE PASS. Serial, in the parent, and not on the disk cache -- the same
+    # per-file/whole-repo split as import resolution and the document pass:
+    # EXTRACTION is per-file (it rides ``FileAnalysis.type_facts`` and therefore
+    # the content-keyed cache), RESOLUTION needs the whole repo (which file
+    # declares ``Result``? does THIS file import it?) and no single-file worker
+    # can know that. Measured 0.13s over daedalus/'s 143 Python files.
+    #
+    # PLACED HERE ON PURPOSE, and the position is the review artifact: it is
+    # AFTER ``import_targets_by_rel`` is complete (the resolver FILTERS the
+    # import graph rather than recomputing imports, so a type edge can never
+    # contradict the import graph) and BEFORE ``_RESOLVER_CACHE`` is populated
+    # below -- so a reader can see with their eyes that ``build_resolver`` is
+    # called with ``all_units + doc_units`` and nothing type-shaped, which is
+    # invariant I2. Nothing produced here is added to ``modules``,
+    # ``import_edges``, ``import_edges_reverse``, ``dep_edges``, ``fan_in``,
+    # ``all_units`` or ``lang_summary``; the three published keys are new keys.
+    # ----------------------------------------------------------------------- #
+    type_blocks: dict = {}
+    if types_on:
+        type_graph = typegraph_mod.resolve_type_graph(
+            facts_by_rel=type_facts_by_rel,
+            # The import graph already built above, passed VERBATIM. Not
+            # recomputed: two answers to "what does this file import" would
+            # eventually disagree, and the type layer must lose that argument by
+            # construction rather than by luck.
+            imports_by_file=import_targets_by_rel,
+            # The index's OWN naming tables, so a center-relative repo resolves
+            # annotations through the same dotted namespace its imports use.
+            naming=py_naming,
+            # A snapshot, not the live defaultdict: coverage must report every
+            # non-Python language as ``not_supported`` and must not be able to
+            # grow a language key by being read.
+            languages=dict(lang_summary),
+            # SAME withholding boundary as ``all_units``: a shell file's own
+            # types are not published and not counted.
+            ignored=ignored,
+        )
+        type_blocks = type_graph.to_index_blocks()
 
     # Reverse of ``import_targets_by_rel``: who imports ME. Built ONCE here
     # because it is index-invariant, and ``semantic_slice`` is called in a loop
@@ -707,7 +875,15 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
     # wholesale to build the BM25 lexical corpus, so heading titles become
     # searchable evidence and a specification stops being invisible to the
     # planner. Documents stay OUT of ``all_units`` so no clone pass sees prose.
-    _RESOLVER_CACHE[_scope_key(root, scope, docs_on)] = graph.build_resolver(
+    #
+    # AND NOTHING TYPE-SHAPED IS IN THAT ARGUMENT LIST (invariant I2). The type
+    # layer resolves annotations against its OWN ``typegraph.types_by_file``
+    # table, which is never merged in here. If a class were in ``defs_by_file`` it
+    # would displace a same-named function (``resolve`` takes the first match),
+    # and if a field name were, ``graph.callees`` -- which resolves EVERY
+    # identifier token in a body -- would turn ``path``, ``root``, ``name``,
+    # ``line``, ``source`` into fabricated CALL edges in every slice.
+    _RESOLVER_CACHE[_scope_key(root, scope, docs_on, types_on, wiki_on)] = graph.build_resolver(
         all_units + doc_units, import_targets_by_rel)
 
     churn = git_churn(root)
@@ -773,10 +949,37 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
         # ``fan_in``, ``fenced_dominance`` and every reachability answer derived
         # from the import graph. The forest is a MULTIPLEX graph precisely so a
         # second kind of relation gets its own layer instead of contaminating one.
+        if wiki_on:
+            # OWN LAYER, never merged into document_links. A doc->doc wikilink
+            # and a doc->code reference are different relations, and `type_refs`
+            # are names NOBODY resolved -- publishing them as edges would assert
+            # a binding that was never made.
+            extra["wiki"] = dict(wiki_totals, enabled=True,
+                                 note=("type_refs are UNRESOLVED names; the type "
+                                       "layer owns resolution and is not consulted "
+                                       "here"))
+            extra["wiki_links"] = {k: list(v) for k, v in sorted(wiki_doc_links.items())}
+            extra["wiki_code_links"] = {k: list(v) for k, v in sorted(wiki_code_links.items())}
+            extra["wiki_type_refs"] = {k: list(v) for k, v in sorted(wiki_type_refs.items())}
+            extra["wiki_embeds"] = {k: list(v) for k, v in sorted(wiki_embeds.items())}
         extra["document_links"] = {
             m: sorted(t) for m, t in sorted(doc_links.items())}
         extra["document_links_reverse"] = {
             m: sorted(s) for m, s in sorted(doc_rev.items())}
+
+    # SAME GATE, SAME REASON as ``documents``: three keys that are simply absent
+    # when the layer is off, so a pre-type consumer sees the dict it always saw.
+    # ``type_nodes`` and ``type_edges`` are a SEPARATE NODE NAMESPACE
+    # (``type:rel#Qual`` / ``field:rel#Qual.name``) and a SEPARATE RELATION LAYER,
+    # for the reason a document link is not an import, one level sharper: a type
+    # node has no bytes on disk at all. Folding either into ``modules`` or
+    # ``import_edges`` would put a node with no forward edges into
+    # ``graph._graph_nodes`` -- diluting ``fenced_dominance``'s denominator, so
+    # the fence's stand-down threshold stops firing and every task stays on the
+    # premium lane. That is real money spent for a bookkeeping reason, which is
+    # why the three keys below are the ONLY thing this layer adds.
+    if types_on:
+        extra.update(type_blocks)
 
     return {
         **extra,
@@ -831,7 +1034,7 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
         # The (root, scope) identity of THIS index. Additive. Lets a consumer
         # holding only the index dict ask for the resolver built alongside it
         # (``resolution_context``) instead of guessing at the bare-root key.
-        "scope_key": _scope_key(root, scope, docs_on),
+        "scope_key": _scope_key(root, scope, docs_on, types_on, wiki_on),
         "hotspots": scored[:15],
         # Full ranking (same pass as ``hotspots``) so the map can heat-shade
         # every node, not just the top 15.
@@ -854,9 +1057,10 @@ def build_index(root, max_files: int = 20000, center=None, ignore=None,
 _RESOLVER_CACHE: dict[str, "graph.SymbolResolver"] = {}
 
 
-def _scope_key(resolved: Path, scope, documents: bool = False) -> str:
+def _scope_key(resolved: Path, scope, documents: bool = False,
+               types: bool = False, wiki=False) -> str:
     """Cache identity of an index: its root, the scope when one is declared, and
-    whether documents were indexed.
+    which optional layers were indexed.
 
     SINGLE SOURCE OF TRUTH for both ``_INDEX_CACHE`` and ``_RESOLVER_CACHE``.
     They are two views of one build and MUST agree; when they were keyed by
@@ -871,10 +1075,25 @@ def _scope_key(resolved: Path, scope, documents: bool = False) -> str:
     for the other would present as the feature silently not working in one
     process and silently working in the next -- the worst kind of bug to chase,
     and the exact failure the scope fingerprint was added to close.
+
+    ``types`` is part of the key for exactly that reason and no weaker one: a
+    type-bearing index carries three keys the other does not, so serving one for
+    the other presents as the layer silently missing in one process and silently
+    present in the next.
+
+    THE SUFFIX ORDER IS FIXED -- ``base`` then ``+docs`` then ``+types`` -- so
+    the four flag combinations produce four distinct keys and no two of them can
+    collide by being spelled in a different order.
     """
     unscoped = not scope.center and not scope.ignore
     base = str(resolved) if unscoped else f"{resolved}#{scope.fingerprint}"
-    return f"{base}+docs" if documents else base
+    if documents:
+        base = f"{base}+docs"
+    if types:
+        base = f"{base}+types"
+    if wiki:
+        base = f"{base}+wiki"
+    return base
 
 
 def resolution_context(repo_root, key: str | None = None) -> "graph.SymbolResolver | None":
@@ -903,7 +1122,9 @@ def _build_lock(key: str) -> threading.Lock:
 
 
 def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
-                 center=None, ignore=None, documents: bool | None = None) -> dict:
+                 center=None, ignore=None, documents: bool | None = None,
+                 types: bool | None = None,
+                 wiki: bool | None = None) -> dict:
     """Process-wide index cache keyed by resolved repo root. build_index is
     expensive on big repos; the first caller warms it and everyone (the web
     endpoints, the Ikarus chat brain) reuses it. ``refresh`` forces a rebuild.
@@ -929,8 +1150,19 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
     # ``build_index`` would let the two disagree if it changed between the two
     # reads, and the cache would then be keyed for one answer while holding the
     # other.
+    # ``types`` is resolved here for the same reason and with the same hazard: a
+    # key built from one reading of the env var and a build from another would
+    # cache a type-bearing index under the key for a type-free one.
     docs_on = documents_enabled(documents)
-    key = _scope_key(resolved, scope, docs_on)
+    types_on = types_enabled(types)
+    # ``wiki`` follows the identical discipline, and for the identical hazard:
+    # resolved ONCE here so the key and the build cannot disagree. It also
+    # depends on ``docs_on``, so that conjunction is computed here too rather
+    # than being re-derived inside build_index where the key can no longer see
+    # it -- a key that said "+wiki" over a wiki-free index is exactly the
+    # silent-mismatch bug the documents flag already had to close.
+    wiki_on = wiki_enabled(wiki) and docs_on
+    key = _scope_key(resolved, scope, docs_on, types_on, wiki_on)
     if not refresh and key in _INDEX_CACHE:
         return _INDEX_CACHE[key]
     with _build_lock(key):
@@ -941,7 +1173,8 @@ def cached_index(repo_root, refresh: bool = False, max_files: int = 20000,
         if key not in _INDEX_CACHE:
             _INDEX_CACHE[key] = build_index(repo_root, max_files=max_files,
                                            center=center, ignore=ignore,
-                                           documents=docs_on)
+                                           documents=docs_on, types=types_on,
+                                           wiki=wiki_on)
         return _INDEX_CACHE[key]
 
 
