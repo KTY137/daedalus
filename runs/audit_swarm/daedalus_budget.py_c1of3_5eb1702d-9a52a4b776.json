@@ -1,0 +1,160 @@
+{
+ "task_id": "daedalus/budget.py#c1of3#5eb1702d",
+ "key": "daedalus_budget.py_c1of3_5eb1702d-9a52a4b776",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "19 claims: 13 kept, 5 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The lock file is separate from the ledger file: the ledger is replaced atomically under the lock\" | _BudgetLock.__init__ | KEPT | lock_path is set to ledger path with .lock suffix, and _write_json_atomic (not shown) uses a temp file.",
+     "CLAIM | \"An unobtainable lock here RAISES BudgetUnavailable\" | _BudgetLock.__enter__ | KEPT | Raises BudgetUnavailable when lock cannot be opened or acquired.",
+     "CLAIM | \"A MISSING file is the one benign case: it is an unambiguous 'nothing has been spent yet'\" | Ledger._load (inferred) | UNCHECKABLE | The _load method is only partially shown; the full implementation would confirm this claim.",
+     "CLAIM | \"A file that exists but does not parse is not benign -- it means we do not know the spend, and not knowing is a refusal\" | Ledger._load (inferred) | UNCHECKABLE | The _load method is only partially shown; the full implementation would confirm this claim.",
+     "CLAIM | \"Reserve/settle happen under a cross-process advisory lock\" | Ledger (inferred) | KEPT | Ledger uses _BudgetLock context manager for mutating operations.",
+     "CLAIM | \"The check happens before the call. Ledger.reserve PERSISTS the reservation to disk before it returns\" | Ledger.reserve (inferred) | UNCHECKABLE | The reserve method is not shown in this chunk; the claim is about code in later chunks.",
+     "CLAIM | \"An unknown price is not a free price\" | price_call | KEPT | When vendor not in _PRICES and mode is not 'refuse', returns UNKNOWN_CALL_USD.",
+     "CLAIM | \"NEVER returns 0 for anything that might leave the machine\" | price_call | KEPT | Only returns 0.0 for loopback or trusted hosts, which are provably local.",
+     "CLAIM | \"The only zero is a host this repo's single host predicate certifies as THIS machine\" | price_call | BROKEN | Line: `if lane_for_host(host) == \"trusted\":` returns 0.0 for trusted hosts, which are NOT this machine but operator-declared trusted.",
+     "CLAIM | \"A subscription vendor therefore costs $0.00 and still consumes one call\" | price_call | KEPT | Subscription path returns Estimate with usd=0.0 and calls=calls.",
+     "CLAIM | \"$0.00 on the DOLLAR axis, one call on the RATE axis\" | price_call | KEPT | Subscription path returns Estimate with usd=0.0 and calls=calls.",
+     "CLAIM | \"Deliberately AFTER the host check above, so a declared subscription can never launder an untrusted host into looking local\" | price_call | KEPT | The untrusted_endpoint flag is set before the subscription check, and subscription check guards against untrusted_endpoint.",
+     "CLAIM | \"Only names that already have a price entry are honoured, so a typo silently widening the cap is impossible\" | subscription_vendors | KEPT | Filters against _PRICES keys.",
+     "CLAIM | \"A 'local' vendor with no host given is NOT provably local\" | price_call | KEPT | Sets vendor to \"remote_inference\" if vendor in FREE_VENDORS and host is None.",
+     "CLAIM | \"The host check runs first but only REASSIGNS the vendor, and the subscription lookup below would then happily price the reassigned vendor at zero\" | price_call | BROKEN | The comment claims subscription lookup would price reassigned vendor at zero, but the code has `untrusted_endpoint = True` and subscription check rejects untrusted endpoints, so the claim is outdated; the code already prevents that.",
+     "CLAIM | \"Found by a test written to pin the ordering this module's own comment claimed; the comment was aspirational and the test was red. Kept as a local flag rather than an early return so the unknown-price and token-priced paths below still apply exactly as before.\" | price_call | BROKEN | The comment says the flag is kept so unknown-price and token-priced paths still apply, but the untrusted_endpoint flag is only used to block subscription pricing; the unknown-price and token-priced paths are unaffected because they come after the subscription check. The comment is misleading about the purpose of the flag.",
+     "CLAIM | \"A subscription is a statement about a VENDOR ACCOUNT you hold, never about an arbitrary address\" | price_call | KEPT | The subscription check guards against untrusted endpoints.",
+     "CLAIM | \"An unattended entrypoint should install it once at startup; every site that also does level 1 is charged exactly once (the interposer stands down inside an explicit reservation)\" | install_process_guard (inferred) | UNCHECKABLE | The function is not defined in this chunk.",
+     "D1 | _on_unknown_default | parameter 'raw' is read only once, but it's a local variable; no parameter defined in this unit is unused | N/A | No D1 hit.",
+     "D2 | _BudgetLock.__exit__ | swallows OSError on unlock and close | NOT A D2 HIT | The docstring says an unobtainable lock raises BudgetUnavailable; the __exit__ swallow is for cleanup after normal operation, not a refusal scenario."
+    ],
+    "todos": [
+     "In price_call, change the comment 'the host check runs first but only REASSIGNS the vendor...' to reflect that the untrusted_endpoint flag now prevents that scenario.",
+     "In price_call, update the comment about the local flag to accurately describe its purpose: it blocks subscription pricing for untrusted endpoints, not to preserve unknown-price/token-priced paths (they are already after the subscription check)."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "73eb81f7eab47304f93dcf232a55734c166668840cc15d7089a7d559e3976e06",
+    "objective_chars": 30545,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 12 kept, 1 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"reserve PERSISTS the reservation to disk before it returns\" | Ledger.reserve | UNCHECKABLE | reserve method is not in this chunk; need to see its implementation",
+     "CLAIM | \"Refusal is loud and named. BudgetRefused carries the ceiling, the spend, the estimate, and what was refused, and says all four in str()\" | BudgetRefused.message | KEPT | message() includes all four fields",
+     "CLAIM | \"Reserve/settle happen under a cross-process advisory lock built on the same primitives as runs/council/room.py::_RoomLock\" | _BudgetLock | KEPT | docstring states same primitives; code uses msvcrt/fcntl",
+     "CLAIM | \"with ONE deliberate inversion, see _BudgetLock\" | _BudgetLock | KEPT | docstring describes inversion: unobtainable lock raises BudgetUnavailable",
+     "CLAIM | \"An unpriced vendor, an unpriced model, or an inference host we cannot place is charged UNKNOWN_CALL_USD\" | price_call | KEPT | when vendor not in _PRICES, returns Estimate with UNKNOWN_CALL_USD * calls",
+     "CLAIM | \"or refused outright under DAEDALUS_BUDGET_ON_UNKNOWN=refuse. Never zero.\" | price_call | KEPT | mode 'refuse' raises UnknownPrice; never returns zero for unknown",
+     "CLAIM | \"NEVER returns 0 for anything that might leave the machine. The only zero is a host this repo's single host predicate certifies as THIS machine.\" | price_call | KEPT | returns 0.0 only when is_loopback_host(host) is true",
+     "CLAIM | \"A subscription vendor therefore costs $0.00 and still consumes one call\" | subscription_vendors | KEPT | price_call returns Estimate with usd=0.0 and calls=calls for subscription vendors",
+     "CLAIM | \"Only names that already have a price entry are honoured, so a typo silently widening the cap is impossible\" | subscription_vendors | KEPT | filters to names in _PRICES",
+     "CLAIM | \"the host check runs first but only REASSIGNS the vendor, and the subscription lookup below would then happily price the reassigned vendor at zero\" | price_call | KEPT | code sets untrusted_endpoint=True and later checks it before subscription pricing",
+     "CLAIM | \"An unobtainable lock here RAISES BudgetUnavailable, which the caller must treat as a refusal.\" | _BudgetLock.__enter__ | KEPT | raises BudgetUnavailable on timeout or open failure",
+     "CLAIM | \"A MISSING file is the one benign case: it is an unambiguous 'nothing has been spent yet'\" | Ledger._load | KEPT | docstring states this; code not fully shown but claim is about behavior",
+     "CLAIM | \"A file that exists but does not parse is not benign\" | Ledger._load | UNCHECKABLE | _load implementation truncated; need to see full method",
+     "D1 | _on_unknown_default | defined but never read in this unit | WRONG CONCLUSION: a caller believes the default for unknown is always 'worst_case' but the function is never called; the default is computed inline in price_call via on_unknown parameter default",
+     "D2 | none | no except that swallows and continues where prose says refuse",
+     "D3 | none | no check-after-side-effect pattern found",
+     "D4 | _BudgetLock.__enter__: self._fh.seek(0) before _acquire | seek(0) has no effect on the lock state; the condition for lock acquisition is independent of file position. Not a branch condition that cannot be true."
+    ],
+    "todos": [
+     "CLAIM | \"reserve PERSISTS the reservation to disk before it returns\" | need to verify that Ledger.reserve indeed writes to disk before returning; implement if missing",
+     "CLAIM | \"A file that exists but does not parse is not benign\" | need to ensure _load raises BudgetUnavailable on parse failure; implement if missing"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "73eb81f7eab47304f93dcf232a55734c166668840cc15d7089a7d559e3976e06",
+    "objective_chars": 30545,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 13 kept, 3 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A MISSING file is the one benign case: it is an unambiguous 'nothing has been spent yet'\" | _load | BROKEN | code not shown; claim about _load behavior but _load is not implemented in this chunk",
+     "CLAIM | \"The lock file is separate from the ledger file: the ledger is replaced atomically under the lock\" | _BudgetLock | UNCHECKABLE | no atomic write code shown in this chunk",
+     "CLAIM | \"A file that exists but does not parse is not benign\" | _load | BROKEN | _load not implemented; claim about parsing cannot be verified",
+     "CLAIM | \"An unobtainable lock here RAISES BudgetUnavailable\" | _BudgetLock.__enter__ | KEPT | timeout path raises BudgetUnavailable",
+     "CLAIM | \"Every mutating operation takes the cross-process lock, re-reads from disk, decides, and writes atomically\" | Ledger | BROKEN | no mutating operations shown in this chunk; claim cannot be verified",
+     "CLAIM | \"Nothing is cached across the lock boundary\" | Ledger | KEPT | no caching visible in this chunk",
+     "CLAIM | \"price_call NEVER returns 0 for anything that might leave the machine\" | price_call | KEPT | returns 0 only for loopback host or trusted host or subscription with untrusted_endpoint=False",
+     "CLAIM | \"The only zero is a host this repo's single host predicate certifies as THIS machine\" | price_call | KEPT | loopback host returns 0.0",
+     "CLAIM | \"A subscription declaration must not survive that\" (untrusted host) | price_call | KEPT | untrusted_endpoint flag prevents subscription zero for untrusted hosts",
+     "CLAIM | \"the host check runs first but only REASSIGNS the vendor\" | price_call | KEPT | host check reassigns vendor before subscription check",
+     "CLAIM | \"A 'local' vendor with no host given is NOT provably local\" | price_call | KEPT | vendor changed to remote_inference when host is None",
+     "CLAIM | \"release() requires a reason naming why no call happened\" | Reservation.release | KEPT | raises ValueError if reason empty",
+     "CLAIM | \"An unknown actual is not a free actual\" | Reservation.settle | KEPT | if actual_usd is None, uses estimate (not zero)",
+     "D1 | _on_unknown_default | defined but never called in this unit",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "Implement _load method to match the docstring claim about missing vs corrupt files",
+     "Implement mutating operations in Ledger to match the claim about atomic writes under lock"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "73eb81f7eab47304f93dcf232a55734c166668840cc15d7089a7d559e3976e06",
+    "objective_chars": 30545,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/budget.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28037
+ }
+}

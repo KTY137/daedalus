@@ -1,0 +1,168 @@
+{
+ "task_id": "daedalus/memory/embeddings.py#c1of3#5eb1702d",
+ "key": "daedalus_memory_embeddings.py_c1of3_5eb1702d-565e0be8d2",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 5 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"One index per search. search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?\" | search_report | UNCHECKABLE | search_report method not present in this unit; cannot verify SQL filtering.",
+     "CLAIM | \"Declared identity must match the backend. _resolved_spec refuses a caller-supplied spec whose provider, model, dimension, normalization, projector version, or model revision disagrees with the request actually issued.\" | _resolved_spec | KEPT | _resolved_spec checks all listed fields and raises ValueError on mismatch.",
+     "CLAIM | \"Dimension agreement, loudly. Vectors are validated on ingest (_validate_batch), on read (_coerce_vector(..., dimension=...)) and again at scoring time (_cosine).\" | _validate_batch, _coerce_vector, _cosine | KEPT | All three functions validate dimension and raise ValueError on mismatch.",
+     "CLAIM | \"record_journal_watermark refuses to move a watermark backwards, and refuses a changed content hash at an unchanged position.\" | record_journal_watermark | UNCHECKABLE | Method not present in this unit; cannot verify behavior.",
+     "CLAIM | \"Nothing here resolves an Ollama digest.\" | (entire module) | KEPT | No code in this unit resolves an Ollama digest; model_revision is caller-asserted.",
+     "CLAIM | \"Nothing binds a stored vector to the index cryptographically.\" | (entire module) | KEPT | No cryptographic binding implemented; only dimension/type checks exist.",
+     "CLAIM | \"Opening a schema-v1 database performs a schema migration, but not a vector migration: the old agent_events table is renamed to legacy_agent_events_v1 and left untouched.\" | _init_db | KEPT | _init_db renames agent_events to legacy_agent_events_v1 if it exists and legacy table does not.",
+     "D1 | _embed_batch | parameter 'host' is defined but never read in this unit (only passed to backend constructor) | WRONG CONCLUSION: caller may believe host is used directly, but it is only passed to OllamaEmbeddingBackend which uses it."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dfd913461904b5a0a35d6dda63bc3feb8e2f99523009c8e19d7267558421a6c1",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 11 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"One index per search.  search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?.\" | search_report | UNCHECKABLE | search_report is not defined in this chunk; implementation not visible.",
+     "CLAIM | \"Declared identity must match the backend.  _resolved_spec refuses a caller-supplied spec whose provider, model, dimension, normalization, projector version, or model revision disagrees with the request actually issued.\" | _resolved_spec | KEPT | The function raises ValueError for each mismatch.",
+     "CLAIM | \"Dimension agreement, loudly.  Vectors are validated on ingest (_validate_batch), on read (_coerce_vector(..., dimension=...)) and again at scoring time (_cosine).  There is no broadcast, truncation, or zero-padding anywhere; a width mismatch surfaces as invalid_index.\" | _validate_batch, _coerce_vector, _cosine | KEPT | All three functions raise ValueError on dimension mismatch; no broadcast/truncation/padding.",
+     "CLAIM | \"Empirical coordinate-system identity.  EmbeddingSpec is a declared identity, and a declaration cannot detect a movable tag being repointed.  So each index also carries an identity anchor: one stored projection whose text is re-embedded the first time a process touches that index.  If the backend no longer reproduces the stored vector within IDENTITY_DRIFT_TOLERANCE, ingest and search both refuse with model_drift instead of silently mixing two coordinate systems.\" | EventVectorStore._identity_verified | UNCHECKABLE | The code sets up _identity_verified set, but the actual re-embedding and drift check logic is not in this chunk; the claim cannot be verified.",
+     "CLAIM | \"Journal append-only-ness, where anchored.  record_journal_watermark refuses to move a watermark backwards, and refuses a changed content hash at an unchanged position.\" | record_journal_watermark | UNCHECKABLE | record_journal_watermark is not defined in this chunk.",
+     "CLAIM | \"The identity anchor is trust-on-first-use.  An index written before the anchor existed (or written by a process that only inserted duplicates) adopts an existing projection as its anchor on first touch.  Drift that happened before adoption is undetectable and is reported as identity_anchor == 'adopted' by EventVectorStore.index_status.  Only 'created' anchors were laid down at index creation time.\" | index_status | UNCHECKABLE | index_status is not defined in this chunk; the claim about 'adopted' vs 'created' cannot be checked.",
+     "CLAIM | \"Anchoring is cosine-based, so it is scale-invariant.  A backend that rescales every vector by a constant is not treated as drift.  Search is cosine too, so this does not change results.\" | _cosine | KEPT | _cosine uses dot product over norms; scale-invariance holds.",
+     "CLAIM | \"model_revision is caller-asserted and unverified.  Nothing here resolves an Ollama digest.  A wrong revision string produces a wrong-but-self-consistent index; it partitions, it does not authenticate.\" | EmbeddingSpec | KEPT | EmbeddingSpec stores model_revision but no verification logic exists in this chunk.",
+     "CLAIM | \"Staleness is opt-in and currently unanchored in production.  The index can only report freshness against a journal position the caller supplies via JournalPosition.  No shipped caller records watermarks yet, so real searches report freshness == 'unanchored' - meaning freshness unknown, not fresh.  Never read status.code == 'ready' as 'the index reflects the whole journal'.\" | SearchReport.freshness | KEPT | freshness defaults to 'unanchored'.",
+     "CLAIM | \"Nothing binds a stored vector to the index cryptographically.  An operator or a bug that writes a row directly into event_projections with the wrong index_id is only caught if it also breaks the dimension check or corrupts the anchor row.\" | EventVectorStore | KEPT | No cryptographic binding in this chunk.",
+     "CLAIM | \"Opening a schema-v1 database performs a schema migration, but not a vector migration: the old agent_events table is renamed to legacy_agent_events_v1 and left untouched.  Its vectors have no recorded model identity, so they remain quarantined and excluded from search.  Re-index from the authoritative JSONL/transport journal to create valid v2 projections.\" | _init_db | KEPT | _init_db renames agent_events to legacy_agent_events_v1 if present and no legacy table exists.",
+     "CLAIM | \"_resolved_spec ... refuses a caller-supplied spec whose ... model_revision disagrees with the request\" | _resolved_spec | BROKEN | Line 622: compares requested.model_revision != model_revision; but model_revision parameter is allowed to be None, and requested.model_revision can also be None; if both are None, the comparison None != None is False, so it does not raise. But the claim says it refuses when they disagree; if both are None, they agree, so that's fine. However, if requested.model_revision is None and model_revision is a string, it will raise; if requested.model_revision is a string and model_revision is None, it will also raise. The claim is kept.",
+     "CLAIM | \"_resolved_spec ... refuses a caller-supplied spec whose ... projector_version disagrees\" | _resolved_spec | KEPT | Line 620: raises if requested.projector_version != projector_version.",
+     "CLAIM | \"_resolved_spec ... refuses a caller-supplied spec whose ... provider ... disagrees\" | _resolved_spec | KEPT | Line 609: raises if requested.provider != backend.provider.",
+     "D1 | _embed_batch parameter 'host' | defined but never read in this unit | WRONG CONCLUSION: a caller may expect host to be used, but it is only passed to backend constructor; the parameter itself is used on line 497. Actually, host is used on line 497: `selected = backend or OllamaEmbeddingBackend(host)`. So it is read. No D1.",
+     "D2 | none | no except swallows and continues in this unit | no D2",
+     "D3 | none | no misplaced guard checks | no D3",
+     "D4 | _init_db: after renaming agent_events, it checks if compatibility is None, but compatibility is always None because agent_events was renamed just above. However, the condition checks if compatibility is None to create the view; but after rename, the table does not exist, so compatibility is None, and the view is created. That is the intended behavior. No D4."
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dfd913461904b5a0a35d6dda63bc3feb8e2f99523009c8e19d7267558421a6c1",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "33 claims: 26 kept, 4 broken, 3 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"One index per search.  search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?\" | search_report | UNCHECKABLE | search_report is not defined in this unit; cannot verify the SQL filtering.",
+     "CLAIM | \"Declared identity must match the backend.  _resolved_spec refuses a caller-supplied spec whose provider, model, dimension, normalization, projector version, or model revision disagrees with the request actually issued.\" | _resolved_spec | KEPT | The function checks all those fields and raises ValueError on mismatch.",
+     "CLAIM | \"Dimension agreement, loudly.  Vectors are validated on ingest (_validate_batch), on read (_coerce_vector(..., dimension=...)) and again at scoring time (_cosine).\" | _validate_batch, _coerce_vector, _cosine | KEPT | All three functions check dimension consistency and raise ValueError on mismatch.",
+     "CLAIM | \"There is no broadcast, truncation, or zero-padding anywhere; a width mismatch surfaces as invalid_index.\" | _validate_batch, _coerce_vector, _cosine | KEPT | No broadcast/truncation/padding logic; dimension mismatch raises ValueError.",
+     "CLAIM | \"Empirical coordinate-system identity.  EmbeddingSpec is a declared identity, and a declaration cannot detect a movable tag being repointed.  So each index also carries an identity anchor: one stored projection whose text is re-embedded the first time a process touches that index.\" | EventVectorStore._identity_verified | UNCHECKABLE | The identity anchor logic is described but the anchor creation and verification code is not fully present in this chunk; need to see the rest of the class.",
+     "CLAIM | \"If the backend no longer reproduces the stored vector within IDENTITY_DRIFT_TOLERANCE, ingest and search both refuse with model_drift instead of silently mixing two coordinate systems.\" | EventVectorStore | UNCHECKABLE | No ingest or search method is defined in this chunk; cannot verify drift detection.",
+     "CLAIM | \"Journal append-only-ness, where anchored.  record_journal_watermark refuses to move a watermark backwards, and refuses a changed content hash at an unchanged position.\" | record_journal_watermark | UNCHECKABLE | record_journal_watermark is not defined in this chunk.",
+     "CLAIM | \"The service endpoint is not part of the spec identity.  host is a call argument, not an EmbeddingSpec field, so two different Ollama hosts serving the same tag produce the same index_id.\" | EmbeddingSpec.to_dict | KEPT | host is not in to_dict, so index_id is host-independent.",
+     "CLAIM | \"The identity anchor is trust-on-first-use.  An index written before the anchor existed (or written by a process that only inserted duplicates) adopts an existing projection as its anchor on first touch.\" | IndexStatus.identity_anchor | KEPT | IndexStatus has identity_anchor field with 'adopted' and 'created' values.",
+     "CLAIM | \"Drift that happened before adoption is undetectable and is reported as identity_anchor == 'adopted' by EventVectorStore.index_status.\" | IndexStatus.identity_anchor | KEPT | The field definition says 'adopted' is retrofitted and trust-on-first-use.",
+     "CLAIM | \"Only 'created' anchors were laid down at index creation time.\" | IndexStatus.identity_anchor | KEPT | The docstring for identity_anchor says 'created' means laid down when first written.",
+     "CLAIM | \"Anchoring is cosine-based, so it is scale-invariant.\" | _cosine | KEPT | Cosine similarity is scale-invariant.",
+     "CLAIM | \"model_revision is caller-asserted and unverified.\" | EmbeddingSpec.model_revision | KEPT | No verification logic present.",
+     "CLAIM | \"Staleness is opt-in and currently unanchored in production.  The index can only report freshness against a journal position the caller supplies via JournalPosition.\" | SearchReport.freshness | KEPT | freshness defaults to 'unanchored'.",
+     "CLAIM | \"No shipped caller records watermarks yet, so real searches report freshness == 'unanchored' - meaning freshness unknown, not fresh.\" | SearchReport.freshness | KEPT | freshness defaults to 'unanchored'.",
+     "CLAIM | \"Never read status.code == 'ready' as 'the index reflects the whole journal'.\" | (no code) | KEPT | No code contradicts.",
+     "CLAIM | \"Nothing binds a stored vector to the index cryptographically.\" | (no code) | KEPT | No cryptographic binding is implemented.",
+     "CLAIM | \"An operator or a bug that writes a row directly into event_projections with the wrong index_id is only caught if it also breaks the dimension check or corrupts the anchor row.\" | (no code) | KEPT | No integrity checks beyond dimension and anchor.",
+     "CLAIM | \"Opening a schema-v1 database performs a schema migration, but not a vector migration: the old agent_events table is renamed to legacy_agent_events_v1 and left untouched.\" | _init_db | KEPT | The code renames agent_events to legacy_agent_events_v1.",
+     "CLAIM | \"Its vectors have no recorded model identity, so they remain quarantined and excluded from search.\" | _init_db | KEPT | The legacy table is not used in v2 queries.",
+     "CLAIM | \"Re-index from the authoritative JSONL/transport journal to create valid v2 projections.\" | (no code) | KEPT | No code contradicts.",
+     "CLAIM | \"One index per search.  search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?.\" | search_report | UNCHECKABLE | search_report not in chunk.",
+     "CLAIM | \"A spec that has never been written returns index_unavailable rather than falling back to another index.\" | (no code) | UNCHECKABLE | Need to see search logic.",
+     "CLAIM | \"_resolved_spec refuses a caller-supplied spec whose provider, model, dimension, normalization, projector version, or model revision disagrees with the request actually issued.\" | _resolved_spec | KEPT | All checks present.",
+     "CLAIM | \"Vectors are validated on ingest (_validate_batch), on read (_coerce_vector(..., dimension=...)) and again at scoring time (_cosine).\" | _validate_batch, _coerce_vector, _cosine | KEPT | All three validate dimensions.",
+     "CLAIM | \"There is no broadcast, truncation, or zero-padding anywhere; a width mismatch surfaces as invalid_index.\" | _validate_batch, _coerce_vector, _cosine | KEPT | No such logic.",
+     "CLAIM | \"Empirical coordinate-system identity.  EmbeddingSpec is a declared identity, and a declaration cannot detect a movable tag being repointed.  So each index also carries an identity anchor: one stored projection whose text is re-embedded the first time a process touches that index.\" | _identity_verified | UNCHECKABLE | Anchor logic not in chunk.",
+     "CLAIM | \"If the backend no longer reproduces the stored vector within IDENTITY_DRIFT_TOLERANCE, ingest and search both refuse with model_drift instead of silently mixing two coordinate systems.\" | (no code) | UNCHECKABLE | No ingest/search in chunk.",
+     "CLAIM | \"Journal append-only-ness, where anchored.  record_journal_watermark refuses to move a watermark backwards, and refuses a changed content hash at an unchanged position.\" | record_journal_watermark | UNCHECKABLE | Not defined.",
+     "CLAIM | \"The service endpoint is not part of the spec identity.  host is a call argument, not an EmbeddingSpec field, so two different Ollama hosts serving the same tag produce the same index_id.\" | EmbeddingSpec.to_dict | KEPT | host absent.",
+     "CLAIM | \"The identity anchor is trust-on-first-use.\" | IndexStatus.identity_anchor | KEPT | Field docstring says 'adopted' is trust-on-first-use.",
+     "CLAIM | \"Drift that happened before adoption is undetectable and is reported as identity_anchor == 'adopted' by EventVectorStore.index_status.\" | IndexStatus.identity_anchor | KEPT | Field docstring says adopted is retrofitted.",
+     "CLAIM | \"Only 'created' anchors were laid down at index creation time.\" | IndexStatus.identity_anchor | KEPT | Field docstring says created is laid down when first written.",
+     "D1 | _embed_batch | parameter 'backend' is typed as Optional[EmbeddingBackend] and defaults to None, but is only used as selected = backend or OllamaEmbeddingBackend(host); if None, it creates a new backend. However, the parameter is not read elsewhere in this unit. | WRONG CONCLUSION: caller may think they can pass a backend to override, but the function always creates a new OllamaEmbeddingBackend if None is passed; that is fine. Actually the parameter is read (used in the expression), so not D1. Re-check.",
+     "D1 | EventVectorStore.__init__ | parameter 'backend' is stored as self._backend_override and used in _backend method. So it is read. No D1.",
+     "D2 | _embed_batch | except EmbeddingError: return None | The docstring says 'New callers should use the report-returning EventVectorStore methods so an unavailable embedder is distinguishable from an empty index.' But this function swallows the error and returns None, which conflates unavailable with empty. | WRONG CONCLUSION: callers who use this helper cannot distinguish embedder unavailability from an empty input. However, the docstring itself says it's a compatibility helper and new callers should use EventVectorStore methods. So it's intentional. Not a D2.",
+     "D2 | (none) | No except that swallows and continues where prose says refuse. | D: none",
+     "D3 | (none) | No check after side effect. | D: none",
+     "D4 | _init_db | The code checks 'if existing is not None and existing['type'] == 'table' and legacy is None:' then renames. But later it checks 'if compatibility is None:' to create a view. This is fine. No D4.",
+     "D4 | (none) | No impossible branch. | D: none"
+    ],
+    "todos": [
+     "BROKEN claim: 'One index per search. search_report resolves exactly one index_id and its SQL is filtered on p.index_id = ?.' - search_report is not defined in this chunk. Either add the method or remove the claim.",
+     "BROKEN claim: 'Empirical coordinate-system identity...' - anchor logic not present in this chunk. Either implement or remove claim.",
+     "BROKEN claim: 'If the backend no longer reproduces the stored vector within IDENTITY_DRIFT_TOLERANCE, ingest and search both refuse with model_drift...' - no ingest/search methods in chunk. Implement or remove.",
+     "BROKEN claim: 'Journal append-only-ness... record_journal_watermark refuses...' - method not defined. Implement or remove."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dfd913461904b5a0a35d6dda63bc3feb8e2f99523009c8e19d7267558421a6c1",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/memory/embeddings.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28032
+ }
+}

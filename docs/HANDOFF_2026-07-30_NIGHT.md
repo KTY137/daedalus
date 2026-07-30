@@ -149,6 +149,19 @@ Measured tonight, and it settles the question:
   test files caught, 0 false positives across 336 real files**, deterministic,
   microseconds.
 
+**CONFOUNDED COMPARISON (audit 2026-07-30):** The "8 DeepSeek refuters → 0 findings"
+result above rests on a confounded measurement. Today's audit (`tools/audit_swarm.py`,
+committed 65e2878) found the cause: `build_prompt` prepends an instruction forbidding
+chain-of-thought and appends a worked example showing `"risks": []` as empty. Every
+defect worth finding is a multi-step COMPARISON, and the highest-authority message in
+the request forbade the scratchpad while demonstrating the empty answer. A later
+fan-out over 169 modules returned 2 findings from 715 answers for the same reason.
+**Before citing this result, re-run it with `system_override` to bind a corrected
+system message** (now available on `DeepSeekProvider.run`).
+
+The AST-checks result below (3/3 destructions, 0 false positives across 336 files)
+is unaffected and remains MEASURED.
+
 A micro-Nemesis as a second *model* is the expensive version of what just failed.
 As a *deterministic check* it is what worked. Pair agents and you double the cost
 and lower the detection rate.
@@ -199,19 +212,26 @@ Two things that cost hours tonight, so they do not cost them again:
   concurrently edited, which this one is. Without it the gate carries the
   uncommitted diff and cannot produce an interpretable baseline.
 - **The earlier `baseline_red` was a TIMEOUT, not red tests.** `pytest exit None`
-  means the subprocess never returned. `DEFAULT_TIMEOUT_S` is 900; the suite runs
-  in ~105 s idle but blew past 900 under a hundred concurrent agents. Run the
-  gate on a quiet machine, or raise `--timeout`.
+  means the subprocess never returned. `DEFAULT_TIMEOUT_S` is 900. The suite
+  duration is **MEASURED 2026-07-30 at 765.47 s (12:45), full suite idle, HEAD
+  93f1ce3** — not the ~105 s previously cited. Run the gate on a quiet machine,
+  or raise `--timeout`.
 
 **DURATION — MEASURED, not inherited.** This morning (task be876lplf):
 baseline green, then mutation 1 at 11:15–11:36 (21 min), mutation 2 at 11:53,
 i.e. ~18 minutes per mutation. Budget **~3.6 hours for twelve** mutations, not the
-two hours this handoff initially budgeted. The cause is **environmental, not a
-code defect.** `python -m tools.gate_host_preflight` on the primary box reports
-`Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz`, `physical=4 logical=8`, 15.7 GiB
-RAM: a 15 W four-core 2019 laptop part thermally throttled under twelve
-consecutive full-suite runs. A kill rate is comparable across machines; a
-duration is not. MEASURED 2026-07-30.
+two hours initially budgeted.
+
+**CORRECTION:** Earlier this document attributed the ~18 min per mutation to a
+factor-of-ten mystery — ~105 s baseline under thermal throttle. The full suite
+actually runs in **765.47 s (12:45)** on this box at idle (MEASURED 2026-07-30,
+HEAD 93f1ce3). The honest arithmetic is: 12m45s of tests + ~5 min sandbox
+overhead per mutation = ~18 min observed. There is no factor-of-ten mystery. The
+hardware *is* slow (`Intel(R) Core(TM) i7-10510U CPU @ 1.80GHz`, 4 physical
+cores, 15 W laptop part) and a faster machine helps proportionally, but the
+causal story was wrong. The 105 s baseline was stale (INHERITED from an earlier
+handoff, no longer valid). A kill rate is comparable across machines; a duration
+is not. MEASURED 2026-07-30.
 
 **Before running the gate on any machine, use the host preflight:**
 
@@ -223,8 +243,12 @@ python -m tools.gate_host_preflight --json       # emit the host block
 Exit 0 means every required check passed. The preflight will also report why an
 optional check (tree_sitter_language_pack, lizard) is missing and how that lowers
 precision — it does not fail the run. One check is the precision guard of last
-resort: "daedalus resolves to THIS checkout". See `tools/gate_host_preflight.py`:0
-and ADR-015 Finding 1.
+resort: **UPDATED 2026-07-30** — The evolution runner uses `sys.executable, "-m",
+"pytest"` with `cwd=candidate.worktree_path` (since 2026-07-29), which ensures the
+candidate's code wins by sys.path ordering. Commit e822561 added
+`daedalus/eval/provenance.py`, which VERIFIES this ordering before evaluation
+runs (not relying on sys.path alone), and voids the evaluation (score -1.0) if
+provenance fails — see `tools/gate_host_preflight.py`:0.
 
 **The `--coverage-guided` flag is opt-in, not default.** A run reporting `0
 pre-excluded by coverage` was simply not asked to exclude anything — it is not a
@@ -402,6 +426,16 @@ layer.
 - **A plausible pattern is not a mechanism.** "Concurrent → nothing recorded" was
   a correct observation, a plausible story and a wrong conclusion. The two-line
   experiment that distinguished them cost less than writing up the wrong one.
+- **A document that cites a measurement and carries no date silently becomes
+  false.** Three of today's four stale claims were exactly this shape: a ~105 s
+  baseline inherited without context, a confounded fan-out result cited without
+  qualification, an ADR that named a measurement without dating it. Fourth
+  instance: a mutation's `incident` field predicted `read_inlined_context_inverted_skip`
+  would SURVIVE, citing FITNESS_SIGNAL.md 4.1; it was KILLED because
+  `tests/test_inlined_context_enforcement.py` landed 2026-07-29 (d5a25d1) *after*
+  that measurement. The prediction was mechanically sound; the measurement was
+  stale before it was written down. This is not a theory — this is a standing bug
+  in the handoff discipline: numbers need dates.
 - **The agents never see the graph.** No provider module references `structcore`,
   `build_index`, `typegraph` or `forest`. Context is `read_inlined_context` —
   raw file bytes, nothing else. All three measured hallucinations would have been
@@ -463,3 +497,37 @@ ahead of origin, nothing pushed. HEAD is `fe634b5` (MEASURED,
 > false-positive number for the brief itself; the only honest number today is
 > the unit-test pass count above, not a claim about downstream hallucination
 > rate.
+
+---
+
+## 9. Receipt facts
+
+**Receipt #1 (2026-07-30, night shift):** 12 planted, 12 killed, 0 survived,
+whole-suite scope, at `fe634b58`. `host: None` (the host-stamping commit
+`4524079` landed after that run started). `proven=False` because HEAD moved
+before the receipt could bind.
+
+**Receipt #2 (2026-07-30, early morning):** FAILED with `baseline_red -- baseline
+pytest exit 1`. Root cause: `daedalus/atomic.py` change blinded the name-based
+producer detector in `tests/test_envelope_coverage.py` — a CALIBRATION test that
+correctly refused to trust its own green results rather than silently passing a
+broken detection. Fixed in 65e2878 (same commit that addressed the confounded
+measurement in §2).
+
+**Receipt #3 (2026-07-30, ongoing):** Running now against `aa37c6e`.
+
+**Operational finding:** On a 3.6-hour measurement in a productive session
+(mutations taking 12–21 min each on a slow box), an equality-based freshness
+check makes the receipt unattainable in principle — HEAD will move during
+execution, invalidating its own binding. Three honest options:
+
+1. Hold the machine still while the measurement finishes (impractical in a shared
+   environment).
+2. Move the measurement to a faster box where the 3.6-hour budget is plausible
+   (not available today).
+3. Change freshness semantics from equality to ancestor-with-no-relevant-diff
+   (deliberately NOT done today, because its first effect would be to validate
+   my own receipt against HEAD movement, which is a conflict of interest).
+
+The third option should be revisited by someone who did not write that
+measurement, and only after logging why it was considered and rejected.

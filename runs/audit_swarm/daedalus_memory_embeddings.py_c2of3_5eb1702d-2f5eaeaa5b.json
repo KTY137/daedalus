@@ -1,0 +1,153 @@
+{
+ "task_id": "daedalus/memory/embeddings.py#c2of3#5eb1702d",
+ "key": "daedalus_memory_embeddings.py_c2of3_5eb1702d-2f5eaeaa5b",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuses to move backwards, and refuses a changed content_hash at an unchanged position\" | record_journal_watermark | BROKEN | Does not refuse on content_hash mismatch when position is unchanged but existing content_hash is None (line says if existing['content_hash'] is not None).",
+     "CLAIM | \"Refuse BEFORE writing: a drifted backend must never contribute a single vector to an index built in another coordinate system.\" | ingest_events_report (comment) | KEPT | The drift check is performed before _store_batch.",
+     "CLAIM | \"``\"missing\"\", ``\"created\"`` or ``\"adopted\"`` for this index.\" | anchor_provenance | KEPT | Returns \"missing\" if row is None, else str(row[\"provenance\"]).",
+     "CLAIM | \"Pin one stored projection as this index's coordinate-system witness.\" | _record_identity_anchor | KEPT | Selects earliest projection and inserts anchor.",
+     "CLAIM | \"Return a refusal status when the backend no longer matches the index.\" | _verify_identity | KEPT | Returns status on drift, invalid anchor, etc.",
+     "CLAIM | \"Re-check an index against the live backend, ignoring the cache.\" | verify_index_identity | KEPT | Calls _verify_identity with force=True.",
+     "CLAIM | \"Compare the index's watermark against an observed journal position.\" | journal_freshness | KEPT | Compares positions and content hashes as described.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state.\" | search_report | UNCHECKABLE | Code truncated; cannot verify full implementation.",
+     "D1 | model_revision parameter in ingest_events_report | Parameter accepted and used in _resolved_spec call; appears to be used. | WRONG CONCLUSION: No unused parameter found.",
+     "D1 | model_revision parameter in ingest_transport_records_report | Parameter accepted and passed to ingest_events_report; appears used. | WRONG CONCLUSION: No unused parameter found.",
+     "D1 | model_revision parameter in search_report | Parameter accepted; code truncated, cannot confirm usage. | WRONG CONCLUSION: Possibly unused, but truncated code prevents check.",
+     "D2 | None | No except that swallows and continues against prose. | WRONG CONCLUSION: No such pattern found.",
+     "D3 | None | No check that runs after the side effect its comment says it guards. | WRONG CONCLUSION: No such pattern found.",
+     "D4 | None | No branch whose condition cannot be true given assignments above. | WRONG CONCLUSION: No such pattern found."
+    ],
+    "todos": [
+     "In record_journal_watermark, remove the guard 'existing[\"content_hash\"] is not None' to always check content hash mismatch, or update docstring to reflect the actual behavior."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c765b747d29545cf20f7d9d2d08c78fe0c49e24e81ac9ee92ed0ef938ba539fe",
+    "objective_chars": 30532,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 13 kept, 1 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuses to move backwards, and refuses a changed content_hash at an unchanged position\" | record_journal_watermark | BROKEN | The code only checks content_hash mismatch when position is unchanged, but does not refuse if content_hash changes when position moves forward; docstring implies both are always refused.",
+     "CLAIM | \"Re-using a real projection rather than a synthetic probe text means the anchor costs no extra embedding call at index-creation time\" | _record_identity_anchor | KEPT | The method returns early if anchor exists or no candidate projection, and only uses existing projections.",
+     "CLAIM | \"Return a refusal status when the backend no longer matches the index. None means safe to proceed\" | _verify_identity | KEPT | Returns status or None as described.",
+     "CLAIM | \"Re-check an index against the live backend, ignoring the cache\" | verify_index_identity | KEPT | Calls _verify_identity with force=True, which bypasses _identity_verified cache.",
+     "CLAIM | \"Codes: fresh, stale, journal_forked, unanchored. unanchored means freshness is UNKNOWN\" | journal_freshness | KEPT | Returns those codes; unanchored is returned when observed is None or no watermark.",
+     "CLAIM | \"Refuse BEFORE writing: a drifted backend must never contribute a single vector to an index built in another coordinate system\" | process in ingest_events_report | KEPT | drift = self._verify_identity(candidate, backend) is checked before _store_batch.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state\" | search_report | KEPT | The method returns a SearchReport with status and failure info.",
+     "CLAIM | \"Pass journal to have the result assert freshness against the authoritative journal. Without it the report is freshness == unanchored\" | search_report | KEPT | The docstring describes this; the code will call journal_freshness if journal is provided.",
+     "CLAIM | \"only cosine similarity is supported\" | search_report | KEPT | Raises ValueError if metric != 'cosine'.",
+     "CLAIM | \"pass either filters or individual provenance filters\" | search_report | KEPT | Raises ValueError if both are provided.",
+     "CLAIM | \"normalization must be 'l2' or 'none'\" | ingest_events_report | KEPT | Raises ValueError if not in {'l2','none'}.",
+     "CLAIM | \"batch_size must be positive\" | ingest_events_report | KEPT | Raises ValueError if batch_size <= 0.",
+     "CLAIM | \"limit must be positive\" | search_report | KEPT | Raises ValueError if limit <= 0.",
+     "CLAIM | \"Compatibility wrapper returning the number of new projections\" | ingest_events | KEPT | Returns .projected from ingest_events_report.",
+     "D: none"
+    ],
+    "todos": [
+     "Update docstring of record_journal_watermark to clarify that content_hash mismatch is only checked when position is unchanged, or add a check for content_hash change when position moves forward."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c765b747d29545cf20f7d9d2d08c78fe0c49e24e81ac9ee92ed0ef938ba539fe",
+    "objective_chars": 30532,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "17 claims: 14 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Refuses to move backwards, and refuses a changed content_hash at an unchanged position\" | record_journal_watermark | BROKEN | The docstring says it refuses a changed content_hash at an unchanged position, but the code only raises when existing['content_hash'] is not None AND position.content_hash is not None AND they differ. If either hash is None, the check is skipped, so a changed hash from None to something is not refused.",
+     "CLAIM | \"Refuses to move backwards\" | record_journal_watermark | KEPT | Code raises ValueError if position.position < int(existing['position']).",
+     "CLAIM | \"Return a refusal status when the backend no longer matches the index\" | _verify_identity | KEPT | Returns status when backend fails or drift detected, else None.",
+     "CLAIM | \"None means \"safe to proceed\": either the identity anchor still reproduces, or there is no anchor yet to reproduce.\" | _verify_identity | KEPT | Code returns None if force not set and index in _identity_verified, or if anchor is None, or after successful verification.",
+     "CLAIM | \"Codes: ``fresh``, ``stale``, ``journal_forked``, ``unanchored``.\" | journal_freshness | KEPT | All four codes appear in the method body.",
+     "CLAIM | ``unanchored`` means freshness is UNKNOWN - it is never a claim that the index is up to date.\" | journal_freshness | KEPT | When observed is None or no watermark, returns \"unanchored\" with available=True, making no claim of freshness.",
+     "CLAIM | \"Re-check an index against the live backend, ignoring the cache.\" | verify_index_identity | KEPT | Calls _verify_identity with force=True, which skips the _identity_verified cache.",
+     "CLAIM | \"Pin one stored projection as this index's coordinate-system witness\" | _record_identity_anchor | KEPT | Docstring matches: selects earliest projection and inserts anchor.",
+     "CLAIM | \"Re-using a real projection rather than a synthetic probe text means the anchor costs no extra embedding call at index-creation time and checks precisely the invariant that matters\" | _record_identity_anchor | UNCHECKABLE | The claim about \"no extra embedding call at index-creation time\" depends on the caller (not shown). The code itself does not call backend.embed, so it's plausible but not verifiable in this unit.",
+     "CLAIM | \"Pass ``journal`` to have the result assert freshness against the authoritative journal.  Without it the report is ``freshness == \"unanchored\"``\" | search_report | BROKEN | The docstring mentions ``freshness`` but the method returns a SearchReport, not an OperationStatus. The last line of the chunk is incomplete, but the docstring's claim about freshness field cannot be verified; however, the code for search_report is truncated, so we cannot see if it actually sets freshness. The claim is about a field that likely exists in SearchReport, but the code is incomplete. Given the truncation, this is broken because the claim refers to a behavior not present in the visible code.",
+     "CLAIM | \"Search exactly one versioned index and expose failure state.\" | search_report | KEPT | The method signature and docstring are consistent with search functionality.",
+     "CLAIM | \"``\"missing\"\", ``\"created\"`` or ``\"adopted\"`` for this index.\" | anchor_provenance | KEPT | Returns \"missing\" if row is None, otherwise str(row[\"provenance\"]), which can be \"created\" or \"adopted\" from _record_identity_anchor.",
+     "CLAIM | \"Project events and return an explicit, non-throwing service report.\" | ingest_events_report | KEPT | Returns IngestReport, never raises (catches exceptions and returns status).",
+     "CLAIM | \"Compatibility wrapper returning the number of new projections.\" | ingest_events | KEPT | Calls ingest_events_report and returns .projected.",
+     "CLAIM | \"Project lossless shell records without replacing their event journal.\" | ingest_transport_records_report | KEPT | Creates AgentEvent from TransportRecord and delegates to ingest_events_report.",
+     "CLAIM | \"Compatibility wrapper returning the number of new projections.\" | ingest_transport_records | KEPT | Calls ingest_transport_records_report and returns .projected.",
+     "CLAIM | \"only cosine similarity is supported\" | search_report | KEPT | Raises ValueError if metric != \"cosine\".",
+     "D1 | model_revision parameter in _resolved_spec | read nowhere in this unit | The parameter is defined but never read inside the function; it is only used in the return statement as part of EmbeddingSpec construction, but it is read there. Actually it is read: `model_revision=model_revision` in the return. So no D1. But wait: there is a parameter `projector_version` in _resolved_spec that is read in the return. All parameters are read. No D1.",
+     "D1 | model_revision parameter in ingest_events_report, ingest_events, ingest_transport_records_report, ingest_transport_records, search_report | These are read when spec is None. They are used. No D1.",
+     "D: none"
+    ],
+    "todos": [
+     "record_journal_watermark: add check for None hashes to refuse changed hash from None to something or vice versa, or update docstring to clarify that None hashes are allowed to change.",
+     "search_report: complete the method implementation to include freshness assertion or update docstring to match the actual behavior."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c765b747d29545cf20f7d9d2d08c78fe0c49e24e81ac9ee92ed0ef938ba539fe",
+    "objective_chars": 30532,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/memory/embeddings.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28013
+ }
+}

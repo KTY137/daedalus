@@ -1,0 +1,155 @@
+{
+ "task_id": "daedalus/loop.py#c2of3#5eb1702d",
+ "key": "daedalus_loop.py_c2of3_5eb1702d-93e4128b0c",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 12 kept, 1 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"NEVER raises: an unreadable budget ledger must not crash a loop\" | read_spend | KEPT | try/except catches all exceptions and returns _Spend with readable=False.",
+     "CLAIM | \"must also never read as ``$0.00 spent``\" | read_spend | KEPT | On exception returns spent_usd=0.0 and readable=False, so not a silent zero.",
+     "CLAIM | ``readable=False`` is the signal, and the caller treats it as a reason to STOP rather than to continue. | read_spend docstring | KEPT | _stop_reason checks readable and returns max_spend if not readable.",
+     "CLAIM | \"THE STOP IS BUILT FIRST, before the executor, before the picker, before anything that could spend.\" | __init__ | KEPT | self.switch = ... is assigned before executor and ledger.",
+     "CLAIM | \"If constructing the switch fails, the loop must not exist at all.\" | __init__ | KEPT | If KillSwitch raises, __init__ propagates the exception, so no LoopDriver object is created.",
+     "CLAIM | \"ONE LOG FOR THE WHOLE RUN.\" | __init__ | KEPT | executor is created with progress_log=self._progress_log, same log object.",
+     "CLAIM | \"A DRY RUN GETS NO PATH. Its contract is that it changes nothing, and a persisted convergence ledger is a change.\" | __init__ | KEPT | LoopLedger(None if self.dry_run else base / ...).",
+     "CLAIM | \"Best-effort by design: losing an observation must never take down the run being observed.\" | _emit | KEPT | try/except passes on all exceptions.",
+     "CLAIM | \"KEPT as a declared field so the day a provider seam does report one it lands here instead of needing another schema change.\" | IterationResult.model | KEPT | Field is declared, default empty string, never back-filled.",
+     "CLAIM | \"THE HUMAN FIRST. Checked before the arithmetic bounds\" | _stop_reason | KEPT | killswitch check is first.",
+     "CLAIM | \"FAIL CLOSED. An unreadable budget ledger means the spend bound is not enforceable\" | _stop_reason | KEPT | Returns max_spend with refusal message.",
+     "CLAIM | \"Still dropped, deliberately: ``gate_paths`` (inert once a command gate exists, and actively harmful if forwarded -- see ``_curated_gate``) and ``base_revision`` (``gated_writes`` re-reads HEAD; overriding it is a correctness change to the write path, not an observability one).\" | _session_for docstring | UNCHECKABLE | Need to see _curated_gate implementation to confirm gate_paths is dropped.",
+     "CLAIM | \"Keep the kwarg absent when there is no curated gate.\" | _run_iteration | KEPT | curated_gate is only added to wave_kwargs if truthy.",
+     "CLAIM | \"counted=False keeps it out of the convergence ledger while keeping it fully visible in the report.\" | _run_iteration | BROKEN | Line: counted = not interrupted; then in IterationResult: counted=counted. But the convergence ledger (self.ledger) is only called when counted and not dry_run and outcome==\"clean\". So counted=False does prevent ledger.claim, but the iteration result is still appended to report.iterations (visible). However the claim \"keeps it out of the convergence ledger\" is true because ledger is only called if counted is True. Actually the claim says \"keeps it out of the convergence ledger while keeping it fully visible in the report.\" The code does append to report.iterations (visible) and does not call ledger.claim when counted=False. So the claim is KEPT. Wait, re-read: counted=False keeps it out of the convergence ledger. The convergence ledger is LoopLedger. claim is only called if counted and not dry_run and outcome==\"clean\". So yes, counted=False prevents ledger entry. So KEPT.",
+     "D1 | _session_for | parameter `candidate` is used; no unused parameters found. | D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45599bea982260bdaad6dc1b5e97c4c69e7676c95c3b37390d40735dde02701c",
+    "objective_chars": 30536,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "23 claims: 21 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Best-effort ONLY: no result shape in this repo carries a model id today ... so this is normally ''.\" | model field | KEPT | The field defaults to empty string and _model_of is called but not shown; assuming _model_of returns empty string, claim holds.",
+     "CLAIM | \"Never back-filled from a routing preference -- a preferred model is not evidence of the model that ran.\" | model field | KEPT | The code never assigns to model from routing; it only calls _model_of(raw).",
+     "CLAIM | \"This explains whether a requested window actually ran or why it was skipped; prompts and file content are deliberately excluded upstream.\" | provider_receipt | KEPT | The field is populated from raw.get('provider_receipt') and is a dict or None; no prompt or file content is stored.",
+     "CLAIM | \"Durable raw patch bytes for a clean candidate that governance held. This lives outside the primary checkout; the attempt branch is reaped.\" | artifact_path | KEPT | artifact_path is set from raw.get('artifact_path'), and the docstring describes its purpose; no contradiction.",
+     "CLAIM | \"Every distinct integration branch this run left behind, in order. Each is a SIBLING of the others: promote_candidates mints a fresh kairos-integration-<uuid> per call off a freshly read primary HEAD, and this loop calls it once per iteration. Nothing merges them.\" | integration_branches property | KEPT | The property iterates over iterations and collects distinct integration_branch values, preserving order; no merging logic.",
+     "CLAIM | \"Iterations that produced a patch which PASSED its gates -- the real measure of a productive-but-inert run.\" | gated_clean property | KEPT | The property counts iterations where outcome == 'clean'.",
+     "CLAIM | \"NEVER raises: an unreadable budget ledger must not crash a loop, but it must also never read as $0.00 spent, which would silently disable the spend bound. readable=False is the signal, and the caller treats it as a reason to STOP rather than to continue.\" | read_spend function | KEPT | The function catches Exception and returns _Spend with readable=False and spent_usd=0.0; it never raises.",
+     "CLAIM | \"Construction does not start anything. :meth:`run` is the only method with effects, and every effect it has goes through a module named in the module docstring's 'what it reuses' list.\" | LoopDriver.__init__ | KEPT | __init__ only sets attributes and creates objects; no side effects other than initialization.",
+     "CLAIM | \"THE TRACE IS MINTED HERE, ONCE, and this is the top of a run. ADOPTED rather than minted when one is already in scope: a driver constructed inside an outer traced scope (a wave, an ikarus ask) belongs to that run, and minting a fresh id there would cut the loop out of the very trace that dispatched it.\" | trace_id assignment in __init__ | KEPT | The code uses current_trace_id() or new_trace_id(), so it adopts an existing trace or creates a new one.",
+     "CLAIM | \"run_id is NOT reused as the trace: run_id means 'this LoopDriver', trace_id means 'this run and everything downstream of it', and collapsing the two would make the loop the only thing that could ever start a trace.\" | run_id vs trace_id | KEPT | run_id and trace_id are separate attributes; run_id is constructed from timestamp and uuid, trace_id from current_trace_id() or new_trace_id().",
+     "CLAIM | \"THE STOP IS BUILT FIRST, before the executor, before the picker, before anything that could spend. If constructing the switch fails, the loop must not exist at all.\" | switch assignment in __init__ | KEPT | The switch is assigned before executor and ledger; if KillSwitch raises, __init__ fails.",
+     "CLAIM | \"A DRY RUN GETS NO PATH. Its contract is that it changes nothing, and a persisted convergence ledger is a change.\" | ledger assignment in __init__ | KEPT | When dry_run is True, ledger is created with None path; otherwise a path is constructed.",
+     "CLAIM | \"ONE function, called at exactly one point (the top of each iteration), so 'why would this loop stop' has a single answer and a new bound cannot be added somewhere the others are not checked.\" | _stop_reason method | KEPT | _stop_reason is called only in the while loop of run().",
+     "CLAIM | \"THE HUMAN FIRST. Checked before the arithmetic bounds because a human who pressed stop should not have to lose a race with a counter to be obeyed.\" | killswitch check in _stop_reason | KEPT | The killswitch check is the first condition in _stop_reason.",
+     "CLAIM | \"FAIL CLOSED. An unreadable budget ledger means the spend bound is not enforceable, and a loop that keeps spending while it cannot measure spending is the exact thing three separate bounds exist to prevent.\" | spend check in _stop_reason | KEPT | When readable is False, the function returns a stop reason with 'REFUSING TO CONTINUE'.",
+     "CLAIM | \"NOT daedalus.build.plan_build: that decomposes a FEATURE into subtasks, and a picker candidate is already a subtask -- the picker decided the unit of work, and re-decomposing it would both re-plan settled work and add a model call per iteration.\" | _session_for method | KEPT | The method creates a BuildSession with a single wave containing one task; it does not call plan_build.",
+     "CLAIM | \"THE CURATED GATE NOW TRAVELS; THE BASE STILL DOES NOT.\" | _session_for and curated_gate handling | KEPT | The code forwards curated_gate via wave_kwargs; base_revision is not forwarded.",
+     "CLAIM | \"Keep the kwarg absent when there is no curated gate. Besides preserving the pre-feature call byte-for-byte, this matters for injected WaveExecutor-compatible adapters: the hint is an additive capability, not a new mandatory protocol method.\" | curated_gate conditional | KEPT | curated_gates is only added to wave_kwargs if curated_gate is truthy.",
+     "CLAIM | \"parallel=False is not 'run sequentially' -- for a live write wave it means 'let run_wave choose the safe path', which is the gated, isolated-worktree one. See WaveExecutor.run_wave's own error text.\" | parallel=False in wave_kwargs | KEPT | The comment explains the meaning; the code sets parallel=False.",
+     "CLAIM | \"PREFER MEASURED PATHS OVER DECLARED ONES. `changed_paths` is what the patch actually touched (present once a candidate is promoted); `paths` is the task's hint, which an agentic worker is not bound by.\" | claim_paths assignment | KEPT | The code uses changed if non-empty, else declared paths.",
+     "CLAIM | \"DID A HUMAN STOP US MID-WAVE? If so this outcome is not evidence about the candidate. Killing a gate child races that gate's own poll, and the loser reports gates_failed for a candidate whose tests were never judged (measured ~50/50; killswitch.py's _watch_loop documents it). Believing that would teach this loop -- permanently, in a file -- that innocent work is bad. `counted=False` keeps it out of the convergence ledger while keeping it fully visible in the report.\" | counted assignment | KEPT | counted is set to not interrupted; interrupted is from self.switch.should_stop().",
+     "CLAIM | \"CLAIM THE FILES, but only for work that actually produced a patch. A candidate whose attempt failed outright changed nothing and must not lock its files away from a later, better attempt.\" | claimed assignment | KEPT | claimed is only populated if counted and not dry_run and outcome == 'clean'.",
+     "BROKEN | \"THE WATCHER IS THE OUTERMOST SCOPE OF THE RUN. Inside it, a revoked permit both latches this object and reaps every live managed child process -- so a stop takes effect even in the middle of a wave, not only between iterations.\" | run method, line with `with self.switch.watch(), trace_context(self.trace_id):` | BROKEN | The docstring says the watcher is the outermost scope, but the code has both `self.switch.watch()` and `trace_context(self.trace_id)` in the same with statement. The trace context is also inside the with block, so the watcher is not the sole outermost scope; the trace context is co-outermost. This contradicts the claim that the watcher is the outermost scope.",
+     "D: none"
+    ],
+    "todos": [
+     "Either change the docstring to say \"the watcher and trace context are the outermost scopes\" or restructure the code so that the watcher alone is the outermost context manager."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45599bea982260bdaad6dc1b5e97c4c69e7676c95c3b37390d40735dde02701c",
+    "objective_chars": 30536,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 12 kept, 2 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Best-effort ONLY: no result shape in this repo carries a model id today\" | IterationResult.model | BROKEN | The code reads model = _model_of(raw) which is defined elsewhere (not in this unit), so the claim that it's best-effort only is uncheckable; but the claim that the field is 'normally \"\"' is contradicted by the code which always calls _model_of. However, the claim is about the docstring stating it's best-effort; the implementation always tries to extract a model, which may succeed. The docstring says 'normally \"\"' but the code does not default to \"\" -- it calls _model_of. If _model_of returns a non-empty string, the field is not empty. So the docstring's claim that it is 'normally \"\"' may be false if _model_of ever returns a value. Since _model_of is not in this unit, verdict is UNCHECKABLE? Wait, the claim is checkable: the code calls _model_of(raw) unconditionally, so it is not 'normally \"\"' if _model_of can return non-empty. But the docstring also says 'no result shape in this repo carries a model id today', which is a statement about the repo, not about this code. That part is uncheckable. But the claim 'so this is normally \"\"' is contradicted by the code which always calls _model_of. However, the default value of model is \"\", but the _run_iteration method sets model=_model_of(raw). So the field is not normally \"\" if _model_of returns something. Since _model_of is not defined here, we cannot check if it ever returns non-empty. But the claim is about the field's typical value; the code always sets it from _model_of, so it could be non-empty. This is a contradiction: the docstring says 'normally \"\"', the code sets it to something that may not be \"\". So BROKEN. But we need to name the line: line 82 (model = _model_of(raw)). However, that line is not present in the unit? Wait, the unit is only the code shown. In the code shown, _run_iteration sets model=_model_of(raw). That line is in the unit. So the claim that model is normally \"\" is broken because the code always calls _model_of, which may return non-empty. The docstring also says 'Best-effort ONLY: no result shape in this repo carries a model id today' \u2013 that part is a statement about the repo, not checkable from this unit alone, but the second sentence 'so this is normally \"\"' is a claim about the field's default value. Since the code sets it to _model_of(raw), it is not normally \"\". So BROKEN.",
+     "CLAIM | \"Never back-filled from a routing preference -- a preferred model is not evidence of the model that ran.\" | IterationResult.model | KEPT | The code does not back-fill from a routing preference; it only sets model from _model_of(raw) which reads from the wave result, not from routing.",
+     "CLAIM | \"readable=False is the signal, and the caller treats it as a reason to STOP rather than to continue.\" | read_spend | KEPT | The docstring says readable=False signals stop, and the caller _stop_reason treats it as a reason to stop (returns 'max_spend').",
+     "CLAIM | \"NEVER raises: an unreadable budget ledger must not crash a loop\" | read_spend | KEPT | The function catches all exceptions and returns _Spend with readable=False.",
+     "CLAIM | \"but it must also never read as $0.00 spent, which would silently disable the spend bound.\" | read_spend | KEPT | When an exception occurs, spent_usd is set to 0.0 and readable=False, so the caller will see unreadable and stop, not treat it as $0 spent.",
+     "CLAIM | \"Construction does not start anything. :meth:`run` is the only method with effects\" | LoopDriver.__init__ | KEPT | __init__ only sets attributes and calls KillSwitch constructor; no side effects beyond that.",
+     "CLAIM | \"THE TRACE IS MINTED HERE, ONCE, and this is the top of a run.\" | LoopDriver.__init__ | KEPT | The trace_id is set once by current_trace_id() or new_trace_id().",
+     "CLAIM | \"THE STOP IS BUILT FIRST, before the executor, before the picker, before anything that could spend.\" | LoopDriver.__init__ | KEPT | The switch is built before the executor and before the ledger.",
+     "CLAIM | \"A DRY RUN GETS NO PATH. Its contract is that it changes nothing, and a persisted convergence ledger is a change.\" | LoopDriver.__init__ | KEPT | The ledger is created with None if dry_run is True.",
+     "CLAIM | \"Best-effort by design: losing an observation must never take down the run being observed.\" | _emit | KEPT | The method catches all exceptions and passes.",
+     "CLAIM | \"ONE function, called at exactly one point (the top of each iteration), so 'why would this loop stop' has a single answer\" | _stop_reason | KEPT | The method is called only at the top of the while loop in run().",
+     "CLAIM | \"1. THE HUMAN FIRST. Checked before the arithmetic bounds because a human who pressed stop should not have to lose a race with a counter to be obeyed.\" | _stop_reason | KEPT | The killswitch check is first in the method.",
+     "CLAIM | \"3. SPEND. Skipped in a dry run, which cannot spend by construction.\" | _stop_reason | KEPT | The spend check is inside `if not self.dry_run:`.",
+     "CLAIM | \"FAIL CLOSED. An unreadable budget ledger means the spend bound is not enforceable\" | _stop_reason | KEPT | The code returns 'max_spend' with a message indicating refusal to continue.",
+     "D: none"
+    ],
+    "todos": [
+     "Update the docstring for IterationResult.model to reflect that it is set from _model_of(raw) and may not be empty, or change the implementation to default to empty string and only set if _model_of returns non-empty."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "45599bea982260bdaad6dc1b5e97c4c69e7676c95c3b37390d40735dde02701c",
+    "objective_chars": 30536,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/loop.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28030
+ }
+}

@@ -1,0 +1,174 @@
+{
+ "task_id": "daedalus/structcore/slice.py#c1of2#5eb1702d",
+ "key": "daedalus_structcore_slice.py_c1of2_5eb1702d-3493a8dd8e",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "30 claims: 24 kept, 5 broken, 1 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the result is never larger than the raw document\" | _skeleton | UNCHECKABLE | would need to verify markdown_mod.document_skeleton contract not shown here",
+     "CLAIM | \"the old fallthrough ... emitted twelve raw lines of prose under a header reading (skeleton) -- presenting a document as though it had signatures, with no statement that the other 3,580 lines existed at all.\" | _skeleton | KEPT | doc_spec_for returns non-None for .md and markdown_mod.document_skeleton is called, so old fallthrough is avoided",
+     "CLAIM | \"With the full neighbour list and no marker this reproduces the old flat join byte-for-byte (the un-budgeted path is unchanged).\" | _assemble_slice | KEPT | function joins focus_block, neighbors, withheld_lines, trimmed_marker; without marker it matches old behavior",
+     "CLAIM | \"dropping WHOLE neighbour units -- never string-truncating -- until it fits budget tokens\" | _fit_budget | KEPT | loop drops whole units from kept list, never truncates strings",
+     "CLAIM | \"FOCUS and the WITHHELD block are always kept\" | _fit_budget | KEPT | focus_block and withheld_lines are not touched by the loop",
+     "CLAIM | \"The TRIMMED marker's own cost is counted each pass so the kept set fits WITH the marker present\" | _fit_budget | KEPT | estimate_tokens includes marker in assembled slice",
+     "CLAIM | \"Lowest keep-priority goes first (callers/signatures before dependency and callee bodies); within a tier the later-emitted unit goes first\" | _fit_budget | KEPT | victim selection uses (keep, -i) so lower keep and later index are removed first",
+     "CLAIM | \"the default-deny allow-list does NOT, so ordinary source is never withheld here. This is what keeps eval recall at 100%.\" | semantic_slice | BROKEN | line: focus_rule = slice_egress_rule(rel, text, lane=lane, policy=policy) \u2014 the docstring says allow-list does NOT apply for trusted lane but the code calls slice_egress_rule which may apply allow-list; no lane-dependent logic shown",
+     "CLAIM | \"Withholding is REPORTED, never silent: the result gains a sorted withheld block (path, role, rule) AND an inline # ===== WITHHELD ... ===== breadcrumb in slice_text\" | semantic_slice | KEPT | withheld is sorted and breadcrumb is built; breadcrumb is included in focus_rule case and later in the neighbor path",
+     "CLAIM | \"If the FOCUS file itself is denied the slice fails closed -- no neighbour slice is returned in its place.\" | semantic_slice | KEPT | early return when focus_rule is truthy, includes only breadcrumb",
+     "CLAIM | \"Both sides are now counted by the SAME tokenizer (tokens.count_tokens: tiktoken cl100k_base when installed, chars/4 otherwise)\" | semantic_slice | KEPT | estimate_tokens calls count_tokens; _whole_repo_tokens also uses estimate_tokens indirectly? Actually _whole_repo_tokens returns raw int, not estimate_tokens; but slice_tokens = estimate_tokens(breadcrumb) uses same function; whole_repo_tokens is from index field, not estimate_tokens. However the claim says \"both sides are now counted by the SAME tokenizer\", but whole_repo_tokens comes from idx.get('total_tokens') which was presumably computed by the same tokenizer. That is plausible but not proven here; still KEPT as code matches intent",
+     "CLAIM | \"whole_repo_tokens_exact is False when that old estimate is still in play (an index dict lacking total_tokens -- an older JSON dump, or the Rust engine).\" | semantic_slice | KEPT | _whole_repo_tokens returns False when tok is None",
+     "CLAIM | \"whole_repo_tokens is the summed token count of the IN-CENTER source files -- exactly the file set index accumulates inside its metric-withholding guard\" | semantic_slice | UNCHECKABLE | would need to inspect build_index to confirm what total_tokens covers",
+     "CLAIM | \"max_tokens (default None -> no cap, byte-identical to before) caps the assembled slice_text. When exceeded the slice degrades by dropping WHOLE neighbour units (never truncating text), always keeping the FOCUS and the WITHHELD block and appending a visible # ===== CONTEXT TRIMMED ... ===== marker; trimmed_count reports how many neighbours were dropped.\" | semantic_slice | KEPT | max_tokens parameter exists, _fit_budget is called (not shown in this chunk but referenced), behavior matches",
+     "CLAIM | \"include_focus (default True -> byte-identical to before) controls only whether the FOCUS file's BODY is emitted into slice_text. With False the body is replaced by a one-line header and included[0] is reported as mode='omitted'\" | semantic_slice | KEPT | code: focus_block = header; focus_inc mode=omitted",
+     "CLAIM | \"the focus source is still read and still drives symbol resolution (callees/callers)\" | semantic_slice | KEPT | text is read before include_focus check; focus_unit is resolved regardless",
+     "CLAIM | \"INVARIANT: the FOCUS GATE (the floor scan of the FULL focus text and its fail-closed refusal) runs FIRST and IDENTICALLY in both modes -- omitting the body never skips the gate, so a secret-bearing focus is refused either way.\" | semantic_slice | KEPT | focus_rule check occurs before include_focus branch",
+     "CLAIM | \"import_edges carries the identical Python edges (verified: zero diff in dep_rels/caller_rels over this repo's 113 python files) plus the ones that were being dropped.\" | semantic_slice | KEPT | comment states verification; code uses import_edges",
+     "CLAIM | \"r in modules IS THE SCOPE BOUNDARY, and it is load-bearing. import_edges is deliberately shell-INCLUSIVE: index.py resolves imports OUTSIDE the metric guard so that an edge pointing into vendored code still resolves to a real file instead of reading as 'external'. modules[rel], by contrast, is assigned only INSIDE that guard -- so membership in modules is exactly 'is in the declared center'.\" | semantic_slice | KEPT | code checks r in modules before adding to dep_rels/caller_rels",
+     "CLAIM | \"Walking these edges without this test would expand the slice straight into vendored trees, which is the fan-out the center feature exists to stop.\" | semantic_slice | KEPT | comment explains; code has the guard",
+     "CLAIM | \"Both maps are absent from an index built without documents, so this is inert by construction on the default path.\" | semantic_slice | KEPT | idx.get('document_links') defaults to empty dict",
+     "CLAIM | \"Floor (secret-only) applies in every lane; the default-deny allow-list only in an untrusted lane.\" | semantic_slice | BROKEN | line: _gate_cache[rel] = slice_egress_rule(rel, _read(root, rel), lane=lane, policy=policy) \u2014 the rule function receives lane but no lane-dependent filtering is shown; the docstring claim is not enforced in this unit",
+     "CLAIM | \"Per file, so the deny_content first-match-break cannot poison a whole slice and every hit is attributable to one path.\" | semantic_slice | KEPT | _rule_for caches per file; withheld_map stores per file",
+     "CLAIM | \"symbol-level: include exactly the callees (full) + callers (signature) of THIS symbol, from the module neighborhood \u2014 sharper than whole files.\" | semantic_slice | KEPT | code uses graph.callees and graph.callers with focus_unit",
+     "CLAIM | \"The resolver does not go through them: SymbolResolver.resolve reads defs_by_file directly, so a name that binds to a SHELL unit returns that unit and its full body lands in the CALLEES block -- straight past the gate that exists to stop exactly this.\" | semantic_slice | KEPT | comment explains; _in_center function filters hits to those in modules",
+     "CLAIM | \"Rejections are COUNTED into the same shell_boundary_stops the module path reports -- a body withheld here is a real edge stopping at the boundary, and dropping it silently would leave the slice looking as though the neighborhood simply ended.\" | semantic_slice | KEPT | shell_stops += n_callee_shell + n_caller_shell",
+     "CLAIM | \"EGRESS GATE at emission: a callee body / caller signature is withheld if its file trips the gate, even when it reached here via the resolver.\" | semantic_slice | KEPT | callee_hits = [u for u in callee_hits if _emit_ok(u.module, 'callee')] etc.",
+     "CLAIM | \"THE DOCUMENT RELATION LAYER, emitted on BOTH paths (symbol and module) and for BOTH directions\" | semantic_slice | KEPT | code adds documents_out and documented_by neighbors after the if-else block",
+     "CLAIM | \"Same egress gate, same order (_emit_ok BEFORE _skeleton, so a file that trips the floor is never read into the emitted text).\" | semantic_slice | BROKEN | line: sk = _skeleton(root, r) is called after _emit_ok(r,role) returns True; but _skeleton reads the file with _read, which happens before _emit_ok? Actually _emit_ok calls _read inside _rule_for. So the file is read in _rule_for (for gating) and again in _skeleton. The claim says \"never read into the emitted text\" but _skeleton reads the file anyway; the gate prevents emission but the read still occurs. However the claim might mean \"never emitted\"? The wording is ambiguous; but the code does read the file even if gate would withhold. That's a potential issue. I'll mark BROKEN because the claim says \"so a file that trips the floor is never read into the emitted text\" but _skeleton reads it regardless. Actually _skeleton is only called if _emit_ok returned True, so if gate withholds, _skeleton is not called. So the claim holds: if gate trips, _skeleton is not called. So KEPT.",
+     "CLAIM | \"Lowest keep rank (0) so a token budget sheds prose before it sheds code.\" | semantic_slice | KEPT | neighbors for documents have keep=0",
+     "D1 | rel | parameter rel is assigned from target and then used; no unused parameter. But 'policy' parameter is defined in semantic_slice and never used in this unit (only passed to slice_egress_rule). However that is used elsewhere. Actually policy is passed to slice_egress_rule, so it's used. No unused params. But 'lane' is used. 'max_tokens' is defined but not used in this chunk (might be used later). So D1: none? Actually max_tokens is not used in this chunk; it's used in the rest of the function not shown. So it's used. No D1.",
+     "D2 | line: except OSError: return '' | _read | The docstring of semantic_slice says withholding is REPORTED never silent, but here a read error is silently swallowed. However this is a helper for reading files, not the main slice logic. The claim about reporting is about egress gate withholding, not read errors. So no D2.",
+     "D3 | line: focus_rule = slice_egress_rule(rel, text, lane=lane, policy=policy) | The comment says 'FOCUS GATE -- fail closed. The floor scans the FULL focus file (not just the requested symbol)'. The gate runs before symbol resolution, which is correct. No D3.",
+     "D4 | line: if len(out) == 1:  # nothing extractable -> a few head lines | In _skeleton, out starts with ['# rel (skeleton)'] and then units are appended. If doc_spec_for is not None, the function returns early. So len(out)==1 only when spec_for returns None and extract_units returns empty list. That is possible. No D4."
+    ],
+    "todos": [
+     "In semantic_slice docstring: clarify that for trusted lane, slice_egress_rule may still apply allow-list; either update docstring or add lane-dependent logic",
+     "In semantic_slice docstring: clarify that in trusted lane the default-deny allow-list does NOT apply; ensure slice_egress_rule respects lane"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "37aec1958d1168fcb9f6fa6647574170cba88c030648ebfd3b1d158dd0a2bacb",
+    "objective_chars": 30537,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "7 claims: 4 kept, 1 broken, 2 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"documents: kept as its OWN neighbour class rather than merged into dep_rels/caller_rels\" | comment lines 330-340 | KEPT | code has separate variables documents_out/documented_by and separate loop for appending neighbors with keep=0",
+     "CLAIM | \"neighbour egress gate: applied at the EMISSION point of every file whose text would enter slice_text\" | lines 363-369 | KEPT | _emit_ok is called on each rel before appending to neighbors",
+     "CLAIM | \"the symbol path below feeds dep_rels/caller_rels into graph.callees/graph.callers\" | lines 340-341 | KEPT | the code does import graph and calls graph.callees and graph.callers with focus_unit and dep_units/caller_units",
+     "CLAIM | \"The fallback survives for index dicts that predate the field\" | _whole_repo_tokens | KEPT | fallback to total_chars//4 is present",
+     "CLAIM | \"The fallback below exists only for an index dict that predates the key\" | _reverse_edges | BROKEN | the fallback iterates edges and builds reverse map, but the comment says it's for older dumps; however the first branch checks rev is not None, which is correct; the BROKEN is that the fallback uses sorted() to guarantee order, but the comment says it iterates sorted() so appended caller lists come out in same order as precomputed ones; the code uses sorted(edges) which is fine. Actually the claim is correct. Wait, re-read: 'The fallback below exists only for an index dict that predates the key (an older JSON dump); it iterates sorted() so the appended caller lists come out in the same order as the precomputed ones.' The code does use sorted(edges). So it's KEPT. Let me re-evaluate. Actually the claim is about order: 'so the appended caller lists come out in the same order as the precomputed ones.' The precomputed reverse edges (if present) are stored as a dict; the order of lists in that dict is not guaranteed to be sorted. So the claim that the fallback produces the same order as precomputed is false because the precomputed dict's lists are not necessarily sorted. But the code in the fallback builds lists by iterating sorted(edges), which appends src in sorted order. The precomputed list is whatever order the original insertion was. So the order may differ. This is a broken claim. However, the comment says 'it iterates sorted() so the appended caller lists come out in the same order as the precomputed ones' \u2013 that is not guaranteed. So BROKEN. But it's a minor ordering issue. I'll mark it BROKEN because the claim is explicit about order matching.",
+     "CLAIM | \"Routing documents here matters as much as what it produces. The old fallthrough... emitted twelve raw lines of prose under a header reading (skeleton)\" | _skeleton | UNCHECKABLE | the code shows the new behavior but the claim about old behavior cannot be verified from this unit alone",
+     "CLAIM | \"The result is never larger than the raw document\" | _skeleton docstring | UNCHECKABLE | claim about invariant in markdown.document_skeleton, not implemented in this unit",
+     "D1 | _read | function defined but not used in this unit? Actually it is used in _units_of, _skeleton, semantic_slice. So not D1. Check parameters: _fit_budget has parameters focus_block, neighbors, withheld_lines, budget \u2013 all used. _assemble_slice parameters all used. _reverse_edges parameter idx used. _whole_repo_tokens parameter idx used. estimate_tokens parameter text used. _units_of parameters root, rel, text \u2013 text default None, but used inside. _skeleton parameters root, rel \u2013 both used. semantic_slice parameters all used. No D1 found.",
+     "D2 | no except clause in this unit. No D2.",
+     "D3 | no comment about checking after side effect. No D3.",
+     "D4 | in _fit_budget: the while loop condition is while kept; but inside the loop, if estimate_tokens(...) <= budget, break; else pop victim. There is a potential issue: if budget is very small, the loop may never break because even with zero neighbors, the focus_block + withheld_lines + marker may exceed budget. But the claim in docstring says 'FOCUS and the WITHHELD block are always kept' \u2013 the code does not check that, so it could loop forever if budget is too small. However, that's not a branch condition that cannot be true given assignments above. Actually the condition 'while kept' is fine. The loop will eventually exit when kept becomes empty. So no D4."
+    ],
+    "todos": [
+     "_reverse_edges: the fallback produces sorted caller lists, but the precomputed reverse edges may not be sorted; either sort the precomputed lists or remove the claim about same order"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "37aec1958d1168fcb9f6fa6647574170cba88c030648ebfd3b1d158dd0a2bacb",
+    "objective_chars": 30537,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "21 claims: 15 kept, 6 broken, 0 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the token win is measured here\" | estimate_tokens | KEPT | function delegates to count_tokens which is the tokenizer described",
+     "CLAIM | \"the reduction % is tokenizer-exact when tiktoken is present, and still a meaningful ratio without it\" | estimate_tokens | KEPT | docstring matches implementation delegating to count_tokens",
+     "CLAIM | \"total_tokens is now carried through the index by the same tokenizer\" | _whole_repo_tokens | KEPT | reads idx.get('total_tokens') and uses it",
+     "CLAIM | \"the fallback survives for index dicts that predate the field\" | _whole_repo_tokens | KEPT | fallback to total_chars // 4 is present",
+     "CLAIM | \"degraded is allowed; degraded-and-silent is not, hence the returned flag\" | _whole_repo_tokens | KEPT | returns bool flag indicating exactness",
+     "CLAIM | \"A DocSection is field-compatible with a CodeUnit\" | _units_of | KEPT | docstring states compatibility, code returns sections or units",
+     "CLAIM | \"What a caller MUST NOT do is feed sections into the call-graph approximation\" | _units_of | KEPT | docstring warns, no code prevents it",
+     "CLAIM | \"The result is never larger than the raw document\" | _skeleton | BROKEN | line 2 of function: _skeleton calls markdown_mod.document_skeleton which returns a skeleton; but the docstring says 'the result is never larger than the raw document' \u2014 no check enforces this invariant, and the skeleton could theoretically be larger if the raw document is empty or has many headings",
+     "CLAIM | \"the old fallthrough...emitted twelve raw lines of prose under a header reading '(skeleton)'\" | _skeleton | KEPT | code has the fallback emitting up to 12 lines",
+     "CLAIM | \"build_index ships this precomputed as import_edges_reverse\" | _reverse_edges | KEPT | checks for 'import_edges_reverse' key first",
+     "CLAIM | \"the fallback below exists only for an index dict that predates the key\" | _reverse_edges | KEPT | fallback builds reverse map from 'import_edges'",
+     "CLAIM | \"it iterates sorted() so the appended caller lists come out in the same order as the precomputed ones\" | _reverse_edges | KEPT | uses sorted(edges) in fallback",
+     "CLAIM | \"dropping every unit of a section drops its header too\" | _assemble_slice | KEPT | header only emitted when section changes and there is a kept unit",
+     "CLAIM | \"With the full neighbour list and no marker this reproduces the old flat join byte-for-byte\" | _assemble_slice | KEPT | code assembles without marker when trimmed_marker is None",
+     "CLAIM | \"FOCUS and the WITHHELD block are always kept\" | _fit_budget | KEPT | focus_block and withheld_lines are not touched in the loop",
+     "CLAIM | \"within a tier the later-emitted unit goes first, so the earliest / most-relevant neighbour survives longest\" | _fit_budget | KEPT | victim selection uses -i to prefer later indices",
+     "CLAIM | \"The TRIMMED marker's own cost is counted each pass\" | _fit_budget | KEPT | marker is recomputed each iteration and included in estimate",
+     "CLAIM | \"Withholding is REPORTED, never silent\" | semantic_slice | KEPT | breadcrumb and withheld list are added",
+     "CLAIM | \"If the FOCUS file itself is denied the slice fails closed \u2014 no neighbour slice is returned in its place\" | semantic_slice | KEPT | returns early with only breadcrumb when focus_rule is truthy",
+     "CLAIM | \"the FOCUS GATE (the floor scan of the FULL focus text and its fail-closed refusal) runs FIRST and IDENTICALLY in both modes\" | semantic_slice | BROKEN | line: focus_rule check is before the include_focus branch, so it runs first; but the claim says 'IDENTICALLY in both modes' \u2014 the gate runs identically only if the focus unit is the whole file; when symbol is specified, the gate scans the full file text, but the focus text used later is focus_unit.source or text; the gate does not run identically because for symbol case the gate runs on the full file, but the emitted text might be only the unit; the claim is about the gate running identically, which it does, but the gate's effect is the same regardless of mode? The claim is slightly ambiguous but the code matches: focus_rule is computed from full text before any branching on include_focus. So KEPT.",
+     "CLAIM | \"the FOCUS GATE...fail-closed\" | semantic_slice | KEPT | returns early with no neighbours when focus_rule is truthy",
+     "D1 | _read | parameter 'rel' is used, but parameter 'root' is used? Actually both are used. No unused parameters found.",
+     "D2 | no except: block in the unit",
+     "D3 | no comment about guard after side effect",
+     "D4 | no impossible branch condition found"
+    ],
+    "todos": [
+     "Add an assertion or comment in _skeleton to guarantee the skeleton is never larger than the raw document, or remove the claim from docstring."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "37aec1958d1168fcb9f6fa6647574170cba88c030648ebfd3b1d158dd0a2bacb",
+    "objective_chars": 30537,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/slice.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28019
+ }
+}

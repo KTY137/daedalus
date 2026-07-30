@@ -1,0 +1,145 @@
+{
+ "task_id": "daedalus/cli.py#c1of3#5eb1702d",
+ "key": "daedalus_cli.py_c1of3_5eb1702d-248073a8ca",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 0 broken, 2 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"persists a session snapshot under runs/build/\" | _build | UNCHECKABLE | need to inspect plan_build return type to confirm snapshot_path is set to runs/build/",
+     "CLAIM | \"writes a per-repo override under .agentenv/agents/\" | _agents | UNCHECKABLE | need to inspect agents_registry.create_role/update_role to confirm writing location",
+     "CLAIM | \"writes a per-repo override under .agentenv/categories.json\" | _categories | UNCHECKABLE | need to inspect categories.update to confirm writing location",
+     "CLAIM | \"Drafts are free-lane PROPOSALS awaiting review -- applying one stays a human / Claude action by design (a free model may propose, never merge)\" | _drafts | KEPT | code does not merge, only prints review packet",
+     "CLAIM | \"The output is ADVISORY and PROMOTES NOTHING\" | _council | KEPT | code returns before any promotion logic not present in unit",
+     "CLAIM | \"a deterministic gate (tests, fences, diffs) is the only thing that decides\" | _council | KEPT | no promotion logic in unit",
+     "CLAIM | \"What the council produces is a queue of checks for that gate to run\" | _council | KEPT | no promotion logic in unit",
+     "CLAIM | \"--dry-run prints the plan and vendor availability; call NO model\" | _council | KEPT | code returns before vendor calls when --dry-run",
+     "CLAIM | \"--live authorises real vendor calls: spends money and sends the evidence to every seated vendor\" | _council | KEPT | code checks --live before calling vendors",
+     "CLAIM | \"Without this flag no model is called\" | _council | KEPT | code returns before vendor calls without --live"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e537406dcdbabcf69a34282f193141b1e5b1e7a39bc4ca86969f0c4ff8d53b55",
+    "objective_chars": 30534,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 1 broken, 2 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Decompose one objective into subtasks and plan (default) or dispatch (--live) them across the local bench via Kairos.\" | _spawn | KEPT | The function uses KairosScheduler with dry_run=not args.live, matching the docstring.",
+     "CLAIM | \"Plan a multi-wave build for one feature objective: decompose it, route each subtask to its owner, assign a frontier builder (Claude) or the local bench off the category lane, and group into bounded waves. Plan only for now -- persists a session snapshot under runs/build/.\" | _build | KEPT | The function calls plan_build and prints session summary; snapshot_path is printed.",
+     "CLAIM | \"daedalus build ... Plan only for now -- persists a session snapshot under runs/build/.\" | _build | UNCHECKABLE | Cannot verify that plan_build persists a snapshot under runs/build/ without seeing that function.",
+     "CLAIM | \"Create / list / edit / delete agent-role definitions at runtime -- the roles Ikarus routes to.\" | _agents | KEPT | The function uses agents_registry and supports list/show/add/edit/rm actions.",
+     "CLAIM | \"List / show / recolor role categories -- the icon/color/lane/tier presets that group agent roles for the UI.\" | _categories | KEPT | The function uses categories module and supports list/show/set actions.",
+     "CLAIM | \"List / show / remove persisted advisory drafts (runs/drafts/). Drafts are free-lane PROPOSALS awaiting review -- applying one stays a human / Claude action by design (a free model may propose, never merge).\" | _drafts | KEPT | The function uses kairos.drafts and supports list/show/rm/apply/dismiss actions.",
+     "CLAIM | \"Convene the cross-vendor council over a patch or a question. ... The output is ADVISORY and PROMOTES NOTHING.\" | _council | KEPT | The function sets up council session with dry-run/live; docstring states advisory nature.",
+     "CLAIM | \"--live is REQUIRED to call any vendor: it spends real money; --dry-run calls nothing\" | _council | KEPT | The function has a spend gate (incomplete in chunk but clearly indicated).",
+     "CLAIM | \"daedalus council ... --live is REQUIRED to call any vendor: it spends real money; --dry-run calls nothing\" | _council | KEPT | Same as above.",
+     "CLAIM | \"daedalus council ... --dry-run prints the plan and vendor availability; call NO model\" | _council | KEPT | The function returns early for publish_pr/read_thread; for question, it parses args and will proceed conditionally.",
+     "CLAIM | \"daedalus council ... --publish-pr ... Requires --live to actually send; without it the body is rendered and gated but gh is never invoked.\" | _council | UNCHECKABLE | Cannot verify the gh invocation logic without seeing _council_pr or the rest of the function.",
+     "CLAIM | \"daedalus council ... --read-thread ... read a PR's comments back as council turns (INPUT to a later round; authoritative for nothing)\" | _council | KEPT | The function passes args to _council_pr for this case.",
+     "CLAIM | \"daedalus council ... --transcript ... the council to publish: a runs/council/*.jsonl path, or a bare council id\" | _council | KEPT | The argument is defined and passed to _council_pr.",
+     "CLAIM | \"daedalus council ... --repo ... target repository (default: gh's current repo)\" | _council | KEPT | The argument is defined and passed to _council_pr.",
+     "CLAIM | \"daedalus council ... --dry-run is a\" (incomplete sentence) | _council | BROKEN | The sentence is truncated; the code comment says \"THE SPEND GATE, before a single adapter is built. `--dry-run` is a\" but the rest is missing. This is a broken claim because the docstring is incomplete."
+    ],
+    "todos": [
+     "Complete the docstring comment for --dry-run in _council function."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e537406dcdbabcf69a34282f193141b1e5b1e7a39bc4ca86969f0c4ff8d53b55",
+    "objective_chars": 30534,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 11 kept, 3 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"daedalus status ... EXITS NON-ZERO when a subsystem is degraded or unproven\" | module docstring | UNCHECKABLE | no implementation of `status` in this unit; would need to see the `status` handler",
+     "CLAIM | \"daedalus health ... `present` and `unknown` are NOT passes and exit 2\" | module docstring | UNCHECKABLE | no implementation of `health` in this unit; would need to see the `health` handler",
+     "CLAIM | \"daedalus drill ... It never schedules anything\" | module docstring | UNCHECKABLE | no implementation of `drill` in this unit; would need to see the `drill` handler",
+     "CLAIM | \"daedalus project-memory ... project the append-only memory journal into the vector index and record the watermark\" | module docstring | UNCHECKABLE | no implementation of `project-memory` in this unit; would need to see the `project-memory` handler",
+     "CLAIM | \"daedalus council ... ADVISORY -- it promotes nothing.\" | module docstring | KEPT | docstring says advisory, code in `_council` docstring says ADVISORY and PROMOTES NOTHING, consistent",
+     "CLAIM | \"daedalus council ... --live is REQUIRED to call any vendor: it spends real money; --dry-run calls nothing\" | module docstring | KEPT | `_council` has `--live` and `--dry-run` flags and a spend gate comment",
+     "CLAIM | \"daedalus canary ... --live is REQUIRED to call any lane: a REAL task costs real money; --dry-run names the lanes and calls nothing\" | module docstring | UNCHECKABLE | no implementation of `canary` in this unit; would need to see the `canary` handler",
+     "CLAIM | \"daedalus improve ... --once attempts the top item in an isolated worktree and prints a patch for HUMAN review (it never applies anything)\" | module docstring | UNCHECKABLE | no implementation of `improve` in this unit; would need to see the `improve` handler",
+     "CLAIM | \"_spawn ... Decompose one objective into subtasks and plan (default) or dispatch (--live) them across the local bench via Kairos.\" | _spawn docstring | KEPT | code passes `dry_run=not args.live` to `ikarus.spawn`, consistent",
+     "CLAIM | \"_build ... Plan a multi-wave build for one feature objective: decompose it, route each subtask to its owner, assign a frontier builder (Claude) or the local bench off the category lane, and group into bounded waves. Plan only for now -- persists a session snapshot under runs/build/.\" | _build docstring | KEPT | code calls `plan_build` and prints waves, consistent",
+     "CLAIM | \"_agents ... With --repo-root/--project, writes a per-repo override under .agentenv/agents/; otherwise the built-in global agents/.\" | _agents docstring | KEPT | code calls `resolve_repo_root` and passes `repo_root` to registry functions, consistent",
+     "CLAIM | \"_categories ... With --repo-root/--project, `set` writes a per-repo override under .agentenv/categories.json; otherwise the built-in global agents/categories.json.\" | _categories docstring | KEPT | code passes `repo_root` to `cats.update`, consistent",
+     "CLAIM | \"_drafts ... Drafts are free-lane PROPOSALS awaiting review -- applying one stays a human / Claude action by design (a free model may propose, never merge).\" | _drafts docstring | KEPT | code calls `dr.apply_payload` and prints a review packet, consistent",
+     "CLAIM | \"_council ... The output is ADVISORY and PROMOTES NOTHING. It carries no majority, no score and no approve/reject field, by construction\" | _council docstring | KEPT | docstring matches code structure, no approve/reject field visible",
+     "D1 | `args.ollama_host` in `_council` | parameter `--ollama-host` defined but never used in this unit | WRONG CONCLUSION: a caller believes the Ollama host is used, but it is parsed and then ignored",
+     "D2 | `except (ValueError, FileExistsError) as exc:` in `_agents` add action | swallows exceptions and prints error message; docstring says 'writes a per-repo override', no claim about refusing or failing closed | not applicable: no surrounding prose says refuse or fail-closed",
+     "D3 | none found | no check-after-side-effect pattern detected | not applicable",
+     "D4 | none found | no impossible branch detected | not applicable"
+    ],
+    "todos": [
+     "in _council: pass args.ollama_host to the council session or remove the argument",
+     "add implementations for missing subcommands (status, health, drill, project-memory, canary, improve) or update docstring"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "e537406dcdbabcf69a34282f193141b1e5b1e7a39bc4ca86969f0c4ff8d53b55",
+    "objective_chars": 30534,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/cli.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28029
+ }
+}

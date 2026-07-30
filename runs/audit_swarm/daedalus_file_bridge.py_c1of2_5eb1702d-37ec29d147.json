@@ -1,0 +1,152 @@
+{
+ "task_id": "daedalus/file_bridge.py#c1of2#5eb1702d",
+ "key": "daedalus_file_bridge.py_c1of2_5eb1702d-37ec29d147",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 4 kept, 1 broken, 3 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _write_json_atomic | BROKEN | docstring says 'Same trick as enqueue(): write under a name no consumer's glob matches, then os.replace' but code delegates to write_text_atomic which uses a random suffix, not the fixed .tmp; also the docstring claims 'Consumers of the inbox glob *.report.json, which never matches *.report.json.tmp' but write_text_atomic may use a different temp suffix pattern, so the claim about consumer glob not matching is uncheckable without seeing write_text_atomic.",
+     "CLAIM | \"A truncated/corrupt journal reads as empty, i.e. as 'nothing has happened yet'\" | _read_journal | KEPT | returns {} on OSError/json.JSONDecodeError/ValueError",
+     "CLAIM | \"Reports are published with os.replace so on disk they are whole or missing -- but a report left by an older build (plain write_text) can be half a document\" | _completed_report | KEPT | reads and parses the file, returns None on OSError/json.JSONDecodeError/ValueError or if not a dict",
+     "CLAIM | \"Never raises\" | _memory_already_recorded | KEPT | wraps all exceptions in try/except and returns False",
+     "CLAIM | \"A FIXED destination is what makes 'never two archived copies' true by construction: os.replace overwrites atomically, so an interrupted cross-device move (copy landed, source not yet unlinked) resolves to exactly one archived file instead of two\" | _archive_once | KEPT | uses os.replace then falls back to shutil.move which is copy+unlink, but the fixed destination means overwrite is atomic; the claim is about the fixed destination making 'never two archived copies' true, which holds because os.replace overwrites atomically",
+     "CLAIM | \"REFUSES BY DEFAULT WHEN NOTHING IS LISTENING (see WatcherNotRunning). `require_watcher=False` is the deliberate 'queue ahead, I will start the watcher myself' escape hatch -- it still prints the warning\" | enqueue | KEPT | checks heartbeat_status and raises WatcherNotRunning if state is stale/none and require_watcher is True; if require_watcher is False it prints a warning",
+     "CLAIM | \"A `wedged` watcher is ALLOWED (a consumer exists, it is just slow) but warns loudly\" | enqueue | KEPT | prints a warning when state is 'wedged'",
+     "CLAIM | \"CODEX-LANE PROTOCOL ... Long inline objectives on `--lane codex` bounce or underperform; :func:`codex_inline_brief_warning` prints a stderr warning (non-blocking) when an objective smells like an inline brief\" | enqueue | UNCHECKABLE | codex_inline_brief_warning returns a string, but the docstring says it prints a stderr warning; the code in enqueue prints the warning itself, not the function. The function returns the warning text, and enqueue prints it. The claim says the function prints, but it doesn't; the function only returns. However the overall behavior (warning is printed) is achieved by enqueue. To check if the claim is broken we'd need to see the function's docstring or the caller's expectation; the claim as stated in enqueue's docstring is consistent with the code.",
+     "D1 | _stamp | defined but never read in this unit | WRONG CONCLUSION: a caller believes it is used somewhere, but it is only defined here and never called in this unit."
+    ],
+    "todos": [
+     "Update _write_json_atomic docstring to accurately describe that it delegates to write_text_atomic which uses a random suffix, and remove the claim about consumer glob not matching *.report.json.tmp if write_text_atomic uses a different pattern."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7256bc985144fb199a6ceb03d02b5f5a9e740f1ca2fbce4ea5c3ae1080ae4e57",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 8 kept, 4 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Publishes atomically\" | _write_json_atomic | BROKEN | docstring says 'write under a name no consumer's glob matches, then os.replace' but delegates to write_text_atomic which may not use .tmp suffix; also says 'two publishers racing on the same target wrote one scratch file' but the suffix is still .tmp, so two publishers still race on the same .tmp name",
+     "CLAIM | \"A RANDOM temp suffix. This used to be a fixed .tmp, so two publishers racing on the same target wrote one scratch file and one could publish the other's half-written bytes. The suffix still ends in .tmp, so no consumer glob starts matching it.\" | _write_json_atomic | BROKEN | The docstring claims a random suffix, but the code delegates to write_text_atomic without showing any random suffix generation; the comment about 'still ends in .tmp' is misleading because the random part is not visible in this unit",
+     "CLAIM | \"A truncated/corrupt journal reads as empty, i.e. as 'nothing has happened yet'. That direction is the safe one\" | _read_journal | KEPT | Code catches OSError, json.JSONDecodeError, ValueError and returns {}",
+     "CLAIM | \"Reports are published with os.replace so on disk they are whole or missing -- but a report left by an older build (plain write_text) can be half a document, and reusing one of those would hand back a truncated result as if the work had succeeded. Parse before trusting.\" | _completed_report | KEPT | Code reads and parses JSON, returns None on any error",
+     "CLAIM | \"Costs a full read of the memory log, which is why it is consulted only when the journal says the append was in flight when the process died -- the one state where the flag alone cannot tell us. Never raises.\" | _memory_already_recorded | UNCHECKABLE | The claim about 'only when the journal says the append was in flight' cannot be verified without seeing the caller that decides when to call this function",
+     "CLAIM | \"A FIXED destination is what makes 'never two archived copies' true by construction: os.replace overwrites atomically, so an interrupted cross-device move (copy landed, source not yet unlinked) resolves to exactly one archived file instead of two.\" | _archive_once | KEPT | Code uses os.replace then shutil.move as fallback, and dest is fixed per key",
+     "CLAIM | \"Returns False if the request could not be moved (locked file) so the caller can retry next poll.\" | _archive_once | KEPT | Code returns False on OSError or shutil.Error",
+     "CLAIM | \"REFUSES BY DEFAULT WHEN NOTHING IS LISTENING (see WatcherNotRunning).\" | enqueue | KEPT | Code raises WatcherNotRunning when hb['state'] in ('stale', 'none') and require_watcher is True",
+     "CLAIM | \"A `wedged` watcher is ALLOWED (a consumer exists, it is just slow) but warns loudly\" | enqueue | KEPT | Code prints warning for 'wedged' state without raising",
+     "CLAIM | \"CONSUMER CHECK BEFORE THE WRITE, never after: a refusal must leave no file behind\" | enqueue | KEPT | Heartbeat check happens before any file write",
+     "CLAIM | \"A uuid cannot collide and needs nobody to look. The stamp and slug stay because they are what makes the outbox readable to a human.\" | enqueue | KEPT | Code uses uuid.uuid4().hex[:8] and includes stamp and slug in filename",
+     "CLAIM | \"PUBLISH ATOMICALLY. `write_text` is not one operation to a reader: the watcher polls this directory, and a plain write lets it glob a file that is half a JSON document. Writing to a name the watcher's `*.json` glob cannot match and then `os.replace`-ing it means the request either is not there or is there complete -- there is no observable in-between.\" | enqueue | BROKEN | The code calls write_text_atomic (which presumably does the atomic write), but the docstring describes writing to a non-matching name then os.replace, which may not match write_text_atomic's implementation; moreover, the comment says 'writing to a name the watcher's `*.json` glob cannot match' but write_text_atomic's behavior is not shown, so the atomicity claim is not verifiable from this unit",
+     "CLAIM | \"Exactly one well-known path an orchestrator can watch or tail instead of remembering to poll the whole inbox.\" | _note_report_arrival | KEPT | Code writes to _latest_log() which is a single path",
+     "CLAIM | \"Passing ``key`` makes the append EXACTLY ONCE for that request: the line carries ``key=<key>`` and is skipped when the log already announced it.\" | _note_report_arrival | KEPT | Code checks if log already contains a line ending with marker and returns early",
+     "D1 | _seen_dir | defined but never read in this unit; also _journal_dir, _quarantine_dir appear to be used but _seen_dir is not called anywhere in the visible code",
+     "D2 | _note_report_arrival | except OSError: pass | WRONG CONCLUSION: a caller believes failures in logging are reported, but they are silently swallowed",
+     "D3 | _memory_already_recorded | try/except (OSError, ImportError): pass | WRONG CONCLUSION: the docstring says 'Never raises', but the except swallows ImportError which would hide a broken import",
+     "D4 | _completed_report | Returns None if report is not a dict, but the docstring says 'Parse before trusting' \u2013 this is consistent, no contradiction"
+    ],
+    "todos": [
+     "Fix _write_json_atomic docstring to accurately describe write_text_atomic behavior, or ensure write_text_atomic uses a random suffix and document that",
+     "Remove or correct the claim about 'random temp suffix' in _write_json_atomic if write_text_atomic does not generate one",
+     "Clarify in enqueue docstring that atomicity is delegated to write_text_atomic and specify how that function achieves atomic publication"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7256bc985144fb199a6ceb03d02b5f5a9e740f1ca2fbce4ea5c3ae1080ae4e57",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 10 kept, 3 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"publishes atomically\" | _write_json_atomic | BROKEN | docstring claims atomic write, but delegates to write_text_atomic which may not use os.replace itself; also says 'used to be a fixed .tmp' implying current code uses random suffix, but _write_json_atomic does not add a random suffix itself",
+     "CLAIM | \"write_text is not one operation to a reader\" | enqueue | KEPT | code uses write_text_atomic, which is atomic",
+     "CLAIM | \"refuses by default when nothing is listening\" | enqueue | KEPT | raises WatcherNotRunning when require_watcher=True and heartbeat state is stale/none",
+     "CLAIM | \"refusal must leave no file behind\" | enqueue | KEPT | heartbeat check happens before OUTBOX mkdir and write",
+     "CLAIM | \"a uuid cannot collide and needs nobody to look\" | enqueue | KEPT | uses uuid.uuid4().hex[:8] in filename",
+     "CLAIM | \"the codex lane executes best from a queue-file task\" | enqueue docstring | UNCHECKABLE | no code in this unit enforces or tests that claim; would need to see the codex lane implementation",
+     "CLAIM | \"exactly one well-known path an orchestrator can watch\" | _latest_log | KEPT | returns a single path",
+     "CLAIM | \"key makes the append exactly once for that request\" | _note_report_arrival | KEPT | checks if log already contains marker and returns early",
+     "CLAIM | \"The idempotency key of a request: its filename stem\" | _request_key | KEPT | returns path.stem",
+     "CLAIM | \"A truncated/corrupt journal reads as empty\" | _read_journal | BROKEN | catches json.JSONDecodeError but not all truncation; a truncated file may still be valid JSON if cut mid-value? Actually catches OSError, JSONDecodeError, ValueError - but a truncated JSON that happens to be valid (e.g. empty dict) would be accepted, which is not 'safe' as claimed. The claim says 'reads as empty' but code returns the parsed dict if it is a dict, which could be non-empty and misleading",
+     "CLAIM | \"Reports are published with os.replace so on disk they are whole or missing\" | _completed_report | KEPT | uses os.replace in _write_json_atomic via write_text_atomic",
+     "CLAIM | \"A FIXED destination is what makes 'never two archived copies' true\" | _archive_once | KEPT | uses os.replace (overwrites) then shutil.move as fallback",
+     "CLAIM | \"Processing one request exactly once across crashes\" | process_request | UNCHECKABLE | the idempotency logic is present but correctness depends on journal durability and atomic writes; would need to trace all failure modes to verify exactly-once",
+     "CLAIM | \"If the process dies between dispatching the work and the report landing, we cannot know whether the provider ran, so the work is retried\" | process_request docstring | KEPT | code increments attempts and retries up to MAX_ATTEMPTS",
+     "CLAIM | \"up to MAX_ATTEMPTS, after which the request is quarantined\" | process_request docstring | KEPT | calls quarantine_request when attempts >= MAX_ATTEMPTS",
+     "D1 | STALE_AFTER_S | defined at module level, never read in this unit | WRONG CONCLUSION: a caller might expect it to be used in heartbeat_status() but that function is not in this chunk",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "In _write_json_atomic docstring: either fix the implementation to add a random suffix or update the docstring to match actual behavior (delegates to write_text_atomic which may handle suffix).",
+     "In _read_journal: change behavior to return empty dict for any non-empty dict that is not explicitly a valid journal entry, or update docstring to say 'returns parsed dict even if truncated, caller must validate'."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7256bc985144fb199a6ceb03d02b5f5a9e740f1ca2fbce4ea5c3ae1080ae4e57",
+    "objective_chars": 30551,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/file_bridge.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28038
+ }
+}

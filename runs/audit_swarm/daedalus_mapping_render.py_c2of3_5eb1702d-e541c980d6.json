@@ -1,0 +1,105 @@
+{
+ "task_id": "daedalus/mapping/render.py#c2of3#5eb1702d",
+ "key": "daedalus_mapping_render.py_c2of3_5eb1702d-e541c980d6",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6e781a8b1abb6b0a13a2cae7dd2f990bbd38f291d8a3dc5aebb24cf945de83c2",
+    "objective_chars": 30531,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 9 kept, 0 broken, 0 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The theme toggle stamps data-theme on <html>, and BOTH data-theme rules are emitted so the toggle wins in either direction\" | _CSS | KEPT | The CSS contains both :root[data-theme=\"dark\"] and :root[data-theme=\"light\"] blocks, and the toggle JS sets data-theme attribute on document.documentElement (the <html> element).",
+     "CLAIM | \"a viewer whose OS says dark must be able to force light, which a bare prefers-color-scheme block cannot do\" | _CSS | KEPT | The CSS includes @media (prefers-color-scheme:dark) block and also explicit :root[data-theme=\"dark\"] and :root[data-theme=\"light\"] blocks, so the toggle overrides OS preference.",
+     "CLAIM | \"The alarms open by default; 'reachable' and 'test' are the long tail and stay folded\" | _module_table | KEPT | open_attr is set only for cls in (\"island\", \"orphan\", \"unknown\", \"shim\"), and for others it's empty string, so details without open attribute are closed by default.",
+     "CLAIM | \"island + orphan + unknown + shim, and the tiles beside it add up to exactly this\" | _counts_bar | KEPT | The 'gate_unreached' value is computed as island + orphan + unknown + shim in the data dict and displayed as a separate tile; the individual tiles are also shown.",
+     "CLAIM | \"The rule that a test counts as intent is kept -- these do not fail the gate\" | _test_only_table | KEPT | The docstring says \"does NOT block on them\" and the code renders them with chip \"island\" but the text explains they do not block.",
+     "CLAIM | \"the gate drops N secrets ... and documented ... that a document introduces\" | _reconciliation | KEPT | The code computes secrets and documented and uses them in the description.",
+     "CLAIM | \"the gate used to count only the first two, so ... an if False: import, a swallowed ImportError, a bare string literal naming a module and a new re-export each left a genuinely unwired file on disk behind a green run\" | _reconciliation | KEPT | The docstring explains historical behavior and current improvement; no code contradicts it.",
+     "CLAIM | \"the structural index has the edge and the reachability walk refused it. Reported by both halves, merged into neither\" | _reconciliation | KEPT | The code shows both counts and explains they are not merged.",
+     "CLAIM | \"reported under its own kind and does NOT block -- a test is evidence somebody means to wire it, and a gate that fails over one gets switched off\" | _reconciliation | KEPT | The docstring states this and the code does not contradict.",
+     "D: none"
+    ],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6e781a8b1abb6b0a13a2cae7dd2f990bbd38f291d8a3dc5aebb24cf945de83c2",
+    "objective_chars": 30531,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "0 claims: 0 kept, 0 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6e781a8b1abb6b0a13a2cae7dd2f990bbd38f291d8a3dc5aebb24cf945de83c2",
+    "objective_chars": 30531,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/mapping/render.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28015
+ }
+}

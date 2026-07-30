@@ -1,0 +1,177 @@
+{
+ "task_id": "daedalus/loop.py#c1of3#5eb1702d",
+ "key": "daedalus_loop.py_c1of3_5eb1702d-dd7d6ce733",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "28 claims: 22 kept, 3 broken, 3 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The loop never invents its own ranking.\" | module docstring | KEPT | No ranking logic found in this unit.",
+     "CLAIM | \"The loop never calls run_attempt or promote_candidates directly\" | module docstring | KEPT | No direct calls to these functions appear in this unit.",
+     "CLAIM | \"the loop inherits worktree isolation, the cross-process promotion lock, and the governance AND for free\" | module docstring | UNCHECKABLE | Requires inspecting the called functions to verify these properties are inherited.",
+     "CLAIM | \"any ONE of them alone halts the loop: iteration count, wall clock, and spend\" | module docstring | KEPT | LoopBounds.__post_init__ raises on non-positive values; STOP_REASONS includes max_iterations, max_wall_clock, max_spend.",
+     "CLAIM | \"the fourth is convergence -- max_attempts_per_candidate -- and it is the one that stops the loop from spending its whole budget re-attempting a single candidate\" | module docstring | KEPT | LoopLedger.verdict checks n_attempts against max_attempts_per_candidate.",
+     "CLAIM | \"When daedalus.core.get_governance() reports promotion_allowed: False the loop still picks, still attempts, still gates -- and promotes nothing.\" | module docstring | UNCHECKABLE | Requires code not in this unit (the loop body) to verify behavior when governance is red.",
+     "CLAIM | \"LoopReport.mode is 'inert' rather than 'promoting'\" | module docstring | UNCHECKABLE | LoopReport dataclass not defined in this chunk; mode not visible.",
+     "CLAIM | \"There is no code path from this module to a write in repo_root\" | module docstring | KEPT | No git subprocess or write to repo_root in this unit; only write is write_text_atomic to a ledger path.",
+     "CLAIM | \"its one write path (run_wave) lands candidates in disposable worktrees and promotes, at most, to the integration branch\" | module docstring | KEPT | run_wave not defined here but claimed to be reused; no contradiction in this unit.",
+     "CLAIM | \"STOP LATENCY WAS NOT UNIFORM; closed 2026-07-29\" | module docstring | KEPT | The docstring describes a past fix; no code contradicts it.",
+     "CLAIM | \"SIBLING INTEGRATION BRANCHES. promote_candidates mints a fresh branch per call off a freshly read primary HEAD, and primary never moves during a run, so N iterations leave N unmerged siblings\" | module docstring | KEPT | LoopLedger.claim docstring explains this; no contradiction.",
+     "CLAIM | \"LoopLedger.claim is the guard; it is honest about being a declared-path heuristic.\" | module docstring | KEPT | LoopLedger.claim exists and documents the heuristic.",
+     "CLAIM | \"THE CANDIDATE'S OWN GATE IS DROPPED. See LoopDriver._session_for.\" | module docstring | KEPT | _curated_gate drops gate_paths and base_revision; _session_for is not in this chunk but the claim points there.",
+     "CLAIM | \"A bound is missing or non-positive. Refused at construction.\" | LoopMisconfigured docstring | KEPT | LoopBounds.__post_init__ raises LoopMisconfigured for None or <=0 values.",
+     "CLAIM | \"Each of the first three is INDEPENDENTLY sufficient to halt. They are not alternatives to each other and none is optional\" | LoopBounds docstring | KEPT | LoopBounds has all three fields with positive defaults; __post_init__ enforces positivity.",
+     "CLAIM | \"NO SENTINEL FOR 'UNLIMITED'. Not an oversight: an unbounded loop is the failure this module exists to prevent\" | LoopBounds.__post_init__ comment | KEPT | __post_init__ raises on None or <=0, no sentinel.",
+     "CLAIM | \"MIRRORS daedalus.kairos.scheduler._paths_overlap's key exactly (str(p).replace(\"\\\\\\\\\", \"/\"))\" | _path_key docstring | KEPT | _path_key does str(p).replace(\"\\\\\", \"/\").strip().",
+     "CLAIM | \"Same key, two questions.\" | _path_key docstring | KEPT | The docstring explains the two uses; no contradiction.",
+     "CLAIM | \"attempt memory is a PENALTY, not a filter\" | LoopLedger docstring | KEPT | The docstring explains this; no code in this unit contradicts.",
+     "CLAIM | \"THE ID SPACES DO NOT JOIN. attempt_history looks up exactly the candidate ids it is given ... but a wave routed through the gated write path attempts under a spec whose id gated_writes._spec_for mints fresh per call\" | LoopLedger docstring | KEPT | LoopLedger.record stores attempt_task_ids; the docstring explains the mismatch.",
+     "CLAIM | \"prior_attempts_same_definition therefore stays 0 across iterations no matter how many times the loop tries\" | LoopLedger docstring | KEPT | The docstring explains this; no code in this unit contradicts.",
+     "CLAIM | \"THE GAP IS RECORDED, NOT PAPERED OVER. Every record keeps the wave's minted attempt_task_ids\" | LoopLedger docstring | KEPT | LoopLedger.record stores attempt_task_ids.",
+     "CLAIM | \"THE SECOND JOIN KEY, AND WHY IT DOES NOT REPLACE THE FIRST. attempt_task_ids answers which attempt ... trace_id answers a different question -- which run\" | LoopLedger docstring | KEPT | LoopLedger stores both; docstring explains.",
+     "CLAIM | \"SCHEMA = \"daedalus.loop.ledger/2\"\" | LoopLedger docstring | KEPT | SCHEMA = \"daedalus.loop.ledger/2\" on line 193.",
+     "CLAIM | \"Captured at CONSTRUCTION rather than read at save time, because the driver builds the ledger before it enters its traced scope and a save-time read would find nothing.\" | LoopLedger.__init__ docstring | KEPT | __init__ sets self.trace_id from parameter or current_trace_id().",
+     "CLAIM | \"The loop's ONLY admission predicate.\" | LoopLedger.verdict docstring | KEPT | verdict returns (admissible, why_not) and appears to be the only place that decides admission.",
+     "CLAIM | \"Two grounds for refusal, and they are different failures: the candidate has had its chances (convergence), or its files are already spoken for by an earlier iteration of this run (mergeability)\" | LoopLedger.verdict docstring | KEPT | verdict checks n_attempts and claimed_by.",
+     "CLAIM | \"The both-directions reader. A /1 document is a bare body and comes back untouched; a /2 document is an ITE-6 statement and comes back unwrapped to the same shape.\" | LoopLedger.load docstring | KEPT | load calls unwrap(json.loads(...)).",
+     "D1 | max_wall_clock_s | Parameter in LoopBounds.__post_init__ is read but only to check positivity; not used in any loop logic in this unit | WRONG CONCLUSION: A caller believes the wall clock bound is enforced by this unit, but no timing code appears in this chunk.",
+     "D2 | none | No except blocks that swallow and continue where prose says refuse.",
+     "D3 | none | No checks that run after the side effect they guard.",
+     "D4 | none | No branches whose condition cannot be true given assignments above it."
+    ],
+    "todos": [
+     "CLAIM | \"LoopReport.mode is 'inert' rather than 'promoting'\" | LoopReport not defined in this chunk; cannot verify.",
+     "CLAIM | \"When daedalus.core.get_governance() reports promotion_allowed: False the loop still picks, still attempts, still gates -- and promotes nothing.\" | Requires loop body not in this chunk; cannot verify.",
+     "CLAIM | \"STOP LATENCY WAS NOT UNIFORM; closed 2026-07-29\" | The docstring describes a past fix; no code to check.",
+     "D1 | max_wall_clock_s | Add wall clock enforcement in the loop body, or remove the bound from LoopBounds if not enforced here."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8190528cd0a58f1fd057b099596df77e4e8be0107947a18b975c40abecd2ce1",
+    "objective_chars": 30527,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 14 kept, 2 broken, 2 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Every other entry point in this tree runs ONE attempt and exits.\" | module docstring | UNCHECKABLE | would need to see all other entry points to verify",
+     "CLAIM | \"The loop never invents its own ranking.\" | module docstring | KEPT | the code imports and relies on build_queue from daedalus.spine.picker",
+     "CLAIM | \"The loop never calls run_attempt or promote_candidates directly\" | module docstring | UNCHECKABLE | would need to see the rest of the file to verify no direct calls",
+     "CLAIM | \"Three are dimensions of 'how much', and any ONE of them alone halts the loop\" | module docstring | KEPT | LoopBounds has three independent bounds, all positive, each sufficient to halt",
+     "CLAIM | \"max_attempts_per_candidate ... is the one that stops the loop from spending its whole budget re-attempting a single candidate\" | module docstring | KEPT | LoopLedger.verdict checks n_attempts against max_attempts_per_candidate",
+     "CLAIM | \"DEFAULT_MAX_ATTEMPTS_PER_CANDIDATE = 2\" | line DEFAULT_MAX_ATTEMPTS_PER_CANDIDATE = 2 | KEPT | the constant is defined as 2",
+     "CLAIM | \"2, not 1: one failure can be a flake\" | comment | KEPT | the constant is 2, matching the explanation",
+     "CLAIM | \"STOP_REASONS = ( ... )\" | line STOP_REASONS = ( ... ) | KEPT | the tuple contains the listed reasons",
+     "CLAIM | \"Each of the first three is INDEPENDENTLY sufficient to halt.\" | LoopBounds docstring | KEPT | the docstring says so and the code does not combine them",
+     "CLAIM | \"NO SENTINEL FOR 'UNLIMITED'\" | comment in __post_init__ | KEPT | __post_init__ raises LoopMisconfigured for None or non-positive values",
+     "CLAIM | \"attempt history looks up exactly the candidate ids it is given\" | LoopLedger docstring | KEPT | LoopLedger uses candidate_id as key",
+     "CLAIM | \"_path_key ... MIRRORS daedalus.kairos.scheduler._paths_overlap's key exactly\" | _path_key docstring | BROKEN | the docstring claims mirroring but the function is defined here; the actual mirroring cannot be verified because the other function is not in this unit; the claim is about a relationship, not a property of this unit alone",
+     "CLAIM | \"SCHEMA = 'daedalus.loop.ledger/2'\" | line SCHEMA = \"daedalus.loop.ledger/2\" | KEPT | the constant is defined as that string",
+     "CLAIM | \"record ... The join key the picker cannot compute for itself\" | record docstring | KEPT | record stores attempt_task_ids as documented",
+     "CLAIM | \"setdefault, not [...]: a ledger restored from a /1 document has attempt records with no such list.\" | comment in record | KEPT | the code uses setdefault for trace_ids",
+     "CLAIM | \"to_dict() ... Still flat, still carrying schema/attempts/claims under their original names\" | to_dict docstring | KEPT | to_dict returns a dict with those keys",
+     "CLAIM | \"load ... A /1 document is a bare body and comes back untouched; a /2 document is an ITE-6 statement and comes back unwrapped\" | load docstring | KEPT | load uses unwrap on json loaded from file",
+     "CLAIM | \"gate_paths is deliberately DROPPED\" | _curated_gate docstring | KEPT | the function does not include gate_paths in the output",
+     "D1 | _curated_gate | parameter candidate is used, but gate_cwd is accessed via getattr; if candidate is not a proper object, accessing evidence might fail | WRONG CONCLUSION: the function assumes candidate has evidence attribute, but no type check is done before getattr; however the docstring says it's a Candidate object, so this is a design assumption, not a D1"
+    ],
+    "todos": [
+     "Fix _path_key docstring: either remove the mirroring claim or add a cross-reference that can be verified",
+     "Add type guard or at least a comment in _curated_gate that candidate is expected to have an 'evidence' attribute"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8190528cd0a58f1fd057b099596df77e4e8be0107947a18b975c40abecd2ce1",
+    "objective_chars": 30527,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 11 kept, 2 broken, 3 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The loop never invents its own ranking.\" | LoopDriver.run | KEPT | No code in this unit generates a ranking; it relies on build_queue from spine.picker.",
+     "CLAIM | \"The loop never calls run_attempt or promote_candidates directly.\" | LoopDriver._session_for | KEPT | The unit only references run_wave; no direct calls to run_attempt or promote_candidates are present.",
+     "CLAIM | \"Any ONE of them alone halts the loop: iteration count, wall clock, and spend.\" | LoopBounds.__post_init__ | KEPT | Each bound independently triggers a stop reason; the code checks each one.",
+     "CLAIM | \"max_attempts_per_candidate ... is the one that stops the loop from spending its whole budget re-attempting a single candidate.\" | LoopLedger.verdict | KEPT | The verdict method returns False if n_attempts >= max_attempts_per_candidate.",
+     "CLAIM | \"There is no code path from this module to a write in repo_root\" | LoopDriver.run | UNCHECKABLE | Would need to see the full run method and all called functions to verify no write to repo_root occurs.",
+     "CLAIM | \"it now receives the same cancel token as everything else\" | gated_writes._promote_one_inner | UNCHECKABLE | The cancel token passing is not visible in this unit; would need to see the caller of _promote_one_inner.",
+     "CLAIM | \"a cancelled re-gate raises a DISTINCT type (_CumulativeGateCancelled)\" | gated_writes | UNCHECKABLE | This exception type is not defined in this unit; would need to see gated_writes module.",
+     "CLAIM | \"promote_candidates mints a fresh branch per call off a freshly read primary HEAD\" | LoopLedger.claim docstring | KEPT | The claim docstring describes this behavior; the code does not contradict it.",
+     "CLAIM | \"LoopLedger.claim is the guard; it is honest about being a declared-path heuristic.\" | LoopLedger.claim | KEPT | The claim method documents the limitation in its docstring.",
+     "CLAIM | \"A gate whose cwd is not '.' is also dropped\" | _curated_gate | KEPT | The function returns out when cwd != '.'.",
+     "CLAIM | \"It never falls back to a routing PREFERENCE.\" | _model_of | KEPT | The function only reads from observed fields, not from preferences.",
+     "CLAIM | \"A preferred model is not evidence of the model that ran\" | IterationResult.model docstring | KEPT | The docstring explicitly states it is never back-filled from a routing preference.",
+     "CLAIM | \"The body goes into predicate UNALTERED\" | LoopLedger.save docstring | BROKEN | Line: write_text_atomic(self.path, json.dumps(doc, indent=2)). The docstring says the body goes into predicate unaltered, but the code wraps it in a statement with additional envelope fields (subject, predicate_type, trace_id). The body is inside predicate but the document as a whole is altered by the envelope.",
+     "CLAIM | \"the digest stays stable against a reformat\" | LoopLedger.save docstring | BROKEN | Line: subject=subject_for(self.path.name, sha256=canonical_sha(body)). The digest is computed over canonical_sha(body), which is stable, but the code writes the pretty-printed JSON (indent=2) to disk. The docstring claims the digest is stable against a reformat, but the code writes formatted JSON, so a reformat of the file would change bytes on disk but the digest would remain the same because it's computed over the canonical body. However, the claim is about the digest being stable against a reformat of the file; since the digest is computed before formatting, a reformat of the file does not affect the digest. So this claim is actually KEPT. Re-evaluating: The docstring says \"the file stays indent=2 for humans, and the digest stays stable against a reformat.\" The code computes canonical_sha(body) before formatting, so a reformat of the file (e.g., changing indent) would change the file bytes but the digest would remain the same. Therefore the claim is KEPT.",
+     "D1 | LoopBounds.to_dict | Parameter 'retry_s' not defined in this unit; no unused parameter found. Actually checking D1: a parameter, keyword argument or module-level constant defined in this unit and read nowhere in this unit. None found.",
+     "D2 | no except swallows and continues where prose says refuse/fail-closed | KEPT | No such pattern found.",
+     "D3 | no check that runs after the side effect its own comment says it guards | KEPT | No such pattern found.",
+     "D4 | no branch whose condition cannot be true given assignments above | KEPT | No such pattern found."
+    ],
+    "todos": [
+     "CLAIM 'The body goes into predicate UNALTERED' is BROKEN: The save method wraps the body in an envelope (statement) with additional fields. To make the prose true, either remove the envelope or update the docstring to acknowledge the envelope.",
+     "CLAIM 'the digest stays stable against a reformat' is KEPT after re-evaluation."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a8190528cd0a58f1fd057b099596df77e4e8be0107947a18b975c40abecd2ce1",
+    "objective_chars": 30527,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/loop.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28021
+ }
+}

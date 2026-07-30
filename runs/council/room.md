@@ -2043,3 +2043,38 @@ und?
 ### Kaya  ·  human · live  ·  12:04:09
 
 wie weit sind die gates
+
+---
+
+### Kaya  ·  human · live  ·  12:37:09
+
+aber theoretish sollte deepseek pro doch gut genug sein?
+hÃ¤ngt das eventuell mit dem fehlendem Kontext zusammen?
+
+---
+
+### Kaya  ·  human · live  ·  12:50:17
+
+oke ich glaub ich hab eine LÃ¶sung fÃ¼r diese dev hÃ¶lle an evulatoren:
+NÃ¤mlich solange die automaten noch gebaut und getuned werden(temperature, seed, random, variation und diversity muss aufjedenfall vorkommen, das abhandensein dessen  sieht man das unser projekt 70prozent schizophrenie ist leider).
+
+Die LÃ¶sung:
+Lass Haiku Agenten die outputs der generatoren und inputs an den gates monitoren damit die checken was abgeht, quasi wie ein log.
+
+---
+
+### Kaya  ·  human · live  ·  13:09:59
+
+und wie lÃ¤ufts
+
+---
+
+### Kaya  ·  human · live  ·  13:18:50
+
+okay mach mal eine TODOS was wir heute alles in diesem chat machen wollten/wollen ich gib das dann mal codex eventuell hilft nh frische zweitmeinung
+
+---
+
+### Kaya  ·  human · live  ·  13:22:58
+
+lÃ¤uft eingentlich der 1200 Agenten giga workflow?

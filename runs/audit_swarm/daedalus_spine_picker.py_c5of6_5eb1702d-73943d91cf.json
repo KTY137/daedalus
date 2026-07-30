@@ -1,0 +1,138 @@
+{
+ "task_id": "daedalus/spine/picker.py#c5of6#5eb1702d",
+ "key": "daedalus_spine_picker.py_c5of6_5eb1702d-73943d91cf",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "6 claims: 3 kept, 2 broken, 1 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises on a bad or missing source file\" | build_queue docstring | BROKEN | docref source try/except catches Exception and continues; but the docstring says never raises, and the except is present, so it does not raise; actually KEPT \u2014 the claim is that it never raises, and the code catches exceptions, so it keeps the promise. Wait, the claim is \"never raises\". The docref source has a try/except that catches Exception and does not re-raise, so it does not raise. The claim is kept. However, the map source's try/except for spectral also catches Exception and does not re-raise. So the claim is kept. But the docstring says \"Never raises on a bad or missing source file.\" The code does not raise; it catches. So KEPT. But I need to check if any code path could raise. The spectral import is inside try, and the rest are not raising. So KEPT.",
+     "CLAIM | \"include_spectral ... cannot change the queue's contents or order\" | build_queue docstring | BROKEN | include_spectral can add candidate notes via spectral_note appended to notes, which changes queue.notes, thus changing the queue's notes, which is part of the queue's contents. The claim says \"cannot change the queue's contents or order\", but notes are part of the queue's contents.",
+     "CLAIM | \"Never raises out of build_queue: the contract is 'never raises on a bad or missing source', and an optional enrichment is the last thing that should be allowed to take the queue down\" | comment in build_queue near spectral | KEPT | the try/except catches Exception and does not re-raise, so it does not raise.",
+     "CLAIM | \"Never raises (docrefs.scan promises that); a failure here must cost the queue this one source, never the whole queue\" | comment in build_queue near docref | BROKEN | the comment says docrefs.scan never raises, but the code wraps it in a try/except, which would be unnecessary if it never raises. However, the comment is about the intention, but the code contradicts the claim that it never raises because the except implies it might. Actually, the claim is that docrefs.scan never raises, and the code catches Exception, so if it never raises, the except is dead code. The claim is about the external function, not about build_queue. The claim is \"Never raises (docrefs.scan promises that)\" \u2014 this is a claim about docrefs.scan, not about build_queue. Since we cannot check docrefs.scan, this is UNCHECKABLE.",
+     "CLAIM | \"FAIL CLOSED. Letting a snapshot of a different tree drive these bands means working from a repo that no longer exists.\" | comment in build_queue near inventory freshness check | KEPT | the code suppresses candidates when freshness is not fresh and enforce_inventory_freshness is True, which is fail-closed.",
+     "CLAIM | \"Reported, not swallowed: a source that failed is a different fact from a source that found nothing\" | comment in build_queue near docref except | KEPT | the except block records the error in sources and appends a note, so it is reported, not swallowed.",
+     "D1 | enforce_inventory_freshness | parameter accepted and never read in this unit? Actually it is read in the inventory section. Let's check: it is used in the condition `if freshness[\"fresh\"] or not enforce_inventory_freshness`. So it is read. No D1.",
+     "D2 | none | no except that swallows and continues where prose says refuse or fail-closed. The docref except continues, but the prose says \"Never raises\" and \"a failure here must cost the queue this one source, never the whole queue\" \u2014 that is consistent with continuing. So no D2.",
+     "D3 | none | no check that runs after the side effect it guards.",
+     "D4 | none | no branch whose condition cannot be true given assignments above it."
+    ],
+    "todos": [
+     "fix include_spectral claim: remove the claim that it cannot change queue's contents, or change the code to not add notes.",
+     "fix docref comment: remove the claim that docrefs.scan never raises, or remove the try/except if it truly never raises."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58ff648a9a6c76ca5c7ddb04ccc1dc5f45962885e52fbae98ae53b01fef4b509",
+    "objective_chars": 30577,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "8 claims: 6 kept, 2 broken, 0 uncheckable; 2 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises on a bad or missing source file\" | build_queue docstring | BROKEN | docref source block raises bare Exception and catches it, but the claim says never raises; the docref block itself can raise from docrefs.scan before the try (line not in chunk), but the try-except covers the scan call; however the claim is about the whole function, and other places (e.g. _load_baseline) could raise; the function does not catch all exceptions; the docstring claim is too broad.",
+     "CLAIM | \"Never raises (docrefs.scan promises that)\" | comment at docref block | KEPT | The comment asserts that docrefs.scan promises not to raise, and the code wraps it in try-except as a safety net, which is consistent.",
+     "CLAIM | \"a failure here must cost the queue this one source, never the whole queue\" | comment at docref block | KEPT | The try-except catches exceptions and records them in sources and notes, not propagating the exception.",
+     "CLAIM | \"FAIL CLOSED\" | comment in inventory freshness check | KEPT | When freshness fails and enforce_inventory_freshness is True, candidates are not extended (fail-closed).",
+     "CLAIM | \"A hand-edited generated file is worse than a missing one\" | comment in map trust check | KEPT | The comment describes the rationale for suppressing candidates when map is not trusted, and the code does not extend candidates in that case.",
+     "CLAIM | \"Derived every run, so unlike the map and the inventory it has no snapshot that can go stale\" | comment before docref block | KEPT | The comment describes the docref source as derived every run, which is consistent with the code calling docrefs.scan each time.",
+     "CLAIM | \"Reported, not swallowed\" | comment in docref exception handler | KEPT | The exception is caught, recorded in sources with state error, and appended to notes.",
+     "D1 | build_queue parameter | include_hotspots | WRONG CONCLUSION: a caller may believe this parameter controls whether hotspots are included, but it is only read in one branch (when hotspot_mode is not disabled/invalid) and if include_hotspots is False, the source is recorded as disabled; however the parameter is used, so not D1.",
+     "D2 | except Exception as exc: # noqa: BLE001 - enrichment must not block | spectral block | WRONG CONCLUSION: the comment says enrichment must not block, but the except swallows all exceptions, which could hide programming errors; however the comment justifies it, so not D2.",
+     "D2 | except Exception as exc: # noqa: BLE001 | docref block | WRONG CONCLUSION: the comment says \"Reported, not swallowed\", but the exception is caught and recorded, so not D2.",
+     "D3 | check that runs after the side effect its own comment says it guards | none | KEPT",
+     "D4 | branch whose condition cannot be true given the assignments above it | none | KEPT"
+    ],
+    "todos": [
+     "Change the docstring claim from \"Never raises on a bad or missing source file\" to \"Raises only on unexpected errors; bad or missing sources are handled gracefully\" or add a blanket try-except at the top of build_queue."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58ff648a9a6c76ca5c7ddb04ccc1dc5f45962885e52fbae98ae53b01fef4b509",
+    "objective_chars": 30577,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "11 claims: 8 kept, 2 broken, 1 uncheckable; 0 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Never raises on a bad or missing source file.\" | build_queue docstring | KEPT | the function catches exceptions and reports errors without raising",
+     "CLAIM | ``include_eval``, ``include_hotspots`` and ``include_spectral`` default to OFF | build_queue docstring | KEPT | all three default to False",
+     "CLAIM | ``include_spectral`` is MEASURED at ~10s (``reach.analyse`` over this tree) and adds only evidence keys -- it cannot change the queue's contents or order. | build_queue docstring | UNCHECKABLE | the performance claim and the claim about spectral not changing order cannot be verified without external code or runtime data",
+     "CLAIM | \"Never raises out of build_queue: the contract is 'never raises on a bad or missing source', and an optional enrichment is the last thing that should be allowed to take the queue down.\" | comment at spectral try block | KEPT | the try/except BLE001 catches all exceptions and converts to notes",
+     "CLAIM | \"A hand-edited generated file is worse than a missing one: it looks authoritative. Withheld for the same reason the inventory is, and said out loud for the same reason.\" | comment in map trust branch | KEPT | candidates are not extended when trust is false, notes are appended",
+     "CLAIM | \"Never raises (docrefs.scan promises that); a failure here must cost the queue this one source, never the whole queue.\" | comment before docref block | BROKEN | the code wraps docrefs.scan in a try/except that catches Exception, but the comment says docrefs.scan promises not to raise; if it did raise, the except catches it, but the prose says it never raises \u2014 the comment contradicts itself and the code contradicts the promise of never raising",
+     "CLAIM | \"Reported, not swallowed: a source that failed is a different fact from a source that found nothing, and a queue that hides the difference is the shape this repo keeps finding in stale artifacts.\" | comment in docref except block | KEPT | the except block records the error in sources and appends a note",
+     "CLAIM | \"FAIL CLOSED. Letting a snapshot of a different tree drive these bands means working from a repo that no longer exists.\" | comment in inventory freshness branch | KEPT | when inventory is not fresh and enforce_inventory_freshness is True, candidates are not extended",
+     "CLAIM | \"The patch bytes are decoded for display only. A human promoting this must write ``artifact_path`` (the raw bytes) -- a diff round-tripped through a terminal is not the artifact that was hashed and gated.\" | review_packet docstring | KEPT | the code shows the diff as text and tells the user to apply from artifact_path",
+     "CLAIM | \"An empty patch is captured and hashed like any other, but showing it as a diff -- and, worse, offering an apply command for it below -- would let 'the runner did nothing' read as 'here is a change'.\" | comment in review_packet empty patch branch | BROKEN | the code shows the diff as text (artifact.diff) even when empty_patch is True, but then says \"(empty)\" and does not offer an apply command; however the comment says it would be \"worse\" to show it as a diff \u2014 but the code does show it (via the else branch that prints the diff), then the empty_patch branch prints a message and does NOT show the diff; the comment is misleading because it says \"showing it as a diff\" would be bad, but the code actually does not show it as a diff; the comment is inaccurate",
+     "CLAIM | \"Windows PowerShell may expose a CP-1252 stdout even when a verifier emits Unicode progress glyphs such as Vite's check mark. The attempt and ledger are already complete when the review packet is printed, so an encoding exception here would turn a clean result into CLI exit 1. Preserve the exact text when representable and escape only unsupported code points.\" | _console_safe docstring | KEPT | the function encodes with backslashreplace and decodes, catching LookupError"
+    ],
+    "todos": [
+     "Fix the comment before docref block to not claim that docrefs.scan never raises, or remove the try/except",
+     "Correct the comment in review_packet empty patch branch to reflect that the diff is not shown when empty_patch is True"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "58ff648a9a6c76ca5c7ddb04ccc1dc5f45962885e52fbae98ae53b01fef4b509",
+    "objective_chars": 30577,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/spine/picker.py",
+  "chunk": 5,
+  "chunks": 6,
+  "bytes": 28063
+ }
+}

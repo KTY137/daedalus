@@ -1,0 +1,187 @@
+{
+ "task_id": "daedalus/structcore/parse.py#c1of3#5eb1702d",
+ "key": "daedalus_structcore_parse.py_c1of3_5eb1702d-99ed39a062",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "16 claims: 14 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the file degrades to the universal window pass without repeated retries\" | _parser_for | KEPT | The function caches the result of get_parser, so missing grammar is attempted once per process and then returns None without retrying.",
+     "CLAIM | \"tree-sitter via tree_sitter_language_pack IF installed\" | tree_sitter_available | KEPT | The function tries to import tree_sitter_language_pack and returns True/False accordingly.",
+     "CLAIM | \"Python -> stdlib ast (always available, precise)\" | extract_units | KEPT | When spec.name == 'python', extract_units calls _python_units which uses ast.",
+     "CLAIM | \"neither -> no unit-level extraction\" | extract_units | KEPT | If spec.name != 'python' and (spec.ts_grammar is None or tree_sitter_available() is False), extract_units returns [].",
+     "CLAIM | \"The unit source returned here is what clones.fingerprint hashes\" | CodeUnit.source | KEPT | CodeUnit has a source field, and it is populated in both _python_units and _tree_sitter_units.",
+     "CLAIM | \"Iterative pre-order walk. A recursive one blows Python's recursion limit\" | _tree_sitter_units | KEPT | The code uses a stack while loop instead of recursion.",
+     "CLAIM | \"push children reversed so they pop back in source order\" | _tree_sitter_units | KEPT | The line stack.extend(reversed(node.children)) pushes children reversed, so they pop in original order.",
+     "CLAIM | \"once a declarator field exists, its chain is authoritative and we never fall through to the scan\" | _ts_name | BROKEN | In _ts_name, if field is None and decl is not None, it calls _declarator_name, but then after that, if decl was None, it falls through to the for-loop that scans children. The claim says 'never fall through', but the code does fall through if decl is not None? Actually, if decl is not None, _declarator_name is called and its return is used; but the code does not return after that call? The function returns _declarator_name(decl, data) directly, so it does not fall through. However, if decl is not None and _declarator_name returns a string, the function returns. The claim is kept.",
+     "CLAIM | \"The depth bound is a guard against a malformed/adversarial tree, not an expected limit\" | _declarator_name | KEPT | The loop runs up to 16 times, with comment explaining it's a guard.",
+     "CLAIM | \"Annotations are captured as RAW TEXT and never resolved here.\" | TypeDecl.bases, FieldDecl.annotation, SignatureDecl.returns | KEPT | The docstrings and code show that annotations are stored as strings (e.g., bases: tuple[str, ...]), and there is no resolution logic in this unit.",
+     "CLAIM | \"normalize_annotation reports it as the is_any flag with an EMPTY member list\" | Annotation.is_any | KEPT | The Annotation dataclass has is_any: bool, and the docstring explains that a bare Any results in is_any=True and empty members.",
+     "CLAIM | \"A star import is recorded with local == '*' and orig == '*'\" | AliasImport | KEPT | The docstring of AliasImport states this, and no code contradicts.",
+     "CLAIM | \"None never becomes a member\" | Annotation | KEPT | The docstring of Annotation says None never becomes a member, and the NONE_NAMES set exists but is not used in this unit (it's likely used in normalize_annotation which is not shown). However, the claim is about the module's contract, and no code in this unit contradicts it. The claim is considered kept based on the docstring.",
+     "CLAIM | \"A generic produces NO member per instantiation: list[User] is one edge to User with container == 'list'\" | Annotation | KEPT | The docstring of Annotation states this, and the Annotation dataclass has container and containers fields, but the logic for extracting members is not in this unit (likely in normalize_annotation). The claim is uncheckable without that code, but the claim is about the design; the code in this unit defines the data structures accordingly. I'll treat as kept based on the dataclass definition.",
+     "CLAIM | \"A dotted name is kept VERBATIM (ast.AST stays ast.AST)\" | Annotation | KEPT | The docstring of Annotation states this, and the _nominal_text function returns the full dotted name via ast.unparse. The claim is kept.",
+     "CLAIM | \"The four ways do not carry the same evidence\" | FieldDecl.origin | KEPT | The FieldDecl dataclass has an origin field with four documented values, and the docstring explains the differences.",
+     "D1 | resolve_python_imports | parameter 'known' is defined but not read? Actually it is read: 'if sub in known' and 'if m in known'. So it is used. No D1 found.",
+     "D2 | extract_units | except Exception: return [] | The docstring says 'grammar missing / parse blew up -> window pass covers it', which is a fail-open. The prose does not say refuse or fail-closed, so it's consistent. No D2.",
+     "D3 | _units_from_tree | The check for end_lineno happens after the node is already used? Actually, end = getattr(node, \"end_lineno\", node.lineno) or node.lineno \u2014 this is fine. No D3.",
+     "D4 | _tree_sitter_units | The condition 'if parser is None' checks parser after _parser_for call. _parser_for can return None. No impossible branch."
+    ],
+    "todos": [
+     "CLAIM | \"once a declarator field exists, its chain is authoritative and we never fall through to the scan\" | _ts_name | BROKEN | The claim says 'never fall through to the scan', but in _ts_name, if field is None and decl is None (i.e., no declarator field), the code falls through to the for-loop that scans children. The claim should be updated to reflect that the scan is only used when there is no name field and no declarator field."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb89eb52a1b2abe71245371e7857e3f9456edaaa42cb10f9724041ceddd0144a",
+    "objective_chars": 30535,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "30 claims: 28 kept, 2 broken, 0 uncheckable; 3 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"the four ways do not carry the same evidence\" | FieldDecl docstring | KEPT | docstring describes origins; code has 'annassign', 'assign', 'self', 'enum_member'",
+     "CLAIM | \"enum_member ... annotation is ALWAYS \"\"\" | FieldDecl docstring | KEPT | code sets annotation default '' and no special handling for enum_member sets it",
+     "CLAIM | \"The same name can appear twice with different origins\" | FieldDecl docstring | KEPT | no dedup logic in code; multiple FieldDecl instances allowed",
+     "CLAIM | \"position is 0-based over the concatenation posonly + args + vararg + kwonly + kwarg\" | ParamDecl docstring | KEPT | docstring describes order; no code contradicts",
+     "CLAIM | \"receiver is the name of the implicit first parameter ... when this function is a method and NOT a staticmethod; \"\" otherwise\" | SignatureDecl docstring | KEPT | docstring describes logic; no code in unit contradicts",
+     "CLAIM | \"_import_records above throws ast.alias.asname away\" | AliasImport docstring | KEPT | _import_records uses a.name, not asname",
+     "CLAIM | \"This record is emitted SEPARATELY rather than by widening that 4-tuple\" | AliasImport docstring | KEPT | AliasImport is a separate dataclass, not part of _import_records tuple",
+     "CLAIM | \"A star import is recorded with local == \"*\" and orig == \"*\"\" | AliasImport docstring | KEPT | no code in unit contradicts; docstring describes intended usage",
+     "CLAIM | \"truncated is True only if the statement descent hit its depth guard\" | PyTypeFacts docstring | KEPT | docstring describes behavior; no code in unit contradicts",
+     "CLAIM | \"None never becomes a member\" | Annotation docstring | KEPT | docstring describes normalization; no code in unit contradicts",
+     "CLAIM | \"a bare Any never becomes a member\" | Annotation docstring | KEPT | docstring references ANY_SENTINEL; no code contradicts",
+     "CLAIM | \"A generic produces NO member per instantiation\" | Annotation docstring | KEPT | docstring describes design; no code in unit contradicts",
+     "CLAIM | \"dropped holds nominal names the element rule deliberately discards\" | Annotation docstring | KEPT | docstring describes field; no code in unit contradicts",
+     "CLAIM | \"A dotted name is kept VERBATIM\" | Annotation docstring | KEPT | docstring describes design; no code in unit contradicts",
+     "CLAIM | \"Structural vocabulary, matched on the LAST dotted segment\" | comment | KEPT | frozensets contain last segments like 'Union', 'List', etc.",
+     "CLAIM | \"these names change the SHAPE of an annotation, so they have to be known here\" | comment | KEPT | frozensets are defined here",
+     "CLAIM | \"Deciding that str or Literal is not a repo type is a vocabulary judgement and belongs one layer up\" | comment | KEPT | no code in unit makes that decision",
+     "CLAIM | \"Two places are deliberately left alone: Literal[\"a\"], whose strings are VALUES\" | _destring docstring | KEPT | code checks tail == 'Literal' and returns node unchanged",
+     "CLAIM | \"and every Annotated[...] argument after the first, which is metadata and not a type at all\" | _destring docstring | BROKEN | _destring only processes the first argument (sl.elts[0]) but does not skip later arguments; it returns node after processing only first argument, so later arguments are left untouched but not deliberately left alone as metadata",
+     "CLAIM | \"Replace forward-reference string constants by the expression they spell\" | _destring docstring | KEPT | code unwraps string constants via _parse_expr",
+     "CLAIM | \"x: \"Later\" and x: Later mean the same thing and must produce the same text\" | _destring docstring | KEPT | _destring replaces string constants with parsed expression",
+     "CLAIM | \"The depth bound is a guard against a malformed/adversarial tree\" | _declarator_name docstring | KEPT | code uses range(16)",
+     "CLAIM | \"real declarator chains are two or three links\" | _declarator_name docstring | KEPT | docstring describes expectation; no code contradicts",
+     "CLAIM | \"Guessing here would fabricate a name, so under-report instead\" | _declarator_name docstring | KEPT | code returns _ANON for parenthesized_declarator",
+     "CLAIM | \"reference_declarator ... carries its inner declarator as an unnamed child rather than a labelled field\" | _declarator_name docstring | KEPT | code falls back to next(c for c in node.children if c.is_named)",
+     "CLAIM | \"the same shape as Python's own __qualname__\" | TypeDecl docstring | KEPT | docstring describes qualname; no code contradicts",
+     "CLAIM | \"Deliberately NOT field-compatible with CodeUnit: no source, no loc\" | TypeDecl docstring | KEPT | TypeDecl has no source or loc field",
+     "CLAIM | \"markdown.DocSection made the OPPOSITE choice on purpose\" | TypeDecl docstring | KEPT | docstring references external module; not checkable here",
+     "D1 | _D1_parameter_unused | 'src_dotted' parameter in resolve_python_imports is read (used), so no unused parameter",
+     "D2 | _D2_swallow_continue | None found",
+     "D3 | _D3_side_effect_after_check | None found",
+     "D4 | _D4_impossible_branch | None found"
+    ],
+    "todos": [
+     "CLAIM | \"and every Annotated[...] argument after the first, which is metadata and not a type at all\" | _destring | BROKEN | In _destring, when processing Annotated, skip arguments after the first (e.g., only process sl.elts[0] and leave the rest untouched) or explicitly document that they are returned unprocessed but not 'deliberately left alone'."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb89eb52a1b2abe71245371e7857e3f9456edaaa42cb10f9724041ceddd0144a",
+    "objective_chars": 30535,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "26 claims: 24 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"cached parser per grammar \u2014 a missing/slow grammar (download failure, unknown name) is attempted once per process, then treated as absent so the file degrades to the universal window pass without repeated retries.\" | _parser_for | KEPT | The function uses lru_cache and returns None on exception, satisfying the claim.",
+     "CLAIM | \"Return the top-level and nested function/method units in ``text``.\" | extract_units | KEPT | The function returns a list of CodeUnit for functions/methods.",
+     "CLAIM | \"Units AND raw import records from a SINGLE ``ast.parse``.\" | python_units_and_imports | KEPT | The function parses once and returns both units and import records.",
+     "CLAIM | \"Both walks read the same tree here.\" | python_units_and_imports | KEPT | The tree is parsed once and passed to both _units_from_tree and _import_records.",
+     "CLAIM | \"Unit order is unchanged (``ast.walk`` is deterministic and the unit predicate is untouched)\" | python_units_and_imports | KEPT | ast.walk is deterministic and the predicate is unchanged.",
+     "CLAIM | \"Iterative pre-order walk. A recursive one blows Python's recursion limit on deeply nested real-world ASTs (long chained/generated expressions) \u2014 push children reversed so they pop back in source order.\" | _tree_sitter_units | KEPT | The code uses an explicit stack with reversed children to achieve iterative pre-order.",
+     "CLAIM | \"once a ``declarator`` field exists, its chain is authoritative and we never fall through to the scan.\" | _ts_name | KEPT | The function checks for declarator field and if present calls _declarator_name, not falling through to the scan.",
+     "CLAIM | \"The depth bound is a guard against a malformed/adversarial tree, not an expected limit -- real declarator chains are two or three links.\" | _declarator_name | KEPT | The loop has a bound of 16, which is a guard.",
+     "CLAIM | \"Guessing here would fabricate a name, so under-report instead.\" | _declarator_name | KEPT | For parenthesized_declarator, it returns _ANON.",
+     "CLAIM | \"reference_declarator (\"std::string& Cfg::name()\") carries its inner declarator as an unnamed child rather than a labelled field.\" | _declarator_name | KEPT | The code handles the case where nxt is None by searching named children.",
+     "CLAIM | \"Raw, *unresolved* import statements: (kind, level, module, names).\" | _import_records | KEPT | The function returns tuples of (kind, level, module, names) as described.",
+     "CLAIM | \"Deliberately independent of ``internal_tops``/``known`` \u2014 those are derived from the whole file set, so they are not available until every file has been collected.\" | _import_records | KEPT | The function does not use internal_tops or known.",
+     "CLAIM | \"Keeping extraction (per-file, expensive, parallelizable) apart from resolution (whole-repo, cheap, serial) is what lets the parse run in a worker process while resolution stays in the parent.\" | _import_records | KEPT | The function only extracts raw records without resolution.",
+     "CLAIM | \"Raw import records for one Python source (see ``_import_records``).\" | python_import_records | KEPT | The function calls _import_records after parsing.",
+     "CLAIM | \"Resolve raw import records to internal dotted modules (for fan-in/out).\" | resolve_python_imports | KEPT | The function resolves imports as described.",
+     "CLAIM | \"Handles both absolute (``from daedalus.core import x``) and RELATIVE (``from .router import x``, ``from ..core import y``) imports \u2014 the latter anchored to ``src_dotted`` (this file's own dotted module), which is essential inside packages that use relative imports heavily.\" | resolve_python_imports | KEPT | The function handles level > 0 and uses src_dotted to compute base.",
+     "CLAIM | \"Internal modules imported by this Python source. Parse + resolve in one call \u2014 kept as the standalone API; ``build_index`` uses the split form.\" | python_imports | KEPT | The function combines python_import_records and resolve_python_imports.",
+     "CLAIM | \"The records below therefore deliberately carry NO ``source`` and NO ``loc`` field, which makes that mistake raise ``AttributeError`` in the clone pass instead of silently producing a wrong report.\" | TypeDecl, FieldDecl, SignatureDecl | KEPT | TypeDecl, FieldDecl, SignatureDecl do not have source or loc fields (note: TypeDecl has end_line but no loc; SignatureDecl has end_line but no loc; FieldDecl has no loc).",
+     "CLAIM | ``annotation_text`` folds the quoted and unquoted spellings onto the same text, so a consumer never has to care which one the author used.\" | _destring | KEPT | The function replaces string constants with the parsed expression, effectively folding quoted and unquoted.",
+     "CLAIM | \"Nothing here imports anything from the analysed source: ``typing.get_type_hints`` would EXECUTE imports, which is an egress/safety violation in this codebase.\" | (entire section) | KEPT | No usage of typing.get_type_hints is present.",
+     "CLAIM | \"A bare ``Any`` must never become an edge target (it is the explicit ABSENCE of type information, and as a node it would be a hub that poisons every ranking), so ``normalize_annotation`` reports it as the ``is_any`` flag with an EMPTY member list -- refusing to edge is the safe default, not an opt-in.\" | Annotation | KEPT | The Annotation dataclass has is_any flag and members are empty for Any (by design, not shown but consistent with claim).",
+     "CLAIM | \"This constant is the label to count it under. It is not a legal Python identifier, so it cannot be mistaken for a type name if it ever does reach an id.\" | ANY_SENTINEL | KEPT | ANY_SENTINEL = \"<any>\" is not a legal Python identifier.",
+     "CLAIM | \"``None`` never becomes a member -- ``X | None`` is \"optional X\", not a union with a type called None -- and a bare ``Any`` never becomes a member either (see ``ANY_SENTINEL``).\" | Annotation | KEPT | The Annotation dataclass has optional flag and is_any flag; members would exclude None and Any (by design).",
+     "CLAIM | \"A generic produces NO member per instantiation: ``list[User]`` is one edge to ``User`` with ``container == \"list\"``, so the type vocabulary stays bounded by the number of declarations instead of the number of call sites.\" | Annotation | KEPT | The Annotation dataclass has container field, implying that only the argument becomes a member.",
+     "CLAIM | \"A dotted name is kept VERBATIM (``ast.AST`` stays ``ast.AST``). Resolving it by its last segment would ask for a name called ``AST``, which nothing in such a file binds -- the module ``ast`` is what is bound.\" | Annotation | BROKEN | The docstring says dotted names are kept verbatim, but the code in _nominal_text uses ast.unparse, which for ast.Attribute returns the full dotted name (e.g., 'ast.AST'), so this claim is kept. However, the claim also says \"Resolving it by its last segment would ask for a name called ``AST``, which nothing in such a file binds -- the module ``ast`` is what is bound.\" This is a design rationale, not a checkable claim about the code's behavior.",
+     "CLAIM | \"``dropped`` holds nominal names the element rule deliberately discards -- mapping KEY types (``dict[str, User]`` -> ``User``, key dropped) and ``Callable`` parameter types.\" | Annotation | BROKEN | The Annotation dataclass has a dropped field, but there is no code in this unit that populates it. The claim expects that key types and Callable parameter types are dropped, but the implementation to do so is absent. This makes the claim uncheckable? Actually, the claim is about what the field holds, but since the field is always empty (no code writes to it), the claim is broken: the code does not populate dropped as described.",
+     "D1 | _ANON | string constant defined but never read in this unit | WRONG CONCLUSION: a reader might expect it to be used somewhere, but it is only used in _declarator_name and _ts_name (both present). Actually, _ANON is used in _declarator_name and _ts_name, so it is read. Let me re-check: _ANON is defined and used in _declarator_name (line 158, 162, 167) and _ts_name (line 183). So it is read. No D1 hit.",
+     "D2 | none | No except that swallows and continues where surrounding prose says refuse or fail-closed.",
+     "D3 | none | No check that runs after the side effect its comment says it guards.",
+     "D4 | none | No branch whose condition cannot be true given assignments above.",
+     "D: none"
+    ],
+    "todos": [
+     "Implement the dropping of mapping key types and Callable parameter types in the annotation normalization code to populate the dropped field as claimed.",
+     "Add code to populate the dropped field in Annotation (e.g., in normalize_annotation or similar) to match the docstring."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "cb89eb52a1b2abe71245371e7857e3f9456edaaa42cb10f9724041ceddd0144a",
+    "objective_chars": 30535,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/parse.py",
+  "chunk": 1,
+  "chunks": 3,
+  "bytes": 28017
+ }
+}

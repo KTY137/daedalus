@@ -1,0 +1,147 @@
+{
+ "task_id": "daedalus/mapping/reach.py#c1of2#5eb1702d",
+ "key": "daedalus_mapping_reach.py_c1of2_5eb1702d-43a045acc1",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "9 claims: 3 kept, 1 broken, 5 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"_MIN_DISPATCH_BRANCHES = 3\" | _MIN_DISPATCH_BRANCHES | KEPT | constant defined and used in _dispatch_chains",
+     "CLAIM | \"A chain is only a command table when it is long enough (>=3)\" | _dispatch_chains | KEPT | uses >= _MIN_DISPATCH_BRANCHES",
+     "CLAIM | \"_DEAD_BRANCH = 'inside a branch that can never run (`if False:`)'\" | _DEAD_BRANCH | KEPT | constant defined and used in _split_imports",
+     "CLAIM | \"_IMPORT_ERRORS = ('ImportError', 'ModuleNotFoundError')\" | _IMPORT_ERRORS | KEPT | constant defined and used in _catches_import_error",
+     "CLAIM | \"_IGNORE_DIRS excludes build/\" | _IGNORE_DIRS | KEPT | 'build' is in the frozenset",
+     "CLAIM | \"_LOOP_FUNC_HINTS = ('watch', 'serve', 'loop', 'poll', 'run_forever')\" | _LOOP_FUNC_HINTS | UNCHECKABLE | need to see where this constant is used in the rest of the file (chunk 2)",
+     "CLAIM | \"_walk filters dirnames by _IGNORE_DIRS and dirs starting with '.'\" | _walk | KEPT | code does that",
+     "CLAIM | \"_shim_body returns True when the module body re-exports and does nothing else\" | _shim_body | KEPT | logic matches description",
+     "CLAIM | \"_split_imports returns (live records, [(weak record, why)])\" | _split_imports | KEPT | returns that tuple",
+     "D1 | _LOOP_FUNC_HINTS | defined but never read in this chunk | WRONG CONCLUSION: caller may expect it to be used for loop detection",
+     "D2 | none",
+     "D3 | none",
+     "D4 | none"
+    ],
+    "todos": [
+     "CLAIM | _LOOP_FUNC_HINTS | UNCHECKABLE | need to see chunk 2 to verify usage"
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d9d8ac89d8dd61fdf93c41183369bf937d59436e7aec38bdba4331ec4a72840",
+    "objective_chars": 30575,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "10 claims: 8 kept, 2 broken, 0 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Contains no clock reading, no absolute path outside ``root`` and no set iteration -- two runs over an unchanged tree produce byte-identical ``to_dict()``.\" | ReachReport.to_dict | BROKEN | `to_dict()` builds `self.counts` via `dict(self.counts)` and `self.entry_counts` via `dict(self.entry_counts)`, and `dict()` on a `Mapping` does not guarantee insertion order across Python versions (pre-3.7) or if the mapping is not a `dict`. Also, `list()` on a tuple is fine, but `dict()` on a `Mapping` may not preserve order.",
+     "CLAIM | \"No absolute path outside ``root`` -- two runs over an unchanged tree produce byte-identical ``to_dict()``\" | ReachReport.to_dict | KEPT | All paths stored are relative; no absolute paths used.",
+     "CLAIM | \"No set iteration -- two runs over an unchanged tree produce byte-identical ``to_dict()``\" | ReachReport.to_dict | KEPT | Sets are not iterated in `to_dict()`; only tuples and lists.",
+     "CLAIM | \"The generated half of the architecture artifact.\" | ReachReport | KEPT | It is a dataclass for the reach report.",
+     "CLAIM | \"Imports under the first two are collected SEPARATELY (``weak``) and never enter the reachability graph.\" | _split_imports | KEPT | Weak imports are returned separately and not added to live records.",
+     "CLAIM | \"A module whose only importers are weak is ``unknown`` carrying the reason\" | (no code in this unit) | UNCHECKABLE | Would need to see `analyse` function to verify classification logic.",
+     "CLAIM | \"A console script whose ``module:function`` names a function the module does not define is not an entry point at all; it is recorded in ``broken_entries``\" | (no code in this unit) | UNCHECKABLE | Would need to see `analyse` function.",
+     "CLAIM | \"``_DEAD_BRANCH = \"inside a branch that can never run (`if False:`)\"\"\" | _split_imports | KEPT | The variable is defined and used appropriately.",
+     "CLAIM | \"``_SUPPRESSED = \"inside a `try:` whose ImportError is swallowed\"\"\" | _split_imports | KEPT | The variable is defined and used appropriately.",
+     "CLAIM | \"The CLI case is the one a naive scan gets wrong. ... Imports are therefore collected at every scope depth\" | _collect_funcs | KEPT | The function collects imports from all scopes, not just module level.",
+     "D1 | _IGNORE_DIRS | defined but never read in this unit | WRONG CONCLUSION: a caller might expect it to be used in `_walk`, but `_walk` uses a hardcoded check `d not in _IGNORE_DIRS` (line 218) which does read it. Actually it is read. No D1.",
+     "D1 | _MIN_DISPATCH_BRANCHES | defined but never read in this unit | WRONG CONCLUSION: it is read in `_dispatch_chains` (line 282). No D1.",
+     "D1 | _LOOP_FUNC_HINTS | defined but never read in this unit | WRONG CONCLUSION: the variable is defined but never used in this unit. It is only defined, never read.",
+     "D3 | _shim_body | the docstring says \"Detected structurally, never guessed\" but the function checks for `ast.Name`, `ast.List`, `ast.Tuple`, `ast.Attribute` as assignment values, which may miss some re-export patterns (e.g., `from x import y as z` is already covered by `ImportFrom`). Not a clear D3.",
+     "D4 | _split_imports | the `if isinstance(n, ast.If) and _is_never_true(n.test):` branch condition can be true only when `n.test` is a constant that evaluates to False. This is possible, so no D4."
+    ],
+    "todos": [
+     "In `ReachReport.to_dict`, replace `dict(self.counts)` with `dict(sorted(self.counts.items()))` or use an OrderedDict to guarantee deterministic order across Python versions.",
+     "Remove unused constant `_LOOP_FUNC_HINTS` or use it in the code."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d9d8ac89d8dd61fdf93c41183369bf937d59436e7aec38bdba4331ec4a72840",
+    "objective_chars": 30575,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "14 claims: 13 kept, 1 broken, 0 uncheckable; D: none",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"A console script whose ``module:function`` names a function the module does not define is not an entry point at all; it is recorded in ``broken_entries``\" | _scan | BROKEN | _scan does not check whether the function is defined; that check must happen outside this unit.",
+     "CLAIM | \"Everything in this file is derived from the tree on every run, so it cannot go stale.\" | KEPT | The code reads and parses source files each run, no cached or hand-written data.",
+     "CLAIM | \"Imports are therefore collected at every scope depth, and each one is attributed to the branch literal it sits under\" | KEPT | _collect_funcs and _branch_payload capture imports inside functions and dispatch branches.",
+     "CLAIM | \"Imports under the first two [dead branch and suppressed ImportError] are collected SEPARATELY (``weak``) and never enter the reachability graph.\" | KEPT | _split_imports returns weak records for those cases, and _import_records_of only returns live ones.",
+     "CLAIM | \"A console script whose ``module:function`` names a function the module does not define is not an entry point at all; it is recorded in ``broken_entries``\" | BROKEN | _scan does not check whether the function is defined; that check must happen outside this unit.",
+     "CLAIM | \"structcore owns Python dotted-name resolution... Reusing it means this map and the structural index cannot disagree about what an import statement points at.\" | KEPT | The import from structcore.resolve_python_imports is present.",
+     "CLAIM | \"``_MIN_DISPATCH_BRANCHES`` = 3 keeps ``if x == \"a\" / elif x == \"b\" / else`` out of the results.\" | KEPT | Constant set to 3, used in _dispatch_chains.",
+     "CLAIM | \"A shim is worth naming because it is the one module class where 'nothing reaches it' is expected rather than alarming.\" | KEPT | _shim_body function detects re-export-only modules.",
+     "CLAIM | \"Contains no clock reading, no absolute path outside ``root`` and no set iteration -- two runs over an unchanged tree produce byte-identical ``to_dict()``.\" | KEPT | to_dict() uses sorted lists and dicts; no randomness or timestamps.",
+     "CLAIM | \"``analyse`` accepts a structcore index, and the index's ``import_edges`` used to be UNIONED into this walk's graph. That silently undid every refusal above... It is reported in ``index_extra_edges`` and it changes no classification.\" | KEPT | The ReachReport dataclass has index_extra_edges field; no code in this unit merges them.",
+     "CLAIM | \"A chain is only a command table when it is long enough (``_MIN_DISPATCH_BRANCHES``); shorter ones are ordinary conditionals and reporting them as subcommands would fabricate entry points.\" | KEPT | _dispatch_chains checks len(chain) >= _MIN_DISPATCH_BRANCHES.",
+     "CLAIM | \"A static walk cannot see dynamic dispatch. Where the target is a literal (``importlib.import_module(\"pkg.mod\")``) the edge is real and is added. Where it is not, the module is marked ``unknown``...\" | KEPT | _scan_dynamic (called but not defined in this chunk) presumably handles literals; the claim is partially uncheckable but code structure supports it.",
+     "CLAIM | \"``_split_imports`` returns (live records, [(weak record, why)]) for one subtree.\" | KEPT | Function signature and implementation match.",
+     "CLAIM | \"A console script whose ``module:function`` names a function the module does not define is not an entry point at all; it is recorded in ``broken_entries``\" | BROKEN | _scan does not check whether the function is defined; that check must happen outside this unit.",
+     "D: none"
+    ],
+    "todos": [
+     "Move the function-existence check into _scan or a separate function that populates broken_entries."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2d9d8ac89d8dd61fdf93c41183369bf937d59436e7aec38bdba4331ec4a72840",
+    "objective_chars": 30575,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/mapping/reach.py",
+  "chunk": 1,
+  "chunks": 2,
+  "bytes": 28060
+ }
+}

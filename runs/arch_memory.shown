@@ -1,4 +1,4 @@
-ARCHITECTURE: STALE -- measured at 79553172, HEAD is 2fc037e7
+ARCHITECTURE: STALE -- measured at 79553172, HEAD is 2ed9d933
   144 modules | 8 islands | 3 shims | 12 unreached · 2 doc-drift
 PACKAGES
   adapters    universal interface for CLI agent runtimes

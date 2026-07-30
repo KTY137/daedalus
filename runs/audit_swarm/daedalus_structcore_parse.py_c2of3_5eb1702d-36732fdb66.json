@@ -1,0 +1,158 @@
+{
+ "task_id": "daedalus/structcore/parse.py#c2of3#5eb1702d",
+ "key": "daedalus_structcore_parse.py_c2of3_5eb1702d-36732fdb66",
+ "trace_id": null,
+ "votes_requested": 3,
+ "votes_collected": 3,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "18 claims: 15 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"Two places are deliberately left alone: Literal[\"a\"], whose strings are VALUES and would become a type called a\" | _destring | KEPT | Code checks tail == \"Literal\" and returns node without descending into slice.",
+     "CLAIM | \"and every Annotated[...] argument after the first, which is metadata and not a type at all\" | _destring | KEPT | Code processes only elts[0] when tail == \"Annotated\", leaving others untouched.",
+     "CLAIM | \"The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them\" | annotation_text | KEPT | Code calls copy.deepcopy(node) before passing to _destring.",
+     "CLAIM | \"Structural vocabulary is filtered out, so dict[str, X] drops str and not also dict\" | _gather_dropped | KEPT | Code checks tail not in _STRUCTURAL_NAMES before calling acc.drop.",
+     "CLAIM | \"A non-union annotation is its own single member, so the caller needs no special case\" | flatten_union | KEPT | Code walks node and collects text; if no union, the single text is appended.",
+     "CLAIM | \"Nesting does not multiply members: Optional[Union[A, B]] is still two\" | flatten_union | KEPT | Code recurses into Optional and Union subscripts, collecting members without flattening duplicates via seen set.",
+     "CLAIM | \"A bare nominal is (\"\", (raw,))\" | split_generic | KEPT | Code returns (\"\", ((text,) if text else ())) when node is not Subscript.",
+     "CLAIM | \"an unknown generic is (\"\", (\"MyGeneric[int]\",)) -- no container, because we refuse to guess that an unrecognised subscript is a container at all\" | split_generic | KEPT | Code returns (\"\", (annotation_text(node),)) for unrecognized subscripts, preserving full text.",
+     "CLAIM | \"Base-derived kinds win over decorator-derived ones, because a base changes what the declaration IS (a TypedDict is a dict shape, an Enum's members are values) while @dataclass only changes what is generated for it\" | _decl_kind | KEPT | Code checks bases first (TypedDict, NamedTuple, enum, Protocol), then decorators for dataclass, returning \"class\" if none.",
+     "CLAIM | \"Fixed order, so the answer never depends on dict order\" | _decl_kind | KEPT | Code uses set for bases but iteration over decorators is in list order; no dict is used.",
+     "CLAIM | \"A receiver exists only for a method that actually takes one. Reading the first parameter's real name (rather than assuming 'self') keeps a renamed receiver out of the coverage denominator and keeps a staticmethod's first argument IN it\" | _function | KEPT | Code computes receiver from _params_of, then sets bound = receiver if owner and not is_static and receiver else \"\".",
+     "CLAIM | \"Two places are deliberately left alone: Literal[\"a\"], whose strings are VALUES and would become a type called a\" | _destring | KEPT | Already counted; no duplicate entry.",
+     "CLAIM | \"Sibling of _import_records and bound by the same contract: raw and unresolved, dependent on nothing but this one file, so it can run in a worker process while resolution stays in the parent\" | _type_facts_from_tree | KEPT | Function only uses tree and module, no external I/O.",
+     "CLAIM | \"Unit order and unit CONTENT are identical to that function's -- the same _units_from_tree call on the same tree -- because the clone passes consume all_units positionally and no type record may reach them\" | python_units_imports_and_types | KEPT | Code calls _units_from_tree(tree, module, text.splitlines()) and ignores its return value for type facts; no interference.",
+     "CLAIM | \"The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them\" | annotation_text | KEPT | Already counted.",
+     "CLAIM | \"_destring ... Two places are deliberately left alone: Literal[\"a\"], whose strings are VALUES and would become a type called a\" | _destring | KEPT | Already counted.",
+     "CLAIM | \"and every Annotated[...] argument after the first, which is metadata and not a type at all\" | _destring | KEPT | Already counted.",
+     "CLAIM | \"The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them\" | annotation_text | KEPT | Already counted.",
+     "D1 | _gather_dropped | parameter `depth` is never incremented in recursive calls | WRONG CONCLUSION: depth check would never trigger, but the function recurses without incrementing depth, so depth > _ANN_DEPTH check is ineffective."
+    ],
+    "todos": [
+     "In _gather_dropped, increment depth by 1 in recursive calls to match the depth-limiting behavior described in the docstring."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ebc22b7dfddc2fa104daaecccc3acb7094fe031e8f56e0be2f1e357e327ba9f",
+    "objective_chars": 30546,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 2,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "15 claims: 12 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them.\" | annotation_text | KEPT | code calls copy.deepcopy(node) before _destring.",
+     "CLAIM | \"Two places are deliberately left alone: ``Literal[\"a\"]``, whose strings are VALUES and would become a type called ``a``, and every ``Annotated[...]`` argument after the first, which is metadata and not a type at all.\" | _destring | BROKEN | line: when tail == \"Annotated\", only elts[0] is destringed; if slice is not a Tuple, node.slice is destringed entirely, which may include metadata.",
+     "CLAIM | \"Structural vocabulary is filtered out, so ``dict[str, X]`` drops ``str`` and not also ``dict``.\" | _gather_dropped | KEPT | tail not in _STRUCTURAL_NAMES ensures dict is not dropped.",
+     "CLAIM | \"An unknown generic: the BASE is the nominal and we do NOT descend.\" | _collect | KEPT | line: _collect(node.value, acc, depth + 1) and return without descending into slice.",
+     "CLAIM | \"Pure\" | normalize_annotation | KEPT | function is pure, no I/O, uses only local data.",
+     "CLAIM | \"Read ONE raw annotation string. Pure; see ``Annotation`` for the rules.\" | normalize_annotation | KEPT | function is pure, no side effects.",
+     "CLAIM | \"``Optional[Alpha]`` -> ``(\"Alpha\",)``; ``Alpha | None`` -> ``(\"Alpha\",)``; ``Union[Alpha, Beta]`` -> ``(\"Alpha\", \"Beta\")``.\" | flatten_union | KEPT | code handles Optional, BitOr, Union; None removed.",
+     "CLAIM | \"A non-union annotation is its own single member, so the caller needs no special case.\" | flatten_union | KEPT | walk returns out containing the single text.",
+     "CLAIM | \"Nesting does not multiply members: ``Optional[Union[A, B]]`` is still two.\" | flatten_union | KEPT | walk recurses into Union and Optional, collecting members without duplication.",
+     "CLAIM | \"One level of generic: ``(container spelling, element texts)``.\" | split_generic | KEPT | returns tuple with container and element texts.",
+     "CLAIM | \"A bare nominal is ``(\"\", (raw,))``, and an unknown generic is ``(\"\", (\"MyGeneric[int]\",))`` -- no container, because we refuse to guess that an unrecognised subscript is a container at all.\" | split_generic | KEPT | code returns (\"\", (text,)) for non-subscript and unknown subscript.",
+     "CLAIM | \"Stable group id shared by every member edge of ONE union SITE.\" | union_id | KEPT | id derived from module, owner, role, param; no counter.",
+     "CLAIM | \"Derived entirely from the site's identity, never from a counter over a set or dict: a counter would renumber whenever iteration order shifted, and two processes would then disagree byte-for-byte on an id that is supposed to mean 'these edges are alternatives to each other'.\" | union_id | KEPT | implementation uses only f-string with module, owner, role, param.",
+     "CLAIM | \"Base-derived kinds win over decorator-derived ones, because a base changes what the declaration IS (a TypedDict is a dict shape, an Enum's members are values) while ``@dataclass`` only changes what is generated for it.\" | _decl_kind | KEPT | bases checked first, then decorators; base match returns immediately.",
+     "CLAIM | \"Fixed order, so the answer never depends on dict order.\" | _decl_kind | KEPT | uses set operations on tails, order not dependent on dict.",
+     "D1 | _AliasRecords | function _alias_records defined but never called within this unit (only called in _TypeWalk._visit which is in this unit) | WRONG CONCLUSION: a caller may think it's unused; but it IS called in _visit, so no issue.",
+     "D2 | _destring | except Exception: pass (implicit) | BROKEN | the function _destring has no try-except, so no swallowing; the claim \"Two places are deliberately left alone\" is broken as noted above.",
+     "D3 | _gather_dropped | check for tail not in _NONE_NAMES etc. after calling _nominal_text | WRONG CONCLUSION: the check is before acc.drop, so it's fine.",
+     "D4 | _collect | condition `tail in _TRANSPARENT` may never be true if _TRANSPARENT is empty or not defined | UNCHECKABLE | need to see definition of _TRANSPARENT."
+    ],
+    "todos": [
+     "Fix _destring to not destring metadata in Annotated: either skip all slice elements except first, or ensure tuple handling preserves metadata."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ebc22b7dfddc2fa104daaecccc3acb7094fe031e8f56e0be2f1e357e327ba9f",
+    "objective_chars": 30546,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  },
+  {
+   "vote": 3,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "13 claims: 10 kept, 2 broken, 1 uncheckable; 1 mechanical",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "CLAIM | \"The name an edge would point at, kept exactly as written.\" | _nominal_text | BROKEN | returns node.attr for Attribute nodes, which is only the last part, not the full dotted name; e.g. ast.Attribute(ast.Name('a'), 'b') returns 'b' not 'a.b'",
+     "CLAIM | \"Two places are deliberately left alone: ``Literal[\"a\"]``, whose strings are VALUES and would become a type called ``a``, and every ``Annotated[...]`` argument after the first, which is metadata and not a type at all.\" | _destring | KEPT | code checks tail == \"Literal\" and returns early; for Annotated, only the first element is destringed, others left alone",
+     "CLAIM | \"RAW annotation text for one ast annotation slot (\"\" when absent).\" | annotation_text | KEPT | returns \"\" when node is None",
+     "CLAIM | \"The node is COPIED before de-stringifying, because the caller's tree is shared with the unit and import walks and must not be mutated under them.\" | annotation_text | KEPT | uses copy.deepcopy(node) before _destring",
+     "CLAIM | \"Structural vocabulary is filtered out, so ``dict[str, X]`` drops ``str`` and not also ``dict``.\" | _gather_dropped | KEPT | checks tail not in _STRUCTURAL_NAMES before calling acc.drop",
+     "CLAIM | \"Optional[Alpha] -> (\"Alpha\",); Alpha | None -> (\"Alpha\",); Union[Alpha, Beta] -> (\"Alpha\", \"Beta\").\" | flatten_union | KEPT | code handles all three cases",
+     "CLAIM | \"A non-union annotation is its own single member, so the caller needs no special case.\" | flatten_union | KEPT | if node is not a union, walk will output the single annotation text",
+     "CLAIM | \"Nesting does not multiply members: Optional[Union[A, B]] is still two.\" | flatten_union | KEPT | walk recurses into Optional and Union, collecting distinct members",
+     "CLAIM | \"One level of generic: (container spelling, element texts).\" | split_generic | KEPT | returns container and elements",
+     "CLAIM | \"list[User] -> (\"list\", (\"User\",)); dict[str, User] -> (\"dict\", (\"User\",)) because a mapping's KEY is not its element; Callable[[int], User] -> (\"Callable\", (\"User\",)).\" | split_generic | KEPT | code handles all three",
+     "CLAIM | \"A bare nominal is (\"\", (raw,)), and an unknown generic is (\"\", (\"MyGeneric[int]\",)) -- no container, because we refuse to guess that an unrecognised subscript is a container at all.\" | split_generic | BROKEN | for unknown generic, returns (\"\", (annotation_text(node),)) which is the whole subscript text, not \"MyGeneric[int]\" as claimed; but if the unknown generic is something like MyGeneric[int], annotation_text(node) returns \"MyGeneric[int]\" which matches the claim. However, the claim says \"MyGeneric[int]\" is an example, but the implementation returns the full text, which is correct. Actually, the claim says \"a bare nominal is (\"\", (raw,))\" and \"an unknown generic is (\"\", (\"MyGeneric[int]\",))\" \u2013 these are consistent with returning the full text. So KEPT.",
+     "CLAIM | \"True for a bare Any/typing.Any -- the sentinel a caller must refuse to edge to. dict[str, Any] is NOT bare Any; it is a dict whose element type is unknown, which is a different fact and a different number.\" | is_any_annotation | KEPT | calls normalize_annotation(raw).is_any, which checks saw_any and not members/containers/saw_none",
+     "CLAIM | \"Stable group id shared by every member edge of ONE union SITE. Derived entirely from the site's identity, never from a counter over a set or dict\" | union_id | KEPT | uses f\"{module}#{owner}:{role}:{param}\"",
+     "D1 | _nominal_text | parameter 'node' is used; no unused parameters found",
+     "D2 | no except that swallows and continues where prose says refuse",
+     "D3 | no such check",
+     "D4 | _gather_dropped: if isinstance(node, ast.Constant) and isinstance(node.value, str) \u2013 the inner if condition 'if inner is not None' is always true because _parse_expr returns None only on parse error, but that is possible; not a branch condition that cannot be true"
+    ],
+    "todos": [
+     "Fix _nominal_text to return the full dotted name for ast.Attribute nodes, e.g., ast.unparse(node) or recursively build the dotted name."
+    ],
+    "handoff": {}
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "9ebc22b7dfddc2fa104daaecccc3acb7094fe031e8f56e0be2f1e357e327ba9f",
+    "objective_chars": 30546,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "936d6c49fc6244237d1373bdae5b4363b38fcb2d47751371e4209df58f4926a5",
+    "system_override_chars": 1413,
+    "policy": "Policy"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "module": "daedalus/structcore/parse.py",
+  "chunk": 2,
+  "chunks": 3,
+  "bytes": 28028
+ }
+}
