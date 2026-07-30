@@ -1,0 +1,725 @@
+<title>Daedalus — Design Direction: The Instrument and the Notebook</title>
+<style>
+  /* ───────────────────────────────────────────────────────────────
+     DAEDALUS DESIGN DIRECTION
+     Two materials, never nested: a graphite instrument housing,
+     and a bone document surface set into it.
+     Type system: a humanist serif (the warm voice) + a mono
+     (the cold glass). No sans-serif anywhere. That absence is
+     the point — grotesk is what every agent dashboard wears.
+     ─────────────────────────────────────────────────────────── */
+
+  :root {
+    /* housing — machined steel, green-black, never pure #000 */
+    --housing:        #1A1C1B;
+    --housing-lift:   #232624;
+    --housing-well:   #131514;
+    --housing-edge:   #33372F;
+    --housing-text:   #B9BDB3;
+    --housing-dim:    #7C8178;
+
+    /* document — an oxidised dial face. Deliberately greyer and
+       cooler than the cream every AI page reaches for. */
+    --paper:          #E6DFD1;
+    --paper-shade:    #D9D1C0;
+    --ink:            #23211C;
+    --ink-soft:       #55503F;
+
+    /* metals and oxides, not an accent hue.
+       Two brasses: one lit (on housing), one shadowed (on paper). */
+    --brass:          #C29A5C;
+    --brass-ink:      #7A5A2E;
+    --phosphor:       #7FA98C;
+    --phosphor-ink:   #3F6B4E;
+    --oxide:          #C2634A;
+    --oxide-ink:      #97402B;
+
+    --page:           #14100C;
+    --page-text:      var(--paper);
+
+    --voice: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --glass: 'Cascadia Mono', 'Cascadia Code', Consolas, 'SF Mono', ui-monospace, monospace;
+
+    --rule: 1px solid var(--housing-edge);
+  }
+
+  /* Light: the document is always paper — paper does not invert.
+     What changes is the housing: graphite becomes brushed aluminium.
+     A material metaphor themes better than a colour flip. */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --housing:      #C8C7C0;
+      --housing-lift: #D6D5CE;
+      --housing-well: #B4B3AB;
+      --housing-edge: #9E9D93;
+      --housing-text: #2B2C28;
+      --housing-dim:  #5C5E57;
+      --brass:        #7A5A2E;
+      --phosphor:     #3F6B4E;
+      --oxide:        #97402B;
+      --page:         #B0AFA6;
+    }
+  }
+  :root[data-theme="light"] {
+    --housing:      #C8C7C0;
+    --housing-lift: #D6D5CE;
+    --housing-well: #B4B3AB;
+    --housing-edge: #9E9D93;
+    --housing-text: #2B2C28;
+    --housing-dim:  #5C5E57;
+    --brass:        #7A5A2E;
+    --phosphor:     #3F6B4E;
+    --oxide:        #97402B;
+    --page:         #B0AFA6;
+  }
+  :root[data-theme="dark"] {
+    --housing:      #1A1C1B;
+    --housing-lift: #232624;
+    --housing-well: #131514;
+    --housing-edge: #33372F;
+    --housing-text: #B9BDB3;
+    --housing-dim:  #7C8178;
+    --brass:        #C29A5C;
+    --phosphor:     #7FA98C;
+    --oxide:        #C2634A;
+    --page:         #14100C;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--page-text);
+    font-family: var(--voice);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 56px) clamp(16px, 3vw, 32px) 96px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(40px, 6vw, 76px);
+  }
+
+  /* ── page masthead ─────────────────────────────────────────── */
+  .masthead { display: flex; flex-direction: column; gap: 14px; }
+  .eyebrow {
+    font-family: var(--glass);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass);
+  }
+  .masthead h1 {
+    font-family: var(--voice);
+    font-weight: 400;
+    font-size: clamp(30px, 5.2vw, 52px);
+    line-height: 1.08;
+    letter-spacing: -0.015em;
+    margin: 0;
+    text-wrap: balance;
+    max-width: 24ch;
+  }
+  .masthead h1 em { font-style: italic; color: var(--brass); }
+  .standfirst {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--housing-text);
+    font-size: 18px;
+  }
+  :root[data-theme="light"] .standfirst,
+  :root[data-theme="light"] .masthead h1 { color: #1D1E1A; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .standfirst,
+    :root:not([data-theme="dark"]) .masthead h1 { color: #1D1E1A; }
+  }
+
+  /* ══ THE MOCK: instrument housing with a document set into it ══ */
+  .instrument {
+    background: var(--housing);
+    border: var(--rule);
+    border-radius: 3px;
+    box-shadow: 0 24px 60px -28px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    overflow: hidden;
+  }
+
+  /* Level 1 — the bezel. One state, one number. Nothing else.
+     The screen this replaces carried eight competing indicators here. */
+  .bezel {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    padding: 13px 18px;
+    border-bottom: var(--rule);
+    background: linear-gradient(var(--housing-lift), var(--housing));
+  }
+  .mark {
+    font-family: var(--voice);
+    font-size: 16px;
+    letter-spacing: 0.01em;
+    color: var(--housing-text);
+  }
+  .mark b { font-weight: 600; }
+  .mark span { color: var(--housing-dim); font-size: 13px; }
+  .bezel-spacer { flex: 1 1 24px; }
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--glass);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--phosphor);
+    white-space: nowrap;
+  }
+  .lamp {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--phosphor);
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--phosphor) 55%, transparent);
+    animation: breath 4.2s ease-in-out infinite;
+  }
+  @keyframes breath { 0%,100% { opacity: 1; } 50% { opacity: 0.42; } }
+
+  .instrument-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 268px;
+    gap: 0;
+  }
+  @media (max-width: 860px) {
+    .instrument-body { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  /* Level 2 — the document. Paper, ink, prose. What you read. */
+  .document {
+    background: var(--paper);
+    color: var(--ink);
+    padding: 30px clamp(18px, 3vw, 34px) 34px;
+    min-width: 0;
+  }
+  .doc-head { display: flex; flex-direction: column; gap: 7px; margin-bottom: 26px; }
+  .doc-head h2 {
+    font-family: var(--voice);
+    font-weight: 400;
+    font-size: clamp(23px, 3vw, 31px);
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    margin: 0;
+    max-width: 30ch;
+    text-wrap: balance;
+  }
+  .doc-head p { margin: 0; color: var(--ink-soft); font-size: 15.5px; max-width: 60ch; }
+
+  /* ── THE SIGNATURE: the provenance gutter ──────────────────────
+     Every claim carries its origin in the left margin, stamped.
+     Doubt lives here as marks in a margin — one scannable column —
+     instead of as warning pills scattered through the content. */
+  .finding {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 0 20px;
+    padding: 20px 0;
+    border-top: 1px solid var(--paper-shade);
+  }
+  @media (max-width: 620px) {
+    .finding { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  }
+  .gutter {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 3px;
+    text-align: right;
+    border-right: 1px solid var(--paper-shade);
+    padding-right: 18px;
+    margin-right: -2px;
+  }
+  @media (max-width: 620px) {
+    .gutter { text-align: left; border-right: 0; padding-right: 0; border-bottom: 1px solid var(--paper-shade); padding-bottom: 8px; }
+  }
+  .stamp {
+    font-family: var(--glass);
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .stamp-measured  { color: var(--phosphor-ink); }
+  .stamp-stated    { color: var(--brass-ink); }
+  .stamp-unread    { color: var(--oxide-ink); }
+  .gutter small {
+    font-family: var(--glass);
+    font-size: 10.5px;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+
+  .claim { min-width: 0; }
+  .claim h3 {
+    font-family: var(--voice);
+    font-weight: 600;
+    font-size: 18px;
+    margin: 0 0 5px;
+    letter-spacing: -0.005em;
+  }
+  .claim p { margin: 0 0 12px; max-width: 64ch; font-size: 16px; }
+  .claim p:last-child { margin-bottom: 0; }
+  .cite {
+    font-family: var(--glass);
+    font-size: 13.5px;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* Level 3 — the recessed well. The raw measurement, inset into
+     the page like a gauge let into a bench. Closed until doubted. */
+  details.well { margin-top: 4px; }
+  details.well > summary {
+    font-family: var(--glass);
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brass-ink);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 2px;
+    border-radius: 2px;
+  }
+  details.well > summary::-webkit-details-marker { display: none; }
+  details.well > summary::before {
+    content: "";
+    width: 0; height: 0;
+    border-left: 5px solid currentColor;
+    border-top: 3.5px solid transparent;
+    border-bottom: 3.5px solid transparent;
+    transition: transform 160ms cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  details.well[open] > summary::before { transform: rotate(90deg); }
+  details.well > summary:focus-visible { outline: 2px solid var(--brass-ink); outline-offset: 2px; }
+  .well-body {
+    margin-top: 10px;
+    background: var(--housing-well);
+    border: 1px solid #000;
+    border-radius: 2px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.55);
+    padding: 14px 16px;
+    overflow-x: auto;
+    animation: drawer 170ms cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  @keyframes drawer { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  .well-body table {
+    border-collapse: collapse;
+    width: 100%;
+    font-family: var(--glass);
+    font-size: 12.5px;
+    color: #C7CBC1;
+  }
+  .well-body th {
+    text-align: left;
+    font-weight: 400;
+    color: var(--housing-dim);
+    padding: 2px 16px 2px 0;
+    white-space: nowrap;
+    vertical-align: top;
+  }
+  .well-body td {
+    padding: 2px 0;
+    font-variant-numeric: tabular-nums;
+    color: #DCDFD5;
+    word-break: break-word;
+  }
+  :root[data-theme="light"] .well-body table,
+  :root[data-theme="light"] .well-body td { color: #E8E9E1; }
+
+  /* the score, decomposed — a stated priority plus a measurement,
+     never one fused number */
+  .score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--glass);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .score b { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; }
+  .score i { font-style: normal; color: var(--paper-shade); }
+
+  /* the instrument rail — housing, not document. Quiet by construction. */
+  .rail {
+    background: var(--housing);
+    border-left: var(--rule);
+    padding: 24px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    min-width: 0;
+  }
+  @media (max-width: 860px) { .rail { border-left: 0; border-top: var(--rule); } }
+  .rail-group { display: flex; flex-direction: column; gap: 9px; }
+  .rail-label {
+    font-family: var(--glass);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--housing-dim);
+  }
+  .dial {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+    font-family: var(--glass);
+    color: var(--housing-text);
+  }
+  .dial b {
+    font-size: 27px;
+    font-weight: 400;
+    color: var(--brass);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .dial span { font-size: 12px; color: var(--housing-dim); }
+  .rail-note {
+    font-family: var(--voice);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--housing-text);
+    margin: 0;
+  }
+  .rail-note b { color: var(--oxide); font-weight: 600; }
+  .conn { display: flex; flex-direction: column; gap: 1px; }
+  .conn-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: var(--glass);
+    font-size: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--housing-edge) 55%, transparent);
+    color: var(--housing-text);
+  }
+  .conn-row:last-child { border-bottom: 0; }
+  .conn-row i { font-style: normal; font-size: 10.5px; letter-spacing: 0.06em; }
+  .st-untested { color: var(--brass); }
+  .st-off { color: var(--housing-dim); }
+
+  /* ── annotation sections ───────────────────────────────────── */
+  .law { display: flex; flex-direction: column; gap: 26px; }
+  .law-head { display: flex; flex-direction: column; gap: 9px; }
+  .law-head h2 {
+    font-family: var(--voice);
+    font-weight: 400;
+    font-size: clamp(24px, 3.4vw, 34px);
+    margin: 0;
+    letter-spacing: -0.012em;
+    max-width: 26ch;
+    text-wrap: balance;
+  }
+  .law-head p { margin: 0; max-width: 66ch; color: var(--housing-text); }
+  :root[data-theme="light"] .law-head h2,
+  :root[data-theme="light"] .law-head p { color: #1D1E1A; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .law-head h2,
+    :root:not([data-theme="dark"]) .law-head p { color: #1D1E1A; }
+  }
+
+  .levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(238px, 1fr)); gap: 1px; background: var(--housing-edge); border: var(--rule); border-radius: 3px; overflow: hidden; }
+  .level { background: var(--housing); padding: 20px 18px; display: flex; flex-direction: column; gap: 8px; }
+  .level-dist { font-family: var(--glass); font-size: 10.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--brass); }
+  .level h3 { font-family: var(--voice); font-weight: 600; font-size: 17px; margin: 0; color: var(--housing-text); }
+  .level p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--housing-dim); }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .sw { display: flex; flex-direction: column; gap: 7px; }
+  .sw-chip { height: 46px; border-radius: 2px; border: 1px solid rgba(0,0,0,0.35); }
+  .sw-name { font-family: var(--glass); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--housing-text); }
+  .sw-hex { font-family: var(--glass); font-size: 11px; color: var(--housing-dim); }
+  .sw-use { font-size: 13.5px; color: var(--housing-dim); line-height: 1.45; }
+
+  .cut { border: var(--rule); border-radius: 3px; background: var(--housing); padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .cut h3 { font-family: var(--voice); font-weight: 400; font-size: 20px; margin: 0; color: var(--housing-text); }
+  .cut ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 9px; color: var(--housing-dim); font-size: 15.5px; }
+  .cut ul b { color: var(--housing-text); font-weight: 600; }
+
+  footer { font-family: var(--glass); font-size: 11.5px; letter-spacing: 0.05em; color: var(--housing-dim); border-top: var(--rule); padding-top: 18px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <div class="eyebrow">Design direction · 29 July 2026 · replaces the current dark-card revamp</div>
+    <h1>The instrument and the <em>notebook</em></h1>
+    <p class="standfirst">
+      The old screen failed for one reason: nothing was ever demoted. Every number the backend
+      knew reached the glass at equal weight, in its own bordered box, under its own shouted
+      label. This direction fixes that structurally rather than cosmetically — two materials,
+      three reading distances, and doubt collected in a single margin instead of sprayed across
+      the content.
+    </p>
+  </header>
+
+  <!-- ════════ THE MOCK ════════ -->
+  <section class="instrument" aria-label="Proposed Knowledge surface">
+
+    <div class="bezel">
+      <div class="mark"><b>Daedalus</b> &nbsp;<span>agent_env</span></div>
+      <div class="bezel-spacer"></div>
+      <div class="live"><span class="lamp" aria-hidden="true"></span> 1 attempt running</div>
+    </div>
+
+    <div class="instrument-body">
+
+      <!-- Level 2: the document -->
+      <div class="document">
+        <div class="doc-head">
+          <h2>Two documents describe code that isn't in this tree.</h2>
+          <p>Both were found by scanning every reference in the repository against the symbols that
+             actually exist. Nothing here is inferred.</p>
+        </div>
+
+        <article class="finding">
+          <div class="gutter">
+            <span class="stamp stamp-measured">Measured</span>
+            <small>every run</small>
+            <small>23:14</small>
+          </div>
+          <div class="claim">
+            <h3>HANDOFF.md points at a symbol that was deleted</h3>
+            <p>
+              Line 695 names <span class="cite">vendors._LOCAL_HOSTS</span>, but
+              <span class="cite">daedalus/council/vendors.py</span> no longer defines it. The
+              sentence around it still reads as current guidance, which is the part that will
+              mislead someone.
+            </p>
+            <details class="well">
+              <summary>Show the measurement</summary>
+              <div class="well-body">
+                <table>
+                  <tbody>
+                    <tr><th scope="row">scanned</th><td>54 documents · 593 references</td></tr>
+                    <tr><th scope="row">broken here</th><td>1</td></tr>
+                    <tr><th scope="row">broken in tree</th><td>2</td></tr>
+                    <tr><th scope="row">source</th><td>daedalus.spine.docrefs.scan</td></tr>
+                    <tr><th scope="row">reference</th><td>line 695 → vendors._LOCAL_HOSTS · daedalus/council/vendors.py defines no '_LOCAL_HOSTS'</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            <div class="score">
+              <span>priority</span><b>500</b><i>·</i><span>measured</span><b>+4</b><i>·</i><span>rank</span><b>504</b>
+            </div>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="gutter">
+            <span class="stamp stamp-measured">Measured</span>
+            <small>every run</small>
+            <small>23:14</small>
+          </div>
+          <div class="claim">
+            <h3>The latent projection index describes a module that never landed</h3>
+            <p>
+              One statement in <span class="cite">docs/LATENT_PROJECTION_INDEX.md</span> refers to
+              code outside this tree. It reads as a description of something shipped.
+            </p>
+            <details class="well">
+              <summary>Show the measurement</summary>
+              <div class="well-body">
+                <table>
+                  <tbody>
+                    <tr><th scope="row">statements</th><td>1 unbacked</td></tr>
+                    <tr><th scope="row">scanned</th><td>54 documents</td></tr>
+                    <tr><th scope="row">source</th><td>daedalus.spine.docrefs.scan</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </article>
+
+        <article class="finding">
+          <div class="gutter">
+            <span class="stamp stamp-unread">Not read</span>
+            <small>2 sources</small>
+          </div>
+          <div class="claim">
+            <h3>This list is what survived, not what there is</h3>
+            <p>
+              The inventory and the generated map could not be consulted on this pass, so anything
+              only they would have found is missing from the two findings above. That is a gap in
+              the reading, not a clean bill of health.
+            </p>
+            <details class="well">
+              <summary>Show what failed</summary>
+              <div class="well-body">
+                <table>
+                  <tbody>
+                    <tr><th scope="row">inventory</th><td>unreadable — hand-written file absent</td></tr>
+                    <tr><th scope="row">map</th><td>unreadable — snapshot older than HEAD</td></tr>
+                    <tr><th scope="row">consulted</th><td>3 of 5 sources</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        </article>
+      </div>
+
+      <!-- the housing rail: quiet by construction -->
+      <aside class="rail">
+        <div class="rail-group">
+          <div class="rail-label">Self-improvement loop</div>
+          <div class="dial"><b>2</b><span>candidates ranked</span></div>
+          <p class="rail-note">Two of five sources went <b>unread</b>. The ranking is honest about
+             its own reach.</p>
+        </div>
+
+        <div class="rail-group">
+          <div class="rail-label">Runtimes</div>
+          <div class="conn">
+            <div class="conn-row"><span>Claude Code</span><i class="st-untested">untested</i></div>
+            <div class="conn-row"><span>Codex</span><i class="st-untested">untested</i></div>
+            <div class="conn-row"><span>Ollama</span><i class="st-untested">untested</i></div>
+            <div class="conn-row"><span>Anthropic API</span><i class="st-off">no key</i></div>
+          </div>
+          <p class="rail-note">“Untested” means the code is here and nothing has exercised it. It is
+             not a pass.</p>
+        </div>
+
+        <div class="rail-group">
+          <div class="rail-label">History</div>
+          <div class="dial"><b>30</b><span>reports kept</span></div>
+        </div>
+      </aside>
+
+    </div>
+  </section>
+
+  <!-- ════════ THE LAW ════════ -->
+  <section class="law">
+    <div class="law-head">
+      <h2>One law: three reading distances</h2>
+      <p>
+        Every component has to declare which distance it serves, and it may only serve one. This is
+        the rule the old screen had no way to express, so everything defaulted to the middle and
+        competed.
+      </p>
+    </div>
+    <div class="levels">
+      <div class="level">
+        <div class="level-dist">From three metres</div>
+        <h3>The bezel</h3>
+        <p>One live state and nothing else. Graphite and phosphor. If a second indicator wants to
+           live here, one of them is not urgent.</p>
+      </div>
+      <div class="level">
+        <div class="level-dist">Sitting down</div>
+        <h3>The document</h3>
+        <p>Findings as prose, on paper, in the serif. Written from your side of the screen — no
+           field names, no JSON, no internal vocabulary.</p>
+      </div>
+      <div class="level">
+        <div class="level-dist">When you doubt it</div>
+        <h3>The well</h3>
+        <p>The raw measurement, inset into the page like a gauge let into a bench. Mono, tabular,
+           closed by default, one click away, always there.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ MATERIALS ════════ -->
+  <section class="law">
+    <div class="law-head">
+      <h2>Two materials, never nested</h2>
+      <p>
+        A dark chassis holding a lit document, adjacent rather than stacked. This is what keeps the
+        page out of the near-black-plus-one-glowing-accent look every agent dashboard wears —
+        there is a large warm surface carrying the content, and the accents are oxidised metals
+        rather than a hue picked for contrast. In the light theme the housing becomes brushed
+        aluminium; the paper stays paper, because paper does not invert.
+      </p>
+    </div>
+    <div class="swatches">
+      <div class="sw">
+        <div class="sw-chip" style="background:#1A1C1B"></div>
+        <div class="sw-name">Graphite</div><div class="sw-hex">#1A1C1B</div>
+        <div class="sw-use">The housing. Green-black machined steel, never pure black.</div>
+      </div>
+      <div class="sw">
+        <div class="sw-chip" style="background:#E6DFD1"></div>
+        <div class="sw-name">Bone</div><div class="sw-hex">#E6DFD1</div>
+        <div class="sw-use">The document. An oxidised dial face — greyer and cooler than cream.</div>
+      </div>
+      <div class="sw">
+        <div class="sw-chip" style="background:#C29A5C"></div>
+        <div class="sw-name">Brass</div><div class="sw-hex">#C29A5C / #7A5A2E</div>
+        <div class="sw-use">Provenance and anything you can act on. Lit on metal, shadowed on paper.</div>
+      </div>
+      <div class="sw">
+        <div class="sw-chip" style="background:#7FA98C"></div>
+        <div class="sw-name">Phosphor</div><div class="sw-hex">#7FA98C</div>
+        <div class="sw-use">Running, and only running. Desaturated so it reads as a lamp, not a badge.</div>
+      </div>
+      <div class="sw">
+        <div class="sw-chip" style="background:#C2634A"></div>
+        <div class="sw-name">Oxide</div><div class="sw-hex">#C2634A</div>
+        <div class="sw-use">Something failed or went unread. Rust, not an alarm.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════ TYPE ════════ -->
+  <section class="law">
+    <div class="law-head">
+      <h2>A serif and a mono. No sans anywhere.</h2>
+      <p>
+        The absence is the decision. Grotesk — Inter, Geist, Space Grotesk — is the uniform of
+        every generated dashboard, and the fastest way to look like one. Daedalus already speaks in
+        two registers, so the type system is those two registers and nothing more: a humanist
+        serif for everything the system says in words, a mono for everything it measured. Labels
+        are set in the serif with letterspacing rather than switching to a third face. Production
+        self-hosts the faces; this page uses the closest system stack.
+      </p>
+    </div>
+    <div class="cut">
+      <h3>What got cut on the way here</h3>
+      <ul>
+        <li><b>The four-tile metric row.</b> Telemetry / System proof / Provider sample / Promotion
+            as equal boxes is the most recognisable trope in the category. One dial in the rail
+            carries the number that mattered.</li>
+        <li><b>Twenty-five borders.</b> Nesting ran space → section → evidence panel → table row.
+            Two materials replace all of it; the only remaining border is where a material ends.</li>
+        <li><b>The permanent status legend.</b> Five pills with counts, above the content, before
+            anything was said. The vocabulary now appears where it applies, in the margin.</li>
+        <li><b>Shouted labels as decoration.</b> MISSION QUEUE, SELF-IMPROVEMENT LOOP, CONNECTIONS,
+            WATCHER, EVIDENCE — WHAT THIS WAS MEASURED FROM. Kept three, in small caps, quiet.</li>
+        <li><b>Raw JSON on the glass.</b> <code style="font-family:var(--glass);font-size:12.5px">{"line":695,"module_path":…}</code>
+            sat in a table cell. It still exists, one click down, formatted.</li>
+        <li><b>The suggestion chips.</b> “What's running?”, “Build me an agent network.” Nothing
+            says generated product louder.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer>
+    Mock rendered with real values from the 29 July run — intent #91, docref scan, 2 of 5 sources
+    unread. Numbers are the machine's, not illustrations.
+  </footer>
+
+</div>

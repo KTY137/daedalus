@@ -1,0 +1,17 @@
+# Verification: v-attempt
+
+Verified 2 of 7 claims directly from provided code; 5 claims depend on the unseen TaskAttempt implementation.
+
+## Confirmed / actionable
+
+- Add GIT_ATTR_GLOBAL to the _git_env pop list to prevent candidate-controlled filter execution.
+
+## Verdicts
+
+- UNDECIDABLE claim 1: gitdir redirection via .git file - TaskAttempt code not provided to verify git_dir parameter passing.
+- CONFIRMED claim 2: Missing GIT_ATTR_GLOBAL strip - _git_env does not pop GIT_ATTR_GLOBAL, allowing candidate-controlled attr filter execution if the variable is set and the candidate can write the referenced attributes file.
+- UNDECIDABLE claim 3: Uncaught TimeoutExpired - _git body and TaskAttempt.run not provided to verify timeout handling.
+- UNDECIDABLE claim 4: TaskAttempt always provides git_dir - requires full TaskAttempt code.
+- UNDECIDABLE claim 5: Review ledger ordering, artifact_dir fencing, runner isolation - needs full implementation.
+- UNDECIDABLE claim 6: Audit TaskAttempt.run for subprocess exception catching - requires full implementation.
+- CONFIRMED claim 7: Add GIT_ATTR_GLOBAL to _git_env - the variable is indeed missing from the pop list, confirming the fix is needed.

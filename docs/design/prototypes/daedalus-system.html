@@ -1,0 +1,879 @@
+<meta charset="utf-8">
+<title>Daedalus — Product Design System</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   DAEDALUS · ONE PRODUCT, TWO MODES OF ATTENTION
+   ─────────────────────────────────────────────────────────────────────
+   OPERATING  (Pass, Cockpit, Graphs)  projected line-art, dense, live,
+                                        continuous motion, mono-first.
+   READING    (Wiki)                    same world, quiet: one column,
+                                        long measure, motion removed.
+   Both share the palette, the type system and the corner-bracket frame,
+   so the product is one product — but a wiki that behaves like a HUD is
+   unreadable, and a HUD that behaves like a wiki is useless.
+   Committed single visual world. No light theme; this is a projection.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --void:#03060A;
+  --ice:#7FD4E8;      --ice-dim:#3E7A8C;
+  --amber:#FFB454;    --oxide:#FF6B4A;    --lime:#8CE8B4;
+  --hot:#E6F4F8;      --warm:#9FBAC4;     --cool:#5E7A85;
+  --mono:'Cascadia Mono','Cascadia Code',Consolas,ui-monospace,monospace;
+  --disp:'Segoe UI Variable Display','Segoe UI Semibold',system-ui,-apple-system,sans-serif;
+  --e:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--void);color:var(--hot);
+  font-family:var(--mono);font-size:13px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── ambient field ─────────────────────────────────────────────── */
+.field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.emit{position:absolute;inset:0;background:
+  radial-gradient(56% 44% at 50% 30%, color-mix(in srgb,var(--ice) 13%,transparent), transparent 70%),
+  radial-gradient(80% 60% at 88% 108%, color-mix(in srgb,var(--amber) 6%,transparent), transparent 64%)}
+/* the depth field: three parallax strata of motes plus two drifting
+   light volumes. Procedural rather than a generated video clip — it
+   never loops, it answers the pointer, and it costs one canvas. */
+#depth{position:absolute;inset:0;width:100%;height:100%;display:block}
+.scan{position:absolute;inset:0;mix-blend-mode:screen;
+  background:repeating-linear-gradient(0deg,rgba(127,212,232,.03) 0 1px,transparent 1px 3px)}
+.grain{position:absolute;inset:0;opacity:.19;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+
+/* ── shell ─────────────────────────────────────────────────────── */
+.wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:26px 20px 120px}
+
+.masthead{display:flex;flex-direction:column;gap:12px;margin-bottom:30px}
+.masthead .eye{font-size:9.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--amber)}
+.masthead h1{font-family:var(--disp);font-weight:600;font-size:clamp(24px,3.4vw,38px);
+  letter-spacing:-.022em;line-height:1.1;margin:0;max-width:30ch;text-wrap:balance}
+.masthead p{margin:0;max-width:76ch;color:var(--warm);font-size:13.5px;line-height:1.66}
+.masthead p b{color:var(--hot);font-weight:400}
+
+/* ── frame vocabulary: brackets, never a full border ───────────── */
+.frame{position:relative;padding:15px 16px;min-width:0}
+.frame::before,.frame::after,.frame>.b1,.frame>.b2{
+  content:"";position:absolute;width:12px;height:12px;pointer-events:none;
+  border-color:color-mix(in srgb,var(--ice) 58%,transparent);border-style:solid;border-width:0}
+.frame::before{top:0;left:0;border-top-width:1px;border-left-width:1px}
+.frame::after{top:0;right:0;border-top-width:1px;border-right-width:1px}
+.frame>.b1{bottom:0;left:0;border-bottom-width:1px;border-left-width:1px}
+.frame>.b2{bottom:0;right:0;border-bottom-width:1px;border-right-width:1px}
+.frame>.fl{position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(160deg,rgba(127,212,232,.04),rgba(3,6,10,.5));
+  border:1px solid rgba(127,212,232,.09)}
+
+.label{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ice-dim);
+  display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.label::after{content:"";flex:1;height:1px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--ice) 32%,transparent),transparent)}
+
+/* ── page switcher ─────────────────────────────────────────────── */
+.rail{
+  position:sticky;top:14px;z-index:5;display:flex;gap:5px;flex-wrap:wrap;
+  padding:7px;margin-bottom:26px;
+  background:rgba(3,6,10,.82);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(127,212,232,.14);
+}
+.rail button{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--cool);background:transparent;border:1px solid transparent;
+  padding:9px 15px;cursor:pointer;transition:all 140ms var(--e)}
+.rail button:hover{color:var(--hot);background:rgba(127,212,232,.07)}
+.rail button[aria-selected="true"]{
+  color:var(--void);background:var(--ice);border-color:var(--ice);font-weight:600}
+.rail button:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+
+.page{display:none;flex-direction:column;gap:20px}
+.page.on{display:flex;animation:fade .32s var(--e)}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.note{font-size:12.5px;color:var(--warm);line-height:1.68;max-width:78ch;margin:0}
+.note b{color:var(--hot);font-weight:400}
+.note code{color:var(--ice);background:rgba(127,212,232,.08);padding:1px 5px;
+  border:1px solid rgba(127,212,232,.13)}
+
+/* ── mock chrome shared by every screen ────────────────────────── */
+.screen{position:relative;border:1px solid rgba(127,212,232,.13);background:rgba(3,6,10,.42);
+  overflow:hidden}
+.bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;
+  border-bottom:1px solid rgba(127,212,232,.1);background:rgba(127,212,232,.03)}
+.brand{display:flex;align-items:baseline;gap:9px}
+.brand b{font-family:var(--disp);font-size:14px;font-weight:600;letter-spacing:.15em;text-transform:uppercase}
+.brand i{font-style:normal;font-size:9.5px;letter-spacing:.18em;color:var(--ice-dim);text-transform:uppercase}
+.sp{flex:1 1 10px}
+.st{display:inline-flex;align-items:center;gap:7px;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--lime);white-space:nowrap}
+.pip{width:6px;height:6px;background:currentColor;
+  box-shadow:0 0 9px 2px color-mix(in srgb,var(--lime) 50%,transparent);animation:blip 2.6s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+.st.warn{color:var(--amber)}.st.warn .pip{box-shadow:0 0 9px 2px color-mix(in srgb,var(--amber) 50%,transparent)}
+
+/* ═══ PAGE 1 — THE PASS (restaurant) ═══════════════════════════ */
+.pass{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:14px;padding:16px}
+.kitchen{position:relative;padding:14px 15px 15px;border:1px solid rgba(127,212,232,.11);
+  background:linear-gradient(165deg,rgba(127,212,232,.045),rgba(3,6,10,.5))}
+.kitchen.hot{border-color:color-mix(in srgb,var(--amber) 34%,transparent);
+  background:linear-gradient(165deg,color-mix(in srgb,var(--amber) 8%,transparent),rgba(3,6,10,.5))}
+.kitchen.cold{opacity:.62}
+.k-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:3px}
+.k-top h3{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0}
+.k-top em{font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--cool)}
+.kitchen.hot .k-top em{color:var(--amber)}
+.k-sub{font-size:10.5px;color:var(--cool);letter-spacing:.05em;margin-bottom:12px}
+.stations{display:flex;flex-direction:column;gap:1px;margin-bottom:12px}
+.station{display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:9px;
+  padding:6px 0;border-bottom:1px solid rgba(127,212,232,.07)}
+.station:last-child{border-bottom:0}
+.s-led{width:7px;height:7px;transform:rotate(45deg);background:rgba(127,212,232,.16);flex:none}
+.station.on .s-led{background:var(--amber);box-shadow:0 0 8px color-mix(in srgb,var(--amber) 65%,transparent);
+  animation:blip 1.6s ease-in-out infinite}
+.station.ok .s-led{background:var(--lime)}
+.station.bad .s-led{background:var(--oxide)}
+.s-name{font-size:11.5px;color:var(--warm);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.station.on .s-name{color:var(--hot)}
+.s-role{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--cool);white-space:nowrap}
+.k-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding-top:10px;border-top:1px solid rgba(127,212,232,.09);font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--cool)}
+.k-foot b{color:var(--hot);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:0;font-size:12px}
+.tickets{display:flex;gap:3px}
+.tk{width:14px;height:4px;background:rgba(127,212,232,.2)}
+.tk.run{background:var(--amber)}
+.tk.done{background:var(--lime)}
+.tk.fail{background:var(--oxide)}
+
+/* ═══ PAGE 2 — COCKPIT ════════════════════════════════════════ */
+.cockpit{display:grid;grid-template-columns:224px minmax(0,1fr) 224px;gap:14px;padding:16px}
+@media (max-width:860px){.cockpit{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.proj{position:relative;min-height:330px;border:1px solid rgba(127,212,232,.1);overflow:hidden}
+.proj canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.proj .cap{position:absolute;left:0;bottom:0;padding:12px 14px;pointer-events:none}
+.proj .cap b{display:block;font-family:var(--disp);font-size:13px;font-weight:600}
+.proj .cap span{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--cool)}
+.rings{position:absolute;left:50%;top:50%;translate:-50% -50%;width:min(300px,88%);aspect-ratio:1;pointer-events:none}
+.rg{position:absolute;inset:0;border-radius:50%;border:1px solid color-mix(in srgb,var(--ice) 13%,transparent)}
+.rg.b{inset:14%;border-style:dashed;animation:spin 58s linear infinite}
+.rg.c{inset:30%;animation:spin 40s linear infinite reverse}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:9px;
+  padding:6px 0;border-bottom:1px solid rgba(127,212,232,.08)}
+.row:last-child{border-bottom:0}
+.row span{font-size:10.5px;color:var(--warm);letter-spacing:.04em}
+.row b{font-size:14px;font-weight:400;font-variant-numeric:tabular-nums}
+.row b em{font-style:normal;font-size:9px;color:var(--cool);margin-left:3px}
+.row b.warn{color:var(--oxide)}.row b.ok{color:var(--lime)}.row b.sm{font-size:11px}
+
+.pipe{display:flex;margin-top:2px}
+.pstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.pstep::before{content:"";position:absolute;top:5px;left:50%;right:-50%;height:1px;background:rgba(127,212,232,.15)}
+.pstep:last-child::before{display:none}
+.pdot{width:10px;height:10px;border:1px solid var(--ice-dim);background:var(--void);
+  transform:rotate(45deg);position:relative;z-index:1}
+.pstep.done .pdot{background:var(--lime);border-color:var(--lime)}
+.pstep.live .pdot{background:var(--amber);border-color:var(--amber);
+  box-shadow:0 0 11px color-mix(in srgb,var(--amber) 70%,transparent);animation:blip 1.5s ease-in-out infinite}
+.pstep small{font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--cool)}
+.pstep.live small{color:var(--amber)}
+
+.ikarus{padding:13px 14px;border:1px solid rgba(127,212,232,.11);background:rgba(127,212,232,.03)}
+.ik-top{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.ik-top b{font-family:var(--disp);font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.ik-top span{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--cool)}
+.ik-msg{font-size:12px;color:var(--warm);line-height:1.6;margin:0 0 11px}
+.ik-in{display:flex;align-items:center;gap:8px;padding:8px 10px;
+  border:1px solid rgba(127,212,232,.16);background:rgba(3,6,10,.6)}
+.ik-in span{color:var(--ice)}
+.ik-in i{font-style:normal;color:var(--cool);font-size:11.5px}
+.caret{width:6px;height:13px;background:var(--ice);animation:blip 1.1s steps(2) infinite;margin-left:auto}
+
+/* ═══ PAGE 3 — THE THREE GRAPHS ═══════════════════════════════ */
+.lenses{display:flex;gap:0;padding:0 16px;margin-top:16px;border-bottom:1px solid rgba(127,212,232,.1)}
+.lens{position:relative;flex:1;text-align:left;padding:11px 14px;cursor:pointer;
+  background:transparent;border:0;border-bottom:2px solid transparent;
+  font-family:var(--mono);transition:all 150ms var(--e)}
+.lens b{display:block;font-family:var(--disp);font-size:13px;font-weight:600;color:var(--cool);
+  letter-spacing:-.005em;margin-bottom:2px}
+.lens span{display:block;font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--ice-dim)}
+.lens:hover b{color:var(--warm)}
+.lens[aria-selected="true"]{border-bottom-color:var(--ice);background:rgba(127,212,232,.05)}
+.lens[aria-selected="true"] b{color:var(--hot)}
+.lens[aria-selected="true"] span{color:var(--ice)}
+.lens:focus-visible{outline:1px solid var(--amber);outline-offset:-2px}
+.gbody{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;padding:16px}
+@media (max-width:860px){.gbody{grid-template-columns:minmax(0,1fr)}}
+.gproj{position:relative;min-height:380px;border:1px solid rgba(127,212,232,.1);overflow:hidden}
+.gproj canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.gproj .lg{position:absolute;right:0;bottom:0;padding:12px 14px;display:flex;flex-direction:column;gap:5px}
+.lgi{display:flex;align-items:center;gap:7px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--cool)}
+.lgi i{width:7px;height:7px;flex:none;font-style:normal}
+
+/* ═══ PAGE 4 — WIKI (reading mode) ════════════════════════════ */
+.wiki{display:grid;grid-template-columns:216px minmax(0,1fr) 214px;gap:0;min-height:520px}
+@media (max-width:940px){.wiki{grid-template-columns:minmax(0,1fr)}}
+.tree{border-right:1px solid rgba(127,212,232,.1);padding:16px 14px;display:flex;flex-direction:column;gap:16px}
+.vault{display:flex;flex-direction:column;gap:2px}
+.v-head{display:flex;align-items:center;gap:7px;font-size:9px;letter-spacing:.17em;
+  text-transform:uppercase;color:var(--amber);margin-bottom:5px}
+.v-head.g{color:var(--ice-dim)}
+.tl{display:block;width:100%;text-align:left;font-family:var(--mono);font-size:11.5px;
+  color:var(--warm);background:transparent;border:0;padding:4px 8px;cursor:pointer;
+  border-left:1px solid transparent;transition:all 130ms var(--e)}
+.tl:hover{color:var(--hot);background:rgba(127,212,232,.06)}
+.tl.on{color:var(--hot);border-left-color:var(--ice);background:rgba(127,212,232,.08)}
+.tl.ind{padding-left:20px;font-size:11px;color:var(--cool)}
+.tl.ind:hover{color:var(--warm)}
+.tl:focus-visible{outline:1px solid var(--amber);outline-offset:-1px}
+
+/* the reading surface: the ONE place motion and density are removed */
+.read{padding:30px clamp(20px,3vw,44px) 40px;min-width:0}
+.crumb{font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--cool);margin-bottom:14px}
+.crumb b{color:var(--amber);font-weight:400}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
+.chip{font-size:9px;letter-spacing:.13em;text-transform:uppercase;padding:4px 9px;
+  border:1px solid color-mix(in srgb,var(--ice) 26%,transparent);color:var(--ice)}
+.chip.v{border-color:color-mix(in srgb,var(--lime) 36%,transparent);color:var(--lime)}
+.chip.s{border-color:color-mix(in srgb,var(--oxide) 36%,transparent);color:var(--oxide)}
+.read h2{font-family:var(--disp);font-weight:600;font-size:clamp(21px,2.7vw,30px);
+  line-height:1.18;letter-spacing:-.02em;margin:0 0 16px;max-width:30ch;text-wrap:balance}
+.read .prose{max-width:66ch;display:flex;flex-direction:column;gap:15px}
+.read .prose p{margin:0;font-size:14px;line-height:1.78;color:var(--warm)}
+.read .prose p b{color:var(--hot);font-weight:400}
+.wl{color:var(--ice);border-bottom:1px solid color-mix(in srgb,var(--ice) 40%,transparent);
+  cursor:pointer;text-decoration:none}
+.wl:hover{background:rgba(127,212,232,.1)}
+.wl.code{color:var(--amber);border-bottom-color:color-mix(in srgb,var(--amber) 40%,transparent)}
+.wl.dead{color:var(--oxide);border-bottom-style:dashed;border-bottom-color:color-mix(in srgb,var(--oxide) 45%,transparent)}
+.read h3{font-family:var(--disp);font-size:15px;font-weight:600;margin:9px 0 0;color:var(--hot)}
+.callout{border-left:2px solid var(--amber);padding:11px 0 11px 15px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--amber) 7%,transparent),transparent 70%)}
+.callout p{margin:0;font-size:13px;line-height:1.7;color:var(--warm)}
+.callout .cl{font-size:9px;letter-spacing:.17em;text-transform:uppercase;color:var(--amber);margin-bottom:5px}
+
+.aside{border-left:1px solid rgba(127,212,232,.1);padding:16px 14px;display:flex;flex-direction:column;gap:18px}
+.bl{display:flex;flex-direction:column;gap:1px}
+.bli{padding:7px 0;border-bottom:1px solid rgba(127,212,232,.07);cursor:pointer}
+.bli:last-child{border-bottom:0}
+.bli b{display:block;font-size:11px;color:var(--warm);font-weight:400;margin-bottom:2px}
+.bli:hover b{color:var(--hot)}
+.bli span{font-size:9.5px;color:var(--cool)}
+.minigraph{position:relative;height:132px;border:1px solid rgba(127,212,232,.1);overflow:hidden}
+.minigraph canvas{position:absolute;inset:0;width:100%;height:100%}
+
+/* ── system notes at the foot ─────────────────────────────────── */
+.sys{display:grid;grid-template-columns:repeat(auto-fit,minmax(226px,1fr));gap:14px}
+.card{padding:15px 16px;border:1px solid rgba(127,212,232,.11);background:rgba(127,212,232,.025);
+  display:flex;flex-direction:column;gap:7px}
+.card h4{font-family:var(--disp);font-size:13px;font-weight:600;margin:0;color:var(--hot)}
+.card p{margin:0;font-size:12px;line-height:1.62;color:var(--cool)}
+.sw{display:flex;gap:8px;margin-top:2px}
+.sw i{width:26px;height:26px;font-style:normal;border:1px solid rgba(255,255,255,.14)}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div class="field" aria-hidden="true">
+  <div class="emit"></div><canvas id="depth"></canvas><div class="scan"></div><div class="grain"></div>
+</div>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eye">Design system · 30 July 2026 · Daedalus Agent OS</div>
+    <h1>One product, two modes of attention</h1>
+    <p>
+      Four surfaces, one language. <b>The Pass</b>, <b>the Cockpit</b> and <b>the Graphs</b> are for
+      operating: projected line art, high density, continuous motion, mono first. <b>The Wiki</b> is
+      for reading, so density and motion are deliberately removed while palette, type and frame stay
+      identical. That split is the system — a wiki that behaves like a HUD is unreadable, and a HUD
+      that behaves like a wiki is useless. Click through all four.
+    </p>
+  </header>
+
+  <nav class="rail" role="tablist" aria-label="Surfaces">
+    <button role="tab" aria-selected="true"  data-p="pass">The Pass</button>
+    <button role="tab" aria-selected="false" data-p="cockpit">Cockpit</button>
+    <button role="tab" aria-selected="false" data-p="graphs">Three graphs</button>
+    <button role="tab" aria-selected="false" data-p="wiki">Wiki</button>
+    <button role="tab" aria-selected="false" data-p="system">The language</button>
+  </nav>
+
+  <!-- ══════════ PAGE 1 · THE PASS ══════════ -->
+  <section class="page on" id="p-pass" role="tabpanel">
+    <p class="note">
+      <b>The Pass.</b> Every kitchen you have open, and who is at which station. A kitchen is a
+      project; a station is a role; a worker is the model actually standing there. Service state
+      reads from three metres — amber station means hands moving, and the ticket rail under each
+      kitchen is the last six tasks, oldest left. This is the home screen, because the first
+      question is never “what is the code like”, it is <b>who is cooking and is anything burning</b>.
+    </p>
+
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><b>Daedalus</b><i>The Pass</i></div>
+        <div class="sp"></div>
+        <div class="st"><span class="pip"></span> 3 kitchens open · 7 working</div>
+        <div class="st warn"><span class="pip"></span> 1 station stalled</div>
+      </div>
+
+      <div class="pass">
+        <article class="kitchen hot">
+          <div class="k-top"><h3>agent_env</h3><em>service</em></div>
+          <div class="k-sub">self-improvement · burn-in</div>
+          <div class="stations">
+            <div class="station on"><span class="s-led"></span><span class="s-name">Lucia · qwen2.5-7b</span><span class="s-role">writer</span></div>
+            <div class="station on"><span class="s-led"></span><span class="s-name">Athena · fable</span><span class="s-role">coord</span></div>
+            <div class="station ok"><span class="s-led"></span><span class="s-name">Talos · sonnet</span><span class="s-role">tests</span></div>
+            <div class="station bad"><span class="s-led"></span><span class="s-name">Minos · —</span><span class="s-role">fence</span></div>
+          </div>
+          <div class="k-foot">
+            <span>elapsed <b>58s</b></span>
+            <div class="tickets"><i class="tk done"></i><i class="tk done"></i><i class="tk fail"></i><i class="tk done"></i><i class="tk run"></i><i class="tk"></i></div>
+          </div>
+        </article>
+
+        <article class="kitchen">
+          <div class="k-top"><h3>project_tct</h3><em>prep</em></div>
+          <div class="k-sub">hardware control · read only</div>
+          <div class="stations">
+            <div class="station ok"><span class="s-led"></span><span class="s-name">Argus · haiku</span><span class="s-role">scout</span></div>
+            <div class="station"><span class="s-led"></span><span class="s-name">Perdix · —</span><span class="s-role">ui</span></div>
+            <div class="station"><span class="s-led"></span><span class="s-name">Clio · —</span><span class="s-role">docs</span></div>
+          </div>
+          <div class="k-foot">
+            <span>idle <b>12m</b></span>
+            <div class="tickets"><i class="tk done"></i><i class="tk done"></i><i class="tk done"></i><i class="tk"></i><i class="tk"></i><i class="tk"></i></div>
+          </div>
+        </article>
+
+        <article class="kitchen cold">
+          <div class="k-top"><h3>ariadne</h3><em>closed</em></div>
+          <div class="k-sub">code evolution · lane A2 sealed</div>
+          <div class="stations">
+            <div class="station"><span class="s-led"></span><span class="s-name">no worker assigned</span><span class="s-role">—</span></div>
+            <div class="station"><span class="s-led"></span><span class="s-name">no worker assigned</span><span class="s-role">—</span></div>
+          </div>
+          <div class="k-foot">
+            <span>ceiling <b>2.3%</b></span>
+            <div class="tickets"><i class="tk done"></i><i class="tk done"></i><i class="tk"></i><i class="tk"></i><i class="tk"></i><i class="tk"></i></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PAGE 2 · COCKPIT ══════════ -->
+  <section class="page" id="p-cockpit" role="tabpanel">
+    <p class="note">
+      <b>Cockpit.</b> One kitchen, opened. Ikarus sits bottom-right because you talk to it while
+      watching the loop, not instead of watching it. The projection is the structure being worked
+      on — it rotates because it is live, and it dims when nothing is running rather than being
+      decorative. Readings are mono and tabular; the loop is four diamonds, and only one is ever lit.
+    </p>
+
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><b>Ikarus</b><i>agent_env</i></div>
+        <div class="sp"></div>
+        <div class="st warn"><span class="pip"></span> Attempt 92 · writing</div>
+        <div class="st" style="color:var(--cool)">$0.00 spent</div>
+      </div>
+
+      <div class="cockpit">
+        <div class="col">
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label">Corpus</div>
+            <div class="rows">
+              <div class="row"><span>Modules</span><b>247</b></div>
+              <div class="row"><span>References</span><b>593</b></div>
+              <div class="row"><span>Broken</span><b class="warn">2</b></div>
+              <div class="row"><span>Sources read</span><b class="warn">3<em>of 5</em></b></div>
+            </div>
+          </section>
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label">Spent attempts</div>
+            <div class="rows">
+              <div class="row"><span>91 · ±8</span><b class="ok sm">wired</b></div>
+              <div class="row"><span>90 · ±40</span><b class="warn sm">timeout</b></div>
+              <div class="row"><span>89 · full</span><b class="warn sm">no change</b></div>
+            </div>
+          </section>
+        </div>
+
+        <div class="col">
+          <div class="proj">
+            <canvas data-graph="code" data-density="0.9"></canvas>
+            <div class="rings" aria-hidden="true"><div class="rg"></div><div class="rg b"></div><div class="rg c"></div></div>
+            <div class="cap"><b>Structural projection</b><span>247 modules · 612 imports</span></div>
+          </div>
+          <div class="ikarus">
+            <div class="ik-top"><b>Ikarus</b><span>deterministic · no model</span></div>
+            <p class="ik-msg">Attempt 92 is rewriting two 17-line windows in the handoff. The fence
+               cleared both paths. I will not promote anything without your word.</p>
+            <div class="ik-in"><span>&gt;</span><i>show me what the gate will check</i><span class="caret"></span></div>
+          </div>
+        </div>
+
+        <div class="col">
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label">Loop</div>
+            <div class="pipe">
+              <div class="pstep done"><span class="pdot"></span><small>Pick</small></div>
+              <div class="pstep live"><span class="pdot"></span><small>Write</small></div>
+              <div class="pstep"><span class="pdot"></span><small>Gate</small></div>
+              <div class="pstep"><span class="pdot"></span><small>Promote</small></div>
+            </div>
+            <div class="rows" style="margin-top:13px">
+              <div class="row"><span>Worker</span><b class="sm">Lucia · local</b></div>
+              <div class="row"><span>Lane</span><b class="sm">write · fenced</b></div>
+              <div class="row"><span>Elapsed</span><b>58s</b></div>
+            </div>
+          </section>
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label">Type coverage</div>
+            <div class="rows">
+              <div class="row"><span>Returns</span><b class="ok">97%</b></div>
+              <div class="row"><span>Params</span><b>71%</b></div>
+              <div class="row"><span>Untyped payloads</span><b class="warn">18</b></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PAGE 3 · THREE GRAPHS ══════════ -->
+  <section class="page" id="p-graphs" role="tabpanel">
+    <p class="note">
+      <b>Three graphs, one snapshot.</b> Code, data structure and knowledge are three lenses on the
+      same forest, so they are tabs on one projection rather than three pages — switching a lens
+      re-draws the same object, it does not navigate away. The lens strip carries what each one is
+      keyed on, because “graph” alone tells you nothing about what an edge means.
+    </p>
+
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><b>Forest</b><i>agent_env · derived</i></div>
+        <div class="sp"></div>
+        <div class="st"><span class="pip"></span> fresh · rebuilt 9s ago</div>
+      </div>
+
+      <div class="lenses" role="tablist" aria-label="Lenses">
+        <button class="lens" role="tab" aria-selected="true"  data-l="code"><b>Code</b><span>imports · calls · clones</span></button>
+        <button class="lens" role="tab" aria-selected="false" data-l="types"><b>Data structure</b><span>has_field · consumes · produces</span></button>
+        <button class="lens" role="tab" aria-selected="false" data-l="know"><b>Knowledge</b><span>wikilinks · doc→code</span></button>
+      </div>
+
+      <div class="gbody">
+        <div class="gproj">
+          <canvas id="bigGraph" data-graph="code" data-density="1.35"></canvas>
+          <div class="lg" id="bigLegend" aria-hidden="true"></div>
+        </div>
+        <div class="col">
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label" id="lensLabel">Code lens</div>
+            <div class="rows" id="lensRows"></div>
+          </section>
+          <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+            <div class="label">Selected</div>
+            <div class="rows">
+              <div class="row"><span>node</span><b class="sm">structcore/index.py</b></div>
+              <div class="row"><span>fan-in</span><b>31</b></div>
+              <div class="row"><span>fan-out</span><b>12</b></div>
+              <div class="row"><span>reaches fence</span><b class="warn sm">2 hops</b></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PAGE 4 · WIKI ══════════ -->
+  <section class="page" id="p-wiki" role="tabpanel">
+    <p class="note">
+      <b>Wiki.</b> Same world, reading mode: one column at a real measure, motion gone, mono kept
+      only for metadata and provenance. Vaults nest — a global vault above, the project vault below,
+      and a cross-vault link is <code>[[vault:name/page]]</code>. A link to code is a first-class
+      edge, so a dead one is drawn <span class="wl dead">dashed and red</span> rather than failing
+      silently. The right rail is backlinks plus the local graph at depth one — never the global
+      hairball.
+    </p>
+
+    <div class="screen">
+      <div class="bar">
+        <div class="brand"><b>Wiki</b><i>agent_env</i></div>
+        <div class="sp"></div>
+        <div class="st" style="color:var(--cool)">agent-maintained · last pass 4m ago</div>
+        <div class="st warn"><span class="pip"></span> 1 stale code link</div>
+      </div>
+
+      <div class="wiki">
+        <nav class="tree">
+          <div class="vault">
+            <div class="v-head g">Global vault</div>
+            <button class="tl">Doctrine</button>
+            <button class="tl">Crew &amp; delegates</button>
+            <button class="tl">Provider notes</button>
+          </div>
+          <div class="vault">
+            <div class="v-head">agent_env</div>
+            <button class="tl on">Type graph</button>
+            <button class="tl ind">Invariants</button>
+            <button class="tl ind">Hub measurement</button>
+            <button class="tl">Knowledge space</button>
+            <button class="tl">Evolution loop</button>
+            <button class="tl">Decisions</button>
+            <button class="tl ind">ADR-009 Ariadne</button>
+          </div>
+        </nav>
+
+        <article class="read">
+          <div class="crumb">agent_env / architecture / <b>Type graph</b></div>
+          <div class="chips">
+            <span class="chip">spec</span>
+            <span class="chip v">verified 30 Jul</span>
+            <span class="chip s">1 stale link</span>
+          </div>
+          <h2>The second graph: code as a representation of the data structure</h2>
+          <div class="prose">
+            <p>
+              The forest already holds files, imports and clone clusters. This layer adds the shape
+              the code is <b>about</b>: types as nodes, fields as their children, and functions as
+              edges between them — <span class="wl code">consumes</span> for a parameter,
+              <span class="wl code">produces</span> for a return. A function stops being a box and
+              becomes a transformation from one structure into another.
+            </p>
+            <div class="callout">
+              <div class="cl">Invariant · load bearing</div>
+              <p>Type nodes never enter <b>all_units</b>. Measured: 176 dataclasses share a
+                 fingerprint by field count, so letting them reach the clone pass would publish
+                 them as renamed clones in the precise tier. See <span class="wl">Invariants</span>.</p>
+            </div>
+            <h3>Where it plugs in</h3>
+            <p>
+              Extraction lives in <span class="wl code">structcore/parse.py</span> because the file
+              cache key mixes that module's own hash. Resolution is whole-repo and serial, like
+              import resolution, and it uses a separate table — never
+              <span class="wl dead">graph.defs_by_file</span>, which would turn field names into
+              fabricated call edges.
+            </p>
+            <p>
+              Coverage reports itself: 97% of returns and 71% of parameters carry an annotation
+              here, and every unresolved or ambiguous name is counted rather than guessed. Related:
+              <span class="wl">Knowledge space</span>, <span class="wl">Hub measurement</span>.
+            </p>
+          </div>
+        </article>
+
+        <aside class="aside">
+          <div>
+            <div class="label">Backlinks · 4</div>
+            <div class="bl">
+              <div class="bli"><b>Knowledge space</b><span>links to type: pages</span></div>
+              <div class="bli"><b>ADR-009 Ariadne</b><span>names this layer</span></div>
+              <div class="bli"><b>Hub measurement</b><span>precondition</span></div>
+              <div class="bli"><b>Doctrine</b><span>global vault</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="label">Unlinked · 2</div>
+            <div class="bl">
+              <div class="bli"><b>Evolution loop</b><span>mentions “type graph”</span></div>
+              <div class="bli"><b>Decisions</b><span>mentions “second graph”</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="label">Local graph · depth 1</div>
+            <div class="minigraph"><canvas data-graph="know" data-density="0.4"></canvas></div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PAGE 5 · THE LANGUAGE ══════════ -->
+  <section class="page" id="p-system" role="tabpanel">
+    <p class="note">
+      What holds the four surfaces together, and what is deliberately not in here.
+    </p>
+    <div class="sys">
+      <div class="card">
+        <h4>Projection, not glass</h4>
+        <p>Panels are corner brackets and hairlines over a lit void — drawn, not printed. Filled
+           frosted cards were the previous attempt and they read as generated.</p>
+      </div>
+      <div class="card">
+        <h4>Mono first, one display face</h4>
+        <p>Everything measured is mono and tabular. Headlines only get the display face. No third
+           family, and no grotesk body text — that is the uniform of every AI dashboard.</p>
+      </div>
+      <div class="card">
+        <h4>Light means live</h4>
+        <p>Amber is hands-moving, lime is passed, oxide is failed or unread, ice is structure.
+           Nothing glows unless something is actually happening.</p>
+        <div class="sw">
+          <i style="background:#7FD4E8"></i><i style="background:#FFB454"></i>
+          <i style="background:#FF6B4A"></i><i style="background:#8CE8B4"></i>
+          <i style="background:#03060A"></i>
+        </div>
+      </div>
+      <div class="card">
+        <h4>Depth carries time</h4>
+        <p>Spent attempts recede, the current one is sharp, the running one floats forward. In the
+           graphs, Z is real: the projection rotates and depth-fades.</p>
+      </div>
+      <div class="card">
+        <h4>Reading mode is a mode</h4>
+        <p>On the wiki, animation stops, measure widens to 66 characters, line-height opens to 1.78.
+           Same palette, same frame — different job.</p>
+      </div>
+      <div class="card">
+        <h4>What got cut</h4>
+        <p>Four-tile metric rows, nested rounded cards, permanent status legends, suggestion chips,
+           raw JSON on the glass, and every shouted label that was decoration.</p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ── the depth field ──────────────────────────────────────────────
+   Three strata of motes at different depths, each drifting at its own
+   rate and answering the pointer at its own amplitude — the nearest
+   layer moves ~5x the farthest, which is what actually reads as depth.
+   Two soft light volumes drift on slow lissajous paths behind them.
+   Procedural, not a video: no loop seam, no megabytes, and it responds.
+   Deliberately near-invisible — depth you feel, not motion you watch. */
+(() => {
+  const cv = document.getElementById('depth');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let s = 7717;
+  const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+  // near → far. Fewer, larger, brighter in front; many, tiny, dim behind.
+  const STRATA = [
+    { n: 26, r: [1.5, 2.6], a: [.16, .30], par: 26, drift: .020, blur: 0 },
+    { n: 54, r: [0.9, 1.6], a: [.09, .17], par: 13, drift: .012, blur: 0 },
+    { n: 92, r: [0.5, 1.0], a: [.05, .10], par:  5, drift: .006, blur: 0 }
+  ];
+  const layers = STRATA.map(cfg => ({
+    cfg,
+    pts: Array.from({ length: cfg.n }, () => ({
+      x: rnd(), y: rnd(),
+      r: cfg.r[0] + rnd() * (cfg.r[1] - cfg.r[0]),
+      a: cfg.a[0] + rnd() * (cfg.a[1] - cfg.a[0]),
+      ph: rnd() * 6.283,
+      warm: rnd() > 0.86            // a few amber motes so it is not monochrome
+    }))
+  }));
+
+  let W = 0, H = 0, t = 0, mx = 0, my = 0, tx = 0, ty = 0;
+  function size() {
+    const d = Math.min(devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * d; cv.height = H * d;
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  size(); addEventListener('resize', size);
+  addEventListener('pointermove', e => {
+    tx = e.clientX / innerWidth - .5;
+    ty = e.clientY / innerHeight - .5;
+  }, { passive: true });
+
+  function frame() {
+    t += calm ? 0 : 0.0016;
+    mx += (tx - mx) * .035; my += (ty - my) * .035;
+    ctx.clearRect(0, 0, W, H);
+
+    // two drifting light volumes — the thing that makes the void feel deep
+    const vol = (cx, cy, rad, col, al) => {
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      g.addColorStop(0, `rgba(${col},${al})`);
+      g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - rad, cy - rad, rad * 2, rad * 2);
+    };
+    const big = Math.max(W, H);
+    vol(W * (0.32 + Math.sin(t * 0.7) * 0.10) - mx * 40,
+        H * (0.30 + Math.cos(t * 0.53) * 0.09) - my * 30,
+        big * 0.42, '127,212,232', 0.055);
+    vol(W * (0.78 + Math.cos(t * 0.44) * 0.08) - mx * 22,
+        H * (0.74 + Math.sin(t * 0.61) * 0.10) - my * 16,
+        big * 0.34, '255,180,84', 0.028);
+
+    for (const L of layers) {
+      const { par, drift } = L.cfg;
+      for (const p of L.pts) {
+        // slow vertical drift, wrapped; tiny lateral sway per mote
+        let y = (p.y - t * drift) % 1; if (y < 0) y += 1;
+        const x = (p.x + Math.sin(t * 0.5 + p.ph) * 0.004) % 1;
+        const sx = x * W - mx * par;
+        const sy = y * H - my * par * 0.6;
+        const tw = 0.72 + 0.28 * Math.sin(t * 2.2 + p.ph);   // faint twinkle
+        ctx.fillStyle = p.warm
+          ? `rgba(255,190,120,${(p.a * tw * 0.8).toFixed(3)})`
+          : `rgba(190,232,244,${(p.a * tw).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, 6.2832); ctx.fill();
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ── page switching ───────────────────────────────────────────── */
+const rail = document.querySelector('.rail');
+rail.addEventListener('click', e => {
+  const b = e.target.closest('button[data-p]');
+  if (!b) return;
+  rail.querySelectorAll('button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'p-' + b.dataset.p));
+});
+
+/* ── one projection renderer, three lenses ────────────────────────
+   Hand-rolled perspective wireframe. Seeded, so a lens always draws
+   the same structure — it is a projection of one object, not art.   */
+const LENS = {
+  code:  { cols:['127,212,232','255,180,84','255,107,74'], n:104, deg:[2,4], shell:1.0,
+           legend:[['#7FD4E8','module'],['#FFB454','fenced'],['#FF6B4A','drift']] },
+  types: { cols:['140,232,180','255,180,84','127,212,232'], n:132, deg:[1,3], shell:0.86,
+           legend:[['#8CE8B4','type'],['#FFB454','hub'],['#7FD4E8','field']] },
+  know:  { cols:['255,180,84','127,212,232','255,107,74'], n:64,  deg:[1,2], shell:1.08,
+           legend:[['#FFB454','page'],['#7FD4E8','code ref'],['#FF6B4A','stale']] }
+};
+
+function buildGraph(kind, mul) {
+  const cfg = LENS[kind];
+  let s = 20260730;
+  const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const N = Math.max(18, Math.round(cfg.n * mul));
+  const nodes = [];
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(Math.max(0, 1 - y * y)), th = i * 2.39996;
+    const d = (0.6 + rnd() * 0.4) * cfg.shell, k = rnd();
+    nodes.push({ x: Math.cos(th)*r*d, y: y*d, z: Math.sin(th)*r*d,
+                 k: k > 0.94 ? 2 : k > 0.82 ? 1 : 0, p: 0.68 + rnd()*0.62 });
+  }
+  const edges = [];
+  for (let i = 0; i < N; i++) {
+    const c = [];
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      const a = nodes[i], b = nodes[j];
+      c.push([(a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2, j]);
+    }
+    c.sort((p, q) => p[0] - q[0]);
+    const deg = cfg.deg[0] + Math.round(rnd() * (cfg.deg[1] - cfg.deg[0]));
+    for (let k = 0; k < deg; k++) if (c[k] && c[k][1] > i) edges.push([i, c[k][1]]);
+  }
+  return { nodes, edges, cols: cfg.cols };
+}
+
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function mount(cv) {
+  const ctx = cv.getContext('2d');
+  let g = buildGraph(cv.dataset.graph, parseFloat(cv.dataset.density) || 1);
+  let W = 0, H = 0, t = Math.random() * 6;
+  let mx = 0, my = 0, tx = 0, ty = 0;
+  const P = [];
+
+  function size() {
+    const d = Math.min(devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    if (!W || !H) return;
+    cv.width = W * d; cv.height = H * d;
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  size(); addEventListener('resize', size);
+  cv.addEventListener('pointermove', e => {
+    const r = cv.getBoundingClientRect();
+    tx = ((e.clientX - r.left) / r.width - .5) * 1.1;
+    ty = ((e.clientY - r.top) / r.height - .5) * .7;
+  }, { passive: true });
+  cv.addEventListener('pointerleave', () => { tx = 0; ty = 0; });
+
+  cv.__reload = kind => { g = buildGraph(kind, parseFloat(cv.dataset.density) || 1); };
+
+  (function frame() {
+    if (!W || !H) size();
+    t += still ? 0 : 0.0019;
+    mx += (tx - mx) * .05; my += (ty - my) * .05;
+    const ay = t + mx, ax = .32 + my;
+    const cy = Math.cos(ay), sy = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+    const R = Math.min(W, H) * .40, ox = W / 2, oy = H / 2;
+    const { nodes, edges, cols } = g;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      let x = n.x * cy - n.z * sy, z = n.x * sy + n.z * cy;
+      const y = n.y * cx - z * sx; z = n.y * sx + z * cx;
+      const pp = 2.5 / (2.5 + z);
+      P[i] = { x: ox + x * R * pp, y: oy + y * R * pp, z, s: pp };
+    }
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+    for (const [i, j] of edges) {
+      const a = P[i], b = P[j];
+      const al = Math.max(0, .28 - ((a.z + b.z) / 2) * .15);
+      if (al <= .004) continue;
+      ctx.strokeStyle = `rgba(${cols[0]},${al.toFixed(3)})`;
+      ctx.lineWidth = Math.max(.35, (a.s + b.s) / 2 * .62);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    const ord = nodes.map((_, i) => i).sort((i, j) => P[j].z - P[i].z);
+    for (const i of ord) {
+      const p = P[i], n = nodes[i];
+      const al = Math.min(1, Math.max(.1, (1.25 - p.z) * .6)) * n.p;
+      const c = cols[n.k], r = Math.max(.85, p.s * (n.k ? 2.2 : 1.6));
+      if (n.k) {
+        ctx.fillStyle = `rgba(${c},${(al * .15).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r * 3.3, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(${c},${al.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  })();
+}
+document.querySelectorAll('canvas[data-graph]').forEach(mount);
+
+/* ── lens switching on the graphs page ────────────────────────── */
+const LENS_INFO = {
+  code:  { label: 'Code lens', rows: [['nodes','247'],['import edges','612'],['clone clusters','19'],['islands','4','warn']] },
+  types: { label: 'Data-structure lens', rows: [['types','297'],['fields','1 184'],['consumes / produces','2 610'],['unresolved','63','warn']] },
+  know:  { label: 'Knowledge lens', rows: [['pages','54'],['wikilinks','311'],['doc → code','86'],['stale','2','warn']] }
+};
+const big = document.getElementById('bigGraph');
+const lensLabel = document.getElementById('lensLabel');
+const lensRows = document.getElementById('lensRows');
+const bigLegend = document.getElementById('bigLegend');
+
+function paintLens(kind) {
+  const info = LENS_INFO[kind];
+  lensLabel.textContent = info.label;
+  lensRows.innerHTML = info.rows.map(([k, v, w]) =>
+    `<div class="row"><span>${k}</span><b class="${w ? 'warn' : ''}">${v}</b></div>`).join('');
+  bigLegend.innerHTML = LENS[kind].legend.map(([c, n]) =>
+    `<div class="lgi"><i style="background:${c}"></i> ${n}</div>`).join('');
+  big.dataset.graph = kind;
+  if (big.__reload) big.__reload(kind);
+}
+document.querySelector('.lenses').addEventListener('click', e => {
+  const b = e.target.closest('button[data-l]');
+  if (!b) return;
+  document.querySelectorAll('.lens').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  paintLens(b.dataset.l);
+});
+paintLens('code');
+</script>

@@ -1,0 +1,456 @@
+<meta charset="utf-8">
+<title>Ikarus — Projection</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   IKARUS · PROJECTION
+   Not glass panels. A projection: line art, corner brackets, reticles,
+   and a real 3D wireframe of the graph the system actually holds.
+   Everything is drawn, nothing is printed. Nothing is fully still.
+   Committed single visual world — a holographic instrument. No light theme.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --void:#03060A;
+  --ice:#7FD4E8;          /* the projection itself */
+  --ice-dim:#3E7A8C;
+  --amber:#FFB454;        /* attention, and anything you can act on */
+  --oxide:#FF6B4A;        /* failed */
+  --lime:#8CE8B4;         /* running */
+  --hot:#E6F4F8;          /* text at full heat */
+  --warm:#9FBAC4;
+  --cool:#5E7A85;
+  --mono:'Cascadia Mono','Cascadia Code',Consolas,ui-monospace,monospace;
+  --disp:'Segoe UI Variable Display','Segoe UI Semibold',system-ui,-apple-system,sans-serif;
+  --e:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--void);color:var(--hot);
+  font-family:var(--mono);font-size:13px;
+  overflow:hidden;
+}
+@media (max-width:900px){body{overflow-y:auto}}
+
+/* ── emitter glow + scanlines + grain ──────────────────────────── */
+.field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.emit{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(58% 46% at 50% 62%, color-mix(in srgb,var(--ice) 17%,transparent), transparent 70%),
+    radial-gradient(90% 70% at 50% 118%, color-mix(in srgb,var(--ice) 12%,transparent), transparent 62%),
+    radial-gradient(70% 50% at 88% 6%,  color-mix(in srgb,var(--amber) 6%,transparent), transparent 66%);
+}
+.scan{
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(0deg,rgba(127,212,232,.035) 0 1px,transparent 1px 3px);
+  mix-blend-mode:screen;
+}
+.sweep{
+  position:absolute;left:0;right:0;height:180px;
+  background:linear-gradient(transparent,rgba(127,212,232,.055),transparent);
+  animation:sweepy 7.5s linear infinite;
+}
+@keyframes sweepy{from{top:-180px}to{top:100%}}
+.grain{
+  position:absolute;inset:0;opacity:.2;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
+.vig{position:absolute;inset:0;background:radial-gradient(120% 100% at 50% 50%,transparent 46%,rgba(0,0,0,.75))}
+
+/* ── layout ───────────────────────────────────────────────────── */
+.hud{
+  position:relative;z-index:1;height:100vh;
+  display:grid;
+  grid-template-columns:296px minmax(0,1fr) 296px;
+  grid-template-rows:auto minmax(0,1fr) auto;
+  gap:16px;padding:16px 18px;
+}
+@media (max-width:900px){
+  .hud{height:auto;grid-template-columns:minmax(0,1fr);grid-template-rows:auto}
+}
+
+/* ── the frame: corner brackets, not borders ───────────────────── */
+.frame{position:relative;padding:15px 16px;min-width:0}
+.frame::before,.frame::after,
+.frame>.br1,.frame>.br2{
+  content:"";position:absolute;width:13px;height:13px;pointer-events:none;
+  border-color:color-mix(in srgb,var(--ice) 62%,transparent);
+  border-style:solid;border-width:0;
+}
+.frame::before{top:0;left:0;border-top-width:1px;border-left-width:1px}
+.frame::after{top:0;right:0;border-top-width:1px;border-right-width:1px}
+.frame>.br1{bottom:0;left:0;border-bottom-width:1px;border-left-width:1px}
+.frame>.br2{bottom:0;right:0;border-bottom-width:1px;border-right-width:1px}
+.frame>.fill{
+  position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(160deg,rgba(127,212,232,.045),rgba(3,6,10,.55));
+  border:1px solid rgba(127,212,232,.10);
+}
+
+.label{
+  font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ice-dim);
+  display:flex;align-items:center;gap:8px;margin-bottom:12px;
+}
+.label::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,color-mix(in srgb,var(--ice) 34%,transparent),transparent)}
+
+/* ── top strip ─────────────────────────────────────────────────── */
+.top{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:11px 16px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand b{font-family:var(--disp);font-size:17px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.brand i{font-style:normal;font-size:10px;letter-spacing:.2em;color:var(--ice-dim);text-transform:uppercase}
+.top-sp{flex:1 1 12px}
+.state{display:inline-flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--lime)}
+.pip{width:6px;height:6px;background:var(--lime);box-shadow:0 0 10px 2px color-mix(in srgb,var(--lime) 55%,transparent);animation:blip 2.6s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+.clock{font-size:11px;color:var(--cool);letter-spacing:.1em;font-variant-numeric:tabular-nums}
+
+/* ── the projection: the 3D graph ─────────────────────────────── */
+.projection{position:relative;min-width:0;display:flex;flex-direction:column}
+#graph{position:absolute;inset:0;width:100%;height:100%;display:block}
+@media (max-width:900px){.projection{height:56vh}}
+.reticle{
+  position:absolute;left:50%;top:52%;translate:-50% -50%;
+  width:min(62vh,560px);aspect-ratio:1;pointer-events:none;
+}
+.ring{
+  position:absolute;inset:0;border-radius:50%;
+  border:1px solid color-mix(in srgb,var(--ice) 15%,transparent);
+}
+.ring.r2{inset:11%;border-style:dashed;border-color:color-mix(in srgb,var(--ice) 12%,transparent);animation:spin 62s linear infinite}
+.ring.r3{inset:26%;border-color:color-mix(in srgb,var(--ice) 9%,transparent);animation:spin 44s linear infinite reverse}
+.ring.tick{inset:4%;border:0;background:
+  conic-gradient(from 0deg, color-mix(in srgb,var(--ice) 32%,transparent) 0 .4deg, transparent .4deg 15deg);
+  -webkit-mask:radial-gradient(circle, transparent 0 48.4%, #000 48.4% 50%, transparent 50%);
+  mask:radial-gradient(circle, transparent 0 48.4%, #000 48.4% 50%, transparent 50%);
+  animation:spin 120s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.proj-cap{
+  position:absolute;left:0;bottom:0;padding:14px 16px;pointer-events:none;
+  display:flex;flex-direction:column;gap:3px;
+}
+.proj-cap b{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.02em}
+.proj-cap span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--cool)}
+.legend{position:absolute;right:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.lg{display:flex;align-items:center;gap:8px;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--cool)}
+.lg i{width:7px;height:7px;flex:none;font-style:normal}
+
+/* ── readings ─────────────────────────────────────────────────── */
+.stack{display:flex;flex-direction:column;gap:16px;min-width:0;overflow:hidden}
+.rows{display:flex;flex-direction:column;gap:0}
+.row{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:7px 0;border-bottom:1px solid rgba(127,212,232,.09);
+}
+.row:last-child{border-bottom:0}
+.row span{font-size:11px;letter-spacing:.06em;color:var(--warm)}
+.row b{font-size:15px;font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.row b.warn{color:var(--oxide)}
+.row b.ok{color:var(--lime)}
+.row b em{font-style:normal;font-size:10px;color:var(--cool);margin-left:4px}
+
+/* bar meter — drawn, animated in */
+.meters{display:flex;flex-direction:column;gap:11px}
+.meter{display:flex;flex-direction:column;gap:5px}
+.meter-top{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cool)}
+.meter-top b{color:var(--hot);font-weight:400;font-variant-numeric:tabular-nums;letter-spacing:0}
+.track{height:3px;background:rgba(127,212,232,.12);position:relative;overflow:hidden}
+.bar{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,var(--ice-dim),var(--ice));animation:grow 1.1s var(--e) both}
+.bar.amber{background:linear-gradient(90deg,#8A6224,var(--amber))}
+.bar.oxide{background:linear-gradient(90deg,#8A3826,var(--oxide))}
+@keyframes grow{from{transform:scaleX(0);transform-origin:left}to{transform:scaleX(1);transform-origin:left}}
+
+/* the pipeline — nodes that light in sequence */
+.pipe{display:flex;align-items:flex-start;gap:0;margin-top:2px}
+.pstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;position:relative}
+.pstep::before{
+  content:"";position:absolute;top:5px;left:50%;right:-50%;height:1px;
+  background:rgba(127,212,232,.16);
+}
+.pstep:last-child::before{display:none}
+.pdot{
+  width:11px;height:11px;border:1px solid var(--ice-dim);position:relative;z-index:1;
+  background:var(--void);transform:rotate(45deg);
+}
+.pstep.done .pdot{background:var(--lime);border-color:var(--lime);box-shadow:0 0 9px color-mix(in srgb,var(--lime) 55%,transparent)}
+.pstep.live .pdot{background:var(--amber);border-color:var(--amber);box-shadow:0 0 12px color-mix(in srgb,var(--amber) 70%,transparent);animation:blip 1.5s ease-in-out infinite}
+.pstep small{font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--cool);text-align:center}
+.pstep.live small{color:var(--amber)}
+
+/* ── the finding, bottom strip ─────────────────────────────────── */
+.bottom{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;padding:14px 16px}
+@media (max-width:900px){.bottom{grid-template-columns:minmax(0,1fr)}}
+.finding{min-width:0}
+.finding .kick{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin-bottom:7px}
+.finding h1{
+  font-family:var(--disp);font-weight:600;
+  font-size:clamp(19px,2.5vw,27px);line-height:1.16;letter-spacing:-.02em;
+  margin:0 0 7px;max-width:34ch;text-wrap:balance;
+}
+.finding h1 u{text-decoration:none;color:var(--oxide)}
+.finding p{margin:0;max-width:74ch;font-size:12.5px;line-height:1.62;color:var(--warm)}
+.finding p code{color:var(--ice);background:rgba(127,212,232,.08);padding:1px 5px;border:1px solid rgba(127,212,232,.14)}
+.acts{display:flex;gap:9px;flex-wrap:wrap}
+.btn{
+  font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ice);background:rgba(127,212,232,.07);
+  border:1px solid color-mix(in srgb,var(--ice) 34%,transparent);
+  padding:10px 16px;cursor:pointer;position:relative;
+  transition:background 130ms var(--e),color 130ms var(--e),box-shadow 130ms var(--e),transform 100ms var(--e);
+}
+.btn:hover{background:rgba(127,212,232,.15);box-shadow:0 0 18px -4px color-mix(in srgb,var(--ice) 45%,transparent)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:1px solid var(--ice);outline-offset:3px}
+.btn.go{
+  color:#1A1204;background:linear-gradient(var(--amber),#D8912F);
+  border-color:color-mix(in srgb,var(--amber) 70%,#fff);font-weight:600;
+}
+.btn.go:hover{background:linear-gradient(#FFC madre,#E8A03A);box-shadow:0 0 22px -4px color-mix(in srgb,var(--amber) 60%,transparent)}
+.btn.go:hover{background:linear-gradient(#FFC77A,#E8A03A)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<div class="field" aria-hidden="true">
+  <div class="emit"></div><div class="scan"></div><div class="sweep"></div>
+  <div class="grain"></div><div class="vig"></div>
+</div>
+
+<div class="hud">
+
+  <!-- top -->
+  <header class="frame top"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+    <div class="brand"><b>Ikarus</b><i>Daedalus · agent_env</i></div>
+    <div class="top-sp"></div>
+    <div class="state"><span class="pip"></span> Attempt 92 running</div>
+    <div class="clock" id="clock">00:00:00</div>
+  </header>
+
+  <!-- left: readings -->
+  <div class="stack">
+    <section class="frame"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+      <div class="label">Corpus</div>
+      <div class="rows">
+        <div class="row"><span>Modules indexed</span><b>247</b></div>
+        <div class="row"><span>References scanned</span><b>593</b></div>
+        <div class="row"><span>Broken</span><b class="warn">2</b></div>
+        <div class="row"><span>Sources read</span><b class="warn">3<em>of 5</em></b></div>
+      </div>
+    </section>
+
+    <section class="frame"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+      <div class="label">Type coverage</div>
+      <div class="meters">
+        <div class="meter">
+          <div class="meter-top"><span>Returns annotated</span><b>97%</b></div>
+          <div class="track"><i class="bar" style="width:97%;animation-delay:.1s"></i></div>
+        </div>
+        <div class="meter">
+          <div class="meter-top"><span>Params annotated</span><b>71%</b></div>
+          <div class="track"><i class="bar amber" style="width:71%;animation-delay:.22s"></i></div>
+        </div>
+        <div class="meter">
+          <div class="meter-top"><span>Untyped payloads</span><b>18</b></div>
+          <div class="track"><i class="bar oxide" style="width:23%;animation-delay:.34s"></i></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- centre: the projection -->
+  <main class="projection">
+    <canvas id="graph"></canvas>
+    <div class="reticle" aria-hidden="true">
+      <div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div><div class="ring tick"></div>
+    </div>
+    <div class="proj-cap"><b>Structural projection</b><span>247 modules · 612 imports · live</span></div>
+    <div class="legend" aria-hidden="true">
+      <div class="lg"><i style="background:var(--ice)"></i> module</div>
+      <div class="lg"><i style="background:var(--amber)"></i> fenced</div>
+      <div class="lg"><i style="background:var(--oxide)"></i> drift</div>
+    </div>
+  </main>
+
+  <!-- right: the loop -->
+  <div class="stack">
+    <section class="frame"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+      <div class="label">Evolution loop</div>
+      <div class="pipe">
+        <div class="pstep done"><span class="pdot"></span><small>Pick</small></div>
+        <div class="pstep live"><span class="pdot"></span><small>Write</small></div>
+        <div class="pstep"><span class="pdot"></span><small>Gate</small></div>
+        <div class="pstep"><span class="pdot"></span><small>Promote</small></div>
+      </div>
+      <div class="rows" style="margin-top:14px">
+        <div class="row"><span>Worker</span><b style="font-size:12px">Lucia · local</b></div>
+        <div class="row"><span>Spent</span><b class="ok">$0.00</b></div>
+        <div class="row"><span>Elapsed</span><b>58s</b></div>
+      </div>
+    </section>
+
+    <section class="frame"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+      <div class="label">Spent attempts</div>
+      <div class="rows">
+        <div class="row"><span>91 · window ±8</span><b class="ok" style="font-size:11px">wired</b></div>
+        <div class="row"><span>90 · window ±40</span><b class="warn" style="font-size:11px">timeout</b></div>
+        <div class="row"><span>89 · full rewrite</span><b class="warn" style="font-size:11px">no change</b></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- bottom: the finding -->
+  <section class="frame bottom"><span class="fill"></span><span class="br1"></span><span class="br2"></span>
+    <div class="finding">
+      <div class="kick">Measured this run · documentation drift</div>
+      <h1>Two documents describe code that <u>isn't here</u>.</h1>
+      <p>Line 695 names <code>vendors._LOCAL_HOSTS</code>; <code>council/vendors.py</code> no longer
+         defines it. The inventory and the generated map went unread, so this count is what
+         survived the scan — not what there is.</p>
+    </div>
+    <div class="acts">
+      <button class="btn go" type="button">Fix both</button>
+      <button class="btn" type="button">Show scan</button>
+      <button class="btn" type="button">Why unread</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ── the projection ─────────────────────────────────────────────────
+   A hand-rolled 3D wireframe of the module graph: perspective
+   projection, continuous rotation, depth-faded strokes. No libraries.
+   Node positions are deterministic (seeded), so the shape is stable
+   between loads — a projection of one structure, not random art.     */
+(() => {
+  const cv = document.getElementById('graph');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // deterministic PRNG so the structure is the same every load
+  let s = 20260730;
+  const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+  const NAMES = ['loop','router','offload','picker','ledger','forest','index','parse',
+                 'clones','slice','dss','graph','fence','gate','mint','council'];
+  const N = 108;
+  const nodes = [];
+  for (let i = 0; i < N; i++) {
+    // fibonacci sphere → an even shell, then jitter inward for volume
+    const y = 1 - (i / (N - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = i * 2.39996;
+    const d = 0.62 + rnd() * 0.38;
+    const kind = rnd();
+    nodes.push({
+      x: Math.cos(th) * r * d, y: y * d, z: Math.sin(th) * r * d,
+      k: kind > 0.93 ? 2 : kind > 0.82 ? 1 : 0,          // 2 drift, 1 fenced, 0 plain
+      n: i % 7 === 0 ? NAMES[(i / 7 | 0) % NAMES.length] : null,
+      p: 0.7 + rnd() * 0.6
+    });
+  }
+  // edges: nearest-neighbour, so the wireframe reads as structure
+  const edges = [];
+  for (let i = 0; i < N; i++) {
+    const cand = [];
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      const a = nodes[i], b = nodes[j];
+      cand.push([(a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2, j]);
+    }
+    cand.sort((p, q) => p[0] - q[0]);
+    const deg = 2 + (rnd() * 2 | 0);
+    for (let k = 0; k < deg; k++) if (cand[k][1] > i) edges.push([i, cand[k][1]]);
+  }
+
+  const COL = ['127,212,232', '255,180,84', '255,107,74'];
+  let W = 0, H = 0, dpr = 1;
+  function size() {
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  size(); addEventListener('resize', size);
+
+  let mx = 0, my = 0, tmx = 0, tmy = 0;
+  addEventListener('pointermove', e => {
+    tmx = (e.clientX / innerWidth - .5) * 0.9;
+    tmy = (e.clientY / innerHeight - .5) * 0.6;
+  }, { passive: true });
+
+  let t = 0;
+  const P = [];
+  function frame() {
+    t += still ? 0 : 0.0021;
+    mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
+
+    const ay = t + mx, ax = 0.34 + my;
+    const cy = Math.cos(ay), sy = Math.sin(ay);
+    const cx = Math.cos(ax), sx = Math.sin(ax);
+    const R = Math.min(W, H) * 0.42;
+    const ox = W / 2, oy = H * 0.5;
+
+    for (let i = 0; i < N; i++) {
+      const nd = nodes[i];
+      let x = nd.x * cy - nd.z * sy;
+      let z = nd.x * sy + nd.z * cy;
+      const y = nd.y * cx - z * sx;
+      z = nd.y * sx + z * cx;
+      const persp = 2.5 / (2.5 + z);
+      P[i] = { sx: ox + x * R * persp, sy: oy + y * R * persp, z, s: persp };
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.lineCap = 'round';
+
+    // edges, back to front
+    for (const [i, j] of edges) {
+      const a = P[i], b = P[j];
+      const zz = (a.z + b.z) / 2;
+      const al = Math.max(0, 0.30 - zz * 0.16);
+      if (al <= 0.005) continue;
+      ctx.strokeStyle = `rgba(127,212,232,${al.toFixed(3)})`;
+      ctx.lineWidth = Math.max(0.4, (a.s + b.s) / 2 * 0.7);
+      ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke();
+    }
+
+    // nodes
+    const order = P.map((p, i) => i).sort((i, j) => P[j].z - P[i].z);
+    for (const i of order) {
+      const p = P[i], nd = nodes[i];
+      const al = Math.min(1, Math.max(0.10, (1.25 - p.z) * 0.62)) * nd.p;
+      const c = COL[nd.k];
+      const r = Math.max(0.9, p.s * (nd.k ? 2.3 : 1.7));
+      if (nd.k) {
+        ctx.fillStyle = `rgba(${c},${(al * 0.16).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(p.sx, p.sy, r * 3.4, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(${c},${al.toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, 6.2832); ctx.fill();
+
+      if (nd.n && p.z < -0.35) {
+        ctx.fillStyle = `rgba(230,244,248,${(al * 0.7).toFixed(3)})`;
+        ctx.font = '9px "Cascadia Mono", Consolas, monospace';
+        ctx.fillText(nd.n, p.sx + r + 5, p.sy + 3);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* mission clock — real elapsed time, not a fake ticker */
+(() => {
+  const el = document.getElementById('clock');
+  if (!el) return;
+  const t0 = performance.now();
+  const pad = n => String(n | 0).padStart(2, '0');
+  setInterval(() => {
+    const s = (performance.now() - t0) / 1000 + 58;
+    el.textContent = `${pad(s / 3600)}:${pad((s / 60) % 60)}:${pad(s % 60)}`;
+  }, 1000);
+})();
+</script>

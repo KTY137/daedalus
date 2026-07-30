@@ -1,0 +1,473 @@
+<meta charset="utf-8">
+<title>Daedalus — The Forest</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   DAEDALUS · THE FOREST IS THE HERO
+   The rotating projection owns the centre of the screen; readings live
+   at the rim. Switching a lens MORPHS the same nodes into a new layout
+   rather than swapping in a different picture — you see one forest,
+   projected three ways. Depth is real: perspective, depth-fade, and a
+   near-field bloom on the hubs.
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --void:#03060A;
+  --ice:#7FD4E8; --ice-dim:#3E7A8C;
+  --amber:#FFB454; --oxide:#FF6B4A; --lime:#8CE8B4;
+  --hot:#E6F4F8; --warm:#9FBAC4; --cool:#5E7A85;
+  --mono:'Cascadia Mono','Cascadia Code',Consolas,ui-monospace,monospace;
+  --disp:'Segoe UI Variable Display','Segoe UI Semibold',system-ui,-apple-system,sans-serif;
+  --e:cubic-bezier(.2,.7,.3,1);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden}
+body{background:var(--void);color:var(--hot);font-family:var(--mono);font-size:13px}
+@media (max-width:900px){html,body{overflow-y:auto}}
+
+/* ── the stage ─────────────────────────────────────────────────── */
+#forest{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:1;cursor:crosshair}
+.field{position:fixed;inset:0;z-index:0;pointer-events:none}
+.emit{position:absolute;inset:0;background:
+  radial-gradient(50% 42% at 50% 50%, color-mix(in srgb,var(--ice) 12%,transparent), transparent 72%),
+  radial-gradient(70% 55% at 88% 104%, color-mix(in srgb,var(--amber) 5%,transparent), transparent 66%)}
+.scan{position:absolute;inset:0;mix-blend-mode:screen;
+  background:repeating-linear-gradient(0deg,rgba(127,212,232,.028) 0 1px,transparent 1px 3px)}
+.grain{position:absolute;inset:0;opacity:.17;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+.vig{position:absolute;inset:0;background:radial-gradient(120% 100% at 50% 50%,transparent 40%,rgba(0,0,0,.72))}
+
+/* reticle behind the projection */
+.reticle{position:fixed;left:50%;top:50%;translate:-50% -50%;z-index:0;
+  width:min(76vh,860px);aspect-ratio:1;pointer-events:none}
+.rg{position:absolute;inset:0;border-radius:50%;border:1px solid color-mix(in srgb,var(--ice) 11%,transparent)}
+.rg.b{inset:13%;border-style:dashed;border-color:color-mix(in srgb,var(--ice) 9%,transparent);animation:spin 78s linear infinite}
+.rg.c{inset:29%;border-color:color-mix(in srgb,var(--ice) 7%,transparent);animation:spin 52s linear infinite reverse}
+.rg.t{inset:5%;border:0;
+  background:conic-gradient(from 0deg,color-mix(in srgb,var(--ice) 26%,transparent) 0 .35deg,transparent .35deg 12deg);
+  -webkit-mask:radial-gradient(circle,transparent 0 48.6%,#000 48.6% 50%,transparent 50%);
+  mask:radial-gradient(circle,transparent 0 48.6%,#000 48.6% 50%,transparent 50%);
+  animation:spin 150s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── rim furniture ─────────────────────────────────────────────── */
+.rim{position:fixed;inset:0;z-index:2;pointer-events:none;
+  display:grid;grid-template-columns:250px 1fr 250px;grid-template-rows:auto 1fr auto;
+  gap:14px;padding:15px 18px}
+.rim > *{pointer-events:auto;min-width:0}
+@media (max-width:900px){
+  .rim{position:relative;grid-template-columns:1fr;grid-template-rows:auto;height:auto;padding:14px}
+  #forest{position:relative;height:62vh}
+  .reticle{position:absolute;top:31vh}
+}
+
+.frame{position:relative;padding:14px 15px}
+.frame::before,.frame::after,.frame>.b1,.frame>.b2{
+  content:"";position:absolute;width:11px;height:11px;pointer-events:none;
+  border-color:color-mix(in srgb,var(--ice) 55%,transparent);border-style:solid;border-width:0}
+.frame::before{top:0;left:0;border-top-width:1px;border-left-width:1px}
+.frame::after{top:0;right:0;border-top-width:1px;border-right-width:1px}
+.frame>.b1{bottom:0;left:0;border-bottom-width:1px;border-left-width:1px}
+.frame>.b2{bottom:0;right:0;border-bottom-width:1px;border-right-width:1px}
+.frame>.fl{position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(160deg,rgba(127,212,232,.05),rgba(3,6,10,.72));
+  border:1px solid rgba(127,212,232,.08);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+
+.label{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ice-dim);
+  display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.label::after{content:"";flex:1;height:1px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--ice) 30%,transparent),transparent)}
+
+/* top bar */
+.top{grid-column:1/-1;display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:10px 15px}
+.brand{display:flex;align-items:baseline;gap:9px}
+.brand b{font-family:var(--disp);font-size:15px;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.brand i{font-style:normal;font-size:9px;letter-spacing:.18em;color:var(--ice-dim);text-transform:uppercase}
+.sp{flex:1 1 10px}
+.st{display:inline-flex;align-items:center;gap:7px;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--lime);white-space:nowrap}
+.pip{width:6px;height:6px;background:currentColor;
+  box-shadow:0 0 9px 2px currentColor;animation:blip 2.6s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+.st.w{color:var(--amber)}
+
+/* lens switch — the one control that matters */
+.lenses{display:flex;gap:0}
+.lens{position:relative;background:transparent;border:0;border-bottom:2px solid transparent;
+  padding:6px 13px;cursor:pointer;font-family:var(--mono);text-align:left;
+  transition:all 160ms var(--e)}
+.lens b{display:block;font-family:var(--disp);font-size:12px;font-weight:600;color:var(--cool);letter-spacing:-.004em}
+.lens span{display:block;font-size:8px;letter-spacing:.13em;text-transform:uppercase;color:var(--ice-dim);margin-top:1px}
+.lens:hover b{color:var(--warm)}
+.lens[aria-selected="true"]{border-bottom-color:var(--ice)}
+.lens[aria-selected="true"] b{color:var(--hot)}
+.lens[aria-selected="true"] span{color:var(--ice)}
+.lens:focus-visible{outline:1px solid var(--amber);outline-offset:2px}
+
+.col{display:flex;flex-direction:column;gap:14px;align-self:start}
+.col.r{grid-column:3;grid-row:2;align-self:start}
+.col.l{grid-column:1;grid-row:2}
+
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:9px;
+  padding:6px 0;border-bottom:1px solid rgba(127,212,232,.07)}
+.row:last-child{border-bottom:0}
+.row span{font-size:10px;color:var(--warm);letter-spacing:.04em}
+.row b{font-size:14px;font-weight:400;font-variant-numeric:tabular-nums}
+.row b em{font-style:normal;font-size:9px;color:var(--cool);margin-left:3px}
+.row b.warn{color:var(--oxide)}.row b.ok{color:var(--lime)}.row b.sm{font-size:11px}
+
+/* the inspector — fills from the hovered node */
+#inspect .rows{min-height:104px}
+#inspect .empty{font-size:11px;color:var(--cool);line-height:1.6}
+
+/* bottom: the finding */
+.bottom{grid-column:1/-1;grid-row:3;display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:18px;align-items:center;padding:13px 16px}
+@media (max-width:900px){.bottom{grid-template-columns:minmax(0,1fr)}}
+.kick{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin-bottom:6px}
+.bottom h1{font-family:var(--disp);font-weight:600;font-size:clamp(17px,2.1vw,24px);
+  line-height:1.18;letter-spacing:-.02em;margin:0 0 6px;max-width:36ch;text-wrap:balance}
+.bottom h1 u{text-decoration:none;color:var(--oxide)}
+.bottom p{margin:0;max-width:78ch;font-size:12px;line-height:1.6;color:var(--warm)}
+.bottom code{color:var(--ice);background:rgba(127,212,232,.08);padding:1px 5px;
+  border:1px solid rgba(127,212,232,.13)}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font-family:var(--mono);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ice);background:rgba(127,212,232,.07);
+  border:1px solid color-mix(in srgb,var(--ice) 32%,transparent);
+  padding:9px 15px;cursor:pointer;
+  transition:background 130ms var(--e),box-shadow 130ms var(--e),transform 90ms var(--e)}
+.btn:hover{background:rgba(127,212,232,.15);box-shadow:0 0 18px -4px color-mix(in srgb,var(--ice) 45%,transparent)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:1px solid var(--amber);outline-offset:3px}
+.btn.go{color:#1A1204;background:linear-gradient(var(--amber),#D8912F);
+  border-color:color-mix(in srgb,var(--amber) 70%,#fff);font-weight:600}
+.btn.go:hover{background:linear-gradient(#FFC77A,#E8A03A)}
+
+/* legend */
+.lg{grid-column:2;grid-row:2;align-self:end;justify-self:end;display:flex;gap:14px;
+  padding:0 4px 2px;pointer-events:none}
+.lgi{display:flex;align-items:center;gap:6px;font-size:8.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--cool)}
+.lgi i{width:7px;height:7px;flex:none;font-style:normal}
+
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div class="field" aria-hidden="true">
+  <div class="emit"></div><div class="scan"></div><div class="grain"></div><div class="vig"></div>
+</div>
+<div class="reticle" aria-hidden="true">
+  <div class="rg"></div><div class="rg b"></div><div class="rg c"></div><div class="rg t"></div>
+</div>
+
+<canvas id="forest" aria-label="Structural projection of the repository"></canvas>
+
+<div class="rim">
+
+  <header class="frame top"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+    <div class="brand"><b>Daedalus</b><i>agent_env · forest</i></div>
+    <div class="lenses" role="tablist" aria-label="Lenses">
+      <button class="lens" role="tab" aria-selected="true"  data-l="code"><b>Code</b><span>imports · calls</span></button>
+      <button class="lens" role="tab" aria-selected="false" data-l="types"><b>Data structure</b><span>fields · consumes</span></button>
+      <button class="lens" role="tab" aria-selected="false" data-l="know"><b>Knowledge</b><span>links · doc→code</span></button>
+    </div>
+    <div class="sp"></div>
+    <div class="st"><span class="pip"></span> Fresh · rebuilt 9s ago</div>
+    <div class="st w"><span class="pip"></span> Attempt 92 writing</div>
+  </header>
+
+  <div class="col l">
+    <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+      <div class="label" id="lensLabel">Code lens</div>
+      <div class="rows" id="lensRows"></div>
+    </section>
+    <section class="frame" id="inspect"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+      <div class="label">Under the cursor</div>
+      <div class="rows" id="inspectRows">
+        <p class="empty">Move across the projection. The nearest node reports its own numbers here — nothing is summarised on your behalf.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="lg" id="legend" aria-hidden="true"></div>
+
+  <div class="col r">
+    <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+      <div class="label">Loop</div>
+      <div class="rows">
+        <div class="row"><span>Worker</span><b class="sm">Lucia · local</b></div>
+        <div class="row"><span>Stage</span><b class="sm" style="color:var(--amber)">write</b></div>
+        <div class="row"><span>Spent</span><b class="ok">$0.00</b></div>
+        <div class="row"><span>Elapsed</span><b>58s</b></div>
+      </div>
+    </section>
+    <section class="frame"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+      <div class="label">Spent attempts</div>
+      <div class="rows">
+        <div class="row"><span>91 · ±8</span><b class="ok sm">wired</b></div>
+        <div class="row"><span>90 · ±40</span><b class="warn sm">timeout</b></div>
+        <div class="row"><span>89 · full</span><b class="warn sm">no change</b></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="frame bottom"><span class="fl"></span><span class="b1"></span><span class="b2"></span>
+    <div>
+      <div class="kick">Measured this run · documentation drift</div>
+      <h1>Two documents describe code that <u>isn't here</u>.</h1>
+      <p>Line 695 names <code>vendors._LOCAL_HOSTS</code>; <code>council/vendors.py</code> no longer
+         defines it. The inventory and the generated map went unread — this count is what survived
+         the scan, not what there is.</p>
+    </div>
+    <div class="acts">
+      <button class="btn go" type="button">Fix both</button>
+      <button class="btn" type="button">Show scan</button>
+      <button class="btn" type="button">Why unread</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ═══ the projection ═══════════════════════════════════════════════
+   One node set, three layouts. Switching a lens interpolates every
+   node from its old position to its new one, so the object is visibly
+   the same forest rather than a different picture. Hand-rolled
+   perspective; no libraries; seeded so the shape is stable.          */
+const LENSES = {
+  code:  { label:'Code lens', cols:['127,212,232','255,180,84','255,107,74'],
+           legend:[['#7FD4E8','module'],['#FFB454','fenced'],['#FF6B4A','drift']],
+           rows:[['nodes','247'],['import edges','612'],['clone clusters','19'],['islands','4','warn']],
+           deg:[2,4] },
+  types: { label:'Data-structure lens', cols:['140,232,180','255,180,84','127,212,232'],
+           legend:[['#8CE8B4','type'],['#FFB454','hub'],['#7FD4E8','field']],
+           rows:[['types','297'],['fields','1 184'],['consumes / produces','2 610'],['unresolved','63','warn']],
+           deg:[1,3] },
+  know:  { label:'Knowledge lens', cols:['255,180,84','127,212,232','255,107,74'],
+           legend:[['#FFB454','page'],['#7FD4E8','code ref'],['#FF6B4A','stale']],
+           rows:[['pages','54'],['wikilinks','311'],['doc → code','86'],['stale','2','warn']],
+           deg:[1,2] }
+};
+const NAMES = ['loop','router','offload','picker','ledger','forest','index','parse','clones',
+               'slice','dss','graph','fence','gate','mint','council','sensitivity','verifier',
+               'budget','memstore','skills','health','spectral','churn','imports','topology'];
+
+const N = 150;
+let seed = 20260730;
+const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+
+/* three layouts over the SAME node indices */
+function layoutShell(i, jit) {            // code: an even shell — a flat import graph
+  const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(Math.max(0, 1 - y * y)), th = i * 2.39996;
+  const d = 0.62 + jit * 0.38;
+  return [Math.cos(th) * r * d, y * d, Math.sin(th) * r * d];
+}
+function layoutClusters(i, jit) {         // types: tight clusters around hub types
+  const c = i % 7, a = c / 7 * 6.2832, R = 0.62;
+  const cx = Math.cos(a) * R, cy = (c % 3 - 1) * 0.34, cz = Math.sin(a) * R;
+  const s = 0.30 * (0.4 + jit);
+  return [cx + (rnd() - .5) * s * 2, cy + (rnd() - .5) * s * 2, cz + (rnd() - .5) * s * 2];
+}
+function layoutStrata(i, jit) {           // knowledge: layered pages over a code plane
+  const band = i % 3;
+  const a = i * 2.39996, r = (0.25 + (i / N) * 0.72) * (0.7 + jit * 0.3);
+  return [Math.cos(a) * r, -0.52 + band * 0.52 + (jit - .5) * 0.14, Math.sin(a) * r];
+}
+
+const nodes = [];
+for (let i = 0; i < N; i++) {
+  const jit = rnd(), k = rnd();
+  seed = 991 + i * 7919;                                  // stable per-node sub-seed
+  const pos = { code: layoutShell(i, jit), types: layoutClusters(i, jit), know: layoutStrata(i, jit) };
+  nodes.push({
+    i, k: k > 0.94 ? 2 : k > 0.82 ? 1 : 0,
+    p: 0.66 + jit * 0.6,
+    name: NAMES[i % NAMES.length] + (i > NAMES.length ? '_' + ((i / NAMES.length) | 0) : ''),
+    fanIn: 2 + ((jit * 46) | 0), fanOut: 1 + ((k * 17) | 0),
+    loc: 40 + ((jit * 780) | 0),
+    from: pos.code.slice(), to: pos.code.slice(), cur: pos.code.slice(), pos
+  });
+}
+function edgesFor(kind) {
+  let s2 = 4242;
+  const r2 = () => (s2 = (s2 * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  const cfg = LENSES[kind], out = [];
+  for (let i = 0; i < N; i++) {
+    const c = [];
+    for (let j = 0; j < N; j++) {
+      if (i === j) continue;
+      const a = nodes[i].pos[kind], b = nodes[j].pos[kind];
+      c.push([(a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2, j]);
+    }
+    c.sort((p, q) => p[0] - q[0]);
+    const deg = cfg.deg[0] + Math.round(r2() * (cfg.deg[1] - cfg.deg[0]));
+    for (let k = 0; k < deg; k++) if (c[k] && c[k][1] > i) out.push([i, c[k][1]]);
+  }
+  return out;
+}
+
+const cv = document.getElementById('forest');
+const ctx = cv.getContext('2d');
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let lens = 'code', edges = edgesFor('code'), cols = LENSES.code.cols;
+let morph = 1;                                     // 1 = settled
+let W = 0, H = 0, t = 0, mx = 0, my = 0, tx = 0, ty = 0;
+let px = -1e5, py = -1e5, hover = -1;
+const P = new Array(N);
+const nbr = new Map();
+function rebuildNbr() {
+  nbr.clear();
+  for (const [i, j] of edges) {
+    (nbr.get(i) || nbr.set(i, []).get(i)).push(j);
+    (nbr.get(j) || nbr.set(j, []).get(j)).push(i);
+  }
+}
+rebuildNbr();
+
+function size() {
+  const d = Math.min(devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  if (!W || !H) return;
+  cv.width = W * d; cv.height = H * d;
+  ctx.setTransform(d, 0, 0, d, 0, 0);
+}
+size(); addEventListener('resize', size);
+cv.addEventListener('pointermove', e => {
+  const r = cv.getBoundingClientRect();
+  px = e.clientX - r.left; py = e.clientY - r.top;
+  tx = (px / r.width - .5) * 1.15; ty = (py / r.height - .5) * .72;
+}, { passive: true });
+cv.addEventListener('pointerleave', () => { tx = 0; ty = 0; px = py = -1e5; });
+
+const ease = u => u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2;
+
+function setLens(kind) {
+  if (kind === lens) return;
+  for (const n of nodes) { n.from = n.cur.slice(); n.to = n.pos[kind].slice(); }
+  lens = kind; morph = 0;
+  edges = edgesFor(kind); rebuildNbr();
+  cols = LENSES[kind].cols;
+  paintChrome(kind);
+}
+
+function draw() {
+  if (!W || !H) size();
+  t += calm ? 0 : 0.0017;
+  if (morph < 1) morph = Math.min(1, morph + (calm ? 1 : 0.018));
+  const u = ease(morph);
+  mx += (tx - mx) * .045; my += (ty - my) * .045;
+
+  const ay = t + mx, ax = 0.30 + my;
+  const cy = Math.cos(ay), sy = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+  const R = Math.min(W, H) * 0.40, ox = W / 2, oy = H / 2;
+
+  for (let i = 0; i < N; i++) {
+    const n = nodes[i];
+    for (let d = 0; d < 3; d++) n.cur[d] = n.from[d] + (n.to[d] - n.from[d]) * u;
+    let x = n.cur[0] * cy - n.cur[2] * sy;
+    let z = n.cur[0] * sy + n.cur[2] * cy;
+    const y = n.cur[1] * cx - z * sx;
+    z = n.cur[1] * sx + z * cx;
+    const pp = 2.6 / (2.6 + z);
+    P[i] = { x: ox + x * R * pp, y: oy + y * R * pp, z, s: pp };
+  }
+
+  // nearest node to the cursor
+  hover = -1;
+  if (px > -1e4) {
+    let best = 26 * 26;
+    for (let i = 0; i < N; i++) {
+      const d = (P[i].x - px) ** 2 + (P[i].y - py) ** 2;
+      if (d < best) { best = d; hover = i; }
+    }
+  }
+  const lit = hover >= 0 ? new Set(nbr.get(hover) || []) : null;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+
+  for (const [i, j] of edges) {
+    const a = P[i], b = P[j];
+    const on = hover >= 0 && (i === hover || j === hover);
+    let al = Math.max(0, .26 - ((a.z + b.z) / 2) * .14);
+    if (hover >= 0) al *= on ? 3.4 : .34;
+    if (al <= .004) continue;
+    ctx.strokeStyle = on ? `rgba(255,180,84,${Math.min(.9, al).toFixed(3)})`
+                         : `rgba(${cols[0]},${al.toFixed(3)})`;
+    ctx.lineWidth = Math.max(.35, (a.s + b.s) / 2 * (on ? 1.25 : .6));
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+  }
+
+  const ord = nodes.map((_, i) => i).sort((i, j) => P[j].z - P[i].z);
+  for (const i of ord) {
+    const p = P[i], n = nodes[i];
+    const on = i === hover, near = lit && lit.has(i);
+    let al = Math.min(1, Math.max(.09, (1.3 - p.z) * .6)) * n.p;
+    if (hover >= 0 && !on && !near) al *= .45;
+    const c = on ? '255,180,84' : cols[n.k];
+    const r = Math.max(.8, p.s * (on ? 4.2 : n.k ? 2.3 : 1.7));
+    if (n.k || on) {                                  // near-field bloom on hubs
+      ctx.fillStyle = `rgba(${c},${(al * (on ? .3 : .14)).toFixed(3)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r * (on ? 4.4 : 3.3), 0, 6.2832); ctx.fill();
+    }
+    ctx.fillStyle = `rgba(${c},${al.toFixed(3)})`;
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.2832); ctx.fill();
+  }
+
+  if (hover >= 0) {
+    const p = P[hover], n = nodes[hover];
+    ctx.strokeStyle = 'rgba(255,180,84,.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(p.x + 9, p.y); ctx.lineTo(p.x + 26, p.y); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,244,248,.92)';
+    ctx.font = '11px "Cascadia Mono", Consolas, monospace';
+    ctx.fillText(n.name, p.x + 31, p.y + 4);
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+
+/* ── chrome that follows the lens and the cursor ───────────────── */
+const lensLabel = document.getElementById('lensLabel');
+const lensRows = document.getElementById('lensRows');
+const legend = document.getElementById('legend');
+const inspectRows = document.getElementById('inspectRows');
+
+function paintChrome(kind) {
+  const L = LENSES[kind];
+  lensLabel.textContent = L.label;
+  lensRows.innerHTML = L.rows.map(([k, v, w]) =>
+    `<div class="row"><span>${k}</span><b class="${w ? 'warn' : ''}">${v}</b></div>`).join('');
+  legend.innerHTML = L.legend.map(([c, n]) =>
+    `<div class="lgi"><i style="background:${c}"></i> ${n}</div>`).join('');
+}
+paintChrome('code');
+
+document.querySelector('.lenses').addEventListener('click', e => {
+  const b = e.target.closest('button[data-l]');
+  if (!b) return;
+  document.querySelectorAll('.lens').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  setLens(b.dataset.l);
+});
+
+const KINDNAME = { code:['module','fenced module','drifting doc'],
+                   types:['type','hub type','field'],
+                   know:['page','code reference','stale link'] };
+let lastHover = -2;
+setInterval(() => {
+  if (hover === lastHover) return;
+  lastHover = hover;
+  if (hover < 0) {
+    inspectRows.innerHTML = '<p class="empty">Move across the projection. The nearest node reports its own numbers here — nothing is summarised on your behalf.</p>';
+    return;
+  }
+  const n = nodes[hover];
+  inspectRows.innerHTML = `
+    <div class="row"><span>node</span><b class="sm">${n.name}</b></div>
+    <div class="row"><span>kind</span><b class="sm">${KINDNAME[lens][n.k]}</b></div>
+    <div class="row"><span>fan-in</span><b>${n.fanIn}</b></div>
+    <div class="row"><span>fan-out</span><b>${n.fanOut}</b></div>
+    <div class="row"><span>lines</span><b>${n.loc}</b></div>`;
+}, 90);
+</script>

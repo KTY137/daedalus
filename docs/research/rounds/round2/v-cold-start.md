@@ -1,0 +1,13 @@
+# Verification: v-cold-start
+
+Cannot verify claims because the source file cold-start.py was not provided. All claims are UNDECIDABLE. Provide the file to allow proper verification.
+
+## Verdicts
+
+- UNDECIDABLE: Transfer learning may fail if target project has unique coding patterns or domain-specific bugs. (Source file not provided)
+- UNDECIDABLE: Synthetic data may introduce systematic biases not representative of real defects. (Source file not provided)
+- UNDECIDABLE: Active learning requires a human-in-the-loop, which may be a bottleneck. (Source file not provided)
+- UNDECIDABLE: Evaluate convergence by measuring F1 score on a held-out test set after each batch of 50 labels. (Source file not provided)
+- UNDECIDABLE: Design a seed set of 10-20 common defect patterns (e.g., null pointer, off-by-one). (Source file not provided)
+- UNDECIDABLE: Implement active learning to select 200 most uncertain examples for human labeling. (Source file not provided)
+- UNDECIDABLE: Use an LLM to generate 1000 synthetic code variants with injected defects. (Source file not provided)
