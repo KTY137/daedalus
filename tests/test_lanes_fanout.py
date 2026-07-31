@@ -356,3 +356,78 @@ class ResultsCarryTheirRun(unittest.TestCase):
             out["results"][0]["trace_id"], "run-one",
             "a resumed answer must keep the trace of the run that PAID for it -- "
             "re-stamping it claims this run produced what it read off disk")
+
+
+class BlockedIsNotAudited(unittest.TestCase):
+    """A refusal is not evidence.
+
+    Measured 2026-07-31 on the claims123 review tier: 6 of 6 units came back
+    ``report.status == "blocked"``, the summary said ``ok=6``, and resume
+    would have served the refusals into every later run as if they had been
+    audited. These tests hold the two halves of the fix: refusals are counted
+    apart from evidence, and an all-blocked persisted result is retried.
+    """
+
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+
+        def stub(task, vote, repo_root, model, timeout_s, brief, *_, **__):
+            status = "blocked" if task.task_id.startswith("ref") else "needs_review"
+            return {"vote": vote, "provider": "stub", "persona": None,
+                    "report": {"status": status, "summary": "s",
+                               "files_changed": [], "tests_run": [],
+                               "risks": [], "todos": [], "handoff": {}}}
+
+        self._orig = F._one_call
+        F._one_call = stub
+
+    def tearDown(self):
+        F._one_call = self._orig
+
+    def test_blocked_is_counted_apart_from_ok(self):
+        tasks = [F.FanoutTask(task_id="refused", objective="q"),
+                 F.FanoutTask(task_id="healthy", objective="q")]
+        out = F.fan_out(tasks, self.dir, concurrency=1)
+        self.assertEqual(out["ok"], 1)
+        self.assertEqual(out["blocked"], 1)
+        self.assertEqual(out["failed"], 0)
+
+    def test_a_persisted_all_blocked_result_is_retried_not_served(self):
+        # The cause of a refusal may be a since-fixed parser or a transient
+        # transport failure; serving it forever makes it permanent.
+        task = F.FanoutTask(task_id="healthy-now", objective="q")
+        (self.dir / f"{task.key}.json").write_text(json.dumps({
+            "task_id": task.task_id, "votes_requested": 1,
+            "answers": [{"vote": 1, "report": {"status": "blocked",
+                                               "summary": "refused"}}]}),
+            encoding="utf-8")
+        out = F.fan_out([task], self.dir, concurrency=1)
+        self.assertEqual(out["paid_calls"], 1)
+        self.assertEqual(out["resumed"], 0)
+        self.assertEqual(out["ok"], 1)
+
+    def test_a_partially_blocked_result_is_still_served(self):
+        # Partial evidence is evidence: one healthy vote makes the unit
+        # servable, and the refusal beside it stays inspectable on disk.
+        task = F.FanoutTask(task_id="mixed", objective="q", votes=2)
+        (self.dir / f"{task.key}.json").write_text(json.dumps({
+            "task_id": "mixed", "votes_requested": 2,
+            "answers": [
+                {"vote": 1, "report": {"status": "blocked", "summary": "no"}},
+                {"vote": 2, "report": {"status": "needs_review",
+                                       "summary": "yes"}},
+            ]}), encoding="utf-8")
+        out = F.fan_out([task], self.dir, concurrency=1, temperature=0.8)
+        self.assertEqual(out["paid_calls"], 0)
+        self.assertEqual(out["resumed"], 1)
+        self.assertEqual(out["ok"], 1)
+        self.assertEqual(out["blocked"], 0)
+
+    def test_blocked_property_semantics(self):
+        res = F.FanoutResult(task_id="t", key="k", votes_requested=1)
+        # No answers is a failure to answer, not a refusal.
+        self.assertFalse(res.blocked)
+        res.answers.append({"report": {"status": "blocked"}})
+        self.assertTrue(res.blocked)
+        res.answers.append({"report": {"status": "done"}})
+        self.assertFalse(res.blocked)

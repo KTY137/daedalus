@@ -158,6 +158,25 @@ class FanoutResult:
     def ok(self) -> bool:
         return bool(self.answers)
 
+    @property
+    def blocked(self) -> bool:
+        """Every collected answer is a refusal.
+
+        ``ok`` answers "did the transport produce answers"; this answers "did
+        any of them carry evidence". The distinction was measured 2026-07-31
+        on the claims123 review tier: 6 of 6 units came back with
+        ``report.status == "blocked"`` and the run summary said ``ok=6`` --
+        an audit that audited nothing, reported as if it had. A unit with at
+        least one non-blocked answer stays un-blocked, because partial
+        evidence is evidence.
+        """
+        return bool(self.answers) and all(
+            isinstance(a, dict)
+            and isinstance(a.get("report"), dict)
+            and a["report"].get("status") == "blocked"
+            for a in self.answers
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "task_id": self.task_id,
@@ -335,6 +354,7 @@ def fan_out(
                 "about having one opinion."),
             "tasks": len(tasks),
             "ok": 0,
+            "blocked": 0,
             "failed": 0,
             "resumed": 0,
             "paid_calls": 0,
@@ -367,6 +387,7 @@ def fan_out(
                        f"({guard_error})"),
             "tasks": len(tasks),
             "ok": 0,
+            "blocked": 0,
             "failed": 0,
             "resumed": 0,
             "paid_calls": 0,
@@ -386,7 +407,7 @@ def fan_out(
 
     lock = threading.Lock()
     results: list[FanoutResult] = []
-    counts = {"ok": 0, "failed": 0, "resumed": 0, "calls": 0}
+    counts = {"ok": 0, "blocked": 0, "failed": 0, "resumed": 0, "calls": 0}
 
     def _brief_for(task: FanoutTask) -> str:
         if not task.paths:
@@ -411,7 +432,15 @@ def fan_out(
                     # claim this run produced something it read off disk.
                     trace_id=prior.get("trace_id"),
                     resumed=True)
-                if res.answers:
+                # An all-blocked result is NOT servable. A refusal was the
+                # terminal answer for the run that paid for it, not for every
+                # run after it -- the cause may be a since-fixed parser, a
+                # transient transport failure, or a policy that re-refuses at
+                # zero paid cost (the sensitivity scrub runs before the call).
+                # Serving it forever was measured 2026-07-31: the claims123
+                # review tier's 6 blocked units would have been replayed into
+                # every future run as if they had been audited.
+                if res.answers and not res.blocked:
                     return res
             except (OSError, ValueError):
                 pass    # unparseable => re-run; a torn result reads as an answer
@@ -451,7 +480,13 @@ def fan_out(
                     results.append(res)
                     if res.resumed:
                         counts["resumed"] += 1
-                    if res.ok:
+                    # ok / blocked / failed are DISJOINT: "ok" now means the
+                    # unit produced at least one answer carrying evidence.
+                    # Folding refusals into ok was measured reading "ok=6" on
+                    # a tier whose every unit had been refused.
+                    if res.blocked:
+                        counts["blocked"] += 1
+                    elif res.ok:
                         counts["ok"] += 1
                     else:
                         counts["failed"] += 1
@@ -464,7 +499,8 @@ def fan_out(
                         pass                     # must not kill the queue
                 if progress_every and n % progress_every == 0:
                     print(f"[fanout] {n}/{len(tasks)} "
-                          f"ok={counts['ok']} failed={counts['failed']} "
+                          f"ok={counts['ok']} blocked={counts['blocked']} "
+                          f"failed={counts['failed']} "
                           f"resumed={counts['resumed']} paid_calls={counts['calls']}",
                           flush=True)
     finally:
@@ -478,6 +514,7 @@ def fan_out(
         "state": "ran",
         "tasks": len(tasks),
         "ok": counts["ok"],
+        "blocked": counts["blocked"],
         "failed": counts["failed"],
         "resumed": counts["resumed"],
         # PAID CALLS, separate from task count: with votes>1 they differ, and the
