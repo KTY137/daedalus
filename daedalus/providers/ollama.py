@@ -30,6 +30,15 @@ from .personas import persona_for
 # it only writes when the router grants write mode, and it is confined to repo_root.
 DEFAULT_HOST = "http://127.0.0.1:11434"  # not "localhost" -- avoids IPv6 (::1) miss on Windows
 DEFAULT_MODEL = "qwen2.5-coder:7b"  # per docs/PROVIDERS_RESEARCH.md
+
+# Operator consent for ONE named remote Ollama endpoint (an RTX bench across a
+# tailnet is the motivating case). Holds the host itself, never a boolean --
+# see ``_remote_consented``. Unset by default, so the provider's refusal to be
+# a network lane stands until somebody names the machine on purpose. Consent
+# does not make the lane "trusted": ``lane_for_host`` still answers by host, so
+# the default-deny allow-list and the unbypassable secret floor both keep
+# running over everything sent there.
+REMOTE_CONSENT_VAR = "DAEDALUS_OLLAMA_REMOTE_OK"
 # BEFORE CHANGING THIS, KNOW WHAT THE AXIS ACTUALLY IS. Measured 2026-07-29 on
 # an RTX 5080, 3 trials x 2 agent-shaped tasks per model, native `tools` array:
 #
@@ -379,6 +388,17 @@ class OllamaProvider(Provider):
         """
         if self.egress_lane == "trusted":
             return None
+        if self._remote_consented():
+            # CONSENT IS PERMISSION TO USE THE LANE, NEVER PERMISSION TO SKIP
+            # THE GATE THAT POLICES IT. ``egress_lane`` still reports
+            # "untrusted" for this host, so ``slice_egress_rule`` keeps its
+            # default-deny allow-list on and the secret floor keeps running --
+            # exactly the posture any other network provider gets. What the
+            # operator has waived is only this provider's blanket refusal to
+            # be a network lane at all, which is the door the fence's own
+            # message points at ("route the work through a provider whose
+            # egress posture is declared"). It is declared here.
+            return None
         return {
             "ok": False,
             "refused": "remote_ollama_endpoint",
@@ -392,6 +412,25 @@ class OllamaProvider(Provider):
                 f"work through a provider whose egress posture is declared."),
             "report": {"files_changed": [], "summary": "refused: remote endpoint"},
         }
+
+    def _remote_consented(self) -> bool:
+        """True only when the operator named THIS endpoint, exactly.
+
+        The variable holds a HOST, not a boolean. ``=1`` would be consent to
+        every remote endpoint forever, including one a later config change
+        substitutes without anybody noticing -- and "where do the bytes go" is
+        precisely the question that must not be answered by a flag that has
+        forgotten which host it was set for. Matching the resolved host means
+        repointing ``OLLAMA_HOST`` at a different machine silently revokes the
+        consent and the refusal returns, which is the direction this should
+        fail.
+
+        Comparison is against ``self.host`` as resolved, so it covers the
+        DEFAULT_HOST fallback too, and an unset or blank variable is no
+        consent at all.
+        """
+        declared = os.environ.get(REMOTE_CONSENT_VAR, "").strip().rstrip("/")
+        return bool(declared) and declared == (self.host or "").strip().rstrip("/")
 
     def __init__(self) -> None:
         self.host = os.environ.get("OLLAMA_HOST", DEFAULT_HOST)
