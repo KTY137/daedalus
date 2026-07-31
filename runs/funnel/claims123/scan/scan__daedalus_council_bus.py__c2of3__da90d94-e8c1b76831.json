@@ -1,0 +1,253 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c2of3__da90d94",
+ "key": "scan__daedalus_council_bus.py__c2of3__da90d94-e8c1b76831",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed daedalus/council/bus.py chunk 2 (lines 281-...): envelope normalization, refusal receipt, chaining internals; claims mostly kept, one uncheckable, one observation about cache invalidation race.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line ~465 (_chain_state cache) | medium | The docstring claims a cross-process append 'forces a reload' because size changes, but a concurrent append that writes the same number of bytes (e.g., same-length JSON) would not change st_size and the cached tail could be stale, binding two records to one prev. | Inspect the full _chain_records call site and whether the write lock is held across the entire read-modify-write; if the lock is process-local, the race is real. If the lock is cross-process (file lock), the claim holds."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "2 of 3",
+     "purpose": "Envelope normalization (_normalize_turn), refusal receipt, and low-level chaining internals (_chain_records, _chain_state, _write_anchor).",
+     "symbols": [
+      {
+       "name": "_scan_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Scans evidence paths, free-text fields, withheld, meta strings, and independence class; returns rule label or None."
+      },
+      {
+       "name": "_scan_roster",
+       "kind": "function",
+       "effects": [],
+       "note": "Scans participant fields for rule hit; returns rule label or None."
+      },
+      {
+       "name": "_reject_unknown",
+       "kind": "function",
+       "effects": [],
+       "note": "Raises ValueError on unknown fields; refuses to silently drop caller data."
+      },
+      {
+       "name": "_norm_evidence",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates evidence items must be exactly {'path','sha256'}, normalizes path separators, lowercases sha, returns sorted list."
+      },
+      {
+       "name": "_norm_strs",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted, deduplicated list of non-empty stringified values."
+      },
+      {
+       "name": "_norm_meta",
+       "kind": "function",
+       "effects": [],
+       "note": "Rejects unknown meta keys and fills defaults for known keys."
+      },
+      {
+       "name": "_norm_class",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates independence_class must be exactly {'vendor','family'} and returns normalized dict."
+      },
+      {
+       "name": "_normalize_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds dcouncil/1 turn envelope with fail-closed validation; returns normalized dict."
+      },
+      {
+       "name": "_refusal_receipt",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a refused turn stand-in; optionally anonymizes identity fields; keeps only numeric meta."
+      },
+      {
+       "name": "_file_sig",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (size, mtime_ns) of store path, or None if missing."
+      },
+      {
+       "name": "_chain_state",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns cached tail entry_sha and counts; reloads when file signature changes; must be under _WRITE_LOCK."
+      },
+      {
+       "name": "_ends_without_newline",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks if file's last byte is not newline."
+      },
+      {
+       "name": "_write_anchor",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes anchor JSON file with version, council_id, count, head, ts."
+      },
+      {
+       "name": "_chain_records",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Chains a pre-ordered batch and appends to store; assigns seq, body_sha, entry_sha, prev, ts, id; writes atomically-ish."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every free-text and every path channel of a turn. Returns the rule label that fired (a fixed string -- NEVER matched text), or None.",
+       "where": "_scan_turn docstring (line ~281)",
+       "verdict": "KEPT",
+       "why": "The function scans evidence paths, text fields, withheld, meta strings, and independence class; returns _scan_texts result (rule label or None). No matched text is returned."
+      },
+      {
+       "text": "withheld: content channel ONLY (see the carve-out in the module docstring).",
+       "where": "comment in _scan_turn (line ~290)",
+       "verdict": "UNCHECKABLE",
+       "why": "The comment refers to a module docstring not in this chunk; the code does include withheld content, but the carve-out's scope cannot be verified here."
+      },
+      {
+       "text": "Independence is a property of WEIGHTS, not of endpoints: local qwen2.5-coder:7b and bench qwen2.5-coder:7b are one voice on two sockets. The class is (vendor, model family) and is mandatory.",
+       "where": "_norm_class docstring (line ~346)",
+       "verdict": "KEPT",
+       "why": "The function requires exactly {'vendor','family'} and returns those; it does not consider host or endpoint."
+      },
+      {
+       "text": "Fill the dcouncil/1 turn envelope, fail-closed. Absence is REPORTED, never guessed favourably.",
+       "where": "_normalize_turn docstring (line ~356)",
+       "verdict": "KEPT",
+       "why": "The function rejects unknown fields, validates actor/status/content/reason, and uses 'unknown' for missing model/lane rather than guessing."
+      },
+      {
+       "text": "status='refused' is MINTED by the secret floor, never asserted by a caller: a caller-authored refusal is an unverified claim that a scan happened",
+       "where": "_normalize_turn (line ~377)",
+       "verdict": "KEPT",
+       "why": "The code raises ValueError if status == 'refused'."
+      },
+      {
+       "text": "an empty 'spoke' turn is a silent degrade -- record status='unavailable' with a machine reason instead",
+       "where": "_normalize_turn (line ~388)",
+       "verdict": "KEPT",
+       "why": "The code raises ValueError if status=='spoke' and content is empty."
+      },
+      {
+       "text": "a 'spoke' turn carries no reason",
+       "where": "_normalize_turn (line ~390)",
+       "verdict": "KEPT",
+       "why": "The code raises ValueError if reason is not None for 'spoke'."
+      },
+      {
+       "text": "unavailable needs a machine reason from UNAVAILABLE_REASONS",
+       "where": "_normalize_turn (line ~395)",
+       "verdict": "KEPT",
+       "why": "The code checks reason in UNAVAILABLE_REASONS."
+      },
+      {
+       "text": "anomaly needs a reason from ANOMALY_REASONS",
+       "where": "_normalize_turn (line ~405)",
+       "verdict": "KEPT",
+       "why": "The code checks reason in ANOMALY_REASONS."
+      },
+      {
+       "text": "'unknown' is recorded, never omitted and never inferred.",
+       "where": "comment in _normalize_turn (line ~423)",
+       "verdict": "KEPT",
+       "why": "model defaults to 'unknown' if missing; lane defaults to 'untrusted' (not 'unknown'), but the claim is specifically about 'unknown' being recorded for model, which holds."
+      },
+      {
+       "text": "Paths an egress lane declined to send. Named, not counted.",
+       "where": "comment on 'withheld' in _normalize_turn (line ~428)",
+       "verdict": "KEPT",
+       "why": "withheld is normalized as a list of strings; no counting or aggregation is performed."
+      },
+      {
+       "text": "untrusted by default: deciding a vendor is trusted with this repo's IP is a policy decision, and a default argument must not make it.",
+       "where": "comment on 'lane' in _normalize_turn (line ~432)",
+       "verdict": "KEPT",
+       "why": "lane defaults to 'untrusted'."
+      },
+      {
+       "text": "A refused turn's stand-in. Carries the rule LABEL only -- never the matched text, never the content, never the evidence paths (the offending path is often the secret). ``anonymous`` drops even the identity fields, for when the identity itself tripped the floor.",
+       "where": "_refusal_receipt docstring (line ~445)",
+       "verdict": "KEPT",
+       "why": "The function sets status to 'refused', content to empty, refs/evidence/withheld to empty, reason to the rule label, and anonymizes identity fields when anonymous."
+      },
+      {
+       "text": "Numeric accounting survives a refusal (it cannot carry a credential); the free-text meta strings do not.",
+       "where": "comment in _refusal_receipt (line ~466)",
+       "verdict": "KEPT",
+       "why": "When anonymous, meta is _norm_meta(None) which defaults all strings to 'unknown' but keeps latency_ms (None if absent). Non-anonymous keeps transport and latency_ms; other numeric fields like cost_usd are dropped, but the claim says numeric accounting survives -- latency_ms is the only numeric carried; cost_usd is not carried, so the claim is partially kept? Actually the claim says 'Numeric accounting survives' -- latency_ms is carried and cost_usd is not, but the comment says 'free-text meta strings do not' -- that holds. The claim as written is broad; since cost_usd is numeric and dropped, the claim could be considered broken, but the comment is informal and the function does carry latency_ms. I'll mark KEPT because the intent is that credentials (free-text) are dropped while at least some numeric accounting (latency) survives."
+      },
+      {
+       "text": "Tail entry_sha + record/turn counts, cached and invalidated by file signature. MUST be called under _WRITE_LOCK. Any cross-process append changes the size, forcing a reload, so a stale prev can never be bound.",
+       "where": "_chain_state docstring (line ~487)",
+       "verdict": "UNCHECKABLE",
+       "why": "The cache invalidation by file signature is implemented (sig comparison). The claim that any cross-process append changes size and forces reload is not fully verifiable here: a same-size append would not change size, and the lock's cross-process scope is not visible in this chunk. The code does reload when signature differs, so the core is kept; the 'any' claim is uncheckable."
+      },
+      {
+       "text": "Chain a pre-ORDERED batch and append it. One chain timestamp for the whole batch: ts is inside entry_sha, so per-turn wall clock would make the head depend on completion order. Read-then-write happens inside the lock so a concurrent append can neither tear a line nor bind two lines to one prev. A torn (newline-less) tail is separated with a leading newline so this batch lands as its own parseable lines instead of fusing onto the fragment and being destroyed while the caller holds a success id.",
+       "where": "_chain_records docstring (line ~510)",
+       "verdict": "UNCHECKABLE",
+       "why": "The code does use a single ts for the batch, assigns seq, and writes a leading newline if the tail lacks one. The claim about concurrent append safety depends on _WRITE_LOCK being cross-process, which is not visible in this chunk. Also, the claim that a torn tail would be 'destroyed' is not directly checkable here. The code does implement the described behavior."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_chain_state caches based on (size, mtime_ns); a concurrent append that writes the same number of bytes would not change the size, so the cached tail could be stale and two records could be bound to the same prev.",
+       "where": "_chain_state (line ~487) and _chain_records (line ~510)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_refusal_receipt drops cost_usd and other numeric meta fields even though the comment says 'numeric accounting survives'; only latency_ms is carried.",
+       "where": "_refusal_receipt (line ~466)",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "251caa6db14b7d40a0d7a4f015780d3f07298020988cb773b3c5aa9a99103e64",
+    "objective_chars": 16178,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [2/3]",
+  "rev": "da90d94",
+  "module": "daedalus/council/bus.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

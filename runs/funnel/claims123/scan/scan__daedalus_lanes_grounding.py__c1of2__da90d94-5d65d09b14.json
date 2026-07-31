@@ -1,0 +1,319 @@
+{
+ "task_id": "scan__daedalus_lanes_grounding.py__c1of2__da90d94",
+ "key": "scan__daedalus_lanes_grounding.py__c1of2__da90d94-5d65d09b14",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed grounding.py chunk 1 of 2: regex-based defined/imported/module_names, ReferenceAudit dataclass, audit_references resolution logic, and absence-claim regexes.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "module_names | medium | ast.walk Name/Store and alias handling may miss or double-count names; e.g., assignment targets like tuple unpacking or attribute stores are not collected, and aliases with dotted names are truncated to first segment. | Add a test with tuple unpacking, attribute assignment, and 'import a.b as c' to compare against expected set.",
+     "audit_references | medium | Symbol resolution falls back to leaf name: for 'Class.method', it checks only the last segment, so a citation to a missing method on an existing class is not reported absent. | Provide a test where symbol is 'Class.missing' and assert it appears in absent_symbols.",
+     "audit_references | low | The anchor check uses PurePosixPath(cited_path).parts[0] without guarding empty string; a malformed path like ':symbol' could raise IndexError. | Fuzz the regex with inputs like ':x' or empty string and confirm no exception.",
+     "audit_references | low | read_text errors are swallowed as OSError only, but UnicodeDecodeError is a subclass of ValueError in some contexts; with errors='replace' it is unlikely, but a PermissionError is OSError and will be treated as empty. | Test with a directory path that passes the anchor check and confirm it is treated as empty module rather than error.",
+     "imported_in | low | The regex for imports is line-based and may misparse multi-line imports or parenthesized imports; it strips parentheses but does not handle 'import a, b' without 'from' correctly (it would capture 'a, b' and split). | Test with 'import a, b' and 'from x import (a, b)' to verify output."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/grounding.py",
+     "chunk": "1 of 2",
+     "purpose": "Provides regex/ast helpers for names defined/imported in a module, a ReferenceAudit dataclass and audit_references to resolve file/symbol citations, and regexes for absence claims.",
+     "symbols": [
+      {
+       "name": "defined_in",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of names defined by def/class or module-level assignment via regexes."
+      },
+      {
+       "name": "imported_in",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of names imported via from/import lines; splits clauses and strips aliases."
+      },
+      {
+       "name": "module_names",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Uses ast.walk to collect all def/class names at any depth, plus Name nodes with Store context and aliases; returns empty on parse errors."
+      },
+      {
+       "name": "ReferenceAudit",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass holding cited/resolved counts, repaired, ambiguous, invented, absent_symbols; properties rate and invention_rate; to_dict method."
+      },
+      {
+       "name": "audit_references",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves file/symbol citations in text against tracked paths; uses anchors to filter to repo paths; repairs by basename, flags ambiguous/invented, checks symbols via module_names."
+      },
+      {
+       "name": "claim_text",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed in __all__ but not defined in this chunk; expected in later portion."
+      },
+      {
+       "name": "judge",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed in __all__ but not defined in this chunk; expected in later portion."
+      },
+      {
+       "name": "candidate_names",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "rate",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "invention_rate",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "to_dict",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "defined_in",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "imported_in",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "module_names",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "audit_references",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "ReferenceAudit",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "judge",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      },
+      {
+       "name": "claim_text",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Listed as a name defined elsewhere in the file; not visible in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Names this file DEFINES: def, class, module-level assignment.",
+       "where": "defined_in docstring",
+       "verdict": "kept",
+       "why": "The function returns the union of regex matches for def/class and assignment patterns; the regexes capture those constructs at line starts."
+      },
+      {
+       "text": "Names this file BORROWS.",
+       "where": "imported_in docstring",
+       "verdict": "kept",
+       "why": "The function extracts imported names from import/from lines and returns them as a frozenset."
+      },
+      {
+       "text": "Kept apart from defined_in on purpose. A finding saying 'X is not defined here' about a name the file imports is loose rather than false, and a metric whose whole job is proving things false must not spend its credibility on that distinction being blurred.",
+       "where": "imported_in docstring",
+       "verdict": "kept",
+       "why": "The code maintains separate functions for defined and imported names, consistent with the stated purpose."
+      },
+      {
+       "text": "Every def/class at ANY depth, plus module-level bindings and imports.",
+       "where": "module_names docstring",
+       "verdict": "kept",
+       "why": "The function uses ast.walk to traverse all nodes, collecting FunctionDef, AsyncFunctionDef, ClassDef, Name with Store, and alias nodes, which covers any depth and imports."
+      },
+      {
+       "text": "Unlike checks.toplevel_defs, this descends: a citation naming events.py:TransportRecord.from_dict is naming a method, and a top-level-only reading would report every method in the repository absent.",
+       "where": "module_names docstring",
+       "verdict": "kept",
+       "why": "The function uses ast.walk, which visits all nodes recursively, so methods nested in classes are included."
+      },
+      {
+       "text": "What a report's file/symbol citations resolve to.",
+       "where": "ReferenceAudit docstring",
+       "verdict": "kept",
+       "why": "The dataclass fields exactly capture cited, resolved, repaired, ambiguous, invented, absent_symbols, and the properties compute rates."
+      },
+      {
+       "text": "The split is the whole value. MEASURED 2026-07-30 over a four-tier advisory funnel: of 42 unresolvable paths in its planning tier, 19 were a real file with its directory dropped, 1 shared a basename with another file, and 22 named a file that exists nowhere. Those need opposite responses -- repair, refuse to guess, discard -- and one number for all three is worth little.",
+       "where": "ReferenceAudit docstring",
+       "verdict": "uncheckable",
+       "why": "The claim references measured statistics from a specific date and funnel, which cannot be verified from this code alone; the code does provide separate fields for those categories."
+      },
+      {
+       "text": "tracked is the authoritative file list -- pass git ls-files output, never a filesystem walk, so ignored artefacts and a contributor's scratch files cannot make an invented path look real.",
+       "where": "audit_references docstring",
+       "verdict": "kept",
+       "why": "The function takes tracked as a Mapping or Iterable and uses it as the set of paths; it never walks the filesystem except to read file contents, consistent with the instruction."
+      },
+      {
+       "text": "The repository's own top-level directories, derived from the file list rather than hardcoded. A cited path is an ASSERTION ABOUT THIS REPOSITORY only when it starts inside one of them.",
+       "where": "audit_references comment",
+       "verdict": "kept",
+       "why": "The code builds anchors from the first part of each tracked path and filters cited paths by checking if their first part is in anchors."
+      },
+      {
+       "text": "Without this anchor the audit reported the docstring example a/b.py, the runtime path RUN_DIR/last_report.json and the written type Any/typing.Any as invented files -- all measured, all noise.",
+       "where": "audit_references comment",
+       "verdict": "uncheckable",
+       "why": "The claim refers to measured outcomes from a previous version; the current code does implement the anchor, but the specific historical measurements cannot be verified here."
+      },
+      {
+       "text": "Phrasings that assert a name is absent. Deliberately narrow: this judges only claims it can decide, and a wider net would score claims about BEHAVIOUR as if they were claims about EXISTENCE.",
+       "where": "comment above _ABSENCE",
+       "verdict": "kept",
+       "why": "The regex _ABSENCE matches a specific set of absence phrasings and is deliberately limited to those patterns."
+      },
+      {
+       "text": "`do|does` and not just `does`: a gold set caught \"_body_sha and _entry_sha, which do not exist\" scoring undecided while the singular scored false. A judge that sees one grammatical number has a blind spot nobody would think to look for.",
+       "where": "comment above _ABSENCE",
+       "verdict": "kept",
+       "why": "The regex includes (?:do|does|did) to cover plural and past tense forms."
+      },
+      {
+       "text": "A statement that scopes its own absence claim to the window it was shown.",
+       "where": "comment above _SELF_SCOPED",
+       "verdict": "kept",
+       "why": "The regex _SELF_SCOPED matches phrases like 'in this chunk', 'not visible', 'defined elsewhere', etc., which indicate a scoped claim."
+      },
+      {
+       "text": "MEASURED: the first version of this judge marked \"AgentCapabilities and AgentEvent are not defined in this chunk\" as provably false, because the names are imported by the file. That finding is TRUE and honest -- it names the scope it was given, and several such findings go on to say \"expected to be defined elsewhere\". Scoring a correct self-limited observation as a lie is the same cry-wolf failure this metric exists to count: 461 of them in one run, before this rule.",
+       "where": "comment above _SELF_SCOPED",
+       "verdict": "uncheckable",
+       "why": "The claim refers to historical measurements and behavior of a previous version; the current regex implements the rule, but the specific count and example cannot be verified from this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "module_names uses ast.walk and collects Name nodes with Store context, but does not handle tuple unpacking, attribute stores, or starred targets; it also truncates aliases to the first dot, so 'import a.b as c' is recorded as 'a' rather than 'c'.",
+       "where": "module_names function",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "audit_references resolves symbols by checking only the last segment of a dotted symbol (leaf) against the module's names, so a citation to a missing method on an existing class (e.g., 'Class.missing') would not be reported as absent.",
+       "where": "audit_references symbol check",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The anchor check uses PurePosixPath(cited_path).parts[0] without guarding against an empty string; a malformed path like ':symbol' could raise IndexError.",
+       "where": "audit_references anchor check",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "imported_in's regex may misparse multi-line imports or parenthesized imports; it strips parentheses but does not handle 'import a, b' without 'from' correctly (it would capture 'a, b' and split).",
+       "where": "imported_in function",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "audit_references reads files with errors='replace', so a file with invalid UTF-8 will be replaced with replacement characters; this may cause symbol lookups to fail silently.",
+       "where": "audit_references read_text call",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "68b49f257fdbdc3682c1fff33149fe0203b1a061d25e4f3c10a5f999f24ea7cf",
+    "objective_chars": 15122,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/grounding.py [1/2]",
+  "rev": "da90d94",
+  "module": "daedalus/lanes/grounding.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

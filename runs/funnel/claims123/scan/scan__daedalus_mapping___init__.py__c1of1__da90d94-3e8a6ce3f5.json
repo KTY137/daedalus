@@ -1,0 +1,145 @@
+{
+ "task_id": "scan__daedalus_mapping___init__.py__c1of1__da90d94",
+ "key": "scan__daedalus_mapping___init__.py__c1of1__da90d94-3e8a6ce3f5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Chunk 1 of daedalus/mapping/__init__.py reviewed; all claims either uncheckable or kept, no defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package init for the generated mapping module, re-exporting reach analysis symbols and documenting the two-half architecture.",
+     "symbols": [
+      {
+       "name": "CLASSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "ENTRY_KINDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "EntryPoint",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "ModuleFacts",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "ReachReport",
+       "kind": "class",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      },
+      {
+       "name": "analyse",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from .reach; imported at module top."
+      }
+     ],
+     "claims": [
+      {
+       "text": "mapping \u2014 the GENERATED half of the architecture artifact.",
+       "where": "docstring line 1",
+       "verdict": "uncheckable",
+       "why": "The chunk does not contain any generation mechanism or marker; the claim that this file is generated cannot be verified from this chunk alone."
+      },
+      {
+       "text": "MECHANICAL (here): what exists, what reaches it, what is dark, what is an island, and the counts.",
+       "where": "docstring lines 3-4",
+       "verdict": "uncheckable",
+       "why": "The chunk only re-exports symbols; the actual mechanical content (facts, counts) is in .reach, not visible here."
+      },
+      {
+       "text": "Derived on every run from the tree itself, so it cannot go stale between the moment it is written and the moment it is read.",
+       "where": "docstring lines 4-5",
+       "verdict": "uncheckable",
+       "why": "No derivation logic is present; the claim about freshness depends on the implementation in .reach."
+      },
+      {
+       "text": "NARRATIVE (docs/adrs/*.md, the invariants): WHY a thing is the way it is.",
+       "where": "docstring line 7",
+       "verdict": "uncheckable",
+       "why": "References files not supplied; the chunk does not contain any narrative content or invariant descriptions."
+      },
+      {
+       "text": "No scanner derives that, and pretending otherwise is how hand-maintained inventories rot.",
+       "where": "docstring lines 8-9",
+       "verdict": "uncheckable",
+       "why": "This is a policy assertion about scanners; no scanner code is in this chunk to verify against."
+      },
+      {
+       "text": "reach.analyse answers the question the structural index cannot: not 'X imports Y' but 'can a human or a tool get here at all'.",
+       "where": "docstring lines 10-11",
+       "verdict": "uncheckable",
+       "why": "The function analyse is re-exported but its implementation is in .reach, not present here; the claim cannot be checked."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The __all__ list matches exactly the names imported from .reach; no symbol is missing or extra.",
+       "where": "lines 13-21",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The module uses `from __future__ import annotations` and type hints are not present in this chunk; no runtime type issues are visible.",
+       "where": "line 12",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "deb3fbc8d0afdda0a56bade051ae13936b594884b499154da3261d75afc0e891",
+    "objective_chars": 3966,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/__init__.py [1/1]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

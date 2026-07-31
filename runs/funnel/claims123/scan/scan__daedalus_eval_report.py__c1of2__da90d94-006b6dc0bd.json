@@ -1,0 +1,243 @@
+{
+ "task_id": "scan__daedalus_eval_report.py__c1of2__da90d94",
+ "key": "scan__daedalus_eval_report.py__c1of2__da90d94-006b6dc0bd",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed report.py chunk 1 of 2: ASCII-only renderers, provenance honesty notes, focus-withheld and errored exclusions; claims mostly kept, one uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "render_tier1 | medium | '_pct(t['compression'])' may produce negative percentages if compression is negative (slice larger than whole repo); no guard in this chunk. | Inspect harness for compression computation and see if negative values are possible.",
+     "render_arms | medium | 'C>=A' column uses 't['c_beats_a']' tie-inclusive; header says 'C>=A' but comment says tie-inclusive; consistent with header. No risk.",
+     "render_arms | low | '_provenance_breakdown_lines' with compression_key=None omits COMPRESSION column; but the block title still says 'never blended' and includes honesty note; no inconsistency.",
+     "render_tier1 | low | 'SLICE-RECALL MISSES' section filters t['missed'] truthy; if 'missed' is an empty list, fine. No risk."
+    ],
+    "todos": [
+     "Review chunk 2 for the remainder of render_arms and any other functions.",
+     "Verify that _provenance_breakdown_lines handles missing keys in by_provenance entries (e.g., quarantine absent) gracefully."
+    ],
+    "handoff": {
+     "module": "daedalus/eval/report.py",
+     "chunk": "1 of 2",
+     "purpose": "Render eval results as ASCII table with provenance honesty notes and exclusion of errored/focus-withheld tasks.",
+     "symbols": [
+      {
+       "name": "HEADER",
+       "kind": "constant",
+       "effects": [],
+       "note": "ASCII header string for the eval report."
+      },
+      {
+       "name": "_PROVENANCE_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping provenance keys to plain-English disclaimers about self-grading."
+      },
+      {
+       "name": "_rule",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a horizontal rule line using + and - characters."
+      },
+      {
+       "name": "_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats a row of cells left-justified to given widths."
+      },
+      {
+       "name": "_focus_withheld_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns lines describing focus-withheld tasks, or empty list."
+      },
+      {
+       "name": "_table",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders an ASCII table with headers and rows."
+      },
+      {
+       "name": "_pct",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats a fraction as a percentage string with one decimal."
+      },
+      {
+       "name": "_provenance_breakdown_lines",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders provenance breakdown block with honesty notes and optional compression column."
+      },
+      {
+       "name": "render_tier1",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders Tier 1 deterministic recall/compression report."
+      },
+      {
+       "name": "render_arms",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders A/B/C arms comparison report (starts in this chunk, continues in chunk 2)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "No unicode box-drawing, no fancy glyphs: only ``+ - |`` so it prints on a raw Windows console.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "All string literals in this chunk use only ASCII characters: +, -, |, spaces, letters, punctuation. No unicode glyphs appear."
+      },
+      {
+       "text": "Framing is honest: this is a small private directional eval, recall is necessary-not-sufficient, Tier 2 needs a runtime, and -- the point of this module -- 'hand_reachable' recall is partly self-graded and MUST NOT be blended with independently-derived recall into one headline number.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "The module defines _PROVENANCE_NOTE with explicit disclaimers for hand_reachable and independent sources, and the render functions keep provenance buckets separate (never blended) and print honesty notes."
+      },
+      {
+       "text": "This is the single most important line in this file: it is what stops the eval from overclaiming.",
+       "where": "comment above _PROVENANCE_NOTE",
+       "verdict": "uncheckable",
+       "why": "The comment asserts the note's importance relative to the whole file; the chunk shows the note is printed in provenance breakdown, but cannot judge its overall importance across the entire codebase."
+      },
+      {
+       "text": "FOCUS-WITHHELD ... excluded from every mean/count above.",
+       "where": "_focus_withheld_lines docstring",
+       "verdict": "kept",
+       "why": "In render_tier1 and render_arms, tasks with focus_withheld are skipped from the main tables and aggregates; they are only listed in the focus-withheld section."
+      },
+      {
+       "text": "Absent (result.get) for any hand-built result dict that predates this field, and adds no lines when there are none.",
+       "where": "_focus_withheld_lines docstring",
+       "verdict": "kept",
+       "why": "The function uses result.get('focus_withheld_ids') or [] and returns [] if empty, so it adds no lines when absent or empty."
+      },
+      {
+       "text": "Always shows both tiers (even when empty) and always prints the honesty note -- this block is the deliverable of this sprint.",
+       "where": "_provenance_breakdown_lines docstring",
+       "verdict": "kept",
+       "why": "The function iterates over both 'primary' and 'quarantine' tiers for every provenance and prints the note line for each provenance before the table; even if no rows, the note lines are printed."
+      },
+      {
+       "text": "Errored rows carry no recall/compression/slice_tokens/... at all (see harness._task_error_row) -- they get their own ERRORED section below, not a row in this recall/compression table.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The loop skips tasks with 'error' in t, and later the errored list is rendered in a separate ERRORED section."
+      },
+      {
+       "text": "FOCUS-WITHHELD rows (see harness._focus_withheld_row) are excluded the same way, into their own section below.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The loop skips tasks with t.get('focus_withheld'), and later _focus_withheld_lines is called to render them separately."
+      },
+      {
+       "text": "Healthy (non-errored, non-focus-withheld) misses only -- an errored task has no 'missed' list at all (it never got as far as measuring recall); a focus-withheld task has none either (the fence refused before recall was ever measured). Both are reported in their own unmissable sections, not folded in here as a miss.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The misses list filters out tasks with 'error' or focus_withheld, and only includes those with t['missed'] truthy. The errored and focus-withheld sections are rendered separately."
+      },
+      {
+       "text": "ERRORED section -- a per-task resolution failure ... is EXCLUDED from every mean above but must never go unreported: 'a degraded measurement is reported, never silent.'",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "Errored tasks are excluded from the main table and aggregates, and the errored list is rendered in a dedicated section with a loud header."
+      },
+      {
+       "text": "Absent entirely (result.get, not result[...]) for any pre-existing caller that hand-built a Tier-1 result dict without this key -- and always absent when there are zero errored tasks, so this block adds NO lines to that report.",
+       "where": "render_tier1 comment",
+       "verdict": "kept",
+       "why": "The code uses result.get('errored') or [] and only appends lines if errored is non-empty."
+      },
+      {
+       "text": "A/B/C: distilled slice vs whole-repo concat vs BM25 retrieval. Model-free (recall via substring match, no LLM), so this runs offline every time.",
+       "where": "render_arms docstring",
+       "verdict": "uncheckable",
+       "why": "The docstring claims model-free substring match and offline execution, but this chunk only renders the results; the actual computation is in harness, not visible here."
+      },
+      {
+       "text": "Errored rows carry no recall_A/tokens_A/... at all (see harness._task_error_row) -- they are reported in their own section below, not in this table. FOCUS-WITHHELD rows (harness._focus_withheld_row) are excluded the same way, into their own section.",
+       "where": "render_arms comment",
+       "verdict": "kept",
+       "why": "The healthy list filters out tasks with 'error' or focus_withheld, and later _focus_withheld_lines and an errored section are rendered."
+      },
+      {
+       "text": "B_TRUNC@CAP = yes means: if this task ran Tier 2, B would be cut down to fit the model's context window -- a WEAKER baseline than the R_B/TOK_B shown here.",
+       "where": "render_arms comment",
+       "verdict": "kept",
+       "why": "The code populates the column from t['b_truncated_at_cap'] and later prints a section explaining that truncated B would be weaker, with capped token counts."
+      },
+      {
+       "text": "C = BM25 (k1=1.2, b=0.75) top-k retrieval, budgeted to the SAME token count as A. The 'dumb retrieval' baseline that matters commercially.",
+       "where": "render_arms comment",
+       "verdict": "uncheckable",
+       "why": "The BM25 parameters and budgeting are not computed in this chunk; only the results are rendered. The claim about parameters is not verifiable here."
+      },
+      {
+       "text": "c_beats_a is tie-inclusive (recall_C >= recall_A, see harness.eval_task_arms) so this block -- not the 'no' cells under the C>=A column -- is where a tie surfaces.",
+       "where": "render_arms comment",
+       "verdict": "kept",
+       "why": "The code uses t['c_beats_a'] to include ties, and the beats list includes any task where c_beats_a is true, rendering them with 'recall_C >= recall_A'."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims only + - | are used, and indeed all strings in this chunk are ASCII.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "render_arms is cut off mid-function; the errored section is incomplete in this chunk.",
+       "where": "render_arms end",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_provenance_breakdown_lines accesses agg['n_tasks'] and agg[recall_key] directly without guarding for missing keys, but the docstring says it always shows both tiers even when empty; the code skips tiers with n_tasks==0, which is consistent.",
+       "where": "_provenance_breakdown_lines",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The 'C>=A' column header is consistent with the tie-inclusive semantics of c_beats_a.",
+       "where": "render_arms headers",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2b8a24d1adb7b5bbf392cd3b77c74b542080042ba45a467d5e072398f1996e4b",
+    "objective_chars": 16719,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/report.py [1/2]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/report.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

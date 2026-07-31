@@ -1,0 +1,20 @@
+{
+ "task_id": "scan__daedalus_eval_graph_delta.py__c2of3__da90d94",
+ "key": "scan__daedalus_eval_graph_delta.py__c2of3__da90d94-3da8e3458b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 0,
+ "answers": [],
+ "errors": [
+  "vote 1: TimeoutError: The read operation timed out\nTimeoutError: The read operation timed out\n"
+ ],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/graph_delta.py [2/3]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/graph_delta.py",
+  "index": 2,
+  "total": 3,
+  "first_line": 281
+ }
+}

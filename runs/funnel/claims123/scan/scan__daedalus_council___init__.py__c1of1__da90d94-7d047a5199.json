@@ -1,0 +1,264 @@
+{
+ "task_id": "scan__daedalus_council___init__.py__c1of1__da90d94",
+ "key": "scan__daedalus_council___init__.py__c1of1__da90d94-7d047a5199",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/__init__.py",
+     "chunk": "1 of 1",
+     "purpose": "Package docstring defining council policy (no verdict fields, separate append-only store) and re-exporting bus.py symbols.",
+     "symbols": [
+      {
+       "name": "ENTRY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "TURN_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "append_roster",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "append_round",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "append_turn",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "council_store_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "evidence_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "load_transcript",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "transcript_head",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      },
+      {
+       "name": "verify_chain",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Re-exported from bus.py; not defined in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "THE GATE DECIDES, NOT A MODEL. This package may read, prompt, record and verify. It has no writing, editing, applying or promotion capability anywhere, by construction rather than by promise",
+       "where": "docstring lines 3-5",
+       "verdict": "uncheckable",
+       "why": "This chunk only re-exports symbols from bus.py. It does not define or import any writing/editing/applying/promotion logic, but it also cannot prove their absence across the package; the claim reaches beyond this chunk."
+      },
+      {
+       "text": "nothing in this package carries an approve / reject / score / majority / consensus / confidence field",
+       "where": "docstring lines 8-10",
+       "verdict": "uncheckable",
+       "why": "This chunk's docstring mentions no such fields, but the claim is about the whole package; this chunk cannot observe other modules' fields."
+      },
+      {
+       "text": "ABSENCE OF THE FIELD is the control",
+       "where": "docstring line 10",
+       "verdict": "uncheckable",
+       "why": "Same as above; the absence of fields elsewhere in the package is not observable from this chunk."
+      },
+      {
+       "text": "The premise -- independent vendors have independent blind spots -- is plausible and UNTESTED",
+       "where": "docstring line 12",
+       "verdict": "uncheckable",
+       "why": "No test or measurement code appears in this chunk; the claim is about the premise's testedness, which this chunk cannot verify."
+      },
+      {
+       "text": "It is measured before session.py is wired into any real review workflow, and the module is deleted if it fails",
+       "where": "docstring lines 13-14",
+       "verdict": "uncheckable",
+       "why": "session.py is not referenced in this chunk; no wiring or deletion logic is visible here."
+      },
+      {
+       "text": "ARM A: four vendors (anthropic / openai / google / local), one round each",
+       "where": "docstring line 16",
+       "verdict": "uncheckable",
+       "why": "No vendor list or round logic appears in this chunk; the claim is about the falsification protocol, not this code."
+      },
+      {
+       "text": "CONTROL: ONE vendor asked twice under two different role prompts",
+       "where": "docstring line 17",
+       "verdict": "uncheckable",
+       "why": "No control logic is defined in this chunk; it only describes the protocol."
+      },
+      {
+       "text": "GROUND TRUTH: spine.attempt.GateResult.passed and AttemptResult.state -- already recorded, free to harvest",
+       "where": "docstring lines 18-19",
+       "verdict": "uncheckable",
+       "why": "spine.attempt is not imported or referenced in this chunk; the ground-truth source is external to this file."
+      },
+      {
+       "text": "INDEPENDENCE: pairwise agreement rate BETWEEN vendors versus WITHIN one vendor across two calls",
+       "where": "docstring line 20",
+       "verdict": "uncheckable",
+       "why": "No agreement-rate computation is present in this chunk; the claim describes the protocol, not this code."
+      },
+      {
+       "text": "FALSIFIER: if inter-vendor agreement is within noise of intra-vendor agreement on N patches, THIS MODULE IS DELETED",
+       "where": "docstring lines 21-22",
+       "verdict": "uncheckable",
+       "why": "No deletion logic or N-patch measurement appears in this chunk; the claim is about a future decision, not this code."
+      },
+      {
+       "text": "SMALL-N CAVEAT, stated in advance: the independent corpus is ~17-20 tasks",
+       "where": "docstring line 23",
+       "verdict": "uncheckable",
+       "why": "No corpus size or task count is defined in this chunk; the claim is a stated caveat, not code."
+      },
+      {
+       "text": "bus.py -- the transcript: an append-only, hash-chained, offline-verifiable dcouncil/1 store at runs/council/<council_id>.jsonl",
+       "where": "docstring lines 26-28",
+       "verdict": "uncheckable",
+       "why": "bus.py is imported here but its implementation is not in this chunk; append-only, hash-chaining, offline-verifiability, and the path pattern cannot be checked against this file alone."
+      },
+      {
+       "text": "It is a SEPARATE store from the memory ledger and shares no code path with it",
+       "where": "docstring line 29",
+       "verdict": "uncheckable",
+       "why": "No memory ledger is referenced or imported in this chunk; the separation claim cannot be verified here."
+      },
+      {
+       "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL",
+       "where": "docstring line 32",
+       "verdict": "uncheckable",
+       "why": "No memory recall logic is present in this chunk; the claim is about a different module's behaviour."
+      },
+      {
+       "text": "Dissent is recorded verbatim and is never averaged away",
+       "where": "docstring line 8",
+       "verdict": "uncheckable",
+       "why": "The recording behaviour is in bus.py, not this chunk; no averaging or verbatim storage is visible here."
+      },
+      {
+       "text": "Advisory-by-docstring is not a control",
+       "where": "docstring line 10",
+       "verdict": "uncheckable",
+       "why": "This is a philosophical claim about the design; nothing in this chunk implements or contradicts it."
+      },
+      {
+       "text": "the same structural property spine/attempt.py earned with 'THERE IS NO APPLY PATH'",
+       "where": "docstring line 6",
+       "verdict": "uncheckable",
+       "why": "spine/attempt.py is not present in this chunk; the claimed structural property cannot be compared."
+      }
+     ],
+     "observations": [
+      {
+       "what": "This chunk is purely a docstring plus re-exports; every substantive claim about behaviour (append-only, hash-chaining, no verdict fields, memory separation) refers to code in bus.py or other modules not present in this chunk.",
+       "where": "whole file",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring makes strong absolute claims ('never an input to memory recall', 'shares no code path') that cannot be checked from this file; they are promises about other modules.",
+       "where": "docstring lines 26-32",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The falsification protocol (ARM A, CONTROL, GROUND TRUTH, INDEPENDENCE, FALSIFIER) is described as 'stated in advance' but no measurement or deletion code is present in this chunk; it is purely declarative.",
+       "where": "docstring lines 12-24",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "whole file | medium | The package docstring makes absolute claims (no verdict fields, never input to memory recall, separate store) that are not verifiable from this chunk; a reader may act on them without checking bus.py or the memory ledger. | Inspect bus.py and the memory recall path to confirm each claim."
+     ],
+     "todos": [
+      "Verify bus.py implements append-only, hash-chained, offline-verifiable storage at the stated path.",
+      "Verify no approve/reject/score/majority/consensus/confidence fields exist anywhere in the package.",
+      "Verify council records are never read by memory recall.",
+      "Verify the falsification protocol is actually measured and the module deleted on failure."
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ee04a1af797f6ef00442944e2ae61c23435d2b5276d1157fe391c5926270c077",
+    "objective_chars": 6319,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/__init__.py [1/1]",
+  "rev": "da90d94",
+  "module": "daedalus/council/__init__.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,222 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c2of4__da90d94",
+ "key": "scan__daedalus_council_publish.py__c2of4__da90d94-511386a9b6",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of 4 of publish.py: helper functions and render_markdown. Docstring claims largely kept; several uncheckable; one broken (quorum fallback).",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "publish.py:281-406 | medium | _quorum_counts may report answered=requested when counts are absent, masking a degraded quorum | Check whether any caller passes a verdict with neither list nor ints",
+     "publish.py:281-406 | medium | render_markdown docstring promises 'Pure: no I/O' but calls _verbatim, _short, _text, etc. whose I/O behavior is out of this chunk | Inspect those helpers in the rest of the file",
+     "publish.py:281-406 | medium | _evidence_paths docstring says 'for the path-marker half of the floor' but no path-marker logic is visible here | Inspect screen_egress and the floor rule in other chunks",
+     "publish.py:281-406 | low | render_markdown claims 'EVERY dissent verbatim' but only renders text fields; a dissent with empty text is skipped | Check whether empty dissent text is possible"
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "2 of 4",
+     "purpose": "Continue reading publish.py: helper functions (_bus_path, _turns_of, _chain_head, _quorum_counts, _evidence_paths) and the render_markdown function.",
+     "symbols": [
+      {
+       "name": "_bus_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves the bus path from transcript or verdict fields, else derives from council_id."
+      },
+      {
+       "name": "_turns_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts turn list from transcript: mapping, list/tuple, or object with turns/records/entries field."
+      },
+      {
+       "name": "_chain_head",
+       "kind": "function",
+       "effects": [],
+       "note": "Gets chain head digest from transcript/verdict fields, else from last turn's entry_sha."
+      },
+      {
+       "name": "_quorum_counts",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (answered, requested, answered_vendors, missing_vendors) derived from vendor lists or integer fields."
+      },
+      {
+       "name": "_evidence_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Collects evidence paths from verdict evidence/paths fields."
+      },
+      {
+       "name": "render_markdown",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders a council deliberation as markdown: outcome, advisory banner, quorum, dissents, convergence, evidence, cost/latency, turns, provenance footer."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Explicit field wins; otherwise derived from the council id, which is how bus.py names the file.",
+       "where": "_bus_path docstring",
+       "verdict": "KEPT",
+       "why": "The code checks transcript fields first, then verdict fields, then derives from council_id."
+      },
+      {
+       "text": "A transcript may be the turn list itself, or an object/dict carrying one.",
+       "where": "_turns_of docstring",
+       "verdict": "KEPT",
+       "why": "The code handles Mapping, list/tuple, and object with turns/records/entries fields."
+      },
+      {
+       "text": "The chain head digest a reader verifies the bus against. Explicit field wins; otherwise the last turn's entry_sha, which IS the head by construction in an append-only chain.",
+       "where": "_chain_head docstring",
+       "verdict": "KEPT",
+       "why": "The code checks transcript/verdict fields first, then falls back to the last turn's entry_sha/sha/digest."
+      },
+      {
+       "text": "Counts are derived from the vendor LISTS when present, because a list is checkable against the transcript and a bare integer is not.",
+       "where": "_quorum_counts docstring",
+       "verdict": "KEPT",
+       "why": "The code builds answered_v and requested_v from vendor lists and uses them to compute counts when integer fields are absent."
+      },
+      {
+       "text": "Paths named by the evidence, for the path-marker half of the floor.",
+       "where": "_evidence_paths docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The function collects paths, but the 'path-marker half of the floor' behavior is not in this chunk."
+      },
+      {
+       "text": "Order is deliberate and load-bearing: outcome and the quorum honesty line lead, so a degraded council is the first thing a reader sees and cannot be skimmed past.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "The code appends outcome and quorum warning/status before any other content."
+      },
+      {
+       "text": "Then EVERY dissent verbatim with its author -- BEFORE the convergence, because the dissent is the only part that could not have come from asking one model twice.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "Dissents are rendered in the '## Dissents' section before the '## Where the vendors converged' section, with author and verbatim text."
+      },
+      {
+       "text": "Then where the vendors converged, evidence digests, per-vendor cost/latency, the deliberation itself, and finally the provenance footer (bus path + chain head) that lets a reader verify all of it offline.",
+       "where": "render_markdown docstring",
+       "verdict": "KEPT",
+       "why": "The code appends sections in that order: convergence, evidence, cost/latency, deliberation, and footer with bus path and chain head."
+      },
+      {
+       "text": "Pure: no I/O, no network, no gate.",
+       "where": "render_markdown docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The function itself contains no I/O or network calls, but it calls helpers (_verbatim, _short, _text, _as_list, _field) whose behavior is not fully visible in this chunk; they might perform I/O."
+      },
+      {
+       "text": "CONVERGENCE, not 'majority'. A majority is a DECISION; convergence is an OBSERVATION about what the vendors said. The council package carries no approve/reject/score/majority/consensus field on purpose -- absence of the field is the control, not a docstring -- and a rendering that reintroduces the word structurally reintroduces the temptation to read it as a verdict.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code reads 'convergence', 'converged', 'agreement', 'majority', 'majority_position' as aliases but labels the section 'Where the vendors converged' and adds a note that it is an observation, not a decision."
+      },
+      {
+       "text": "The advisory banner is UNCONDITIONAL. A verdict arriving without the marker is a contract violation, so we say so instead of quietly rendering it as if it carried authority.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The banner is appended unconditionally, and if advisory is not True, an additional CAUTION block is added."
+      },
+      {
+       "text": "Quorum honesty, at the top. A short council is a weaker signal and that must be impossible to miss -- it is a warning block, not a footnote.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The quorum warning is appended right after the outcome and advisory, before dissents, using a WARNING block."
+      },
+      {
+       "text": "DISSENT LEADS. Not a stylistic choice: the dissent is the only content in this document that could not have been produced by asking one model twice.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The dissents section is placed before the convergence section."
+      },
+      {
+       "text": "Convergence among vendors with overlapping training data is cheap; the objection is what four egress paths were actually paid for. Rendering it after -- and therefore below -- the agreement makes the informative half read as a footnote to the uninformative half.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code places dissents before convergence, as the comment states."
+      },
+      {
+       "text": "A vendor that did not speak has no content; an empty fence is noise that makes a silent turn look like an empty answer.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code only appends the verbatim text if `text` is truthy; otherwise it skips the fence."
+      },
+      {
+       "text": "The deliberation itself -- this comment IS the rendering of the bus.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code renders each turn from the transcript, including author, timestamp, sha, status, withheld, and text."
+      },
+      {
+       "text": "A turn that did not SPEAK is the quorum honesty story at turn level: bus.py records 'refused' / 'unavailable' / 'budget_exhausted' / 'anomaly' rather than dropping the vendor, so rendering the status is the difference between 'three vendors agreed' and 'one was never asked'.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code checks `status` and if it is not 'spoke', it appends a NOTE block with the status and reason."
+      },
+      {
+       "text": "Paths an egress lane declined to send are NAMED, not counted -- a vendor reasoning over less evidence than the others is not an equal voice, and hiding that would make the roster look stronger than it was.",
+       "where": "render_markdown comment",
+       "verdict": "KEPT",
+       "why": "The code reads the 'withheld' field and renders each path name in a NOTE block."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_quorum_counts falls back to len(answered_v) for answered and len(requested_v) for requested, but if both lists are empty and no integer fields are present, answered=0, requested=0, and then requested is set to answered (0). This means a verdict with no quorum information will render as 'Quorum: 0 of 0 requested vendors answered' (full roster), which could mask a degraded council.",
+       "where": "_quorum_counts, lines 281-406",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_markdown docstring claims 'Pure: no I/O, no network, no gate.' The function itself does not perform I/O, but it calls _verbatim, _short, _text, _as_list, _field which are defined elsewhere in the file and could potentially perform I/O (e.g., reading files). The claim is uncheckable from this chunk alone.",
+       "where": "render_markdown docstring",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The _evidence_paths docstring mentions 'for the path-marker half of the floor' but the actual path-marker logic is not visible in this chunk; it may be in screen_egress or elsewhere.",
+       "where": "_evidence_paths docstring",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "aa03f5c4dd612995c4566640d5653ba5c9c6fbe727aa421eca08133e07269f84",
+    "objective_chars": 17750,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [2/4]",
+  "rev": "da90d94",
+  "module": "daedalus/council/publish.py",
+  "index": 2,
+  "total": 4,
+  "first_line": 281
+ }
+}

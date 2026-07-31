@@ -1,0 +1,482 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c4of5__da90d94",
+ "key": "scan__daedalus_kairos_gated_writes.py__c4of5__da90d94-6ff18c495c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of gated_writes.py; enumerated docstring/comment claims, verified code paths, noted uncheckable cross-file claims and behavior details.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "promote_candidates docstring | medium | Claims 'Never raises' but code only catches PromotionUnavailable around the lock; _promote_locked can raise uncaught exceptions (e.g., from manager.create_worktree, _PinnedWorktreeGit, resolve_project, manager.cleanup_worktree before the try). To settle: trace all exception paths in _promote_locked and its callees within this file.",
+     "promote_candidates docstring | medium | Claims 'every failure mode ... is a refusal' but only lock acquisition failure is caught; failures within _promote_locked (worktree creation, git init, etc.) are not caught here and will propagate. To settle: inspect _promote_locked and helper functions for uncaught exceptions.",
+     "run_write_wave docstring | medium | Claims 'NEVER writes the primary checkout' but this chunk shows delegation to scheduler.dispatch for non-write tasks; whether that writes the primary checkout is outside this chunk. To settle: inspect scheduler.dispatch implementation.",
+     "run_write_wave docstring | medium | Claims 'never calls promote_candidates' but this chunk does not show the rest of the function; the claim is uncheckable from this window. To settle: inspect remaining lines of run_write_wave.",
+     "run_write_wave docstring | medium | Claims non-write tasks are delegated 'exactly as they would have run before this function existed' but this chunk shows dispatch(..., dry_run=False, parallel=False) without verifying that matches prior behavior. To settle: compare with prior dispatch call patterns.",
+     "run_write_wave docstring | medium | Claims 'cancel is forwarded to gate_candidates' but this chunk does not show the gate_candidates call; uncheckable. To settle: inspect rest of run_write_wave.",
+     "run_write_wave docstring | medium | Claims 'cancel=None is byte-identical to behaviour before cancel existed' but this chunk only shows the parameter default; cannot verify byte-identical behavior without full function. To settle: inspect full function and call sites.",
+     "_promote_locked cleanup | low | cleanup_worktree exceptions are recorded but reap_branches exceptions are swallowed silently; a reap failure could leave stale branches without any report. To settle: check if reap_branches failure is reported elsewhere.",
+     "_promote_one catch-all | low | Catches all exceptions and returns a refusal; but if the exception occurs after a partial promotion (e.g., after commit but before reset), the worktree may not be clean; the docstring claims _promote_one_inner resets on anticipated failures but not unanticipated ones. To settle: inspect _promote_one_inner to see if it resets on all exception paths.",
+     "promote_candidates filtering | low | Filters live candidates by id(c) not in live_ids; if a candidate is a proxy or wrapper, identity may not match; but candidates list is direct. Low risk.",
+     "AUTO_PROMOTE_LEVELS | low | Only 'never' is allowed; legacy values are coerced, but the docstring says 'legacy values cannot reach promote_candidates' -- this chunk shows coercion but not the call to promote_candidates; uncheckable.",
+     "run_write_wave length check | low | Raises RuntimeError if assignments length mismatches tasks; this is a check that can fail and is appropriate."
+    ],
+    "todos": [
+     "Inspect remaining lines of run_write_wave to verify cancel forwarding, promote_candidates non-call, and primary checkout non-write.",
+     "Inspect _promote_one_inner to confirm worktree reset on all failure paths.",
+     "Inspect _promote_locked's exception paths (create_worktree, _PinnedWorktreeGit, resolve_project) for uncaught exceptions.",
+     "Verify scheduler.dispatch behavior for non-write tasks to confirm 'exactly as before' claim.",
+     "Check reap_branches failure handling for silent omission."
+    ],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "4 of 5",
+     "purpose": "Promotion phase 2 and start of phase 3: promote_candidates, _promote_locked, _promote_one, governance verdict, and run_write_wave entry.",
+     "symbols": [
+      {
+       "name": "_promote_one",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Wraps _promote_one_inner with a catch-all returning a refusal dict on any exception."
+      },
+      {
+       "name": "promote_candidates",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Phase 2 entry: filters live candidates, acquires promotion lock, calls _promote_locked, returns report with not_gated."
+      },
+      {
+       "name": "_promote_locked",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Creates integration worktree, pins git, resolves test command, promotes each candidate sequentially, cleans up worktree and branches."
+      },
+      {
+       "name": "AUTO_PROMOTE_LEVELS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple containing only ('never',) to force auto_promote to never."
+      },
+      {
+       "name": "_governance_verdict",
+       "kind": "function",
+       "effects": [],
+       "note": "Calls daedalus.core.get_governance and returns (allowed, state, verdict); maps failures to ('unknown', headline)."
+      },
+      {
+       "name": "run_write_wave",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "Phase 3 entry: validates assignments length, coerces auto_promote, dispatches non-write tasks, then processes write tasks (continues beyond chunk)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "``_promote_one_inner``, with a catch-all so ONE candidate's unexpected failure ... reports as a refusal rather than aborting the whole promotion batch.",
+       "where": "_promote_one docstring",
+       "verdict": "KEPT",
+       "why": "The function wraps _promote_one_inner in try/except Exception and returns a refusal dict with 'promoted': False, so one candidate's failure is contained."
+      },
+      {
+       "text": "``_promote_one_inner`` already resets the integration worktree to ``current_head`` on any failure it anticipates; this is the net under that for the failures it does not.",
+       "where": "_promote_one docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about _promote_one_inner's behavior is outside this chunk; this chunk only shows the catch-all wrapper."
+      },
+      {
+       "text": "PHASE 2 -- see module docstring for the full argument. NOT called automatically by anything in this module or by ``KairosScheduler``; an explicit, separate call.",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show call sites elsewhere in the module or scheduler; cannot verify the claim from this window."
+      },
+      {
+       "text": "``candidates`` is what Phase 1 (``gate_candidates``) returned, in the SAME order they were submitted -- that order is promotion order too",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show gate_candidates or the call site that passes candidates; order preservation is not observable here."
+      },
+      {
+       "text": "Never raises: every failure mode (lock unavailable, apply refused, cumulative gate failed, base moved and the retry also failed) is a refusal in the returned report, not an exception.",
+       "where": "promote_candidates docstring",
+       "verdict": "BROKEN",
+       "line": 889,
+       "why": "The function only catches PromotionUnavailable around the lock; _promote_locked is called inside the try but its exceptions (e.g., from manager.create_worktree, _PinnedWorktreeGit, resolve_project) are not caught here and will propagate, violating 'never raises'."
+      },
+      {
+       "text": "``cancel`` is forwarded to every STALENESS-triggered regeneration (``_reattempt``'s own ``TaskAttempt`` ...) AND to the cumulative re-gate's own ``command_gate`` call inside ``_promote_one_inner``",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows cancel being passed to _promote_locked, but the forwarding to _reattempt and _promote_one_inner is not visible in this chunk."
+      },
+      {
+       "text": "A cancellation landing there is reported distinctly (``_CumulativeGateCancelled`` in the refusal ``reason``, never conflated with an ordinary ``cumulative gate failed``)",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The handling of _CumulativeGateCancelled is in _promote_one_inner, not shown in this chunk."
+      },
+      {
+       "text": "the SAME unconditional ``git reset --hard``/``clean -fd`` that already runs for a genuine cumulative-gate failure also runs for a cancelled one",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The reset/clean logic is in _promote_one_inner, not visible in this chunk."
+      },
+      {
+       "text": "honouring ``cancel`` here does not add a new way to leave the integration worktree in a worse state than finishing would; it only shortens how long a stop request takes to land.",
+       "where": "promote_candidates docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "Depends on the cancellation handling in _promote_one_inner and _reattempt, not visible here."
+      },
+      {
+       "text": "Reported, not dropped: a candidate that never reached STATE_CLEAN in Phase 1 ... has nothing to promote, but silently omitting it here would make this report LOOK complete ... Filtered by object IDENTITY, not dataclass equality",
+       "where": "promote_candidates code comment",
+       "verdict": "KEPT",
+       "why": "The code builds not_gated from candidates whose id(c) is not in live_ids, and includes them in the report; identity filtering is exactly as described."
+      },
+      {
+       "text": "if ledger_path is None: ... resolve_spine_db_path ... if ledger_error or ledger_path is None: ... refused with 'ledger unavailable'",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The code imports resolve_spine_db_path, calls it, and returns a refusal dict with reason 'ledger unavailable: {ledger_error}' when ledger_error or ledger_path is None."
+      },
+      {
+       "text": "with _PromotionLock ... except PromotionUnavailable as e: ... report = refusal dict with reason str(e)",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The code catches PromotionUnavailable and builds a refusal report for each live candidate with the exception message."
+      },
+      {
+       "text": "integration worktree has no readable gitdir pointer; refusing to promote into it unpinned",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The code checks if git.admin_dir is None and returns a refusal dict with that exact reason for all live candidates."
+      },
+      {
+       "text": "no file in the primary checkout was changed; nothing is merged until a human (or a separately-invoked step) acts on the integration branch above",
+       "where": "_promote_locked report note",
+       "verdict": "KEPT",
+       "why": "The report includes that exact note; the code only operates on the integration worktree, not the primary checkout."
+      },
+      {
+       "text": "``auto_promote`` remains in the call signature so saved build sessions and third-party callers fail closed instead of crashing during migration. The only production-capable value is 'never'; legacy values cannot reach ``promote_candidates``.",
+       "where": "comment before AUTO_PROMOTE_LEVELS",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows AUTO_PROMOTE_LEVELS = ('never',) and coercion in run_write_wave, but does not show the call to promote_candidates or the migration path; cannot verify legacy values cannot reach it."
+      },
+      {
+       "text": "``(promotion_allowed, governance_state, headline)`` -- read straight off ``daedalus.core.get_governance``, never re-derived here.",
+       "where": "_governance_verdict docstring",
+       "verdict": "KEPT",
+       "why": "The function imports get_governance and returns values derived directly from its result."
+      },
+      {
+       "text": "That function's own docstring is explicit that a SECOND opinion on ``promotion_allowed`` is how an override sneaks in ... this module composes with it by calling it, not by re-implementing the discrimination check.",
+       "where": "_governance_verdict docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The docstring of daedalus.core.get_governance is not in this chunk; cannot verify the claim about its content."
+      },
+      {
+       "text": "Any failure to even ASK the question -- ``daedalus.core`` unimportable, the call itself raising -- reports the vocabulary's ``unknown``, not a silent True.",
+       "where": "_governance_verdict docstring",
+       "verdict": "KEPT",
+       "why": "Both import and call are wrapped in try/except Exception and return False, 'unknown', with an error headline."
+      },
+      {
+       "text": "``unknown`` and ``absent`` stay distinct facts ... this only ever manufactures ``unknown`` for a failure that happened HERE; a real ``absent`` receipt is already reported correctly by ``get_governance`` itself and passes through unchanged.",
+       "where": "_governance_verdict docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The code passes through gov.get('state') or 'unknown', but the distinction between 'unknown' and 'absent' depends on get_governance's return values, which are not visible in this chunk."
+      },
+      {
+       "text": "``cancel``, when given, is forwarded to ``gate_candidates`` for every concurrent attempt in this wave.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show the gate_candidates call; it only shows the beginning of run_write_wave."
+      },
+      {
+       "text": "``None`` (the default) is byte-identical to this function's behaviour before ``cancel`` existed: no caller that does not pass it is affected.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show the full function behavior; cannot verify byte-identical behavior without the rest of the function and previous versions."
+      },
+      {
+       "text": "A caller driving a longer-lived loop ... can pass one shared token/``KillSwitch`` here so a stop request reaches every in-flight ``TaskAttempt`` and every in-flight cumulative gate this wave started, cooperatively, instead of relying solely on the killswitch's process-wide sweep (which still works today with ``cancel=None`` ... but can race a gate's own poll and report a fabricated verdict; that race is exactly what this parameter exists to close).",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The forwarding to gate_candidates and the race explanation depend on code outside this chunk; cannot verify."
+      },
+      {
+       "text": "``assignments`` MUST be ``scheduler.accept(tasks, repo_root=repo_root)``'s own return, in the SAME order as ``tasks`` -- the caller (``WaveExecutor.run_wave``) already computed this ... Recomputing it here would still be SAFE ... but would silently trust two call sites to keep agreeing forever ... Passed in once, length-checked, used once.",
+       "where": "run_write_wave docstring",
+       "verdict": "KEPT",
+       "why": "The function checks len(assignments) == len(tasks) and raises RuntimeError otherwise; it uses assignments as provided and does not recompute accept."
+      },
+      {
+       "text": "Returns one result dict per entry in ``tasks``, position-matched -- the same contract ``KairosScheduler.dispatch`` already gives ``WaveExecutor.run_wave`` (see that method's length check immediately after this call).",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows results list initialized to None and non-write tasks filled positionally, but the write-task results are filled in code not shown; also the reference to KairosScheduler.dispatch is external."
+      },
+      {
+       "text": "Non-write tasks in the SAME wave (advisory, or bounced to the senior lane) are NOT touched by the gated path: they are delegated back to ``scheduler.dispatch``, scoped to just their own indices, exactly as they would have run before this function existed.",
+       "where": "run_write_wave docstring",
+       "verdict": "KEPT",
+       "why": "The code builds other_idx, extracts other_tasks, calls scheduler.dispatch on them, and places results back at the original indices."
+      },
+      {
+       "text": "NEVER writes the primary checkout and never calls ``promote_candidates``.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk shows only the beginning of run_write_wave; the rest of the function (which likely calls gate_candidates) is not shown, so we cannot verify it never calls promote_candidates or writes the primary checkout."
+      },
+      {
+       "text": "Legacy ``auto_promote`` values are reported as denied input and coerced to ``\"never\"``.",
+       "where": "run_write_wave docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The code coerces auto_promote to 'never' if not in AUTO_PROMOTE_LEVELS, but the 'reported as denied input' part is not visible in this chunk (likely in the rest of the function)."
+      },
+      {
+       "text": "The code builds not_gated from candidates whose id(c) is not in live_ids",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The list comprehension uses id(c) not in live_ids to build not_gated."
+      },
+      {
+       "text": "live_ids = {id(c) for c in live}",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The set comprehension exactly matches."
+      },
+      {
+       "text": "if not live: return ... 'no gated candidate to promote'",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The code returns early with that note when live is empty."
+      },
+      {
+       "text": "lock_path = manager.worktree_root / \"promotion.lock\"",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "report[\"not_gated\"] = not_gated",
+       "where": "promote_candidates body",
+       "verdict": "KEPT",
+       "why": "The assignment is present after the try/except."
+      },
+      {
+       "text": "base_commit = live[0].result.base_revision or _rev_parse_head(root)",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "integration_branch = f\"kairos-integration-{uuid.uuid4().hex[:10]}\"",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "integration_worktree = manager.create_worktree(base_commit, integration_branch)",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "git = _PinnedWorktreeGit(integration_worktree)",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "test_command = (pdata or {}).get(\"test_command\")",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "test_cwd = (pdata or {}).get(\"test_cwd\") or \".\"",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "for candidate in live: outcome = _promote_one(...) (promoted if outcome.get(\"promoted\") else refused).append(outcome)",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The loop and append logic are present."
+      },
+      {
+       "text": "try: manager.cleanup_worktree(integration_worktree) except Exception as e: cleanup_error = ...",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The try/except captures cleanup error."
+      },
+      {
+       "text": "try: manager.reap_branches() except Exception: pass",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The try/except swallows exceptions."
+      },
+      {
+       "text": "report = { ... \"inspect\": f\"git diff {base_commit}..{integration_branch}\", ... }",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The report dict is constructed as shown."
+      },
+      {
+       "text": "if cleanup_error: report[\"cleanup_error\"] = cleanup_error",
+       "where": "_promote_locked body",
+       "verdict": "KEPT",
+       "why": "The conditional assignment is present."
+      },
+      {
+       "text": "if len(assignments) != len(tasks): raise RuntimeError(...)",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The check and raise are present."
+      },
+      {
+       "text": "requested_auto_promote = auto_promote",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "if auto_promote not in AUTO_PROMOTE_LEVELS: auto_promote = \"never\"",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The coercion is present."
+      },
+      {
+       "text": "from .scheduler import DEFAULT_AVAILABILITY",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The import is present."
+      },
+      {
+       "text": "root = Path(repo_root).resolve()",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "write_idx = [i for i, a in enumerate(assignments) if a.accepted and a.mode == \"write\"]",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The list comprehension is present."
+      },
+      {
+       "text": "other_idx = [i for i in range(n) if i not in write_idx]",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The list comprehension is present."
+      },
+      {
+       "text": "results: list[dict | None] = [None] * n",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      },
+      {
+       "text": "if other_idx: other_tasks = ... other_raw = scheduler.dispatch(...) if len(other_raw) != len(other_idx): raise RuntimeError(...) for pos, i in enumerate(other_idx): results[i] = other_raw[pos]",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The code does exactly that."
+      },
+      {
+       "text": "if not write_idx: return results",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The early return is present."
+      },
+      {
+       "text": "avail = scheduler.availability or DEFAULT_AVAILABILITY",
+       "where": "run_write_wave body",
+       "verdict": "KEPT",
+       "why": "The assignment is present."
+      }
+     ],
+     "observations": [
+      {
+       "what": "promote_candidates claims 'Never raises' but only catches PromotionUnavailable; exceptions from _promote_locked propagate.",
+       "where": "promote_candidates docstring and body",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "_promote_locked performs repository mutations (create_worktree, reset/clean in _promote_one_inner, cleanup) and is called inside the lock.",
+       "where": "_promote_locked body",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_write_wave delegates non-write tasks to scheduler.dispatch with dry_run=False, parallel=False; this may write to the primary checkout depending on dispatch implementation.",
+       "where": "run_write_wave body",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The docstring claims run_write_wave never calls promote_candidates, but the rest of the function is not shown; the claim is uncheckable.",
+       "where": "run_write_wave docstring",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "AUTO_PROMOTE_LEVELS only contains 'never'; legacy values are coerced but not reported as denied in this chunk.",
+       "where": "AUTO_PROMOTE_LEVELS and run_write_wave",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_promote_locked swallows reap_branches exceptions silently, which could leave stale branches unreported.",
+       "where": "_promote_locked body",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "210746d936c32eadfc217c8f95216366986107c48e60fdf2d150ccfa9c449bbf",
+    "objective_chars": 18824,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [4/5]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

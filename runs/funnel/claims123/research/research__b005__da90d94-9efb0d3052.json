@@ -1,0 +1,136 @@
+{
+ "task_id": "research__b005__da90d94",
+ "key": "research__b005__da90d94-9efb0d3052",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "pattern": "Multiple modules assert 'never raises' or 'never fails' for operations that depend on unguarded dict access or helper calls outside the chunk, but one of them (eval_task_tier1) is already marked broken for an unguarded subscript, suggesting the same class of bug may lurk in the other 'never raises' claims (mint_from_commit, _stop_process) where the helpers are not visible.",
+       "evidence": [
+        "daedalus/eval/tier1.py:96 (task['repo'])",
+        "daedalus/eval/tier1.py:119,121 (task['id']/task['target'])",
+        "daedalus/eval/mint.py:??? (mint_from_commit calls _git/_resolve_sha without try/except)",
+        "daedalus/adapters/base.py:??? (_stop_process has no docstring)"
+       ],
+       "refuted_if": "The other 'never raises' claims are backed by try/except or the helpers are guaranteed not to raise (e.g., they return sentinel values)."
+      },
+      {
+       "pattern": "The docstring for eval_task_tier1 claims 'NEVER RAISES' but the code does not guard against KeyError from task['repo']; this is a broken contract. The same pattern of 'never raises' claims appears in mint_from_commit and _stop_process, but those are marked uncheckable because the helpers are not visible. If those helpers can raise (e.g., _git, _resolve_sha), the same broken contract may exist there.",
+       "evidence": [
+        "daedalus/eval/tier1.py:96",
+        "daedalus/eval/tier1.py:119,121",
+        "daedalus/eval/mint.py:??? (mint_from_commit docstring)",
+        "daedalus/adapters/base.py:??? (_stop_process)"
+       ],
+       "refuted_if": "The helpers used by mint_from_commit and _stop_process are guaranteed not to raise (e.g., they catch all exceptions internally)."
+      },
+      {
+       "pattern": "The module docstring for the mint module claims that --mint-commit/--confirm-mint are the ONLY entry points that persist to the mint store, but the claim is uncheckable in this chunk because other code outside the file might also write. This is a cross-file contract that cannot be verified from a single chunk, and the same risk applies to other 'only' claims (e.g., 'COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL').",
+       "evidence": [
+        "daedalus/eval/mint.py:10-11 (module docstring)",
+        "daedalus/recall.py:??? (memory recall logic)"
+       ],
+       "refuted_if": "A search across the codebase shows no other writes to the mint store, and memory recall never reads council records."
+      },
+      {
+       "pattern": "The docstring for remove_tree_no_follow claims that the only external caller is the pytest gate's scratch directory, but this is uncheckable in the chunk. If another caller exists, the security assumption (no-follow identity recording) may be bypassed. This is a cross-module assumption that needs verification.",
+       "evidence": [
+        "daedalus/fs.py:??? (remove_tree_no_follow docstring)",
+        "daedalus/spine/attempt.py:??? (pytest gate scratch dir)"
+       ],
+       "refuted_if": "A code search shows no other callers of remove_tree_no_follow."
+      },
+      {
+       "pattern": "The module docstring for the egress module says 'The host is passed explicitly per call, and whether it counts as local is decided by sensitivity.lane_for_host -- the ONE implementation of \"do the bytes leave this machine\".' This is a single point of truth claim, but the chunk does not show call sites. If another module implements its own host-locality check, the claim is false.",
+       "evidence": [
+        "daedalus/egress.py:??? (module docstring)",
+        "daedalus/sensitivity.py:??? (lane_for_host)"
+       ],
+       "refuted_if": "A code search shows another function that determines host locality outside sensitivity.lane_for_host."
+      },
+      {
+       "pattern": "The module docstring for the audit module claims that without the anchor, the audit reported invented files. This is a historical claim that cannot be verified from the current chunk. The same pattern of historical claims appears in multiple modules (e.g., ARTEFACT_ROOTS comment about the destroyed artefact). These are unverifiable cross-file assertions.",
+       "evidence": [
+        "daedalus/audit.py:??? (audit_references comment)",
+        "daedalus/shift.py:??? (ARTEFACT_ROOTS comment)"
+       ],
+       "refuted_if": "There is a way to reproduce the historical measurements (e.g., a test that recreates the scenario)."
+      },
+      {
+       "pattern": "The module docstring for the mapping module claims that a missing snapshot is NOT a pass and both entry points refuse it. This is a cross-file contract, but the entry points are not in this chunk. If one entry point does not refuse, the contract is broken.",
+       "evidence": [
+        "daedalus/mapping/__init__.py:148-151 (module docstring)",
+        "daedalus/mapping/cli.py:??? (daedalus map --check)",
+        "daedalus/mapping/drift.py:??? (python -m daedalus.mapping.drift)"
+       ],
+       "refuted_if": "A test shows that either entry point exits zero when the snapshot is missing."
+      },
+      {
+       "pattern": "The docstring for repo_state claims that head is covered by the digest and there is deliberately no generated_at. This is a design decision that affects byte-identity. If another module writes a generated_at field, it would break the byte-identity contract.",
+       "evidence": [
+        "daedalus/mapping/repo_state.py:??? (repo_state docstring)",
+        "daedalus/mapping/snapshot.py:??? (snapshot_bytes)"
+       ],
+       "refuted_if": "A code search shows no generated_at field in any snapshot artifact."
+      },
+      {
+       "pattern": "The docstring for _PromotionLock claims it uses the same primitives as daedalus.budget._BudgetLock and runs/council/room.py's _RoomLock, independently written. This is a claim of duplication. If one of those locks is changed to use different primitives, the claim becomes stale.",
+       "evidence": [
+        "daedalus/promote.py:447-449 (_PromotionLock docstring)",
+        "daedalus/budget.py:??? (_BudgetLock)",
+        "daedalus/runs/council/room.py:??? (_RoomLock)"
+       ],
+       "refuted_if": "A code search shows that _BudgetLock or _RoomLock no longer use msvcrt/fcntl."
+      },
+      {
+       "pattern": "The docstring for eval_task_tier1 claims NEVER RAISES, but the code has unguarded dict accesses. This is a broken contract. The same pattern of 'never raises' claims appears in mint_from_commit and _stop_process, but they are marked uncheckable. If those functions also have unguarded dict accesses or call helpers that can raise, the same broken contract may exist there.",
+       "evidence": [
+        "daedalus/eval/tier1.py:96",
+        "daedalus/eval/tier1.py:119,121",
+        "daedalus/eval/mint.py:??? (mint_from_commit docstring)",
+        "daedalus/adapters/base.py:??? (_stop_process)"
+       ],
+       "refuted_if": "The helpers used by mint_from_commit and _stop_process are guaranteed not to raise (e.g., they catch all exceptions internally)."
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "01c294af985ad026c87b5374a13988dc387fdb3aefde2894bce3226c3bda7eb8",
+    "objective_chars": 17031,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 5 (39 inputs)",
+  "rev": "da90d94",
+  "bucket": 5,
+  "inputs": 39
+ }
+}

@@ -1,0 +1,480 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c1of2__da90d94",
+ "key": "scan__daedalus_kairos_scheduler.py__c1of2__da90d94-fbbb6a2969",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "1 of 2",
+     "purpose": "Kairos bounded scheduler: accept/plan/dispatch/gate writes with concurrency caps and safety policy",
+     "symbols": [
+      {
+       "name": "FREE_LANES",
+       "kind": "constant",
+       "effects": [],
+       "note": "tuple of lanes Ikarus may dispatch: ollama, deepseek, codex_cli"
+      },
+      {
+       "name": "DEFAULT_AVAILABILITY",
+       "kind": "constant",
+       "effects": [],
+       "note": "default provider availability dict: claude_cli and ollama True, deepseek and codex_cli False"
+      },
+      {
+       "name": "_paths_overlap",
+       "kind": "function",
+       "effects": [],
+       "note": "checks if any two write-mode assignments declare the same normalized path"
+      },
+      {
+       "name": "Assignment",
+       "kind": "class",
+       "effects": [],
+       "note": "dataclass holding objective, paths, owner, lane, worker, mode, accepted, reason"
+      },
+      {
+       "name": "KairosScheduler",
+       "kind": "class",
+       "effects": [],
+       "note": "bounded scheduler; max_workers=3, max_parallel_writes=2, availability/policy/project/active_agents config"
+      },
+      {
+       "name": "__post_init__",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "loads project policy/team settings if project set; initializes _bench cycle from ollama roster"
+      },
+      {
+       "name": "accept",
+       "kind": "function",
+       "effects": [],
+       "note": "routes each task; bounces non-FREE_LANES to Adam; accepted assignments get worker persona"
+      },
+      {
+       "name": "plan",
+       "kind": "function",
+       "effects": [],
+       "note": "dry run: returns assignments, spawned count, bounced count, waves"
+      },
+      {
+       "name": "dispatch",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "runs accepted work; parallel only for advisory; writes sequential with whole-repo snapshots"
+      },
+      {
+       "name": "gate_concurrent_writes",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "phase-1 gating of concurrent writes via TaskAttempt in per-task worktrees; returns gated candidates"
+      },
+      {
+       "name": "_bounced_or_planned",
+       "kind": "function",
+       "effects": [],
+       "note": "inner helper: returns bounced/planned dict, or None if live run needed"
+      },
+      {
+       "name": "_run_one",
+       "kind": "function",
+       "effects": [
+        "repository_mutation",
+        "process_spawn"
+       ],
+       "note": "inner helper: calls offload() and returns result dict with wrote list"
+      }
+     ],
+     "claims": [
+      {
+       "text": "Kairos never talks to the user, never decides trust, and bounces anything that belongs to the senior crew back to the trusted orchestration layer.",
+       "where": "module docstring line 1-14",
+       "verdict": "KEPT",
+       "why": "accept() routes via route_and_select and bounces non-FREE_LANES; no user I/O; trust decisions delegated to Policy and route_and_select"
+      },
+      {
+       "text": "dynamically spawns local workers from a bounded pool (the Mexican/Italian Ollama bench; the Chinese DeepSeek bench stays dormant without a key)",
+       "where": "module docstring line 6",
+       "verdict": "KEPT",
+       "why": "_bench = cycle(roster('ollama')) and DEFAULT_AVAILABILITY has deepseek False; pool bounded by max_workers"
+      },
+      {
+       "text": "briefs each with a scoped task + the owning specialist's domain",
+       "where": "module docstring line 7",
+       "verdict": "KEPT",
+       "why": "Assignment carries objective, paths, owner, worker, lane"
+      },
+      {
+       "text": "enforces their *reduced rights* (the Ollama write-guard already refuses device/vendor/secret/high-risk paths)",
+       "where": "module docstring line 8",
+       "verdict": "UNCHECKABLE",
+       "why": "write-guard enforcement lives in offload/provider layer, not in this chunk"
+      },
+      {
+       "text": "returns a consolidated report for Adam / the owning specialist to review",
+       "where": "module docstring line 9",
+       "verdict": "KEPT",
+       "why": "dispatch returns results list with per-assignment status/wrote/result"
+      },
+      {
+       "text": "This is not a proof of write isolation: an agent may touch an undeclared path. Production write concurrency therefore remains disabled until each task owns a separate Forge workcell/worktree.",
+       "where": "_paths_overlap docstring lines 24-28",
+       "verdict": "KEPT",
+       "why": "_paths_overlap only checks declared hints; dispatch keeps writes sequential unless no writes; parallel only for advisory"
+      },
+      {
+       "text": "Concurrency cap SPECIFICALLY for gate_concurrent_writes ... independent of max_workers",
+       "where": "KairosScheduler.max_parallel_writes comment lines 55-56",
+       "verdict": "KEPT",
+       "why": "max_parallel_writes is a separate field from max_workers"
+      },
+      {
+       "text": "every concurrent write-mode offload() triggers a FULL structcore re-index (offload.py's post-write blast-radius fence, cached_index(..., refresh=True))",
+       "where": "comment lines 58-62",
+       "verdict": "UNCHECKABLE",
+       "why": "offload.py internals not in this chunk"
+      },
+      {
+       "text": "cache's single-flight lock is keyed by RESOLVED ROOT ... N worktrees, N distinct roots, N UNSHARED full re-index builds",
+       "where": "comment lines 62-64",
+       "verdict": "UNCHECKABLE",
+       "why": "structcore/index.py not in this chunk"
+      },
+      {
+       "text": "NOT MEASURED on this box for N>1 -- the default stays low until someone measures the real cost and raises it deliberately",
+       "where": "comment lines 64-66",
+       "verdict": "KEPT",
+       "why": "max_parallel_writes default is 2; no measurement code present"
+      },
+      {
+       "text": "Extra pool workers Ikarus can spin up for fan-out beyond the role shadows",
+       "where": "__post_init__ comment line 75",
+       "verdict": "KEPT",
+       "why": "_bench cycle from roster('ollama') provides extra personas"
+      },
+      {
+       "text": "Only low-risk work that Adam would offload is taken; anything that routes back to Claude is bounced to Adam",
+       "where": "accept docstring lines 89-90",
+       "verdict": "KEPT",
+       "why": "decision.provider not in FREE_LANES -> bounced Assignment with accepted=False"
+      },
+      {
+       "text": "repo_root makes the target repo's own .agentenv/agents/ roster visible to routing (without it only global agents route)",
+       "where": "accept docstring lines 91-92",
+       "verdict": "UNCHECKABLE",
+       "why": "routing logic in route_and_select; this chunk only forwards repo_root"
+      },
+      {
+       "text": "Dry run: who gets spawned, in how many bounded waves",
+       "where": "plan docstring line 107",
+       "verdict": "KEPT",
+       "why": "plan calls accept and computes waves = ceil(len(taken)/max_workers)"
+      },
+      {
+       "text": "dry_run stops at the spawn plan; live actually invokes each bench worker through the provider seam",
+       "where": "dispatch docstring line 116",
+       "verdict": "KEPT",
+       "why": "_bounced_or_planned returns status 'planned' when dry_run; live path calls offload()"
+      },
+      {
+       "text": "Sequential by default (parallel=False): each live write is verified by diffing a WHOLE-repo content-hash snapshot around that one run (offload._repo_snapshot)",
+       "where": "dispatch docstring lines 118-120",
+       "verdict": "UNCHECKABLE",
+       "why": "offload._repo_snapshot not in this chunk; dispatch passes isolate=False for sequential runs"
+      },
+      {
+       "text": "two such runs on one repo concurrently would cross-attribute disk_changed",
+       "where": "dispatch docstring lines 120-121",
+       "verdict": "UNCHECKABLE",
+       "why": "offload behavior not in this chunk"
+      },
+      {
+       "text": "parallel=True currently overlaps advisory-only work",
+       "where": "dispatch docstring line 123",
+       "verdict": "KEPT",
+       "why": "can_parallel = parallel and not has_writes; has_writes true if any write mode"
+      },
+      {
+       "text": "Declared path disjointness is not a security boundary: a writable agent can touch an undeclared repository path",
+       "where": "dispatch docstring lines 123-124",
+       "verdict": "KEPT",
+       "why": "_paths_overlap only checks declared paths; dispatch does not use it to allow parallel writes"
+      },
+      {
+       "text": "Writable concurrency stays sequential with whole-repository snapshots until Forge gives every attempt its own workcell/worktree",
+       "where": "dispatch docstring lines 125-127",
+       "verdict": "KEPT",
+       "why": "can_parallel false when has_writes; writes run sequentially"
+      },
+      {
+       "text": "Only read-only/advisory attempts may share a checkout concurrently. Pairwise-disjoint declared strings are not evidence that agentic writers stay within those strings.",
+       "where": "dispatch comment lines 157-158",
+       "verdict": "KEPT",
+       "why": "can_parallel = parallel and not has_writes; no disjointness check used"
+      },
+      {
+       "text": "Writes may go parallel ONLY when each one gets its own worktree",
+       "where": "dispatch comment line 160",
+       "verdict": "KEPT",
+       "why": "parallel path passes isolate=True to _run_one; but only when no writes, so this claim describes gate_concurrent_writes path"
+      },
+      {
+       "text": "STILL sequential here, but the reason changed: the isolation now EXISTS -- see gate_concurrent_writes() below, which runs each write through daedalus.spine.attempt.TaskAttempt (its own worktree, its own hardened patch capture) fanned out concurrently",
+       "where": "dispatch comment lines 169-172",
+       "verdict": "UNCHECKABLE",
+       "why": "TaskAttempt behavior not in this chunk; gate_concurrent_writes only defined here, not executed"
+      },
+      {
+       "text": "daedalus.kairos.gated_writes.promote_candidates(), which lands gated candidates one at a time behind a cross-process lock with cumulative re-gating",
+       "where": "dispatch comment lines 172-174",
+       "verdict": "UNCHECKABLE",
+       "why": "gated_writes module not in this chunk"
+      },
+      {
+       "text": "What THAT path returns is not what this one returns, though: a gated PatchArtifact the primary checkout never saw, not a live write already sitting in repo_root's working tree",
+       "where": "dispatch comment lines 174-176",
+       "verdict": "UNCHECKABLE",
+       "why": "gated_writes return shape not in this chunk"
+      },
+      {
+       "text": "dispatch() keeps its existing auto-land contract for a single write (offload() has always auto-landed a sequential one)",
+       "where": "dispatch comment lines 176-177",
+       "verdict": "UNCHECKABLE",
+       "why": "offload auto-land behavior not in this chunk"
+      },
+      {
+       "text": "does not silently switch write-mode dispatch to the gated-candidate shape",
+       "where": "dispatch comment lines 177-178",
+       "verdict": "KEPT",
+       "why": "dispatch never calls gate_concurrent_writes; it calls offload directly for sequential writes"
+      },
+      {
+       "text": "Call gate_concurrent_writes()/promote_candidates() explicitly when that decision says to.",
+       "where": "dispatch comment lines 182-183",
+       "verdict": "KEPT",
+       "why": "dispatch does not call them; explicit call required by user"
+      },
+      {
+       "text": "Safe concurrent WRITE dispatch: PHASE 1 only (gating, not landing)",
+       "where": "gate_concurrent_writes docstring line 194",
+       "verdict": "UNCHECKABLE",
+       "why": "method body is truncated; only signature and docstring visible"
+      },
+      {
+       "text": "Every write task in tasks runs CONCURRENTLY, each through daedalus.spine.attempt.TaskAttempt in its own worktree (offload() as the runner -- its verify+rollback cascade stays the authority for per-task correctness; see daedalus.kairos.gated_writes._relay_gate)",
+       "where": "gate_concurrent_writes docstring lines 195-198",
+       "verdict": "UNCHECKABLE",
+       "why": "body not in chunk; TaskAttempt and _relay_gate not visible"
+      },
+      {
+       "text": "Returns one daedalus.kairos.gated_writes.GatedCandidate per accepted write task: a gate verdict plus a PatchArtifact when clean",
+       "where": "gate_concurrent_writes docstring lines 199-200",
+       "verdict": "UNCHECKABLE",
+       "why": "body not in chunk; return type not observable"
+      },
+      {
+       "text": "The primary checkout at repo_root is NEVER touched by this call -- that is TaskAttempt's own structural guarantee (see tests/test_spine_attempt.py::test_happy_path_artifact_and_primary_untouched)",
+       "where": "gate_concurrent_writes docstring lines 200-202",
+       "verdict": "UNCHECKABLE",
+       "why": "TaskAttempt and test not in chunk"
+      },
+      {
+       "text": "Advisory-only tasks are bounced (this method only accepts write-mode work; use plan/accept for the routing verdict on the rest of a mixed task list, or dispatch to actually run them)",
+       "where": "gate_concurrent_writes docstring lines 203-205",
+       "verdict": "UNCHECKABLE",
+       "why": "body not in chunk; bounce logic not visible"
+      },
+      {
+       "text": "cancel, when given, is forwarded unchanged to [rest truncated]",
+       "where": "gate_concurrent_writes docstring line 206",
+       "verdict": "UNCHECKABLE",
+       "why": "docstring truncated; forwarding not observable"
+      }
+     ],
+     "observations": [
+      {
+       "what": "gate_concurrent_writes is defined but its body is entirely truncated; all claims about its behavior are uncheckable from this chunk",
+       "where": "line 193-206",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "dispatch has a long comment block describing a design decision but the code itself does not implement the gated path; it only notes the decision",
+       "where": "lines 159-183",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_paths_overlap is defined but never used in this chunk; it is a diagnostic helper only",
+       "where": "lines 22-33",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "max_parallel_writes is set but never used in this chunk; only gate_concurrent_writes would use it",
+       "where": "lines 55-67",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The _bench cycle is created but never used in this chunk; it is presumably used by provider spawning elsewhere",
+       "where": "line 74",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "accept() accesses t['objective'] directly; if a task dict lacks 'objective', KeyError propagates (no guard)",
+       "where": "line 105",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "dispatch() uses 'parallel and not has_writes' to decide can_parallel; if has_writes is true, parallel is silently downgraded to sequential with a note appended",
+       "where": "lines 184-187",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "line 105 | medium | accept() unguarded t['objective'] subscript; malformed task dict raises KeyError with no repair | add a .get with default or catch KeyError and reject task"
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/kairos/scheduler.py",
+      "chunk": "1 of 2",
+      "purpose": "Kairos bounded scheduler: accept/plan/dispatch/gate writes with concurrency caps and safety policy",
+      "symbols": [
+       {
+        "name": "FREE_LANES",
+        "kind": "constant",
+        "effects": [],
+        "note": "tuple of lanes Ikarus may dispatch: ollama, deepseek, codex_cli"
+       },
+       {
+        "name": "DEFAULT_AVAILABILITY",
+        "kind": "constant",
+        "effects": [],
+        "note": "default provider availability dict: claude_cli and ollama True, deepseek and codex_cli False"
+       },
+       {
+        "name": "_paths_overlap",
+        "kind": "function",
+        "effects": [],
+        "note": "checks if any two write-mode assignments declare the same normalized path"
+       },
+       {
+        "name": "Assignment",
+        "kind": "class",
+        "effects": [],
+        "note": "dataclass holding objective, paths, owner, lane, worker, mode, accepted, reason"
+       },
+       {
+        "name": "KairosScheduler",
+        "kind": "class",
+        "effects": [],
+        "note": "bounded scheduler; max_workers=3, max_parallel_writes=2, availability/policy/project/active_agents config"
+       },
+       {
+        "name": "__post_init__",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "loads project policy/team settings if project set; initializes _bench cycle from ollama roster"
+       },
+       {
+        "name": "accept",
+        "kind": "function",
+        "effects": [],
+        "note": "routes each task; bounces non-FREE_LANES to Adam; accepted assignments get worker persona"
+       },
+       {
+        "name": "plan",
+        "kind": "function",
+        "effects": [],
+        "note": "dry run: returns assignments, spawned count, bounced count, waves"
+       },
+       {
+        "name": "dispatch",
+        "kind": "function",
+        "effects": [
+         "repository_mutation",
+         "process_spawn"
+        ],
+        "note": "runs accepted work; parallel only for advisory; writes sequential with whole-repo snapshots"
+       },
+       {
+        "name": "gate_concurrent_writes",
+        "kind": "function",
+        "effects": [
+         "repository_mutation",
+         "process_spawn"
+        ],
+        "note": "phase-1 gating of concurrent writes via TaskAttempt in per-task worktrees; returns gated candidates"
+       },
+       {
+        "name": "_bounced_or_planned",
+        "kind": "function",
+        "effects": [],
+        "note": "inner helper: returns bounced/planned dict, or None if live run needed"
+       },
+       {
+        "name": "_run_one",
+        "kind": "function",
+        "effects": [
+         "repository_mutation",
+         "process_spawn"
+        ],
+        "note": "inner helper: calls offload() and returns result dict with wrote list"
+       }
+      ]
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7a471e3b6a68be88a09cffeb08f2e6e40c5b3f3dd4892ce4d7dc37780b2d3fda",
+    "objective_chars": 18242,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [1/2]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,307 @@
+{
+ "task_id": "scan__daedalus_eval_harness.py__c1of4__da90d94",
+ "key": "scan__daedalus_eval_harness.py__c1of4__da90d94-2bb2e08e3f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed harness.py chunk 1: docstring claims vs code; several claims kept, one broken (eval_task_tier1 can raise KeyError on missing 'repo'), others uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/harness.py",
+     "chunk": "1 of 4",
+     "purpose": "Module docstring, imports, task/row helpers, Tier 1 evaluation functions.",
+     "symbols": [
+      {
+       "name": "_IGNORE_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Set of directory names skipped for whole-repo concat (context B)."
+      },
+      {
+       "name": "all_tasks",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns TASKS plus load_minted_tasks()."
+      },
+      {
+       "name": "_mean",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns 0.0 for empty list."
+      },
+      {
+       "name": "_is_primary_tier",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True iff label_tier == 'primary'."
+      },
+      {
+       "name": "_group_rows_by_provenance",
+       "kind": "function",
+       "effects": [],
+       "note": "Groups rows into {provenance: {primary: [], quarantine: []}}."
+      },
+      {
+       "name": "_by_provenance",
+       "kind": "function",
+       "effects": [],
+       "note": "Applies aggregate_fn per (provenance, tier) bucket."
+      },
+      {
+       "name": "_task_error_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a row for resolution failures; includes 'error' key, no recall/compression keys."
+      },
+      {
+       "name": "_correctness_task_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds an error row for correctness tasks; sets correctness_task=True."
+      },
+      {
+       "name": "_is_focus_withheld",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if any withheld entry has role 'focus'."
+      },
+      {
+       "name": "_focus_withheld_row",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a row for focus-withheld tasks; includes focus_withheld=True, no recall/compression keys."
+      },
+      {
+       "name": "_recall",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns (fraction of must_include found, missed list); empty list gives 1.0."
+      },
+      {
+       "name": "eval_task_tier1",
+       "kind": "function",
+       "effects": [],
+       "note": "Deterministic Tier-1 result for a single task; catches ValueError/OSError, refuses correctness tasks."
+      },
+      {
+       "name": "_tier1_aggregate",
+       "kind": "function",
+       "effects": [],
+       "note": "Aggregates Tier-1 rows: n_tasks, mean_recall, mean_compression, n_slice_recall_misses, missed_ids."
+      },
+      {
+       "name": "run_tier1",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs Tier 1 over tasks (default TASKS); body beyond chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Tier 1 (deterministic, no LLM, the rigorous core): For each task, take the distilled ``semantic_slice`` and measure * recall = fraction of ``must_include`` found in the slice text, * compression = 1 - slice_tokens / whole_repo_tokens.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "eval_task_tier1 computes recall via _recall and compression as 1 - slice_tokens/whole_repo_tokens."
+      },
+      {
+       "text": "Aggregated PER LABEL-PROVENANCE TIER (see ``daedalus.eval.tasks`` docstring) -- never blended into one number",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "run_tier1 uses _by_provenance which aggregates per (provenance, tier) bucket; no top-level blended mean in this chunk."
+      },
+      {
+       "text": "``tier == \"quarantine\"`` tasks are excluded from every headline and reported separately (see ``run_tier1``)",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "run_tier1 body is not in this chunk; no evidence of headline exclusion here."
+      },
+      {
+       "text": "Any task with recall < 1.0 is a *slice-recall miss*; we surface exactly which symbols were dropped -- that is the feedback signal the structcore team uses to sharpen slices.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "_tier1_aggregate computes n_slice_recall_misses and missed_ids; eval_task_tier1 includes 'missed' list."
+      },
+      {
+       "text": "Arms A/B/C (deterministic, no LLM -- same honesty rules as Tier 1): ... scored on BOTH recall (via ``_recall``) and true token cost.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Arms functions are not in this chunk; no code to verify."
+      },
+      {
+       "text": "Tier 2 (opt-in, needs a runtime): ... Gated: if no provider is reachable it is skipped cleanly with a message -- Tier 2 NEVER crashes Tier 1 and NEVER makes a network call unless explicitly enabled.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "Tier 2 functions are not in this chunk."
+      },
+      {
+       "text": "Gate (advisory, local-only): ``run_gate`` replays the corpus against a stored ``baseline.json`` and flags PRIMARY-tier tasks whose recall decreased -- see its docstring for the exact workflow. ADVISORY ONLY: never wired to block an autonomous action; there is no CI in this repo, this is a developer-run local check.",
+       "where": "module docstring",
+       "verdict": "uncheckable",
+       "why": "run_gate is not in this chunk."
+      },
+      {
+       "text": "Isolated: imports only structcore's stable public API.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "Imports from daedalus.structcore are index, languages, parse, slice, and tokens; all appear to be public API modules."
+      },
+      {
+       "text": "The hardcoded ``TASKS`` plus every task persisted in the mint store (``daedalus.eval.mint.load_minted_tasks``) -- the load path that closes the mint -> quarantine -> confirm -> primary flywheel ... no store file -> ``load_minted_tasks`` returns ``[]`` -> this is exactly ``TASKS``, same order, same content.",
+       "where": "all_tasks docstring",
+       "verdict": "kept",
+       "why": "all_tasks returns TASKS + load_minted_tasks(); if load_minted_tasks returns [], the result is TASKS in same order."
+      },
+      {
+       "text": "This is the default every ``run_*``/``*_baseline`` function below uses in place of ``TASKS``",
+       "where": "all_tasks docstring",
+       "verdict": "uncheckable",
+       "why": "Other run_* functions not in this chunk; cannot verify they use all_tasks."
+      },
+      {
+       "text": "Fail-closed: only the EXACT string \"primary\" counts. A missing, typo'd, or otherwise unrecognized tier is treated as quarantine (excluded from any go/no-go number)",
+       "where": "_is_primary_tier docstring",
+       "verdict": "kept",
+       "why": "Function returns label_tier == 'primary'; anything else returns False, which _group_rows_by_provenance maps to 'quarantine'."
+      },
+      {
+       "text": "{provenance: {\"primary\": [...], \"quarantine\": [...]}} for every provenance actually present in ``rows``. Both tier buckets always exist (possibly empty)",
+       "where": "_group_rows_by_provenance docstring",
+       "verdict": "kept",
+       "why": "Initializes out[prov] = {'primary': [], 'quarantine': []} for each provenance, then appends."
+      },
+      {
+       "text": "This is the ONLY aggregation path Tier 1 and the arms comparison use -- there is deliberately no top-level blended mean anywhere in this module.",
+       "where": "_by_provenance docstring",
+       "verdict": "uncheckable",
+       "why": "Arms comparison is not in this chunk; cannot verify no other aggregation path exists."
+      },
+      {
+       "text": "CALLERS MUST PRE-FILTER OUT ERRORED ROWS (``\"error\" in row``) AND FOCUS-WITHHELD ROWS (``row.get(\"focus_withheld\")``) before passing ``rows`` here -- see ``run_tier1``/``run_arms``. Neither carries a recall/compression measurement, so folding either in would either KeyError or (worse) silently get treated as a zero, corrupting the mean it was supposed to be excluded from.",
+       "where": "_by_provenance docstring",
+       "verdict": "kept",
+       "why": "The aggregation functions (_mean) would KeyError on missing recall/compression keys, as claimed; error and focus_withheld rows have no such keys."
+      },
+      {
+       "text": "Shared shape for a per-task RESOLUTION failure -- ``ValueError`` (unindexable target, e.g. a quarantined mint task whose file was renamed/deleted after minting, or an unresolvable ``repo`` label) or ``OSError`` (repo unreadable). Used by every ``eval_task_*``/``run_*`` per-task try block so one malformed task degrades to a single reported row instead of crashing the whole eval run -- \"a quarantined flywheel task must not be able to take down the go/no-go machinery.\"",
+       "where": "_task_error_row docstring",
+       "verdict": "kept",
+       "why": "eval_task_tier1 catches (ValueError, OSError) and returns _task_error_row; the row has 'error' key and no recall/compression."
+      },
+      {
+       "text": "``error`` is the marker every downstream aggregator/report checks (``\"error\" in row`` or ``row.get(\"error\")``). There is deliberately no ``recall``/``compression`` (or arms ``recall_A``/``tokens_A``/...) key at all -- ABSENT, not ``None`` -- so any aggregation path that forgets to filter on ``error`` fails loudly (``KeyError``) instead of silently averaging in a placeholder.",
+       "where": "_task_error_row docstring",
+       "verdict": "kept",
+       "why": "The returned dict has no recall/compression keys; _tier1_aggregate would KeyError if passed such rows."
+      },
+      {
+       "text": "A FAIL_TO_PASS/PASS_TO_PASS task ... carries no ``must_include``, so handing it to ``_recall`` would return the vacuous 1.0 -- a task that cannot fail, inflating the go/no-go number with a measurement that never happened. That is the precise failure the tier machinery exists to prevent, so it is refused here rather than averaged in.",
+       "where": "_correctness_task_row docstring",
+       "verdict": "kept",
+       "why": "eval_task_tier1 calls _correctness_task_row before slicing; _recall would return 1.0 for empty must_include, as described."
+      },
+      {
+       "text": "Refused as an ERRORED row (``error`` key present, no ``recall``/``compression`` key at all) so it takes every existing path for a degraded measurement: excluded from all aggregates, listed in ``errored``, never silently dropped, and LOUD in ``run_gate`` when its tier is primary.",
+       "where": "_correctness_task_row docstring",
+       "verdict": "uncheckable",
+       "why": "run_gate and errored listing are not in this chunk."
+      },
+      {
+       "text": "True iff ``semantic_slice`` fail-closed on the task's OWN focus file (see slice.py's FOCUS GATE): the withheld block contains a role==\"focus\" entry -- the exact shape slice.py emits when the unconditional secret floor fires on the target itself, not on some neighbour it dropped.",
+       "where": "_is_focus_withheld docstring",
+       "verdict": "kept",
+       "why": "Function checks res.get('withheld') for any entry with role == 'focus'."
+      },
+      {
+       "text": "Shared shape for a FOCUS-WITHHELD row -- the fence fail-closed on the task's own focus file, a lane A1 label-hygiene case distinct from ``_task_error_row``: ``semantic_slice`` did not raise (this is not a resolution failure), it legitimately returned an empty, gate-refused slice. There is NO recall/compression/missed (Tier 1) or recall_A/tokens_A/... (arms) key at all -- ABSENT, not a zero -- same \"any aggregator that forgets to filter fails loudly\" contract as the ``error`` marker, keyed here on ``focus_withheld`` instead.",
+       "where": "_focus_withheld_row docstring",
+       "verdict": "kept",
+       "why": "The returned dict has focus_withheld=True and no recall/compression keys; _is_focus_withheld is called before recall calculation."
+      },
+      {
+       "text": "Fraction of ``must_include`` found (substring) in ``slice_text``, plus the list of items that were missed. Empty label list -> recall 1.0 vacuously.",
+       "where": "_recall docstring",
+       "verdict": "kept",
+       "why": "Function returns 1.0, [] if must_include is empty; otherwise computes found/total and missed list."
+      },
+      {
+       "text": "NEVER RAISES: a resolution failure -- ``semantic_slice``/``resolve_task_repo`` raising ``ValueError`` (e.g. the task's ``target`` is not in the index, the live repro that motivated this: a minted quarantine task whose target file had moved), or ``OSError`` reading the repo -- is caught and returned as an ERRORED row (``_task_error_row``) instead of propagating.",
+       "where": "eval_task_tier1 docstring",
+       "verdict": "broken",
+       "why": "The try block covers resolve_task_repo and semantic_slice, catching only ValueError and OSError. However, task['repo'] is an unguarded subscript that will raise KeyError if the key is missing (line 96), and task['id']/task['target'] are also unguarded in the success path (lines 119, 121). The docstring claims NEVER RAISES, but a malformed task dict missing 'repo' would raise KeyError, not be caught."
+      },
+      {
+       "text": "A CORRECTNESS task is refused here before anything is sliced -- see ``_correctness_task_row``.",
+       "where": "eval_task_tier1 docstring",
+       "verdict": "kept",
+       "why": "is_correctness_task(task) is checked first; if true, returns _correctness_task_row(task)."
+      },
+      {
+       "text": "Defaulted so pre-provenance task dicts (e.g. ad-hoc test fixtures that predate this schema) still group as \"hand_reachable\"/\"primary\" -- additive, byte-identical aggregation for callers who never adopted the new fields.",
+       "where": "eval_task_tier1 result comment",
+       "verdict": "kept",
+       "why": "label_provenance defaults to 'hand_reachable', label_tier defaults to 'primary' via task.get."
+      }
+     ],
+     "observations": [
+      {
+       "what": "eval_task_tier1 accesses task['repo'] unguarded; if absent raises KeyError, contradicting NEVER RAISES.",
+       "where": "eval_task_tier1, line 96",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "eval_task_tier1 success path accesses task['id'] and task['target'] unguarded; missing keys would raise KeyError.",
+       "where": "eval_task_tier1, lines 119-121",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring says 'NEVER makes a network call unless explicitly enabled' for Tier 2, but the chunk contains no Tier 2 code.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring for _by_provenance instructs callers to pre-filter error/focus rows, but no enforcement in this function; a caller could forget, causing KeyError in aggregation.",
+       "where": "_by_provenance",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "dc35121bac8c2abc93709dd3c5cd28553da71d09c4a2a1716a8036510a3e441f",
+    "objective_chars": 17645,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/harness.py [1/4]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/harness.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

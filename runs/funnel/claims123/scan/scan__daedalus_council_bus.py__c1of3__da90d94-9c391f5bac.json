@@ -1,0 +1,513 @@
+{
+ "task_id": "scan__daedalus_council_bus.py__c1of3__da90d94",
+ "key": "scan__daedalus_council_bus.py__c1of3__da90d94-9c391f5bac",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/bus.py",
+     "chunk": "1 of 3",
+     "purpose": "Module docstring, constants, hashing, identity/paths, and secret floor scan helpers for the hash-chained council transcript.",
+     "symbols": [
+      {
+       "name": "ENTRY_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'dcouncil/1' identifying the record format."
+      },
+      {
+       "name": "ANCHOR_VERSION",
+       "kind": "constant",
+       "effects": [],
+       "note": "String 'dcouncil-anchor/1' identifying the anchor format."
+      },
+      {
+       "name": "ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to the repository root, resolved from this file's location."
+      },
+      {
+       "name": "DEFAULT_COUNCIL_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to runs/council under ROOT."
+      },
+      {
+       "name": "_FORBIDDEN_STORE_DIR",
+       "kind": "constant",
+       "effects": [],
+       "note": "Path to ROOT/memory, the directory council stores must never resolve under."
+      },
+      {
+       "name": "TURN_STATUS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of five allowed turn statuses: spoke, refused, unavailable, budget_exhausted, anomaly."
+      },
+      {
+       "name": "UNAVAILABLE_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of fixed machine reasons for unavailable status."
+      },
+      {
+       "name": "ANOMALY_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of fixed machine reasons for anomaly status."
+      },
+      {
+       "name": "PARTICIPANT_OUTCOMES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of participant outcome labels: requested, seated, responded, refused, unavailable."
+      },
+      {
+       "name": "MAX_CONTENT_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer 200000, fail-closed ceiling on a single turn's content size."
+      },
+      {
+       "name": "_ACTOR_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for council actor ids per ADR-010."
+      },
+      {
+       "name": "_COUNCIL_ID_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex for council id filename safety."
+      },
+      {
+       "name": "_SHA256_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Compiled regex matching a 64-hex SHA256 digest."
+      },
+      {
+       "name": "_WRITE_LOCK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Threading lock for serializing append operations."
+      },
+      {
+       "name": "_NON_BODY_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of position/identity fields excluded from body_sha."
+      },
+      {
+       "name": "_ALLOWED_TURN_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of accepted top-level turn keys; unknown keys refused loudly."
+      },
+      {
+       "name": "_ALLOWED_META_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of accepted meta subkeys."
+      },
+      {
+       "name": "_ALLOWED_PARTICIPANT_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of accepted participant record keys."
+      },
+      {
+       "name": "_APPEND_CACHE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict keyed by resolved store path holding append index, invalidated by file size/mtime."
+      },
+      {
+       "name": "canonical_body",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a new dict containing all record fields except the _NON_BODY_FIELDS set."
+      },
+      {
+       "name": "canonical_body_json",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns JSON serialization of canonical_body with sort_keys, compact separators, ensure_ascii."
+      },
+      {
+       "name": "_body_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns hex SHA256 of canonical_body_json encoded UTF-8."
+      },
+      {
+       "name": "_entry_sha",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns hex SHA256 of prev-or-empty + NUL + body_sha + NUL + ts."
+      },
+      {
+       "name": "_now_iso",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns current UTC time as ISO format string."
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns f'council.{vendor}.{model}'."
+      },
+      {
+       "name": "evidence_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns dict with path (backslashes converted to forward slashes) and sha256 of the provided bytes."
+      },
+      {
+       "name": "council_store_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Validates council_id then returns Path(base_dir or DEFAULT_COUNCIL_DIR) / f'{council_id}.jsonl'."
+      },
+      {
+       "name": "anchor_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the store path with '.anchor.json' appended to the file name."
+      },
+      {
+       "name": "_check_council_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Raises ValueError if council_id is not a string matching _COUNCIL_ID_RE."
+      },
+      {
+       "name": "_resolve_store",
+       "kind": "function",
+       "effects": [],
+       "note": "Resolves the store path and raises ValueError if it resolves under _FORBIDDEN_STORE_DIR."
+      },
+      {
+       "name": "_scan_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Scans each path individually through secret_floor_rule(path, ''), returning first hit."
+      },
+      {
+       "name": "_scan_texts",
+       "kind": "function",
+       "effects": [],
+       "note": "Scans each non-empty text individually through secret_floor_rule('', text), returning first hit."
+      },
+      {
+       "name": "_meta_strings",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns sorted list of string values from meta dict, skipping empty strings."
+      },
+      {
+       "name": "_scan_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Function body starts at end of chunk; not fully visible."
+      }
+     ],
+     "claims": [
+      {
+       "text": "An APPEND-ONLY, HASH-CHAINED JSONL file per council at runs/council/<council_id>.jsonl.",
+       "where": "module docstring, line 1",
+       "verdict": "UNCHECKABLE",
+       "why": "The file format and append-only behavior are not implemented in this chunk; only paths and hashing helpers appear."
+      },
+      {
+       "text": "Fail-loud, human-diffable, tamper-evident: every line carries the SHA of the line before it, so a flipped byte or a deleted INTERIOR line breaks the chain and verify_chain NAMES the offending 1-indexed line.",
+       "where": "module docstring, line 1",
+       "verdict": "UNCHECKABLE",
+       "why": "verify_chain is in the names-defined-elsewhere list but not present in this chunk; the chaining logic (_entry_sha) is here, but the verification loop is not."
+      },
+      {
+       "text": "TAIL truncation (any prefix of a valid chain is itself a valid chain) is caught only against the head/count ANCHOR persisted beside the transcript and re-checked on every verify.",
+       "where": "module docstring, line 1",
+       "verdict": "UNCHECKABLE",
+       "why": "anchor_path exists here, but the actual anchor read/write and verify logic are in functions not present in this chunk."
+      },
+      {
+       "text": "It deliberately REIMPLEMENTS memstore.py's two-SHA discipline instead of importing it, and it must never write to the memory ledger.",
+       "where": "module docstring, SEPARATE STORE section",
+       "verdict": "KEPT",
+       "why": "The chunk defines _body_sha/_entry_sha locally and _resolve_store refuses paths under _FORBIDDEN_STORE_DIR (lines 170-177)."
+      },
+      {
+       "text": "Reason, in one line: memstore.fold_state promotes an entry to primary after three independent confirmations, and four models discussing a patch generate confident prose about the codebase -- three agreeing turns would be three confirmations. A mechanism that promotes model opinion to certified memory and then recalls it as fact is the fabrication failure this project treats as the worst one.",
+       "where": "module docstring, SEPARATE STORE section",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim about memstore.fold_state's promotion logic references another module not supplied; this chunk only shows the refusal mechanism."
+      },
+      {
+       "text": "COUNCIL RECORDS ARE NEVER AN INPUT TO MEMORY RECALL. Any store path under <repo>/memory/ is refused loudly by _resolve_store.",
+       "where": "module docstring, SEPARATE STORE section",
+       "verdict": "KEPT",
+       "why": "_resolve_store raises ValueError when the resolved path is under _FORBIDDEN_STORE_DIR (lines 170-177)."
+      },
+      {
+       "text": "body_sha -- sha256 over json.dumps(canonical_body, sort_keys=True, separators=(\",\",\":\"), ensure_ascii=True) where canonical_body is the record MINUS the four position/identity fields ts, prev, entry_sha, id (and body_sha itself).",
+       "where": "module docstring, WHAT IS IN A HASH",
+       "verdict": "KEPT",
+       "why": "canonical_body_json uses exactly those arguments (lines 98-100) and _NON_BODY_FIELDS includes ts, prev, entry_sha, id, body_sha (line 63)."
+      },
+      {
+       "text": "entry_sha -- sha256(prev + \"\\0\" + body_sha + \"\\0\" + ts), the chain link. Genesis prev is None and folds in as \"\" (unambiguous: a real prev is always a 64-hex digest).",
+       "where": "module docstring, WHAT IS IN A HASH",
+       "verdict": "KEPT",
+       "why": "_entry_sha builds payload as (prev or \"\") + \"\\0\" + body_sha + \"\\0\" + ts (lines 104-105). The 64-hex claim about real prev is supported by _SHA256_RE but not enforced here."
+      },
+      {
+       "text": "Unlike memstore, a turn's id is entry_sha[:16], not body_sha[:16], and there is NO dedupe.",
+       "where": "module docstring, WHAT IS IN A HASH",
+       "verdict": "UNCHECKABLE",
+       "why": "The id assignment and dedupe logic are not in this chunk; only the hashing functions are present."
+      },
+      {
+       "text": "A council transcript is a log of EVENTS: two participants may legitimately emit byte-identical bodies, and deduping the second away would erase a voice from the record.",
+       "where": "module docstring, WHAT IS IN A HASH",
+       "verdict": "UNCHECKABLE",
+       "why": "The append logic that would implement or avoid dedupe is not in this chunk."
+      },
+      {
+       "text": "Dispatch may be concurrent; CHAINING MUST NOT BE. append_round takes a whole round's turns in ANY completion order, sorts them by the vendor-namespaced actor id, assigns seq at chain time, and stamps ONE chain timestamp for the round.",
+       "where": "module docstring, DETERMINISTIC CHAINING",
+       "verdict": "UNCHECKABLE",
+       "why": "append_round is not present in this chunk; only _WRITE_LOCK and _entry_sha are here."
+      },
+      {
+       "text": "The same fixture responses delivered in reversed completion order therefore produce a byte-identical chain head, so an offline verifier proves \"this is the council that happened\", not merely \"nobody edited this file\".",
+       "where": "module docstring, DETERMINISTIC CHAINING",
+       "verdict": "UNCHECKABLE",
+       "why": "Depends on append_round's sorting and timestamp logic, not visible here."
+      },
+      {
+       "text": "Real per-turn wall-clock lives in meta.latency_ms / meta.started_ts, which are body content, not chain position.",
+       "where": "module docstring, DETERMINISTIC CHAINING",
+       "verdict": "KEPT",
+       "why": "_ALLOWED_META_KEYS includes latency_ms and started_ts (lines 77-78), and meta is not in _NON_BODY_FIELDS, so it is part of canonical_body."
+      },
+      {
+       "text": "sensitivity.secret_floor_rule has two independent channels and they are fed SEPARATELY here, because a concatenated scan kills the path tier exactly where diffs add secrets.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "KEPT",
+       "why": "_scan_paths calls secret_floor_rule(str(p), \"\") per path (lines 185-187) and _scan_texts calls secret_floor_rule(\"\", str(t)) per text (lines 194-197), keeping the two channels separate."
+      },
+      {
+       "text": "PATH channel: every evidence path, INDIVIDUALLY.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "KEPT",
+       "why": "_scan_paths iterates over paths and calls secret_floor_rule for each one individually (lines 185-187)."
+      },
+      {
+       "text": "CONTENT channel: the turn content, every ref, and every metadata string, each scanned on its own -- never over the assembled turn.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "The call sites that feed content, refs, and metadata into _scan_texts are in _scan_turn, which is cut off at the end of this chunk."
+      },
+      {
+       "text": "This runs on OUTBOUND turns and, critically, on INBOUND vendor responses BEFORE they are chained.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "The inbound/outbound call sites are in append logic not present in this chunk."
+      },
+      {
+       "text": "A hit REFUSES the turn -- no redact-and-send, no redact-and-store.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "The refusal action is in _scan_turn or append logic not fully visible here."
+      },
+      {
+       "text": "In its place a status=\"refused\" receipt is chained naming ONLY the rule label (a fixed string, never matched text), so the record still shows WHO was refused and in which round.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "Receipt construction is in append logic not present in this chunk."
+      },
+      {
+       "text": "The receipt is re-scanned before it is written; if the identity fields themselves carry the secret the receipt degrades to an anonymous one rather than smuggling the credential onto the very path meant to be safe.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "Receipt re-scanning and degradation logic is not in this chunk."
+      },
+      {
+       "text": "ONE CARVE-OUT, DELIBERATE: withheld (paths an egress lane declined to send) is scanned with the CONTENT channel only, never the path channel.",
+       "where": "module docstring, SECRET FLOOR",
+       "verdict": "UNCHECKABLE",
+       "why": "The handling of withheld is in _scan_turn or append logic not present in this chunk."
+      },
+      {
+       "text": "EVERY REQUESTED PARTICIPANT PRODUCES EXACTLY ONE CHAINED TURN PER ROUND -- content, refused, unavailable with a machine reason, or budget_exhausted.",
+       "where": "module docstring, final paragraph",
+       "verdict": "UNCHECKABLE",
+       "why": "The per-participant turn generation is in append logic not present in this chunk."
+      },
+      {
+       "text": "A turn is one of these and nothing else. There is deliberately no \"ok\" here: a status value that reads as a verdict is one grep away from becoming one.",
+       "where": "comment above TURN_STATUS, line 45",
+       "verdict": "KEPT",
+       "why": "TURN_STATUS tuple contains exactly spoke, refused, unavailable, budget_exhausted, anomaly; no 'ok'."
+      },
+      {
+       "text": "Fail-closed ceiling on a single turn. Transcript tokens grow as O(V^2 R^2), not O(V R); the per-council budget lives in session.py, but no single turn may blow the file up on its own.",
+       "where": "comment above MAX_CONTENT_CHARS, line 55",
+       "verdict": "KEPT",
+       "why": "MAX_CONTENT_CHARS is set to 200_000, a finite ceiling; the growth-rate claim references session.py which is not in this chunk but the constant itself is present."
+      },
+      {
+       "text": "ADR-010 actor-namespace rule, pinned to the MODEL and not just the vendor: \"claude said X\" is not reproducible six months out, because the model behind a stable command name changes underneath it.",
+       "where": "comment above _ACTOR_RE, line 58",
+       "verdict": "KEPT",
+       "why": "_ACTOR_RE pattern requires council.<vendor>.<model> with both vendor and model components; the comment describes the intent and the regex enforces the namespace."
+      },
+      {
+       "text": "Position/identity fields, excluded from body_sha (see module docstring).",
+       "where": "comment above _NON_BODY_FIELDS, line 62",
+       "verdict": "KEPT",
+       "why": "_NON_BODY_FIELDS contains ts, prev, entry_sha, id, body_sha, exactly matching the docstring's list."
+      },
+      {
+       "text": "Accepted caller keys. A key outside this set is REFUSED loudly, never dropped: a silently dropped field lets two semantically distinct turns canonicalise to the same body and hands the caller a success id for a turn never recorded.",
+       "where": "comment above _ALLOWED_TURN_KEYS, line 67",
+       "verdict": "UNCHECKABLE",
+       "why": "The refusal logic that checks keys against _ALLOWED_TURN_KEYS is not in this chunk; only the set definition is present."
+      },
+      {
+       "text": "Per-store append index: tail entry_sha + record/turn counts, keyed by resolved path and invalidated by the file's (size, mtime_ns).",
+       "where": "comment above _APPEND_CACHE, line 85",
+       "verdict": "UNCHECKABLE",
+       "why": "_APPEND_CACHE is defined as an empty dict, but the invalidation and usage logic are in append functions not present in this chunk."
+      },
+      {
+       "text": "The content projection body_sha is taken over: everything EXCEPT the position/identity fields. Uniform across turn and roster records so the chain walk needs no per-record-type branch.",
+       "where": "canonical_body docstring, line 94",
+       "verdict": "KEPT",
+       "why": "canonical_body filters out _NON_BODY_FIELDS regardless of record type (lines 96-97)."
+      },
+      {
+       "text": "The exact bytes hashed. Exposed so a test can assert determinism against the canonical form rather than against a digest it cannot inspect.",
+       "where": "canonical_body_json docstring, line 99",
+       "verdict": "KEPT",
+       "why": "canonical_body_json returns the JSON string with deterministic sort_keys and separators (lines 100-102)."
+      },
+      {
+       "text": "council.<vendor>.<model> per ADR-010. An unknown model id is recorded as the literal unknown by the CALLER -- never omitted, never inferred.",
+       "where": "actor_id docstring, line 111",
+       "verdict": "UNCHECKABLE",
+       "why": "actor_id returns the formatted string (line 113), but the caller's handling of unknown model ids is outside this chunk."
+      },
+      {
+       "text": "One evidence citation: the path as given plus the sha256 of the exact bytes shown to the model. Two participants citing \"the file\" may have been shown different bytes; without this the transcript records a citation that cannot be reproduced.",
+       "where": "evidence_ref docstring, line 116",
+       "verdict": "KEPT",
+       "why": "evidence_ref returns {'path': path with backslashes replaced, 'sha256': sha256 of the provided bytes} (lines 120-121)."
+      },
+      {
+       "text": "<base_dir>/<council_id>.jsonl. council_id is filename-safe by validation, not by sanitising: a silently rewritten id would point two councils at one transcript.",
+       "where": "council_store_path docstring, line 123",
+       "verdict": "KEPT",
+       "why": "council_store_path calls _check_council_id which raises on invalid ids (lines 125-126, 142-145), and constructs the path without sanitizing."
+      },
+      {
+       "text": "The head/count anchor beside the transcript. Separate file on purpose: the chain walk cannot detect tail truncation from a truncated file alone.",
+       "where": "anchor_path docstring, line 130",
+       "verdict": "KEPT",
+       "why": "anchor_path returns store_path.with_name(store_path.name + '.anchor.json') (lines 131-133), a separate file."
+      },
+      {
+       "text": "Resolve and REFUSE any path under <repo>/memory/. Council turns must never reach the memory ledger (see module docstring).",
+       "where": "_resolve_store docstring, line 150",
+       "verdict": "KEPT",
+       "why": "_resolve_store resolves the path and raises ValueError if it is under _FORBIDDEN_STORE_DIR (lines 163-168)."
+      },
+      {
+       "text": "PATH channel, one path at a time -- so a hit is attributable to one path and a diff that ADDS .env cannot hide inside a blob.",
+       "where": "_scan_paths docstring, line 180",
+       "verdict": "KEPT",
+       "why": "_scan_paths iterates over each path and calls secret_floor_rule(str(p), \"\") individually (lines 185-187)."
+      },
+      {
+       "text": "CONTENT channel, one string at a time. path=\"\" here is correct and is NOT the forbidden whole-prompt call: the path tier is run separately over every evidence path above, so it is never skipped.",
+       "where": "_scan_texts docstring, line 190",
+       "verdict": "KEPT",
+       "why": "_scan_texts calls secret_floor_rule(\"\", str(t)) per text (lines 194-197), and _scan_paths exists separately to run the path tier."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_resolve_store returns the unresolved original path p after validation, not the resolved path; callers may then use p which could be relative or contain symlinks, potentially bypassing the memory refusal if the file is accessed via a different path.",
+       "where": "lines 163-168",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_scan_texts skips empty strings with 'continue', so an empty string cannot be flagged; if an empty string were the only carrier of a secret (unlikely), it would pass silently.",
+       "where": "line 195",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_meta_strings only includes string values; non-string metadata values are silently omitted from the scan, potentially letting a secret hide in a non-string field.",
+       "where": "lines 199-200",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The chunk ends mid-function in _scan_turn; the rest of the secret floor logic and all append/verify functions are not visible here.",
+       "where": "line 201",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "_resolve_store | medium | Returns original path after validating resolved path; symlink or relative path usage elsewhere could bypass memory refusal | Confirm all callers use the returned path and that file operations resolve it identically",
+      "_meta_strings | medium | Non-string meta values are excluded from secret scan, potentially allowing secrets in non-string fields | Check whether meta values are always strings in practice; if not, convert all values before scanning",
+      "_scan_texts | low | Empty strings are skipped; if a secret could be an empty string (unlikely), it would pass | Verify secret_floor_rule cannot return a hit for an empty string",
+      "chunk cut | low | _scan_turn and append/verify logic not visible; claims about those behaviors are uncheckable | Review remaining chunks"
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7024cf6d75349d33042b31e28a500ef43285382ddbd8c14ba332c6f6073079d7",
+    "objective_chars": 17102,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/bus.py [1/3]",
+  "rev": "da90d94",
+  "module": "daedalus/council/bus.py",
+  "index": 1,
+  "total": 3,
+  "first_line": 1
+ }
+}

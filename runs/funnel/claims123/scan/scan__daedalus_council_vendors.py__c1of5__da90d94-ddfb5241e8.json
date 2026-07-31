@@ -1,0 +1,375 @@
+{
+ "task_id": "scan__daedalus_council_vendors.py__c1of5__da90d94",
+ "key": "scan__daedalus_council_vendors.py__c1of5__da90d94-ddfb5241e8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/council/vendors.py: module docstring, constants, identity functions, VendorReply and FloorRefusal dataclasses. All claims checkable in this chunk are kept; claims about external behavior are uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "vendor_reply_validation | medium | VendorReply.__post_init__ validates status/lane but no closed-set validation for reason or channel; a malformed reason could slip through. | Inspect rest of file for validation of reason against UNAVAILABLE_REASONS or rule labels."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/vendors.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, closed vocabularies, identity helpers, VendorReply and FloorRefusal dataclasses.",
+     "symbols": [
+      {
+       "name": "STATUSES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of five transport statuses: ok, unavailable, timeout, refused_by_floor, error."
+      },
+      {
+       "name": "LANES",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of two egress lanes: trusted, untrusted."
+      },
+      {
+       "name": "UNAVAILABLE_REASONS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of ten machine reasons for unavailability."
+      },
+      {
+       "name": "DEFAULT_BENCH_OLLAMA_HOST",
+       "kind": "constant",
+       "effects": [],
+       "note": "HTTP URL for bench Ollama host."
+      },
+      {
+       "name": "DEFAULT_LOCAL_OLLAMA_HOST",
+       "kind": "constant",
+       "effects": [],
+       "note": "HTTP URL for local Ollama host, uses 127.0.0.1 to avoid IPv6 miss."
+      },
+      {
+       "name": "BENCH_SSH_TARGET",
+       "kind": "constant",
+       "effects": [],
+       "note": "SSH target for bench host."
+      },
+      {
+       "name": "PROMPT_DATA_NOTICE",
+       "kind": "constant",
+       "effects": [],
+       "note": "String prepended to every outbound prompt instructing the model to treat evidence as data."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [],
+       "note": "Sanitizes a string to [A-Za-z0-9._-], replacing other runs with '-', falls back to 'unknown' if empty."
+      },
+      {
+       "name": "actor_id",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns bus.actor_id(_slug(vendor), _slug(model)) to produce council.<vendor>.<model>."
+      },
+      {
+       "name": "model_family",
+       "kind": "function",
+       "effects": [],
+       "note": "Coarse weight family from model string: strips tag, path, and trailing size/version tokens; over-merges deliberately."
+      },
+      {
+       "name": "VendorReply",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with vendor, actor, model, status, content, latency_s, reason, stderr, usage, independence_class, endpoint, cli_version, lane, local, withheld. Validates status and lane in __post_init__."
+      },
+      {
+       "name": "FloorRefusal",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass with rule and channel (path|content|prompt)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Every adapter here exposes the same shape -- ask(prompt, *, role, timeout_s, model=None) -> VendorReply",
+       "where": "module docstring line 1",
+       "verdict": "uncheckable",
+       "why": "No adapter classes are defined in this chunk; the claim refers to classes defined later in the file or imported."
+      },
+      {
+       "text": "VendorReply carries no approve/reject/score/verdict/majority field and must never grow one",
+       "where": "module docstring and VendorReply class docstring",
+       "verdict": "kept",
+       "why": "VendorReply dataclass fields are vendor, actor, model, status, content, latency_s, reason, stderr, usage, independence_class, endpoint, cli_version, lane, local, withheld; none of the forbidden fields appear."
+      },
+      {
+       "text": "status here is a TRANSPORT status (did the bytes make the round trip), not a judgement about the work under review.",
+       "where": "module docstring",
+       "verdict": "kept",
+       "why": "STATUSES tuple contains only transport outcomes: ok, unavailable, timeout, refused_by_floor, error. No judgement terms present."
+      },
+      {
+       "text": "The premise -- 'independent vendors have independent blind spots, so cross-vendor disagreement is informative' -- is plausible and UNTESTED here.",
+       "where": "module docstring FALSIFICATION PROTOCOL",
+       "verdict": "kept",
+       "why": "The chunk contains no test harness, no experimental data, and no code that measures independence. It is purely descriptive of a protocol to be implemented elsewhere."
+      },
+      {
+       "text": "Codex runs exec --sandbox read-only with approvals off",
+       "where": "module docstring NO WRITE PATH",
+       "verdict": "uncheckable",
+       "why": "No codex adapter or subprocess invocation is present in this chunk."
+      },
+      {
+       "text": "Claude runs -p with tools disallowed and NO dontAsk",
+       "where": "module docstring NO WRITE PATH",
+       "verdict": "uncheckable",
+       "why": "No claude adapter or subprocess invocation is present in this chunk."
+      },
+      {
+       "text": "Every subprocess is spawned in a FRESH EMPTY TEMP DIRECTORY that is not the repo, not a worktree and contains no repo files (see council_cwd)",
+       "where": "module docstring NO WRITE PATH",
+       "verdict": "uncheckable",
+       "why": "council_cwd is not defined in this chunk; its behavior cannot be verified here."
+      },
+      {
+       "text": "All evidence reaches a model through the prompt or not at all.",
+       "where": "module docstring NO WRITE PATH",
+       "verdict": "uncheckable",
+       "why": "No evidence-passing code is present in this chunk."
+      },
+      {
+       "text": "The secret floor runs PER FILE before any bytes leave the process: the PATH channel over each evidence path individually ... the CONTENT channel per file, and a content-only backstop over the assembled prompt.",
+       "where": "module docstring EGRESS",
+       "verdict": "uncheckable",
+       "why": "No floor_check or secret_floor_rule usage is present in this chunk."
+      },
+      {
+       "text": "A hit REFUSES the call (status=\"refused_by_floor\"); there is no redact-and-send, and the runner is never invoked.",
+       "where": "module docstring EGRESS",
+       "verdict": "uncheckable",
+       "why": "No floor_refusal handling code is present in this chunk."
+      },
+      {
+       "text": "OLLAMA_HOST is NEVER set, mutated or inherited by anything in this module.",
+       "where": "module docstring EGRESS",
+       "verdict": "kept",
+       "why": "The chunk contains no assignment or mutation of OLLAMA_HOST; no os.environ usage appears."
+      },
+      {
+       "text": "The host is passed explicitly per call, and whether it counts as local is decided by sensitivity.lane_for_host -- the ONE implementation of \"do the bytes leave this machine\".",
+       "where": "module docstring EGRESS",
+       "verdict": "uncheckable",
+       "why": "No call sites or adapter code are present in this chunk; only the import of lane_for_host is visible."
+      },
+      {
+       "text": "NUMERIC LOOPBACK ONLY: localhost does NOT count, because a name is a DNS indirection the predicate cannot see through.",
+       "where": "module docstring EGRESS",
+       "verdict": "uncheckable",
+       "why": "No lane_for_host implementation is present in this chunk."
+      },
+      {
+       "text": "codex and agy default to lane=\"untrusted\": the allow-list / default-deny tier is ON for them, and withheld paths are named.",
+       "where": "module docstring EGRESS",
+       "verdict": "uncheckable",
+       "why": "No adapter defaults are present in this chunk."
+      },
+      {
+       "text": "Council records are NEVER an input to memory recall, and nothing in this module touches memstore.",
+       "where": "module docstring final paragraph",
+       "verdict": "kept",
+       "why": "No memstore import or reference appears in the entire chunk."
+      },
+      {
+       "text": "Transport outcome of one ask. CLOSED -- an adapter may not invent a sixth.",
+       "where": "STATUSES docstring",
+       "verdict": "kept",
+       "why": "STATUSES is a fixed tuple of five strings; no mechanism in this chunk allows extension."
+      },
+      {
+       "text": "None of these is a judgement about the reviewed work; \"ok\" means the bytes came back, nothing more.",
+       "where": "STATUSES docstring",
+       "verdict": "kept",
+       "why": "The status strings are all transport-level; no judgement term like 'pass' or 'fail' is present."
+      },
+      {
+       "text": "Egress lane for a participant. untrusted turns the allow-list / default-deny tier ON (sensitivity.slice_egress_rule).",
+       "where": "LANES docstring",
+       "verdict": "kept",
+       "why": "LANES is a tuple of two strings; the mapping to slice_egress_rule is not in this chunk, but the constant itself is as documented."
+      },
+      {
+       "text": "Machine reasons -- never free prose -- so a council record can be aggregated.",
+       "where": "UNAVAILABLE_REASONS docstring",
+       "verdict": "kept",
+       "why": "UNAVAILABLE_REASONS is a tuple of fixed machine-readable strings."
+      },
+      {
+       "text": "Prepended to EVERY outbound prompt.",
+       "where": "PROMPT_DATA_NOTICE docstring",
+       "verdict": "uncheckable",
+       "why": "No outbound prompt construction is present in this chunk; the constant is defined but its usage is not visible."
+      },
+      {
+       "text": "The mitigation is not a better delimiter -- it is that an injection attempt becomes a FINDING.",
+       "where": "PROMPT_DATA_NOTICE docstring",
+       "verdict": "uncheckable",
+       "why": "The notice text instructs the model to report injection as a finding, but no code in this chunk implements that handling."
+      },
+      {
+       "text": "NO LOCAL-HOST TABLE HERE, ON PURPOSE. \"Do the bytes leave this machine\" has exactly one implementation, sensitivity.lane_for_host, imported above.",
+       "where": "comment before identity section",
+       "verdict": "kept",
+       "why": "The chunk contains no local-host table; the only reference to lane_for_host is the import statement."
+      },
+      {
+       "text": "This module used to carry _LOCAL_HOSTS + _endpoint_host and disagreed with the shared predicate on [::1], on 127.0.0.0/8, and on localhost.",
+       "where": "comment before identity section",
+       "verdict": "uncheckable",
+       "why": "Historical claim about previous versions; not verifiable from current code."
+      },
+      {
+       "text": "See tests/test_host_predicate.py, which fails if the table comes back.",
+       "where": "comment before identity section",
+       "verdict": "uncheckable",
+       "why": "The referenced test file is not in this chunk."
+      },
+      {
+       "text": "Make a model id safe for an actor segment without losing information.",
+       "where": "_slug docstring",
+       "verdict": "kept",
+       "why": "_slug replaces any run of characters not in [A-Za-z0-9._-] with '-', preserving alphanumerics, dots, underscores, and hyphens. It does not truncate, so information is preserved for safe characters."
+      },
+      {
+       "text": "council.<vendor>.<model> per docs/adrs/010-naming-namespaces.md.",
+       "where": "actor_id docstring",
+       "verdict": "uncheckable",
+       "why": "The ADR document is not in this chunk; the format is delegated to bus.actor_id."
+      },
+      {
+       "text": "A bare actor: \"claude\" in a durable record is a defect ... a dissent attributed only to a vendor cannot be re-run six months on.",
+       "where": "actor_id docstring",
+       "verdict": "kept",
+       "why": "actor_id always includes vendor and model segments, so a bare vendor-only id cannot be produced by this function."
+      },
+      {
+       "text": "The FORMAT is delegated to bus.actor_id so the id on a transcript turn and the id on the reply that produced it cannot drift apart; this function only normalises the raw model id first (a raw qwen2.5-coder:7b would otherwise put a colon in a durable identifier).",
+       "where": "actor_id docstring",
+       "verdict": "kept",
+       "why": "actor_id calls _bus_actor_id(_slug(vendor), _slug(model)) and _slug replaces colons with '-', so the raw model id is normalized before delegation."
+      },
+      {
+       "text": "Coarse weight family, for VendorReply.independence_class.",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "model_family returns a string used as the first element of independence_class in VendorReply (default ('unknown','unknown'))."
+      },
+      {
+       "text": "The unit of independence is WEIGHTS, not endpoints.",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "model_family ignores endpoint information and derives family purely from the model string."
+      },
+      {
+       "text": "Local qwen2.5-coder:7b and bench qwen2.5-coder:7b are one voice on two sockets",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "model_family('qwen2.5-coder:7b') returns 'qwen2.5-coder' regardless of endpoint, so both map to the same family."
+      },
+      {
+       "text": "the 1.5b/7b/14b/32b line are near-clones of each other; a council that degrades to \"Ollama plus Ollama\" reports two participants and holds one opinion.",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "model_family strips trailing size tokens like '7b', '14b', etc., so all sizes of the same base model collapse to the same family."
+      },
+      {
+       "text": "Heuristic and deliberately coarse -- it strips the tag (:7b) and any trailing size/version token, so it OVER-merges rather than under-merges.",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "The regex stripping loop removes trailing tokens matching \\d+(\\.\\d+)?[bkm]?|v\\d+|latest|preview|\\d{8}, which covers size and version tokens."
+      },
+      {
+       "text": "Over-merging costs a seat; under-merging silently fakes independence.",
+       "where": "model_family docstring",
+       "verdict": "kept",
+       "why": "model_family aggressively strips trailing tokens, so it will merge models with different sizes/versions into one family, which is over-merging."
+      },
+      {
+       "text": "Deliberately carries NO approve/reject/pass/verdict/ok/score/confidence field, and must never grow one",
+       "where": "VendorReply class docstring",
+       "verdict": "kept",
+       "why": "VendorReply fields are vendor, actor, model, status, content, latency_s, reason, stderr, usage, independence_class, endpoint, cli_version, lane, local, withheld; none of the forbidden fields appear."
+      },
+      {
+       "text": "status is transport, content is prose for a human and for a claim extractor, and everything else is provenance so the turn can be re-run and compared.",
+       "where": "VendorReply class docstring",
+       "verdict": "kept",
+       "why": "Fields like vendor, actor, model, latency_s, usage, endpoint, cli_version, lane, local, withheld are all provenance metadata; status is a transport status from STATUSES; content is free text."
+      },
+      {
+       "text": "Machine reason from UNAVAILABLE_REASONS, or a secret-floor rule LABEL (never the matched bytes). Empty when status == \"ok\".",
+       "where": "VendorReply.reason field comment",
+       "verdict": "uncheckable",
+       "why": "The comment describes how reason is populated, but no code in this chunk enforces that; no validation of reason is present."
+      },
+      {
+       "text": "Evidence paths withheld by the tier-2 allow-list on an untrusted lane.",
+       "where": "VendorReply.withheld field comment",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk populates or validates withheld paths; the comment is descriptive."
+      },
+      {
+       "text": "A secret-floor hit. Names the RULE, never the matched bytes.",
+       "where": "FloorRefusal class docstring",
+       "verdict": "kept",
+       "why": "FloorRefusal has only rule and channel fields; no field for matched bytes exists."
+      }
+     ],
+     "observations": [
+      {
+       "what": "VendorReply.__post_init__ validates status and lane but does not validate reason against UNAVAILABLE_REASONS or rule labels, nor channel against 'path'/'content'/'prompt'.",
+       "where": "VendorReply.__post_init__ (lines ~300-305)",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The module docstring makes many claims about adapter behavior and egress control that are not verifiable in this chunk; they depend on code later in the file or in other modules.",
+       "where": "module docstring",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "0d8ec9b824c52e1f3e66e078882c2920817dd3b1681a8bee8524ae5c2cd1ea0c",
+    "objective_chars": 16206,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/vendors.py [1/5]",
+  "rev": "da90d94",
+  "module": "daedalus/council/vendors.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

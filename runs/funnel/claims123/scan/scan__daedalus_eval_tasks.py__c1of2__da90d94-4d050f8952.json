@@ -1,0 +1,290 @@
+{
+ "task_id": "scan__daedalus_eval_tasks.py__c1of2__da90d94",
+ "key": "scan__daedalus_eval_tasks.py__c1of2__da90d94-4d050f8952",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/eval/tasks.py: module docstring + resolve_task_repo, is_correctness_task, task_project_label, TASKS prefix. Claims about repo resolution, correctness-key detection, unknown-repo labeling, and task labels verified; some reachability claims uncheckable.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "tasks.py:18 | medium | 'must_include' labels verified reachable by running semantic_slice (circular claim) \u2014 cannot be verified from this chunk; requires harness/slicer execution.",
+     "tasks.py:80 | low | resolve_task_repo falls back to resolve_repo_root(None, repo) for registered projects; exact behavior of that function is outside this chunk.",
+     "tasks.py:97 | low | is_correctness_task keys on presence of fail_to_pass/pass_to_pass; a malformed task with 'fail_to_pass': [] is treated as correctness (intended per docstring) but validation happens in correctness.validate_task, not here.",
+     "tasks.py:123 | low | task_project_label returns repo string for unknown labels; project filtering semantics in harness are outside this chunk.",
+     "tasks.py:145-220 | medium | Every task's must_include/answer_contains claims about real dependencies are uncheckable from this chunk; they reference code in other files.",
+     "tasks.py:191-197 | medium | Comment claims semantic_slice no longer uses _py_maps and now uses _reverse_edges; that is a claim about another file's internals, uncheckable here."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/tasks.py",
+     "chunk": "1 of 2",
+     "purpose": "Defines the eval task corpus and the predicates that distinguish slice-recall tasks from correctness tasks; begins the TASKS list.",
+     "symbols": [
+      {
+       "name": "AGENT_ENV_ROOT",
+       "kind": "constant",
+       "effects": [],
+       "note": "str, parents[2] of this file; used by resolve_task_repo for the 'agent_env' label."
+      },
+      {
+       "name": "resolve_task_repo",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps repo label to absolute path: 'agent_env' -> AGENT_ENV_ROOT; absolute existing path -> as-is; registered name -> resolve_repo_root(None, repo); else ValueError."
+      },
+      {
+       "name": "CORRECTNESS_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple ('fail_to_pass', 'pass_to_pass'); presence of either marks a task as correctness-format."
+      },
+      {
+       "name": "is_correctness_task",
+       "kind": "function",
+       "effects": [],
+       "note": "True iff task is a dict and any correctness key is present (presence, not truthiness)."
+      },
+      {
+       "name": "task_project_label",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns '<unknown>' when repo key absent; 'agent_env' for the label or root; otherwise the repo value."
+      },
+      {
+       "name": "TASKS",
+       "kind": "constant",
+       "effects": [],
+       "note": "List[dict]; first 11 slice-recall tasks (file-level and symbol-level) with must_include labels, all hand_reachable/primary."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Each task targets a real symbol/file in a small repo and records the symbols a *sufficient* distilled slice MUST carry to reason about that target.",
+       "where": "docstring:1-3",
+       "verdict": "uncheckable",
+       "why": "The task dicts list must_include symbols, but whether those symbols are truly sufficient cannot be verified from this chunk; it depends on the slicer and other files."
+      },
+      {
+       "text": "a label is only listed if a competent answer about the target genuinely needs it AND it is a real dependency or caller in the neighborhood.",
+       "where": "docstring:3-5",
+       "verdict": "uncheckable",
+       "why": "Requires knowledge of the target code and dependency graphs; not derivable from this chunk."
+      },
+      {
+       "text": "For a symbol target the slice is 1-hop (the focus symbol's direct callees/callers), so we only label symbols reachable within that hop -- we do NOT claim transitive callees-of-callees are present when they are not.",
+       "where": "docstring:23-25",
+       "verdict": "uncheckable",
+       "why": "Describes slicing behavior implemented in daedalus.eval.harness/semantic_slice; not observable here."
+      },
+      {
+       "text": "Every task below is this provenance today. Recall computed over ``hand_reachable`` tasks is an upper bound / sanity check, NOT independent proof the slicer works -- ``report.py`` says so on every render, and ``harness.run_tier1`` never blends it with the other provenances into one number.",
+       "where": "docstring:34-37",
+       "verdict": "uncheckable",
+       "why": "All tasks in this chunk have label_provenance 'hand_reachable', but the behavior of report.py and harness.run_tier1 is outside this chunk."
+      },
+      {
+       "text": "``tier``: \"primary\" tasks count toward any go/no-go recall number. \"quarantine\" tasks are minted but not yet confirmed -- ``harness.run_tier1`` excludes them from every headline/aggregate and reports them separately",
+       "where": "docstring:45-48",
+       "verdict": "uncheckable",
+       "why": "The tier semantics are enforced in harness.run_tier1; not visible here. All tasks in this chunk are 'primary', so the quarantine behavior is not exercised."
+      },
+      {
+       "text": "a correctness task carries no ``must_include``, so scoring one with ``harness._recall`` would return the vacuous 1.0 -- a task that cannot fail, silently inflating the very number the tier machinery exists to keep honest.",
+       "where": "docstring:61-63",
+       "verdict": "uncheckable",
+       "why": "harness._recall behavior is not in this chunk; the claim about vacuous 1.0 depends on that implementation."
+      },
+      {
+       "text": "``is_correctness_task`` below is the single predicate that decides, and ``harness.eval_task_tier1``/``eval_task_arms`` refuse such a task loudly (an ERRORED row, which ``run_gate`` reports and fails on for a primary tier) instead of grading it.",
+       "where": "docstring:63-66",
+       "verdict": "uncheckable",
+       "why": "The refusal behavior is in harness.eval_task_tier1/eval_task_arms/run_gate; not visible here. The predicate itself is verified below."
+      },
+      {
+       "text": "Correctness tasks live in their own store (``correctness.DEFAULT_CORPUS_PATH``) and never enter ``harness.all_tasks()``.",
+       "where": "docstring:66-67",
+       "verdict": "uncheckable",
+       "why": "References correctness module and harness.all_tasks(); not visible in this chunk."
+      },
+      {
+       "text": "agent_env repo root == parents[2] of this file (daedalus/eval/tasks.py).",
+       "where": "line 75 (AGENT_ENV_ROOT)",
+       "verdict": "kept",
+       "why": "AGENT_ENV_ROOT = str(Path(__file__).resolve().parents[2]); given the file path daedalus/eval/tasks.py, parents[2] is the repo root."
+      },
+      {
+       "text": "\"agent_env\" -> this harness repo (dogfood target)",
+       "where": "resolve_task_repo:80-82",
+       "verdict": "kept",
+       "why": "if repo == 'agent_env': return AGENT_ENV_ROOT; AGENT_ENV_ROOT is defined as the repo root."
+      },
+      {
+       "text": "a registered name -> daedalus.projects.resolve_repo_root (e.g. sunny_garden)",
+       "where": "resolve_task_repo:84-85",
+       "verdict": "kept",
+       "why": "if repo in list_projects(): return resolve_repo_root(None, repo); resolve_repo_root is imported from daedalus.projects."
+      },
+      {
+       "text": "an absolute path -> used as-is (temp fixtures in tests)",
+       "where": "resolve_task_repo:83",
+       "verdict": "kept",
+       "why": "if os.path.isabs(repo) and Path(repo).exists(): return repo; the path is returned unchanged."
+      },
+      {
+       "text": "Deliberately keyed on the PRESENCE of the field, not on its truthiness: a task with \"fail_to_pass\": [] is a correctness task with an empty (and therefore invalid, see correctness.validate_task) test list, NOT a slice-recall task",
+       "where": "is_correctness_task:95-99",
+       "verdict": "kept",
+       "why": "The function uses 'any(k in task for k in CORRECTNESS_KEYS)', which checks presence (key membership), not truthiness."
+      },
+      {
+       "text": "it must never be handed to _recall, which would score its absent must_include as a vacuous 1.0. That is the exact shape of the failure this predicate exists to make impossible.",
+       "where": "is_correctness_task:99-100",
+       "verdict": "uncheckable",
+       "why": "The behavior of _recall is in harness; not visible here. The predicate itself does prevent such tasks from being identified as slice-recall, but the claim about _recall's scoring is external."
+      },
+      {
+       "text": "A task with NO ``repo`` key labels as ``\"<unknown>\"`` rather than raising ``KeyError``.",
+       "where": "task_project_label:104-107",
+       "verdict": "kept",
+       "why": "Uses task.get('repo'); if repo is None, returns '<unknown>'."
+      },
+      {
+       "text": "this function is called from ``harness._task_error_row``, i.e. on the REPORTING path for a task that is already known to be malformed, so a raise here turned \"one bad task is reported as a degraded row\" into \"the whole eval run dies on it\" -- the exact failure ``_task_error_row`` exists to prevent.",
+       "where": "task_project_label:104-107",
+       "verdict": "uncheckable",
+       "why": "The call site in harness._task_error_row is not in this chunk."
+      },
+      {
+       "text": "All Tier-1 labels verified reachable against the current slices -- which is exactly the circularity documented above. Every task is \"hand_reachable\" / \"primary\" until an \"independent_diff\" or \"temporal_churn\" minter (see daedalus.eval.mint, a separate track) adds tasks with independent labels.",
+       "where": "TASKS comment:113-116",
+       "verdict": "kept",
+       "why": "All tasks in this chunk have label_provenance 'hand_reachable' and tier 'primary'; no other provenance or tier appears."
+      },
+      {
+       "text": "web_api_file: _structure_index calls cached_index to obtain the structural index",
+       "where": "TASKS[0] (web_api_file)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/web_api.py; not in this chunk."
+      },
+      {
+       "text": "garden_care_file: needs_water decides thirst using water_every_days",
+       "where": "TASKS[1] (garden_care_file)",
+       "verdict": "uncheckable",
+       "why": "Requires reading garden/care.py; not in this chunk."
+      },
+      {
+       "text": "garden_cli_file: cli main() prints water for each plant",
+       "where": "TASKS[2] (garden_cli_file)",
+       "verdict": "uncheckable",
+       "why": "Requires reading garden/cli.py; not in this chunk."
+      },
+      {
+       "text": "garden_plants_file: cactus needs 14 days between waterings",
+       "where": "TASKS[3] (garden_plants_file)",
+       "verdict": "uncheckable",
+       "why": "Requires reading garden/plants.py; not in this chunk."
+      },
+      {
+       "text": "slice_semantic_slice: _py_maps no longer exists; its role is now _reverse_edges; semantic_slice uses _reverse_edges, extract_units, estimate_tokens",
+       "where": "TASKS[4] (slice_semantic_slice)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/structcore/slice.py; not in this chunk."
+      },
+      {
+       "text": "slice_semantic_slice: primary path is now idx[\"total_tokens\"]; total_chars // 4 survives only as the fallback for an index dict that predates the field",
+       "where": "TASKS[4] (slice_semantic_slice comment)",
+       "verdict": "uncheckable",
+       "why": "Requires reading slice.py and index.py; not in this chunk."
+      },
+      {
+       "text": "index_build_index: build_index no longer calls extract_units/file_metrics/python_imports directly -- they moved behind _per_file_pass; real dependencies are _per_file_pass, resolve_python_imports, unit_clusters",
+       "where": "TASKS[5] (index_build_index)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/structcore/index.py and perfile.py; not in this chunk."
+      },
+      {
+       "text": "report_structure_summary: structure_summary places keys under 'totals'",
+       "where": "TASKS[6] (report_structure_summary)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/structcore/report.py; not in this chunk."
+      },
+      {
+       "text": "ikarus_distill: _distill calls semantic_slice to produce the token-saving figure",
+       "where": "TASKS[7] (ikarus_distill)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/ikarus_os.py; not in this chunk."
+      },
+      {
+       "text": "projects_resolve_repo_root: resolve_repo_root turns a project name into a repo path using load_project",
+       "where": "TASKS[8] (projects_resolve_repo_root)",
+       "verdict": "uncheckable",
+       "why": "Requires reading daedalus/projects.py; not in this chunk."
+      },
+      {
+       "text": "garden_watering_plan: watering_plan returns something involving needs_water",
+       "where": "TASKS[9] (garden_watering_plan)",
+       "verdict": "uncheckable",
+       "why": "Requires reading garden/care.py; not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring makes many claims about harness, correctness, slicer, and report behavior that are not present in this chunk; they are all uncheckable here.",
+       "where": "docstring lines 1-67",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "All tasks in this chunk are 'hand_reachable'/'primary', matching the comment that no independent_diff/temporal_churn tasks exist yet.",
+       "where": "TASKS comment lines 113-116",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "resolve_task_repo's absolute-path branch requires Path(repo).exists(); a non-existent absolute path falls through to list_projects() check and then raises ValueError. This matches the docstring 'used as-is (temp fixtures in tests)' only for existing paths.",
+       "where": "resolve_task_repo lines 80-86",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "task_project_label returns the raw repo string for any repo that is not None and not agent_env/AGENT_ENV_ROOT, including absolute paths. This is the intended bucket for --project filtering.",
+       "where": "task_project_label lines 108-110",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3fcfed798a378a918a7fd0cb7813cac117cc75123537c5891f0fd79f997e220c",
+    "objective_chars": 17035,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/tasks.py [1/2]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/tasks.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

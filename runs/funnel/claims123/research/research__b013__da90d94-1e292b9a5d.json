@@ -1,0 +1,151 @@
+{
+ "task_id": "research__b013__da90d94",
+ "key": "research__b013__da90d94-1e292b9a5d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file analysis identifies duplicated guard contracts, unenforced invariants, and mismatched semantics across modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Hypotheses rely on claims from docstrings; actual code may differ.",
+     "Some hypotheses are unfalsifiable without additional module access."
+    ],
+    "todos": [
+     "Verify each refutation condition against actual module code.",
+     "Check for shared helper or abstraction that might unify duplicate guards.",
+     "Inspect tests for enforcement of invariants."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "duplicate-guard-contract",
+       "claim": "Multiple modules independently claim to guard the same invariant ('never writes primary checkout', 'never calls promote_candidates', 'read-only git verbs'), but each implements its own copy, risking divergence.",
+       "spans": [
+        "run_write_wave",
+        "dispatch",
+        "git command wrapper",
+        "adapter contract"
+       ],
+       "mechanism": "Each module states a similar guarantee in its docstring (e.g., run_write_wave claims it never writes primary checkout or calls promote_candidates; dispatch claims it returns a gated PatchArtifact; git wrapper claims all commands are checked against READ_ONLY_REPO_VERBS; adapter contract claims cwd is honored). These are separate enforcement points with no shared guard.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "A single shared guard function or decorator is found that all these modules call to enforce the same invariant.",
+       "evidence": [
+        "run_write_wave docstring: 'NEVER writes the primary checkout and never calls promote_candidates'",
+        "dispatch comment lines 174-176: 'a gated PatchArtifact the primary checkout never saw'",
+        "module docstring: 'every git command aimed at the primary checkout is checked against daedalus.spine.attempt.READ_ONLY_REPO_VERBS'",
+        "run_task comment line 64: 'the adapter is required to honor it at process launch'"
+       ]
+      },
+      {
+       "id": "uncheckable-invariants-claimed",
+       "claim": "Several modules assert invariants that are not enforced by any code visible in the provided chunks, and may rely on external tests or later code to hold.",
+       "spans": [
+        "_chain_state",
+        "temporal_ceiling",
+        "VendorReply",
+        "covered_lines",
+        "acceptance validation"
+       ],
+       "mechanism": "Docstrings claim strong guarantees: _chain_state claims any cross-process append forces reload; temporal_ceiling claims [] cannot happen for a resolvable sha; VendorReply.reason claims it is never the matched bytes; covered_lines claims mutant on unreachable line is guaranteed survivor; acceptance module claims stale acceptance blocks. None of these are verified by code in the chunks; they rely on external logic.",
+       "severity": "medium",
+       "confidence": "likely",
+       "refuted_by": "Finding the enforcing code in other chunks or tests that explicitly test these invariants.",
+       "evidence": [
+        "_chain_state docstring: 'any cross-process append changes the size, forcing a reload'",
+        "temporal_ceiling comment: '[] cannot happen for a resolvable sha'",
+        "VendorReply.reason comment: 'never the matched bytes'",
+        "covered_lines docstring: 'A mutant on a line no test reaches is a GUARANTEED survivor'",
+        "module docstring: 'An acceptance that matches nothing is a STALE ACCEPTANCE and blocks'"
+       ]
+      },
+      {
+       "id": "semantic-mismatch-reason",
+       "claim": "Different modules may interpret the same field or term differently (e.g., 'reason' in VendorReply, 'votes' in fanout, 'st_ino' identity), leading to cross-module contradictions.",
+       "spans": [
+        "VendorReply.reason",
+        "FanoutResult.votes",
+        "_path_identity"
+       ],
+       "mechanism": "VendorReply.reason is documented as a machine reason or label, never the matched bytes; FanoutResult records votes_requested as first-class; _path_identity warns st_ino can be 0 and must be treated as no identity. These are separate contracts that could be misinterpreted by consumers.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "Consumers are found that correctly interpret these fields according to the documented semantics.",
+       "evidence": [
+        "VendorReply.reason comment: 'Machine reason from UNAVAILABLE_REASONS, or a secret-floor rule LABEL (never the matched bytes)'",
+        "module docstring: 'votes is a first-class argument and every result records how many independent answers it is made of'",
+        "_path_identity docstring: 'Callers must treat a zero st_ino as NO identity'"
+       ]
+      },
+      {
+       "id": "external-dependency-unverified",
+       "claim": "Several claims depend on external systems or historical events that are not reproducible from the code (e.g., measurement of pytest behavior, historical numbers, review incidents). These are unfalsifiable from the code alone.",
+       "spans": [
+        "evaluate_candidates",
+        "module docstring (feature inventory)",
+        "module docstring (corroboration incident)",
+        "module docstring (Nemesis review)"
+       ],
+       "mechanism": "Docstrings reference specific measurements (e.g., 'MEASURED 2026-07-29' for pytest resolution), historical counts (136 vs 827 features), and past adversarial reviews. These are not part of the code and cannot be verified.",
+       "severity": "low",
+       "confidence": "unfalsifiable",
+       "refuted_by": "Reproducing the measurement or finding the historical records in the repository.",
+       "evidence": [
+        "evaluate_candidates docstring: 'MEASURED 2026-07-29'",
+        "module docstring: 'A hand-written feature inventory listed 136 features... found 827'",
+        "module docstring: 'That night produced 1,226 claims'",
+        "module docstring: 'adversarial review (Nemesis, 2026-07-21)'"
+       ]
+      },
+      {
+       "id": "test-contract-unverified",
+       "claim": "Claims that tests enforce certain behaviors (e.g., --help contract, no unreachable reach class, gate meaning) are uncheckable because tests are not visible in the provided chunks.",
+       "spans": [
+        "module docstring (profiles)",
+        "module docstring (UNKNOWN_CLASSES)",
+        "gate docstring"
+       ],
+       "mechanism": "Docstrings state that tests exercise the --help contract, that a reach class meaning unreached cannot appear, and that a gate FAIL means regression or intentional change. These rely on test code not present.",
+       "severity": "low",
+       "confidence": "unfalsifiable",
+       "refuted_by": "Finding the relevant tests in other chunks or files.",
+       "evidence": [
+        "module docstring: 'Built-in profiles are limited to CLIs whose local --help contract is exercised by tests'",
+        "comment above UNKNOWN_CLASSES: 'What may never happen again is a reach class that means unreached and appears in none of them'",
+        "docstring line 848: 'Expect PASS. A FAIL means either a real regression...'"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "8472830becd595fd6fc11ee199d3ea8c616102c578efb845eb56df7426a88a33",
+    "objective_chars": 16699,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 13 (38 inputs)",
+  "rev": "da90d94",
+  "bucket": 13,
+  "inputs": 38
+ }
+}

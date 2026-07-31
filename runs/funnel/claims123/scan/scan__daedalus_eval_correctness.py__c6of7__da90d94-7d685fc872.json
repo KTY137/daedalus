@@ -1,0 +1,213 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c6of7__da90d94",
+ "key": "scan__daedalus_eval_correctness.py__c6of7__da90d94-7d685fc872",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "6 of 7",
+     "purpose": "Derive and measure candidate correctness tasks from git commits; provide a gate for task attempts.",
+     "symbols": [
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [],
+       "note": "Parses a Python file with ast and returns a dict mapping pytest node-id suffixes to source segments for test functions/methods."
+      },
+      {
+       "name": "derive_task_from_commit",
+       "kind": "function",
+       "effects": [],
+       "note": "Proposes a candidate task dict from a commit's diff, using added/changed tests as FAIL_TO_PASS and unchanged as PASS_TO_PASS."
+      },
+      {
+       "name": "seed_task_from_commit",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Measures candidate node ids in a disposable worktree, admits only verified nodes, returns task and diagnostics."
+      },
+      {
+       "name": "correctness_gate",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Returns a gate callable that fails closed on unverified tasks or moved selections."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The key is the node id form pytest actually accepts -- ``test_x`` for a module-level function, ``ClassName::test_x`` for a method -- because the class qualifier is not optional and getting it wrong makes the node id ``missing``.",
+       "where": "_test_functions docstring",
+       "verdict": "KEPT",
+       "why": "The code produces module-level functions as bare names and class methods as ClassName::method."
+      },
+      {
+       "text": "That is not a hypothetical: the first run of this seeder used unqualified names from ``structcore.extract_units`` (which reports a method as a bare ``test_alive_then_stale``) and the before-state check refuted 19 of 22 candidate nodes in one commit for exactly that reason.",
+       "where": "_test_functions docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The historical incident is not present in this chunk; the code's behavior is consistent with the claim but the event itself is not observable here."
+      },
+      {
+       "text": "``ast`` rather than a regex or the structural extractor: it is stdlib, it is exact about nesting, and pytest node ids are a Python-only concept anyway.",
+       "where": "_test_functions docstring",
+       "verdict": "KEPT",
+       "why": "The function imports ast and uses it for parsing and nesting."
+      },
+      {
+       "text": "A file that does not parse contributes nothing (the caller then mints nothing from it) rather than contributing guesses.",
+       "where": "_test_functions docstring",
+       "verdict": "KEPT",
+       "why": "SyntaxError returns {}."
+      },
+      {
+       "text": "The commit's own diff is the oracle, exactly as in ``mint.py``: what the commit ADDED or CHANGED in a test file is a FAIL_TO_PASS candidate, what it left untouched in the same file is a PASS_TO_PASS candidate, and the base is the commit's parent.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The code compares before/after blobs of changed test files; changed units go to f2p, unchanged to p2p; base is sha^."
+      },
+      {
+       "text": "NOTHING here is trusted. Every derived node id is a CLAIM that :func:`verify_before_state` then tries to refute by running it on the base; a node id this function gets wrong (a test nested in a class, say, whose real node id carries the class) comes back ``missing`` and takes the task down with it.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "verify_before_state is not in this chunk; the claim about its behavior cannot be checked here."
+      },
+      {
+       "text": "Returns ``None`` when the commit changed no test file -- a real and common case (``efd0ed6`` in this repo's own history is a fix with no test at all), reported by returning nothing rather than by inventing a label.",
+       "where": "derive_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The function returns None when no f2p candidates are found (which happens when no test file changed or no added/changed test units exist). The historical sha is not verifiable here."
+      },
+      {
+       "text": "THE LISTS ARE MEASURED, NEVER CLAIMED. :func:`derive_task_from_commit` proposes node ids off the commit's diff; every one of them is a guess, and this function's whole job is to try to refute each guess by running it twice in one disposable worktree: base + test overlay -> the BEFORE statuses; base + test overlay + reference fix -> the AFTER statuses",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The code runs before_run on base+overlay and after_run after applying the reference patch."
+      },
+      {
+       "text": "FAIL_TO_PASS not passing BEFORE, passing AFTER, and TOUCHED by the commit (a test that was already red and that the commit never mentions is not this fix's witness)",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The admission logic requires before_status in PROVEN_NOT_PASSING, after_status == STATUS_PASSED, and node in changed."
+      },
+      {
+       "text": "PASS_TO_PASS passing BEFORE and passing AFTER",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The code appends node to p2p when both statuses are STATUS_PASSED."
+      },
+      {
+       "text": "Everything else is DROPPED WITH ITS REASON RECORDED on the task (``dropped_candidates``) -- never silently, because the drop rate is itself the measurement of how much a corpus is worth.",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The code records each drop reason in diagnostics['dropped'] and copies it to task['dropped_candidates']."
+      },
+      {
+       "text": "Real examples from this repo's own history, both found by running this rather than by reasoning: a test named ``..._still_...`` that the fix ADDED but which already passed on the base (demoted to the regression set), and an ``xfail``-marked test that is red before AND after the reference fix, so it can never witness anything (dropped).",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The examples are historical and not in this chunk; the code's logic does handle both cases (a passed-before added test goes to p2p via the first branch; a red-before-red-after test is dropped by the last elif)."
+      },
+      {
+       "text": "A task with no surviving FAIL_TO_PASS node is NOT admitted -- ``(None, diagnostics)`` with the reason. ``efd0ed6`` in this repo is such a commit: a real fix that shipped no test at all.",
+       "where": "seed_task_from_commit docstring",
+       "verdict": "KEPT",
+       "why": "The code returns None with a reason when f2p is empty. The historical sha is not verifiable here."
+      },
+      {
+       "text": "IT FAILS CLOSED ON AN UNVERIFIED TASK, and that is the point. The attempt's worktree already HAS the candidate's change in it by the time a gate runs, so the before-state cannot be measured there -- it has to have been measured earlier, against this exact base revision. A task with no verified before-state receipt for ``ctx.base_revision`` is REFUSED (``passed=False``) rather than evaluated, because a FAIL_TO_PASS list that was never shown to fail is precisely the vacuous green this module exists to prevent.",
+       "where": "correctness_gate docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The gate's inner logic that checks ctx.base_revision and the receipt is not shown in this chunk; only the initial setup and verdict helper are present."
+      },
+      {
+       "text": "IT ALSO REFUSES A SELECTION THAT MOVED. The receipt records the digest of the selection it was measured under; this recomputes that digest from the task as presented and refuses on any mismatch. Widening the lists after the verification (say, to include a test the candidate itself added), narrowing them to drop an inconvenient one, or pointing them at a different base all change the digest and all get the same refusal. What was measured is what was declared, checkably.",
+       "where": "correctness_gate docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The digest recomputation and refusal logic is not in this chunk; it is in the remainder of the _gate function."
+      },
+      {
+       "text": "What this gate adds over ``spine.attempt.pytest_gate``: pytest_gate asks \"did the suite exit 0\", which a candidate satisfies by changing nothing. This asks \"did the previously-RED tests go GREEN, and did the previously-GREEN ones stay green\" -- a question a no-op change cannot pass.",
+       "where": "correctness_gate docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The comparison with spine.attempt.pytest_gate is not in this chunk; the gate's actual checks are not visible here."
+      }
+     ],
+     "observations": [
+      {
+       "what": "derive_task_from_commit calls _changed_files with only (status, rel) unpacked; the function may return more fields, but that is not visible here.",
+       "where": "derive_task_from_commit, line ~1432",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "seed_task_from_commit passes repo_root=str(repo_root) to runner, but the runner signature is not visible; if it expects a Path this would be a type mismatch.",
+       "where": "seed_task_from_commit, line ~1479",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The gate function imports GateResult inside the function body; this is a delayed import that may be intentional but is not visible elsewhere.",
+       "where": "correctness_gate, line ~1553",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The gate's verdict helper returns GateResult with returncode 0/1, but the actual gate logic (before-state verification, digest check) is below the visible cutoff.",
+       "where": "correctness_gate, after shown code",
+       "severity": "medium",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "derive_task_from_commit | low | _changed_files may yield more than two fields; the unpacking could fail if the shape changes. | Inspect _changed_files definition in this file.",
+      "seed_task_from_commit | medium | repo_root is converted to str for runner; if runner expects Path, this could break. | Check run_node_ids signature.",
+      "correctness_gate | medium | The gate's core checks are not visible in this chunk; the docstring promises fail-closed behavior that cannot be verified here. | Read the remainder of _gate in the next chunk.",
+      "correctness_gate | low | Local import of GateResult may hide circular import issues or be a deliberate lazy import. | Confirm the import works at runtime."
+     ],
+     "todos": [],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7afac0ce5c0dbf3fc89a7b9149bc5bdbb34aa64df739568e75abef3c0d637cc8",
+    "objective_chars": 18412,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [6/7]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/correctness.py",
+  "index": 6,
+  "total": 7,
+  "first_line": 1401
+ }
+}

@@ -1,0 +1,135 @@
+{
+ "task_id": "scan__daedalus_kairos_shadow_shell.py__c1of1__da90d94",
+ "key": "scan__daedalus_kairos_shadow_shell.py__c1of1__da90d94-95a5d3101b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed shadow_shell.py chunk 1 of 1; all docstring claims kept, no defects found, one uncheckable claim about adapter behavior.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/shadow_shell.py",
+     "chunk": "1 of 1",
+     "purpose": "Manages running an agent task inside a git worktree and returns a CandidateBranch result.",
+     "symbols": [
+      {
+       "name": "CandidateBranch",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass representing a completed task on a dedicated git branch, with fields branch_name, worktree_path, task, completed, error, score."
+      },
+      {
+       "name": "ShadowShellManager",
+       "kind": "class",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Manager that spawns an adapter and runs the agent inside a given GitWorktree. Constructor stores worktree_manager, adapter, base_commit, config."
+      },
+      {
+       "name": "run_task",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Async method that creates a new worktree, runs the agent task, commits changes if successful, and returns a CandidateBranch. Cleans up worktree on failure."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Represents a completed task on a dedicated git branch.",
+       "where": "CandidateBranch docstring (line 19)",
+       "verdict": "kept",
+       "why": "The dataclass fields (branch_name, worktree_path, task, completed) accurately represent a completed task on a dedicated branch."
+      },
+      {
+       "text": "Spawns an adapter and runs the agent inside a given GitWorktree.",
+       "where": "ShadowShellManager class docstring (line 28)",
+       "verdict": "kept",
+       "why": "The class constructor takes an adapter and worktree_manager, and run_task creates a worktree and runs the agent via the adapter."
+      },
+      {
+       "text": "Executes the agent task inside a new worktree and returns a CandidateBranch.",
+       "where": "run_task docstring (line 52)",
+       "verdict": "kept",
+       "why": "run_task creates a new worktree via worktree_manager.create_worktree, runs the task, and returns a CandidateBranch."
+      },
+      {
+       "text": "The task is the initial one-shot prompt.",
+       "where": "Comment in run_task (line 63)",
+       "verdict": "kept",
+       "why": "session_config['prompt'] is set to the task string, and the session is created with that config."
+      },
+      {
+       "text": "cwd is the worktree, and the adapter is required to honor it at process launch.",
+       "where": "Comment in run_task (line 64)",
+       "verdict": "uncheckable",
+       "why": "The code sets session_config['cwd'] to the worktree path, but whether the adapter honors it is not observable in this chunk."
+      },
+      {
+       "text": "Commit any changes the agent made in the worktree",
+       "where": "Comment in run_task (line 82)",
+       "verdict": "kept",
+       "why": "The code calls worktree_manager.commit_candidate with the worktree path and a commit message."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The run_task method catches all exceptions and stores the error in the candidate, but does not re-raise; callers must check candidate.completed.",
+       "where": "run_task except block (line 88-89)",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The worktree cleanup only happens if the candidate is not completed, which is consistent with the success path.",
+       "where": "run_task finally block (line 94-97)",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The comment about the adapter honoring cwd is a requirement, but the code does not enforce it; if the adapter does not honor it, the agent may run in the wrong directory.",
+       "where": "run_task comment (line 64)",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "34b2f0e94fdb015ff32beabf31283983154124e129f927371c3bb8e12bddc6e7",
+    "objective_chars": 6277,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/shadow_shell.py [1/1]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/shadow_shell.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

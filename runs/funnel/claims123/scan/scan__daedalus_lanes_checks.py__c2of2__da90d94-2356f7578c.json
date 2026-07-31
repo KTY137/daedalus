@@ -1,0 +1,229 @@
+{
+ "task_id": "scan__daedalus_lanes_checks.py__c2of2__da90d94",
+ "key": "scan__daedalus_lanes_checks.py__c2of2__da90d94-2356f7578c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/checks.py",
+     "chunk": "2 of 2",
+     "purpose": "Implements unresolved first-party import resolution and the baseline check pipeline.",
+     "symbols": [
+      {
+       "name": "unresolved_first_party_imports",
+       "kind": "function",
+       "effects": [],
+       "note": "Static AST-based check for first-party imports that do not resolve to a module or name in the repo."
+      },
+      {
+       "name": "imports_resolve",
+       "kind": "function",
+       "effects": [],
+       "note": "Wrapper that formats unresolved-first-party-import findings as a refusal string, capped at policy.max_named_imports."
+      },
+      {
+       "name": "BASELINE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of checks: not_truncated, no_elision, parses, not_substituted, imports_resolve."
+      },
+      {
+       "name": "run_checks",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs baseline plus extra checks; returns first non-empty reason; returns empty string to allow write; fail-closed on exceptions."
+      },
+      {
+       "name": "with_markers",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a copy of the policy with elision_markers replaced by the given markers."
+      }
+     ],
+     "claims": [
+      {
+       "text": "First-party imports in content that name nothing in the tree.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "The function returns a list of strings describing imports that fail resolution checks against the repo tree."
+      },
+      {
+       "text": "MEASURED 2026-07-30. Twenty agents wrote test modules against source files they were given, and three of seven imported things that do not exist: daedalus.linting (it is daedalus.gui.lint), ShiftManager from daedalus.shift (the class is Shift), and daedalus.wiki_vault (it is daedalus.wiki.vault).",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "uncheckable",
+       "why": "The measurement is historical context; this chunk cannot verify the specific agent behavior or the exact module/class names."
+      },
+      {
+       "text": "All three are valid Python, so a syntax gate passes them, and all three reported status: done.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "uncheckable",
+       "why": "No syntax gate or status reporting is present in this chunk; those are external behaviors."
+      },
+      {
+       "text": "The check is STATIC on purpose. Importing the file to find out whether its imports resolve would execute module-level code from an untrusted lane -- the one thing this repository refuses to do to decide whether to trust something.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "The function uses ast.parse and walks the AST; it does not import the target module."
+      },
+      {
+       "text": "only first-party roots are judged;",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "The code checks alias.name.split('.')[0] in roots for Import and node.module.split('.')[0] not in roots for ImportFrom, skipping non-first-party."
+      },
+      {
+       "text": "a missing MODULE is reported, since that cannot be a re-export;",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "For Import and ImportFrom, if _module_path returns None, the code appends a message that the module does not exist."
+      },
+      {
+       "text": "a missing NAME is reported only when the module has no star-import and no module-level __getattr__.",
+       "where": "docstring of unresolved_first_party_imports",
+       "verdict": "kept",
+       "why": "For ImportFrom, the code gets names and opaque from _exports(path); if opaque is truthy, it skips name checking. Otherwise it checks each alias against names or submodule paths."
+      },
+      {
+       "text": "Does it import things that exist?",
+       "where": "docstring of imports_resolve",
+       "verdict": "kept",
+       "why": "The function calls unresolved_first_party_imports and returns a non-empty string if there are bad imports."
+      },
+      {
+       "text": "Checked for CREATED files too -- a brand-new test module against an invented API is exactly the failure this catches, and it has no original to compare against.",
+       "where": "docstring of imports_resolve",
+       "verdict": "kept",
+       "why": "The function does not compare to any original; it checks the proposed content directly."
+      },
+      {
+       "text": "Cheapest first. Order is load-bearing in one direction only -- the refusal a caller sees should be the most specific one available, and 'does not parse' is more useful than '82% of definitions vanished' when both are true.",
+       "where": "comment above BASELINE",
+       "verdict": "kept",
+       "why": "The BASELINE tuple is ordered not_truncated, no_elision, parses, not_substituted, imports_resolve, and run_checks returns the first non-empty reason, so earlier checks take precedence."
+      },
+      {
+       "text": "Run the baseline, then any lane-specific additions. \"\" means write it.",
+       "where": "docstring of run_checks",
+       "verdict": "kept",
+       "why": "The function iterates over (*BASELINE, *extra); if no check returns a reason, it returns ''."
+      },
+      {
+       "text": "FAIL-CLOSED, and this is the part worth not losing: a check that raises is reported as a refusal naming the crash. The alternative -- letting the exception propagate, or catching it and continuing -- turns a broken guard into a silent permission, which is how a gate ends up passing a file that destroyed a module.",
+       "where": "docstring of run_checks",
+       "verdict": "kept",
+       "why": "The try/except catches Exception and returns a refusal string naming the check and exception type/message."
+      },
+      {
+       "text": "A lane may pass extra to ADD checks. There is deliberately no argument for removing one from the baseline.",
+       "where": "docstring of run_checks",
+       "verdict": "kept",
+       "why": "The signature has extra: Iterable[Check] = () and the function only adds to BASELINE; there is no parameter to exclude baseline checks."
+      },
+      {
+       "text": "policy with this lane's own elision markers. Convenience only.",
+       "where": "docstring of with_markers",
+       "verdict": "kept",
+       "why": "The function returns replace(policy, elision_markers=tuple(markers)), which is a shallow copy with the markers replaced; it does not mutate the original policy."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring at the top of this chunk claims a measurement about agent failures, but the claim is presented as historical fact; the code itself does not verify or enforce that measurement.",
+       "where": "docstring of unresolved_first_party_imports",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The function unresolved_first_party_imports uses _module_path to check for module existence; if _module_path returns None for a module that actually exists but is not a file (e.g., a namespace package), the check would report a false positive. However, the docstring says it is conservative by construction, and the code handles submodule binding separately.",
+       "where": "unresolved_first_party_imports, lines 289-316",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The check for ImportFrom skips relative imports (node.level) and modules without a module attribute. This is consistent with the docstring's claim about relative imports resolving against a package, but it means relative imports are never checked for existence.",
+       "where": "unresolved_first_party_imports, lines 295-296",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function deduplicates using dict.fromkeys, preserving order. This matches the comment about deduplication being order-preserving.",
+       "where": "unresolved_first_party_imports, line 318",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "imports_resolve checks for is_python before running the import check; if the file is not Python, it returns an empty string, so the check is skipped. This is consistent with the function's purpose but not explicitly stated in the docstring.",
+       "where": "imports_resolve, line 327",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The BASELINE order is documented as load-bearing, and run_checks returns the first non-empty reason. This means a file that fails multiple checks will only get the first failure message, which is intentional per the comment.",
+       "where": "BASELINE and run_checks",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "run_checks catches Exception, which includes KeyboardInterrupt and SystemExit? Actually, KeyboardInterrupt and SystemExit derive from BaseException, not Exception, so they would propagate. The docstring says 'a check that raises' without specifying, but the code catches Exception only. This is a potential gap if a check raises KeyboardInterrupt, but that is unlikely and not a documented behavior.",
+       "where": "run_checks, line 365",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "with_markers uses replace from dataclasses, which requires policy to be a dataclass. The type hint is CheckPolicy, and the function is used in the context of a dataclass, so it is likely correct.",
+       "where": "with_markers",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "docstring of unresolved_first_party_imports | low | Historical measurement claim is not verifiable from this chunk; could be stale or inaccurate | Check the referenced measurement or remove it",
+      "unresolved_first_party_imports | medium | _module_path may not handle namespace packages, causing false positives for valid imports | Inspect _module_path implementation in the other chunk",
+      "unresolved_first_party_imports | low | Relative imports are never checked, so a missing relative module is not caught | Confirm if that is intended",
+      "imports_resolve | low | The function checks is_python before running the import check; if the file is not Python, it returns empty, so the check is skipped. This is consistent with the function's purpose but not explicitly stated in the docstring.",
+      "run_checks | low | Catches Exception, not BaseException, so KeyboardInterrupt or SystemExit from a check would propagate and not be fail-closed | Confirm if that is intended",
+      "with_markers | low | Uses dataclasses.replace, which requires policy to be a dataclass; if CheckPolicy is not a dataclass, this will fail",
+      "Confirm CheckPolicy definition"
+     ],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "64252e5e77eba3a8e2c98bc40a52c5784eb7734aa9c0d253b2a4c50723ba2f09",
+    "objective_chars": 10129,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/checks.py [2/2]",
+  "rev": "da90d94",
+  "module": "daedalus/lanes/checks.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

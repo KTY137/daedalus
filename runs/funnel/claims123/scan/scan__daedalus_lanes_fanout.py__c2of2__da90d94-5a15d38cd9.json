@@ -1,0 +1,328 @@
+{
+ "task_id": "scan__daedalus_lanes_fanout.py__c2of2__da90d94",
+ "key": "scan__daedalus_lanes_fanout.py__c2of2__da90d94-5a15d38cd9",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/fanout.py",
+     "chunk": "2 of 2",
+     "purpose": "fan_out: orchestrate parallel task execution with resume, policy guard, and summary",
+     "symbols": [
+      {
+       "name": "fan_out",
+       "kind": "function",
+       "effects": [
+        "filesystem_write",
+        "process_spawn",
+        "spend"
+       ],
+       "note": "Executes tasks concurrently, writes result JSON files, installs process guard, returns summary dict."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Never raises for a failing task: a fan-out of 1,200 in which one task dies must produce 1,199 answers and a named failure, not an exception.",
+       "where": "docstring of fan_out",
+       "verdict": "KEPT",
+       "why": "_run_task catches Exception per vote (lines ~350-356) and per task (lines ~329-332); the executor loop catches Exception from fut.result() (lines ~372-376), so a failing task is recorded, not raised. The only exceptions that escape are before execution (guard install, line ~302) or after (write_text_atomic may raise, but that is outside the task loop and not a task failure)."
+      },
+      {
+       "text": "Transport failures are recorded on the result and the queue continues -- which is also why the summary reports ``failed`` separately from ``ok`` rather than folding them into a rate.",
+       "where": "docstring of fan_out",
+       "verdict": "KEPT",
+       "why": "_one_call is called inside try/except per vote (lines ~350-356) and per task (lines ~329-332); exceptions are appended to res.errors. The loop continues to the next future via as_completed. The summary counts 'failed' separately (line ~381)."
+      },
+      {
+       "text": "``resume`` skips any task whose result file already exists AND parses. A file that exists but does not parse is re-run, because a truncated result is worse than a missing one: it looks like an answer.",
+       "where": "docstring of fan_out",
+       "verdict": "KEPT",
+       "why": "Lines ~326-343: if resume and dest.is_file(), it tries json.loads; on OSError/ValueError it passes (re-run). On success, it returns the prior result if res.answers and not res.blocked; otherwise falls through and re-runs."
+      },
+      {
+       "text": "CORROBORATION THAT CANNOT CORROBORATE IS REFUSED, not warned about. ... asking for votes you cannot get is an error at the door",
+       "where": "comment before temperature check",
+       "verdict": "KEPT",
+       "why": "Lines ~278-293: if any task votes>1 and temperature<=0.0, returns a refused summary dict immediately."
+      },
+      {
+       "text": "THE GUARD, FIRST, BEFORE ANY CALL CAN LEAVE. Not conditional, not a parameter.",
+       "where": "comment before guard install",
+       "verdict": "KEPT",
+       "why": "The guard is installed (line ~300) before any task is submitted; if install fails, returns refused without executing tasks."
+      },
+      {
+       "text": "Fail CLOSED: a fan-out whose spend cannot be capped does not run.",
+       "where": "comment in guard exception handler",
+       "verdict": "KEPT",
+       "why": "Lines ~301-318: on exception, returns refused summary with paid_calls=0 and does not proceed."
+      },
+      {
+       "text": "SAME SUMMARY SHAPE as a completed run, including `paid_calls` and `results`.",
+       "where": "comment in guard refusal",
+       "verdict": "KEPT",
+       "why": "The refused dict (lines ~308-318) has the same keys as the ran summary (lines ~398-408): state, tasks, ok, blocked, failed, resumed, paid_calls, out_dir, concurrency, results."
+      },
+      {
+       "text": "Resolved ONCE for the whole fan-out: every answer in one run belongs to that run.",
+       "where": "comment before current_trace_id",
+       "verdict": "KEPT",
+       "why": "current_trace_id() is called once (line ~321) before the executor loop; the trace value is captured and passed to _run_task via closure."
+      },
+      {
+       "text": "NOT re-stamped: the prior trace is the run that paid for this answer. Overwriting it with the current run's id would claim this run produced something it read off disk.",
+       "where": "comment in resume branch",
+       "verdict": "KEPT",
+       "why": "Lines ~334-336: trace_id=prior.get(\"trace_id\") retains the prior trace; it is not overwritten with the current 'trace' variable."
+      },
+      {
+       "text": "An all-blocked result is NOT servable. ... Serving it forever was measured 2026-07-31: the claims123 review tier's 6 blocked units would have been replayed into every future run as if they had been audited.",
+       "where": "comment in resume branch",
+       "verdict": "KEPT",
+       "why": "Lines ~341-343: the resume branch only returns the prior result if res.answers and not res.blocked; otherwise it falls through and re-runs."
+      },
+      {
+       "text": "ok / blocked / failed are DISJOINT: \"ok\" now means the unit produced at least one answer carrying evidence. Folding refusals into ok was measured reading \"ok=6\" on a tier whose every unit had been refused.",
+       "where": "comment in result counting",
+       "verdict": "KEPT",
+       "why": "Lines ~378-384: the if/elif/else checks res.blocked first, then res.ok, else failed. Since res.blocked and res.ok are mutually exclusive in FanoutResult (per the module's definition, not shown here but the logic ensures only one branch increments), the counts are disjoint."
+      },
+      {
+       "text": "PAID CALLS, separate from task count: with votes>1 they differ, and the number anyone asking \"what did this cost\" wants is this one.",
+       "where": "comment before paid_calls in return",
+       "verdict": "KEPT",
+       "why": "counts[\"calls\"] is incremented once per vote inside _run_task (line ~357), so with votes>1 it exceeds the task count. The summary returns counts[\"calls\"] as paid_calls (line ~406)."
+      },
+      {
+       "text": "Note it is a COUNT -- the budget ledger prices reservations at a deliberate worst-case, so a ledger total is a ceiling and never an invoice.",
+       "where": "comment after paid_calls in return",
+       "verdict": "UNCHECKABLE",
+       "why": "This comment references the budget ledger's pricing semantics, which are implemented in another module (daedalus.budget). This chunk only counts calls; it cannot verify the ledger's pricing behavior."
+      },
+      {
+       "text": "a parameter with a docstring, a verification, and no caller is the exact defect shape this session spent the day removing.",
+       "where": "docstring of policy parameter",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim that policy previously had no caller is historical and refers to the state before this change; this chunk shows policy is now passed to _one_call (line ~354), but cannot verify the prior defect."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The guard is installed before task submission, but the guard's uninstall is deferred to a finally block that also covers the executor loop. If uninstall() raises, it is swallowed. This is consistent with fail-closed behavior, but if the guard itself is misconfigured, the run proceeds after the finally block without a guard.",
+       "where": "lines ~298-317 and ~386-391",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "write_text_atomic is called after all votes for a task complete, but if it raises (e.g., disk full), the exception propagates out of _run_task and is caught by the outer try/except in the executor loop, resulting in a FanoutResult with only the error. However, the partial result file may have been left behind. This is not explicitly handled as a re-run candidate.",
+       "where": "line ~358",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The resume logic checks if the file exists and parses, but it does not validate that the parsed dict has the expected keys beyond what is accessed. If the file is a valid JSON but not a FanoutResult dict (e.g., written by another tool), it may raise KeyError when accessing prior.get(...) -- but .get with a default is safe, so no KeyError. However, if prior is not a dict (e.g., a list), prior.get would raise AttributeError, which is not caught (only OSError/ValueError). This could cause an unhandled exception, violating the 'never raises for a failing task' claim.",
+       "where": "lines ~328-333",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "The on_result callback is invoked after the result is appended to the results list, but if on_result raises (it is caught and swallowed), the result is still counted. This is fine. However, if on_result is slow, it blocks the main thread's loop iteration, potentially reducing concurrency for progress reporting, but not affecting task execution.",
+       "where": "lines ~383-386",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The progress printing uses print() with flush=True, which can interleave with other output if multiple fan_out calls run concurrently, but this is not a correctness issue.",
+       "where": "lines ~388-393",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "daedalus/lanes/fanout.py:328-333 | high | Resume branch catches only OSError/ValueError; if the JSON file parses to a non-dict (e.g., list), prior.get raises AttributeError, an unhandled exception that escapes _run_task and is caught by the outer loop, but it would be recorded as a task error rather than a clean re-run. This could violate the 'never raises for a failing task' claim if the error is not handled as a task failure. | Add a check that prior is a dict before calling .get, or catch AttributeError in the same except clause.",
+      "daedalus/lanes/fanout.py:358 | medium | write_text_atomic can raise (e.g., disk full); the exception propagates to the executor loop's try/except, which records it as a task error, but leaves a partially written file. On a subsequent resume, that file may be unparseable and re-run, which is acceptable, but the current run's result is marked failed even though the task's answers may have been computed. | Consider catching write_text_atomic exceptions within _run_task and recording the error without losing the answers, or ensure the file write is atomic enough to not leave partial data.",
+      "daedalus/lanes/fanout.py:298-317 | low | The guard install is attempted, and if it fails, the run is refused. However, the guard's uninstall is only called in the finally block; if the guard install succeeded but the guard itself is later found to be ineffective, there is no re-check. This is a design choice, not a defect. | No action needed unless a re-check is desired."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/lanes/fanout.py",
+      "chunk": "2 of 2",
+      "purpose": "fan_out: orchestrate parallel task execution with resume, policy guard, and summary",
+      "symbols": [
+       {
+        "name": "fan_out",
+        "kind": "function",
+        "effects": [
+         "filesystem_write",
+         "process_spawn",
+         "spend"
+        ],
+        "note": "Executes tasks concurrently, writes result JSON files, installs process guard, returns summary dict."
+       }
+      ],
+      "claims": [
+       {
+        "text": "Never raises for a failing task: a fan-out of 1,200 in which one task dies must produce 1,199 answers and a named failure, not an exception.",
+        "where": "docstring of fan_out",
+        "verdict": "KEPT",
+        "why": "_run_task catches Exception per vote (lines ~350-356) and per task (lines ~329-332); the executor loop catches Exception from fut.result() (lines ~372-376), so a failing task is recorded, not raised. The only exceptions that escape are before execution (guard install, line ~302) or after (write_text_atomic may raise, but that is outside the task loop and not a task failure)."
+       },
+       {
+        "text": "Transport failures are recorded on the result and the queue continues -- which is also why the summary reports ``failed`` separately from ``ok`` rather than folding them into a rate.",
+        "where": "docstring of fan_out",
+        "verdict": "KEPT",
+        "why": "_one_call is called inside try/except per vote (lines ~350-356) and per task (lines ~329-332); exceptions are appended to res.errors. The loop continues to the next future via as_completed. The summary counts 'failed' separately (line ~381)."
+       },
+       {
+        "text": "``resume`` skips any task whose result file already exists AND parses. A file that exists but does not parse is re-run, because a truncated result is worse than a missing one: it looks like an answer.",
+        "where": "docstring of fan_out",
+        "verdict": "KEPT",
+        "why": "Lines ~326-343: if resume and dest.is_file(), it tries json.loads; on OSError/ValueError it passes (re-run). On success, it returns the prior result if res.answers and not res.blocked; otherwise falls through and re-runs."
+       },
+       {
+        "text": "CORROBORATION THAT CANNOT CORROBORATE IS REFUSED, not warned about. ... asking for votes you cannot get is an error at the door",
+        "where": "comment before temperature check",
+        "verdict": "KEPT",
+        "why": "Lines ~278-293: if any task votes>1 and temperature<=0.0, returns a refused summary dict immediately."
+       },
+       {
+        "text": "THE GUARD, FIRST, BEFORE ANY CALL CAN LEAVE. Not conditional, not a parameter.",
+        "where": "comment before guard install",
+        "verdict": "KEPT",
+        "why": "The guard is installed (line ~300) before any task is submitted; if install fails, returns refused without executing tasks."
+       },
+       {
+        "text": "Fail CLOSED: a fan-out whose spend cannot be capped does not run.",
+        "where": "comment in guard exception handler",
+        "verdict": "KEPT",
+        "why": "Lines ~301-318: on exception, returns refused summary with paid_calls=0 and does not proceed."
+       },
+       {
+        "text": "SAME SUMMARY SHAPE as a completed run, including `paid_calls` and `results`.",
+        "where": "comment in guard refusal",
+        "verdict": "KEPT",
+        "why": "The refused dict (lines ~308-318) has the same keys as the ran summary (lines ~398-408): state, tasks, ok, blocked, failed, resumed, paid_calls, out_dir, concurrency, results."
+       },
+       {
+        "text": "Resolved ONCE for the whole fan-out: every answer in one run belongs to that run.",
+        "where": "comment before current_trace_id",
+        "verdict": "KEPT",
+        "why": "current_trace_id() is called once (line ~321) before the executor loop; the trace value is captured and passed to _run_task via closure."
+       },
+       {
+        "text": "NOT re-stamped: the prior trace is the run that paid for this answer. Overwriting it with the current run's id would claim this run produced something it read off disk.",
+        "where": "comment in resume branch",
+        "verdict": "KEPT",
+        "why": "Lines ~334-336: trace_id=prior.get(\"trace_id\") retains the prior trace; it is not overwritten with the current 'trace' variable."
+       },
+       {
+        "text": "An all-blocked result is NOT servable. ... Serving it forever was measured 2026-07-31: the claims123 review tier's 6 blocked units would have been replayed into every future run as if they had been audited.",
+        "where": "comment in resume branch",
+        "verdict": "KEPT",
+        "why": "Lines ~341-343: the resume branch only returns the prior result if res.answers and not res.blocked; otherwise it falls through and re-runs."
+       },
+       {
+        "text": "ok / blocked / failed are DISJOINT: \"ok\" now means the unit produced at least one answer carrying evidence. Folding refusals into ok was measured reading \"ok=6\" on a tier whose every unit had been refused.",
+        "where": "comment in result counting",
+        "verdict": "KEPT",
+        "why": "Lines ~378-384: the if/elif/else checks res.blocked first, then res.ok, else failed. Since res.blocked and res.ok are mutually exclusive in FanoutResult (per the module's definition, not shown here but the logic ensures only one branch increments), the counts are disjoint."
+       },
+       {
+        "text": "PAID CALLS, separate from task count: with votes>1 they differ, and the number anyone asking \"what did this cost\" wants is this one.",
+        "where": "comment before paid_calls in return",
+        "verdict": "KEPT",
+        "why": "counts[\"calls\"] is incremented once per vote inside _run_task (line ~357), so with votes>1 it exceeds the task count. The summary returns counts[\"calls\"] as paid_calls (line ~406)."
+       },
+       {
+        "text": "Note it is a COUNT -- the budget ledger prices reservations at a deliberate worst-case, so a ledger total is a ceiling and never an invoice.",
+        "where": "comment after paid_calls in return",
+        "verdict": "UNCHECKABLE",
+        "why": "This comment references the budget ledger's pricing semantics, which are implemented in another module (daedalus.budget). This chunk only counts calls; it cannot verify the ledger's pricing behavior."
+       },
+       {
+        "text": "a parameter with a docstring, a verification, and no caller is the exact defect shape this session spent the day removing.",
+        "where": "docstring of policy parameter",
+        "verdict": "UNCHECKABLE",
+        "why": "The claim that policy previously had no caller is historical and refers to the state before this change; this chunk shows policy is now passed to _one_call (line ~354), but cannot verify the prior defect."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The guard is installed before task submission, but the guard's uninstall is deferred to a finally block that also covers the executor loop. If uninstall() raises, it is swallowed. This is consistent with fail-closed behavior, but if the guard itself is misconfigured, the run proceeds after the finally block without a guard.",
+        "where": "lines ~298-317 and ~386-391",
+        "severity": "low",
+        "confidence": "possible"
+       },
+       {
+        "what": "write_text_atomic is called after all votes for a task complete, but if it raises (e.g., disk full), the exception propagates out of _run_task and is caught by the outer try/except in the executor loop, resulting in a FanoutResult with only the error. However, the partial result file may have been left behind. This is not explicitly handled as a re-run candidate.",
+        "where": "line ~358",
+        "severity": "medium",
+        "confidence": "possible"
+       },
+       {
+        "what": "The resume logic checks if the file exists and parses, but it does not validate that the parsed dict has the expected keys beyond what is accessed. If the file is a valid JSON but not a FanoutResult dict (e.g., written by another tool), it may raise KeyError when accessing prior.get(...) -- but .get with a default is safe, so no KeyError. However, if prior is not a dict (e.g., a list), prior.get would raise AttributeError, which is not caught (only OSError/ValueError). This could cause an unhandled exception, violating the 'never raises for a failing task' claim.",
+        "where": "lines ~328-333",
+        "severity": "high",
+        "confidence": "likely"
+       },
+       {
+        "what": "The on_result callback is invoked after the result is appended to the results list, but if on_result raises (it is caught and swallowed), the result is still counted. This is fine. However, if on_result is slow, it blocks the main thread's loop iteration, potentially reducing concurrency for progress reporting, but not affecting task execution.",
+        "where": "lines ~383-386",
+        "severity": "low",
+        "confidence": "possible"
+       },
+       {
+        "what": "The progress printing uses print() with flush=True, which can interleave with other output if multiple fan_out calls run concurrently, but this is not a correctness issue.",
+        "where": "lines ~388-393",
+        "severity": "low",
+        "confidence": "possible"
+       }
+      ],
+      "risks": [
+       "daedalus/lanes/fanout.py:328-333 | high | Resume branch catches only OSError/ValueError; if the JSON file parses to a non-dict (e.g., list), prior.get raises AttributeError, an unhandled exception that escapes _run_task and is caught by the outer loop, but it would be recorded as a task error rather than a clean re-run. This could violate the 'never raises for a failing task' claim if the error is not handled as a task failure. | Add a check that prior is a dict before calling .get, or catch AttributeError in the same except clause.",
+       "daedalus/lanes/fanout.py:358 | medium | write_text_atomic can raise (e.g., disk full); the exception propagates to the executor loop's try/except, which records it as a task error, but leaves a partially written file. On a subsequent resume, that file may be unparseable and re-run, which is acceptable, but the current run's result is marked failed even though the task's answers may have been computed. | Consider catching write_text_atomic exceptions within _run_task and recording the error without losing the answers, or ensure the file write is atomic enough to not leave partial data.",
+       "daedalus/lanes/fanout.py:298-317 | low | The guard install is attempted, and if it fails, the run is refused. However, the guard's uninstall is only called in the finally block; if the guard install succeeded but the guard itself is later found to be ineffective, there is no re-check. This is a design choice, not a defect. | No action needed unless a re-check is desired."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b066647fd57c780be3eeb51bcb163f303448a1acfa3f7ec150c364832efd3226",
+    "objective_chars": 15437,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/fanout.py [2/2]",
+  "rev": "da90d94",
+  "module": "daedalus/lanes/fanout.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

@@ -1,0 +1,188 @@
+{
+ "task_id": "review__b002__da90d94",
+ "key": "review__b002__da90d94-311629c2e3",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "hypothesis": "noop-acceptance-vs-red-green-gate",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source files were supplied, so the claim that correctness_gate is missing or unwired cannot be verified; the hypothesis relies on uncheckable references.",
+       "check": "Inspect the actual codebase to confirm correctness_gate exists and is invoked in the promotion path."
+      },
+      {
+       "hypothesis": "deferred-authority-chain",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "Without source files, the claim that enforcement is external and unverifiable cannot be tested; the pattern is asserted but not demonstrated.",
+       "check": "Search the codebase for each referenced module and verify enforcement is present in the same module or a shared helper."
+      },
+      {
+       "hypothesis": "aggregation-path-single-vs-multiple",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No evidence provided that other modules compute their own aggregates; the claim is speculative without source inspection.",
+       "check": "Grep for 'mean' or 'aggregate' in other modules to see if they bypass _by_provenance."
+      },
+      {
+       "hypothesis": "syspath-ordering-unenforced",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The hypothesis claims check_import_provenance does not exist or is ineffective, but without the source it cannot be confirmed; the comment suggests it explicitly validates the import path.",
+       "check": "Inspect check_import_provenance to confirm it validates the module's file path against the candidate directory."
+      },
+      {
+       "hypothesis": "egress-locality-single-point",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "No source provided to verify whether lane_for_host is the only host-locality check; the hypothesis cannot be assessed.",
+       "check": "Search for other functions that check host locality outside sensitivity.lane_for_host."
+      },
+      {
+       "hypothesis": "docstring-promise-enforcement-gap",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim is based on uncheckable docstrings without implementation; without source, the pattern is not confirmed.",
+       "check": "Inspect the actual code to see if docstring promises are implemented in the same module or visible helpers."
+      },
+      {
+       "hypothesis": "fails-open-freshness-consistency",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The implementation of snapshot_freshness is not visible, so the claim that it fails closed cannot be verified; the docstring suggests it fails open.",
+       "check": "Inspect the full snapshot_freshness function to see if it returns 'fresh' when git is unavailable."
+      },
+      {
+       "hypothesis": "unverified-external-contract",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim that get_governance's docstring is trusted without verification is uncheckable without the source; the module may rely on actual behavior, not the docstring.",
+       "check": "Inspect daedalus.core.get_governance to see if its behavior matches the override expectation."
+      },
+      {
+       "hypothesis": "per-chunk-docstring-claims",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "Without source, the docstring claims cannot be verified; the pattern is asserted but not demonstrated.",
+       "check": "Inspect the full modules to see if the implementations match the docstring promises."
+      },
+      {
+       "hypothesis": "guard-duplication-drift",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The duplication is noted but without source, drift cannot be confirmed; there may be tests or generation mechanisms preventing drift.",
+       "check": "Search for tests that compare the duplicated constants/functions across modules."
+      },
+      {
+       "hypothesis": "duplicate-guard-semantics",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim that guards are duplicated and may diverge is speculative; without source, it cannot be confirmed.",
+       "check": "Verify whether each guard delegates to a single shared helper or is defined once."
+      },
+      {
+       "hypothesis": "external-contracts-unverified",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "Without source, the external contracts cannot be verified; the claim is uncheckable.",
+       "check": "Inspect the referenced external modules to confirm their behavior matches the claims."
+      },
+      {
+       "hypothesis": "test-contract-unverified",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim is that tests are not visible, but without source, it cannot be assessed; the docstrings may be accurate.",
+       "check": "Search for the test files referenced in the docstrings to confirm they exist."
+      },
+      {
+       "hypothesis": "unverified-file-list-comment",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The comment is incomplete, but without source, the claim cannot be verified; it may be a minor documentation issue.",
+       "check": "Inspect the full comment and the listed files to see if they exist and contain forbidden terms."
+      },
+      {
+       "hypothesis": "unverified-corrected-numbers",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim is a directive, not a code claim; it is inherently unverifiable from the chunk.",
+       "check": "Look for the corrected numbers in later chunks or the full docstring."
+      },
+      {
+       "hypothesis": "unverified-baseline-update-explicit",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "Without source, the claim that baseline update is not explicit-only cannot be verified; the docstring suggests it is.",
+       "check": "Inspect the CLI to see if it auto-updates the baseline without a flag."
+      },
+      {
+       "hypothesis": "unverified-primary-checkout-touch",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim that run_attempt or _recording_runner may touch the primary checkout is speculative; without source, it cannot be confirmed.",
+       "check": "Inspect run_attempt and _recording_runner to see if they modify the primary checkout."
+      },
+      {
+       "hypothesis": "unverified-historical-claim",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The historical claim is external and cannot be verified from the chunk.",
+       "check": "Check repository history for the mentioned date and incident."
+      },
+      {
+       "hypothesis": "unverified-class-coverage-assertion",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "The claim that tests assert the property is unverifiable without the test files; the comment may be accurate.",
+       "check": "Inspect the test files to see if they assert the coverage property."
+      },
+      {
+       "hypothesis": "deterministic-chaining-unverified",
+       "verdict": "REFUTED",
+       "line": 0,
+       "why": "Without source, the implementation of append_round cannot be checked; the docstring may be accurate.",
+       "check": "Inspect append_round to see if it sorts and timestamps as claimed."
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "15d9dc749ff067fd1aba660546b3bfde899438960242ce6944487d67a4c73212",
+    "objective_chars": 20636,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 2 (20 inputs)",
+  "rev": "da90d94",
+  "bucket": 2,
+  "inputs": 20
+ }
+}

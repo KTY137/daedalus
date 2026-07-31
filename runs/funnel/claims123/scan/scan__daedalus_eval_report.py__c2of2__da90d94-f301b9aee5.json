@@ -1,0 +1,177 @@
+{
+ "task_id": "scan__daedalus_eval_report.py__c2of2__da90d94",
+ "key": "scan__daedalus_eval_report.py__c2of2__da90d94-f301b9aee5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/report.py",
+     "chunk": "2 of 2",
+     "purpose": "Render tier2, gate, and combined report strings from result dicts.",
+     "symbols": [
+      {
+       "name": "render_tier2",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats tier2 result dict into a string; handles skipped, per-task table, aggregate, truncation warnings, errored tasks."
+      },
+      {
+       "name": "render_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats gate result dict into a string; handles pass/fail, regressions, improved, new, missing, errored primary/quarantine, focus-withheld, and update-baseline hint."
+      },
+      {
+       "name": "render",
+       "kind": "function",
+       "effects": [],
+       "note": "Concatenates render_tier1, render_arms (if arms given), and render_tier2 (if tier2 given)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "ADVISORY regression-ratchet report -- see harness.run_gate docstring. This never blocks anything by itself; it is a local developer command.",
+       "where": "render_gate docstring",
+       "verdict": "uncheckable",
+       "why": "The claim that render_gate never blocks is a property of the caller (harness.run_gate), not of this function; this chunk only builds a string."
+      },
+      {
+       "text": "errored tasks ... SKIPPED (not counted in the aggregate above)",
+       "where": "render_tier2, errored block",
+       "verdict": "kept",
+       "why": "The aggregate line (lines 297-299) uses result['success_A']/result['n_tasks'] and result['success_B']/result['n_tasks']; errored tasks are only appended in a separate section after the aggregate, so they are not counted in that aggregate."
+      },
+      {
+       "text": "TOK_B is what was actually sent to the model (may be truncated to fit the context window); TOK_B(true) is the real, untruncated whole-repo size.",
+       "where": "render_tier2, header comment",
+       "verdict": "kept",
+       "why": "The header row uses t['tokens_B'] for TOK_B and t.get('tokens_B_true', t['tokens_B']) for TOK_B(true), and the aggregate line distinguishes B (sent) = result['tokens_B'] from B (true, untruncated) = result.get('tokens_B_true', tok_b)."
+      },
+      {
+       "text": "WARNING: B was TRUNCATED to fit the model's context window for at least one task -- B (sent) above understates the real whole-repo baseline; a truncated baseline is a WEAKER one, not a fair comparison.",
+       "where": "render_tier2, conditional warning",
+       "verdict": "kept",
+       "why": "The warning is emitted only when result.get('b_truncated_any') is truthy, and it states that B (sent) understates the real baseline."
+      },
+      {
+       "text": "Errored tasks (result.get: absent for any hand-built pre-existing gate result dict, and always absent -> no lines added when there are none).",
+       "where": "render_gate, comment before errored_primary",
+       "verdict": "kept",
+       "why": "The code uses result.get(\"errored_primary\") or [] and result.get(\"errored_quarantine\") or [], so absent keys yield empty lists and no lines are added."
+      },
+      {
+       "text": "Focus-withheld tasks (result.get: absent for any hand-built pre-existing gate result dict) -- a fence fail-closing on a task's own focus file is NOT a recall regression (see harness.run_gate); reported here, never folded into REGRESSIONS above.",
+       "where": "render_gate, comment before focus_withheld",
+       "verdict": "kept",
+       "why": "focus_withheld is read via result.get(\"focus_withheld\") or [] and rendered in its own section, separate from the REGRESSIONS section; the claim that it is never folded into REGRESSIONS is upheld by the code."
+      },
+      {
+       "text": "No primary-tier task lost recall vs the stored baseline.",
+       "where": "render_gate, final conditional line",
+       "verdict": "kept",
+       "why": "This line is appended only when not result[\"regressions\"] and not errored_primary, which matches the claim."
+      },
+      {
+       "text": "Run 'python -m daedalus.eval --update-baseline' to intentionally accept the current numbers as the new baseline (explicit only, never automatic).",
+       "where": "render_gate, final line",
+       "verdict": "uncheckable",
+       "why": "The claim that the baseline update is explicit-only and never automatic is a property of the CLI/harness, not of this rendering function; this chunk only prints the hint."
+      }
+     ],
+     "observations": [
+      {
+       "what": "render_gate's banner is PASS/FAIL based solely on result['passed']; the docstring says it never blocks, but the banner itself does not encode any blocking logic.",
+       "where": "render_gate, line 281",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_tier2 assumes result['per_task'] exists and is iterable when not skipped; no guard for missing keys.",
+       "where": "render_tier2, line 281",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_tier2 assumes result['provider'] has 'kind', 'model', 'host'; missing keys would raise KeyError.",
+       "where": "render_tier2, line 281",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_tier2 assumes result['n_tasks'], result['success_A'], result['success_B'], result['tokens_A'], result['tokens_B'] exist; missing keys would raise KeyError.",
+       "where": "render_tier2, aggregate lines",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_gate assumes result['passed'], result['baseline_path'], result['n_checked'], result['regressions'], result['improved'], result['new_tasks'], result['missing_tasks'] exist; missing keys would raise KeyError.",
+       "where": "render_gate, lines 282-286",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_gate's 'No primary-tier task lost recall' line is only shown when there are no regressions and no errored_primary; but it does not mention whether the gate passed/failed overall -- a FAIL due to errored_primary still shows this reassuring line if regressions are empty.",
+       "where": "render_gate, line 281",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_tier2's ratio is computed as 100 * tok_a / tok_b; if tok_b is 0, it shows 'n/a' but the aggregate line still prints both token counts without flagging the zero denominator.",
+       "where": "render_tier2, line 281",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_gate's focus_withheld section does not show the reason for withholding, only the id and target.",
+       "where": "render_gate, focus_withheld block",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ],
+     "risks": [
+      "render_tier2 | medium | Missing keys in result dict will raise KeyError, breaking the report | Add guards or document required keys",
+      "render_gate | medium | Missing keys in result dict will raise KeyError, breaking the report | Add guards or document required keys",
+      "render_gate | medium | 'No primary-tier task lost recall' line may appear even when gate FAILs due to errored_primary | Check whether the line should be conditional on result['passed']",
+      "render_tier2 | low | Zero denominator in ratio leads to 'n/a' but no explicit warning | Consider adding a warning when tok_b is 0"
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "01b6e7908e756513703e5c5ac679abc8c2e41832c5f15dab71e0074b70ba647c",
+    "objective_chars": 10117,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/report.py [2/2]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/report.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

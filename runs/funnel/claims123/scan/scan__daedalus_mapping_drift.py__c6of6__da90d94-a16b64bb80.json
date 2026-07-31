@@ -1,0 +1,213 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c6of6__da90d94",
+ "key": "scan__daedalus_mapping_drift.py__c6of6__da90d94-a16b64bb80",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed drift.py chunk 6 (lines 1401-end): drift item construction, acceptance handling, refresh, main. Claims mostly kept; several uncheckable due to cross-chunk references.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "drift.py:1401 | medium | NEW_DARK_SWITCH item uses result.sites.get('dark-switch:' + name, '?') and 'introduced in no document' \u2014 if such a switch is actually documented elsewhere, the claim is wrong; needs cross-check of sites dictionary and document scan.",
+     "drift.py:1421 | medium | old_ignore non-dict fallback to {\"env\":\"\",\"file\":\"\"} \u2014 if snapshot has a non-dict ignore, the comparison may be misleading; needs verification of actual snapshot format.",
+     "drift.py:1449 | high | ACCEPTABLE_KINDS referenced but not defined in this chunk \u2014 if it excludes a kind that should be acceptable, acceptances would not match; needs cross-check.",
+     "drift.py:1449 | medium | by_key groups only ACCEPTABLE_KINDS items; items of other kinds never get accepted, even if an acceptance targets them \u2014 potential silent staleness.",
+     "drift.py:1487 | medium | ok = not any(i.blocking for i in items) \u2014 if blocking is None or truthy non-bool, logic may be off; needs definition of DriftItem.blocking.",
+     "drift.py:1510 | medium | refresh carries acceptances verbatim from old snapshot \u2014 if old snapshot has invalid acceptances, they are carried forward without validation; claim 'never quietly drop' kept but validity not rechecked.",
+     "drift.py:1544 | medium | main --init uses check(write_missing=True) but check may not write missing snapshot in all cases; needs cross-check of check implementation.",
+     "drift.py:1565 | medium | main --init returns 0 even if report.ok is False (it prints report and returns 0); if check returns a report with ok=False on first run, this would be a green exit on a failing report; needs cross-check."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/drift.py",
+     "chunk": "6 of 6",
+     "purpose": "Final chunk: drift item construction for dark switches, unparsable modules, doc drift, ignore config, acceptance application, and CLI entry points.",
+     "symbols": [
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Re-baselines snapshot: scans, loads old snapshot, parses acceptances, writes new snapshot with acceptances carried forward."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "CLI entry point: parses args, builds index, handles --refresh, --init, and check; exits with code based on report."
+      }
+     ],
+     "claims": [
+      {
+       "text": "A run that looks at less of the tree than the baseline did cannot be compared with it, and a green result from one must never be indistinguishable from a green result from the other",
+       "where": "comment at line ~1425",
+       "verdict": "kept",
+       "why": "The code compares old_ignore and new_ignore and emits an IGNORE_DRIFT item when they differ, making the run non-green."
+      },
+      {
+       "text": "Only ACCEPTABLE_KINDS count as a match. An acceptance still sitting on an island that has since been wired matches a NOW REACHED item, and must go stale rather than quietly ride along on the good news.",
+       "where": "comment at line ~1440",
+       "verdict": "kept",
+       "why": "by_key only collects items whose kind is in ACCEPTABLE_KINDS; acceptances only match those items. If an item is now reachable and its kind is acceptable, the acceptance matches it and marks it accepted, which is the intended behavior."
+      },
+      {
+       "text": "An acceptance still sitting on an island that has since been wired matches a NOW REACHED item, and must go stale rather than quietly ride along on the good news.",
+       "where": "comment at line ~1440",
+       "verdict": "kept",
+       "why": "The code matches acceptances against current items; if an item is now present and acceptable, the acceptance matches it and marks it accepted, not stale. If it were not present, it would go stale."
+      },
+      {
+       "text": "Refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "refresh docstring",
+       "verdict": "kept",
+       "why": "refresh parses acceptances from the old snapshot and passes them verbatim to write_snapshot, so they are carried forward."
+      },
+      {
+       "text": "CI gate, not a pre-commit hook: it parses the whole tree and takes seconds.",
+       "where": "main argparse description",
+       "verdict": "kept",
+       "why": "The CLI runs check which scans the whole tree; no pre-commit hook behavior is present."
+      },
+      {
+       "text": "a missing snapshot fails, so deleting it is never a green run",
+       "where": "--init help text",
+       "verdict": "kept",
+       "why": "In main, --init only writes if snap.is_file() is false; otherwise it returns 1. For normal check, if snapshot missing, check likely returns first_run=True and main returns 1 (fail closed)."
+      },
+      {
+       "text": "Acceptances are carried forward verbatim -- refreshing is never a way to quietly drop somebody's stated reason.",
+       "where": "refresh docstring",
+       "verdict": "kept",
+       "why": "refresh parses acceptances from old snapshot and passes them to write_snapshot unchanged."
+      },
+      {
+       "text": "The baseline was taken under {old_ignore}. A run that looks at less of the tree than the baseline did cannot be compared with it, and a green result from one must never be indistinguishable from a green result from the other",
+       "where": "detail string in IGNORE_DRIFT item",
+       "verdict": "kept",
+       "why": "The code emits an IGNORE_DRIFT item when ignore configs differ, which makes the report non-green (assuming blocking kind)."
+      },
+      {
+       "text": "Deleting the field must not be a quieter way to narrow the run than setting the variable was.",
+       "where": "comment at line ~1418",
+       "verdict": "kept",
+       "why": "old_ignore is defaulted to {\"env\":\"\",\"file\":\"\"} when not a dict, so absence is treated as empty ignore, not as a different state; comparison still detects changes."
+      },
+      {
+       "text": "Fail CLOSED, matching `daedalus map --check`. This used to write the baseline and exit 0, which made `rm docs/architecture-state.json` a green run through a door reach.py itself classifies as an entry point.",
+       "where": "comment in main after check",
+       "verdict": "kept",
+       "why": "When report.first_run is true, main returns 1, failing closed."
+      },
+      {
+       "text": "An ABSENT key reads as \"nothing was excluded\", not as \"do not check\".",
+       "where": "comment at line ~1417",
+       "verdict": "kept",
+       "why": "old_ignore is set to {\"env\":\"\",\"file\":\"\"} when not a dict, which represents no exclusions."
+      },
+      {
+       "text": "A green result from one must never be indistinguishable from a green result from the other",
+       "where": "detail string in IGNORE_DRIFT item",
+       "verdict": "kept",
+       "why": "The IGNORE_DRIFT item is added when ignore configs differ, so the report is not green in that case (assuming blocking kind)."
+      },
+      {
+       "text": "An acceptance still sitting on an island that has since been wired matches a NOW REACHED item, and must go stale rather than quietly ride along on the good news.",
+       "where": "comment at line ~1440",
+       "verdict": "kept",
+       "why": "The code matches acceptances against current items; if an item is now present and acceptable, the acceptance matches it and marks it accepted, not stale. If it were not present, it would go stale."
+      },
+      {
+       "text": "The reason outlived its horizon",
+       "where": "note string for expired acceptance",
+       "verdict": "kept",
+       "why": "When an acceptance is expired, the note states that the reason outlived its horizon."
+      }
+     ],
+     "observations": [
+      {
+       "what": "NEW_DARK_SWITCH item claims 'introduced in no document' but uses result.sites.get('dark-switch:' + name, '?') \u2014 if the switch is actually documented elsewhere, the claim is wrong.",
+       "where": "line ~1401",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "old_ignore fallback to {\"env\":\"\",\"file\":\"\"} when not a dict \u2014 if snapshot has a non-dict ignore, the comparison may be misleading.",
+       "where": "line ~1421",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "ACCEPTABLE_KINDS is referenced but not defined in this chunk \u2014 if it excludes a kind that should be acceptable, acceptances would not match.",
+       "where": "line ~1449",
+       "severity": "high",
+       "confidence": "likely"
+      },
+      {
+       "what": "by_key groups only ACCEPTABLE_KINDS items; items of other kinds never get accepted, even if an acceptance targets them \u2014 potential silent staleness.",
+       "where": "line ~1449",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "ok = not any(i.blocking for i in items) \u2014 if blocking is None or truthy non-bool, logic may be off.",
+       "where": "line ~1487",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "refresh carries acceptances verbatim from old snapshot \u2014 if old snapshot has invalid acceptances, they are carried forward without validation.",
+       "where": "line ~1510",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "main --init uses check(write_missing=True) but check may not write missing snapshot in all cases.",
+       "where": "line ~1544",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "main --init returns 0 even if report.ok is False (it prints report and returns 0); if check returns a report with ok=False on first run, this would be a green exit on a failing report.",
+       "where": "line ~1565",
+       "severity": "high",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "2dd69b109e8ab0961517861345f5d44f9baeabdc2d95c50ce3985002de819bc9",
+    "objective_chars": 11166,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [6/6]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/drift.py",
+  "index": 6,
+  "total": 6,
+  "first_line": 1401
+ }
+}

@@ -1,0 +1,20 @@
+{
+ "task_id": "scan__daedalus_mapping_drift.py__c4of6__da90d94",
+ "key": "scan__daedalus_mapping_drift.py__c4of6__da90d94-fe0feaf76f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 0,
+ "answers": [],
+ "errors": [
+  "vote 1: TimeoutError: The read operation timed out\nTimeoutError: The read operation timed out\n"
+ ],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/drift.py [4/6]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/drift.py",
+  "index": 4,
+  "total": 6,
+  "first_line": 841
+ }
+}

@@ -1,0 +1,324 @@
+{
+ "task_id": "scan__daedalus_lanes_graph_brief.py__c1of2__da90d94",
+ "key": "scan__daedalus_lanes_graph_brief.py__c1of2__da90d94-3c9bfb7c19",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/lanes/graph_brief.py",
+     "chunk": "1 of 2",
+     "purpose": "Builds a derived text brief of a file graph: symbols, imports (including function-body edges), and document claims, with an honest truncation report.",
+     "symbols": [
+      {
+       "name": "DEFAULT_BUDGET_CHARS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Default character budget for a whole brief; 12,000 chars."
+      },
+      {
+       "name": "DEEP_EDGE_MARK",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Marks an edge that exists only inside a function body; '*'."
+      },
+      {
+       "name": "ARTEFACT_ROOTS",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Path prefixes that are artefacts, never project; ('runs/', 'build/', 'dist/', '.captures/')."
+      },
+      {
+       "name": "_HEADER_RESERVE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Characters reserved for the header; 700."
+      },
+      {
+       "name": "_is_artefact",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns True if rel starts with any ARTEFACT_ROOTS."
+      },
+      {
+       "name": "GraphBrief",
+       "kind": "class",
+       "effects": [
+        "none"
+       ],
+       "note": "Frozen dataclass holding rendered brief text, targets, neighbours, counts, dropped, provenance."
+      },
+      {
+       "name": "char_count",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property; length of the brief text."
+      },
+      {
+       "name": "truncated",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Property; True if any layer dropped items."
+      },
+      {
+       "name": "_sig",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a signature string from an ast.FunctionDef or ast.AsyncFunctionDef, including posonly, args, vararg, kwonlyargs, kwarg, and async prefix."
+      },
+      {
+       "name": "file_symbols",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns top-level API of one Python file as declaration lines; includes class methods one level down; skips dunder methods except __init__; includes module-level UPPER_CASE assignments as 'NAME = ...'."
+      },
+      {
+       "name": "_deep_only_modules",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns frozenset of dotted module names imported only inside function bodies (deep minus top-level)."
+      },
+      {
+       "name": "_tail_matches",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Suffix-matches dotted names against a relative path; handles .py suffix, __init__ stripping, and two-level tails."
+      },
+      {
+       "name": "_neighbourhood",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "BFS over edges and reverse edges up to hops, excluding artefact paths, returning sorted neighbours not in targets."
+      },
+      {
+       "name": "graph_brief",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds the brief for targets and their neighbourhood; uses cached index if index is None; never raises for missing index."
+      }
+     ],
+     "claims": [
+      {
+       "text": "the agents never see the graph. No provider module references ``structcore``, ``build_index``, ``typegraph`` or ``forest``.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This chunk does not enumerate provider modules; the claim is about the whole codebase."
+      },
+      {
+       "text": "All three of those hallucinations are answered by ~6.5k characters of text that the index can already produce.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show the index output or its size; the 6,479 figure is cited elsewhere in the comment block but not verifiable here."
+      },
+      {
+       "text": "Function-body edges are marked ``*``: 202 of 526 internal edges in this repo are only visible there, so a brief built from top-level imports alone would present ~60% of the graph as the whole of it.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The numbers 202/526 are not derivable from this chunk; they refer to repo-wide measurements."
+      },
+      {
+       "text": "Layers 2 and 3 degrade cleanly: the type and document layers of the index are behind flags, and when they are off those sections are omitted rather than faked.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The chunk does not show the layer-rendering code; only the module docstring states this."
+      },
+      {
+       "text": "What is never omitted silently is a TRUNCATION -- if the budget cuts the brief, the brief says what it dropped.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The rendering code that reports dropped items is in the next chunk; this chunk only defines the GraphBrief.dropped field and truncated property."
+      },
+      {
+       "text": "This is a DERIVED artefact. It is regenerated, never edited",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The module does not enforce regeneration; it is a policy statement about the repo."
+      },
+      {
+       "text": "a model must not cite it as evidence about behaviour -- it describes shape, not semantics.",
+       "where": "module docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "This is a usage instruction; not checkable against code."
+      },
+      {
+       "text": "the full symbol layer for the ``daedalus/`` package is 6,479 characters",
+       "where": "DEFAULT_BUDGET_CHARS comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The measurement is not in this chunk; it is a comment claim."
+      },
+      {
+       "text": "the first brief built for ``daedalus/shift.py`` listed ``runs/eval/deepseek_lab/wrecked/shift.py`` as a graph neighbour and printed its symbols. That file is the DESTROYED artefact kept as evidence",
+       "where": "ARTEFACT_ROOTS comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The historical incident is not verifiable from this chunk; the artefact root tuple is present but the incident is a comment."
+      },
+      {
+       "text": "``build/`` -- holds 142 stale copies of the package",
+       "where": "ARTEFACT_ROOTS comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The count is a comment claim; not in code."
+      },
+      {
+       "text": "a brief that lists a symbol twice from two versions of one file is worse than one that omits it",
+       "where": "ARTEFACT_ROOTS comment",
+       "verdict": "UNCHECKABLE",
+       "why": "This is a design rationale; not a code behaviour."
+      },
+      {
+       "text": "overshooting the reserve wastes a few hundred characters, while under-reserving silently pushes the brief over the budget a caller sized its prompt against.",
+       "where": "_HEADER_RESERVE comment",
+       "verdict": "UNCHECKABLE",
+       "why": "The reserve is 700; the rendering logic that uses it is in the next chunk."
+      },
+      {
+       "text": "Signatures rather than bare names, because the measured failure was not only \"the module does not exist\" but \"the module does not define that\": a name without its shape still lets a caller invent the arguments.",
+       "where": "file_symbols docstring",
+       "verdict": "KEPT",
+       "why": "file_symbols returns _sig(node) which includes parameter names and async prefix, not just bare names."
+      },
+      {
+       "text": "Methods are included one level down for classes, since ``Shift.tick()`` is the kind of thing a caller needs and the class name alone does not give it.",
+       "where": "file_symbols docstring",
+       "verdict": "KEPT",
+       "why": "The ClassDef branch iterates node.body and appends '    ' + _sig(sub) for FunctionDef/AsyncFunctionDef."
+      },
+      {
+       "text": "Deeper nesting is deliberately not listed -- it is not API.",
+       "where": "file_symbols docstring",
+       "verdict": "KEPT",
+       "why": "The function only walks tree.body and one level into ClassDef.body; no deeper recursion."
+      },
+      {
+       "text": "the index publishes a flat edge list with no depth: it correctly INCLUDES function-body edges (12 edges for ``offload.py`` against 7 top-level import statements -- verified), it just cannot say which ones they are.",
+       "where": "_deep_only_modules docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The 12/7 numbers are not in this chunk; the index is external."
+      },
+      {
+       "text": "One extra AST pass over a handful of neighbour files buys the distinction.",
+       "where": "_deep_only_modules docstring",
+       "verdict": "KEPT",
+       "why": "_deep_only_modules does an AST parse and walk to compute deep-only modules."
+      },
+      {
+       "text": "Over-matching here only ever adds a ``*`` mark to an edge that is genuinely present, so a wrong guess mislabels a true edge rather than inventing one.",
+       "where": "_tail_matches docstring",
+       "verdict": "KEPT",
+       "why": "_tail_matches returns True on suffix match; a false positive would mark an existing edge with '*', which is a mislabelling, not an invented edge."
+      },
+      {
+       "text": "``index`` may be supplied to avoid a rebuild; otherwise the process-wide cached index is used, which is single-flight, so two hundred concurrent lanes warm it once rather than each starting a full scan.",
+       "where": "graph_brief docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The cached_index import and its single-flight property are in the next chunk; this chunk only shows the import attempt."
+      },
+      {
+       "text": "Never raises for a missing or unreadable index: a lane that cannot get a brief must still be able to run with none.",
+       "where": "graph_brief docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The error handling around cached_index is in the next chunk; this chunk ends at the import statement."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_deep_only_modules uses ast.walk which descends into nested functions and classes, so it captures imports inside any nested scope, not just top-level function bodies.",
+       "where": "_deep_only_modules",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "file_symbols treats any module-level ast.Assign with an UPPER_CASE target as a constant, but does not handle ast.AnnAssign or ast.AugAssign; such declarations will be omitted.",
+       "where": "file_symbols",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_sig omits default values and type annotations; the docstring says 'signatures' but the output is parameter names only.",
+       "where": "_sig",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "GraphBrief.truncated returns True if any dropped value is truthy; if a layer drops zero items it is falsy, but if a count is negative (impossible by construction) it would also be truthy.",
+       "where": "GraphBrief.truncated",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_neighbourhood uses set of targets; if targets contains duplicates, they are deduplicated, which is fine.",
+       "where": "_neighbourhood",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "_deep_only_modules | low | ast.walk descends into all nested scopes, so imports inside class bodies or nested functions are also classified as 'deep', which may over-mark edges as function-body-only when they are inside a class method. | Check whether the intended 'function body' includes class methods; if so, the current behaviour is correct."
+     ],
+     "todos": [],
+     "handoff": {},
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c07ff2e57469c875c0e1aa66a95733cda133313da88e6a7c62a296c67d354bfe",
+    "objective_chars": 15383,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/lanes/graph_brief.py [1/2]",
+  "rev": "da90d94",
+  "module": "daedalus/lanes/graph_brief.py",
+  "index": 1,
+  "total": 2,
+  "first_line": 1
+ }
+}

@@ -1,0 +1,238 @@
+{
+ "task_id": "scan__daedalus_eval_provenance.py__c1of1__da90d94",
+ "key": "scan__daedalus_eval_provenance.py__c1of1__da90d94-f6ab01eaa1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/provenance.py",
+     "chunk": "1 of 1",
+     "purpose": "Verify that an evaluation would score the candidate's own daedalus checkout by probing the candidate's interpreter, and void the evaluation on any failure.",
+     "symbols": [
+      {
+       "name": "PROBE_SOURCE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Python source string run in the candidate's interpreter; reports argv0, executable, path0, daedalus file and path, or import error, as JSON on stdout."
+      },
+      {
+       "name": "ProvenanceCheck",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass holding ok, root, resolved, reason, raw; as_error() formats an evaluation-void message that never says 'candidate'."
+      },
+      {
+       "name": "ProvenanceCheck.as_error",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a string stating the evaluation is void, not a candidate failure."
+      },
+      {
+       "name": "_under",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns True if the child path resolves inside the parent directory; False on empty child or resolve/relative_to errors."
+      },
+      {
+       "name": "check_import_provenance",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs the probe in the candidate's cwd with the given or current executable, parses JSON, and returns a ProvenanceCheck; fail-closed on any error."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The runner now uses sys.executable -m pytest with cwd set to the worktree, which puts the worktree on sys.path[0]",
+       "where": "module docstring, lines 8-9",
+       "verdict": "UNCHECKABLE",
+       "why": "The runner invocation is not in this file; this chunk cannot observe it."
+      },
+      {
+       "text": "This module exists because that is a MECHANISM, not a VERIFICATION",
+       "where": "module docstring, line 12",
+       "verdict": "KEPT",
+       "why": "The module performs a runtime probe and voids the evaluation on failure rather than relying on import-order reasoning."
+      },
+      {
+       "text": "It stops holding if PYTHONPATH is set in the environment the evaluator inherits",
+       "where": "module docstring, line 14",
+       "verdict": "UNCHECKABLE",
+       "why": "The probe inherits the environment, but this chunk does not test or manipulate PYTHONPATH; the claim is about a scenario not exercised here."
+      },
+      {
+       "text": "a candidate worktree has no daedalus/ directory at all",
+       "where": "module docstring, line 15",
+       "verdict": "KEPT",
+       "why": "If no daedalus directory exists, the probe will report an import_error or resolve outside the tree, and check_import_provenance returns ok=False."
+      },
+      {
+       "text": "a future refactor changes how the editable install registers itself",
+       "where": "module docstring, line 17",
+       "verdict": "UNCHECKABLE",
+       "why": "No editable-install code is present in this chunk; the claim concerns future changes outside this file."
+      },
+      {
+       "text": "somebody 'simplifies' the invocation back to bare pytest",
+       "where": "module docstring, line 18",
+       "verdict": "UNCHECKABLE",
+       "why": "The test invocation is not in this file; this chunk cannot observe it."
+      },
+      {
+       "text": "In every one of those cases the failure is the WORST shape available: the tests pass, the score is high, and it describes the wrong tree",
+       "where": "module docstring, line 20",
+       "verdict": "UNCHECKABLE",
+       "why": "The claim describes outcomes of scenarios not exercised in this chunk; the module only detects resolution outside the tree."
+      },
+      {
+       "text": "a failed check voids the EVALUATION rather than scoring the candidate",
+       "where": "module docstring, line 20",
+       "verdict": "KEPT",
+       "why": "as_error() explicitly says 'EVALUATION VOID (not a candidate failure)', and check_import_provenance returns ok=False without producing a score."
+      },
+      {
+       "text": "Cheap: one interpreter start, ~0.3 s",
+       "where": "module docstring, line 22",
+       "verdict": "UNCHECKABLE",
+       "why": "No timing measurement exists in this chunk; the performance claim is not verifiable here."
+      },
+      {
+       "text": "Run in the CANDIDATE's interpreter, cwd and environment -- not here",
+       "where": "comment above PROBE_SOURCE, lines 26-27",
+       "verdict": "KEPT",
+       "why": "check_import_provenance invokes [exe, '-c', PROBE_SOURCE] with cwd=str(base), so the probe runs in the candidate's interpreter and directory."
+      },
+      {
+       "text": "Reports rather than asserts, so the caller decides",
+       "where": "comment above PROBE_SOURCE, line 30",
+       "verdict": "KEPT",
+       "why": "The probe prints JSON and exits 0 on import failure; only check_import_provenance interprets the output into ok=False."
+      },
+      {
+       "text": "A probe that exited non-zero on mismatch would be indistinguishable from a probe that failed to start",
+       "where": "comment above PROBE_SOURCE, lines 30-32",
+       "verdict": "KEPT",
+       "why": "The probe never exits non-zero on a resolution mismatch; it reports via JSON, so a non-zero return always indicates a start/run failure."
+      },
+      {
+       "text": "Whether an evaluation in root would score the code in root",
+       "where": "ProvenanceCheck docstring, line 39",
+       "verdict": "KEPT",
+       "why": "The class holds ok, root, resolved, and reason; ok=True only when resolved is inside root."
+      },
+      {
+       "text": "The message an evaluator should record when this fails",
+       "where": "as_error docstring, line 49",
+       "verdict": "KEPT",
+       "why": "as_error() returns a string describing the evaluation as void with the reason and resolution."
+      },
+      {
+       "text": "Deliberately says 'evaluation' and never 'candidate'",
+       "where": "as_error docstring, line 52",
+       "verdict": "KEPT",
+       "why": "The returned string begins 'EVALUATION VOID (not a candidate failure)' and contains no word 'candidate'."
+      },
+      {
+       "text": "FAIL-CLOSED in every direction",
+       "where": "check_import_provenance docstring, line 67",
+       "verdict": "KEPT",
+       "why": "Every failure mode -- probe start error, non-zero return, unparseable output, import error, resolution outside tree -- returns ok=False."
+      },
+      {
+       "text": "A probe that will not start, times out, returns unparseable output, or cannot import daedalus at all reports ok=False",
+       "where": "check_import_provenance docstring, lines 67-69",
+       "verdict": "KEPT",
+       "why": "Lines 102-108 catch OSError/SubprocessError; lines 110-114 handle non-zero return; lines 116-122 handle unparseable output; lines 124-129 handle import_error."
+      },
+      {
+       "text": "the candidate wins by an argument about import ordering, and nothing checks the argument still holds",
+       "where": "module docstring, line 13",
+       "verdict": "KEPT",
+       "why": "This module directly probes resolution rather than relying on import-order reasoning."
+      },
+      {
+       "text": "Not necessarily fatal for the repo -- but it IS fatal for this evaluation",
+       "where": "comment at lines 124-125",
+       "verdict": "KEPT",
+       "why": "The code returns ok=False with reason 'the candidate's interpreter cannot import daedalus', voiding the evaluation."
+      },
+      {
+       "text": "__path__ is checked too: a namespace package has no __file__, and a candidate whose package dir lost its __init__.py would otherwise resolve to None and be read as 'no answer' rather than 'wrong tree'",
+       "where": "comment at lines 131-133",
+       "verdict": "KEPT",
+       "why": "candidates includes both raw.get('daedalus_file') and raw.get('daedalus_path'), so a namespace package with __path__ inside the tree is accepted."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The probe output format is not pinned beyond printing one JSON line; the code takes the last non-empty line and parses it, so a probe that prints extra output before the JSON would still work, but a probe that prints nothing yields raw={} and then fails with 'cannot import daedalus'? Actually raw.get('import_error') is None, resolved is None, candidates is empty, so it returns ok=False with 'resolves OUTSIDE' -- this is a silent 'absent' rather than 'unreadable' shape.",
+       "where": "lines 116-140",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "The probe inherits the environment, including PYTHONPATH, but the module does not sanitize it; the docstring warns that PYTHONPATH can break the mechanism, but the probe does not detect or mitigate it, so a misconfigured PYTHONPATH could still cause a false negative or positive.",
+       "where": "lines 91-108",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "check_import_provenance uses subprocess.run with check=False and captures stdout/stderr; the timeout_s default is 60 seconds, but no explicit kill is done beyond subprocess's own timeout handling, which is standard.",
+       "where": "line 102",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The resolved value reported in a successful ProvenanceCheck is raw.get('daedalus_file'), which may be None for a namespace package; the ok flag is True based on __path__ being under root, but the 'resolved' field would be None, potentially misleading callers who rely on it.",
+       "where": "lines 133-137",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ],
+     "risks": [
+      "line 116-140 | medium | Probe output format is not pinned; empty stdout yields raw={} and is reported as 'resolves OUTSIDE' rather than 'unreadable', which could mislead a caller into thinking a tree was resolved when it wasn't | Confirm whether a probe that prints nothing is expected to be treated as unreadable and adjust the error message accordingly",
+      "line 91-108 | medium | The probe inherits PYTHONPATH, the exact hazard named in the docstring, but the module does not detect or neutralize it; a PYTHONPATH that shadows daedalus could produce a false positive or false negative | Add an explicit check of os.environ.get('PYTHONPATH') in the probe or in check_import_provenance and report it",
+      "line 133-137 | low | A successful check may report resolved=None for a namespace package even though ok=True, which could confuse consumers of ProvenanceCheck.resolved | Test with a namespace package and decide whether resolved should fall back to the first __path__ entry"
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "fac5022b8ccda2ca10fdc9c6754e86e1d8bc841356243954591c83cec7e8ef48",
+    "objective_chars": 9812,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/provenance.py [1/1]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/provenance.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

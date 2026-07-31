@@ -1,0 +1,544 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c4of5__da90d94",
+ "key": "scan__daedalus_council_canary.py__c4of5__da90d94-cc7f898a9a",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "4 of 5",
+     "purpose": "Live roster builder, egress gate, grading, and the canary runner with wall-clock abandonment.",
+     "symbols": [
+      {
+       "name": "_adapters_behind",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Gathers CouncilAdapter instances reachable via lane.adapter, ask.__self__, and ask.__closure__."
+      },
+      {
+       "name": "live_egress_lanes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Resolves lanes to adapters and prefixes lane identity to live_egress_seats results."
+      },
+      {
+       "name": "grade",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps transport status to canary status and runs probe.check only on ok replies."
+      },
+      {
+       "name": "_run_lane",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Runs one lane's probes sequentially inside a gate-held thread."
+      },
+      {
+       "name": "run_canary",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Spawns daemon threads to probe lanes, refuses live egress unless live=True, reports wall_clock timeouts."
+      },
+      {
+       "name": "_new_run_id",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Generates a run id from UTC time and secrets token."
+      },
+      {
+       "name": "dry_run_plan",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Builds a plan without calling lane.ask; docstring truncated."
+      }
+     ],
+     "claims": [
+      {
+       "text": "OLLAMA_HOST is neither read for routing nor written anywhere here",
+       "verdict": "KEPT",
+       "line": 844,
+       "why": "The function body uses only the ollama_host parameter and DEFAULT_BENCH_OLLAMA_HOST; no environment read or write."
+      },
+      {
+       "text": "the local flag is a property of the RESOLVED host rather than of the provider's name",
+       "verdict": "KEPT",
+       "line": 859,
+       "why": "local is set to bool(getattr(a, 'local', False)) on the adapter, which for Ollama is derived from _is_local_http(host)."
+      },
+      {
+       "text": "a probe sent there is egress and is labelled as such on every record it produces",
+       "verdict": "KEPT",
+       "line": 859,
+       "why": "The Lane carries local=False for non-local hosts, and grade() and _run_lane() pass lane.local into ProbeResult."
+      },
+      {
+       "text": "Subclasses the council's refusal ON PURPOSE",
+       "verdict": "KEPT",
+       "line": 885,
+       "why": "class LiveCanaryRefused(LiveCouncilRefused) is declared."
+      },
+      {
+       "text": "a caller that wants to treat both the same writes except LiveCouncilRefused and cannot miss one of them",
+       "verdict": "KEPT",
+       "line": 885,
+       "why": "Inheritance means LiveCanaryRefused is a LiveCouncilRefused."
+      },
+      {
+       "text": "Three places, because default_lanes is not the only way to build a Lane",
+       "verdict": "KEPT",
+       "line": 895,
+       "why": "The function checks lane.adapter, ask.__self__, and ask.__closure__."
+      },
+      {
+       "text": "ask.__self__, for a bound method of an adapter",
+       "verdict": "KEPT",
+       "line": 911,
+       "why": "getattr(ask, '__self__', None) is passed to _keep."
+      },
+      {
+       "text": "ask.__closure__, which is where _bind keeps its adapter",
+       "verdict": "KEPT",
+       "line": 913,
+       "why": "The function iterates ask.__closure__ and inspects cell_contents."
+      },
+      {
+       "text": "Finding NOTHING means ask is a plain caller-supplied callable, and the verdict for that is deliberately the same one session.live_egress_seats already gives an unrecognised class",
+       "verdict": "UNCHECKABLE",
+       "line": 0,
+       "why": "The session.live_egress_seats implementation is not in this chunk."
+      },
+      {
+       "text": "The classification itself is NOT done here -- it is session.live_egress_seats, imported",
+       "verdict": "KEPT",
+       "line": 928,
+       "why": "The function calls live_egress_seats(_adapters_behind(lane)) and does not reimplement classification."
+      },
+      {
+       "text": "this function only resolves a lane back to its adapter(s) and prefixes the lane's identity",
+       "verdict": "KEPT",
+       "line": 929,
+       "why": "It builds f\"{lane.vendor}/{lane.model} {seat}\" strings."
+      },
+      {
+       "text": "The checker runs ONLY on status == \"ok\": grading the body of a reply we never received would manufacture a wrong_answer out of an outage",
+       "verdict": "KEPT",
+       "line": 973,
+       "why": "The non-ok branch returns early; probe.check is only called in the else path."
+      },
+      {
+       "text": "Sequential within a lane on purpose",
+       "verdict": "KEPT",
+       "line": 1024,
+       "why": "_run_lane uses a for loop over probes without spawning sub-threads."
+      },
+      {
+       "text": "It is also what keeps a hung vendor to ONE occupied slot rather than four",
+       "verdict": "KEPT",
+       "line": 1024,
+       "why": "The gate is held for the entire loop, so one lane occupies one permit."
+      },
+      {
+       "text": "Threads are DAEMONS and are ABANDONED at the wall clock rather than joined",
+       "verdict": "KEPT",
+       "line": 1069,
+       "why": "Threads are created with daemon=True and joined with a timeout; no kill or force-join."
+      },
+      {
+       "text": "Every abandoned (lane, probe) is still reported -- as timeout/wall_clock",
+       "verdict": "KEPT",
+       "line": 1096,
+       "why": "Boxes without a result get status='timeout' and reason='wall_clock'."
+      },
+      {
+       "text": "live is the SPEND OPT-IN and defaults to False",
+       "verdict": "KEPT",
+       "line": 1055,
+       "why": "The parameter has default False and the gate checks `if not live`."
+      },
+      {
+       "text": "Any lane that still carries a shipped vendor transport raises LiveCanaryRefused here -- before the run id, before a nonce, before a thread, before one byte is dispatched",
+       "verdict": "KEPT",
+       "line": 1076,
+       "why": "The raise occurs before _new_run_id(), before nonce_factory is called, and before threads are created."
+      },
+      {
+       "text": "Fake lanes are unaffected, so the offline harness never has to ask for permission it does not need",
+       "verdict": "KEPT",
+       "line": 1078,
+       "why": "Only lanes with live_egress_seats results raise; offline adapters are not in that set."
+      },
+      {
+       "text": "Materialised ONCE, before anything inspects it",
+       "verdict": "KEPT",
+       "line": 1065,
+       "why": "lanes = tuple(lanes) is the first statement before the gate iterates it."
+      },
+      {
+       "text": "a refusal after the probes were built is still a refusal, but a refusal after dispatch is not one",
+       "verdict": "KEPT",
+       "line": 1078,
+       "why": "The live check precedes thread creation and dispatch."
+      },
+      {
+       "text": "Prompt sizes are computed by BUILDING a sample body",
+       "verdict": "UNCHECKABLE",
+       "line": 0,
+       "why": "The dry_run_plan body is truncated; only the docstring's first sentence is present."
+      },
+      {
+       "text": "Calls nothing -- no lane.ask is touched",
+       "verdict": "UNCHECKABLE",
+       "line": 0,
+       "why": "The body is truncated; cannot verify absence of ask calls."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The live gate raises before run_id is generated, so a refused run has no run id and append_history cannot be called with it.",
+       "where": "run_canary, line 1078",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The wall-clock join uses deadline - time.monotonic(), which may be negative if all threads finished early; join with a negative timeout returns immediately.",
+       "where": "run_canary, line 1094",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The error reply in _run_lane truncates the exception string but does not include the exception class name separately beyond the prefix; the reason field is always 'bad_response'.",
+       "where": "_run_lane, line 1042",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The gate is held for the full sequential loop, so a single lane blocks one permit for the entire wall clock; the semaphore count is max_parallel, so max_parallel lanes can run concurrently.",
+       "where": "_run_lane, line 1024",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The plan list is built before threads start, so the result collection order is deterministic and matches the lane/probe order.",
+       "where": "run_canary, line 1082",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The dry_run_plan docstring is truncated mid-sentence, so its full claims cannot be evaluated.",
+       "where": "dry_run_plan, line 1117",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "run_canary | low | A refused run has no run id, so any downstream code expecting a run id for the refusal will see nothing; inspect the caller to see if the exception carries enough context.",
+      "run_canary | low | The join timeout can be negative if all threads finish early, but join handles negative timeouts as immediate return; no defect, but the arithmetic is odd.",
+      "_run_lane | low | The error reply reason is always 'bad_response' and the exception type is only in the reply text; consumers parsing reason cannot distinguish exception types.",
+      "run_canary | low | The semaphore is held for the entire lane, so a lane that finishes early releases its permit only at the end; concurrency is limited by lane count, not probe count.",
+      "dry_run_plan | low | The docstring is truncated in this chunk, so claims about building sample bodies cannot be verified here."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/council/canary.py",
+      "chunk": "4 of 5",
+      "purpose": "Live roster builder, egress gate, grading, and the canary runner with wall-clock abandonment.",
+      "symbols": [
+       {
+        "name": "_adapters_behind",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Gathers CouncilAdapter instances reachable via lane.adapter, ask.__self__, and ask.__closure__."
+       },
+       {
+        "name": "live_egress_lanes",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Resolves lanes to adapters and prefixes lane identity to live_egress_seats results."
+       },
+       {
+        "name": "grade",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Maps transport status to canary status and runs probe.check only on ok replies."
+       },
+       {
+        "name": "_run_lane",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Runs one lane's probes sequentially inside a gate-held thread."
+       },
+       {
+        "name": "run_canary",
+        "kind": "function",
+        "effects": [
+         "process_spawn"
+        ],
+        "note": "Spawns daemon threads to probe lanes, refuses live egress unless live=True, reports wall_clock timeouts."
+       },
+       {
+        "name": "_new_run_id",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Generates a run id from UTC time and secrets token."
+       },
+       {
+        "name": "dry_run_plan",
+        "kind": "function",
+        "effects": [
+         "none"
+        ],
+        "note": "Builds a plan without calling lane.ask; docstring truncated."
+       }
+      ],
+      "claims": [
+       {
+        "text": "OLLAMA_HOST is neither read for routing nor written anywhere here",
+        "verdict": "KEPT",
+        "line": 844,
+        "why": "The function body uses only the ollama_host parameter and DEFAULT_BENCH_OLLAMA_HOST; no environment read or write."
+       },
+       {
+        "text": "the local flag is a property of the RESOLVED host rather than of the provider's name",
+        "verdict": "KEPT",
+        "line": 859,
+        "why": "local is set to bool(getattr(a, 'local', False)) on the adapter, which for Ollama is derived from _is_local_http(host)."
+       },
+       {
+        "text": "a probe sent there is egress and is labelled as such on every record it produces",
+        "verdict": "KEPT",
+        "line": 859,
+        "why": "The Lane carries local=False for non-local hosts, and grade() and _run_lane() pass lane.local into ProbeResult."
+       },
+       {
+        "text": "Subclasses the council's refusal ON PURPOSE",
+        "verdict": "KEPT",
+        "line": 885,
+        "why": "class LiveCanaryRefused(LiveCouncilRefused) is declared."
+       },
+       {
+        "text": "a caller that wants to treat both the same writes except LiveCouncilRefused and cannot miss one of them",
+        "verdict": "KEPT",
+        "line": 885,
+        "why": "Inheritance means LiveCanaryRefused is a LiveCouncilRefused."
+       },
+       {
+        "text": "Three places, because default_lanes is not the only way to build a Lane",
+        "verdict": "KEPT",
+        "line": 895,
+        "why": "The function checks lane.adapter, ask.__self__, and ask.__closure__."
+       },
+       {
+        "text": "ask.__self__, for a bound method of an adapter",
+        "verdict": "KEPT",
+        "line": 911,
+        "why": "getattr(ask, '__self__', None) is passed to _keep."
+       },
+       {
+        "text": "ask.__closure__, which is where _bind keeps its adapter",
+        "verdict": "KEPT",
+        "line": 913,
+        "why": "The function iterates ask.__closure__ and inspects cell_contents."
+       },
+       {
+        "text": "Finding NOTHING means ask is a plain caller-supplied callable, and the verdict for that is deliberately the same one session.live_egress_seats already gives an unrecognised class",
+        "verdict": "UNCHECKABLE",
+        "line": 0,
+        "why": "The session.live_egress_seats implementation is not in this chunk."
+       },
+       {
+        "text": "The classification itself is NOT done here -- it is session.live_egress_seats, imported",
+        "verdict": "KEPT",
+        "line": 928,
+        "why": "The function calls live_egress_seats(_adapters_behind(lane)) and does not reimplement classification."
+       },
+       {
+        "text": "this function only resolves a lane back to its adapter(s) and prefixes the lane's identity",
+        "verdict": "KEPT",
+        "line": 929,
+        "why": "It builds f\"{lane.vendor}/{lane.model} {seat}\" strings."
+       },
+       {
+        "text": "The checker runs ONLY on status == \"ok\": grading the body of a reply we never received would manufacture a wrong_answer out of an outage",
+        "verdict": "KEPT",
+        "line": 973,
+        "why": "The non-ok branch returns early; probe.check is only called in the else path."
+       },
+       {
+        "text": "Sequential within a lane on purpose",
+        "verdict": "KEPT",
+        "line": 1024,
+        "why": "_run_lane uses a for loop over probes without spawning sub-threads."
+       },
+       {
+        "text": "It is also what keeps a hung vendor to ONE occupied slot rather than four",
+        "verdict": "KEPT",
+        "line": 1024,
+        "why": "The gate is held for the entire loop, so one lane occupies one permit."
+       },
+       {
+        "text": "Threads are DAEMONS and are ABANDONED at the wall clock rather than joined",
+        "verdict": "KEPT",
+        "line": 1069,
+        "why": "Threads are created with daemon=True and joined with a timeout; no kill or force-join."
+       },
+       {
+        "text": "Every abandoned (lane, probe) is still reported -- as timeout/wall_clock",
+        "verdict": "KEPT",
+        "line": 1096,
+        "why": "Boxes without a result get status='timeout' and reason='wall_clock'."
+       },
+       {
+        "text": "live is the SPEND OPT-IN and defaults to False",
+        "verdict": "KEPT",
+        "line": 1055,
+        "why": "The parameter has default False and the gate checks `if not live`."
+       },
+       {
+        "text": "Any lane that still carries a shipped vendor transport raises LiveCanaryRefused here -- before the run id, before a nonce, before a thread, before one byte is dispatched",
+        "verdict": "KEPT",
+        "line": 1076,
+        "why": "The raise occurs before _new_run_id(), before nonce_factory is called, and before threads are created."
+       },
+       {
+        "text": "Fake lanes are unaffected, so the offline harness never has to ask for permission it does not need",
+        "verdict": "KEPT",
+        "line": 1078,
+        "why": "Only lanes with live_egress_seats results raise; offline adapters are not in that set."
+       },
+       {
+        "text": "Materialised ONCE, before anything inspects it",
+        "verdict": "KEPT",
+        "line": 1065,
+        "why": "lanes = tuple(lanes) is the first statement before the gate iterates it."
+       },
+       {
+        "text": "a refusal after the probes were built is still a refusal, but a refusal after dispatch is not one",
+        "verdict": "KEPT",
+        "line": 1078,
+        "why": "The live check precedes thread creation and dispatch."
+       },
+       {
+        "text": "Prompt sizes are computed by BUILDING a sample body",
+        "verdict": "UNCHECKABLE",
+        "line": 0,
+        "why": "The dry_run_plan body is truncated; only the docstring's first sentence is present."
+       },
+       {
+        "text": "Calls nothing -- no lane.ask is touched",
+        "verdict": "UNCHECKABLE",
+        "line": 0,
+        "why": "The body is truncated; cannot verify absence of ask calls."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The live gate raises before run_id is generated, so a refused run has no run id and append_history cannot be called with it.",
+        "where": "run_canary, line 1078",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The wall-clock join uses deadline - time.monotonic(), which may be negative if all threads finished early; join with a negative timeout returns immediately.",
+        "where": "run_canary, line 1094",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The error reply in _run_lane truncates the exception string but does not include the exception class name separately beyond the prefix; the reason field is always 'bad_response'.",
+        "where": "_run_lane, line 1042",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The gate is held for the full sequential loop, so a single lane blocks one permit for the entire wall clock; the semaphore count is max_parallel, so max_parallel lanes can run concurrently.",
+        "where": "_run_lane, line 1024",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The plan list is built before threads start, so the result collection order is deterministic and matches the lane/probe order.",
+        "where": "run_canary, line 1082",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The dry_run_plan docstring is truncated mid-sentence, so its full claims cannot be evaluated.",
+        "where": "dry_run_plan, line 1117",
+        "severity": "low",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "run_canary | low | A refused run has no run id, so any downstream code expecting a run id for the refusal will see nothing; inspect the caller to see if the exception carries enough context.",
+       "run_canary | low | The join timeout can be negative if all threads finish early, but join handles negative timeouts as immediate return; no defect, but the arithmetic is odd.",
+       "_run_lane | low | The error reply reason is always 'bad_response' and the exception type is only in the reply text; consumers parsing reason cannot distinguish exception types.",
+       "run_canary | low | The semaphore is held for the entire lane, so a lane that finishes early releases its permit only at the end; concurrency is limited by lane count, not probe count.",
+       "dry_run_plan | low | The docstring is truncated in this chunk, so claims about building sample bodies cannot be verified here."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f0b834471f7bd25f8ab03ffce7e6d0eaa31884ff9c1718ccb03fc79836c7754f",
+    "objective_chars": 17099,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [4/5]",
+  "rev": "da90d94",
+  "module": "daedalus/council/canary.py",
+  "index": 4,
+  "total": 5,
+  "first_line": 841
+ }
+}

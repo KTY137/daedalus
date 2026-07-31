@@ -1,0 +1,101 @@
+{
+ "task_id": "research__b012__da90d94",
+ "key": "research__b012__da90d94-1ddaad5595",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-chunk analysis: 39 uncheckable claims reveal systemic overclaiming; four patterns of docstring/code mismatch and external-contract reliance, with highest risk in unverified promotion and guard duplication.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "The agent's docstrings make claims about external modules and measurements that are not verifiable from the code, leading to potentially false guarantees.",
+     "The _refs_by_function comment contradicts the code, indicating a latent bug in reference counting.",
+     "The reliance on external contracts (e.g., TaskAttempt, verify_before_state, session.live_egress_seats) without local verification creates a fragile system.",
+     "The documented protocol (e.g., memstore.fold_state, promote_candidates) is not enforced by the code in these chunks, risking fabrication of results."
+    ],
+    "todos": [
+     "Verify that _refs_by_function uses line numbers in the key.",
+     "Audit all docstrings for claims about external modules and either implement or remove them.",
+     "Ensure that the agent's refusal mechanism actually prevents the fabrication it claims to prevent.",
+     "Check that all vendor-specific configurations are actually distinct and not silently shared."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "pattern": "Multiple modules claim to implement a specific protocol (e.g., memstore.fold_state, session.live_egress_seats, verify_before_state) but none of the provided chunks contain those implementations, and the claims are unverifiable.",
+       "evidence": [
+        "module docstring, SEPARATE STORE section: claim about memstore.fold_state",
+        "comment in _scan_turn: claim about carve-out",
+        "docstring of _chained: claim about round 2 prompts",
+        "derive_task_from_commit docstring: claim about verify_before_state",
+        "docstring of _curated_relay_gate: claim about TaskAttempt.__init__"
+       ],
+       "refuted_if": "The missing modules are provided in other chunks and their behavior matches the claims."
+      },
+      {
+       "pattern": "The code contains a contradiction between a comment and its implementation, indicating a potential bug that may affect correctness.",
+       "evidence": [
+        "_refs_by_function comment (line 729): 'Qualify by line' but key is f\"{node.name}\" with no line number"
+       ],
+       "refuted_if": "The key includes line number in a way not visible in the provided chunk, or the comment is outdated and the behavior is intentional."
+      },
+      {
+       "pattern": "Several claims about measurements and external behavior (e.g., Windows lstat, BM25 parameters, coverage bit mapping) are made in docstrings but cannot be verified from the code provided, suggesting a pattern of relying on external evidence that may not be reproducible.",
+       "evidence": [
+        "_path_identity docstring: measurements on Windows",
+        "render_arms comment: BM25 parameters",
+        "covered_lines docstring: coverage.py schema"
+       ],
+       "refuted_if": "The measurements are documented in test files or the code includes the exact parameters and verification logic."
+      },
+      {
+       "pattern": "Multiple modules reference external contracts (e.g., KairosScheduler.dispatch, gated_writes.promote_candidates, session.live_egress_seats) without local verification, and the claims about these contracts are uncheckable.",
+       "evidence": [
+        "run_write_wave docstring: reference to KairosScheduler.dispatch",
+        "dispatch comment: reference to gated_writes.promote_candidates",
+        "docstring of _chained: reference to session.live_egress_seats"
+       ],
+       "refuted_if": "The external modules are provided and their behavior matches the claims."
+      },
+      {
+       "pattern": "The docstrings claim that certain mechanisms (e.g., reap_branches, cleanup_worktree) have specific behaviors, but the implementations are not in the provided chunks, and the claims are unverifiable.",
+       "evidence": [
+        "disposable_worktree docstring: claim about reap_branches",
+        "reap_branches docstring: claim about deleting only what it allocated",
+        "module docstring lines 53-56: claim about run_write_wave and promote_candidates"
+       ],
+       "refuted_if": "The implementations are provided and match the claims."
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "38610eb73f2fd4bf6d46b25b39da7e30912967c3a6f6872e31a18df8916c9dae",
+    "objective_chars": 16763,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 12 (39 inputs)",
+  "rev": "da90d94",
+  "bucket": 12,
+  "inputs": 39
+ }
+}

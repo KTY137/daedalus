@@ -1,0 +1,182 @@
+{
+ "task_id": "scan__daedalus_kairos_scheduler.py__c2of2__da90d94",
+ "key": "scan__daedalus_kairos_scheduler.py__c2of2__da90d94-de25e7754f",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 2 of daedalus/kairos/scheduler.py; docstring claims about gate_candidates, plan/dispatch separation, spawn, configure, and demo tasks are mostly kept or uncheckable within this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "gate_candidates docstring | medium | The docstring claims availability defaults to DEFAULT_AVAILABILITY, but DEFAULT_AVAILABILITY is not defined in this chunk; uncheckable here. | Check if DEFAULT_AVAILABILITY is defined elsewhere in the module.",
+     "gate_candidates docstring | medium | The docstring claims gate_candidates covers every TaskAttempt in this batch, but the actual function is imported and not shown; uncheckable. | Inspect gate_candidates implementation.",
+     "spawn docstring | medium | Docstring claims decompose uses a deterministic per-path fallback, but the decompose function is imported and not shown; uncheckable. | Inspect decompose implementation.",
+     "configure docstring | medium | Docstring claims routing picks up changes with no restart, but routing code is in another module; uncheckable. | Inspect router.load_agents.",
+     "configure docstring | medium | Docstring claims ValueError on invalid spec, but no validation is visible in this chunk; uncheckable. | Inspect create_role/update_role for validation.",
+     "main | low | The summary line in main says 'bounced back to Adam' but the plan may not have a 'bounced_to_adam' key; relies on plan's structure. | Check plan return shape.",
+     "main | low | The CLI prints a table with column widths; long objectives are truncated but not ellipsized, potentially misaligning columns. | Run with long objectives.",
+     "configure | low | If spec has no 'name', the code sets name=None and calls create_role; the returned summary includes 'role': None, which may be misleading. | Test with no name."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/scheduler.py",
+     "chunk": "2 of 2",
+     "purpose": "Review the second half of the scheduler module: gate_candidates wrapper, spawn, configure, demo tasks, and CLI main.",
+     "symbols": [
+      {
+       "name": "gate_candidates wrapper (method of KairosScheduler)",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Accepts tasks, filters accepted write attempts, delegates to imported gate_candidates with bounded workers."
+      },
+      {
+       "name": "spawn",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "One-shot entry: decomposes objective, then plans (dry_run) or dispatches (live)."
+      },
+      {
+       "name": "configure",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Creates or updates an agent role via agents_registry; returns summary with action, role, path, config."
+      },
+      {
+       "name": "_demo_tasks",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Converts benchmark TASKS into list of dicts with objective and paths."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "CLI entry: parses args, creates scheduler, plans demo tasks, prints JSON or table."
+      }
+     ],
+     "claims": [
+      {
+       "text": "gate_candidates -- added here so this wrapper does not silently strip a capability that module already supports; see that function's own docstring for exactly what it covers (every TaskAttempt in this batch) and does not (the cumulative re-gate inside promote_candidates, a separate, filed follow-up, not this method's concern since it never promotes).",
+       "where": "docstring lines 281-285",
+       "verdict": "UNCHECKABLE",
+       "why": "The exact coverage of gate_candidates is not visible in this chunk; the wrapper simply calls the imported function."
+      },
+      {
+       "text": "Landing a candidate this returns into repo_root is a SEPARATE, explicit act -- see promote_candidates and the comment on can_parallel in dispatch for why this method does not do that itself.",
+       "where": "docstring lines 287-289",
+       "verdict": "UNCHECKABLE",
+       "why": "The wrapper does not promote; it only returns gate_candidates' result. The rationale about can_parallel is in dispatch, not in this chunk."
+      },
+      {
+       "text": "One-shot entry: decompose a single objective into subtasks, then plan (dry_run) or dispatch (live) them across the bounded local bench.",
+       "where": "spawn docstring",
+       "verdict": "KEPT",
+       "why": "spawn calls decompose, then returns plan if dry_run else dispatch with dry_run=False."
+      },
+      {
+       "text": "This is the dynamic counterpart to the hardcoded _demo_tasks flow -- the subtasks come from decompose (local model with a deterministic per-path fallback), not a fixed list.",
+       "where": "spawn docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The decompose function is imported; its fallback behavior is not visible in this chunk."
+      },
+      {
+       "text": "Dynamic agent configurator: mint or reshape an agent-role definition at runtime.",
+       "where": "configure docstring",
+       "verdict": "KEPT",
+       "why": "configure calls create_role or update_role on the agents_registry."
+      },
+      {
+       "text": "Ikarus owns the crew roster, so creating/editing roles is his job -- routing (router.load_agents) picks up the change with no restart.",
+       "where": "configure docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The routing behavior is not in this chunk; the claim refers to another module."
+      },
+      {
+       "text": "Returns a summary; raises ValueError on an invalid spec.",
+       "where": "configure docstring",
+       "verdict": "UNCHECKABLE",
+       "why": "The code returns a summary, but no validation is visible here; the ValueError would come from create_role/update_role."
+      },
+      {
+       "text": "main: KAIROS spawn plan (local bench on, DeepSeek dormant)",
+       "where": "main print statement",
+       "verdict": "UNCHECKABLE",
+       "why": "No evidence in this chunk about the bench or model state; it's just a print label."
+      },
+      {
+       "text": "spawned N local worker(s) across M wave(s) (<= max_workers/wave); bounced B back to Adam.",
+       "where": "main final print",
+       "verdict": "UNCHECKABLE",
+       "why": "The plan structure (spawned, waves, bounced_to_adam) comes from plan(), which is not in this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The gate_candidates wrapper uses DEFAULT_AVAILABILITY without it being defined in this chunk.",
+       "where": "line 291",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The spawn method uses decompose with repo_root, but the function signature is not visible here; the docstring mentions a deterministic per-path fallback.",
+       "where": "spawn method",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "configure returns 'role': name even when name is None (if spec lacks 'name'), which may be misleading.",
+       "where": "configure return",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "main prints a table with fixed column widths; long objectives are truncated without ellipsis, potentially misaligning.",
+       "where": "main print",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "bbf3bce0c2bd720106e5fbb4db2f76a9017419809a1a7fdf16ebbdbcd29a4894",
+    "objective_chars": 8123,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/scheduler.py [2/2]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/scheduler.py",
+  "index": 2,
+  "total": 2,
+  "first_line": 281
+ }
+}

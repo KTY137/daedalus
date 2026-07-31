@@ -1,0 +1,268 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c3of4__da90d94",
+ "key": "scan__daedalus_mapping_inventory.py__c3of4__da90d94-72765b55c0",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "3 of 4",
+     "purpose": "Packs stale/packaging findings, builds the full document dict, and provides serialization/load/refresh I/O.",
+     "symbols": [
+      {
+       "name": "build",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Derives the full document; writes nothing itself but calls render_mod.analyse_once and render_mod.git_stamp, which may read the repo."
+      },
+      {
+       "name": "inventory_bytes",
+       "kind": "function",
+       "effects": [],
+       "note": "Serializes a document to JSON with indent=2, ensure_ascii=False, plus trailing newline."
+      },
+      {
+       "name": "load",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads a JSON file; returns None if missing, an error dict if parse/read fails."
+      },
+      {
+       "name": "write_inventory",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Creates parent directories and writes JSON text with newline='\\n'."
+      },
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Regenerates document in place, carrying forward annotations; reads old doc before overwriting."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Derive the whole document. Writes nothing.",
+       "verdict": "BROKEN",
+       "line": 583,
+       "why": "The function itself never calls write_inventory, but it calls render_mod.analyse_once and render_mod.git_stamp, both of which may read the repo. The claim 'Writes nothing' is about the function's own side effects; no write occurs here, but the claim is ambiguous. Since the docstring says 'Writes nothing' and the function does not write to the filesystem, the claim is kept. However, the comment 'Writes nothing' is about the function's own side effects; no write occurs here, so the claim is kept."
+      },
+      {
+       "text": "``reports`` is the ``(reach, switches)`` pair from :func:`daedalus.mapping.render.analyse_once`. When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all.",
+       "verdict": "KEPT",
+       "line": 583,
+       "why": "The code does `reports or render_mod.analyse_once(root, index)`, matching the claim."
+      },
+      {
+       "text": "Calling ``reach.analyse(root)`` with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+       "verdict": "UNCHECKABLE",
+       "line": 583,
+       "why": "This claim refers to a historical incident and to `reach.analyse` from another module; this chunk cannot verify that."
+      },
+      {
+       "text": "The old document is read for its annotations BEFORE it is overwritten, and a first run over a schema-1 file harvests them out of the hand-written entries. Refreshing is never a way to quietly drop somebody's stated reason.",
+       "verdict": "KEPT",
+       "line": 728,
+       "why": "The code calls `load(target)` before any write, and `harvest(old, modules, env_names)` is invoked after that. The claim that annotations are read before overwrite is verified by the order of statements."
+      },
+      {
+       "text": "``unreached`` is here because the island COUNT is gameable and was demonstrated to be: \"island\" means unreachable but imported by a test, so deleting the test moves the module to ``unknown`` and the island count goes DOWN while the dead code stays. The union is the number that cannot be improved by deleting a test, and the set diff against the previous run is the honest signal -- not the count.",
+       "verdict": "KEPT",
+       "line": 667,
+       "why": "The code computes `unreached` as `sorted(set(islands) | set(shims) | set(unknown))`, which is the union of all three categories, matching the claim."
+      },
+      {
+       "text": "The prose summaries the previous schema carried. Derived from the SAME pass as the structured features, so the discrepancy the picker reports when the two disagree cannot occur by construction.",
+       "verdict": "KEPT",
+       "line": 662,
+       "why": "The doc builds `islands`, `shims`, `unknown`, `stale` from the same `islands`, `shims`, `unknown`, `stale_features` variables used in the structured features, so they are consistent by construction."
+      },
+      {
+       "text": "Reported, NOT filed as a stale feature. Its remedy is \"add it to the list\", the exact opposite verb from the stale remedy (\"remove it\"), and handing a fixer the wrong verb is how a finding becomes damage.",
+       "verdict": "KEPT",
+       "line": 570,
+       "why": "The comment is in the packaging dict construction; `on_disk_but_unlisted` is placed under `packaging` and not appended to `stale_features`. The code does not add gaps to `stale_features`."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The `build` function calls `render_mod.analyse_once` and `render_mod.git_stamp` which may read the repository; the docstring says 'Writes nothing' but does not clarify that reads are permitted. This is a potential documentation ambiguity but not a code defect.",
+       "where": "line 583",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `load` function returns `{\"__error__\": str(exc)}` on parse failure, which is a dict that does not have the normal schema keys. The `refresh` function handles this by resetting `old = {}` if `__error__` is present, but other callers might not expect an error dict.",
+       "where": "line 705",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The `write_inventory` function writes with `newline=\"\\n\"` but `inventory_bytes` produces a string with a trailing newline; the write adds no extra newline, so the file ends with exactly one newline. This is consistent but could be surprising if callers expect no trailing newline.",
+       "where": "line 712",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "line 583 | low | Docstring 'Writes nothing' is ambiguous about repo reads; could mislead on side effects. | Check if any code path in build writes to the filesystem."
+     ],
+     "todos": [],
+     "handoff": {
+      "module": "daedalus/mapping/inventory.py",
+      "chunk": "3 of 4",
+      "purpose": "Packs stale/packaging findings, builds the full document dict, and provides serialization/load/refresh I/O.",
+      "symbols": [
+       {
+        "name": "build",
+        "kind": "function",
+        "effects": [
+         "repository_mutation"
+        ],
+        "note": "Derives the full document; writes nothing itself but calls render_mod.analyse_once and render_mod.git_stamp, which may read the repo."
+       },
+       {
+        "name": "inventory_bytes",
+        "kind": "function",
+        "effects": [],
+        "note": "Serializes a document to JSON with indent=2, ensure_ascii=False, plus trailing newline."
+       },
+       {
+        "name": "load",
+        "kind": "function",
+        "effects": [],
+        "note": "Reads a JSON file; returns None if missing, an error dict if parse/read fails."
+       },
+       {
+        "name": "write_inventory",
+        "kind": "function",
+        "effects": [
+         "filesystem_write"
+        ],
+        "note": "Creates parent directories and writes JSON text with newline='\\n'."
+       },
+       {
+        "name": "refresh",
+        "kind": "function",
+        "effects": [
+         "filesystem_write"
+        ],
+        "note": "Regenerates document in place, carrying forward annotations; reads old doc before overwriting."
+       }
+      ],
+      "claims": [
+       {
+        "text": "Derive the whole document. Writes nothing.",
+        "verdict": "KEPT",
+        "line": 583,
+        "why": "The function never calls write_inventory; no filesystem write occurs in this function."
+       },
+       {
+        "text": "``reports`` is the ``(reach, switches)`` pair from :func:`daedalus.mapping.render.analyse_once`. When it is not supplied this calls that function -- which is the configuration the PRODUCT uses, index and all.",
+        "verdict": "KEPT",
+        "line": 583,
+        "why": "The code does `reports or render_mod.analyse_once(root, index)`, matching the claim."
+       },
+       {
+        "text": "Calling ``reach.analyse(root)`` with no index here would be a second engine configuration that ships to nobody, and the last time a guard did that a CRITICAL survived underneath it.",
+        "verdict": "UNCHECKABLE",
+        "line": 583,
+        "why": "This claim refers to a historical incident and to `reach.analyse` from another module; this chunk cannot verify that."
+       },
+       {
+        "text": "The old document is read for its annotations BEFORE it is overwritten, and a first run over a schema-1 file harvests them out of the hand-written entries. Refreshing is never a way to quietly drop somebody's stated reason.",
+        "verdict": "KEPT",
+        "line": 728,
+        "why": "The code calls `load(target)` before any write, and `harvest(old, modules, env_names)` is invoked after that. The claim that annotations are read before overwrite is verified by the order of statements."
+       },
+       {
+        "text": "``unreached`` is here because the island COUNT is gameable and was demonstrated to be: \"island\" means unreachable but imported by a test, so deleting the test moves the module to ``unknown`` and the island count goes DOWN while the dead code stays. The union is the number that cannot be improved by deleting a test, and the set diff against the previous run is the honest signal -- not the count.",
+        "verdict": "KEPT",
+        "line": 667,
+        "why": "The code computes `unreached` as `sorted(set(islands) | set(shims) | set(unknown))`, which is the union of all three categories, matching the claim."
+       },
+       {
+        "text": "The prose summaries the previous schema carried. Derived from the SAME pass as the structured features, so the discrepancy the picker reports when the two disagree cannot occur by construction.",
+        "verdict": "KEPT",
+        "line": 662,
+        "why": "The doc builds `islands`, `shims`, `unknown`, `stale` from the same `islands`, `shims`, `unknown`, `stale_features` variables used in the structured features, so they are consistent by construction."
+       },
+       {
+        "text": "Reported, NOT filed as a stale feature. Its remedy is \"add it to the list\", the exact opposite verb from the stale remedy (\"remove it\"), and handing a fixer the wrong verb is how a finding becomes damage.",
+        "verdict": "KEPT",
+        "line": 570,
+        "why": "The comment is in the packaging dict construction; `on_disk_but_unlisted` is placed under `packaging` and not appended to `stale_features`. The code does not add gaps to `stale_features`."
+       }
+      ],
+      "observations": [
+       {
+        "what": "The `build` function calls `render_mod.analyse_once` and `render_mod.git_stamp` which may read the repository; the docstring says 'Writes nothing' but does not clarify that reads are permitted. This is a potential documentation ambiguity but not a code defect.",
+        "where": "line 583",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The `load` function returns `{\"__error__\": str(exc)}` on parse failure, which is a dict that does not have the normal schema keys. The `refresh` function handles this by resetting `old = {}` if `__error__` is present, but other callers might not expect an error dict.",
+        "where": "line 705",
+        "severity": "low",
+        "confidence": "certain"
+       },
+       {
+        "what": "The `write_inventory` function writes with `newline=\"\\n\"` but `inventory_bytes` produces a string with a trailing newline; the write adds no extra newline, so the file ends with exactly one newline. This is consistent but could be surprising if callers expect no trailing newline.",
+        "where": "line 712",
+        "severity": "low",
+        "confidence": "certain"
+       }
+      ],
+      "risks": [
+       "line 583 | low | Docstring 'Writes nothing' is ambiguous about repo reads; could mislead on side effects. | Check if any code path in build writes to the filesystem."
+      ],
+      "todos": []
+     },
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "c426d57491eaeb992c2e59fdfda699c56d6b2999819db763119983e209b91096",
+    "objective_chars": 15596,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [3/4]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

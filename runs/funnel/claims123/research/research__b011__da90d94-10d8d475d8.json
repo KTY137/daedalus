@@ -1,0 +1,208 @@
+{
+ "task_id": "research__b011__da90d94",
+ "key": "research__b011__da90d94-10d8d475d8",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file hypotheses: duplicate guard semantics, unverified historical claims, and contracts spanning unobservable modules.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "unverified-claims-outside-chunks",
+       "claim": "Several claims in the harvested rows depend on code or historical events that are entirely outside the provided chunk, making them unfalsifiable from the available evidence. This pattern spans multiple modules where the docstring or comment asserts behavior that cannot be verified from the code in view.",
+       "spans": [
+        "interrupt docstring",
+        "session.py wiring docstring",
+        "anchor_path docstring",
+        "actor_id docstring",
+        "local-host predicate docstring",
+        "compare_to_history docstring",
+        "resolve_exe docstring",
+        "_turn_from_reply",
+        "floor_check comment",
+        "test_host_predicate comment",
+        "run_tier1 docstring",
+        "self-prediction docstring",
+        "temporal_ceiling docstring",
+        "GitWorktreeManager docstring",
+        "run_node_ids docstring",
+        "_test_functions docstring",
+        "_refs_by_function docstring",
+        "write_baseline docstring",
+        "_is_linked_worktree docstring",
+        "GUARD_NAMES comment",
+        "render_arms docstring",
+        "garden_care_file",
+        "candidate runner docstring",
+        "git apply --check correction",
+        "_spec_for comment",
+        "_promote_one_inner comment",
+        "run_write_wave docstring",
+        "dispatch comment",
+        "main print",
+        "_path_identity docstring",
+        "create_worktree docstring",
+        "module docstring (measured failure)",
+        "policy parameter docstring",
+        "graph_brief docstring",
+        "scanner policy docstring",
+        "code fence exclusion docstring",
+        "MIN_WHY_CHARS comment",
+        "inventory fields docstring",
+        "daedalus map refresh print"
+       ],
+       "mechanism": "The kernel is split into chunks, and many docstrings/comments reference functions, tests, or historical incidents that are not present in the provided chunk. The claims are therefore uncheckable from the available code, and any verification would require locating the external code or test files. This pattern spans nearly all modules and indicates a systemic issue: the documentation relies on context that is not co-located with the code, making it impossible to validate the claims in isolation.",
+       "severity": "medium",
+       "confidence": "certain",
+       "refuted_by": "If the missing code or tests are actually present in the full repository and can be verified, the claims become checkable and the pattern would be refuted.",
+       "evidence": [
+        "interrupt docstring line 32",
+        "session.py docstring lines 13-14",
+        "anchor_path module docstring line 1",
+        "actor_id docstring line 111",
+        "local-host predicate module docstring lines 53-55",
+        "compare_to_history lines 186-189",
+        "resolve_exe docstring",
+        "_turn_from_reply refused_by_floor branch",
+        "floor_check comment lines ~1152-1155",
+        "test_host_predicate comment",
+        "run_tier1 module docstring lines 8-9",
+        "self-prediction module docstring lines 8-10",
+        "temporal_ceiling docstring line 117",
+        "GitWorktreeManager module docstring",
+        "run_node_ids docstring",
+        "_test_functions docstring",
+        "_refs_by_function docstring",
+        "write_baseline docstring",
+        "_is_linked_worktree docstring lines 80-81",
+        "GUARD_NAMES comment",
+        "render_arms docstring",
+        "TASKS[1] (garden_care_file)",
+        "candidate runner class docstring lines 21-24",
+        "git apply --check correction module docstring lines 49-50",
+        "_spec_for comment line 310",
+        "_promote_one_inner comment",
+        "run_write_wave docstring",
+        "dispatch comment lines 169-172",
+        "main print",
+        "_path_identity docstring",
+        "create_worktree docstring",
+        "module docstring",
+        "policy parameter docstring",
+        "graph_brief docstring",
+        "scanner policy docstring lines 8-9",
+        "code fence exclusion module docstring lines 88-91",
+        "MIN_WHY_CHARS comment line 190",
+        "inventory fields docstring lines 18-19",
+        "main print line 982"
+       ]
+      },
+      {
+       "id": "duplicate-guard-semantics",
+       "claim": "Multiple modules or functions implement similar guard or validation logic (e.g., local-host checks, slower-lane detection, secret floor checks, cancellation gates) as per-provider copies, and there is a risk that they have diverged in semantics. The repository has previously measured that when one provider improves, others silently fall behind. The claim rows show that some of these guards are defined in one place but the actual enforcement is elsewhere, creating a contract that may be broken.",
+       "spans": [
+        "local-host predicate",
+        "compare_to_history",
+        "floor_check",
+        "_promote_one_inner",
+        "run_write_wave",
+        "gate_concurrent_writes"
+       ],
+       "mechanism": "The docstrings and comments reference guard logic that is spread across modules: local-host predicate is imported from session.live_egress_seats; slower-lane detection is in compare_to_history; secret floor check is in floor_check; cancellation gate is in _promote_one_inner; write wave cancellation is in run_write_wave; and isolation is claimed in gate_concurrent_writes. If these are implemented as separate copies, they may have different thresholds, different definitions of 'local', 'slower', or 'cancellable', leading to inconsistent behavior. The pattern is that the same concept is defined in multiple places, but the enforcement is not centralized.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If these guards all delegate to a single shared helper or are implemented in one place and imported everywhere, the pattern is refuted. For example, if local-host predicate is only defined once and imported, or if floor_check is the sole implementation used by all paths.",
+       "evidence": [
+        "session.live_egress_seats (imported local-host predicate)",
+        "compare_to_history (SLOWER_RATIO and SLOWER_ABS_S)",
+        "floor_check (called with question and evidence paths/files)",
+        "_promote_one_inner (uses _as_cancel_predicate(cancel))",
+        "run_write_wave (passes shared KillSwitch to gates)",
+        "gate_concurrent_writes (runs each write through TaskAttempt)"
+       ]
+      },
+      {
+       "id": "contract-between-caller-and-callee",
+       "claim": "Several contracts are declared in one module but enforced in another, and the enforcement is not visible in the provided chunks. For example, actor_id claims that unknown model ids are recorded as 'unknown' by the caller, but the caller's handling is not visible; floor_check claims that pre-flight secret floor is per path and file, but the internal behavior is not visible; run_tier1 claims deterministic measurements, but the implementation is in harness. This creates a risk that the contract is not actually upheld.",
+       "spans": [
+        "actor_id",
+        "floor_check",
+        "run_tier1",
+        "render_arms",
+        "_spec_for",
+        "graph_brief",
+        "inventory fields"
+       ],
+       "mechanism": "Each of these modules or functions declares a behavior in its docstring or comment that depends on code outside the chunk: actor_id relies on the caller to handle unknown model ids; floor_check relies on its own internal logic to enforce per-path checks; run_tier1 relies on harness to measure recall and compression; render_arms relies on harness to compute the arms; _spec_for relies on ledger row behavior; graph_brief relies on error handling around cached_index; inventory fields are derived by code not shown. If any of these external implementations do not match the docstring, the contract is broken.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "If the external implementations are found and match the docstrings exactly, the contract is upheld and the hypothesis is refuted. For example, if the caller of actor_id indeed records 'unknown' for unknown model ids, or if floor_check indeed checks per path and file.",
+       "evidence": [
+        "actor_id docstring line 111",
+        "floor_check comment lines ~1152-1155",
+        "run_tier1 module docstring lines 8-9",
+        "render_arms docstring",
+        "_spec_for comment line 310",
+        "graph_brief docstring",
+        "inventory fields docstring lines 18-19"
+       ]
+      },
+      {
+       "id": "historical-claims-unverifiable",
+       "claim": "Several docstrings and comments make historical claims about past failures or corrections (e.g., 'measured failure from 29/30 July', 'first run of this seeder used unqualified names', 'earlier draft proposed git apply --check'). These claims are uncheckable from the code and may be used to justify design decisions, but they cannot be verified, creating a risk that the rationale is based on unverifiable events.",
+       "spans": [
+        "_test_functions",
+        "git apply --check correction",
+        "_path_identity",
+        "module docstring (measured failure)",
+        "policy parameter docstring"
+       ],
+       "mechanism": "The code comments reference specific historical incidents (e.g., 'first run of this seeder', 'earlier draft', 'measured on this box', 'measured failure from 29/30 July', 'this session spent the day removing'). These are not observable from the current code and could be fabricated or misremembered. If they are used to justify security or correctness decisions, the basis is unverifiable.",
+       "severity": "low",
+       "confidence": "possible",
+       "refuted_by": "If the historical incidents are documented elsewhere (e.g., in commit messages or design docs) and can be verified, the claims become checkable and the hypothesis is refuted.",
+       "evidence": [
+        "_test_functions docstring",
+        "git apply --check correction module docstring lines 49-50",
+        "_path_identity docstring",
+        "module docstring",
+        "policy parameter docstring"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "ba686cd77bef48fa6e2b49ad7562879520ec95069f82050f771c51b259f1f4c2",
+    "objective_chars": 15969,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 11 (39 inputs)",
+  "rev": "da90d94",
+  "bucket": 11,
+  "inputs": 39
+ }
+}

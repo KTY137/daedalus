@@ -1,0 +1,192 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c4of4__da90d94",
+ "key": "scan__daedalus_mapping_inventory.py__c4of4__da90d94-f781b0e321",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read chunk 4 of daedalus/mapping/inventory.py: refresh, check, helpers, render_text, main. Claims verified.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "inventory.py:841-843 | medium | refresh returns dict with 'harvest' key but caller in main expects result['harvest'] \u2014 confirmed consistent in this chunk, no issue. | No action.",
+     "inventory.py:873-874 | low | check uses stored.get('annotations') or {} \u2014 if stored annotations are empty list, it becomes {}; semantically equivalent for iteration. | No action.",
+     "inventory.py:920-922 | low | _describe_drift compares stored vs fresh blocks only for top-level lists; does not check nested changes within those blocks. | Compare nested structures.",
+     "inventory.py:933-937 | low | _describe_drift truncates field-level changes to 10, but status changes are fully reported. | Confirm intended.",
+     "inventory.py:973-974 | low | main --json path uses harvest with old=load(target) or {} \u2014 if target missing, old is {} and annotations/narrative empty; acceptable. | No action."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "4 of 4",
+     "purpose": "Implement refresh, gate-mode check, drift description, text renderer, and CLI entry point.",
+     "symbols": [
+      {
+       "name": "refresh",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Builds inventory doc and writes it to target; returns path, doc, and harvest stats."
+      },
+      {
+       "name": "check",
+       "kind": "function",
+       "effects": [],
+       "note": "Gate mode: verifies inventory existence, parseability, schema, digest, annotation overreach, and freshness; returns problems list."
+      },
+      {
+       "name": "_by_key",
+       "kind": "function",
+       "effects": [],
+       "note": "Extracts derived fields of each feature keyed by module or detector:reason, dropping human fields."
+      },
+      {
+       "name": "_statuses",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns map of feature key to status string."
+      },
+      {
+       "name": "_describe_drift",
+       "kind": "function",
+       "effects": [],
+       "note": "Compares stored vs fresh inventory and produces human-readable drift messages (head, statuses, blocks, feature fields)."
+      },
+      {
+       "name": "render_text",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats inventory doc as a short human-readable text summary."
+      },
+      {
+       "name": "main",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "filesystem_write"
+       ],
+       "note": "CLI entry point: parses args, dispatches to check, json output, or refresh."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Gate mode. Writes nothing; returns {\"ok\": bool, \"problems\": [...]}.",
+       "where": "check docstring (line 843)",
+       "verdict": "kept",
+       "why": "The function never calls write_inventory or any write; it only reads and returns a dict with 'ok' and 'problems'."
+      },
+      {
+       "text": "Four ways to fail, in the order a reader needs them: 1. there is no inventory, or it cannot be parsed; 2. it was written by a different schema; 3. its digest does not cover its own derived fields -- somebody edited the mechanical half by hand; 4. regenerating it now would change something -- it is STALE, and the diff says exactly how.",
+       "where": "check docstring (lines 845-850)",
+       "verdict": "kept",
+       "why": "The code checks stored None (line 855), __error__ (line 858), schema mismatch (line 861), digest_ok (line 864), annotation_overreach (line 868), and then compares fresh build (line 874-876) to detect staleness."
+      },
+      {
+       "text": "Every feature's DERIVED half, keyed by module (or by detector for the module-less stale entries). The human fields are dropped so a note cannot read as drift.",
+       "where": "_by_key docstring (line 880)",
+       "verdict": "kept",
+       "why": "The function iterates areas/features, constructs key as module or 'detector:reason', and filters out FEATURE_HUMAN_FIELDS."
+      },
+      {
+       "text": "A module whose importers or reaching entry point changed is a real difference, and reporting it as \"something differs, go diff the file yourself\" is how a gate stops being read.",
+       "where": "comment in _describe_drift (lines 936-938)",
+       "verdict": "kept",
+       "why": "The code includes field-level comparison beyond status in the 'moved' list (lines 940-948)."
+      },
+      {
+       "text": "Mechanical fields are rewritten every run; human notes are carried forward and excluded from the digest.",
+       "where": "main argparse description (line 965)",
+       "verdict": "uncheckable",
+       "why": "This chunk defines refresh and build but the actual carrying-forward and digest exclusion logic is in build and harvest, not visible here. The claim is plausible but cannot be fully verified from this chunk alone."
+      },
+      {
+       "text": "gate mode: exit non-zero if the file is missing, hand-edited or stale; writes nothing",
+       "where": "--check help text (line 972)",
+       "verdict": "kept",
+       "why": "In main, args.check calls check() and returns 1 if problems exist; no writes occur in that branch (lines 977-984)."
+      },
+      {
+       "text": "print the generated document; writes nothing",
+       "where": "--json help text (line 973)",
+       "verdict": "kept",
+       "why": "The --json branch builds a doc and prints it; no write_inventory call (lines 986-993)."
+      },
+      {
+       "text": "skip the working-tree dirty probe",
+       "where": "--no-git help text (line 974)",
+       "verdict": "kept",
+       "why": "probe = not args.no_git (line 977) and probe is passed to check and refresh as probe_dirty."
+      },
+      {
+       "text": "nothing to do: pass --refresh, --check or --json",
+       "where": "main ap.error (line 996)",
+       "verdict": "kept",
+       "why": "If neither --refresh, --check, nor --json is given, ap.error is called with that message."
+      },
+      {
+       "text": "Regenerate with `python -m daedalus.mapping.inventory --refresh` (or `daedalus map`, which does it as part of the run).",
+       "where": "main print in check failure branch (line 982)",
+       "verdict": "uncheckable",
+       "why": "The claim about 'daedalus map' is outside this chunk; the --refresh command is valid per this chunk."
+      }
+     ],
+     "observations": [
+      {
+       "what": "check() returns 'stored' and 'fresh' in the result dict even when ok is true; callers may use them.",
+       "where": "line 877-878",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The --json branch in main does not pass reports to build; it calls analyse_once and then build again, duplicating work.",
+       "where": "line 986-993",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "refresh() does not handle the case where target is a directory; write_inventory may fail.",
+       "where": "line 841-842",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_describe_drift compares top-level blocks (env_vars, cli_commands, etc.) with simple equality, which may miss drift if the blocks are reordered but semantically equal.",
+       "where": "line 930-934",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "a2e69299a0c2318903d95d807df59aad46d25d2dec9017da1768d8066d592174",
+    "objective_chars": 13260,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [4/4]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 4,
+  "total": 4,
+  "first_line": 841
+ }
+}

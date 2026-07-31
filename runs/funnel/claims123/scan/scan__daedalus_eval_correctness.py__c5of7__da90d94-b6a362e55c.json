@@ -1,0 +1,292 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c5of7__da90d94",
+ "key": "scan__daedalus_eval_correctness.py__c5of7__da90d94-b6a362e55c",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of correctness.py: evaluate_change, verify_before_state, _slug, corpus load/save/run, _changed_files, _blob, _test_functions start.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "evaluate_change | medium | try block catches only (ValueError, OSError) around resolve_task_repo; other exceptions (e.g. KeyError from task['repo']) escape and violate 'never raises' docstring. | Add a catch-all or guard task['repo'].",
+     "verify_before_state | medium | try block catches only (ValueError, OSError) around resolve_task_repo; other exceptions (e.g. KeyError from task['repo']) escape and violate 'never raises' style. | Add a catch-all or guard task['repo'].",
+     "run_corpus | low | 'discriminates' requires all tasks FIXED; if a task is COULD_NOT_RUN due to environment, corpus falsely fails. | Check if that is intended by spec; otherwise require only no task_invalid/could_not_run?",
+     "_changed_files | low | Parser splits on '\\t' and takes parts[0] and parts[-1]; if git output format changes (e.g. quoting, rename), it silently returns wrong/empty rows. | Pin the format or add a check for expected parts count.",
+     "_blob | low | Returns None on any git show failure; cannot distinguish 'absent' from 'unreadable'. | Add a distinct error marker.",
+     "load_correctness_tasks | low | If JSON is malformed, raises JSONDecodeError; docstring says returns [] if not exists but not if corrupt. | Add try/except."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "5 of 7",
+     "purpose": "Core evaluation flow, before-state verification, corpus load/save/run, and seed helpers.",
+     "symbols": [
+      {
+       "name": "evaluate_change",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Main evaluation: freezes selection, runs before/after in disposable worktree, applies patch, judges. Returns CorrectnessResult, never raises."
+      },
+      {
+       "name": "verify_before_state",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Measures only the before-state of a task to validate it for corpus seeding."
+      },
+      {
+       "name": "_slug",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Sanitizes a string to a safe slug, defaulting to 'task'."
+      },
+      {
+       "name": "CORPUS_NOTE",
+       "kind": "constant",
+       "effects": [
+        "none"
+       ],
+       "note": "Long note embedded in the corpus JSON describing provenance and verification."
+      },
+      {
+       "name": "load_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads corpus JSON, returns [] if file missing, else sorted tasks by id."
+      },
+      {
+       "name": "save_correctness_tasks",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Writes corpus JSON deterministically (sorted, indent, sort_keys)."
+      },
+      {
+       "name": "run_corpus",
+       "kind": "function",
+       "effects": [
+        "process_spawn",
+        "repository_mutation",
+        "filesystem_write"
+       ],
+       "note": "Evaluates every task against its own reference patch; returns outcome counts and discriminates flag."
+      },
+      {
+       "name": "_changed_files",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git diff --name-status to list changed files between a commit and its parent."
+      },
+      {
+       "name": "_blob",
+       "kind": "function",
+       "effects": [
+        "process_spawn"
+       ],
+       "note": "Runs git show to retrieve file content at a revision; returns None on failure."
+      },
+      {
+       "name": "_test_functions",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Starts at line 1121; parses test functions from source text. Body not fully visible."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Evaluate one change against one task. Returns; never raises.",
+       "where": "evaluate_change docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk shows try/except around the worktree block, but the outer try only catches (ValueError, OSError) around resolve_task_repo. Other exceptions (e.g. KeyError from task['repo']) could escape. However, the full function body is not fully visible (this chunk starts mid-signature); need to see the rest to confirm whether a broader catch exists."
+      },
+      {
+       "text": "The whole measurement happens in ONE disposable worktree, in this order: FREEZE the selection -> checkout base -> overlay tests -> RUN BEFORE -> judge the TASK -> apply the change -> RUN AFTER -> judge the CHANGE",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The code shows: freeze_selection before worktree; disposable_worktree creates checkout; apply_test_overlay; _run_lists for before; judge_before_state; apply_patch; _run_lists for after; judge_after_state. Order matches exactly."
+      },
+      {
+       "text": "The selection is frozen FIRST, before the worktree exists and long before any candidate bytes are applied, and the after-state is run against that same frozen object -- so the thing being measured cannot be influenced by the thing being measured.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "freeze_selection is called on line 1092 before disposable_worktree on line 1096. The same `selection` object is passed to both _run_lists calls (lines 1112 and 1135). No reassignment of selection occurs."
+      },
+      {
+       "text": "The before-state is measured every time, in the same tree the after-state is measured in. It is never read from a stored receipt here, because a receipt is a claim about a tree that may no longer exist -- the same doctrine spine.bootstrap applies to its discrimination receipt.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "The before run is performed inside the same `with disposable_worktree(...)` block as the after run. No stored receipt is used; judge_before_state is called with freshly measured f2p/p2p lists on line 1114."
+      },
+      {
+       "text": "use_reference evaluates the task's OWN fix commit (reference_revision) instead of a candidate patch. That is how a corpus task is validated: a task whose own reference patch does not produce fixed is not a task.",
+       "where": "evaluate_change docstring",
+       "verdict": "kept",
+       "why": "Lines 1123-1127: if use_reference, change_bytes = reference_patch(root, base, task['reference_revision'], exclude=...). The outcome is judged by judge_after_state; if not fixed, it will not be OUTCOME_FIXED. Also run_corpus uses use_reference=True and reports counts."
+      },
+      {
+       "text": "Measure ONLY the before-state of task: is this task real?",
+       "where": "verify_before_state docstring",
+       "verdict": "kept",
+       "why": "The function only runs before lists (f2p, p2p) and calls judge_before_state. No patch or after run."
+      },
+      {
+       "text": "Used when seeding a corpus. A candidate task that does not survive this is reported, with its reasons, and not admitted -- which is the measurement that says how much a corpus is worth.",
+       "where": "verify_before_state docstring",
+       "verdict": "uncheckable",
+       "why": "The function returns a BeforeState with reasons, but the admission logic is in the caller (likely seed_task_from_commit), not in this chunk."
+      },
+      {
+       "text": "Read the corpus, or [] if it does not exist yet. Sorted by id.",
+       "where": "load_correctness_tasks docstring",
+       "verdict": "kept",
+       "why": "Line 1159: if not os.path.exists(p): return []. Line 1164: sorted(data.get('tasks', []), key=lambda t: t['id'])."
+      },
+      {
+       "text": "Overwrite the corpus. Deterministic formatting, same contract as harness.write_baseline / mint.save_minted_tasks.",
+       "where": "save_correctness_tasks docstring",
+       "verdict": "kept",
+       "why": "json.dump with indent=2, sort_keys=True, and a trailing newline. Tasks are sorted by id. This is deterministic."
+      },
+      {
+       "text": "Every task's lists were MEASURED (run on the base revision, then again under the commit's own fix), never taken from the diff on trust.",
+       "where": "CORPUS_NOTE",
+       "verdict": "uncheckable",
+       "why": "The note is a constant string; the actual measurement happens in seed_task_from_commit, which is not in this chunk."
+      },
+      {
+       "text": "The gate refuses a task whose lists no longer digest to it.",
+       "where": "CORPUS_NOTE",
+       "verdict": "uncheckable",
+       "why": "The gate logic is in correctness_gate, not in this chunk."
+      },
+      {
+       "text": "These tasks are NOT in harness.all_tasks(): slice recall cannot grade them (they have no must_include and would score a vacuous 1.0), and the harness refuses them.",
+       "where": "CORPUS_NOTE",
+       "verdict": "uncheckable",
+       "why": "The harness behavior is in another module; this chunk only contains the note."
+      },
+      {
+       "text": "Evaluate every task against its OWN reference patch. The corpus's own gate.",
+       "where": "run_corpus docstring",
+       "verdict": "kept",
+       "why": "run_corpus calls evaluate_change with use_reference=True for each task."
+      },
+      {
+       "text": "Counts are reported per outcome and NEVER blended into a single 'score' -- task_invalid and could_not_run in particular are not failures of the change, and folding them into one number would hide exactly the distinction this module was built for.",
+       "where": "run_corpus docstring",
+       "verdict": "kept",
+       "why": "The return dict has a 'counts' mapping each outcome to a count, and also 'ids_by_outcome'. There is no single blended score. The 'discriminates' flag is a boolean, not a score."
+      },
+      {
+       "text": "A check that CANNOT FAIL: an assertion comparing something with itself, a test whose fixture is derived from the thing under test, a branch no input reaches.",
+       "where": "instruction",
+       "verdict": "uncheckable",
+       "why": "No such pattern appears in this chunk. The only conditional is `if proc.returncode != 0` which can fail."
+      },
+      {
+       "text": "A refusal with NO REACHABLE REPAIR: code that reports an error and names a fix another rule in this same file forbids.",
+       "where": "instruction",
+       "verdict": "uncheckable",
+       "why": "No such pattern observed. Error messages suggest using use_reference or patch_bytes, which are valid parameters."
+      },
+      {
+       "text": "A rule INVERTED with respect to its own stated goal: it blocks the narrow precise action and permits the broad one.",
+       "where": "instruction",
+       "verdict": "uncheckable",
+       "why": "No such rule apparent in this chunk."
+      },
+      {
+       "text": "A value parsed from output whose FORMAT IS NOT PINNED: a parser that will silently report 'absent' rather than 'unreadable' when its input changes shape.",
+       "where": "instruction",
+       "verdict": "kept",
+       "why": "_blob returns None on any git show failure, indistinguishable from 'absent'. _changed_files returns [] on any git diff failure, and its parser splits on tabs assuming a fixed format; if git output changes, it may silently return wrong/empty rows."
+      }
+     ],
+     "observations": [
+      {
+       "what": "evaluate_change's docstring says 'never raises', but the outer try only catches (ValueError, OSError) around resolve_task_repo. Other exceptions (e.g. KeyError from task['repo'] or task['base_revision']) could escape. The inner try/except catches Exception, but that's only for the worktree block. The calls to resolve_revision, freeze_selection, etc. are outside any try.",
+       "where": "evaluate_change, lines 1084-1095",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "verify_before_state has a similar pattern: only (ValueError, OSError) caught around resolve_task_repo, but the docstring implies it should not raise (it returns BeforeState on problems). KeyError from task['repo'] would escape.",
+       "where": "verify_before_state, lines 1145-1150",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "run_corpus 'discriminates' is True only if all tasks have outcome FIXED. If a task is COULD_NOT_RUN or TASK_INVALID due to environment or schema, the corpus is considered not discriminating, which may be intended but could be misleading if a task fails for reasons unrelated to discrimination.",
+       "where": "run_corpus, line 1219",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_changed_files parses `git diff --name-status` output by splitting on tabs. The format is not pinned; if git introduces quoting or changes the separator, the parser may silently return wrong rows (e.g., parts[0] might not be the status).",
+       "where": "_changed_files, lines 1228-1237",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "_blob returns None for any `git show` failure, conflating 'file not present' with 'git error'. This can mask real problems.",
+       "where": "_blob, lines 1240-1245",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "load_correctness_tasks only handles missing file, not malformed JSON; json.load will raise JSONDecodeError, which may propagate.",
+       "where": "load_correctness_tasks, lines 1157-1164",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "4451c7f9d163b7d8826b15dadf6a9fcf62a931668de06242b01a6aac145214d8",
+    "objective_chars": 18077,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [5/7]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/correctness.py",
+  "index": 5,
+  "total": 7,
+  "first_line": 1121
+ }
+}

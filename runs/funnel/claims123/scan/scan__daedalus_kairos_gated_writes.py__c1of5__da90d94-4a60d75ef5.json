@@ -1,0 +1,281 @@
+{
+ "task_id": "scan__daedalus_kairos_gated_writes.py__c1of5__da90d94",
+ "key": "scan__daedalus_kairos_gated_writes.py__c1of5__da90d94-4a60d75ef5",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 1 of daedalus/kairos/gated_writes.py: module docstring, rebase helpers, GatedCandidate, artifact root, relay gate, recording runner, provider receipt, spec_for start. Claims enumerated.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "0 | medium | Module docstring claims PHASE 2 promotion is guarded by ONE cross-process lock, but _PromotionLock is not defined in this chunk; cannot verify uniqueness or cross-process behavior here. | Inspect the _PromotionLock definition in a later chunk.",
+     "0 | medium | Module docstring claims a held candidate's attempt branch is reaped before run_write_wave returns and that persistence is load-bearing; neither run_write_wave nor TaskAttempt._persist is in this chunk. | Inspect run_write_wave and TaskAttempt._persist definitions.",
+     "0 | medium | Module docstring claims Phase 2 re-gates cumulatively after every apply and re-attempts stale candidates; the promote_candidates function is not in this chunk. | Inspect promote_candidates in a later chunk.",
+     "0 | medium | Module docstring claims _PromotionLock uses the same msvcrt/fcntl pattern as _BudgetLock and _RoomLock; none of those are visible here. | Inspect _PromotionLock and referenced lock implementations.",
+     "0 | low | _relay_gate's docstring claims the gate is judged by offload()'s own verdict and not a second test run; the gate only checks action/wrote and does not run tests, but the claim that offload's verify is the authority depends on offload_runner behavior not visible here. | Inspect offload_runner and TaskAttempt gate invocation.",
+     "0 | low | _recording_runner's docstring claims box[\"result\"] is set before TaskAttempt calls the gate, citing _run_with_ledger; that ordering is not visible in this chunk. | Inspect TaskAttempt._run_with_ledger.",
+     "0 | low | _provider_receipt's projection is lossy by design; if detail is not a Mapping, returns None and the write-wave projection may collapse provider refusals, which the docstring says it was meant to fix. | Inspect callers of _provider_receipt to see how None is handled."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/gated_writes.py",
+     "chunk": "1 of 5",
+     "purpose": "Module docstring, declared-path rebasing, GatedCandidate dataclass, artifact root, relay gate, recording runner, provider receipt, and start of _spec_for.",
+     "symbols": [
+      {
+       "name": "_DEFAULT_GATE_TIMEOUT_S",
+       "kind": "constant",
+       "effects": [],
+       "note": "Fallback timeout for curated command gate; 900.0 seconds."
+      },
+      {
+       "name": "rebase_declared_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Rebases an absolute path under primary_root to repo-relative POSIX; returns unchanged otherwise."
+      },
+      {
+       "name": "rebase_declared_paths",
+       "kind": "function",
+       "effects": [],
+       "note": "Maps rebase_declared_path over a list of paths, returning a tuple."
+      },
+      {
+       "name": "GatedCandidate",
+       "kind": "class",
+       "effects": [],
+       "note": "Dataclass holding assignment, spec, and result from Phase 1."
+      },
+      {
+       "name": "_artifact_root_for",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Returns a checkout-external archive directory under LOCALAPPDATA or tempdir, namespaced by repo path hash."
+      },
+      {
+       "name": "_relay_gate",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns a TaskAttempt gate closure that judges by offload result action/wrote from a shared box."
+      },
+      {
+       "name": "_recording_runner",
+       "kind": "function",
+       "effects": [],
+       "note": "Wraps offload_runner to record its result in a box; returns (runner, box)."
+      },
+      {
+       "name": "_provider_receipt",
+       "kind": "function",
+       "effects": [],
+       "note": "Projects a small operational dict from an offload runner result's runner_detail."
+      },
+      {
+       "name": "_spec_for",
+       "kind": "function",
+       "effects": [],
+       "note": "Starts constructing a TaskSpec for one assignment; body truncated in this chunk."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module does not repeat any of that. It has two responsibilities: PHASE 1 -- CONCURRENT GATING ... PHASE 2 -- PROMOTION ... PHASE 3 -- SEALED HANDOFF",
+       "where": "Module docstring lines 1-62",
+       "verdict": "uncheckable",
+       "why": "The chunk only shows Phase 1 helpers; Phase 2 and Phase 3 functions are not in this chunk, so the claimed responsibilities cannot be fully verified."
+      },
+      {
+       "text": "Output: one GatedCandidate per assignment, each carrying an AttemptResult whose .artifact is a PatchArtifact (inert bytes) when the candidate is clean.",
+       "where": "Module docstring line 22",
+       "verdict": "uncheckable",
+       "why": "GatedCandidate is defined but the code that produces it (gate_candidates) is not in this chunk; PatchArtifact is not referenced here."
+      },
+      {
+       "text": "The primary checkout is untouched -- that is TaskAttempt's own structural guarantee, not something re-implemented or re-verified here.",
+       "where": "Module docstring line 24",
+       "verdict": "uncheckable",
+       "why": "TaskAttempt is not visible in this chunk; no code here touches the primary checkout."
+      },
+      {
+       "text": "run_write_wave additionally asks Phase 1 to persist those bytes in the checkout-external Daedalus artifact archive.",
+       "where": "Module docstring line 25",
+       "verdict": "uncheckable",
+       "why": "run_write_wave is not in this chunk, and _artifact_root_for only returns a path; no persistence call is visible."
+      },
+      {
+       "text": "That is load-bearing for a held candidate: its attempt branch is reaped before this function returns, so an in-memory-only patch could not honestly be described as waiting for review.",
+       "where": "Module docstring lines 25-27",
+       "verdict": "uncheckable",
+       "why": "TaskAttempt reaping and run_write_wave behavior are not observable in this chunk."
+      },
+      {
+       "text": "Landing N candidates is itself a shared-mutable-state problem ... so promotion is: guarded by ONE cross-process lock (_PromotionLock ...), applied into ONE dedicated \"integration\" worktree ... cumulatively RE-GATED after every apply ... and for any candidate whose artifact was captured against a base the integration branch has since moved past ... RE-ATTEMPTED ...",
+       "where": "Module docstring lines 29-50",
+       "verdict": "uncheckable",
+       "why": "promote_candidates and _PromotionLock are not defined in this chunk; none of the promotion machinery is visible."
+      },
+      {
+       "text": "_PromotionLock, the same msvcrt/fcntl pattern as daedalus.budget._BudgetLock and runs/council/room.py's _RoomLock, independently written here because both of those are private to modules this file does not own",
+       "where": "Module docstring line 34",
+       "verdict": "uncheckable",
+       "why": "_PromotionLock is not defined in this chunk; _BudgetLock and _RoomLock are not visible."
+      },
+      {
+       "text": "This is a deliberate correction ... to an earlier draft that proposed git apply --check as the sole conflict detector: a check that passes only proves the bytes still match: it does not prove the SEMANTIC content is still correct once an earlier candidate has landed ahead of it.",
+       "where": "Module docstring lines 49-50",
+       "verdict": "uncheckable",
+       "why": "The correction is described as historical and the actual promotion code is not in this chunk."
+      },
+      {
+       "text": "The adopted Iron Plan closes that path: a write wave may gate and persist candidates, but it always returns them held. promote_candidates remains a separate explicit owner operation.",
+       "where": "Module docstring lines 53-56",
+       "verdict": "uncheckable",
+       "why": "run_write_wave and promote_candidates are not in this chunk."
+      },
+      {
+       "text": "Mirrors daedalus.spine.attempt.DEFAULT_GATE_TIMEOUT_S without importing it at module scope -- this module imports spine.attempt lazily inside functions (see _spec_for/_attempt_assignment) and adding a top-level import would change that deliberate import order.",
+       "where": "Comment at _DEFAULT_GATE_TIMEOUT_S, lines 69-72",
+       "verdict": "kept",
+       "why": "The chunk shows no top-level import of spine.attempt; _spec_for imports inside the function body (line ~181), and _relay_gate imports GateResult inside the closure (line ~123). The constant is defined at module scope."
+      },
+      {
+       "text": "An absolute path that resolves under primary_root is rebased to its repo-relative form. An absolute path that resolves OUTSIDE primary_root is returned unchanged.",
+       "where": "rebase_declared_path docstring, lines 86-89",
+       "verdict": "kept",
+       "why": "Lines 100-106: p.resolve().relative_to(primary_root.resolve()) succeeds for under-root paths and returns as_posix(); ValueError falls through to return raw."
+      },
+      {
+       "text": "spec is retained (not just result) because AttemptResult does not carry the originating TaskSpec -- and Phase 2's staleness retry needs to re-attempt the SAME instruction/target_paths against a NEW base_revision, which requires the original spec, not just its result.",
+       "where": "GatedCandidate docstring, lines 111-114",
+       "verdict": "uncheckable",
+       "why": "GatedCandidate has a spec field, but the claim that AttemptResult lacks the spec and that Phase 2 uses it cannot be verified without AttemptResult and promote_candidates."
+      },
+      {
+       "text": "A held candidate cannot live only in AttemptResult.artifact: run_write_wave returns plain dictionaries and TaskAttempt reaps its candidate branch, so those bytes otherwise disappear as soon as the call returns.",
+       "where": "_artifact_root_for docstring, lines 119-122",
+       "verdict": "uncheckable",
+       "why": "run_write_wave and TaskAttempt are not in this chunk."
+      },
+      {
+       "text": "Keep the archive beside the worktree/control state, namespaced by checkout identity, and let TaskAttempt._persist apply its primary-tree fence before it creates or writes anything.",
+       "where": "_artifact_root_for docstring, lines 122-123",
+       "verdict": "uncheckable",
+       "why": "TaskAttempt._persist is not visible; _artifact_root_for only computes a path, no write happens here."
+      },
+      {
+       "text": "A gate callable only ever receives a RunnerContext (worktree/branch/base/task/is_cancelled) -- never the runner's return value -- so there is no direct way to ask \"did offload() call this clean\".",
+       "where": "_relay_gate docstring, lines 126-128",
+       "verdict": "uncheckable",
+       "why": "The gate signature and RunnerContext are not visible in this chunk; the closure takes ctx but does not use it."
+      },
+      {
+       "text": "box is a mutable cell the paired runner (_recording_runner) writes its result into before returning; this closure reads it back.",
+       "where": "_relay_gate docstring, lines 128-129",
+       "verdict": "kept",
+       "why": "_recording_runner sets box[\"result\"] immediately after base_runner returns (line 148), and _relay_gate's _gate reads box.get(\"result\") (line 125)."
+      },
+      {
+       "text": "Why not TaskAttempt's own default (pytest_gate(task.gate_paths), a bare python -m pytest)? It assumes pytest, which is not every project's test runner -- offload()'s own verify() already runs the PROJECT'S configured test_command, whatever that is. Running it again here would be a SECOND, independent verify of the same change, which is the \"raw provider call\" the standing orders say must not happen: offload's verify+rollback cascade is meant to stay the one authority for per-task correctness.",
+       "where": "_relay_gate docstring, lines 130-136",
+       "verdict": "uncheckable",
+       "why": "offload()'s verify behavior and the 'standing orders' are external to this chunk; the gate itself does not run tests, but the claim about offload's authority is not verifiable here."
+      },
+      {
+       "text": "This still catches a real failure mode a bare \"is the diff non-empty\" check would miss: offload can finish with action == \"escalated_after_verify_fail\" while wrote is NON-EMPTY ... and only checking action == \"offloaded\" (not \"artifact exists\") refuses it.",
+       "where": "_relay_gate docstring, lines 136-141",
+       "verdict": "uncheckable",
+       "why": "The gate checks action == \"offloaded\" and bool(wrote), which would refuse escalated_after_verify_fail, but the claim about offload's behavior is not verifiable from this chunk."
+      },
+      {
+       "text": "Returns (runner, box). box[\"result\"] is set the instant the runner returns, which is always BEFORE TaskAttempt calls the gate (see daedalus.spine.attempt.TaskAttempt._run_with_ledger: runner, then artifact capture, then gate) -- so _relay_gate reading box always sees this attempt's own result, never a stale or missing one.",
+       "where": "_recording_runner docstring, lines 144-147",
+       "verdict": "uncheckable",
+       "why": "The ordering claim depends on TaskAttempt._run_with_ledger, which is not in this chunk; the local code does set box before returning, but the gate call ordering is external."
+      },
+      {
+       "text": "The full provider result lives on AttemptResult.runner_detail.",
+       "where": "_provider_receipt docstring, line 153",
+       "verdict": "uncheckable",
+       "why": "AttemptResult is not defined in this chunk; the code reads getattr(result, \"runner_detail\", None), which would be None if absent, but the claim that the full result lives there is external."
+      },
+      {
+       "text": "The write-wave projection used to drop it, collapsing every provider refusal into \"the runner produced no change to gate\".",
+       "where": "_provider_receipt docstring, lines 154-155",
+       "verdict": "uncheckable",
+       "why": "Historical behavior and write-wave callers are not in this chunk."
+      },
+      {
+       "text": "Keep only routing/action facts, measured writes, and rewrite activation/skip provenance -- never prompts, repository content, or arbitrary model prose.",
+       "where": "_provider_receipt docstring, lines 155-156",
+       "verdict": "kept",
+       "why": "The code copies only specific keys: provider, model, action, wrote, did_work, report_status, verify, and handoff keys windowed_rewrite, skipped, slice_context_dropped. It does not copy arbitrary content."
+      }
+     ],
+     "observations": [
+      {
+       "what": "rebase_declared_path returns raw string unchanged for relative and outside-root absolute paths; the docstring says outside-root is left for downstream guards, but relative paths are also returned unchanged without comment.",
+       "where": "rebase_declared_path lines 96-106",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_artifact_root_for uses LOCALAPPDATA or tempdir, not a path beside worktree/control state as the docstring claims.",
+       "where": "_artifact_root_for lines 133-139",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "_relay_gate returns a gate that does not use its ctx argument; the gate's passed depends solely on box contents, which are set by _recording_runner.",
+       "where": "_relay_gate lines 123-130",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_provider_receipt returns None when runner_detail is missing or not a Mapping, which could collapse provider refusals into 'no change' downstream, contradicting the docstring's intent to avoid that.",
+       "where": "_provider_receipt lines 158-178",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "The chunk starts _spec_for but its body is truncated; import of TaskSpec is lazy inside the function, consistent with the module comment.",
+       "where": "_spec_for line 181",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "060f36f45ba428843ff6ddec60ee76cefc0753ee1620e864cc26eedae46b8672",
+    "objective_chars": 17474,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/gated_writes.py [1/5]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/gated_writes.py",
+  "index": 1,
+  "total": 5,
+  "first_line": 1
+ }
+}

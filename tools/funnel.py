@@ -212,16 +212,62 @@ def document_sections(cfg: dict) -> list[dict]:
     return units
 
 
-def _handoffs(tier_dir: Path) -> list[dict]:
-    rows = []
+def _handoffs(tier_dir: Path, rev: str = "") -> list[dict]:
+    """One tier's payloads, from EXACTLY ONE run.
+
+    A run directory accumulates. `fan_out` resumes by task id, a task id
+    carries the revision, so a rerun of the same funnel lands beside the
+    previous one instead of replacing it -- which is correct, the older run is
+    evidence. But a tier that reads the whole directory then consumes every run
+    at once, and that is silently wrong in four ways at the same time:
+
+    * yield inflates on every rerun, because old rows are re-counted as new;
+    * stale hypotheses are re-judged against a NEWER tree, so a finding that
+      was true at its own revision is refuted by code written afterwards;
+    * bucket size grows run over run, so cost per unit rises with no signal;
+    * no two runs can be compared, because the later one contains the earlier.
+
+    MEASURED 2026-07-31 on `runs/funnel/claims123`, three runs deep: the review
+    tier's buckets carried 3, then 17, then 36 inputs, and the third run's plan
+    tier was handed 161 verdict rows of which 98 were its own. The third run
+    looked like the best one and was mostly reading the first two.
+
+    So: exactly one revision, never the union. The current one when it has
+    data; otherwise the newest that does, said out loud, because running a
+    later tier against an earlier tier's older run is a legitimate thing to do
+    deliberately and a trap to do by accident.
+    """
+    rows: list[dict] = []
     if not tier_dir.is_dir():
         return rows
+    units = []
     for p in sorted(tier_dir.iterdir()):
         if p.suffix != ".json":
             continue
         try:
-            o = json.loads(p.read_text(encoding="utf-8"))
+            units.append((p, json.loads(p.read_text(encoding="utf-8"))))
         except (OSError, ValueError):
+            continue
+    if not units:
+        return rows
+
+    present: dict[str, float] = {}
+    for p, o in units:
+        r = str((o.get("meta") or {}).get("rev") or "")
+        present[r] = max(present.get(r, 0.0), p.stat().st_mtime)
+    chosen = rev if rev in present else max(present, key=lambda r: present[r])
+    if len(present) > 1:
+        others = ", ".join(sorted(r for r in present if r != chosen))
+        print(f"    {tier_dir.name}: {len(present)} runs on disk; reading "
+              f"'{chosen}' only (ignoring {others}). A union would re-count "
+              "old rows as new.", file=sys.stderr)
+    if chosen != rev and rev:
+        print(f"    {tier_dir.name}: nothing at the current revision '{rev}' "
+              f"-- falling back to the newest run present, '{chosen}'.",
+              file=sys.stderr)
+
+    for _, o in units:
+        if str((o.get("meta") or {}).get("rev") or "") != chosen:
             continue
         for a in (o.get("answers") or []):
             h = (a.get("report") or {}).get("handoff") or {}
@@ -338,21 +384,92 @@ def attach_evidence(items: list[dict], field: str, max_refs: int = 4,
     return out
 
 
-def from_tier(cfg: dict, run_dir: Path) -> list[dict]:
-    rows = _handoffs(run_dir / cfg["from"])
+def _norm(value: object) -> str:
+    """One spelling per verdict: upper-cased, separators folded to underscore.
+
+    `drop_where` is an exact-match filter, so every spelling a model can emit
+    is a hole in it. Lower-casing alone was not enough, MEASURED: the review
+    tier returned `needs-evidence` 20 times and `NEEDS_EVIDENCE` 14 times in
+    one run -- one verdict, two spellings, and `.lower()` folds neither into
+    the other because the separator differs, not the case.
+
+    The two spellings were not the model being careless. The system prompt
+    wrote `needs-evidence` and the task example wrote `NEEDS_EVIDENCE`; each
+    bucket obeyed one of them. The prompts have since been made to agree, and
+    this stays anyway: a filter that silently fails open is worth more
+    robustness than it costs.
+
+    `tools/funnel_report.normalize` folds identically on purpose. If they ever
+    disagree, a row this filter drops will still be counted by the report, or
+    the reverse.
+    """
+    return re.sub(r"[\s\-]+", "_", str(value).strip()).upper()
+
+
+def _rows_for(handoff: dict, field: str) -> list:
+    """`field` from the payload, or from wherever the harness had to park it.
+
+    `providers/_report.coerce_report` moves keys the schema refused into
+    `handoff.unexpected_keys` rather than dropping them, and a model sometimes
+    wraps its whole payload in one extra `handoff` layer. Reading only the
+    plain field discards the first case; reading all three naively double-counts
+    the second, whose copy is normally identical. So: all three, de-duplicated.
+    """
+    if not isinstance(handoff, dict):
+        return []
+    sources = [handoff]
+    for extra in (handoff.get("unexpected_keys"), handoff.get("handoff")):
+        if isinstance(extra, dict):
+            sources.append(extra)
+    out, seen = [], set()
+    for source in sources:
+        for row in (source.get(field) or []) if isinstance(
+                source.get(field), list) else []:
+            key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
+            if key not in seen:
+                seen.add(key)
+                out.append(row)
+    return out
+
+
+def from_tier(cfg: dict, run_dir: Path, rev: str = "") -> list[dict]:
+    rows = _handoffs(run_dir / cfg["from"], rev)
     field = cfg.get("field")
     if field:
-        items = [x for r in rows for x in (r["handoff"].get(field) or [])]
+        items = [x for r in rows for x in _rows_for(r["handoff"], field)]
     else:
         items = [{"source": r["meta"].get("label") or r["meta"].get("unit"),
                   "report": r["handoff"]} for r in rows]
 
+    # A tier may declare the closed set of values its prompt actually states.
+    # Anything outside it is not merely untidy: `drop_where` cannot see it, so
+    # a row the funnel meant to stop walks through. MEASURED: one scan row came
+    # back "PARTIALLY KEPT" against a stated vocabulary of KEPT/BROKEN/
+    # UNCHECKABLE, and `drop_where: {"verdict": ["KEPT"]}` passed it downstream.
+    vocab = {_norm(v) for v in (cfg.get("vocabulary") or [])}
+    key_field = cfg.get("vocabulary_field", "verdict")
+    if vocab:
+        stray = {}
+        for x in items:
+            if isinstance(x, dict) and x.get(key_field) is not None:
+                value = _norm(x[key_field])
+                if value not in vocab:
+                    stray[value] = stray.get(value, 0) + 1
+        if stray:
+            print(f"    OUTSIDE the declared vocabulary for '{key_field}': "
+                  + ", ".join(f"{v} x{n}" for v, n in sorted(stray.items()))
+                  + " -- these pass every drop_where rule untouched",
+                  file=sys.stderr)
+
     drop = cfg.get("drop_where") or {}
     for key, bad_values in drop.items():
-        low = {str(v).lower() for v in bad_values}
+        bad = {_norm(v) for v in bad_values}
+        before = len(items)
         items = [x for x in items
-                 if not (isinstance(x, dict)
-                         and str(x.get(key, "")).lower() in low)]
+                 if not (isinstance(x, dict) and _norm(x.get(key, "")) in bad)]
+        print(f"    drop_where {key} in {sorted(bad)}: "
+              f"{before} -> {len(items)} ({before - len(items)} dropped)",
+              file=sys.stderr)
 
     dedupe_on = cfg.get("dedupe_on")
     if dedupe_on and items and isinstance(items[0], dict):
@@ -383,8 +500,8 @@ def from_tier(cfg: dict, run_dir: Path) -> list[dict]:
 
 
 SOURCES = {
-    "code_chunks": lambda cfg, run_dir: code_chunks(cfg),
-    "document_sections": lambda cfg, run_dir: document_sections(cfg),
+    "code_chunks": lambda cfg, run_dir, rev: code_chunks(cfg),
+    "document_sections": lambda cfg, run_dir, rev: document_sections(cfg),
     "tier": from_tier,
 }
 
@@ -438,7 +555,7 @@ def repo_index(globs: Sequence[str], with_symbols: bool = False) -> str:
 
 def build_tasks(tier: dict, base: Path, run_dir: Path, rev: str) -> list[FanoutTask]:
     kind = tier["source"]["kind"]
-    units = SOURCES[kind](tier["source"], run_dir)
+    units = SOURCES[kind](tier["source"], run_dir, rev)
     index = ""
     if tier.get("repo_index"):
         index = repo_index(tier.get("index_globs") or ["daedalus/**/*.py",

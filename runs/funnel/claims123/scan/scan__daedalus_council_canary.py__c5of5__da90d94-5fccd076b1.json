@@ -1,0 +1,161 @@
+{
+ "task_id": "scan__daedalus_council_canary.py__c5of5__da90d94",
+ "key": "scan__daedalus_council_canary.py__c5of5__da90d94-5fccd076b1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of 5 of canary.py; claims in docstrings mostly kept, one uncheckable, no defects found.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/canary.py",
+     "chunk": "5 of 5",
+     "purpose": "History persistence, comparison logic, and table rendering for the canary runner.",
+     "symbols": [
+      {
+       "name": "load_history",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSONL history, skips unreadable/foreign lines, returns list of dicts."
+      },
+      {
+       "name": "append_history",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends one JSON record per probe result; creates parent dirs; returns number of lines written."
+      },
+      {
+       "name": "compare_to_history",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds Comparison from a ProbeResult and trailing history entries; computes prior pass rate and regression flags."
+      },
+      {
+       "name": "_VERDICT",
+       "kind": "constant",
+       "effects": [],
+       "note": "Maps status strings to short display labels."
+      },
+      {
+       "name": "_delta_cell",
+       "kind": "function",
+       "effects": [],
+       "note": "Formats delta seconds into a cell string; 'first' for first-ever, '-' for None."
+      },
+      {
+       "name": "render_table",
+       "kind": "function",
+       "effects": [],
+       "note": "Renders a compact human-readable table from a CanaryRun; includes summary lines."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Read the JSONL history, SKIPPING anything unreadable.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "The function wraps json.loads in try/except and continues on ValueError/TypeError; also skips non-dict and schema/status mismatches."
+      },
+      {
+       "text": "A half-written last line ... must not take the health check down -- a canary that crashes on its own log is worse than no canary.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "The try/except around json.loads catches malformed lines (ValueError) and continues, so a bad last line does not raise."
+      },
+      {
+       "text": "Corrupt and foreign-schema lines are dropped silently and the rest of the file is still used.",
+       "where": "load_history docstring",
+       "verdict": "kept",
+       "why": "Corrupt lines raise ValueError and are caught; foreign-schema lines are filtered by schema check; the loop continues for all lines."
+      },
+      {
+       "text": "Append one record per probe result. Parents created; never rewritten.",
+       "where": "append_history docstring",
+       "verdict": "kept",
+       "why": "The function iterates run.results and writes one JSON line per result; p.parent.mkdir(parents=True, exist_ok=True) creates parents; the file is opened in append mode, so existing content is not rewritten."
+      },
+      {
+       "text": "previously_passed is \"this exact vendor+model+probe has an ok on record\".",
+       "where": "compare_to_history docstring",
+       "verdict": "kept",
+       "why": "prior filters by vendor/model/probe; oks is the subset with status 'ok'; previously_passed = bool(oks)."
+      },
+      {
+       "text": "That is what makes regressed mean \"it used to work and now it does not\" rather than \"it is red\", and it is why a lane that has never passed cannot page anyone: there is no evidence it ever could.",
+       "where": "compare_to_history docstring",
+       "verdict": "kept",
+       "why": "regressed is computed as previously_passed and result.status in FAILING_STATUSES; if previously_passed is False, regressed is False regardless of current status."
+      },
+      {
+       "text": "An unavailable result is NEVER a regression. We did not ask, so nothing regressed -- the bench being asleep is not the bench being broken.",
+       "where": "compare_to_history docstring",
+       "verdict": "kept",
+       "why": "regressed requires result.status in FAILING_STATUSES; 'unavailable' is not in FAILING_STATUSES (it is not in the _VERDICT map as a failure), so an unavailable result cannot set regressed."
+      },
+      {
+       "text": "Latency and pass-rate against the trailing history for this triple.",
+       "where": "compare_to_history docstring",
+       "verdict": "kept",
+       "why": "prior is filtered by vendor/model/probe; median latency is computed from oks; prior_pass_rate is oks/asked; the window is applied."
+      },
+      {
+       "text": "Compact human table: vendor, model, probe verdict, latency, vs median.",
+       "where": "render_table docstring",
+       "verdict": "kept",
+       "why": "The table header is ('vendor','model','probe','verdict','latency','vs med','note') and rows contain those fields."
+      }
+     ],
+     "observations": [
+      {
+       "what": "compare_to_history filters history by vendor/model/probe but does not filter by schema or status before counting 'asked'; however, load_history already validated those fields, so the input is expected to be clean.",
+       "where": "compare_to_history",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "render_table uses _VERDICT[r.status] without a default; if a status outside the map appears, it will raise KeyError. The statuses are constrained by CANARY_STATUSES elsewhere, but this chunk does not enforce it.",
+       "where": "render_table line ~1193",
+       "severity": "medium",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "b7a4f5290bcf86bde1f7ebd95dd31df835a25791ebcd40529a31a3d126a72314",
+    "objective_chars": 12071,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/canary.py [5/5]",
+  "rev": "da90d94",
+  "module": "daedalus/council/canary.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}

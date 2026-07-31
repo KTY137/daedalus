@@ -1,0 +1,246 @@
+{
+ "task_id": "review__b003__da90d94",
+ "key": "review__b003__da90d94-7e6371e43b",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "verdicts": [
+      {
+       "id": "never-raises-broken-in-promote",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim depends on _promote_locked not catching exceptions internally; the cited evidence is a single line number with no code excerpt, so the actual behavior is unverified.",
+       "survives_because": "The counterargument is plausible but the hypothesis is not confirmed because no code was supplied; the claim remains plausible.",
+       "narrowed_claim": "promote_candidates may not catch exceptions from _promote_locked, but this is unverified from the provided evidence.",
+       "settling_check": "Inspect daedalus/cleanup.py around _promote_locked to see if it catches exceptions internally and returns a report.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "scope-definition-mismatch",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The hypothesis itself states the refutation condition: both modules use the exact same membership test (rel in modules) without additional conditions.",
+       "survives_because": "The hypothesis is self-refuting; the refuted_by field is exactly the counterargument.",
+       "narrowed_claim": "",
+       "settling_check": "Read slice.py and _mint_from_diffs to confirm the identical membership test.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverifiable-cross-module-contracts",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis is a meta-pattern asserting that many claims are unverifiable from isolated chunks; this is an artifact of chunking, not evidence of a real defect.",
+       "survives_because": "The pattern is plausible but requires reading the entire codebase to confirm; the hypothesis does not identify a specific defect.",
+       "narrowed_claim": "The codebase has many cross-module invariants that are not locally testable, but this is not necessarily a risk.",
+       "settling_check": "Run a full-codebase search for each cited invariant and verify enforcement in the referenced module.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "unverifiable-historical-claims",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "Historical claims in docstrings are common and do not indicate a defect; they are documentation of past measurements, and the code is the authority for current behavior.",
+       "survives_because": "The hypothesis is speculative and provides no concrete defect; the claims are not used for enforcement.",
+       "narrowed_claim": "",
+       "settling_check": "Check if the historical measurements are backed by tests or external documentation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "duplicated-guard-copy-drift",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis acknowledges that the guards might be shared or co-maintained; the evidence only shows docstrings referencing similar rules, not actual duplication.",
+       "survives_because": "The claim is plausible but unverified; the docstrings explicitly note the similarity and may be referencing a shared implementation.",
+       "narrowed_claim": "Guard implementations may be duplicated, but this is not confirmed from the provided evidence.",
+       "settling_check": "Search for a shared lock utility or freshness checker in the codebase; if found, the hypothesis is refuted.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "self-scoped-finding-rule",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The rule's effectiveness depends on its behavior on edge cases, which is not verifiable from the chunk; the historical count is irrelevant to the current correctness.",
+       "survives_because": "The hypothesis is speculative; the regex may be correct or not, but no evidence is provided.",
+       "narrowed_claim": "The _SELF_SCOPED regex's edge-case behavior is unverified.",
+       "settling_check": "Write a test with known self-scoped findings and verify the regex classifies them correctly.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "guarantee-without-observation",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The guarantees may be enforced by the harness itself, and the claiming modules may be the ones that implement the exclusion; the evidence does not show a violation.",
+       "survives_because": "The hypothesis is plausible but unverified; the harness behavior is not visible.",
+       "narrowed_claim": "The guarantees about harness.all_tasks() are not locally observable, but they may be enforced elsewhere.",
+       "settling_check": "Inspect harness.all_tasks() implementation to see if it excludes correctness tasks and corpus notes.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "refused-status-semantic-drift",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis provides three different uses of 'refused' but does not show a conflict; the adapter sets 'unavailable' and expects a 'refused' receipt, which may be intentional.",
+       "survives_because": "The claim is plausible but unverified; the actual consumers of the status are not shown.",
+       "narrowed_claim": "The 'refused' status may have inconsistent meanings across modules, but this is not confirmed.",
+       "settling_check": "Search for all usages of 'refused' status and check if they are consistent with a shared enum.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "contract-between-caller-and-callee",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis lists many contracts but none are shown to be violated; the external implementations may match the docstrings.",
+       "survives_because": "The claim is plausible but unverified; no concrete defect is identified.",
+       "narrowed_claim": "Several contracts depend on external implementations that are not visible in the chunk, but they may be upheld.",
+       "settling_check": "For each cited contract, find the external implementation and verify it matches the docstring.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "unenforced-output-format-enum",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The field may be validated elsewhere, or the comment may be descriptive rather than prescriptive; the chunk does not show the full RuntimeConfig.",
+       "survives_because": "The claim is plausible but unverified; no validation code is shown, but it may exist elsewhere.",
+       "narrowed_claim": "RuntimeConfig.output_format may lack validation, but this is not confirmed.",
+       "settling_check": "Search for validation of output_format in the codebase.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unverified-no-ask-calls",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The hypothesis itself admits the body is truncated, so the claim is unverifiable; it is not a defect.",
+       "survives_because": "The hypothesis is not a finding; it is a note about missing evidence.",
+       "narrowed_claim": "",
+       "settling_check": "Read the full function body to verify absence of lane.ask calls.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-reopen-trigger-rationale",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The constants may be defined elsewhere, and the trigger logic is present; the rationale is documentation, not a defect.",
+       "survives_because": "The hypothesis is speculative; the absence of constants in the chunk does not imply a bug.",
+       "narrowed_claim": "",
+       "settling_check": "Search for REOPEN_MIN_* constants in the codebase.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "unverified-show-none-for-missing-blob",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "_git may return None for missing blobs, or _show may handle the case; the behavior is not visible.",
+       "survives_because": "The claim is plausible but unverified; the hypothesis does not show a violation.",
+       "narrowed_claim": "_show may not return None for missing blobs, but this is unconfirmed.",
+       "settling_check": "Inspect _git behavior on missing blobs.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unverified-promote-not-automatic",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim about call sites is external; the docstring may be accurate, and the absence of call sites in the chunk is not evidence of a bug.",
+       "survives_because": "The hypothesis is plausible but unverified; no call sites are shown to contradict the claim.",
+       "narrowed_claim": "promote_candidates may be called automatically, but this is unconfirmed.",
+       "settling_check": "Search for calls to promote_candidates in the codebase.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unverified-fanout-refusal",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The refusal logic may be in fan_out, which is not in the chunk, and it may correctly refuse temperature 0 for AND votes.",
+       "survives_because": "The claim is plausible but unverified; no evidence shows the refusal is missing.",
+       "narrowed_claim": "fan_out may not refuse temperature 0 for AND votes, but this is unconfirmed.",
+       "settling_check": "Inspect fan_out implementation to see if it refuses temperature 0 for AND votes.",
+       "severity_after_review": "high"
+      },
+      {
+       "id": "unverified-stale-sweep",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The sweep may be implemented in later chunks as the hypothesis states; the docstring is documentation, not a defect.",
+       "survives_because": "The hypothesis is speculative; the absence of the sweep in the chunk does not imply it doesn't exist.",
+       "narrowed_claim": "",
+       "settling_check": "Read the later chunks to find the stale sweep implementation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "self-scoped-finding-rule",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The rule's effectiveness depends on its behavior on edge cases, which is not verifiable from the chunk; the historical count is irrelevant to the current correctness.",
+       "survives_because": "The hypothesis is speculative; the regex may be correct or not, but no evidence is provided.",
+       "narrowed_claim": "The _SELF_SCOPED regex's edge-case behavior is unverified.",
+       "settling_check": "Write a test with known self-scoped findings and verify the regex classifies them correctly.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "unverifiable-historical-claims",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "Historical claims in docstrings are common and do not indicate a defect; they are documentation of past measurements, and the code is the authority for current behavior.",
+       "survives_because": "The hypothesis is speculative and provides no concrete defect; the claims are not used for enforcement.",
+       "narrowed_claim": "",
+       "settling_check": "Check if the historical measurements are backed by tests or external documentation.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "duplicated-guard-copy-drift",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis acknowledges that the guards might be shared or co-maintained; the evidence only shows docstrings referencing similar rules, not actual duplication.",
+       "survives_because": "The claim is plausible but unverified; the docstrings explicitly note the similarity and may be referencing a shared implementation.",
+       "narrowed_claim": "Guard implementations may be duplicated, but this is not confirmed from the provided evidence.",
+       "settling_check": "Search for a shared lock utility or freshness checker in the codebase; if found, the hypothesis is refuted.",
+       "severity_after_review": "medium"
+      },
+      {
+       "id": "unverifiable-cross-module-contracts",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The hypothesis is a meta-pattern asserting that many claims are unverifiable from isolated chunks; this is an artifact of chunking, not evidence of a real defect.",
+       "survives_because": "The pattern is plausible but requires reading the entire codebase to confirm; the hypothesis does not identify a specific defect.",
+       "narrowed_claim": "The codebase has many cross-module invariants that are not locally testable, but this is not necessarily a risk.",
+       "settling_check": "Run a full-codebase search for each cited invariant and verify enforcement in the referenced module.",
+       "severity_after_review": "low"
+      },
+      {
+       "id": "scope-definition-mismatch",
+       "verdict": "REFUTED",
+       "strongest_counterargument": "The hypothesis itself states the refutation condition: both modules use the exact same membership test (rel in modules) without additional conditions.",
+       "survives_because": "The hypothesis is self-refuting; the refuted_by field is exactly the counterargument.",
+       "narrowed_claim": "",
+       "settling_check": "Read slice.py and _mint_from_diffs to confirm the identical membership test.",
+       "severity_after_review": "none"
+      },
+      {
+       "id": "never-raises-broken-in-promote",
+       "verdict": "NEEDS_EVIDENCE",
+       "strongest_counterargument": "The claim depends on _promote_locked not catching exceptions internally; the cited evidence is a single line number with no code excerpt, so the actual behavior is unverified.",
+       "survives_because": "The counterargument is plausible but the hypothesis is not confirmed because no code was supplied; the claim remains plausible.",
+       "narrowed_claim": "promote_candidates may not catch exceptions from _promote_locked, but this is unverified from the provided evidence.",
+       "settling_check": "Inspect daedalus/cleanup.py around _promote_locked to see if it catches exceptions internally and returns a report.",
+       "severity_after_review": "high"
+      }
+     ],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "14ba127e0dc5c41b30fe695c20dbd289e599f66f2469ca6271fc23fd07a5ee91",
+    "objective_chars": 22691,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f7f6f4c8d0a5901a4eb14ea5d67322f8e85cc3a14712022f660259d399eb692b",
+    "system_override_chars": 1908,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "review",
+  "label": "bucket 3 (20 inputs)",
+  "rev": "da90d94",
+  "bucket": 3,
+  "inputs": 20
+ }
+}

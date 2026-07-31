@@ -1,0 +1,347 @@
+{
+ "task_id": "scan__daedalus_kairos_archive.py__c1of1__da90d94",
+ "key": "scan__daedalus_kairos_archive.py__c1of1__da90d94-1ef371b4d1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed archive.py chunk 1 of 1: 30 claims enumerated, 27 kept, 3 uncheckable; 4 observations noted.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "OUTCOME_RANK | medium | Unknown outcomes sort with rank -1, below 'task_invalid'; docstring says 'Unknown outcomes sort worst' \u2014 consistent but worth verifying intent matches policy. | Check callers that rely on unknown outcomes being worst.",
+     "record_attempt | low | meta is not truncated; a candidate-influenced meta dict could grow unbounded, contradicting 'BOUNDED' claim. | Inspect callers to see if meta is candidate-controlled.",
+     "record_attempt | low | unfixed is truncated to 20 but no length cap on each string; a single test id could be huge. | Check if test ids are bounded elsewhere.",
+     "load_attempts | low | Malformed lines are skipped silently; if the file format changes, it will report 'absent' rather than 'unreadable'. | Confirm if silent skip is intended for all parse errors."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/archive.py",
+     "chunk": "1 of 1",
+     "purpose": "Review archive module for docstring/comment claims against actual code.",
+     "symbols": [
+      {
+       "name": "OUTCOME_RANK",
+       "kind": "constant",
+       "effects": [],
+       "note": "Dict mapping outcome strings to int ranks, worst to best."
+      },
+      {
+       "name": "NUM_ELITE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant, default 3."
+      },
+      {
+       "name": "NUM_DIVERSE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant, default 2."
+      },
+      {
+       "name": "MAX_SUMMARY_CHARS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Integer constant, default 600."
+      },
+      {
+       "name": "Attempt",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing an evaluated candidate attempt."
+      },
+      {
+       "name": "Attempt.rank",
+       "kind": "function",
+       "effects": [],
+       "note": "Property returning OUTCOME_RANK.get(self.outcome, -1)."
+      },
+      {
+       "name": "Attempt.to_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns asdict(self) with unfixed converted to list."
+      },
+      {
+       "name": "Attempt.from_dict",
+       "kind": "function",
+       "effects": [],
+       "note": "Classmethod reconstructing Attempt from dict with defaults."
+      },
+      {
+       "name": "digest_patch",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns first 16 hex chars of SHA-256 of input bytes/str."
+      },
+      {
+       "name": "_truncate",
+       "kind": "function",
+       "effects": [],
+       "note": "Private helper; strips and truncates text keeping tail."
+      },
+      {
+       "name": "record_attempt",
+       "kind": "function",
+       "effects": [
+        "filesystem_write"
+       ],
+       "note": "Appends JSONL line to file, returns stored Attempt."
+      },
+      {
+       "name": "load_attempts",
+       "kind": "function",
+       "effects": [
+        "filesystem_read"
+       ],
+       "note": "Reads JSONL file, returns tuple of Attempts, never raises."
+      },
+      {
+       "name": "sample_inspirations",
+       "kind": "function",
+       "effects": [],
+       "note": "Selects elite and diverse attempts from a sequence."
+      }
+     ],
+     "claims": [
+      {
+       "text": "This module stores a hash plus a TRUNCATED, caller-supplied summary, and it never reads a candidate's files.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Attempt has patch_digest (hash) and summary (truncated), no file I/O on candidates; only reads/writes the archive file."
+      },
+      {
+       "text": "DETERMINISTIC BY DEFAULT. Every draw here takes an explicit rng, so a run is reproducible and a test can pin the selection instead of retrying until it passes.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "sample_inspirations accepts rng parameter and defaults to random.Random(0)."
+      },
+      {
+       "text": "BOUNDED. Every field that a candidate can influence is length-capped on the way IN, so a pathological error message cannot grow the file without limit.",
+       "where": "module docstring",
+       "verdict": "BROKEN",
+       "line": 104,
+       "why": "summary is truncated, unfixed truncated to 20 items, but meta is not truncated; meta is a dict that could contain arbitrary candidate-influenced strings."
+      },
+      {
+       "text": "NOTHING HERE SPENDS, WRITES CODE, OR GATES ANYTHING",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "No calls to providers, no code generation, no gate logic; only file I/O for the archive."
+      },
+      {
+       "text": "This module appends JSON lines to a file the caller names, and reads them back.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "record_attempt appends, load_attempts reads."
+      },
+      {
+       "text": "It calls no model, imports no provider, touches no lane, and is not wired into any gate or promotion path.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "No such imports or references in this chunk."
+      },
+      {
+       "text": "A caller that renders these into a prompt is responsible for the egress decision -- this module makes that easy to audit by ensuring there is exactly one field to audit.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Attempt has only 'summary' as free text; other fields are structured."
+      },
+      {
+       "text": "Mirrored deliberately rather than imported: `daedalus.eval.correctness` is a heavyweight module and this one is meant to stay a leaf. `tests/test_kairos_archive.py::test_outcome_vocabulary_matches_the_evaluator` pins the agreement, so drift is a test failure rather than a silent divergence.",
+       "where": "comment above OUTCOME_RANK",
+       "verdict": "UNCHECKABLE",
+       "why": "The test file is not in this chunk; cannot verify the test exists or pins agreement."
+      },
+      {
+       "text": "Upstream config.py:268-269 -- num_top_programs=3, num_diverse_programs=2.",
+       "where": "comment above NUM_ELITE",
+       "verdict": "UNCHECKABLE",
+       "why": "Upstream file not provided; cannot verify line numbers."
+      },
+      {
+       "text": "Deliberately NOT a program record. There is no code field and there will not be one -- see the module docstring on egress.",
+       "where": "Attempt docstring",
+       "verdict": "KEPT",
+       "why": "Attempt dataclass has no code field."
+      },
+      {
+       "text": "Where this sits in the outcome ordering. Unknown outcomes sort worst.",
+       "where": "Attempt.rank docstring",
+       "verdict": "KEPT",
+       "why": "rank returns -1 for unknown outcomes, which is less than all defined ranks (0-4)."
+      },
+      {
+       "text": "Stable short identity for a change, so duplicates are recognisable.",
+       "where": "digest_patch docstring",
+       "verdict": "KEPT",
+       "why": "Uses SHA-256 truncated to 16 hex chars; deterministic."
+      },
+      {
+       "text": "A digest, not the patch. Two candidates that produced byte-identical changes are the same attempt for inspiration purposes, and saying so costs 16 hex characters instead of a diff.",
+       "where": "digest_patch docstring",
+       "verdict": "KEPT",
+       "why": "Function returns a hash, not the patch."
+      },
+      {
+       "text": "Append-only and one JSON object per line, so a crashed run leaves a readable prefix rather than a corrupt document, and two processes appending cannot interleave a half-record into another's.",
+       "where": "record_attempt docstring",
+       "verdict": "KEPT",
+       "why": "Uses 'a' mode and writes a single json.dumps line; OS append is atomic for small writes on most systems, but this is not guaranteed; however the claim is about interleaving half-records, which is mitigated by single write call."
+      },
+      {
+       "text": "Truncation happens HERE, not at the call site, so there is a single place that decides how much candidate-influenced text is allowed to persist.",
+       "where": "record_attempt docstring",
+       "verdict": "KEPT",
+       "why": "record_attempt calls _truncate on summary; no other truncation in module."
+      },
+      {
+       "text": "Read the notebook. Never raises.",
+       "where": "load_attempts docstring",
+       "verdict": "KEPT",
+       "why": "Catches OSError for read_text and ValueError/TypeError/AttributeError for parsing; no other exceptions escape."
+      },
+      {
+       "text": "A line that will not parse is SKIPPED rather than fatal: this is advisory data, and a torn final line from a killed process must not take down the run that comes after it.",
+       "where": "load_attempts docstring",
+       "verdict": "KEPT",
+       "why": "The except clause catches parse errors and continues."
+      },
+      {
+       "text": "Pick a few prior attempts worth showing the next one.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "Function returns a tuple of attempts."
+      },
+      {
+       "text": "Adapted from upstream database.py::_sample_inspirations: take the best few, then FILL THE REST WITH VARIETY rather than with more of the best.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "Implementation selects elite then diverse from remaining, preferring fresh outcomes."
+      },
+      {
+       "text": "Upstream draws its variety from neighbouring MAP-Elites cells; without a feature grid we approximate the same intent by preferring attempts whose OUTCOME class is not already represented, which is the coarsest honest diversity signal available from data we actually have.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The code separates fresh and stale based on outcome coverage."
+      },
+      {
+       "text": "DEDUPLICATION BY DIGEST. Five candidates that made byte-identical changes are one lesson, not five, and showing the same failing patch five times is how a loop talks itself into a rut.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The loop skips attempts whose patch_digest is already seen."
+      },
+      {
+       "text": "exclude_digest drops the attempt currently being worked on, so a candidate is never offered itself as inspiration.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "The seen set is initialized with exclude_digest, and attempts with that digest are skipped."
+      },
+      {
+       "text": "Failures are as instructive as successes here -- a regressed attempt tells the next one what not to touch -- so this does NOT filter to winners.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "No filtering based on outcome; all attempts are included in pool."
+      },
+      {
+       "text": "Ordering is best-first and fully deterministic given rng.",
+       "where": "sample_inspirations docstring",
+       "verdict": "KEPT",
+       "why": "Sorted by (-rank, -ts, attempt_id) which is deterministic, and rng is seeded if not provided."
+      },
+      {
+       "text": "Best first; ties broken by recency, then by id so the order is total.",
+       "where": "comment in sample_inspirations",
+       "verdict": "KEPT",
+       "why": "The sort key is (-a.rank, -a.ts, a.attempt_id), which is a total order."
+      },
+      {
+       "text": "Variety: prefer outcome classes the elite slice did not already show.",
+       "where": "comment in sample_inspirations",
+       "verdict": "KEPT",
+       "why": "fresh list is built from outcomes not in covered set."
+      },
+      {
+       "text": "Keep the TAIL: a traceback's last lines carry the actual error, and the head is import noise.",
+       "where": "_truncate comment",
+       "verdict": "KEPT",
+       "why": "_truncate returns '...' + text[-(limit-3):], which is the tail."
+      },
+      {
+       "text": "A candidate-influenced string. Capped on the way in, because the failure mode is a 40MB traceback appended once per iteration.",
+       "where": "comment above MAX_SUMMARY_CHARS",
+       "verdict": "KEPT",
+       "why": "MAX_SUMMARY_CHARS is 600 and _truncate enforces it in record_attempt."
+      },
+      {
+       "text": "NO MAP-Elites feature grid, NO islands, NO migration. ADR-015 P8 defers those, and they are second-order on top of a loop that does not iterate yet.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "No such machinery in this chunk."
+      },
+      {
+       "text": "WE STORE A DIGEST, THEY STORE THE CODE. ... An archive that holds candidate source is an egress vector ... This module stores a hash plus a TRUNCATED, caller-supplied summary, and it never reads a candidate's files.",
+       "where": "module docstring",
+       "verdict": "KEPT",
+       "why": "Attempt has patch_digest (hash) and summary (truncated); no code field, no candidate file reads."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The module docstring claims 'Every field that a candidate can influence is length-capped on the way in', but the meta dict is not truncated or capped.",
+       "where": "module docstring / record_attempt line 104",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "record_attempt truncates unfixed to 20 items, but does not cap the length of each individual test id string.",
+       "where": "record_attempt line 104",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "load_attempts silently skips malformed lines, which could hide file format changes; the docstring says 'Never raises' but does not mention silent skipping as a feature.",
+       "where": "load_attempts lines 138-151",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The claim that two processes appending cannot interleave a half-record is not strictly guaranteed by Python's file write; it depends on OS atomicity of append writes.",
+       "where": "record_attempt docstring",
+       "severity": "low",
+       "confidence": "possible"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "445c4f22b0daa9465b10a8775814be2bdfe8334ce0137f9b7790cc6794edb42e",
+    "objective_chars": 13220,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/archive.py [1/1]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/archive.py",
+  "index": 1,
+  "total": 1,
+  "first_line": 1
+ }
+}

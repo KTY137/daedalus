@@ -1,0 +1,276 @@
+{
+ "task_id": "scan__daedalus_eval_correctness.py__c4of7__da90d94",
+ "key": "scan__daedalus_eval_correctness.py__c4of7__da90d94-1e46080b90",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 4 of correctness.py: digest, freeze_selection, _check_selection, BeforeState, judge_before_state, CorrectnessResult, judge_after_state, _run_lists.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "line 841-854 | high | digest property imports hashlib locally and is only defined on Selection; if any caller invokes digest on a non-Selection object, AttributeError; but within this chunk it's only used on Selection instances. | Check all call sites of .digest to confirm they are Selection objects.",
+     "line 898-910 | medium | freeze_selection deliberately does not validate node ids; a task with a non-string node id (e.g., int) would be accepted and later cause type errors in runner. | Confirm task schemas always provide strings for fail_to_pass/pass_to_pass/test_overlay.",
+     "line 905 | medium | test_revision is taken as-is from task.get('test_revision'); if missing, it becomes None, and downstream code may not handle None. | Verify that a missing test_revision is handled elsewhere (e.g., resolve_revision).",
+     "line 925-951 | medium | _check_selection compares observed vs declared node sets but does not check for duplicate node ids within the observed dicts; a runner could report the same node twice with different statuses and the check would pass. | Confirm that runners deduplicate node ids before returning statuses.",
+     "line 1011-1017 | medium | judge_before_state uses NO_VERDICT, PROVEN_NOT_PASSING, STATUS_PASSED, STATUS_MISSING constants that are not defined in this chunk; if any of these are misspelled or not imported, runtime NameError. | Verify these constants exist and are imported in the module.",
+     "line 1011-1017 | medium | judge_before_state assumes f2p and p2p dicts have string keys; if a node id is not a string, sorted() may raise TypeError. | Confirm node ids are always strings.",
+     "line 1044-1058 | medium | CorrectnessResult.ok returns True only for OUTCOME_FIXED, but the docstring says 'including could_not_run' \u2014 the docstring is correct but the property does not explicitly handle other outcomes; it's fine because it returns False for any non-fixed. | No action needed; just noting.",
+     "line 1066-1083 | medium | judge_after_state computes regressed by checking after_p2p against before.p2p; if before.p2p is empty (e.g., no PASS_TO_PASS declared), then any non-passing after_p2p node is not regressed (since before.p2p.get(n) is None), which is correct. | Confirm that before.p2p always contains only declared nodes.",
+     "line 1089-1110 | medium | _run_lists calls runner(worktree, list(selection.fail_to_pass), ...) and runner(worktree, list(selection.pass_to_pass), ...); if selection.fail_to_pass is empty, runner may still be invoked with an empty list, which could cause an error. | Confirm TestRunner handles empty node lists.",
+     "line 1093-1095 | medium | _run_lists appends f2p_run.to_dict() to runs, but if runner raises an exception, the run is not recorded, and the exception propagates; this may be intended but could leave partial runs. | Confirm that callers handle exceptions from _run_lists."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/eval/correctness.py",
+     "chunk": "4 of 7",
+     "purpose": "Defines Selection.digest, freeze_selection, _check_selection guard, BeforeState dataclass, judge_before_state, CorrectnessResult dataclass, judge_after_state, and _run_lists.",
+     "symbols": [
+      {
+       "name": "digest",
+       "kind": "property",
+       "effects": [],
+       "note": "Property on Selection (defined elsewhere) that returns a 16-char SHA-256 hex digest of a JSON-serialized representation of the selection fields, sorted keys and compact separators."
+      },
+      {
+       "name": "freeze_selection",
+       "kind": "function",
+       "effects": [],
+       "note": "Creates an immutable Selection from a task dict, base_revision, and timeout. Deduplicates and sorts node lists; does not expand or filter; sets gate to 'pytest'."
+      },
+      {
+       "name": "_check_selection",
+       "kind": "function",
+       "effects": [],
+       "note": "Guard function that compares observed node sets (f2p, p2p) against the frozen selection's declared node sets. Returns an error string if there are extra or missing nodes, otherwise None."
+      },
+      {
+       "name": "BeforeState",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing the before-state: whether verified, base_revision, f2p/p2p statuses, reasons, invalid/unrunnable flags, duration, and the frozen selection."
+      },
+      {
+       "name": "BeforeState.to_dict",
+       "kind": "method",
+       "effects": [],
+       "note": "Serializes BeforeState to a dict, including sorted f2p/p2p, reasons, flags, duration rounded to 3 decimals, and selection dict/digest if present."
+      },
+      {
+       "name": "judge_before_state",
+       "kind": "function",
+       "effects": [],
+       "note": "Pure function that takes base_revision, f2p/p2p statuses, duration, and selection, and returns a BeforeState verdict. Applies three refusal rules: unrunnable on no verdict, invalid on bad f2p, invalid on bad p2p."
+      },
+      {
+       "name": "CorrectnessResult",
+       "kind": "class",
+       "effects": [],
+       "note": "Frozen dataclass representing one evaluation result: task_id, outcome, reason, base_revision, change, selection, before, after statuses, fixed/unfixed/regressed nodes, duration, and runs."
+      },
+      {
+       "name": "CorrectnessResult.ok",
+       "kind": "property",
+       "effects": [],
+       "note": "Returns True only if outcome == OUTCOME_FIXED; False for all other outcomes including could_not_run."
+      },
+      {
+       "name": "CorrectnessResult.to_dict",
+       "kind": "method",
+       "effects": [],
+       "note": "Serializes CorrectnessResult to a dict, including nested selection/before dicts, sorted after statuses, node tuples as lists, rounded duration, and runs as list."
+      },
+      {
+       "name": "judge_after_state",
+       "kind": "function",
+       "effects": [],
+       "note": "Pure function that determines outcome after the change: could_not_run if any unknown status, regressed if any p2p that passed before now fails, not_fixed if any f2p not passing, else fixed. Returns (outcome, reason, fixed, unfixed, regressed)."
+      },
+      {
+       "name": "_run_lists",
+       "kind": "function",
+       "effects": [],
+       "note": "Runs FAIL_TO_PASS and PASS_TO_PASS as two separate invocations using the frozen selection. Appends run dicts to the runs list. Returns (f2p_statuses, p2p_statuses)."
+      }
+     ],
+     "claims": [
+      {
+       "text": "digest: returns a 16-character hex digest of the selection's content.",
+       "where": "line 841-854",
+       "verdict": "kept",
+       "why": "The property constructs a JSON body with sort_keys and compact separators, hashes it with SHA-256, and returns the first 16 hex characters."
+      },
+      {
+       "text": "freeze_selection: Node ids are taken EXACTLY as declared -- deduplicated and ordered for determinism, never expanded, never filtered, and never read from the filesystem.",
+       "where": "line 861-864",
+       "verdict": "kept",
+       "why": "The function uses dict.fromkeys to deduplicate, sorted to order, and directly reads from task.get('fail_to_pass') etc. without any expansion or filesystem access."
+      },
+      {
+       "text": "freeze_selection: There is deliberately no pattern, glob or directory walk here.",
+       "where": "line 866-867",
+       "verdict": "kept",
+       "why": "The function only processes lists from the task dict; no glob, pattern, or directory walk appears in the code."
+      },
+      {
+       "text": "freeze_selection: this function is the only place a set is ever built for an evaluation.",
+       "where": "line 868",
+       "verdict": "uncheckable",
+       "why": "This chunk does not cover the entire module; other functions like _check_selection build sets (declared/observed), but those are not 'built for an evaluation' in the same sense. The claim may refer to node sets specifically; cannot fully verify from this chunk."
+      },
+      {
+       "text": "_check_selection: GUARD: the run reported on EXACTLY the frozen nodes, or say what moved.",
+       "where": "line 924-925",
+       "verdict": "kept",
+       "why": "The function computes declared and observed sets and returns an error message listing extra or missing nodes, thus enforcing exact reporting."
+      },
+      {
+       "text": "BeforeState docstring: ``verified`` is True only when every FAIL_TO_PASS node was PROVEN not to pass and every PASS_TO_PASS node passed.",
+       "where": "line 963-966",
+       "verdict": "kept",
+       "why": "judge_before_state returns BeforeState(True, ...) only when no unknown, no bad_f2p, and no bad_p2p are found, which means all f2p are PROVEN_NOT_PASSING and all p2p are STATUS_PASSED."
+      },
+      {
+       "text": "judge_before_state docstring: 1. NO VERDICT (``not_run``) -> ``unrunnable``.",
+       "where": "line 1002-1005",
+       "verdict": "kept",
+       "why": "The function checks for any status in NO_VERDICT and returns a BeforeState with unrunnable=True."
+      },
+      {
+       "text": "judge_before_state docstring: 2. A claimed FAIL_TO_PASS node that PASSED, was SKIPPED, or is MISSING -> ``invalid``.",
+       "where": "line 1006-1010",
+       "verdict": "kept",
+       "why": "bad_f2p is computed as nodes not in PROVEN_NOT_PASSING; for each, it adds a reason and eventually returns invalid=True."
+      },
+      {
+       "text": "judge_before_state docstring: 3. A claimed PASS_TO_PASS node that did not pass -> ``invalid``.",
+       "where": "line 1011-1015",
+       "verdict": "kept",
+       "why": "bad_p2p is computed as nodes where status != STATUS_PASSED; reasons are added and invalid=True is returned."
+      },
+      {
+       "text": "CorrectnessResult.ok docstring: True only for ``fixed``. Nothing else is a pass, including ``could_not_run`` -- especially ``could_not_run``.",
+       "where": "line 1044-1046",
+       "verdict": "kept",
+       "why": "The property returns self.outcome == OUTCOME_FIXED, which is True only for fixed; all other outcomes including could_not_run yield False."
+      },
+      {
+       "text": "judge_after_state docstring: PRECEDENCE: could_not_run > regressed > not_fixed > fixed.",
+       "where": "line 1066-1068",
+       "verdict": "kept",
+       "why": "The function checks unknown first (could_not_run), then regressed, then unfixed, and only then returns fixed."
+      },
+      {
+       "text": "judge_after_state docstring: ``regressed`` next, because a change that breaks the regression set is reported as breaking it EVEN IF it also turned every FAIL_TO_PASS green.",
+       "where": "line 1070-1072",
+       "verdict": "kept",
+       "why": "The regressed check is performed before the unfixed check; if any p2p that passed before now fails, it returns OUTCOME_REGRESSED regardless of f2p statuses."
+      },
+      {
+       "text": "_run_lists docstring: Takes the frozen :class:`Selection`, NOT the task dict, and that is the structural half of the immutability rule.",
+       "where": "line 1089-1092",
+       "verdict": "kept",
+       "why": "The function signature takes selection: Selection and uses selection.fail_to_pass and selection.pass_to_pass; it never references the task dict."
+      },
+      {
+       "text": "_run_lists docstring: Two invocations on purpose: a collection error in one list must not turn the other list into ``not_run``.",
+       "where": "line 1096-1098",
+       "verdict": "kept",
+       "why": "The function runs f2p_run and p2p_run separately; if one invocation fails (e.g., collection error), the other may still have been run, though the exception would propagate. The claim about 'not_run' is about the statuses of the other list being unaffected, which is true because they are separate runner calls."
+      }
+     ],
+     "observations": [
+      {
+       "what": "digest property imports hashlib locally; if called on a non-Selection instance, AttributeError.",
+       "where": "line 841-854",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "freeze_selection does not validate that node ids are strings; non-string ids would pass through.",
+       "where": "line 898-910",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "test_revision is taken as-is from task.get('test_revision'); if missing, it becomes None.",
+       "where": "line 905",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "_check_selection does not check for duplicate node ids within observed sets; a runner could report the same node twice with different statuses.",
+       "where": "line 925-951",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "judge_before_state relies on constants NO_VERDICT, PROVEN_NOT_PASSING, STATUS_PASSED, STATUS_MISSING that are not defined in this chunk.",
+       "where": "line 1011-1017",
+       "severity": "high",
+       "confidence": "certain"
+      },
+      {
+       "what": "judge_before_state assumes f2p and p2p dicts have string keys; sorted() on non-strings would raise TypeError.",
+       "where": "line 1011-1017",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "CorrectnessResult.ok docstring says 'including could_not_run' but the property does not explicitly handle that case; it returns False for any non-fixed, which is correct.",
+       "where": "line 1044-1046",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "judge_after_state computes regressed using before.p2p.get(n) == STATUS_PASSED; if before.p2p is empty (no PASS_TO_PASS declared), then any non-passing after_p2p node is not regressed, which is correct.",
+       "where": "line 1066-1083",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_run_lists invokes runner even if selection.fail_to_pass is empty; runner may not handle empty list.",
+       "where": "line 1089-1110",
+       "severity": "medium",
+       "confidence": "possible"
+      },
+      {
+       "what": "_run_lists appends f2p_run.to_dict() to runs, but if runner raises, the run is not recorded and exception propagates.",
+       "where": "line 1093-1095",
+       "severity": "medium",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3a3af70fcc96fc83cf3341bad00279898b21a9a3df5d7ea0908fbf687a9c5ccb",
+    "objective_chars": 17737,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/eval/correctness.py [4/7]",
+  "rev": "da90d94",
+  "module": "daedalus/eval/correctness.py",
+  "index": 4,
+  "total": 7,
+  "first_line": 841
+ }
+}

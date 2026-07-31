@@ -1,0 +1,195 @@
+{
+ "task_id": "scan__daedalus_council_session.py__c5of6__da90d94",
+ "key": "scan__daedalus_council_session.py__c5of6__da90d94-95ce783375",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 5 of daedalus/council/session.py: council execution loop, budget rounds, chain reads, turn refs; verified all claims against this chunk.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/session.py",
+     "chunk": "5 of 6",
+     "purpose": "Council execution loop: floor refusal, budgeted rounds, chain reads, outcome aggregation, and helper functions.",
+     "symbols": [
+      {
+       "name": "_first_offending_path",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns the first evidence path (from evidence.paths then evidence.files) that secret_floor_rule(path, \"\") flags; returns empty string if none."
+      },
+      {
+       "name": "_unavailable_turn",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds a turn dict with status 'unavailable', empty content, and transport meta 'council'."
+      },
+      {
+       "name": "_append_budget_round",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Appends a full round of budget turns to the store and updates outcomes to 'unavailable' with reason 'budget_exhausted' for actors not yet responded."
+      },
+      {
+       "name": "_chained",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads turns for a round from the transcript chain (load_transcript) filtering record == 'turn' and round == round_no."
+      },
+      {
+       "name": "_turn_ref",
+       "kind": "function",
+       "effects": [],
+       "note": "Constructs a TurnRef from a transcript record, converting meta latency_ms to latency_s rounded to 3 decimals."
+      }
+     ],
+     "claims": [
+      {
+       "text": "a trusted lane disables the egress allow-list and reports nothing withheld",
+       "where": "error message lines 1121-1127",
+       "verdict": "uncheckable",
+       "why": "This chunk only contains the error message; the actual lane enforcement logic is not visible in this chunk."
+      },
+      {
+       "text": "Pass trusted_vendors=['vendor'] to opt in explicitly (it is recorded), or seat it on 127.0.0.1",
+       "where": "error message lines 1121-1127",
+       "verdict": "uncheckable",
+       "why": "The recording of trusted_vendors is not visible in this chunk; only the guidance text is present."
+      },
+      {
+       "text": "PRE-FLIGHT SECRET FLOOR. Per path, per file, never over the assembled prompt: the path tier is the only thing that catches a patch which ADDS `.env`, and a concatenated scan kills it.",
+       "where": "comment before floor_check, lines ~1152-1155",
+       "verdict": "uncheckable",
+       "why": "The chunk shows floor_check is called with question and evidence paths/files, but the internal behavior of floor_check and the rationale about concatenated scans are not visible in this chunk."
+      },
+      {
+       "text": "A hit refuses the whole council -- there is no redact-and-send -- and NO VENDOR IS CALLED.",
+       "where": "comment before floor_check, lines ~1152-1155",
+       "verdict": "kept",
+       "why": "The code checks refusal before any dispatch; if refusal is not None, it records a floor_refusal round and skips the entire else branch that calls _dispatch_round. No vendor is called in that path."
+      },
+      {
+       "text": "Charge the token ceiling BEFORE dispatch, from the assembled prompt. Reconciling after the call is not a budget.",
+       "where": "comment before count_tokens, lines ~1168-1170",
+       "verdict": "kept",
+       "why": "per_call_tokens is computed before dispatch, and tokens_charged is incremented before jobs are appended; dispatch happens after the charge loop."
+      },
+      {
+       "text": "Hung or crashed: recorded as a turn, never as an absence.",
+       "where": "comment in reply handling, lines ~1185-1187",
+       "verdict": "kept",
+       "why": "When reply is None, _unavailable_turn is appended to batch, which records a turn with status 'unavailable'."
+      },
+      {
+       "text": "A blown wall clock is NOT handled here: the next iteration's top-of-round check records a budget_exhausted turn per participant first. Breaking early would shorten the council silently.",
+       "where": "comment after spoke_any check, lines ~1210-1212",
+       "verdict": "kept",
+       "why": "The code does not break on wall_clock within the round; it only breaks for no_voice. The next iteration's top-of-round check (remaining <= 0) calls _append_budget_round, which records budget_exhausted turns."
+      },
+      {
+       "text": "A blown budget is a RECORDED round, not a shortened one.",
+       "where": "docstring of _append_budget_round, line ~1280",
+       "verdict": "kept",
+       "why": "_append_budget_round calls append_round to write a batch of budget turns to the store, and then reads them back via _chained, so the round is recorded."
+      },
+      {
+       "text": "Round 2 prompts are built from these, not from the in-memory replies: a turn the secret floor refused is a receipt on disk, and re-feeding the raw reply would smuggle the refused bytes into another vendor's prompt.",
+       "where": "docstring of _chained, lines ~1290-1294",
+       "verdict": "uncheckable",
+       "why": "The chunk shows _chained reads turns from the chain, but the construction of round 2 prompts is not visible here; the rationale about refused bytes is not verifiable in this chunk."
+      },
+      {
+       "text": "Read this round's turns back FROM THE CHAIN.",
+       "where": "docstring of _chained, line ~1290",
+       "verdict": "kept",
+       "why": "The function calls load_transcript(store) and filters by record == 'turn' and round == round_no, which reads from the store."
+      },
+      {
+       "text": "Availability is not correctness. A council that lost a voice says so.",
+       "where": "comment before degraded, lines ~1260-1261",
+       "verdict": "kept",
+       "why": "degraded is set to responded < requested, which flags the council as degraded when not all participants responded."
+      }
+     ],
+     "observations": [
+      {
+       "what": "_chained uses load_transcript but the import list does not include load_transcript; it may be defined elsewhere in the same file.",
+       "where": "_chained, line ~1295",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "_first_offending_path imports secret_floor_rule from ..sensitivity, but the file's import list does not include it; it may be imported at the top of this file outside the window.",
+       "where": "_first_offending_path, line ~1276",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The loop that processes chained turns updates outcomes and parses claims only for turns with status 'spoke' or 'anomaly'; turns with status 'unavailable' or 'refused' only update outcome state, but claims are not parsed for them.",
+       "where": "turn processing loop, lines ~1203-1218",
+       "severity": "medium",
+       "confidence": "certain"
+      },
+      {
+       "what": "In the turn processing loop, if ref.status is 'anomaly', the code updates outcome to 'responded' and increments spoke, but also appends to anomalies. This means an anomalous turn counts as responded, which may be intentional but is a notable semantic.",
+       "where": "lines ~1208-1215",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The code sets ended='no_voice' when no turn in a round has status 'spoke' or 'anomaly', but prior rounds' content may still exist; the loop breaks without recording a budget round for the current round, which could leave the transcript without a round record if no voice.",
+       "where": "line ~1219-1221",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The wall_clock_s field is computed as round(time.monotonic() - started, 3), but wall_clock_s is also used as the deadline parameter name; there is no conflict, but the naming may be confusing.",
+       "where": "line ~1269",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The function returns a CouncilRecord with chain_head from transcript_head(store) and chain_intact from verify_chain(store), but these functions are not imported in the visible import list; they may be defined elsewhere in the file.",
+       "where": "lines ~1250-1254",
+       "severity": "low",
+       "confidence": "likely"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "880332635bf5eace6a10d8b92dc0279b07b6235da697d8fc2fd9c5b328d860a6",
+    "objective_chars": 16862,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/session.py [5/6]",
+  "rev": "da90d94",
+  "module": "daedalus/council/session.py",
+  "index": 5,
+  "total": 6,
+  "first_line": 1121
+ }
+}

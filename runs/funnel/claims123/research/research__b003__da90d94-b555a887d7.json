@@ -1,0 +1,203 @@
+{
+ "task_id": "research__b003__da90d94",
+ "key": "research__b003__da90d94-b555a887d7",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Cross-file inference identifies recurring patterns: per-provider guard copies, unverifiable external claims, and potential semantic mismatches in aggregation and scope definitions.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "Multiple claims reference external modules not present in chunks, risking unverifiable assumptions.",
+     "Potential drift between per-provider copies of guards or aggregation logic.",
+     "Inconsistent interpretation of 'scope' and 'unreached' across modules.",
+     "Reliance on sys.path ordering and external verification mechanisms."
+    ],
+    "todos": [
+     "Verify the actual implementation of from_name in SubprocessAdapter.",
+     "Check the aggregation paths in arms comparison and report.py to ensure no blended mean.",
+     "Inspect slice.py and _mint_from_diffs to confirm scope membership consistency.",
+     "Review offload.py to confirm report['wrote'] is content-hash based.",
+     "Test _remove_tree_no_follow on Windows for junction vs symlink behavior.",
+     "Confirm render_markdown prints '(not recorded)' for missing fields."
+    ],
+    "handoff": {
+     "hypotheses": [
+      {
+       "id": "per-provider-guard-drift",
+       "claim": "Multiple modules implement similar safety or verification guards as per-provider copies, risking silent divergence when one is updated.",
+       "spans": [
+        "subprocess_adapter",
+        "council_adapter",
+        "ikarus_os",
+        "offload",
+        "gate_candidates",
+        "promote_candidates"
+       ],
+       "mechanism": "Each provider or subsystem has its own copy of a guard (e.g., from_name, ask, _distill, _relay_gate). If one is improved, others may not receive the same update, leading to inconsistent behavior.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "A shared helper or base class centralizes these guards, and all providers call it, ensuring a single implementation.",
+       "evidence": [
+        "subprocess_adapter:from_name (claim row 0)",
+        "council_adapter:ask (claim row 10)",
+        "ikarus_os:_distill (claim row 23)",
+        "offload:_relay_gate (claim row 25)",
+        "gate_candidates:gate_candidates (claim row 26)",
+        "promote_candidates:promote_candidates (claim row 27)"
+       ]
+      },
+      {
+       "id": "aggregation-path-single-vs-multiple",
+       "claim": "The claim that '_by_provenance' is the ONLY aggregation path may be contradicted by other modules that compute their own aggregates, leading to inconsistent reporting.",
+       "spans": [
+        "_by_provenance",
+        "report",
+        "harness.run_tier1",
+        "arms_comparison"
+       ],
+       "mechanism": "If arms comparison or report.py compute their own blended means, the guarantee of a single aggregation path is violated, causing potential discrepancies in metrics.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Inspection shows that all aggregation calls funnel through _by_provenance, and no other module computes a top-level mean.",
+       "evidence": [
+        "_by_provenance docstring (claim row 18)",
+        "report.py (referenced in claim row 22)",
+        "harness.run_tier1 (referenced in claim row 22)"
+       ]
+      },
+      {
+       "id": "scope-definition-mismatch",
+       "claim": "The definition of 'scope' (which files are eligible) may differ between the slicing module and the minting module, causing inconsistent inclusion/exclusion of files.",
+       "spans": [
+        "slice.py",
+        "_mint_from_diffs",
+        "cached_index"
+       ],
+       "mechanism": "The docstring claims that scope is defined by membership in cached_index(repo)['modules'], and that slice.py uses the same test. If _mint_from_diffs implements a different membership check (e.g., by file extension), files could be treated inconsistently.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Both slice.py and _mint_from_diffs use the exact same membership test (rel in modules) without additional conditions.",
+       "evidence": [
+        "slice.py around line 225 (referenced in claim row 19)",
+        "_mint_from_diffs (not visible in chunks but referenced)"
+       ]
+      },
+      {
+       "id": "oracle-source-mismatch",
+       "claim": "The independent oracle for file changes (report['wrote']) may not be a content-hash diff as claimed, but could be derived from the model's self-report, undermining its independence.",
+       "spans": [
+        "offload.py",
+        "mint_task_from_landed_edit",
+        "report"
+       ],
+       "mechanism": "If offload.py computes report['wrote'] from the model's files_changed field instead of a before/after content-hash snapshot, the oracle is not independent.",
+       "severity": "high",
+       "confidence": "possible",
+       "refuted_by": "Inspection of offload.py shows it performs a content-hash diff to compute wrote, and does not read the model's self-reported files.",
+       "evidence": [
+        "offload.py:194-197 (referenced in claim row 20)",
+        "mint_task_from_landed_edit (claim row 20)"
+       ]
+      },
+      {
+       "id": "windows-symlink-handling-drift",
+       "claim": "The handling of junctions vs directory symlinks on Windows may differ between the delete module and other file operations, leading to security or correctness issues.",
+       "spans": [
+        "_remove_tree_no_follow",
+        "_force_unlink",
+        "os.scandir",
+        "os.rmdir",
+        "os.unlink",
+        "os.chmod"
+       ],
+       "mechanism": "The module claims that junctions are queued and then unlinked by pop-time check, while directory symlinks fall to _force_unlink. If other modules treat them differently, a symlink could be followed unexpectedly.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "All file operations in the codebase consistently use follow_symlinks=False and re-classify with lstat before syscalls.",
+       "evidence": [
+        "_remove_tree_no_follow docstring (claim row 30)",
+        "comment in _remove_tree_no_follow (claim row 31)"
+       ]
+      },
+      {
+       "id": "unreached-count-consistency",
+       "claim": "The three lists of unreached modules and the counts['unreached'] total may not be exhaustive or consistent across different analysis runs, leading to incorrect page totals.",
+       "spans": [
+        "module docstring lines 39-45",
+        "counts['unreached']"
+       ],
+       "mechanism": "If the function that populates the three lists does not cover all unreached modules, or if counts['unreached'] is computed independently, the totals may disagree.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "The function bodies show that every unreached module is placed in exactly one list, and counts['unreached'] is the sum of their lengths.",
+       "evidence": [
+        "module docstring lines 39-45 (claim row 36)"
+       ]
+      },
+      {
+       "id": "render-brief-empty-string-ambiguity",
+       "claim": "render_brief may return a non-empty string even when there are no structural facts, contradicting the docstring's 'nothing to say' claim.",
+       "spans": [
+        "render_brief",
+        "graph_brief"
+       ],
+       "mechanism": "If graph_brief returns a header like 'No structural facts available' even when empty, render_brief will return that text instead of an empty string, violating the contract.",
+       "severity": "medium",
+       "confidence": "possible",
+       "refuted_by": "graph_brief returns an empty string when there are no facts, so render_brief returns '' as documented.",
+       "evidence": [
+        "render_brief docstring (claim row 35)",
+        "graph_brief (referenced in claim row 35)"
+       ]
+      },
+      {
+       "id": "syspath-ordering-unenforced",
+       "claim": "The verification that the candidate's daedalus package is actually imported (not a shadowed copy) relies on sys.path ordering that nothing enforces, making the test vulnerable to false positives.",
+       "spans": [
+        "check_import_provenance",
+        "daedalus.eval.provenance",
+        "pytest"
+       ],
+       "mechanism": "The comment warns that `-m` plus cwd makes the candidate win by sys.path ordering, but if PYTHONPATH is set or the candidate's daedalus is missing, tests may pass against a different package.",
+       "severity": "high",
+       "confidence": "likely",
+       "refuted_by": "check_import_provenance explicitly validates that the imported module's file path is within the candidate's directory and fails otherwise.",
+       "evidence": [
+        "lines 93-97 comment (claim row 24)",
+        "daedalus.eval.provenance (referenced in claim row 24)"
+       ]
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "3496f3dc9f5ea825760b4be7f015d159eea54fa5488f002803e0b01df3755250",
+    "objective_chars": 16957,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "a70ec64996ba999719035c564e16eafa88edb1eb6f3ddd785e0e45e58f52e58c",
+    "system_override_chars": 1858,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "research",
+  "label": "bucket 3 (39 inputs)",
+  "rev": "da90d94",
+  "bucket": 3,
+  "inputs": 39
+ }
+}

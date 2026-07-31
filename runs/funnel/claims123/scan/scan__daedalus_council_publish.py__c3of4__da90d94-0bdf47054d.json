@@ -1,0 +1,259 @@
+{
+ "task_id": "scan__daedalus_council_publish.py__c3of4__da90d94",
+ "key": "scan__daedalus_council_publish.py__c3of4__da90d94-0bdf47054d",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Reviewed chunk 3 of daedalus/council/publish.py: verified egress gate, failure classification, load_for_publish, publish_to_pr, read_pr_thread; all docstring claims checked.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [
+     "load_for_publish | medium | vendors_answered uses 'or answered' fallback; if requested is non-empty but no answered, it returns answered (which may be empty), but if answered is empty and requested is empty, it returns [] -- the 'or' is unreachable when answered non-empty; when answered empty, it returns [] which is same as answered, so no functional issue, but the expression is misleading and may mask logic errors. | Confirm intended behavior when no answers.",
+     "_classify_failure | medium | 'not found' substring check comes after auth and rate-limit checks; GitHub may return a body containing 'not found' alongside an auth error, but auth is checked first so it is classified as unauthenticated, which is correct per the docstring. However, the '404' check is last and may be shadowed by earlier substrings; verify with real GitHub responses. | Provide real gh error outputs to test classification.",
+     "screen_egress | low | Uses secret_floor_rule with _EGRESS_HINT for text channels; the hint is not defined in this chunk, so the exact behavior is uncheckable. | Confirm _EGRESS_HINT definition.",
+     "publish_to_pr | low | dry_run returns before checking pr presence, so a dry run with no pr yields STATUS_DRY_RUN instead of STATUS_PR_NOT_FOUND; this may be intentional but differs from the non-dry-run path. | Confirm desired dry-run semantics.",
+     "read_pr_thread | low | _parse_comment is tolerant of two author shapes but not of others; if gh changes format, it may silently produce a turn with empty author. | Confirm _parse_comment's handling of unknown shapes."
+    ],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/council/publish.py",
+     "chunk": "3 of 4",
+     "purpose": "Review egress gate, failure classification, load_for_publish, publish_to_pr, and read_pr_thread; verify docstring claims.",
+     "symbols": [
+      {
+       "name": "screen_egress",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns (channel, rule) for first secret-floor hit, else None. Checks paths then channels."
+      },
+      {
+       "name": "_gh_argv",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Appends --repo if repo provided."
+      },
+      {
+       "name": "_classify_failure",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Maps RunResult to (status, detail) based on returncode and stderr/stdout substrings. Order matters: auth before not-found."
+      },
+      {
+       "name": "_first_url",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns first http(s) URL token from text, else empty string."
+      },
+      {
+       "name": "STATUS_NO_TRANSCRIPT",
+       "kind": "constant",
+       "effects": [],
+       "note": "String constant 'no_transcript'."
+      },
+      {
+       "name": "load_for_publish",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Reconstructs (verdict, turns) from bus transcript. Derives quorum from roster participants and turn status 'spoke'."
+      },
+      {
+       "name": "publish_to_pr",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "process_spawn"
+       ],
+       "note": "Renders markdown, runs egress gate, optionally dry-runs, or invokes gh pr comment via runner. Returns PublishResult."
+      },
+      {
+       "name": "read_pr_thread",
+       "kind": "function",
+       "effects": [
+        "network_egress",
+        "process_spawn"
+       ],
+       "note": "Runs egress gate, invokes gh pr view --json comments, parses comments into PRTurns. Returns ThreadResult."
+      },
+      {
+       "name": "_parse_comment",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Parses one gh comment object into PRTurn, tolerant of author.login and user.login shapes."
+      }
+     ],
+     "claims": [
+      {
+       "text": "Run the unconditional secret floor over everything bound for GitHub.",
+       "where": "screen_egress docstring",
+       "verdict": "kept",
+       "why": "screen_egress calls secret_floor_rule on every path and channel text; no conditional bypass exists."
+      },
+      {
+       "text": "Returns ``(channel, rule)`` for the FIRST hit, or None if clean.",
+       "where": "screen_egress docstring",
+       "verdict": "kept",
+       "why": "Loops iterate in order and return on first hit; returns None after loops."
+      },
+      {
+       "text": "The returned rule is a fixed label / path fragment from ``sensitivity`` -- never matched text, so a refusal can be logged and reported without re-leaking the secret it refused.",
+       "where": "screen_egress docstring",
+       "verdict": "uncheckable",
+       "why": "The return value comes from secret_floor_rule, whose implementation is not in this chunk; cannot verify it never returns matched text."
+      },
+      {
+       "text": "Auth is tested before not-found because GitHub answers 404 -- not 403 -- for a private repo you are not authenticated to see; classifying that as ``pr_not_found`` would send an operator hunting for a PR that exists and is merely invisible to a logged-out CLI.",
+       "where": "_classify_failure docstring",
+       "verdict": "kept",
+       "why": "The auth substring checks appear before the not-found/404 checks in the function body."
+      },
+      {
+       "text": "``(verdict, turns)`` reconstructed from a stored bus transcript.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "Function loads transcript via bus.load_transcript, builds verdict dict, returns (verdict, turns)."
+      },
+      {
+       "text": "Only what the bus actually recorded. The council package stores no ``outcome`` and no ``convergence`` field -- by construction, because it promotes nothing -- so none is invented here, and :func:`render_markdown` prints \"(not recorded)\" for them.",
+       "where": "load_for_publish docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show render_markdown or the council package's storage schema; cannot verify absence of outcome/convergence fields."
+      },
+      {
+       "text": "Quorum comes from the roster records' ``participants``: a vendor is ANSWERED only if it actually produced a turn, not if it was merely seated.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "answered is populated only from turn records with status 'spoke'; requested from roster participants."
+      },
+      {
+       "text": "Deriving it from the seat list would silently upgrade every short council to a full one.",
+       "where": "load_for_publish docstring",
+       "verdict": "kept",
+       "why": "The code explicitly filters turns by status 'spoke' and only adds to answered if status is 'spoke', so merely seated vendors are not counted."
+      },
+      {
+       "text": "Never raises for an operational failure -- every outcome is a status in ``PUBLISH_STATUSES``.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "All paths return PublishResult; no raises observed. The runner call is wrapped in the subprocess runner (not shown) but the function itself does not raise."
+      },
+      {
+       "text": "``dry_run=True`` renders and gates but does NOT invoke the runner at all; the markdown comes back on the result.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "After gate, if dry_run, returns STATUS_DRY_RUN with markdown and detail 'gh was not invoked' before runner is called."
+      },
+      {
+       "text": "The gate still runs, so a dry run is an honest rehearsal rather than a way around the floor.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "screen_egress is called before the dry_run check; if hit, returns refused without dry_run."
+      },
+      {
+       "text": "The body goes to gh on STDIN via ``--body-file -``: a deliberation exceeds the Windows argv limit, and stdin keeps the payload inspectable by a fake runner in tests exactly as argv would be.",
+       "where": "publish_to_pr docstring",
+       "verdict": "kept",
+       "why": "argv is ['gh', 'pr', 'comment', pr, '--body-file', '-'] and body is passed as separate argument to run, which presumably feeds stdin."
+      },
+      {
+       "text": "Read the PR's comments back as structured turns, so a later council round can consume what a human or another agent replied.",
+       "where": "read_pr_thread docstring",
+       "verdict": "kept",
+       "why": "Function parses comments into PRTurn tuples and returns them in ThreadResult."
+      },
+      {
+       "text": "Never raises for an operational failure; every outcome is a status in ``READ_STATUSES``.",
+       "where": "read_pr_thread docstring",
+       "verdict": "kept",
+       "why": "All paths return ThreadResult; no raises observed."
+      },
+      {
+       "text": "Nothing read here is authoritative: a reply is INPUT to a later round, not a verdict, and it is not on the hash-chained bus until the council appends it there.",
+       "where": "read_pr_thread docstring",
+       "verdict": "uncheckable",
+       "why": "The chunk does not show the council appending to bus; cannot verify that reading does not append."
+      },
+      {
+       "text": "Tolerant of the two author shapes gh uses (``author.login`` from the GraphQL-backed ``pr view --json``, ``user.login`` from the REST-backed ``gh api``).",
+       "where": "_parse_comment docstring",
+       "verdict": "uncheckable",
+       "why": "The function body is cut off; only the docstring is shown, so the tolerance cannot be verified."
+      }
+     ],
+     "observations": [
+      {
+       "what": "In load_for_publish, vendors_answered uses 'or answered' fallback: [v for v in requested if v in answered] or answered. This expression is logically redundant because if the list comprehension is empty, it returns answered (which is also empty if no answers). It works but is misleading and may hide a logic error if answered is non-empty but none in requested.",
+       "where": "load_for_publish verdict construction",
+       "severity": "medium",
+       "confidence": "likely"
+      },
+      {
+       "what": "The dry_run path in publish_to_pr returns before checking if pr is provided, so a dry run with no pr yields STATUS_DRY_RUN instead of STATUS_PR_NOT_FOUND. This may be intentional but differs from the non-dry-run path.",
+       "where": "publish_to_pr dry_run check",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "screen_egress uses _EGRESS_HINT which is not defined in this chunk; the behavior of secret_floor_rule with that hint is uncheckable.",
+       "where": "screen_egress",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_classify_failure checks 'not found' substring, which could match in unexpected contexts (e.g., 'not found in cache') but is likely fine. The 404 check is last and may be shadowed by earlier substrings like 'not found'.",
+       "where": "_classify_failure",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "read_pr_thread parses JSON with json.loads and returns STATUS_BAD_PAYLOAD on parse error; good. But _parse_comment is cut off, so its tolerance to unknown shapes is unverifiable.",
+       "where": "read_pr_thread and _parse_comment",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "7492892379c2f0f58bd2151a81101fc5df491f3da1ca7498348fa8c182e5b21b",
+    "objective_chars": 17367,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/council/publish.py [3/4]",
+  "rev": "da90d94",
+  "module": "daedalus/council/publish.py",
+  "index": 3,
+  "total": 4,
+  "first_line": 561
+ }
+}

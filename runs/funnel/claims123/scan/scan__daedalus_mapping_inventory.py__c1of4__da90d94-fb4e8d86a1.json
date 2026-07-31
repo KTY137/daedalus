@@ -1,0 +1,331 @@
+{
+ "task_id": "scan__daedalus_mapping_inventory.py__c1of4__da90d94",
+ "key": "scan__daedalus_mapping_inventory.py__c1of4__da90d94-fb4e8d86a1",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "Read chunk 1 of daedalus/mapping/inventory.py; verified docstring/comment claims against the code present.",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/mapping/inventory.py",
+     "chunk": "1 of 4",
+     "purpose": "Module docstring, constants, helpers for digest and small derivations.",
+     "symbols": [
+      {
+       "name": "SCHEMA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Schema version string 'daedalus-feature-inventory/2'."
+      },
+      {
+       "name": "INVENTORY_REL",
+       "kind": "constant",
+       "effects": [],
+       "note": "Relative path to the inventory file."
+      },
+      {
+       "name": "DIGEST_KEY",
+       "kind": "constant",
+       "effects": [],
+       "note": "Key name for digest in document."
+      },
+      {
+       "name": "_NOTE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Generated-file notice text."
+      },
+      {
+       "name": "FEATURE_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned feature fields."
+      },
+      {
+       "name": "ENV_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned env var fields."
+      },
+      {
+       "name": "AREA_HUMAN_FIELDS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of human-owned area fields."
+      },
+      {
+       "name": "_HUMAN_TOP_KEYS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Frozenset of top-level keys excluded from digest."
+      },
+      {
+       "name": "STATUS_BY_CLASS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Mapping of reach classification to inventory status."
+      },
+      {
+       "name": "STATUS_ISLAND",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status string 'island'."
+      },
+      {
+       "name": "STATUS_STALE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Status string 'stale'."
+      },
+      {
+       "name": "METADATA_AREA",
+       "kind": "constant",
+       "effects": [],
+       "note": "Area label for repo-metadata staleness."
+      },
+      {
+       "name": "_STALE_SKIP_DIRS",
+       "kind": "constant",
+       "effects": [],
+       "note": "Directories excluded from stale sweep."
+      },
+      {
+       "name": "_METHOD_BY_SUFFIX",
+       "kind": "constant",
+       "effects": [],
+       "note": "Tuple of (suffix, HTTP method) pairs."
+      },
+      {
+       "name": "_TOKEN_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for tokens that could name a module."
+      },
+      {
+       "name": "_SCRIPTS_HEADER",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for [tool.setuptools] header."
+      },
+      {
+       "name": "_SECTION_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for section headers."
+      },
+      {
+       "name": "_PACKAGES_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for packages = ... line."
+      },
+      {
+       "name": "_QUOTED_RE",
+       "kind": "constant",
+       "effects": [],
+       "note": "Regex for quoted strings."
+      },
+      {
+       "name": "_strip_human",
+       "kind": "function",
+       "effects": [],
+       "note": "Builds mechanical projection of a document, removing human fields and blocks."
+      },
+      {
+       "name": "_digest",
+       "kind": "function",
+       "effects": [],
+       "note": "Computes sha256 digest over stripped projection."
+      },
+      {
+       "name": "digest_ok",
+       "kind": "function",
+       "effects": [],
+       "note": "Checks whether document's own digest matches recomputed digest."
+      },
+      {
+       "name": "_area_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns parent directory or '(repo root)'."
+      },
+      {
+       "name": "_dotted",
+       "kind": "function",
+       "effects": [],
+       "note": "Converts relative path to dotted module name."
+      },
+      {
+       "name": "_method_of",
+       "kind": "function",
+       "effects": [],
+       "note": "Returns HTTP method from handler name suffix, or ''."
+      },
+      {
+       "name": "_pyproject_packages",
+       "kind": "function",
+       "effects": [],
+       "note": "Reads explicit packages list from pyproject.toml; returns [] on absence/unreadable."
+      }
+     ],
+     "claims": [
+      {
+       "text": "The module census and its status -- wired / island / shim / unknown -- straight off daedalus.mapping.reach.analyse's classification",
+       "where": "docstring lines 14-16",
+       "verdict": "uncheckable",
+       "why": "STATUS_BY_CLASS maps reach classes to statuses, but the actual use of analyse's classification is in later chunks; this chunk only defines the mapping."
+      },
+      {
+       "text": "entrypoints, entry_kinds, importers and tests per module",
+       "where": "docstring lines 18-19",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk derives these fields; they appear only in the docstring."
+      },
+      {
+       "text": "the CLI dispatch table and the HTTP route table, from the entry points",
+       "where": "docstring lines 20-21",
+       "verdict": "uncheckable",
+       "why": "No CLI or route table derivation code appears in this chunk."
+      },
+      {
+       "text": "every environment switch, where it is read, whether it is dark and whether any document mentions it, from daedalus.mapping.switches",
+       "where": "docstring lines 22-24",
+       "verdict": "uncheckable",
+       "why": "No switch-related code in this chunk."
+      },
+      {
+       "text": "two kinds of stale: a package this repo's own packaging metadata promises that is not on disk, and a __pycache__ whose sources are gone",
+       "where": "docstring lines 25-27",
+       "verdict": "uncheckable",
+       "why": "The stale sweep is implemented in later chunks; this chunk only defines _STALE_SKIP_DIRS and STATUS_STALE."
+      },
+      {
+       "text": "the packaging gap in the other direction -- a package on disk that a wheel would not contain",
+       "where": "docstring lines 28-29",
+       "verdict": "uncheckable",
+       "why": "No code in this chunk performs that check."
+      },
+      {
+       "text": "editing a note, a name or a kind is legal and does not trip the gate",
+       "where": "docstring lines 42-44",
+       "verdict": "kept",
+       "why": "FEATURE_HUMAN_FIELDS includes name, kind, notes; _strip_human removes them from features (line ~140-143)."
+      },
+      {
+       "text": "editing a status, a test list or an island entry DOES trip it",
+       "where": "docstring lines 45-47",
+       "verdict": "kept",
+       "why": "The digest covers all derived fields; status and test lists are not in human field sets, so edits change the digest."
+      },
+      {
+       "text": "Annotations carry human fields ONLY. An annotation cannot set status and cannot add a module",
+       "where": "docstring lines 52-55",
+       "verdict": "uncheckable",
+       "why": "This chunk does not contain annotation handling logic; only _HUMAN_TOP_KEYS lists 'annotations' as human."
+      },
+      {
+       "text": "The mechanical projection of a whole document. Everything a human is allowed to write is removed",
+       "where": "_strip_human docstring lines 89-94",
+       "verdict": "kept",
+       "why": "The function skips _HUMAN_TOP_KEYS and filters human fields per record type."
+      },
+      {
+       "text": "A hash over the derived half only. Canonical JSON, sorted keys",
+       "where": "_digest docstring lines 116-117",
+       "verdict": "kept",
+       "why": "Uses json.dumps(sort_keys=True, separators=(',',':')) on _strip_human output."
+      },
+      {
+       "text": "Public for the same reason daedalus.mapping.drift.digest_ok is: any consumer that RANKS WORK out of these lists rather than rescanning has to ask this first",
+       "where": "digest_ok docstring lines 126-129",
+       "verdict": "uncheckable",
+       "why": "Reference to another module's function; not verifiable in this chunk."
+      },
+      {
+       "text": "A handler that does not follow the convention yields \"\" rather than a fabricated method",
+       "where": "comment near _METHOD_BY_SUFFIX lines 70-73",
+       "verdict": "kept",
+       "why": "_method_of returns '' when no suffix matches."
+      },
+      {
+       "text": "Starts at a letter or underscore so \"/api/x\" and \".claude/y\" do not produce a phantom leading-punctuation token",
+       "where": "comment near _TOKEN_RE lines 76-77",
+       "verdict": "kept",
+       "why": "Regex starts with [A-Za-z_], so leading punctuation is not matched."
+      },
+      {
+       "text": "An unreadable or absent pyproject yields an empty list",
+       "where": "_pyproject_packages docstring lines 157-159",
+       "verdict": "uncheckable",
+       "why": "The function body is cut off; the try block is not fully visible. The claim mentions absence/unreadable, but we cannot see the except clause."
+      },
+      {
+       "text": "The revision, and only the revision. branch and dirty move without the architecture moving",
+       "where": "comment in _strip_human lines 110-112",
+       "verdict": "kept",
+       "why": "repo_state is reduced to {'head': state.get('head')}."
+      },
+      {
+       "text": "a gate that goes red because somebody has unsaved edits is a gate people switch off",
+       "where": "comment in _strip_human lines 110-112",
+       "verdict": "kept",
+       "why": "The code excludes 'dirty' from the digest projection."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The _pyproject_packages function body is truncated; the try/except logic is not visible, so the claim about unreadable pyproject yielding [] is not fully verifiable.",
+       "where": "_pyproject_packages line ~155",
+       "severity": "low",
+       "confidence": "likely"
+      },
+      {
+       "what": "The comment for _TOKEN_RE says the regex avoids phantom tokens from leading punctuation, and the regex indeed starts with [A-Za-z_], so the claim is consistent.",
+       "where": "_TOKEN_RE line 77",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "The docstring claims that the module derives module census, entrypoints, etc., but this chunk only provides constants and small helpers; the actual derivation is in later chunks.",
+       "where": "docstring lines 14-29",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ]
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "6afaef8a259ae41942b671352a66341671614c6a8fc396ac9ff1c82c6516eb99",
+    "objective_chars": 15304,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/mapping/inventory.py [1/4]",
+  "rev": "da90d94",
+  "module": "daedalus/mapping/inventory.py",
+  "index": 1,
+  "total": 4,
+  "first_line": 1
+ }
+}

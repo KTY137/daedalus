@@ -1,0 +1,235 @@
+{
+ "task_id": "scan__daedalus_kairos_worktree.py__c5of5__da90d94",
+ "key": "scan__daedalus_kairos_worktree.py__c5of5__da90d94-30415a8cee",
+ "trace_id": null,
+ "votes_requested": 1,
+ "votes_collected": 1,
+ "answers": [
+  {
+   "vote": 1,
+   "provider": "deepseek",
+   "persona": "Wei",
+   "report": {
+    "status": "needs_review",
+    "summary": "(model supplied no summary; its answer is preserved in handoff)",
+    "files_changed": [],
+    "tests_run": [],
+    "risks": [],
+    "todos": [],
+    "handoff": {
+     "module": "daedalus/kairos/worktree.py",
+     "chunk": "5 of 5",
+     "purpose": "reap_branches, _forget_allocation, _report_unverifiable_records, _refs_containing, _delete_unused_branch, commit_candidate, has_changes",
+     "symbols": [
+      {
+       "name": "reap_branches",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Method body shown; iterates sorted _allocations, deletes branches only when tip matches allocation and another ref contains it; raises RuntimeError on delete failures"
+      },
+      {
+       "name": "_forget_allocation",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Pops from _allocations and calls _discard_allocation"
+      },
+      {
+       "name": "_report_unverifiable_records",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns unverifiable rows for on-disk records not in live allocations"
+      },
+      {
+       "name": "_refs_containing",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns refs containing sha excluding a branch; returns [] on RuntimeError"
+      },
+      {
+       "name": "_delete_unused_branch",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Tries branch -d, falls back to -D only if re-verified tip matches"
+      },
+      {
+       "name": "commit_candidate",
+       "kind": "function",
+       "effects": [
+        "repository_mutation"
+       ],
+       "note": "Stages and commits in allocated worktree"
+      },
+      {
+       "name": "has_changes",
+       "kind": "function",
+       "effects": [
+        "none"
+       ],
+       "note": "Returns bool of git status --porcelain output"
+      }
+     ],
+     "claims": [
+      {
+       "text": "reaping is a separate act, run by whoever knows the attempt is fully resolved.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "The method is public and documented as separate; no auto-reap occurs in this chunk."
+      },
+      {
+       "text": "1. THIS manager object allocated it, in THIS process (:attr:`_allocations`, written by :meth:`create_worktree`), its worktree has been through :meth:`cleanup_worktree`, and its tip is byte-identical to the sha this manager itself read from git at allocation time.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "Checks allocation.get('worktree_removed') and compares tip to allocation.get('branch_tip_at_creation')."
+      },
+      {
+       "text": "2. Some OTHER ref still contains that tip, so deleting the branch orphans no commit.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "Requires _refs_containing(tip, excluding=branch) to be non-empty."
+      },
+      {
+       "text": "a branch leaked by a CRASHED run is never reaped, because the process that could vouch for it is gone.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "Only in-memory _allocations are examined; on-disk records are reported unverifiable and never acted on."
+      },
+      {
+       "text": "Returns: One dict per allocation examined, with ``branch``, ``action`` (``deleted`` / ``retained`` / ``absent`` / ``pending`` / ``unverifiable``) and ``reason``.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "Every branch in the loop appends a dict with those keys; unverifiable rows are appended from _report_unverifiable_records."
+      },
+      {
+       "text": "Raises: RuntimeError: If any branch that was cleared for deletion could not be deleted. Every allocation is still examined first; the failures are reported together rather than aborting on the first one.",
+       "where": "docstring before reap_branches",
+       "verdict": "KEPT",
+       "why": "Failures are collected in `failures` list; loop continues; RuntimeError raised after loop with joined messages."
+      },
+      {
+       "text": "Reported rather than ignored so the leak is visible; reported WITHOUT any field parsed out of the file, because every byte in it is candidate-writable and echoing a forged branch name back at an operator as though it meant something is how the previous version printed false reasons.",
+       "where": "_report_unverifiable_records docstring",
+       "verdict": "KEPT",
+       "why": "Rows contain branch=None, path=None, record=filename only; no parsed content."
+      },
+      {
+       "text": "Refs OTHER than ``refs/heads/<excluding>`` whose history holds ``sha``.",
+       "where": "_refs_containing docstring",
+       "verdict": "KEPT",
+       "why": "Uses for-each-ref --contains, filters out the excluded ref case-insensitively."
+      },
+      {
+       "text": "A FAILED CALL IS NOT AN ANSWER. ... Deleting the ``except`` below lets the ``RuntimeError`` escape ``reap_branches`` instead of retaining; that mutation SURVIVED the suite until 2026-07-28, and it is killed now by ``test_reap_retains_a_branch_when_git_cannot_say_who_contains_its_tip``.",
+       "where": "_refs_containing docstring",
+       "verdict": "KEPT",
+       "why": "except RuntimeError returns [] which retains the branch; the test name is referenced but not in this chunk."
+      },
+      {
+       "text": "Compared case-INSENSITIVELY although git refs are case-sensitive: the only effect of a spurious match is that a ref is dropped from the holder list, which retains the branch.",
+       "where": "_refs_containing docstring",
+       "verdict": "KEPT",
+       "why": "Uses casefold() on both sides; a spurious casefold match removes a holder, making holders potentially empty and retaining."
+      },
+      {
+       "text": "Delete a branch already PROVEN to hold nothing but its base commit.",
+       "where": "_delete_unused_branch docstring",
+       "verdict": "KEPT",
+       "why": "Only called after reap_branches verified tip and holders; -D only after re-verifying tip."
+      },
+      {
+       "text": "``-d`` is tried first so git's own merged-check applies. If git refuses anyway ... the sha proof (re-taken here, so the branch cannot have moved in between) is what authorises ``-D``.",
+       "where": "_delete_unused_branch docstring",
+       "verdict": "KEPT",
+       "why": "Tries -d, on RuntimeError re-reads tip and compares to proven_tip before -D."
+      },
+      {
+       "text": "The path is proven to be an allocated worktree first: a swapped directory would otherwise turn ``git add -A`` + ``git commit`` into a commit of the developer's working tree.",
+       "where": "commit_candidate docstring",
+       "verdict": "KEPT",
+       "why": "Calls _require_allocated_worktree(path) before git commands."
+      },
+      {
+       "text": "Return whether the candidate worktree differs from its HEAD.",
+       "where": "has_changes docstring",
+       "verdict": "KEPT",
+       "why": "Returns bool of git status --porcelain output; empty output means no changes."
+      }
+     ],
+     "observations": [
+      {
+       "what": "The docstring for reap_branches claims that the worktree has been through cleanup_worktree, but the code only checks allocation.get('worktree_removed') which is set by cleanup_worktree; no direct verification that cleanup_worktree ran in this chunk.",
+       "where": "reap_branches docstring vs code",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "The claim about a test name (test_reap_retains_a_branch_when_git_cannot_say_who_contains_its_tip) is uncheckable in this chunk; the test is not present.",
+       "where": "_refs_containing docstring",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_refs_containing returns [] on any RuntimeError, which includes cases like git missing or repo locked; this is fail-closed but means the branch is retained even if the git failure is transient.",
+       "where": "_refs_containing except block",
+       "severity": "low",
+       "confidence": "certain"
+      },
+      {
+       "what": "_delete_unused_branch falls back to force-delete after re-verifying tip; the re-verification uses git rev-parse which could theoretically race again, but the window is narrow.",
+       "where": "_delete_unused_branch",
+       "severity": "low",
+       "confidence": "possible"
+      },
+      {
+       "what": "commit_candidate and has_changes both call _require_allocated_worktree which is not defined in this chunk; its behavior is uncheckable here.",
+       "where": "commit_candidate, has_changes",
+       "severity": "low",
+       "confidence": "certain"
+      }
+     ],
+     "risks": [
+      "reap_branches docstring | low | Worktree cleanup claim depends on cleanup_worktree setting worktree_removed; not verifiable in this chunk | Check cleanup_worktree definition in earlier chunk",
+      "_refs_containing docstring | low | Test name claim uncheckable; no test in this chunk | Locate test in other file",
+      "_refs_containing | low | Any RuntimeError retains branch; could mask real git issues | Confirm git errors are logged or surfaced elsewhere",
+      "_delete_unused_branch | low | Force-delete race window after re-verify; theoretical | Review git locking semantics",
+      "commit_candidate/has_changes | low | _require_allocated_worktree not in chunk; its enforcement uncheckable | Inspect earlier chunk for its implementation"
+     ],
+     "todos": [],
+     "status_was_defaulted": true,
+     "summary_was_defaulted": true
+    }
+   },
+   "notes": [],
+   "sent": {
+    "objective_sha256": "f8d02cfdbd029c276fe1ea913cb93359cb976162dffd9eee947479680fc54da7",
+    "objective_chars": 16384,
+    "brief_chars": 0,
+    "paths": [],
+    "model": "",
+    "temperature": 0.7,
+    "system_override_sha256": "f2b3221911e7d4535934021ebb4a9200c5e631927728aff2e72359b5219925d8",
+    "system_override_chars": 1958,
+    "policy": "default"
+   }
+  }
+ ],
+ "errors": [],
+ "meta": {
+  "tier": "scan",
+  "label": "daedalus/kairos/worktree.py [5/5]",
+  "rev": "da90d94",
+  "module": "daedalus/kairos/worktree.py",
+  "index": 5,
+  "total": 5,
+  "first_line": 1121
+ }
+}
