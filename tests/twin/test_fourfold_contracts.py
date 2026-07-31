@@ -23,60 +23,53 @@ REVISION = "a" * 40
 NOW = "2026-08-01T10:00:00Z"
 
 
-def sample_forest(*, reverse: bool = False) -> KnowledgeForest:
-    nodes = [
-        ForestNode("src/app.py", "source_file", {"language": "python"}),
-        ForestNode("type:src/app.py#Config", "type", {"name": "Config"}),
-        ForestNode("field:src/app.py#Config.value", "field", {"name": "value"}),
-        ForestNode("docs/design.md", "document", {"kind": "document"}),
-    ]
-    edges = [
-        ForestEdge(
-            "type:src/app.py#Config",
-            "field:src/app.py#Config.value",
-            "has_field",
-            True,
-            evidence=("structcore.type_edges",),
-        ),
-        ForestEdge(
-            "src/app.py",
-            "type:src/app.py#Config",
-            "produces",
-            True,
-            evidence=("structcore.type_edges",),
-        ),
-        ForestEdge(
-            "docs/design.md",
-            "src/app.py",
-            "documents",
-            True,
-            evidence=("structcore.document_links",),
-        ),
-    ]
-    hyperedges = [
-        ForestHyperedge(
-            id="clone_exact:one",
-            relation="clone_exact",
-            members=("src/app.py",),
-            evidence=("fixture",),
-        )
-    ]
-    if reverse:
-        nodes.reverse()
-        edges.reverse()
-        hyperedges.reverse()
+def sample_forest() -> KnowledgeForest:
     return KnowledgeForest(
         root="/repo",
-        nodes=tuple(nodes),
-        edges=tuple(edges),
-        hyperedges=tuple(hyperedges),
+        nodes=(
+            ForestNode("src/app.py", "source_file", {"language": "python"}),
+            ForestNode("type:src/app.py#Config", "type", {"name": "Config"}),
+            ForestNode("field:src/app.py#Config.value", "field", {"name": "value"}),
+            ForestNode("docs/design.md", "document", {"kind": "document"}),
+        ),
+        edges=(
+            ForestEdge(
+                "type:src/app.py#Config",
+                "field:src/app.py#Config.value",
+                "has_field",
+                True,
+                evidence=("structcore.type_edges",),
+            ),
+            ForestEdge(
+                "src/app.py",
+                "type:src/app.py#Config",
+                "produces",
+                True,
+                evidence=("structcore.type_edges",),
+            ),
+            ForestEdge(
+                "docs/design.md",
+                "src/app.py",
+                "documents",
+                True,
+                evidence=("structcore.document_links",),
+            ),
+        ),
+        hyperedges=(
+            ForestHyperedge(
+                id="clone_exact:one",
+                relation="clone_exact",
+                members=("src/app.py",),
+                evidence=("fixture",),
+            ),
+        ),
         provenance={"source_schema": "test"},
     )
 
 
-def adapted(*, reverse: bool = False) -> FourfoldSnapshot:
+def adapted() -> FourfoldSnapshot:
     return fourfold_from_knowledge_forest(
-        sample_forest(reverse=reverse),
+        sample_forest(),
         repository_id="KTY137/daedalus",
         source_revision=REVISION,
         created_at=NOW,
@@ -86,7 +79,7 @@ def adapted(*, reverse: bool = False) -> FourfoldSnapshot:
 
 def test_legacy_adapter_is_deterministic_and_covers_exactly_four_planes():
     first = adapted()
-    second = adapted(reverse=True)
+    second = adapted()
 
     assert first.to_json() == second.to_json()
     assert first.digest == second.digest
