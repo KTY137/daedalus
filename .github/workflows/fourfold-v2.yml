@@ -47,7 +47,7 @@ jobs:
         env:
           PYTHONHASHSEED: ${{ matrix.hash-seed }}
         run: |
-          python -m pytest -q tests/twin/test_fourfold_contracts.py tests/test_kernel_contracts.py
+          python -m pytest -q tests/twin tests/test_kernel_contracts.py
       - name: Verify wheel contains the twin package
         run: |
           python -c "import daedalus.twin; print(daedalus.twin.FOURFOLD_PLANES)"
