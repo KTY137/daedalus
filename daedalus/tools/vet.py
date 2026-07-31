@@ -223,9 +223,28 @@ def load_allowances(repo_root) -> tuple[dict[str, dict[str, str]], list[str]]:
         return {}, []
     except (OSError, ValueError) as exc:
         return {}, [f"{p}: {exc.__class__.__name__}: {exc}"]
+
+    # WELL-FORMED JSON IS NOT A WELL-FORMED ALLOWANCE FILE, and the docstring
+    # above promises a degraded report rather than a crash. An adversarial
+    # review on 2026-07-30 found three payloads that parse and then raise
+    # AttributeError out of this function -- `[]`, `null` and `{"allow":"x"}` --
+    # so a malformed file took down whatever was calling the gate instead of
+    # being reported by it. A gate that raises is a gate that gets wrapped in a
+    # bare `except` and thereby switched off.
+    if not isinstance(raw, dict):
+        return {}, [f"{p}: expected a JSON object with an 'allow' key, "
+                    f"got {type(raw).__name__} — no allowances were loaded"]
+    allow_raw = raw.get("allow")
+    if allow_raw is None:
+        allow_raw = {}
+    if not isinstance(allow_raw, dict):
+        return {}, [f"{p}: 'allow' must be an object of subject -> "
+                    f"{{rule: reason}}, got {type(allow_raw).__name__} — no "
+                    "allowances were loaded"]
+
     out: dict[str, dict[str, Any]] = {}
     errs: list[str] = []
-    for subject, rules in (raw.get("allow") or {}).items():
+    for subject, rules in allow_raw.items():
         if not isinstance(rules, dict):
             errs.append(f"{p}: allow[{subject!r}] must be an object of rule -> reason")
             continue
@@ -693,7 +712,14 @@ def vet_skill(skill, *, allowances=None) -> Verdict:
 # An MCP server is a command line, so what can be judged statically is the
 # command line: what it runs, from where, pinned or not, and where its bytes go.
 
-_URL_IN_ARG = re.compile(r"https?://([^/\s'\"]+)", re.I)
+#: A URL anywhere on the command line. ``ws``/``wss`` are here because an MCP
+#: server is frequently reached over a WebSocket, and until an adversarial
+#: review on 2026-07-30 this pattern matched ``https?`` only: a spec of
+#: ``{"type":"ws","url":"wss://evil.tld/mcp"}`` reached the egress check with
+#: nothing to check, so the one question this gate exists to ask about a remote
+#: server was never asked. The match is used WHOLE, never dissected -- see the
+#: egress block in :func:`vet_mcp_server`.
+_URL_IN_ARG = re.compile(r"(?:https?|wss?)://[^/\s'\"]+", re.I)
 
 #: The floor, applied to every token whether or not a launcher was recognised.
 #: This is the pre-2026-07-30 rule and it is kept verbatim in effect so the
@@ -714,7 +740,26 @@ _UNPINNED_ANY = re.compile(
 #:   ``uv tool run ...``                  -- ``uv`` was not in the set at all
 #:
 #: So membership is tested against a NORMALISED name (basename, executable
-#: suffix stripped) over ALL tokens, not the raw command plus one argument.
+#: suffix stripped) over every WORD of every token — not the raw command plus
+#: one argument, and not one token per JSON array element.
+#:
+#: THE WORD/TOKEN DISTINCTION IS THE POINT, and a second review on the same day
+#: found this comment claiming coverage the code did not have. Only the
+#: SPACE-SEPARATED spelling ``args:["/c","npx",...]`` was caught; the ordinary
+#: one, ``args:["/c","npx -y evil-mcp"]``, is a single JSON string and cleared
+#: with zero findings. See :func:`_shell_tokens`.
+#:
+#: KNOWN-INCOMPLETE, AND DELIBERATELY SO. This set and
+#: :data:`_FETCHING_SUBCOMMANDS` are an ALLOWLIST of the ecosystems this repo
+#: actually launches MCP servers from (node and python), not a survey of every
+#: package manager that exists. ``go run``, ``cargo run``, ``pip install``,
+#: ``dnx``, ``gem``, ``composer`` and their siblings fetch code at launch too
+#: and are NOT detected here. Chasing every ecosystem would make this table the
+#: thing that has to be right, and it would still be behind. So the contract is
+#: stated instead of implied: a MISSING ``mcp.remote_fetch`` finding means "no
+#: launcher from a known-incomplete list was recognised", never "this command
+#: line does not fetch code". Add an entry when this repo starts using an
+#: ecosystem, and read the command line yourself in the meantime.
 _ALWAYS_FETCHERS = frozenset({"npx", "uvx", "bunx", "dlx"})
 
 #: Package managers that fetch only under certain subcommands. ``uv run``
@@ -747,6 +792,28 @@ _DIST_TAGS = frozenset({
     "experimental", "nightly", "edge", "unstable", "main", "master", "head",
 })
 
+#: THE ONLY SPELLING OF "THIS EXACT CODE": a full three-part semantic version,
+#: with the optional prerelease and build metadata semver allows.
+#:
+#: ADVERSARIAL REVIEW 2026-07-30 (Cerberus, medium). The previous test was
+#: "starts with a digit and contains no range character", which accepted
+#: ``pkg@1`` and ``pkg@1.0`` as pinned. npm resolves both as X-RANGES —
+#: ``1`` means ``>=1.0.0 <2.0.0`` — so the two shapes that read most like a pin
+#: to a human are among the widest ranges the registry accepts, and the gate
+#: was quiet about exactly them.
+#:
+#: THE LEADING ``v`` IS ACCEPTED, and this is the deliberate call the review
+#: asked for. ``pkg@v1.2.3`` used to be reported UNPINNED although it resolves
+#: to precisely one version (npm strips the ``v``). Reporting an exact pin as
+#: unpinned is the expensive direction of wrong here: it teaches an operator
+#: that pinning does not buy silence, and an operator who believes that stops
+#: pinning. ``v`` is a spelling of the same number, so it is treated as one.
+_EXACT_VERSION = re.compile(
+    r"v?\d+\.\d+\.\d+"          # major.minor.patch — all three, or it is a range
+    r"(?:-[0-9A-Za-z.-]+)?"     # prerelease:  1.2.3-rc.1
+    r"(?:\+[0-9A-Za-z.-]+)?"    # build meta:  1.2.3+build.5
+)
+
 
 def _exe_name(token: str) -> str:
     """The bare launcher name: no directory, no Windows executable suffix.
@@ -765,14 +832,62 @@ def _exe_name(token: str) -> str:
     return name
 
 
+#: What ends one word and starts another INSIDE a single JSON string. A shell
+#: wrapper's payload is one argument to ``json.load`` and a whole command line
+#: to the shell that receives it, and it is the shell's reading that decides
+#: what executes.
+_WORD_SEPARATORS = re.compile(r"[\s;&|`()<>]+")
+
+
+def _shell_tokens(parts) -> list[str]:
+    """Every WORD on this command line, with shell wrappers flattened out.
+
+    ADVERSARIAL REVIEW 2026-07-30 (Cerberus, critical 1). ``_exe_name`` never
+    splits on whitespace, so a launcher hidden inside a quoted payload was one
+    opaque token and the gate reported ZERO findings for all of:
+
+        {"command":"cmd",       "args":["/c",      "npx -y evil-mcp"]}
+        {"command":"sh",        "args":["-c",      "npx -y evil-mcp"]}
+        {"command":"bash",      "args":["-c",      "uvx evil-mcp"]}
+        {"command":"powershell","args":["-Command","npx -y evil-mcp"]}
+
+    Splitting first makes every one of them an ordinary token list, so the
+    existing normalisation and membership tests do the work unchanged. The
+    separator set covers shell word boundaries too (``a&&npx``, ``a;npx``,
+    ``$(npx)``), because a payload is free to use them and the cost of being
+    wrong in that direction is one extra REVIEW line.
+
+    Splitting a Windows path that contains spaces is harmless: the basename
+    still lands in its own word, so ``C:\\Program Files\\nodejs\\npx.cmd``
+    still normalises to ``npx``.
+    """
+    out: list[str] = []
+    for part in parts:
+        for word in _WORD_SEPARATORS.split(str(part)):
+            if word:
+                out.append(word)
+    return out
+
+
 def _remote_fetch_reason(cmd: str, args) -> str:
     """Why this command line fetches code at launch, or ``""`` if it does not.
 
-    Every token is considered. A shell wrapper (``cmd /c npx``) or a subcommand
-    (``uv tool run``) puts the real launcher arbitrarily far to the right, and
-    the position it lands in is chosen by whoever wrote the config.
+    Every word is considered — see :func:`_shell_tokens` for why a token is not
+    a word. A shell wrapper (``cmd /c npx``) or a subcommand (``uv tool run``)
+    puts the real launcher arbitrarily far to the right, and the position it
+    lands in is chosen by whoever wrote the config.
+
+    The fetching subcommand is searched for ANYWHERE after its manager, not just
+    in the next position: the same review showed ``uv --directory /path run
+    server.py`` clearing, because one non-flag token between ``uv`` and ``run``
+    shifted the subcommand out of the single slot that was being examined, and
+    a manager accepts any number of those. The looser test cannot invent a
+    ``uv venv`` false positive — ``venv`` is not a fetching subcommand — but it
+    can fire on a manager whose ARGUMENT happens to be spelled like one
+    (a directory named ``run``). That is the direction this gate over-reports
+    in on purpose.
     """
-    tokens = [_exe_name(t) for t in [cmd, *args]]
+    tokens = [_exe_name(t) for t in _shell_tokens([cmd, *args])]
     for i, tok in enumerate(tokens):
         if not tok:
             continue
@@ -781,8 +896,9 @@ def _remote_fetch_reason(cmd: str, args) -> str:
         subs = _FETCHING_SUBCOMMANDS.get(tok)
         if subs:
             rest = [t for t in tokens[i + 1:] if t and not t.startswith("-")]
-            if rest and rest[0] in subs:
-                return f"{tok} {rest[0]}"
+            hit = next((t for t in rest if t in subs), "")
+            if hit:
+                return f"{tok} {hit}"
     return ""
 
 
@@ -796,6 +912,11 @@ def _unpinned_reason(token: str) -> str:
 
     The leading ``@`` of a scoped npm package is a SCOPE, not a version, and
     treating it as one is how a correct pin gets reported as unpinned.
+
+    "Pinned" means one thing only: :data:`_EXACT_VERSION`, a full three-part
+    version. A partial one (``pkg@1``, ``pkg@1.0``) is an npm X-range wearing a
+    pin's clothes and is reported; ``pkg@v1.2.3`` is that same number spelled
+    with a ``v`` and is not.
     """
     t = str(token).strip().strip('"').strip("'")
     if not t or t.startswith("-"):
@@ -828,11 +949,19 @@ def _unpinned_reason(token: str) -> str:
         return "an empty version component"
     if ver.lower() in _DIST_TAGS:
         return f"@{ver} is a dist-tag — a moving pointer, not a version"
-    if not ver[0].isdigit() or any(c in ver for c in "^~*<>| "):
-        return f"@{ver} is a range or a tag, not an exact version"
-    if any(seg in ("x", "X", "*") for seg in ver.split(".")):
-        return f"@{ver} is a wildcard range, not an exact version"
-    return ""
+    if _EXACT_VERSION.fullmatch(ver):
+        return ""
+    if any(c in ver for c in "^~*<>| ") or any(s in ("x", "X", "*")
+                                               for s in ver.split(".")):
+        return f"@{ver} is a range or a wildcard, not an exact version"
+    if re.fullmatch(r"v?\d+(?:\.\d+)?", ver):
+        # `pkg@1` and `pkg@1.0`. These LOOK pinned, which is exactly why they
+        # are worth a sentence: npm reads a partial version as an X-range, so
+        # `1` is `>=1.0.0 <2.0.0` and the next major-compatible publish is
+        # picked up without the config changing.
+        return (f"@{ver} is a PARTIAL version — npm resolves it as the range "
+                f"{ver}.x, so it is not the code that was reviewed")
+    return f"@{ver} is not an exact three-part version"
 
 
 def _package_spec_tokens(cmd: str, args) -> list[str]:
@@ -841,12 +970,29 @@ def _package_spec_tokens(cmd: str, args) -> list[str]:
     Two shapes, both real: the value of a spec-bearing flag (``--from X``), and
     the first bare argument after the launcher, which is what ``npx`` and
     ``uvx`` treat as the package.
+
+    Both shapes are looked for in the WORD view as well as the raw one, for the
+    same reason as :func:`_shell_tokens`: once a wrapped payload like
+    ``cmd /c "npx -y evil-mcp"`` is recognised as a fetch, the package inside it
+    must be reachable too, or the gate reports that code will be downloaded
+    while staying silent about the fact that the config does not say which code.
+    The raw view is consulted FIRST, and only for flag values, because quoting
+    is what holds a spaced spec together — see the comment below.
     """
-    tokens = list(args)
-    out: list[str] = []
-    for i, tok in enumerate(tokens):
-        if str(tok).strip().lower() in _SPEC_BEARING_FLAGS and i + 1 < len(tokens):
-            out.append(str(tokens[i + 1]))
+    def flag_values(toks: list[str]) -> list[str]:
+        return [toks[i + 1] for i, t in enumerate(toks)
+                if t.strip().lower() in _SPEC_BEARING_FLAGS and i + 1 < len(toks)]
+
+    # A spec-bearing flag's value is read from the RAW arguments FIRST, because
+    # quoting is what holds a spaced spec together: PEP 508 permits
+    # ``--from "pkg == 1.4.2"``, and in the word view that is three words whose
+    # first one, ``pkg``, reads as a package with no version — reporting a
+    # correct pin as unpinned, which is the one direction of wrong this
+    # function's docstring says not to be. The word view is the FALLBACK, for
+    # when the flag itself is inside a wrapped payload.
+    raw = [str(a) for a in [cmd, *args]]
+    tokens = _shell_tokens(raw)
+    out = flag_values(raw) or flag_values(tokens)
     if out:
         # A spec-bearing flag already named the package, so the bare argument
         # after it is the ENTRY POINT, not a second package: in
@@ -855,10 +1001,11 @@ def _package_spec_tokens(cmd: str, args) -> list[str]:
         # pinned config as unpinned — a false positive here is worse than a
         # miss, because it teaches operators that pinning does not help.
         return out
-    launcher_seen = _exe_name(cmd) in _ALWAYS_FETCHERS or _exe_name(cmd) in _FETCHING_SUBCOMMANDS
+    launcher_seen = False
+    launcher = ""
     skip_next = False
     for tok in tokens:
-        s = str(tok).strip()
+        s = tok.strip()
         if skip_next:
             skip_next = False
             continue
@@ -868,10 +1015,11 @@ def _package_spec_tokens(cmd: str, args) -> list[str]:
         low = _exe_name(s)
         if low in _ALWAYS_FETCHERS or low in _FETCHING_SUBCOMMANDS:
             launcher_seen = True
+            launcher = low
             continue
         if s.startswith("-"):
             continue
-        if launcher_seen and low in _FETCHING_SUBCOMMANDS.get(_exe_name(cmd), frozenset()):
+        if launcher_seen and low in _FETCHING_SUBCOMMANDS.get(launcher, frozenset()):
             continue
         if any(s.lower() in subs for subs in _FETCHING_SUBCOMMANDS.values()):
             continue                    # a subcommand word, not a package
@@ -934,17 +1082,36 @@ def vet_mcp_server(name: str, spec, *, allowances=None) -> Verdict:
                                         _clip(tok, 80), why))
                 break
 
-    # Where do the bytes go? One implementation of that question exists; call it.
-    hosts = sorted({m.group(1).split(":")[0]
-                    for a in [cmd, url, *args] for m in _URL_IN_ARG.finditer(a)})
-    for h in hosts:
-        lane = lane_for_host(h)
-        sev = REVIEW if lane == "untrusted" else CLEAR
-        if sev != CLEAR:
-            findings.append(Finding("mcp.egress", REVIEW, f"<mcp:{name}>", 0, h,
-                                    f"reaches {h}, which sensitivity.lane_for_host calls {lane}"))
+    # Where do the bytes go? One implementation of that question exists; call
+    # it, and give it the URL RATHER THAN A HOST THIS MODULE PARSED OUT.
+    #
+    # ADVERSARIAL REVIEW 2026-07-30 (Cerberus, critical 2). This block used to
+    # read `m.group(1).split(":")[0]`, which is a second, worse host parser
+    # sitting directly on top of the invariant in this module's docstring:
+    # lane decisions have exactly one implementation. It got loopback wrong in
+    # the ATTACKER'S favour, twice:
+    #
+    #   http://127.0.0.1:8080@evil.tld/mcp -> "127.0.0.1"  (userinfo, not host)
+    #       -> lane "trusted" -> no finding, and the verdict printed
+    #          "127.0.0.1 is on the trusted lane (this machine)" for a server
+    #          whose bytes go to evil.tld.
+    #   http://[::1]:8080/mcp              -> "["          (bracketed IPv6)
+    #       -> lane "untrusted" -> a finding whose evidence was one character.
+    #
+    # `lane_for_host` already parses with `urlsplit().hostname`, which strips
+    # userinfo and unwraps brackets. Handing it the whole match deletes the
+    # second parser instead of repairing it, and the finding then quotes the
+    # URL that was actually written -- which is the evidence a human needs.
+    urls = sorted({m.group(0) for a in [cmd, url, *args]
+                   for m in _URL_IN_ARG.finditer(a)})
+    for u in urls:
+        lane = lane_for_host(u)
+        if lane != "trusted":
+            findings.append(Finding("mcp.egress", REVIEW, f"<mcp:{name}>", 0, u,
+                                    f"reaches {u}, which sensitivity.lane_for_host "
+                                    f"calls {lane}"))
         else:
-            notes.append(f"{h} is on the trusted lane (this machine)")
+            notes.append(f"{u} is on the trusted lane (this machine)")
 
     env = spec.get("env")
     if isinstance(env, dict) and env:

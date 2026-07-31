@@ -431,8 +431,16 @@ class RemoteFetchDetection(unittest.TestCase):
         v = vet.vet_mcp_server("w", {"command": "/usr/local/bin/npx", "args": ["thing@1.0.0"]})
         self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
 
-    def test_shell_wrapper_puts_the_launcher_at_args_one(self):
-        """``cmd /c npx ...`` — the real launcher is ``args[1]``, not ``command``."""
+    def test_shell_wrapper_split_across_separate_json_array_elements(self):
+        """``cmd /c npx ...`` — the real launcher is ``args[1]``, not ``command``.
+
+        NAMED FOR WHAT IT ACTUALLY COVERS. This was called
+        ``test_shell_wrapper_puts_the_launcher_at_args_one`` and read as proof
+        that shell wrappers were handled, while testing only the spelling where
+        the payload is ALREADY split into array elements. The ordinary spelling
+        — one quoted string — was uncovered and evaded the gate entirely; it is
+        pinned in :class:`ShellWrapperPayloadIsNotOneToken` below.
+        """
         v = vet.vet_mcp_server("w", {"command": "cmd", "args": ["/c", "npx", "-y", "thing@1.0.0"]})
         self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
 
@@ -614,6 +622,335 @@ class LiveRepoConfig(unittest.TestCase):
         self.assertIn("context7", servers, "this test pins the exact live entry the gate must catch")
         v = vet.vet_mcp_server("context7", servers["context7"])
         self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+
+class ShellWrapperPayloadIsNotOneToken(unittest.TestCase):
+    """CERBERUS 2026-07-30, CRITICAL 1. ``_exe_name`` normalised each JSON array
+    element as one token and never split on whitespace, so a launcher inside a
+    quoted shell payload was invisible: every spec below cleared with ZERO
+    findings. This is not an exotic spelling — it is how a shell wrapper is
+    ordinarily written."""
+
+    def _rules(self, spec):
+        return {f.rule for f in vet.vet_mcp_server("w", spec).findings}
+
+    def test_cmd_slash_c_with_the_whole_command_as_one_argument(self):
+        r = self._rules({"command": "cmd", "args": ["/c", "npx -y evil-mcp"]})
+        self.assertIn("mcp.remote_fetch", r,
+                      "the launcher inside a quoted payload must still be seen")
+
+    def test_sh_dash_c(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "sh", "args": ["-c", "npx -y evil-mcp"]}))
+
+    def test_bash_dash_c_with_uvx(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "bash", "args": ["-c", "uvx evil-mcp"]}))
+
+    def test_powershell_dash_command(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "powershell",
+                                   "args": ["-Command", "npx -y evil-mcp"]}))
+
+    def test_a_shell_separator_is_a_word_boundary_too(self):
+        """A payload is free to use ``;`` or ``&&`` instead of a leading space."""
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "sh", "args": ["-c", "echo hi&&npx -y evil-mcp"]}))
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "sh", "args": ["-c", "cd /tmp;uvx evil-mcp"]}))
+
+    def test_the_package_inside_the_payload_is_judged_too(self):
+        """Reporting that code will be fetched while staying silent about WHICH
+        code leaves the operator with half the question answered."""
+        v = vet.vet_mcp_server("w", {"command": "cmd", "args": ["/c", "npx -y evil-mcp"]})
+        unpinned = [f for f in v.findings if f.rule == "mcp.unpinned"]
+        self.assertTrue(unpinned, "the package spec inside the payload must be reachable")
+        self.assertIn("evil-mcp", unpinned[0].excerpt)
+
+    def test_quotes_inside_the_payload_do_not_hide_the_launcher(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "cmd", "args": ["/c", '"npx" -y evil-mcp']}))
+
+    def test_a_windows_path_with_spaces_still_resolves_to_its_basename(self):
+        """Splitting on whitespace must not lose a launcher whose own path
+        contains a space — the basename still lands in its own word."""
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": r"C:\Program Files\nodejs\npx.cmd",
+                                   "args": ["thing@1.2.3"]}))
+
+    def test_a_wrapper_that_launches_nothing_remote_stays_quiet(self):
+        """The split must not turn every shell wrapper into a finding."""
+        self.assertNotIn("mcp.remote_fetch",
+                         self._rules({"command": "sh", "args": ["-c", "node ./server.js"]}))
+
+    def test_a_quoted_spec_that_contains_spaces_survives_the_split(self):
+        """PEP 508 permits ``--from "pkg == 1.4.2"``, and quoting is what holds
+        that spec together. Splitting it into words hands back ``pkg`` — a
+        package with no version — so an exactly pinned config reports as
+        UNPINNED, the one direction of wrong ``_unpinned_reason`` exists to
+        avoid. Caught while reviewing the CRITICAL 1 fix, not by the review."""
+        v = vet.vet_mcp_server("w", {"command": "uvx",
+                                     "args": ["--from", "pkg == 1.4.2", "srv"]})
+        self.assertEqual([f for f in v.findings if f.rule == "mcp.unpinned"], [],
+                         "an exact pin must stay quiet however it is spaced")
+
+    def test_a_spec_flag_inside_a_wrapped_payload_is_still_read(self):
+        v = vet.vet_mcp_server("w", {"command": "cmd",
+                                     "args": ["/c", "uvx --from pkg==1.4.2 srv"]})
+        self.assertIn("mcp.remote_fetch", {f.rule for f in v.findings})
+        self.assertEqual([f for f in v.findings if f.rule == "mcp.unpinned"], [],
+                         "the wrapped spec is exactly pinned and must stay quiet")
+
+    def test_an_unpinned_spec_flag_inside_a_wrapped_payload_is_reported(self):
+        v = vet.vet_mcp_server("w", {"command": "cmd",
+                                     "args": ["/c", "uvx --from pkg srv"]})
+        self.assertIn("mcp.unpinned", {f.rule for f in v.findings})
+
+
+class EgressLaneHasExactlyOneImplementation(unittest.TestCase):
+    """CERBERUS 2026-07-30, CRITICAL 2. ``vet_mcp_server`` re-derived the host
+    with ``m.group(1).split(':')[0]`` — a second host parser sitting on top of
+    the invariant in vet.py's own docstring — and it got loopback wrong in the
+    attacker's favour."""
+
+    def _egress(self, spec):
+        return [f for f in vet.vet_mcp_server("t", spec).findings if f.rule == "mcp.egress"]
+
+    def test_userinfo_does_not_make_an_off_machine_host_read_as_loopback(self):
+        """``http://127.0.0.1:8080@evil.tld/mcp`` — everything before the ``@``
+        is USERINFO. The naive split read the host as 127.0.0.1, put the server
+        on the trusted lane, and printed "127.0.0.1 is on the trusted lane
+        (this machine)" about bytes going to evil.tld."""
+        spec = {"type": "http", "url": "http://127.0.0.1:8080@evil.tld/mcp"}
+        egress = self._egress(spec)
+        self.assertTrue(egress, "the real host is evil.tld and it is not this machine")
+        self.assertIn("evil.tld", egress[0].excerpt)
+        v = vet.vet_mcp_server("t", spec)
+        self.assertFalse([n for n in v.notes if "trusted lane" in n],
+                         "no part of this server may be described as local")
+
+    def test_userinfo_in_an_argument_is_caught_the_same_way(self):
+        egress = self._egress({"command": "node",
+                               "args": ["--url", "http://127.0.0.1:8080@evil.tld/mcp"]})
+        self.assertTrue(egress)
+        self.assertIn("evil.tld", egress[0].excerpt)
+
+    def test_a_bracketed_ipv6_loopback_is_loopback(self):
+        """The same split produced the host ``"["`` for ``http://[::1]:8080``:
+        a finding whose entire evidence was one character. ``lane_for_host``
+        unwraps the brackets and calls ``::1`` what it is."""
+        self.assertEqual(self._egress({"type": "http", "url": "http://[::1]:8080/mcp"}), [])
+
+    def test_a_plain_loopback_host_is_still_quiet(self):
+        self.assertEqual(self._egress({"command": "node",
+                                       "args": ["server.js", "http://127.0.0.1:11434"]}), [])
+
+    def test_the_module_does_not_dissect_a_url_itself(self):
+        """The structural half of the invariant: a behavioural test can only
+        cover the shapes someone thought of, so pin that the second parser is
+        GONE rather than merely outvoted."""
+        src = Path("daedalus/tools/vet.py").read_text(encoding="utf-8")
+        # Comments are stripped: the fix documents the defect by quoting the
+        # code it removed, and a naive search would match that epitaph.
+        body = "\n".join(ln for ln in src.split("def vet_mcp_server", 1)[-1].splitlines()
+                         if not ln.lstrip().startswith("#"))
+        self.assertNotIn('.split(":")[0]', body,
+                         "host parsing belongs to sensitivity.lane_for_host alone")
+        self.assertNotIn("group(1)", body,
+                         "the URL match is passed whole; dissecting it is the defect")
+
+
+class WebSocketUrlsReachTheEgressCheck(unittest.TestCase):
+    """CERBERUS 2026-07-30, LOW. ``_URL_IN_ARG`` matched ``https?://`` only, so
+    an MCP server reached over a WebSocket — a normal way to run one — never had
+    the egress question asked about it at all."""
+
+    def _egress(self, spec):
+        return [f for f in vet.vet_mcp_server("t", spec).findings if f.rule == "mcp.egress"]
+
+    def test_a_ws_url_is_judged(self):
+        egress = self._egress({"type": "ws", "url": "ws://evil.tld/mcp"})
+        self.assertTrue(egress)
+        self.assertIn("evil.tld", egress[0].excerpt)
+
+    def test_a_wss_url_is_judged(self):
+        self.assertTrue(self._egress({"type": "ws", "url": "wss://evil.tld/mcp"}))
+
+    def test_a_wss_url_in_an_argument_is_judged(self):
+        self.assertTrue(self._egress({"command": "node",
+                                      "args": ["--endpoint", "wss://evil.tld/mcp"]}))
+
+    def test_a_loopback_websocket_is_not_flagged(self):
+        self.assertEqual(self._egress({"type": "ws", "url": "ws://127.0.0.1:8080/mcp"}), [])
+
+
+class FetchingSubcommandIsFoundAnywhereAfterItsManager(unittest.TestCase):
+    """CERBERUS 2026-07-30, HIGH. Only the FIRST non-flag token after the
+    package manager was tested against ``_FETCHING_SUBCOMMANDS``, so any
+    non-flag token in between shifted the subcommand out of view — and a manager
+    accepts arbitrarily many of those."""
+
+    def _rules(self, spec):
+        return {f.rule for f in vet.vet_mcp_server("w", spec).findings}
+
+    def test_uv_directory_flag_before_run(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "uv",
+                                   "args": ["--directory", "/path", "run", "server.py"]}))
+
+    def test_npm_prefix_flag_before_exec(self):
+        self.assertIn("mcp.remote_fetch",
+                      self._rules({"command": "npm", "args": ["--prefix", "/p", "exec", "pkg"]}))
+
+    def test_uv_venv_is_still_not_a_fetch(self):
+        """The looser search cannot invent this false positive: ``venv`` is not
+        in ``uv``'s fetching set, so no amount of looking finds it there."""
+        self.assertNotIn("mcp.remote_fetch", self._rules({"command": "uv", "args": ["venv"]}))
+
+    def test_uv_venv_behind_a_flag_is_still_not_a_fetch(self):
+        self.assertNotIn("mcp.remote_fetch",
+                         self._rules({"command": "uv", "args": ["--directory", "/p", "venv"]}))
+
+
+class PartialVersionsAreRangesNotPins(unittest.TestCase):
+    """CERBERUS 2026-07-30, MED. ``pkg@1`` and ``pkg@1.0`` passed the old test
+    ("starts with a digit, contains no range character") and were reported as
+    pinned. npm resolves both as X-ranges, so the two shapes that read most like
+    a pin to a human were among the widest ranges the registry accepts."""
+
+    def _unpinned(self, token):
+        v = vet.vet_mcp_server("w", {"command": "npx", "args": ["-y", token]})
+        return [f for f in v.findings if f.rule == "mcp.unpinned"]
+
+    def test_major_only_is_a_range(self):
+        hit = self._unpinned("pkg@1")
+        self.assertTrue(hit, "npm reads `1` as >=1.0.0 <2.0.0")
+        self.assertIn("PARTIAL", hit[0].why)
+
+    def test_major_minor_is_a_range(self):
+        self.assertTrue(self._unpinned("pkg@1.0"), "npm reads `1.0` as >=1.0.0 <1.1.0")
+
+    def test_a_partial_version_on_a_scoped_package_is_a_range(self):
+        self.assertTrue(self._unpinned("@scope/pkg@1"))
+
+    def test_a_full_three_part_version_stays_pinned(self):
+        self.assertEqual(self._unpinned("pkg@1.2.3"), [])
+
+    def test_a_prerelease_version_stays_pinned(self):
+        self.assertEqual(self._unpinned("pkg@1.2.3-rc.1"), [])
+
+    def test_build_metadata_stays_pinned(self):
+        self.assertEqual(self._unpinned("pkg@1.2.3+build.5"), [])
+
+    def test_a_scoped_package_pinned_exactly_stays_pinned(self):
+        self.assertEqual(self._unpinned("@scope/pkg@1.2.3"), [])
+
+    def test_a_leading_v_is_the_same_number_and_is_pinned(self):
+        """THE DECISION, recorded because the review asked for one either way:
+        ``pkg@v1.2.3`` resolves to exactly one version (npm strips the ``v``)
+        and used to be reported UNPINNED. Calling an exact pin unpinned is the
+        expensive direction of wrong — it teaches an operator that pinning buys
+        nothing — so the ``v`` spelling is accepted. Documented at
+        ``vet._EXACT_VERSION``."""
+        self.assertEqual(self._unpinned("pkg@v1.2.3"), [])
+
+    def test_a_dist_tag_keeps_its_own_wording(self):
+        """``@unstable`` rather than ``@latest``: the ``_UNPINNED_ANY`` floor
+        catches ``@latest`` before ``_unpinned_reason`` is ever consulted, so it
+        would prove nothing about the branch under test here."""
+        hit = self._unpinned("pkg@unstable")
+        self.assertTrue(hit)
+        self.assertIn("dist-tag", hit[0].why)
+
+    def test_a_tag_that_is_neither_a_version_nor_a_known_dist_tag_is_reported(self):
+        hit = self._unpinned("pkg@my-branch-build")
+        self.assertTrue(hit, "anything that is not an exact version is not a pin")
+
+
+class MalformedAllowanceFileDegradesTheReport(unittest.TestCase):
+    """CERBERUS 2026-07-30, MED. vet.py promises a degraded report and never a
+    crash, but ``load_allowances`` raised AttributeError on JSON that PARSES and
+    is simply not the expected shape. A gate that raises is a gate that gets
+    wrapped in a bare ``except`` and thereby switched off."""
+
+    def _load(self, payload: str):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".agentenv").mkdir(parents=True, exist_ok=True)
+            (root / vet.ALLOWANCE_PATH).write_text(payload, encoding="utf-8")
+            return vet.load_allowances(root)
+
+    def test_a_top_level_list_is_an_error_not_an_exception(self):
+        allow, errs = self._load("[]")
+        self.assertEqual(allow, {})
+        self.assertTrue(errs, "the operator must be told the file was not used")
+
+    def test_a_top_level_null_is_an_error_not_an_exception(self):
+        allow, errs = self._load("null")
+        self.assertEqual(allow, {})
+        self.assertTrue(errs)
+
+    def test_a_top_level_scalar_is_an_error_not_an_exception(self):
+        for payload in ("42", '"a string"', "true"):
+            with self.subTest(payload=payload):
+                allow, errs = self._load(payload)
+                self.assertEqual(allow, {})
+                self.assertTrue(errs)
+
+    def test_a_string_allow_value_is_an_error_not_an_exception(self):
+        allow, errs = self._load('{"allow": "x"}')
+        self.assertEqual(allow, {})
+        self.assertTrue(any("allow" in e for e in errs), errs)
+
+    def test_a_list_allow_value_is_reported_rather_than_read_as_empty(self):
+        """``[]`` is falsy, so the old ``(raw.get("allow") or {})`` turned a
+        malformed file into a silent empty allowance set — indistinguishable
+        from a correct file that acknowledges nothing."""
+        allow, errs = self._load('{"allow": []}')
+        self.assertEqual(allow, {})
+        self.assertTrue(errs)
+
+    def test_an_absent_allow_key_is_not_an_error(self):
+        self.assertEqual(self._load('{"note": "nothing acknowledged yet"}'), ({}, []))
+
+    def test_an_explicitly_null_allow_key_is_not_an_error(self):
+        self.assertEqual(self._load('{"allow": null}'), ({}, []))
+
+    def test_a_valid_file_still_loads(self):
+        allow, errs = self._load('{"allow": {"room": {"exec.subprocess": "launches CLIs"}}}')
+        self.assertEqual(errs, [])
+        self.assertEqual(allow["room"]["exec.subprocess"], "launches CLIs")
+
+
+class TheFetcherSetSaysItIsIncomplete(unittest.TestCase):
+    """CERBERUS 2026-07-30, MED (docstring honesty). The launcher tables cover
+    the node and python ecosystems this repo actually uses and nothing else. The
+    defect was never the gap — it was a comment that read as a survey. Both
+    halves are pinned here: the written admission, and the gap itself as
+    RETAINED NEGATIVE EVIDENCE."""
+
+    def test_the_incompleteness_is_stated_where_the_table_is_defined(self):
+        src = Path("daedalus/tools/vet.py").read_text(encoding="utf-8")
+        doc = src.split("_ALWAYS_FETCHERS = ", 1)[0].rsplit("#: Launchers whose", 1)[-1]
+        self.assertIn("KNOWN-INCOMPLETE", doc,
+                      "the table must not read as a survey of every package manager")
+        for missing in ("go run", "cargo run", "pip install", "dnx"):
+            self.assertIn(missing, doc,
+                          f"{missing!r} fetches at launch and is not detected — say so")
+
+    def test_the_documented_gap_is_real(self):
+        """If someone closes one of these, this test fails and they must update
+        the comment in the same beat — which is the whole point of pinning a
+        known gap rather than leaving it implied."""
+        for spec in ({"command": "go", "args": ["run", "./server"]},
+                     {"command": "cargo", "args": ["run", "--bin", "server"]},
+                     {"command": "pip", "args": ["install", "server"]},
+                     {"command": "dnx", "args": ["server"]}):
+            with self.subTest(command=spec["command"]):
+                rules = {f.rule for f in vet.vet_mcp_server("w", spec).findings}
+                self.assertNotIn("mcp.remote_fetch", rules,
+                                 "undetected today and DOCUMENTED as undetected; "
+                                 "closing this gap means updating _ALWAYS_FETCHERS' comment")
 
 
 if __name__ == "__main__":  # pragma: no cover
