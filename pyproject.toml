@@ -45,4 +45,5 @@ packages = [
     "daedalus.spine",
     "daedalus.council",
     "daedalus.mapping",
+    "daedalus.twin",
 ]
