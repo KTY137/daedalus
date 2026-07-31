@@ -129,6 +129,13 @@ def main(argv: list[str] | None = None) -> int:
                          "type_nodes, type_edges). Additive -- no existing key "
                          "moves -- but it adds forest nodes and relation layers, "
                          "so it is off by default. Env: DAEDALUS_INDEX_TYPES=1.")
+    ap.add_argument("--lpg", type=str, default=None, metavar="PATH",
+                    help="write the labeled-property-graph PROJECTION of the "
+                         "forest to this JSON path. A disposable lens for LPG "
+                         "tooling (GQL / SQL-PGQ / Neo4j import), bound to its "
+                         "forest by content hash; never a store. Composes with "
+                         "--documents/--types, which decide what the forest "
+                         "carries.")
     args = ap.parse_args(argv)
 
     idx = build_index(args.repo, max_files=args.max_files, center=args.center,
@@ -137,6 +144,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         Path(args.json).write_text(json.dumps(idx, indent=1), encoding="utf-8")
         print(f"wrote {args.json}")
+    if args.lpg:
+        from .forest import build_knowledge_forest
+        from .lpg import to_lpg, write_lpg
+
+        lpg = to_lpg(build_knowledge_forest(idx))
+        digest = write_lpg(lpg, args.lpg)
+        n_hyper = sum(1 for n in lpg["nodes"] if "hyperedge" in n["labels"])
+        print(f"wrote {args.lpg} (lpg {digest[:16]}, forest "
+              f"{lpg['forest_sha256'][:16]}, {len(lpg['nodes'])} nodes of which "
+              f"{n_hyper} reified hyperedges, {len(lpg['relationships'])} "
+              f"relationships)")
     print_summary(idx)
     return 0
 

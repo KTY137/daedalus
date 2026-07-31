@@ -102,6 +102,24 @@ from docs/research/TYPE_GRAPH_AND_KNOWLEDGE_SPACE_PLAN.md research sweep].
 That is the bet, and Gate 2's ablation requirement is the instrument that
 falsifies it cheaply before Gate 3 scales it.
 
+### 1.1 Property graphs: the unification question, answered in code (2026-07-31)
+
+The owner asked whether property graphs should unify the graph structure. The
+answer implemented the same day: **the Forest stays the unifier — it is
+already property-graph-shaped and strictly richer (first-class layers, native
+hyperedges, content-addressed snapshots) — and the LPG becomes an explicit,
+tested, disposable PROJECTION** (`daedalus/structcore/lpg.py`,
+`python -m daedalus.structcore <repo> --lpg out.json`). No graph-database
+engine: a mutable store would reintroduce the partial-graph-state problem
+invariant 6 closes, and non-deterministic storage would break receipt
+hashing. The projection reifies hyperedges instead of expanding fake cliques,
+keeps undirected edges single, attaches the plane as a derived property
+(under-reporting unknown kinds), and binds to its source forest by content
+hash. [MEASURED 2026-07-31: daedalus/ → 2,714 LPG nodes of which 114 reified
+hyperedges, 4,171 relationships; deterministic bytes; 11 regression tests.]
+If Cypher/GQL querying is ever wanted, the projection loads read-only into an
+embedded engine (SQL/PGQ-class) as a Gate 2 experiment — never as identity.
+
 ## 2. The product sentence, mapped onto the three names
 
 *"A codebase builder with integrated documentation, knowledge management and
