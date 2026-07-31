@@ -47,7 +47,7 @@ runtime probes, and owner decisions remain the evidence/promotion boundary.
 
 ## WP-00 — Fourfold snapshot foundation
 
-Status: implemented in draft PR #1; CI and review in progress.
+Status: implemented in draft PR #1; builder verification and amendment transaction passed; independent PR checks rerunning.
 
 Scope:
 
@@ -236,6 +236,10 @@ boundary, failure mode, replacement path, and measured benefit.
 - Base: `experimental`
 - Draft PR: #1
 - Fourfold matrix: Python 3.10/3.12 x two hash seeds
-- Known blocker discovered: historical adoption fixture copied the current plan
-  as its pre-adoption base; revision-2 amendment corrects it to use pinned Git
-  history.
+- Fourfold contract matrix passed before the plan amendment.
+- The amendment transaction ran Iron Plan verification, the full governance
+  contract suite, and focused Fourfold/kernel tests before committing.
+- The historical adoption fixture now uses pinned Git history rather than
+  copying the current plan as its pre-adoption base.
+- Independent PR checks must still complete on an owner-authored commit before
+  WP-00 can be reviewed as green.
