@@ -12,7 +12,9 @@ Daedalus is developed through one active Work Packet at a time. Each packet has
 one major architectural axis, one acceptance matrix, one builder, one independent
 review pass, and one explicit owner decision. A packet may be split into smaller
 commits, but its PR must not mix unrelated feature work, broad cleanup, dependency
-migration, evaluator changes, or policy amendments.
+migration, evaluator changes, or policy amendments. The owner-requested revision-2
+amendment in WP-00 is a one-time foundational exception, retained as its own atomic
+commit and review unit because it defines the Work-Packet chain itself.
 
 Every packet follows:
 
@@ -47,7 +49,7 @@ runtime probes, and owner decisions remain the evidence/promotion boundary.
 
 ## WP-00 — Fourfold snapshot foundation
 
-Status: implemented in draft PR #1; builder verification and amendment transaction passed; independent PR checks rerunning.
+Status: implemented and builder-verified in PR #1; required CI is green; independent review and explicit owner decision remain open.
 
 Scope:
 
@@ -235,11 +237,13 @@ boundary, failure mode, replacement path, and measured benefit.
 - Branch: `core/fourfold-v2`
 - Base: `experimental`
 - Draft PR: #1
-- Fourfold matrix: Python 3.10/3.12 x two hash seeds
-- Fourfold contract matrix passed before the plan amendment.
-- The amendment transaction ran Iron Plan verification, the full governance
-  contract suite, and focused Fourfold/kernel tests before committing.
+- Fourfold matrix: Python 3.10/3.12 x two hash seeds, all green.
+- Iron Plan history/contract workflow: green.
+- The revision-2 amendment transaction ran Iron Plan verification, the full
+  governance contract suite, and focused Fourfold/kernel tests before commit.
 - The historical adoption fixture now uses pinned Git history rather than
   copying the current plan as its pre-adoption base.
-- Independent PR checks must still complete on an owner-authored commit before
-  WP-00 can be reviewed as green.
+- Adversarial builder review found and fixed an assurance escalation: a legacy
+  cross-plane edge without retained evidence is now refused rather than marked
+  `verified`; regression tests run in the complete `tests/twin` package.
+- Independent architecture/security review and owner decision remain open.
